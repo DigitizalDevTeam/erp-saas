@@ -1,0 +1,58 @@
+@extends('layouts.admin')
+@section('page-title')
+    {{ __('Edit Table') }}
+@endsection
+@section('breadcrumb')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('pos-table.index') }}">{{ __('POS Tables') }}</a></li>
+    <li class="breadcrumb-item">{{ __('Edit') }}</li>
+@endsection
+
+@section('content')
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    {{ Form::model($pos_table, ['route' => ['pos-table.update', $pos_table->id], 'method' => 'PUT', 'class' => 'needs-validation', 'novalidate']) }}
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="form-group">
+                                {{ Form::label('branch_id', __('Branch'), ['class' => 'form-label']) }} <x-required></x-required>
+                                {{ Form::select('branch_id', $branches, $pos_table->branch_id, ['class' => 'form-control select', 'required' => 'required']) }}
+                            </div>
+                        </div>
+                        <div class="col-12 mt-3">
+                            <div class="form-group">
+                                {{ Form::label('area_id', __('Area'), ['class' => 'form-label']) }} <x-required></x-required>
+                                {{ Form::select('area_id', $areas, $pos_table->area_id, ['class' => 'form-control select', 'required' => 'required']) }}
+                            </div>
+                        </div>
+                        <div class="col-12 mt-3">
+                            <div class="form-group">
+                                {{ Form::label('name', __('Table Name'), ['class' => 'form-label']) }} <x-required></x-required>
+                                {{ Form::text('name', null, ['class' => 'form-control', 'required' => 'required']) }}
+                            </div>
+                        </div>
+                        <div class="col-12 mt-3">
+                            <div class="form-group">
+                                {{ Form::label('capacity', __('Capacity'), ['class' => 'form-label']) }}
+                                {{ Form::number('capacity', null, ['class' => 'form-control', 'min' => 1]) }}
+                            </div>
+                        </div>
+                        <div class="col-12 mt-3">
+                            <div class="form-group">
+                                {{ Form::label('status', __('Status'), ['class' => 'form-label']) }}
+                                {{ Form::select('status', ['available' => __('Available'), 'occupied' => __('Occupied'), 'reserved' => __('Reserved')], $pos_table->status, ['class' => 'form-control select']) }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">{{ __('Update') }}</button>
+                        <a href="{{ route('pos-table.index') }}" class="btn btn-secondary">{{ __('Cancel') }}</a>
+                    </div>
+                    {{ Form::close() }}
+                </div>
+            </div>
+        </div>
+    </div>
+@endsection

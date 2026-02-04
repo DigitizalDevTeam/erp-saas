@@ -12,6 +12,10 @@ class Pos extends Model
 {
     protected $fillable = [
         'pos_id',
+        'branch_id',
+        'order_type',
+        'table_id',
+        'shift_id',
         'customer_id',
         'warehouse_id',
         'pos_date',
@@ -21,6 +25,31 @@ class Pos extends Model
         'shipping_display',
         'created_by',
     ];
+
+    const ORDER_TYPE_DINE_IN = 'dine_in';
+    const ORDER_TYPE_TAKEAWAY = 'takeaway';
+    const ORDER_TYPE_DELIVERY = 'delivery';
+    const ORDER_TYPE_KIOSK = 'kiosk';
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class, 'branch_id');
+    }
+
+    public function invoice()
+    {
+        return $this->hasOne(Invoice::class, 'pos_id', 'id');
+    }
+
+    public function table()
+    {
+        return $this->belongsTo(PosTable::class, 'table_id');
+    }
+
+    public function shift()
+    {
+        return $this->belongsTo(PosShift::class, 'shift_id');
+    }
 
     public function customer()
     {

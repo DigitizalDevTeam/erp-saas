@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{__('POS Product Barcode')}}
+    {{ __('pos.pos_product_barcode') }}
 @endsection
 @section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
-    <li class="breadcrumb-item">{{__('POS Product Barcode')}}</li>
+    <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{ __('pos.dashboard') }}</a></li>
+    <li class="breadcrumb-item">{{ __('pos.pos_product_barcode') }}</li>
 @endsection
 @push('css-page')
     <link rel="stylesheet" href="{{ asset('css/datatable/buttons.dataTables.min.css') }}">
@@ -16,7 +16,7 @@
             <a href="{{ route('pos.print') }}" class="btn btn-sm btn-primary-subtle me-1" data-bs-toggle="tooltip" title="{{__('Print Barcode')}}">
                 <i class="ti ti-scan text-white"></i>
             </a>
-            <a data-url="{{ route('pos.setting') }}" data-ajax-popup="true" data-bs-toggle="tooltip" data-title="{{__('Barcode Setting')}}" title="{{__('Barcode Setting')}}" class="btn btn-sm btn-primary">
+            <a data-url="{{ route('pos.setting') }}" data-ajax-popup="true" data-bs-toggle="tooltip" data-title="{{ __('pos.barcode_setting') }}" title="{{ __('pos.barcode_setting') }}" class="btn btn-sm btn-primary">
                 <i class="ti ti-settings text-white"></i>
             </a>
         @endcan
@@ -33,9 +33,9 @@
                         <table class="table datatable-barcode" >
                             <thead>
                                 <tr>
-                                    <th>{{__('Product')}}</th>
-                                    <th>{{ __('SKU') }}</th>
-                                    <th>{{ __('Barcode') }}</th>
+                                    <th>{{ __('pos.product') }}</th>
+                                    <th>{{ __('pos.sku') }}</th>
+                                    <th>{{ __('pos.barcode') }}</th>
                                 </tr>
                             </thead>
 
@@ -50,7 +50,7 @@
                                     </tr>
                                     @empty
                                     <tr>
-                                        <td colspan="5" class="text-center text-dark"><p>{{__('No Data Found')}}</p></td>
+                                        <td colspan="5" class="text-center text-dark"><p>{{ __('pos.no_data_found_short') }}</p></td>
                                     </tr>
                                 @endforelse
                             </tbody>

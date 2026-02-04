@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\Plan;
 use App\Models\Pos;
 use App\Models\PosPayment;
 use App\Models\PosProduct;
 use App\Models\ProductService;
 use App\Models\Quotation;
 use App\Models\PosBalance;
+use App\Services\PosToInvoiceService;
 use App\Models\QuotationProduct;
 use App\Models\StockReport;
 use App\Models\User;
@@ -31,10 +34,24 @@ class PosController extends Controller
     public function index($id = 0)
     {
         if (Auth::user()->can('manage pos')) {
+            // Phase 5: POS user limit per plan
+            $creatorId = Auth::user()->creatorId();
+            $owner = User::find($creatorId);
+            if ($owner && $owner->plan) {
+                $plan = Plan::find($owner->plan);
+                if ($plan && $plan->pos == 1 && $plan->max_pos_users >= 0) {
+                    $posUserCount = Plan::countPosUsersForCompany($creatorId);
+                    if ($posUserCount > $plan->max_pos_users) {
+                        return redirect()->back()->with('error', __('POS user limit reached. Please upgrade your plan.'));
+                    }
+                }
+            }
             session()->forget('pos');
             $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'name');
             $customers->prepend('Walk-in-customer', '');
-            $warehouses = warehouse::select('*', \DB::raw("CONCAT(name) AS name"))->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $branches = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->get()->pluck('name', 'id');
+            $warehouses = warehouse::with('branch')->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $restaurantBranchIds = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->where('pos_type', Branch::POS_TYPE_RESTAURANT)->pluck('id')->toArray();
             $user = Auth::user();
             $details = [
                 'pos_id' => $user->posNumberFormat($this->invoicePosNumber()),
@@ -62,8 +79,8 @@ class PosController extends Controller
             } else {
                 $customer = '';
                 $warehouseId = '';
-            }
-            return view('pos.index', compact('customers', 'warehouses', 'details', 'customer', 'warehouseId', 'id'));
+            } 
+            return view('pos.index', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -100,26 +117,29 @@ class PosController extends Controller
                 'pay' => 'show',
             ];
 
+            $warehouseName = $details['warehouse']['name'] ?? __('Warehouse');
+            $userName = $details['user']['name'] ?? '';
+
             if (!empty($details['customer'])) {
-                $warehousedetails = '<h7 class="text-dark">' . ucfirst($details['warehouse']['name']) . '</p></h7>';
-                $details['customer']['billing_state'] = $details['customer']['billing_state'] != '' ? ", " . $details['customer']['billing_state'] : '';
-                $details['customer']['shipping_state'] = $details['customer']['shipping_state'] != '' ? ", " . $details['customer']['shipping_state'] : '';
+                $warehousedetails = '<h7 class="text-dark">' . ucfirst($warehouseName) . '</p></h7>';
+                $details['customer']['billing_state'] = ($details['customer']['billing_state'] ?? '') != '' ? ", " . $details['customer']['billing_state'] : '';
+                $details['customer']['shipping_state'] = ($details['customer']['shipping_state'] ?? '') != '' ? ", " . $details['customer']['shipping_state'] : '';
 
-                $customerdetails = '<h6 class="text-dark">' . ucfirst($details['customer']['name']) . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['billing_phone'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['billing_address'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['billing_city'] . $details['customer']['billing_state'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['billing_country'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['billing_zip'] . '</p></h6>';
+                $customerdetails = '<h6 class="text-dark">' . ucfirst($details['customer']['name'] ?? '') . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_phone'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_address'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_city'] ?? '') . ($details['customer']['billing_state'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_country'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_zip'] ?? '') . '</p></h6>';
 
-                $shippdetails = '<h6 class="text-dark"><b>' . ucfirst($details['customer']['name']) . '</b>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['shipping_phone'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['shipping_address'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['shipping_city'] . $details['customer']['shipping_state'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['shipping_country'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['shipping_zip'] . '</p></h6>';
+                $shippdetails = '<h6 class="text-dark"><b>' . ucfirst($details['customer']['name'] ?? '') . '</b>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_phone'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_address'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_city'] ?? '') . ($details['customer']['shipping_state'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_country'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_zip'] ?? '') . '</p></h6>';
 
             } else {
                 $customerdetails = '<h2 class="h6"><b>' . __('Walk-in Customer') . '</b><h2>';
-                $warehousedetails = '<h7 class="text-dark">' . ucfirst($details['warehouse']['name']) . '</p></h7>';
+                $warehousedetails = '<h7 class="text-dark">' . ucfirst($warehouseName) . '</p></h7>';
                 $shippdetails = '-';
 
             }
 
-            $settings['company_telephone'] = $settings['company_telephone'] != '' ? ", " . $settings['company_telephone'] : '';
-            $settings['company_state'] = $settings['company_state'] != '' ? ", " . $settings['company_state'] : '';
+            $settings['company_telephone'] = ($settings['company_telephone'] ?? '') != '' ? ", " . $settings['company_telephone'] : '';
+            $settings['company_state'] = ($settings['company_state'] ?? '') != '' ? ", " . $settings['company_state'] : '';
 
-            $userdetails = '<h6 class="text-dark"><b>' . ucfirst($details['user']['name']) . ' </b> <h2  class="font-weight-normal">' . '<p class="m-0 font-weight-normal">' . $settings['company_name'] . $settings['company_telephone'] . '</p>' . '<p class="m-0 font-weight-normal">' . $settings['company_address'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $settings['company_city'] . $settings['company_state'] . '</p>' . '<p class="m-0 font-weight-normal">' . $settings['company_country'] . '</p>' . '<p class="m-0 font-weight-normal">' . $settings['company_zipcode'] . '</p></h2>';
+            $userdetails = '<h6 class="text-dark"><b>' . ucfirst($userName) . ' </b> <h2  class="font-weight-normal">' . '<p class="m-0 font-weight-normal">' . ($settings['company_name'] ?? '') . ($settings['company_telephone'] ?? '') . '</p>' . '<p class="m-0 font-weight-normal">' . ($settings['company_address'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($settings['company_city'] ?? '') . ($settings['company_state'] ?? '') . '</p>' . '<p class="m-0 font-weight-normal">' . ($settings['company_country'] ?? '') . '</p>' . '<p class="m-0 font-weight-normal">' . ($settings['company_zipcode'] ?? '') . '</p></h2>';
 
             $details['customer']['details'] = $customerdetails;
             $details['warehouse']['details'] = $warehousedetails;
@@ -134,12 +154,12 @@ class PosController extends Controller
             foreach ($sess as $key => $value) {
 
                 $subtotal = $value['price'] * $value['quantity'];
-                $tax = ($subtotal * $value['tax']) / 100;
-                $sales['data'][$key]['name'] = $value['name'];
+                $tax = ($subtotal * ($value['tax'] ?? 0)) / 100;
+                $sales['data'][$key]['name'] = $value['name'] ?? __('Product');
                 $sales['data'][$key]['quantity'] = $value['quantity'];
                 $sales['data'][$key]['price'] = Auth::user()->priceFormat($value['price']);
-                $sales['data'][$key]['tax'] = $value['tax'] . '%';
-                $sales['data'][$key]['product_tax'] = $value['product_tax'];
+                $sales['data'][$key]['tax'] = ($value['tax'] ?? 0) . '%';
+                $sales['data'][$key]['product_tax'] = $value['product_tax'] ?? '-';
                 $sales['data'][$key]['tax_amount'] = Auth::user()->priceFormat($tax);
                 $sales['data'][$key]['subtotal'] = Auth::user()->priceFormat($value['subtotal']);
                 $mainsubtotal += $value['subtotal'];
@@ -163,6 +183,169 @@ class PosController extends Controller
     }
 
     /**
+     * Sync offline POS sales (Phase 5). Accepts batch of sales with cart payload.
+     *
+     * @param  \Illuminate\Http\Request  $request  Expects JSON: { sales: [ { vc_name, warehouse_name, discount, payment_method, pos_order_type?, pos_table_id?, pos_shift_id?, quotation_id?, cart: {...} }, ... ] }
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function sync(Request $request)
+    {
+        if (!Auth::user()->can('manage pos')) {
+            return response()->json(['code' => 403, 'error' => __('Permission denied.')], 403);
+        }
+
+        $sales = $request->input('sales', []);
+        if (!is_array($sales) || empty($sales)) {
+            return response()->json(['code' => 400, 'error' => __('No sales to sync.')], 400);
+        }
+
+        $synced = 0;
+        $errors = [];
+
+        foreach ($sales as $index => $sale) {
+            $cart = $sale['cart'] ?? [];
+            if (empty($cart)) {
+                $errors[] = ['index' => $index, 'error' => __('Items not found!')];
+                continue;
+            }
+            session()->put('pos', $cart);
+            $req = new Request(array_merge($sale, [
+                'date' => $sale['date'] ?? date('Y-m-d'),
+            ]));
+            $req->setUserResolver(fn () => Auth::user());
+            $prev = request();
+            app()->instance('request', $req);
+            try {
+                $response = $this->processOneSale($req);
+                $data = $response->getData(true);
+                if (isset($data['code']) && $data['code'] == 200) {
+                    $synced++;
+                } else {
+                    $errors[] = ['index' => $index, 'error' => $data['success'] ?? $data['error'] ?? 'Unknown'];
+                }
+            } catch (\Throwable $e) {
+                $errors[] = ['index' => $index, 'error' => $e->getMessage()];
+            }
+            session()->forget('pos');
+            app()->instance('request', $prev);
+        }
+
+        return response()->json([
+            'code' => 200,
+            'success' => __(':count sale(s) synced successfully.', ['count' => $synced]),
+            'synced' => $synced,
+            'total' => count($sales),
+            'errors' => $errors,
+        ]);
+    }
+
+    /**
+     * Process a single POS sale (used by store and sync).
+     *
+     * @param  \Illuminate\Http\Request  $request  Must contain vc_name, warehouse_name, discount, payment_method; cart from request or session.
+     * @return \Illuminate\Http\JsonResponse
+     */
+    protected function processOneSale(Request $request)
+    {
+        $discount = $request->discount ?? 0;
+        $user_id = Auth::user()->creatorId();
+        $sales = $request->input('cart') ?: session()->get('pos');
+
+        if ($request->quotation_id && (int) $request->quotation_id != 0) {
+            $quotation = Quotation::where('id', $request->quotation_id)->first();
+            if ($quotation) {
+                $quotation->is_converted = 1;
+                $quotation->save();
+            }
+        }
+
+        $customer_id = Customer::customer_id($request->vc_name);
+        $warehouse_id = warehouse::warehouse_id($request->warehouse_name);
+        $pos_id = $this->invoicePosNumber();
+
+        if (!isset($sales) || empty($sales) || count($sales) == 0) {
+            return response()->json(['code' => 404, 'success' => __('Items not found!')], 404);
+        }
+
+        $result = DB::table('pos')->where('pos_id', $pos_id)->where('created_by', $user_id)->get();
+        if (count($result) > 0) {
+            return response()->json(['code' => 200, 'success' => __('Payment is already completed!')]);
+        }
+
+        $warehouse = warehouse::find($request->warehouse_name);
+        $branch_id = ($warehouse && $warehouse->branch_id) ? $warehouse->branch_id : Branch::where('created_by', $user_id)->value('id');
+
+        $pos = new Pos();
+        $pos->pos_id = $pos_id;
+        $pos->branch_id = $branch_id;
+        $pos->order_type = $request->pos_order_type ?: null;
+        $pos->table_id = $request->pos_table_id ?: null;
+        $pos->shift_id = $request->pos_shift_id ?: null;
+        $pos->customer_id = $customer_id;
+        $pos->warehouse_id = $request->warehouse_name;
+        $pos->pos_date = date('Y-m-d');
+        $pos->payment_method = $request->payment_method;
+        $pos->created_by = $user_id;
+        $pos->save();
+
+        if ($request->quotation_id && (int) $request->quotation_id != 0) {
+            $quotation = Quotation::find($request->quotation_id);
+            if ($quotation) {
+                $quotation->converted_pos_id = $pos->id;
+                $quotation->save();
+            }
+        }
+
+        foreach ($sales as $key => $value) {
+            $product_id = $value['id'];
+            $product = ProductService::whereId($product_id)->where('created_by', $user_id)->first();
+            $original_quantity = ($product == null) ? 0 : (int) $product->quantity;
+            $product_quantity = $original_quantity - $value['quantity'];
+            if ($product != null && !empty($product)) {
+                ProductService::where('id', $product_id)->update(['quantity' => $product_quantity]);
+            }
+            $tax_id = ProductService::tax_id($product_id);
+            $positems = new PosProduct();
+            $positems->pos_id = $pos->id;
+            $positems->product_id = $product_id;
+            $positems->price = $value['price'];
+            $positems->quantity = $value['quantity'];
+            $positems->tax = $tax_id;
+            $positems->discount = $discount;
+            $positems->save();
+            Utility::warehouse_quantity('minus', $positems->quantity, $positems->product_id, $request->warehouse_name);
+            $type = 'pos';
+            $type_id = $pos->id;
+            StockReport::where('type', '=', 'pos')->where('type_id', '=', $pos->id)->delete();
+            $description = $positems->quantity . '  ' . __(' quantity sold in pos') . ' ' . \Auth::user()->posNumberFormat($pos->pos_id);
+            Utility::addProductStock($positems->product_id, $positems->quantity, $type, $description, $type_id);
+        }
+
+        $posPayment = new PosPayment();
+        $posPayment->pos_id = $pos->id;
+        $posPayment->branch_id = $pos->branch_id;
+        $posPayment->date = $request->date ?? date('Y-m-d');
+        $mainsubtotal = 0;
+        foreach (session()->get('pos', $sales) as $key => $value) {
+            $mainsubtotal += $value['subtotal'] ?? ($value['price'] * $value['quantity']);
+        }
+        $posPayment->amount = $mainsubtotal;
+        $posPayment->discount = $discount;
+        $posPayment->discount_amount = $mainsubtotal - $discount;
+        $posPayment->save();
+
+        $pos->load('items');
+        $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
+        session()->forget('pos');
+
+        return response()->json([
+            'code' => 200,
+            'success' => __('Payment completed successfully!'),
+            'invoice_id' => $invoice ? $invoice->id : null,
+        ]);
+    }
+
+    /**
      * Store a newly created resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -170,9 +353,6 @@ class PosController extends Controller
      */
     public function store(Request $request)
     {
-        // session()->forget('pos');
-        // return response()->json(['message' => 'Session cleared']);
-
         $discount = $request->discount;
 
         if (Auth::user()->can('manage pos')) {
@@ -189,7 +369,7 @@ class PosController extends Controller
             $customer_id = Customer::customer_id($request->vc_name);
             $warehouse_id = warehouse::warehouse_id($request->warehouse_name);
             $pos_id = $this->invoicePosNumber();
-            $sales = session()->get('pos');
+            $sales = $request->input('cart') ?: session()->get('pos');
 
             if (isset($sales) && !empty($sales) && count($sales) > 0) {
                 $result = DB::table('pos')->where('pos_id', $pos_id)->where('created_by', $user_id)->get();
@@ -201,8 +381,15 @@ class PosController extends Controller
                         ]
                     );
                 } else {
+                    $warehouse = warehouse::find($request->warehouse_name);
+                    $branch_id = ($warehouse && $warehouse->branch_id) ? $warehouse->branch_id : Branch::where('created_by', $user_id)->value('id');
+
                     $pos = new Pos();
                     $pos->pos_id = $pos_id;
+                    $pos->branch_id = $branch_id;
+                    $pos->order_type = $request->pos_order_type ?: null;
+                    $pos->table_id = $request->pos_table_id ?: null;
+                    $pos->shift_id = $request->pos_shift_id ?: null;
                     $pos->customer_id = $customer_id;
                     $pos->warehouse_id = $request->warehouse_name;
                     $pos->pos_date = date('Y-m-d');
@@ -252,6 +439,7 @@ class PosController extends Controller
 
                     $posPayment = new PosPayment();
                     $posPayment->pos_id = $pos->id;
+                    $posPayment->branch_id = $pos->branch_id;
                     $posPayment->date = $request->date;
 
                     $mainsubtotal = 0;
@@ -275,12 +463,17 @@ class PosController extends Controller
                     $posPayment->discount_amount = $total;
                     $posPayment->save();
 
+                    // Phase 2: Create invoice and accounting entries from POS
+                    $pos->load('items');
+                    $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
+
                     session()->forget('pos');
 
                     return response()->json(
                         [
                             'code' => 200,
                             'success' => __('Payment completed successfully!'),
+                            'invoice_id' => $invoice ? $invoice->id : null,
                         ]
                     );
                 }
@@ -309,7 +502,7 @@ class PosController extends Controller
 
             $id = Crypt::decrypt($ids);
 
-            $pos = Pos::find($id);
+            $pos = Pos::with(['invoice', 'branch', 'table', 'shift'])->find($id);
 
             if ($pos->created_by == \Auth::user()->creatorId()) {
                 $posPayment = PosPayment::where('pos_id', $pos->id)->first();
@@ -340,7 +533,7 @@ class PosController extends Controller
     {
         if (\Auth::user()->can('manage pos')) {
 
-            $posPayments = Pos::where('created_by', '=', \Auth::user()->creatorId())->with(['customer', 'warehouse'])->get();
+            $posPayments = Pos::where('created_by', '=', \Auth::user()->creatorId())->with(['customer', 'warehouse', 'branch'])->get();
 
             return view('pos.report', compact('posPayments'));
         } else {
@@ -429,6 +622,23 @@ class PosController extends Controller
         return response()->json($productServices);
     }
 
+    /**
+     * Get warehouses by branch for POS multi-branch support.
+     */
+    public function getWarehousesByBranch(Request $request)
+    {
+        $branchId = $request->branch_id;
+        $warehouses = warehouse::where('created_by', \Auth::user()->creatorId());
+
+        if ($branchId) {
+            $warehouses->where('branch_id', $branchId);
+        }
+
+        $warehouses = $warehouses->get()->pluck('name', 'id')->toArray();
+
+        return response()->json($warehouses);
+    }
+
     public function receipt(Request $request)
     {
         if (!empty($request->product_id)) {
@@ -477,7 +687,7 @@ class PosController extends Controller
         } catch (\Exception $e){
             return redirect()->back()->with('error', __('Something went wrong.'));
         }
-        $pos = Pos::where('id', $posId)->first();
+        $pos = Pos::with(['branch', 'table', 'shift'])->where('id', $posId)->first();
 
         $posPayment = PosPayment::where('pos_id', $pos->id)->first();
 

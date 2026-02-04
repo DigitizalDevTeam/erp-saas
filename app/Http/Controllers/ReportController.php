@@ -2913,6 +2913,48 @@ class ReportController extends Controller
         }
     }
 
+    /**
+     * Phase 5: Cross-branch POS report – sales by branch and consolidated.
+     */
+    public function posBranchReport(Request $request)
+    {
+        if (!\Auth::user()->can('manage pos')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $branches = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->get()->pluck('name', 'id');
+        $branches->prepend(__('All Branches'), 0);
+        $start = $request->get('start_date', date('Y-m-d', strtotime('-30 days')));
+        $end = $request->get('end_date', date('Y-m-d'));
+        $branchId = (int) $request->get('branch_id', 0);
+
+        $query = Pos::where('created_by', \Auth::user()->creatorId())
+            ->with(['branch', 'posPayment'])
+            ->whereBetween('pos_date', [$start, $end]);
+        if ($branchId > 0) {
+            $query->where('branch_id', $branchId);
+        }
+        $poses = $query->get();
+
+        $byBranch = [];
+        $totalSales = 0;
+        $totalCount = 0;
+        foreach ($poses as $pos) {
+            $bid = $pos->branch_id ?: 0;
+            $bname = $pos->branch ? $pos->branch->name : __('No branch');
+            if (!isset($byBranch[$bid])) {
+                $byBranch[$bid] = ['name' => $bname, 'count' => 0, 'total' => 0];
+            }
+            $amt = $pos->posPayment ? (float) $pos->posPayment->discount_amount : $pos->getTotal();
+            $byBranch[$bid]['count']++;
+            $byBranch[$bid]['total'] += $amt;
+            $totalCount++;
+            $totalSales += $amt;
+        }
+
+        $filter = ['start_date' => $start, 'end_date' => $end, 'branch_id' => $branchId];
+        return view('report.pos_branch', compact('branches', 'byBranch', 'totalSales', 'totalCount', 'filter'));
+    }
+
     public function profitLoss(Request $request, $view = '', $collapseView = 'expand')
     {
         if (\Auth::user()->can('income vs expense report')) {

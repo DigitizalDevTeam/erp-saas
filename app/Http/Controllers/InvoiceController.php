@@ -394,7 +394,7 @@ class InvoiceController extends Controller
                 return redirect()->back()->with('error', __('Invoice Not Found.'));
             }
             $id = Crypt::decrypt($ids);
-            $invoice = Invoice::with(['creditNote','payments.bankAccount','items.product.unit', 'shipping_address', 'billing_address'])->find($id);
+            $invoice = Invoice::with(['creditNote','payments.bankAccount','items.product.unit', 'shipping_address', 'billing_address', 'pos.branch', 'pos.table', 'pos.shift'])->find($id);
 
             if (!empty($invoice->created_by) == \Auth::user()->creatorId()) {
                 $invoicePayment = InvoicePayment::where('invoice_id', $invoice->id)->first();
@@ -1060,7 +1060,7 @@ class InvoiceController extends Controller
             return redirect()->back()->with('error', __('Something went wrong.'));
         }
 
-        $invoice = Invoice::where('id', $invoiceId)->first();
+        $invoice = Invoice::with(['pos.branch', 'pos.table', 'pos.shift'])->where('id', $invoiceId)->first();
 
         $data = DB::table('settings');
         $data = $data->where('created_by', '=', $invoice->created_by);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\Utility;
 use App\Models\warehouse;
 use App\Models\WarehouseProduct;
@@ -18,7 +19,7 @@ class WarehouseController extends Controller
     public function index()
     {
 
-        $warehouses = warehouse::where('created_by', '=', \Auth::user()->creatorId())->get();
+        $warehouses = warehouse::with('branch')->where('created_by', '=', \Auth::user()->creatorId())->get();
 
         return view('warehouse.index',compact('warehouses'));
 
@@ -31,8 +32,8 @@ class WarehouseController extends Controller
      */
     public function create()
     {
-        return view('warehouse.create');
-
+        $branches = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->get()->pluck('name', 'id');
+        return view('warehouse.create', compact('branches'));
     }
 
     /**
@@ -60,6 +61,7 @@ class WarehouseController extends Controller
 
             $warehouse             = new warehouse();
             $warehouse->name       = $request->name;
+            $warehouse->branch_id  = $request->branch_id ?: null;
             $warehouse->address    = $request->address;
             $warehouse->city       = $request->city;
             $warehouse->city_zip   = $request->city_zip;
@@ -113,12 +115,12 @@ class WarehouseController extends Controller
      */
     public function edit(warehouse $warehouse)
     {
-
+        $branches = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->get()->pluck('name', 'id');
         if(\Auth::user()->can('edit warehouse'))
         {
             if($warehouse->created_by == \Auth::user()->creatorId())
             {
-                return view('warehouse.edit', compact('warehouse'));
+                return view('warehouse.edit', compact('warehouse', 'branches'));
             }
             else
             {
@@ -158,6 +160,7 @@ class WarehouseController extends Controller
                 }
 
                 $warehouse->name       = $request->name;
+                $warehouse->branch_id  = $request->branch_id ?: null;
                 $warehouse->address    = $request->address;
                 $warehouse->city       = $request->city;
                 $warehouse->city_zip   = $request->city_zip;

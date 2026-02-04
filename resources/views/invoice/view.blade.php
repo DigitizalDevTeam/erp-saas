@@ -424,6 +424,26 @@
                                     </div>
                                 </div>
                             </div>
+                            @if($invoice->pos_id && $invoice->pos)
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <div class="d-flex flex-wrap gap-3">
+                                        @if($invoice->pos->branch)
+                                            <small><strong>{{ __('pos.branch') }}:</strong> {{ $invoice->pos->branch->name }}</small>
+                                        @endif
+                                        @if($invoice->pos->order_type)
+                                            <small><strong>{{ __('pos.order_type') }}:</strong> {{ __('pos.' . $invoice->pos->order_type) }}</small>
+                                        @endif
+                                        @if($invoice->pos->table)
+                                            <small><strong>{{ __('pos.table') }}:</strong> {{ $invoice->pos->table->name }}</small>
+                                        @endif
+                                        @if($invoice->pos->shift)
+                                            <small><strong>{{ __('pos.shift') }}:</strong> #{{ $invoice->pos->shift->id }}</small>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                            @endif
                             <div class="row">
 
                                 <div class="col">
@@ -446,6 +466,9 @@
                                         @else
                                             -
                                         @endif
+                                        @if($customer == null)
+                                            {{ __('Walk-in-customer') }}<br>
+                                        @endif
 
                                     </small>
                                 </div>
@@ -464,6 +487,9 @@
                                                 {{ !empty($invoice->shipping_address?->phone) ? $invoice->shipping_address?->phone : '' }}<br>
                                             @else
                                                 -
+                                            @endif
+                                            @if($customer == null)
+                                                {{ __('Walk-in-customer') }}<br>
                                             @endif
                                         </small>
                                     </div>
@@ -517,10 +543,10 @@
                                         </div>
                                     @endforeach
                                 @endif
-                                @if($customer->payment_type)
+                                @if($customer && $customer->payment_type)
                                     <small class="text-capitalize mt-3"><b>Payment Type:</b> {{ $customer->payment_type }}</small>
                                 @endif
-                                @if($customer->credit_terms)
+                                @if($customer && $customer->credit_terms)
                                     <small class="text-capitalize mt-3"><b>Credit Terms:</b> {{ $customer->credit_terms }}</small>
                                 @endif
                             </div>

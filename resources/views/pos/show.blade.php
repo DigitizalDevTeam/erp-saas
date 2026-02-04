@@ -15,10 +15,10 @@
                 <div class="row mt-3">
                     <div class="col-6">
                         <h1 class="invoice-id h6">{{ $details['pos_id'] }}</h1>
-                        <div class="date"><b>{{ __('Date') }}: </b>{{ $details['date'] }}</div>
+                        <div class="date"><b>{{ __('pos.date') }}: </b>{{ $details['date'] }}</div>
                     </div>
                     <div class="col-6 text-end">
-                        <div class="text-dark "><b>{{ __('Warehouse Name') }}: </b>
+                        <div class="text-dark "><b>{{ __('pos.warehouse_name') }}: </b>
                             {!! $details['warehouse']['details'] !!}
                         </div>
                     </div>
@@ -26,17 +26,19 @@
                 <div class="row mt-2">
                     <div class="col contacts d-flex justify-content-between pb-4">
                         <div class="invoice-to">
-                            <div class="text-dark h6"><b>{{ __('Billed To :') }}</b></div>
+
+
+                        <div class="text-dark h6"><b>{{ __('Billed To :') }}</b></div>
                             {!! $details['customer']['details'] !!}
                         </div>
                         @if(!empty( $details['customer']['shippdetails']))
                             <div class="invoice-to">
-                                <div class="text-dark h6"><b>{{ __('Shipped To :') }}</b></div>
+                                <div class="text-dark h6"><b>{{ __('pos.shipped_to') }}</b></div>
                                 {!! $details['customer']['shippdetails'] !!}
                             </div>
                         @endif
                         <div class="company-details">
-                            <div class="text-dark h6"><b>{{ __('From:') }}</b></div>
+                            <div class="text-dark h6"><b>{{ __('pos.from') }}</b></div>
                             {!! $details['user']['details'] !!}
                         </div>
                     </div>
@@ -81,7 +83,7 @@
                         </tbody>
                         <tfoot>
                         <tr>
-                            <td class="">{{ __('Sub Total') }}</td>
+                            <td class="">{{ __('pos.sub_total') }}</td>
                             <td></td>
                             <td></td>
                             <td></td>
@@ -97,7 +99,7 @@
                             <td class="text-right">{{ $sales['discount'] }}</td>
                         </tr>
                         <tr class="pos-header">
-                            <td class="">{{ __('Total') }}</td>
+                            <td class="">{{ __('pos.total') }}</td>
                             <td></td>
                             <td></td>
                             <td></td>
@@ -112,16 +114,15 @@
             @if ($details['pay'] == 'show')
             <div class="d-flex align-items-center mt-4">
                 <select class="form-control" id="payment_method">
-                    <option value="cash">Cash</option>
-                    <option value="visa">Visa</option>
-                    <option value="mpesa">Mpesa</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                    <option value="cheque">Cheque</option>
+                    <option value="cash">{{ __('pos.payment_cash') }}</option>
+                    <option value="visa">{{ __('pos.payment_visa') }}</option>
+                    <option value="mpesa">{{ __('pos.payment_mpesa') }}</option>
+                    <option value="bank_transfer">{{ __('pos.payment_bank_transfer') }}</option>
+                    <option value="cheque">{{ __('pos.payment_cheque') }}</option>
                 </select>
                 <button class="btn btn-success ms-2 payment-done-btn rounded float-right" data-url="{{ route('pos.printview') }}" data-ajax-popup="true" data-size="sm"
-                        data-bs-toggle="tooltip" data-title="{{ __('POS Invoice') }}">
-                    <!--{{ __('Cash Payment') }}-->
-                    {{ __('Pay') }}
+                        data-bs-toggle="tooltip" data-title="{{ __('pos.pos_invoice') }}">
+                    {{ __('pos.pay_button') }}
                 </button>
             </div>
             @endif
@@ -162,7 +163,9 @@
                 discount : $('#discount_hidden').val(),
                 quotation_id : $('#quotation_id').val(),
                 payment_method : $('#payment_method').val(),
-
+                pos_order_type: $('#pos_order_type_hidden').val() || '',
+                pos_table_id: $('#pos_table_id_hidden').val() || '',
+                pos_shift_id: $('#pos_shift_id_hidden').val() || '',
             },
             beforeSend: function () {
                 ele.remove();
@@ -176,7 +179,7 @@
             },
             error: function (data) {
                 data = data.responseJSON;
-                show_toastr('{{ __("Error") }}', data.error, 'error');
+                show_toastr('{{ __("pos.error") }}', data.error, 'error');
             }
 
         });

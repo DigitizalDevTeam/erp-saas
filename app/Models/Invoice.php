@@ -8,6 +8,7 @@ class Invoice extends Model
 {
     protected $fillable = [
         'invoice_id',
+        'pos_id',
         'customer_id',
         'issue_date',
         'due_date',
@@ -16,6 +17,11 @@ class Invoice extends Model
         'category_id',
         'created_by',
     ];
+
+    public function pos()
+    {
+        return $this->belongsTo(Pos::class, 'pos_id');
+    }
 
     public static $statues = [
         'Draft',

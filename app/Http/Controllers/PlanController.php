@@ -245,10 +245,12 @@ class PlanController extends Controller
                     if(array_key_exists('enable_pos', $post))
                     {
                         $post['pos'] = 1;
+                        $post['max_pos_users'] = (int) ($request->max_pos_users ?? -1);
                     }
                     else
                     {
                         $post['pos'] = 0;
+                        $post['max_pos_users'] = -1;
                     }
                     if(array_key_exists('enable_chatgpt', $post))
                     {

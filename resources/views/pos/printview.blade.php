@@ -26,22 +26,22 @@
                 {!! isset($details['customer']['name']) ? '' : $details['customer']['details'] !!}
             </div><br>
             <div>
-                {!! isset($details['customer']['name']) ? __('Name').':  ' . $details['customer']['name'] : '' !!}
+                {!! isset($details['customer']['name']) ? __('pos.name').':  ' . $details['customer']['name'] : '' !!}
             </div>
             <div>
-                {!! isset($details['customer']['address']) ? __('Address').':  ' . $details['customer']['address'] : '' !!}
+                {!! isset($details['customer']['address']) ? __('pos.address').':  ' . $details['customer']['address'] : '' !!}
             </div>
             <div>
                 {!! isset($details['customer']['email']) ? __('Email').':  ' . $details['customer']['email'] : '' !!}
             </div>
             <div>
-                {!! isset($details['customer']['phone_number']) ? __('Phone').':  ' . $details['customer']['phone_number'] : '' !!}
+                {!! isset($details['customer']['phone_number']) ? __('pos.phone').':  ' . $details['customer']['phone_number'] : '' !!}
             </div>
             <div>
-                {!! isset($details['date']) ? __('Date of POS').':  ' . $details['date'] : '' !!}
+                {!! isset($details['date']) ? __('pos.date_of_pos').':  ' . $details['date'] : '' !!}
             </div>
             <div class="product-border">
-                {!! isset($details['warehouse']['details']) ? __('Warehouse Name').':  ' . $details['warehouse']['details'] : '' !!}
+                {!! isset($details['warehouse']['details']) ? __('pos.warehouse_name').':  ' . $details['warehouse']['details'] : '' !!}
             </div>
         </tbody>
     </table>
@@ -50,43 +50,43 @@
             <div class="mt-2">
                 <div class="p-0"> <b>{{ $value['name'] }}</b></div>
                 <div class="d-flex product-border">
-                    <div>{{ __('Quantity:') }}</div>
+                    <div>{{ __('pos.quantity_colon') }}</div>
                     <div class="text-end ms-auto">{{ $value['quantity'] }}</div>
                 </div>
             </div>
             <div class="d-flex product-border">
-                <div>{{__('Price:')}}</div>
+                <div>{{ __('pos.price_colon') }}</div>
                 <div class="text-end ms-auto">{{ $value['price'] }}</div>
             </div>
             <div class="d-flex product-border">
-                <div>{{__('Tax:')}}</div>
+                <div>{{ __('pos.tax_colon') }}</div>
                 <div class="text-end ms-auto"> {{ $value['tax'] }}</div>
             </div>
             <div class="d-flex product-border mb-2">
-                <div>{{__('Tax Amount:')}}</div>
+                <div>{{ __('pos.tax_amount_colon') }}</div>
                 <div class="text-end ms-auto">{{ $value['tax_amount'] }}</div>
             </div>
             <div class="d-flex product-border mb-2">
-                <div>{{__('Sub Total:')}}</div>
+                <div>{{ __('pos.sub_total_colon') }}</div>
                 <div class="text-end ms-auto"> {{ $value['subtotal'] }}</div>
             </div>
         @endforeach
         <div class="d-flex product-border mb-2 mt-4">
-            <div><b>{{__('Discount:')}}</b></div>
+            <div><b>{{ __('pos.discount_colon') }}</b></div>
             <div class="text-end ms-auto"> {{ $sales['discount'] }}</div>
         </div>
         <div class="d-flex product-border mb-2">
-            <div><b>{{__('Total:')}}</b></div>
+            <div><b>{{ __('pos.total_colon') }}</b></div>
             <div class="text-end ms-auto"> {{ $sales['total'] }}</div>
         </div>
 
-        <h5 class="text-center mt-3 font-label">{{__('Thank You For Shopping With Us. Please visit again.')}}</h5>
+        <h5 class="text-center mt-3 font-label">{{ __('pos.thank_you') }}</h5>
 </div>
 
     <div class="justify-content-center pt-2 modal-footer">
         <a href="#" id="print"
             class="btn btn-primary btn-sm text-right float-right mb-3 ">
-            {{ __('Print') }}
+            {{ __('pos.print') }}
         </a>
     </div>
 <script>

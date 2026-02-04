@@ -29,6 +29,7 @@
                             <thead>
                             <tr>
                                 <th>{{__('Name')}}</th>
+                                <th>{{__('Branch')}}</th>
                                 <th>{{__('Address')}}</th>
                                 <th>{{__('City')}}</th>
                                 <th>{{__('Zip Code')}}</th>
@@ -39,6 +40,7 @@
                             @foreach ($warehouses as $warehouse)
                                 <tr class="font-style">
                                     <td>{{ $warehouse->name}}</td>
+                                    <td>{{ $warehouse->branch->name }}</td>
                                     <td>{{ $warehouse->address }}</td>
                                     <td>{{ $warehouse->city }}</td>
                                     <td>{{ $warehouse->city_zip }}</td>

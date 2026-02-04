@@ -13,11 +13,17 @@ class warehouse extends Model
 
     protected $fillable = [
         'name',
+        'branch_id',
         'address',
         'city',
         'city_zip',
         'created_by',
     ];
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class, 'branch_id');
+    }
 
     public static function warehouse_id($warehouse_name)
     {

@@ -36,6 +36,10 @@
                                     <thead>
                                         <tr>
                                             <th>{{ __('Branch') }}</th>
+                                            <th>{{ __('Address') }}</th>
+                                            <th>{{ __('Timezone') }}</th>
+                                            <th>{{ __('POS Type') }}</th>
+                                            <th>{{ __('Status') }}</th>
                                             <th width="200px" class="flex-end">{{ __('Action') }}</th>
                                         </tr>
                                     </thead>
@@ -43,6 +47,10 @@
                                         @foreach ($branches as $branch)
                                             <tr>
                                                 <td>{{ $branch->name }}</td>
+                                                <td>{{ $branch->address }}</td>
+                                                <td>{{ $branch->timezone }}</td>
+                                                <td>{{ $branch->pos_type === 'restaurant' ? __('Restaurant') : __('Retail') }}</td>
+                                                <td>{{ $branch->is_active ? __('Active') : __('Inactive') }}</td>
                                                 <td class="Action">
                                                     <span>
                                                         @can('edit branch')

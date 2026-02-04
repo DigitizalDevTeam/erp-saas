@@ -1,11 +1,11 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{__('POS Barcode Print')}}
+    {{ __('pos.pos_barcode_print') }}
 @endsection
 @section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
-    <li class="breadcrumb-item"><a href="{{route('pos.barcode')}}">{{__('POS Product Barcode')}}</a></li>
-    <li class="breadcrumb-item">{{__('POS Barcode Print')}}</li>
+    <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{ __('pos.dashboard') }}</a></li>
+    <li class="breadcrumb-item"><a href="{{route('pos.barcode')}}">{{ __('pos.pos_product_barcode') }}</a></li>
+    <li class="breadcrumb-item">{{ __('pos.pos_barcode_print') }}</li>
 @endsection
 @push('css-page')
     <link rel="stylesheet" href="{{ asset('css/datatable/buttons.dataTables.min.css') }}">
@@ -38,11 +38,11 @@
                     $('#product_id').empty();
 
                     $("#product_div").html('');
-                    $('#product_div').append('<label for="product_id" class="form-label">{{__('Product')}}</label><span class="text-danger">*</span>');
+                    $('#product_div').append('<label for="product_id" class="form-label">{{ __("pos.product") }}</label><span class="text-danger">*</span>');
                     $('#product_div').append(`<select class="form-label" id="product_id" name="product_id[]"  multiple required></select><div class="text-xs mt-1">
-                                        {{ __('Create product here.') }} <a href="{{ route('productservice.index') }}"><b>{{ __('Create product') }}</b></a>
+                                        {{ __('pos.create_product_here') }} <a href="{{ route('productservice.index') }}"><b>{{ __('pos.create_product') }}</b></a>
                                     </div>`);
-                    $('#product_id').append('<option value="">{{__('Select Product')}}</option>');
+                    $('#product_id').append('<option value="">{{ __("pos.select_product") }}</option>');
 
                     $.each(data, function (key, value) {
                         $('#product_id').append('<option value="' + key + '">' + value + '</option>');
@@ -107,7 +107,7 @@
                         <div class="row" id="printableArea">
                             <div class="col-md-4">
                                 <div class="form-group">
-                                    {{Form::label('warehouse_id',__('Warehouse'),['class'=>'form-label'])}}<x-required></x-required>
+                                    {{ Form::label('warehouse_id', __('pos.warehouse'), ['class'=>'form-label']) }}<x-required></x-required>
                                     {{ Form::select('warehouse_id', $warehouses,'', array('class' => 'form-control select','id'=>'warehouse_id','required'=>'required')) }}
                                     <div class="text-xs mt-1">
                                         {{ __('Create warehouse here.') }} <a href="{{ route('warehouse.index') }}"><b>{{ __('Create warehouse') }}</b></a>
@@ -116,7 +116,7 @@
                             </div>
                             <div class="col-md-4">
                                 <div class="form-group" id="product_div">
-                                    {{Form::label('product_id',__('Product'),['class'=>'form-label'])}}<x-required></x-required>
+                                    {{ Form::label('product_id', __('pos.product'), ['class'=>'form-label']) }}<x-required></x-required>
                                     <select class="form-control select" name="product_id[]" id="product_id" required >
                                     </select>
                                     <div class="text-xs mt-1">

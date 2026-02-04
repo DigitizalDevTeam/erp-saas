@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{__('POS Detail')}}
+    {{ __('pos.pos_detail') }}
 @endsection
 @push('script-page')
 @endpush
@@ -9,13 +9,16 @@
     $settings = Utility::settings();
 @endphp
 @section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
-    <li class="breadcrumb-item"><a href="{{route('pos.report')}}">{{__('POS Summary')}}</a></li>
+    <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{ __('pos.dashboard') }}</a></li>
+    <li class="breadcrumb-item"><a href="{{route('pos.report')}}">{{ __('pos.pos_summary') }}</a></li>
     <li class="breadcrumb-item">{{ AUth::user()->posNumberFormat($pos->pos_id) }}</li>
 @endsection
 
 @section('action-btn')
     <div class="float-end">
+        @if($pos->invoice)
+            <a href="{{ route('invoice.show', Crypt::encrypt($pos->invoice->id)) }}" class="btn btn-info btn-sm ms-2">{{ __('pos.view_invoice') }}</a>
+        @endif
         <a href="{{ route('pos.pdf', Crypt::encrypt($pos->id))}}" class="btn btn-primary" target="_blank" >{{__('Download')}}</a>
     </div>
 @endsection
@@ -26,14 +29,34 @@
             <div class="card">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3 flex-wrap justify-content-between">
-                        <h4 class="mb-0">{{ __('POS') }}</h4>
+                        <h4 class="mb-0">{{ __('pos.title') }}</h4>
                         <h4 class="invoice-number mb-0">{{ Auth::user()->posNumberFormat($pos->pos_id) }}</h4>
                     </div>
                     <hr>
+                    @if($pos->branch_id || $pos->order_type || $pos->table_id || $pos->shift_id)
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="d-flex flex-wrap gap-3">
+                                @if($pos->branch)
+                                    <small><strong>{{ __('pos.branch') }}:</strong> {{ $pos->branch->name }}</small>
+                                @endif
+                                @if($pos->order_type)
+                                    <small><strong>{{ __('pos.order_type') }}:</strong> {{ __('pos.' . $pos->order_type) }}</small>
+                                @endif
+                                @if($pos->table)
+                                    <small><strong>{{ __('pos.table') }}:</strong> {{ $pos->table->name }}</small>
+                                @endif
+                                @if($pos->shift)
+                                    <small><strong>{{ __('pos.shift') }}:</strong> #{{ $pos->shift->id }}</small>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                    @endif
                     <div class="row">
                         <div class="col-5">
                             <small class="font-style">
-                                <strong>{{__('Billed To')}} :</strong><br>
+                                <strong>{{ __('pos.billed_to_short') }} :</strong><br>
                                 @if(!empty($customer->billing_name))
                                     {{!empty($customer->billing_name)?$customer->billing_name:''}}<br>
                                     {{!empty($customer->billing_address)?$customer->billing_address:''}}<br>
@@ -43,7 +66,7 @@
                                     {{!empty($customer->billing_country)?$customer->billing_country:''}}<br>
                                     {{!empty($customer->billing_phone)?$customer->billing_phone:''}}<br>
                                     @if($settings['vat_gst_number_switch'] == 'on')
-                                    <strong>{{__('Tax Number ')}} : </strong>{{!empty($customer->tax_number)?$customer->tax_number:''}}
+                                    <strong>{{ __('pos.tax_number') }} : </strong>{{!empty($customer->tax_number)?$customer->tax_number:''}}
                                     @endif
                                 @else
                                     -
@@ -53,7 +76,7 @@
                         <div class="col-4">
                             @if(App\Models\Utility::getValByName('shipping_display')=='on')
                                 <small>
-                                    <strong>{{__('Shipped To')}} :</strong><br>
+                                    <strong>{{ __('pos.shipped_to_short') }} :</strong><br>
                                         @if(!empty($customer->shipping_name))
                                         {{!empty($customer->shipping_name)?$customer->shipping_name:''}}<br>
                                         {{!empty($customer->shipping_address)?$customer->shipping_address:''}}<br>
@@ -86,12 +109,12 @@
                                     <thead>
                                     <tr>
                                         <th class="text-dark" >#</th>
-                                        <th class="text-dark">{{__('Items')}}</th>
-                                        <th class="text-dark">{{__('Quantity')}}</th>
-                                        <th class="text-dark">{{__('Price')}}</th>
-                                        <th class="text-dark">{{__('Tax')}}</th>
-                                        <th class="text-dark">{{__('Tax Amount')}}</th>
-                                        <th class="text-dark">{{__('Total')}}</th>
+                                        <th class="text-dark">{{ __('pos.items') }}</th>
+                                        <th class="text-dark">{{ __('pos.quantity') }}</th>
+                                        <th class="text-dark">{{ __('pos.price') }}</th>
+                                        <th class="text-dark">{{ __('pos.tax') }}</th>
+                                        <th class="text-dark">{{ __('pos.tax_amount') }}</th>
+                                        <th class="text-dark">{{ __('pos.total') }}</th>
                                     </tr>
                                     </thead>
                                     @php
@@ -154,7 +177,7 @@
                                     @endforeach
 
                                     <tr>
-                                        <td><b>{{__(' Sub Total')}}</b></td>
+                                        <td><b>{{ __('pos.sub_total') }}</b></td>
                                         <td></td>
                                         <td></td>
                                         <td></td>
@@ -172,7 +195,7 @@
                                         <td>{{\Auth::user()->priceFormat($posPayment['discount'])}}</td>
                                     </tr>
                                     <tr class="pos-header">
-                                        <td><b>{{__('Total')}}</b></td>
+                                        <td><b>{{ __('pos.total') }}</b></td>
                                         <td></td>
                                         <td></td>
                                         <td></td>

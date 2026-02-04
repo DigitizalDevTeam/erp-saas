@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{__('POS Balances')}}
+    {{ __('pos.pos_balances') }}
 @endsection
 @section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
-    <li class="breadcrumb-item">{{__('POS Balances')}}</li>
+    <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{ __('pos.dashboard') }}</a></li>
+    <li class="breadcrumb-item">{{ __('pos.pos_balances') }}</li>
 @endsection
 @push('css-page')
     <link rel="stylesheet" href="{{ asset('css/datatable/buttons.dataTables.min.css') }}">
@@ -36,7 +36,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="text-center text-dark"><p>{{__('No Data Found')}}</p></td>
+                                        <td colspan="7" class="text-center text-dark"><p>{{ __('pos.no_data_found_short') }}</p></td>
                                     </tr>
                                 @endforelse
                                 </tbody>

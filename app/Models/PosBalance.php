@@ -13,9 +13,15 @@ class PosBalance extends Model
     protected $fillable = [
         'id',
         'user_id',
+        'branch_id',
         'opening_balance',
         'closing_balance',
     ];
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class, 'branch_id');
+    }
 
     public function user()
     {

@@ -55,6 +55,10 @@ class BranchController extends Controller
 
             $branch             = new Branch();
             $branch->name       = $request->name;
+            $branch->address    = $request->address;
+            $branch->timezone   = $request->timezone ?? 'UTC';
+            $branch->is_active  = $request->boolean('is_active', true);
+            $branch->pos_type   = $request->pos_type ?? Branch::POS_TYPE_RETAIL;
             $branch->created_by = \Auth::user()->creatorId();
             $branch->save();
 
@@ -109,7 +113,11 @@ class BranchController extends Controller
                     return redirect()->back()->with('error', $messages->first());
                 }
 
-                $branch->name = $request->name;
+                $branch->name      = $request->name;
+                $branch->address   = $request->address;
+                $branch->timezone  = $request->timezone ?? 'UTC';
+                $branch->is_active = $request->boolean('is_active', true);
+                $branch->pos_type  = $request->pos_type ?? Branch::POS_TYPE_RETAIL;
                 $branch->save();
 
                 return redirect()->route('branch.index')->with('success', __('Branch successfully updated.'));

@@ -24,6 +24,7 @@ class Plan extends Model
         'account',
         'project',
         'pos',
+        'max_pos_users',
         'chatgpt',
         'storage_limit',
     ];
@@ -67,5 +68,44 @@ class Plan extends Model
         }
 
         return self::$getplans;
+    }
+
+    /**
+     * Phase 5: Count users who can use POS for a company (creatorId = company owner id).
+     */
+    public static function countPosUsersForCompany(int $creatorId): int
+    {
+        $userIds = User::where('created_by', $creatorId)->orWhere('id', $creatorId)->pluck('id');
+        $count = 0;
+        foreach ($userIds as $id) {
+            $u = User::find($id);
+            if ($u && $u->can('manage pos')) {
+                $count++;
+            }
+        }
+        return $count;
+    }
+
+    /**
+     * Phase 5: Check if company can add another POS user (under plan limit).
+     */
+    public static function canCompanyAddPosUser(int $creatorId, ?int $excludeUserId = null): bool
+    {
+        $owner = User::find($creatorId);
+        if (!$owner || !$owner->plan) {
+            return true;
+        }
+        $plan = Plan::find($owner->plan);
+        if (!$plan || $plan->pos != 1 || $plan->max_pos_users < 0) {
+            return true;
+        }
+        $count = self::countPosUsersForCompany($creatorId);
+        if ($excludeUserId && $count > 0) {
+            $exclude = User::find($excludeUserId);
+            if ($exclude && $exclude->can('manage pos') && $exclude->creatorId() == $creatorId) {
+                $count--;
+            }
+        }
+        return $count < $plan->max_pos_users;
     }
 }

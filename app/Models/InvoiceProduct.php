@@ -12,7 +12,8 @@ class InvoiceProduct extends Model
         'quantity',
         'tax',
         'discount',
-        'total',
+        'price',
+        'description',
     ];
 
     public function product(){

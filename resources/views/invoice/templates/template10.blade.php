@@ -252,6 +252,32 @@
                                     <td><b>{{__('Due Date:')}}</b></td>
                                     <td class="text-right">{{Utility::dateFormat($settings,$invoice->due_date)}}</td>
                                 </tr>
+                                @if(!empty($invoice->pos))
+                                    @if(!empty($invoice->pos->branch))
+                                    <tr>
+                                        <td>{{__('pos.branch')}}:</td>
+                                        <td class="text-right">{{ $invoice->pos->branch->name }}</td>
+                                    </tr>
+                                    @endif
+                                    @if(!empty($invoice->pos->order_type))
+                                    <tr>
+                                        <td>{{__('pos.order_type')}}:</td>
+                                        <td class="text-right">{{ __('pos.' . $invoice->pos->order_type) }}</td>
+                                    </tr>
+                                    @endif
+                                    @if(!empty($invoice->pos->table))
+                                    <tr>
+                                        <td>{{__('pos.table')}}:</td>
+                                        <td class="text-right">{{ $invoice->pos->table->name }}</td>
+                                    </tr>
+                                    @endif
+                                    @if(!empty($invoice->pos->shift))
+                                    <tr>
+                                        <td>{{__('pos.shift')}}:</td>
+                                        <td class="text-right">#{{ $invoice->pos->shift->id }}</td>
+                                    </tr>
+                                    @endif
+                                @endif
                                 @if(!empty($customFields) && count($invoice->customField)>0)
                                 @foreach($customFields as $field)
                                     <tr>

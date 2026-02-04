@@ -468,11 +468,11 @@ class ProductServiceController extends Controller
                         } else {
                             $productprice = $product->sale_price != 0 ? $product->sale_price : $product->purchase_price;
                         }
-
+                        $taxRate = \Utility::totalTaxRate($product->tax_id);
                         $output .= '
 
                                     <div class="col-xl-3 col-lg-4 col-md-3 col-sm-4 col-6">
-                                        <div class="tab-pane fade show active toacart w-100" data-url="' . url('add-to-cart/' . $product->id . '/' . $lastsegment) . '">
+                                        <div class="tab-pane fade show active toacart w-100" data-url="' . url('add-to-cart/' . $product->id . '/' . $lastsegment) . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e(asset(Storage::url($image_url))) . '">
                                             <div class="position-relative card">
                                                 <img alt="Image placeholder" src="' . asset(Storage::url($image_url)) . '" class="card-image avatar shadow hover-shadow-lg" style=" height: 6rem; width: 100%;">
                                                   <div class="p-0 custom-card-body card-body d-flex ">
@@ -546,7 +546,7 @@ class ProductServiceController extends Controller
             $product_tax = '';
             $product_tax_id = [];
             foreach ($taxes as $tax) {
-                $product_tax .= !empty($tax) ? "<span class='badge badge-primary'>" . $tax->name . ' (' . $tax->rate . '%)' . "</span><br>" : '';
+                $product_tax .= !empty($tax) ? "<span class='badge bg-primary'>" . $tax->name . ' (' . $tax->rate . '%)' . "</span><br>" : '';
                 $product_tax_id[] = !empty($tax) ? $tax->id : 0;
             }
 

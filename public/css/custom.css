@@ -1106,8 +1106,12 @@ body.theme-10 .cat-list-btn .cat-active .btn-primary {
     min-width: 100px;
     white-space: nowrap;
     border-radius: 0.625rem!important;
-    padding: 10px 20px;
+    padding: 6px 10px;
     font-size: 12px;
+    border-radius: 5px;
+}
+.cat-list-btn .card{
+    border-radius: 10px !important;
 }
 .cart-product-list .table tr th {
     padding: 5px 15px !important;

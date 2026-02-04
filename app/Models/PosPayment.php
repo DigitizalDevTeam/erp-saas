@@ -8,13 +8,17 @@ class PosPayment extends Model
 {
     protected $fillable = [
         'pos_id',
+        'branch_id',
         'date',
         'amount',
         'discount',
         'created_by',
-
     ];
 
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class, 'branch_id');
+    }
 
     public function bankAccount()
     {

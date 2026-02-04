@@ -222,7 +222,30 @@
                             <td>{{__('Issue Date')}}:</td>
                             <td class="text-right">{{Utility::dateFormat($settings,$pos->pos_date)}}</td>
                         </tr>
-
+                        @if(!empty($pos->branch))
+                        <tr>
+                            <td>{{__('pos.branch')}}:</td>
+                            <td class="text-right">{{ $pos->branch->name }}</td>
+                        </tr>
+                        @endif
+                        @if(!empty($pos->order_type))
+                        <tr>
+                            <td>{{__('pos.order_type')}}:</td>
+                            <td class="text-right">{{ __('pos.' . $pos->order_type) }}</td>
+                        </tr>
+                        @endif
+                        @if(!empty($pos->table))
+                        <tr>
+                            <td>{{__('pos.table')}}:</td>
+                            <td class="text-right">{{ $pos->table->name }}</td>
+                        </tr>
+                        @endif
+                        @if(!empty($pos->shift))
+                        <tr>
+                            <td>{{__('pos.shift')}}:</td>
+                            <td class="text-right">#{{ $pos->shift->id }}</td>
+                        </tr>
+                        @endif
                         @if(!empty($customFields) && count($pos->customField)>0)
                             @foreach($customFields as $field)
                                 <tr>

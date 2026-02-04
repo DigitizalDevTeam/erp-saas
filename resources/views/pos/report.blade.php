@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{__('POS Summary')}}
+    {{ __('pos.pos_summary') }}
 @endsection
 @section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
-    <li class="breadcrumb-item">{{__('POS Summary')}}</li>
+    <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{ __('pos.dashboard') }}</a></li>
+    <li class="breadcrumb-item">{{ __('pos.pos_summary') }}</li>
 @endsection
 @push('css-page')
     <link rel="stylesheet" href="{{ asset('css/datatable/buttons.dataTables.min.css') }}">
@@ -22,12 +22,14 @@
                                 <tr>
                                     <th>{{__('POS ID')}}</th>
                                     <th>{{ __('Date') }}</th>
+                                    <th>{{ __('Branch') }}</th>
                                     <th>{{ __('Customer') }}</th>
                                     <th>{{ __('Warehouse') }}</th>
                                     <th>{{ __('Payment Method') }}</th>
                                     <th>{{ __('Sub Total') }}</th>
                                     <th>{{ __('Discount') }}</th>
                                     <th>{{ __('Total') }}</th>
+                                    <th>{{ __('Invoice') }}</th>
                                 </tr>
                                 </thead>
                                 
@@ -37,13 +39,14 @@
                                     <tr>
                                         <td class="Id">
                                             <a href="{{ route('pos.show',\Crypt::encrypt($posPayment->id)) }}" class="btn btn-outline-primary">
-                                                {{ AUth::user()->posNumberFormat($posPayment->id) }}
+                                                {{ AUth::user()->posNumberFormat($posPayment->pos_id) }}
                                             </a>
                                         </td>
                                         
                                         <td>{{ Auth::user()->dateFormat($posPayment->created_at)}}</td>
+                                        <td>{{ !empty($posPayment->branch) ? $posPayment->branch->name : '-' }}</td>
                                         @if($posPayment->customer_id == 0)
-                                            <td class="">{{__('Walk-in Customer')}}</td>
+                                            <td class="">{{ __('pos.walkin_customer') }}</td>
                                         @else
                                             <td>{{ !empty($posPayment->customer) ? $posPayment->customer->name : '' }} </td>
                                         @endif
@@ -52,10 +55,17 @@
                                         <td>{{!empty($posPayment->posPayment)? \Auth::user()->priceFormat ($posPayment->posPayment->amount) :0}}</td>
                                         <td>{{!empty($posPayment->posPayment)? \Auth::user()->priceFormat($posPayment->posPayment->discount) :0}}</td>
                                         <td>{{!empty($posPayment->posPayment)? \Auth::user()->priceFormat($posPayment->posPayment->discount_amount) :0}}</td>
+                                        <td>
+                                            @if(!empty($posPayment->invoice))
+                                                <a href="{{ route('invoice.show', \Crypt::encrypt($posPayment->invoice->id)) }}" class="btn btn-sm btn-outline-primary">{{ \Auth::user()->invoiceNumberFormat($posPayment->invoice->invoice_id) }}</a>
+                                            @else
+                                                -
+                                            @endif
+                                        </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="text-center text-dark"><p>{{__('No Data Found')}}</p></td>
+                                        <td colspan="10" class="text-center text-dark"><p>{{ __('pos.no_data_found_short') }}</p></td>
                                     </tr>
                                 @endforelse
                                 </tbody>

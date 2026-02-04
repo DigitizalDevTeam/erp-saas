@@ -259,7 +259,7 @@
     </div>
     @include('partials.admin.footer')
     @include('Chatify::layouts.footerLinks')
-    @include('auto-logout')
+    <!-- @include('auto-logout') -->
 </body>
 
 </html>

@@ -357,6 +357,11 @@
                                                             <a class="dash-link"
                                                                 href="{{ route('report.pos.vs.purchase') }}">{{ __('Pos VS Purchase Report') }}</a>
                                                         </li>
+                                                        <li
+                                                            class="dash-item {{ request()->is('reports-pos-by-branch') ? 'active' : '' }}">
+                                                            <a class="dash-link"
+                                                                href="{{ route('report.pos.branch') }}">{{ __('POS by Branch') }}</a>
+                                                        </li>
                                                     </ul>
                                                 </li>
                                             @endcan
@@ -391,7 +396,7 @@
                         Gate::check('manage holiday') || Gate::check('manage event') ||
                         Gate::check('manage meeting') || Gate::check('manage assets') ||
                         Gate::check('manage document') || Gate::check('manage company policy') ||
-                        Gate::check('manage branch') || Gate::check('manage department') ||
+                        Gate::check('manage department') ||
                         Gate::check('manage designation') || Gate::check('manage leave type') ||
                         Gate::check('manage document type') || Gate::check('manage payslip type') ||
                         Gate::check('manage allowance option') || Gate::check('manage loan option') ||
@@ -411,7 +416,7 @@
                             Request::segment(1) == 'account-assets' || Request::segment(1) == 'leavetype' ||
                             Request::segment(1) == 'meeting-calender' || Request::segment(1) == 'document-upload' ||
                             Request::segment(1) == 'document' || Request::segment(1) == 'performanceType' ||
-                            Request::segment(1) == 'branch' || Request::segment(1) == 'department' ||
+                            Request::segment(1) == 'department' ||
                             Request::segment(1) == 'designation' || Request::segment(1) == 'employee' ||
                             Request::segment(1) == 'leave_requests' || Request::segment(1) == 'holidays' ||
                             Request::segment(1) == 'policies' || Request::segment(1) == 'leave_calender' ||
@@ -766,32 +771,6 @@
                                             href="{{ route('company-policy.index') }}">{{ __('Company policy') }}</a>
                                     </li>
                                 @endcan
-
-                                @if (\Auth::user()->type == 'company' || \Auth::user()->type == 'HR')
-                                    <li
-                                        class="dash-item {{ Request::segment(1) == 'leavetype' ||
-                                        Request::segment(1) == 'document' ||
-                                        Request::segment(1) == 'performanceType' ||
-                                        Request::segment(1) == 'branch' ||
-                                        Request::segment(1) == 'department' ||
-                                        Request::segment(1) == 'designation' ||
-                                        Request::segment(1) == 'job-stage' ||
-                                        Request::segment(1) == 'competencies' ||
-                                        Request::segment(1) == 'job-category' ||
-                                        Request::segment(1) == 'terminationtype' ||
-                                        Request::segment(1) == 'awardtype' ||
-                                        Request::segment(1) == 'trainingtype' ||
-                                        Request::segment(1) == 'goaltype' ||
-                                        Request::segment(1) == 'paysliptype' ||
-                                        Request::segment(1) == 'allowanceoption' ||
-                                        Request::segment(1) == 'loanoption' ||
-                                        Request::segment(1) == 'deductionoption'
-                                            ? 'active dash-trigger'
-                                            : '' }}">
-                                        <a class="dash-link"
-                                            href="{{ route('branch.index') }}">{{ __('HRM System Setup') }}</a>
-                                    </li>
-                                @endif
 
 
                             </ul>
@@ -1278,7 +1257,7 @@
 
                 <!--------------------- Start Products System ----------------------------------->
 
-                @if (Gate::check('manage product & service'))
+                @if (Gate::check('manage warehouse') || Gate::check('manage product & service'))
                     <li class="dash-item dash-hasmenu">
                         <a href="#!" class="dash-link ">
                             <span class="dash-micon"><i class="ti ti-shopping-cart"></i></span><span
@@ -1298,6 +1277,46 @@
                                     </a>
                                 </li>
                             @endif
+                            
+
+                            @if (\Auth::user()->type == 'company' || \Auth::user()->type == 'HR')
+                                <li
+                                    class="dash-item {{ Request::segment(1) == 'leavetype' ||
+                                    Request::segment(1) == 'document' ||
+                                    Request::segment(1) == 'performanceType' ||
+                                    Request::segment(1) == 'branch' ||
+                                    Request::segment(1) == 'department' ||
+                                    Request::segment(1) == 'designation' ||
+                                    Request::segment(1) == 'job-stage' ||
+                                    Request::segment(1) == 'competencies' ||
+                                    Request::segment(1) == 'job-category' ||
+                                    Request::segment(1) == 'terminationtype' ||
+                                    Request::segment(1) == 'awardtype' ||
+                                    Request::segment(1) == 'trainingtype' ||
+                                    Request::segment(1) == 'goaltype' ||
+                                    Request::segment(1) == 'paysliptype' ||
+                                    Request::segment(1) == 'allowanceoption' ||
+                                    Request::segment(1) == 'loanoption' ||
+                                    Request::segment(1) == 'deductionoption'
+                                        ? 'active dash-trigger'
+                                        : '' }}">
+                                    <a class="dash-link"
+                                        href="{{ route('branch.index') }}">{{ __('Branch') }}</a>
+                                </li>
+                            @endif
+                            @can('manage warehouse')
+                                <li
+                                    class="dash-item {{ Request::route()->getName() == 'warehouse.index' || Request::route()->getName() == 'warehouse.show' ? ' active' : '' }}">
+                                    <a class="dash-link" href="{{ route('warehouse.index') }}">{{ __('Warehouse') }}</a>
+                                </li>
+                            @endcan
+                            @can('manage warehouse')
+                                <li
+                                    class="dash-item {{ Request::route()->getName() == 'warehouse-transfer.index' || Request::route()->getName() == 'warehouse-transfer.show' ? ' active' : '' }}">
+                                    <a class="dash-link"
+                                        href="{{ route('warehouse-transfer.index') }}">{{ __('Transfer') }}</a>
+                                </li>
+                            @endcan
                         </ul>
                     </li>
                 @endif
@@ -1307,32 +1326,24 @@
 
                 <!--------------------- Start POs System ----------------------------------->
                 @if (!empty($userPlan) && $userPlan->pos == 1)
-                    @if (Gate::check('manage warehouse') ||
-                            Gate::check('manage purchase') ||
+                    @if (Gate::check('manage purchase') ||
                             Gate::check('manage quotation') ||
                             Gate::check('create barcode') ||
                             Gate::check('manage pos') ||
                             Gate::check('manage print settings'))
                         <li
-                            class="dash-item dash-hasmenu {{ Request::segment(1) == 'warehouse' || Request::segment(1) == 'purchase' || Request::segment(1) == 'quotation' || Request::route()->getName() == 'pos.barcode' || Request::route()->getName() == 'pos.print' || Request::route()->getName() == 'pos.show' ? ' active dash-trigger' : '' }}">
+                            class="dash-item dash-hasmenu {{ Request::segment(1) == 'purchase' || Request::segment(1) == 'quotation' || Request::route()->getName() == 'pos.barcode' || Request::route()->getName() == 'pos.print' || Request::route()->getName() == 'pos.show' ? ' active dash-trigger' : '' }}">
                             <a href="#!" class="dash-link"><span class="dash-micon"><i
                                         class="ti ti-layers-difference"></i></span><span
                                     class="dash-mtext">{{ __('POS System') }}</span><span class="dash-arrow"><i
                                         data-feather="chevron-right"></i></span></a>
                             <ul
-                                class="dash-submenu {{ Request::segment(1) == 'warehouse' ||
-                                Request::segment(1) == 'purchase' ||
+                                class="dash-submenu {{Request::segment(1) == 'purchase' ||
                                 Request::route()->getName() == 'pos.barcode' ||
                                 Request::route()->getName() == 'pos.print' ||
                                 Request::route()->getName() == 'pos.show'
                                     ? 'show'
                                     : '' }}">
-                                @can('manage warehouse')
-                                    <li
-                                        class="dash-item {{ Request::route()->getName() == 'warehouse.index' || Request::route()->getName() == 'warehouse.show' ? ' active' : '' }}">
-                                        <a class="dash-link" href="{{ route('warehouse.index') }}">{{ __('Warehouse') }}</a>
-                                    </li>
-                                @endcan
                                 @can('manage purchase')
                                     <li
                                         class="dash-item {{ Request::route()->getName() == 'purchase.index' || Request::route()->getName() == 'purchase.create' || Request::route()->getName() == 'purchase.edit' || Request::route()->getName() == 'purchase.show' ? ' active' : '' }}">
@@ -1356,12 +1367,14 @@
                                     <li class="dash-item {{ Request::route()->getName() == 'pos.balances' ? ' active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos.balances') }}">{{ __('POS Balances') }}</a>
                                     </li>
-                                @endcan
-                                @can('manage warehouse')
-                                    <li
-                                        class="dash-item {{ Request::route()->getName() == 'warehouse-transfer.index' || Request::route()->getName() == 'warehouse-transfer.show' ? ' active' : '' }}">
-                                        <a class="dash-link"
-                                            href="{{ route('warehouse-transfer.index') }}">{{ __('Transfer') }}</a>
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos-area.index' || Request::route()->getName() == 'pos-area.create' || Request::route()->getName() == 'pos-area.edit' ? ' active' : '' }}">
+                                        <a class="dash-link" href="{{ route('pos-area.index') }}">{{ __('POS Areas') }}</a>
+                                    </li>
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos-table.index' || Request::route()->getName() == 'pos-table.create' || Request::route()->getName() == 'pos-table.edit' ? ' active' : '' }}">
+                                        <a class="dash-link" href="{{ route('pos-table.index') }}">{{ __('POS Tables') }}</a>
+                                    </li>
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos-shift.index' || Request::route()->getName() == 'pos-shift.create' || Request::route()->getName() == 'pos-shift.show' ? ' active' : '' }}">
+                                        <a class="dash-link" href="{{ route('pos-shift.index') }}">{{ __('POS Shifts') }}</a>
                                     </li>
                                 @endcan
                                 @can('create barcode')
