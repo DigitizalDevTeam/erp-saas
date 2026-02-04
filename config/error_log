@@ -1,0 +1,28 @@
+[24-Jun-2025 23:26:44 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home3/utharaco/erpsaas.uthara.co.mz/config/auth.php:17
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/config/auth.php on line 17
+[24-Jun-2025 23:26:46 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home3/utharaco/erpsaas.uthara.co.mz/config/broadcasting.php:18
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/config/broadcasting.php on line 18
+[24-Jun-2025 23:26:47 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home3/utharaco/erpsaas.uthara.co.mz/config/cache.php:18
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/config/cache.php on line 18
+[24-Jun-2025 23:27:59 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home3/utharaco/erpsaas.uthara.co.mz/config/database.php:19
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/config/database.php on line 19
+[24-Jun-2025 23:29:09 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home3/utharaco/erpsaas.uthara.co.mz/config/filesystems.php:16
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/config/filesystems.php on line 16
+[24-Jun-2025 23:30:19 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home3/utharaco/erpsaas.uthara.co.mz/config/queue.php:16
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/config/queue.php on line 16
+[24-Jun-2025 23:30:52 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home3/utharaco/erpsaas.uthara.co.mz/config/session.php:21
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/config/session.php on line 21

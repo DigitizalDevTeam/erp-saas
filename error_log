@@ -1,0 +1,32 @@
+[01-Oct-2025 05:35:06 UTC] PHP Warning:  require(/home3/utharaco/erpsaas.uthara.co.mz/../vendor/autoload.php): Failed to open stream: No such file or directory in /home3/utharaco/erpsaas.uthara.co.mz/index.php on line 36
+[01-Oct-2025 05:35:06 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home3/utharaco/erpsaas.uthara.co.mz/../vendor/autoload.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/utharaco/erpsaas.uthara.co.mz/index.php:36
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/index.php on line 36
+[01-Oct-2025 05:35:08 UTC] PHP Warning:  require(/home3/utharaco/erpsaas.uthara.co.mz/../vendor/autoload.php): Failed to open stream: No such file or directory in /home3/utharaco/erpsaas.uthara.co.mz/index.php on line 36
+[01-Oct-2025 05:35:08 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home3/utharaco/erpsaas.uthara.co.mz/../vendor/autoload.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/utharaco/erpsaas.uthara.co.mz/index.php:36
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/index.php on line 36
+[01-Oct-2025 05:35:09 UTC] PHP Warning:  require(/home3/utharaco/erpsaas.uthara.co.mz/../vendor/autoload.php): Failed to open stream: No such file or directory in /home3/utharaco/erpsaas.uthara.co.mz/index.php on line 36
+[01-Oct-2025 05:35:09 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home3/utharaco/erpsaas.uthara.co.mz/../vendor/autoload.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/utharaco/erpsaas.uthara.co.mz/index.php:36
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/index.php on line 36
+[01-Oct-2025 05:35:09 UTC] PHP Warning:  require(/home3/utharaco/erpsaas.uthara.co.mz/../vendor/autoload.php): Failed to open stream: No such file or directory in /home3/utharaco/erpsaas.uthara.co.mz/index.php on line 36
+[01-Oct-2025 05:35:09 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home3/utharaco/erpsaas.uthara.co.mz/../vendor/autoload.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/utharaco/erpsaas.uthara.co.mz/index.php:36
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/index.php on line 36
+[01-Oct-2025 05:35:10 UTC] PHP Warning:  require(/home3/utharaco/erpsaas.uthara.co.mz/../vendor/autoload.php): Failed to open stream: No such file or directory in /home3/utharaco/erpsaas.uthara.co.mz/index.php on line 36
+[01-Oct-2025 05:35:10 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home3/utharaco/erpsaas.uthara.co.mz/../vendor/autoload.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/utharaco/erpsaas.uthara.co.mz/index.php:36
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/index.php on line 36
+[01-Oct-2025 05:35:11 UTC] PHP Warning:  require(/home3/utharaco/erpsaas.uthara.co.mz/../vendor/autoload.php): Failed to open stream: No such file or directory in /home3/utharaco/erpsaas.uthara.co.mz/index.php on line 36
+[01-Oct-2025 05:35:11 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home3/utharaco/erpsaas.uthara.co.mz/../vendor/autoload.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/utharaco/erpsaas.uthara.co.mz/index.php:36
+Stack trace:
+#0 {main}
+  thrown in /home3/utharaco/erpsaas.uthara.co.mz/index.php on line 36
+[25-Nov-2025 07:36:59 UTC] PHP Fatal error:  Namespace declaration statement has to be the very first statement or after any declare call in the script in /home3/utharaco/erpsaas.uthara.co.mz/app/Http/Controllers/ProductServiceController.php on line 3
+[25-Nov-2025 07:37:20 UTC] PHP Fatal error:  Namespace declaration statement has to be the very first statement or after any declare call in the script in /home3/utharaco/erpsaas.uthara.co.mz/app/Http/Controllers/ProductServiceController.php on line 3
