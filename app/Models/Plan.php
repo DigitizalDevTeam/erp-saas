@@ -24,6 +24,7 @@ class Plan extends Model
         'account',
         'project',
         'pos',
+        'stock',
         'max_pos_users',
         'chatgpt',
         'storage_limit',

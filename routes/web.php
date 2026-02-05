@@ -1837,6 +1837,10 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos-area/areas-by-branch', [PosAreaController::class, 'getByBranch'])->name('pos-area.by.branch')->middleware(['auth', 'XSS']);
     Route::get('pos-table/tables-by-area', [PosTableController::class, 'getTablesByArea'])->name('pos-table.by.area')->middleware(['auth', 'XSS']);
     Route::get('pos-table/tables-by-branch', [PosTableController::class, 'getTablesByBranch'])->name('pos-table.by.branch')->middleware(['auth', 'XSS']);
+    Route::patch('pos-table/{id}/status', [PosTableController::class, 'updateStatus'])->name('pos-table.update-status')->middleware(['auth', 'XSS']);
+    Route::get('pos/restaurant-layout', [PosController::class, 'getRestaurantLayout'])->name('pos.restaurant.layout')->middleware(['auth', 'XSS']);
+    Route::get('pos/active-shift', [PosController::class, 'getActiveShift'])->name('pos.active.shift')->middleware(['auth', 'XSS']);
+    Route::get('pos/branch-open-shifts', [PosController::class, 'getBranchOpenShifts'])->name('pos.branch.open.shifts')->middleware(['auth', 'XSS']);
     Route::resource('pos-area', PosAreaController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::resource('pos-table', PosTableController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('pos-shift/{pos_shift}/close', [PosShiftController::class, 'closeForm'])->name('pos-shift.close-form')->middleware(['auth', 'XSS']);

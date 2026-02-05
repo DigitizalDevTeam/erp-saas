@@ -1256,8 +1256,8 @@
 
 
                 <!--------------------- Start Products System ----------------------------------->
-
-                @if (Gate::check('manage warehouse') || Gate::check('manage product & service'))
+                {{-- Show only when plan includes Stock or POS (POS package includes stock) --}}
+                @if (!empty($userPlan) && (($userPlan->stock ?? 0) == 1 || $userPlan->pos == 1) && (Gate::check('manage warehouse') || Gate::check('manage product & service')))
                     <li class="dash-item dash-hasmenu">
                         <a href="#!" class="dash-link ">
                             <span class="dash-micon"><i class="ti ti-shopping-cart"></i></span><span

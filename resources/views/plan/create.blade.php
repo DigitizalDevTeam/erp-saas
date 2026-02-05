@@ -111,6 +111,12 @@
         </div>
         <div class="form-group col-md-3">
             <div class="form-check form-switch ">
+                <input type="checkbox" class="form-check-input" name="enable_stock" id="enable_stock">
+                <label class="custom-control-label form-label" for="enable_stock">{{__('Stock')}}</label>
+            </div>
+        </div>
+        <div class="form-group col-md-3">
+            <div class="form-check form-switch ">
                 <input type="checkbox" class="form-check-input" name="enable_chatgpt" id="enable_chatgpt">
                 <label class="custom-control-label form-label" for="enable_chatgpt">{{__('Chat GPT')}}</label>
             </div>

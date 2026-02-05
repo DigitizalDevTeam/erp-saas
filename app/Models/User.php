@@ -1227,6 +1227,21 @@ class User extends Authenticatable implements MustVerifyEmail
 
     }
 
+    public static function show_stock()
+    {
+        $user_type = \Auth::user()->type;
+        if ($user_type == 'company' || $user_type == 'super admin') {
+            $user = User::where('id', \Auth::user()->id)->first();
+        } else {
+            $user = User::where('id', \Auth::user()->created_by)->first();
+        }
+        $plan = $user && $user->plan ? Plan::find($user->plan) : null;
+        if (!$plan) {
+            return 0;
+        }
+        return (int) ($plan->stock ?? 0);
+    }
+
     public function clientProjects()
     {
         return $this->hasMany('App\Models\Project', 'client_id', 'id');

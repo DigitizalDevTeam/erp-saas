@@ -18,6 +18,8 @@ use App\Models\User;
 use App\Models\Utility;
 use App\Models\warehouse;
 use App\Models\WarehouseProduct;
+use App\Models\PosArea;
+use App\Models\PosTable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -52,6 +54,13 @@ class PosController extends Controller
             $branches = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->get()->pluck('name', 'id');
             $warehouses = warehouse::with('branch')->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $restaurantBranchIds = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->where('pos_type', Branch::POS_TYPE_RESTAURANT)->pluck('id')->toArray();
+            $retailBranchIds = Branch::where('created_by', $creatorId)->where('is_active', true)
+                ->where(function ($q) {
+                    $q->where('pos_type', Branch::POS_TYPE_RETAIL)->orWhereNull('pos_type');
+                })
+                ->pluck('id')->toArray();
+            $hasRetailBranches = !empty($retailBranchIds);
+            $hasRestaurantBranches = !empty($restaurantBranchIds);
             $user = Auth::user();
             $details = [
                 'pos_id' => $user->posNumberFormat($this->invoicePosNumber()),
@@ -80,10 +89,125 @@ class PosController extends Controller
                 $customer = '';
                 $warehouseId = '';
             } 
-            return view('pos.index', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds'));
+            return view('pos.index', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+    }
+
+    /**
+     * Get restaurant layout data: areas with tables for a branch.
+     */
+    public function getRestaurantLayout(Request $request)
+    {
+        if (!Auth::user()->can('manage pos')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $branchId = $request->branch_id;
+        if (!$branchId) {
+            return response()->json(['areas' => []]);
+        }
+        $areas = PosArea::where('created_by', Auth::user()->creatorId())
+            ->where('branch_id', $branchId)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+        $tables = PosTable::where('created_by', Auth::user()->creatorId())
+            ->where('branch_id', $branchId)
+            ->with('area')
+            ->orderBy('area_id')
+            ->orderBy('name')
+            ->get();
+        $result = $areas->map(function ($area) use ($tables) {
+            return [
+                'id' => $area->id,
+                'name' => $area->name,
+                'tables' => $tables->where('area_id', $area->id)->values()->map(fn ($t) => [
+                    'id' => $t->id,
+                    'name' => $t->name,
+                    'status' => $t->status,
+                    'capacity' => $t->capacity,
+                ])->toArray(),
+            ];
+        })->toArray();
+        // Tables without area
+        $tablesNoArea = $tables->whereNull('area_id');
+        if ($tablesNoArea->isNotEmpty()) {
+            $result[] = [
+                'id' => 0,
+                'name' => __('Other'),
+                'tables' => $tablesNoArea->values()->map(fn ($t) => [
+                    'id' => $t->id,
+                    'name' => $t->name,
+                    'status' => $t->status,
+                    'capacity' => $t->capacity,
+                ])->toArray(),
+            ];
+        }
+        return response()->json(['areas' => $result]);
+    }
+
+    /**
+     * Get current user's active (open) shift for a branch.
+     */
+    public function getActiveShift(Request $request)
+    {
+        if (!Auth::user()->can('manage pos')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $branchId = $request->has('branch_id') ? (int) $request->branch_id : null;
+        if (!$branchId) {
+            return response()->json(['shift' => null]);
+        }
+        $shift = \App\Models\PosShift::where('branch_id', $branchId)
+            ->where('user_id', Auth::id())
+            ->where('status', \App\Models\PosShift::STATUS_OPEN)
+            ->where('created_by', Auth::user()->creatorId())
+            ->orderBy('opened_at', 'desc')
+            ->first();
+
+        return response()->json([
+            'shift' => $shift ? [
+                'id' => $shift->id,
+                'opened_at' => $shift->opened_at?->format('H:i'),
+                'opening_balance' => $shift->opening_balance,
+            ] : null,
+        ]);
+    }
+
+    /**
+     * Get all open shifts for a branch (all users). Used in restaurant mode so staff can
+     * see every open shift and choose their own or another user's shift for the order.
+     */
+    public function getBranchOpenShifts(Request $request)
+    {
+        if (!Auth::user()->can('manage pos')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $branchId = $request->has('branch_id') ? (int) $request->branch_id : null;
+        if (!$branchId) {
+            return response()->json(['shifts' => []]);
+        }
+        $currentUserId = Auth::id();
+        $shifts = \App\Models\PosShift::where('branch_id', $branchId)
+            ->where('status', \App\Models\PosShift::STATUS_OPEN)
+            ->where('created_by', Auth::user()->creatorId())
+            ->with('user:id,name')
+            ->orderBy('opened_at', 'desc')
+            ->get();
+
+        $list = $shifts->map(function ($shift) use ($currentUserId) {
+            return [
+                'id' => $shift->id,
+                'user_id' => $shift->user_id,
+                'user_name' => $shift->user ? $shift->user->name : __('Unknown'),
+                'opened_at' => $shift->opened_at ? $shift->opened_at->format('H:i') : '',
+                'opening_balance' => $shift->opening_balance,
+                'is_current_user' => (int) $shift->user_id === (int) $currentUserId,
+            ];
+        })->values()->toArray();
+
+        return response()->json(['shifts' => $list]);
     }
 
     /**

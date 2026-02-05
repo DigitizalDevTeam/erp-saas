@@ -171,10 +171,9 @@
                 ele.remove();
             },
             success: function (data) {
-                // return false;
                 if (data.code == 200) {
-                    $('#carthtml').load(document.URL +  ' #carthtml');
-                    show_toastr('success', data.success, 'success')
+                    $(document).trigger('pos-payment-completed', [data]);
+                    show_toastr('success', data.success, 'success');
                 }
             },
             error: function (data) {

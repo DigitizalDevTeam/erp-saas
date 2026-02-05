@@ -113,6 +113,12 @@
                 <label class="custom-control-label form-label" for="enable_pos">{{__('POS')}}</label>
             </div>
         </div>
+        <div class="form-group col-md-3">
+            <div class="form-check form-switch">
+                <input type="checkbox" class="form-check-input" name="enable_stock" id="enable_stock" {{ ($plan['stock'] ?? 0) == 1 ? 'checked="checked"' : '' }}>
+                <label class="custom-control-label form-label" for="enable_stock">{{__('Stock')}}</label>
+            </div>
+        </div>
         <div class="form-group col-md-6 {{ $plan['pos'] != 1 ? 'd-none' : '' }}" id="max_pos_users_wrap">
             {{ Form::label('max_pos_users', __('Maximum POS Users'), ['class' => 'form-label']) }}
             {{ Form::number('max_pos_users', $plan->max_pos_users ?? -1, ['class' => 'form-control', 'placeholder' => __('e.g. -1 for unlimited'), 'min' => -1]) }}

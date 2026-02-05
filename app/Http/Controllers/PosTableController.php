@@ -133,4 +133,25 @@ class PosTableController extends Controller
             ->toArray();
         return response()->json($tables);
     }
+
+    /**
+     * Update table status (available / occupied / reserved).
+     */
+    public function updateStatus(Request $request, $id)
+    {
+        if (!\Auth::user()->can('manage pos')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $table = PosTable::where('id', $id)->where('created_by', \Auth::user()->creatorId())->first();
+        if (!$table) {
+            return response()->json(['error' => __('Table not found.')], 404);
+        }
+        $status = $request->input('status');
+        if (!in_array($status, [PosTable::STATUS_AVAILABLE, PosTable::STATUS_OCCUPIED, PosTable::STATUS_RESERVED], true)) {
+            return response()->json(['error' => __('Invalid status.')], 422);
+        }
+        $table->status = $status;
+        $table->save();
+        return response()->json(['success' => true, 'status' => $table->status]);
+    }
 }

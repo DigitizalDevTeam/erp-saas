@@ -593,7 +593,7 @@ https://cdn.jsdelivr.net/npm/lightbox2@2.11.5/dist/css/lightbox.min.css
                     $admin_payment_setting = Utility::getAdminPaymentSetting();
                 @endphp
                 @foreach ($collection as $key => $value)
-                    @if($value->is_disable == 1)
+                    @if($value->is_disable == 1 && (int)$value->price > 0)
                         <div class="col-xxl-3 col-lg-4 col-md-6">
                             <div class="card price-card shadow-none {{ $key == 2 ? 'bg-dark' : '' }}">
                                 <div class="card-body">
@@ -601,7 +601,7 @@ https://cdn.jsdelivr.net/npm/lightbox2@2.11.5/dist/css/lightbox.min.css
                                     @if((int)$value->price > 0)
                                     <span
                                         class="mb-4 f-w-00 p-price">{{ number_format((int)$value->price, 0, '', '.') }} {{ isset($admin_payment_setting['currency_symbol']) ? $admin_payment_setting['currency_symbol'] : '$' }}<small
-                                            class="text-sm">/{{ $value->duration }}</small></span>
+                                            class="text-sm">/{{ __($value->duration) }}</small></span>
                                         @else
                                         <span
                                         class="mb-4 f-w-00 p-price">{{ __('Free Test') }}</span>

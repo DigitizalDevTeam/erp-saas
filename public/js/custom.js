@@ -171,6 +171,15 @@ $(document).on('click', 'a[data-ajax-popup="true"], button[data-ajax-popup="true
     if ($('#quotation_id').length > 0) {
         data['quotation_id'] = $('#quotation_id').val();
     }
+    if ($('#pos_order_type_hidden').length > 0) {
+        data['pos_order_type'] = $('#pos_order_type_hidden').val();
+    }
+    if ($('#pos_table_id_hidden').length > 0) {
+        data['pos_table_id'] = $('#pos_table_id_hidden').val();
+    }
+    if ($('#pos_shift_id_hidden').length > 0) {
+        data['pos_shift_id'] = $('#pos_shift_id_hidden').val();
+    }
     $.ajax({
         url: url,
         data: data,

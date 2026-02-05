@@ -505,7 +505,8 @@ class ProductServiceController extends Controller
     public function addToCart(Request $request, $id, $session_key)
     {
 
-        if (Auth::user()->can('manage product & service') && $request->ajax()) {
+        $canManage = Auth::user()->can('manage product & service') || (Auth::user()->can('manage pos') && $session_key == 'pos');
+        if ($canManage && $request->ajax()) {
             $product = ProductService::find($id);
             $productquantity = 0;
 
@@ -576,7 +577,7 @@ class ProductServiceController extends Controller
                             <td class="">
                                    <span class="quantity buttons_added">
                                          <input type="button" value="-" class="minus">
-                                         <input type="number" step="1" min="1" max="" name="quantity" title="' . __('Quantity') . '" class="input-number" size="4" data-url="' . url('update-cart/') . '" data-id="' . $id . '">
+                                         <input type="number" step="1" min="1" max="" name="quantity" title="' . __('Quantity') . '" class="input-number" size="4" value="1" data-url="' . url('update-cart/') . '" data-id="' . $id . '">
                                          <input type="button" value="+" class="plus">
                                    </span>
                             </td>
@@ -734,7 +735,8 @@ class ProductServiceController extends Controller
         $discount    = $request->discount;
         $session_key = $request->session_key;
 
-        if (Auth::user()->can('manage product & service') && $request->ajax() && isset($id) && !empty($id) && isset($session_key) && !empty($session_key)) {
+        $canManage = Auth::user()->can('manage product & service') || (Auth::user()->can('manage pos') && $session_key == 'pos');
+        if ($canManage && $request->ajax() && isset($id) && !empty($id) && isset($session_key) && !empty($session_key)) {
             $cart = session()->get($session_key);
 
 
@@ -800,7 +802,8 @@ class ProductServiceController extends Controller
     {
         $session_key = $request->session_key;
 
-        if (Auth::user()->can('manage product & service') && isset($session_key) && !empty($session_key)) {
+        $canManage = Auth::user()->can('manage product & service') || (Auth::user()->can('manage pos') && $session_key == 'pos');
+        if ($canManage && isset($session_key) && !empty($session_key)) {
             $cart = session()->get($session_key);
             if (isset($cart) && count($cart) > 0) {
                 session()->forget($session_key);
@@ -828,7 +831,8 @@ class ProductServiceController extends Controller
     {
         $id          = $request->id;
         $session_key = $request->session_key;
-        if (Auth::user()->can('manage product & service') && isset($id) && !empty($id) && isset($session_key) && !empty($session_key)) {
+        $canManage = Auth::user()->can('manage product & service') || (Auth::user()->can('manage pos') && $session_key == 'pos');
+        if ($canManage && isset($id) && !empty($id) && isset($session_key) && !empty($session_key)) {
             $cart = session()->get($session_key);
             if (isset($cart[$id])) {
                 unset($cart[$id]);

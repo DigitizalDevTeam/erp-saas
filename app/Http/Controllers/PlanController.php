@@ -98,6 +98,10 @@ class PlanController extends Controller
                 {
                     $post['pos'] = 1;
                 }
+                if(isset($request->enable_stock))
+                {
+                    $post['stock'] = 1;
+                }
                 if(isset($request->enable_chatgpt))
                 {
                     $post['chatgpt'] = 1;
@@ -251,6 +255,14 @@ class PlanController extends Controller
                     {
                         $post['pos'] = 0;
                         $post['max_pos_users'] = -1;
+                    }
+                    if(array_key_exists('enable_stock', $post))
+                    {
+                        $post['stock'] = 1;
+                    }
+                    else
+                    {
+                        $post['stock'] = 0;
                     }
                     if(array_key_exists('enable_chatgpt', $post))
                     {

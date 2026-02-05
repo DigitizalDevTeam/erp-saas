@@ -4429,124 +4429,214 @@ class ReportController extends Controller
 
     public function salesReport(Request $request)
     {
+        $creatorId = \Auth::user()->creatorId();
         if (!empty($request->start_date) && !empty($request->end_date)) {
             $start = $request->start_date;
             $end = $request->end_date;
         } else {
             $start = date('Y-01-01');
-            $end = date('Y-m-d', strtotime('+1 day'));
+            $end = date('Y-m-d');
         }
-        $invoiceItems = InvoiceProduct::select('product_services.name', \DB::raw('sum(invoice_products.quantity) as quantity'), \DB::raw('sum(invoice_products.price * invoice_products.quantity) as price'), \DB::raw('sum(invoice_products.price)/sum(invoice_products.quantity) as avg_price'));
-        $invoiceItems->leftjoin('product_services', 'product_services.id', 'invoice_products.product_id');
-        $invoiceItems->leftjoin('invoices', 'invoices.id', 'invoice_products.invoice_id');
-        $invoiceItems->where('product_services.created_by', \Auth::user()->creatorId());
-        $invoiceItems->where('invoices.issue_date', '>=', $start);
-        $invoiceItems->where('invoices.issue_date', '<=', $end);
-        $invoiceItems->groupBy('invoice_products.product_id');
-        $invoiceItems = $invoiceItems->get()->toArray();
+        $branchId = $request->get('branch_id');
+        $customerId = $request->get('customer_id');
 
-        $invoiceCustomeres = Invoice::select('customers.name', \DB::raw('count(DISTINCT invoices.customer_id, invoice_products.invoice_id) as invoice_count'))
-            ->selectRaw('sum((invoice_products.price * invoice_products.quantity) - invoice_products.discount) as price')
-            ->selectRaw('(SELECT SUM((price * quantity - discount) * (taxes.rate / 100)) FROM invoice_products
-             LEFT JOIN taxes ON FIND_IN_SET(taxes.id, invoice_products.tax) > 0
-             WHERE invoice_products.invoice_id = invoices.id) as total_tax')
-            ->leftJoin('customers', 'customers.id', 'invoices.customer_id')
-            ->leftJoin('invoice_products', 'invoice_products.invoice_id', 'invoices.id')
-            ->where('invoices.created_by', \Auth::user()->creatorId())
+        $branches = Branch::where('created_by', $creatorId)->where('is_active', true)->orderBy('name')->get(['id', 'name']);
+        $customers = Customer::where('created_by', $creatorId)->orderBy('name')->get(['id', 'name']);
+
+        $baseInvoiceQuery = Invoice::query()
+            ->where('invoices.created_by', $creatorId)
             ->where('invoices.issue_date', '>=', $start)
-            ->where('invoices.issue_date', '<=', $end)
-            ->groupBy('invoices.invoice_id')
-            ->get()
-            ->toArray();
+            ->where('invoices.issue_date', '<=', $end);
+        if (!empty($branchId) && $branchId !== 'all') {
+            $baseInvoiceQuery->whereHas('pos', function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId);
+            });
+        }
+        if (!empty($customerId) && $customerId !== 'all') {
+            if ($customerId == 'walk_in') {
+                $baseInvoiceQuery->where('invoices.customer_id',0);
+            } else {
+                $baseInvoiceQuery->where('invoices.customer_id', $customerId);
+            }
+        }
+
+        $filteredInvoiceIds = (clone $baseInvoiceQuery)->pluck('id')->toArray();
+        $hasInvoices = count($filteredInvoiceIds) > 0;
+
+        $totalSales = 0;
+        $totalTransactions = count($filteredInvoiceIds);
+        if ($totalTransactions > 0) {
+            $invoicesForTotal = Invoice::with('items')->whereIn('id', $filteredInvoiceIds)->get();
+            $totalSales = $invoicesForTotal->sum(fn ($inv) => $inv->getTotal());
+        }
+        $avgTransaction = $totalTransactions > 0 ? ($totalSales / $totalTransactions) : 0;
+
+        $salesTrendDaily = collect();
+        $salesTrendMonthly = collect();
+        if ($hasInvoices) {
+            $salesTrendDaily = \DB::table('invoices')
+                ->join('invoice_products', 'invoices.id', '=', 'invoice_products.invoice_id')
+                ->whereIn('invoices.id', $filteredInvoiceIds)
+                ->selectRaw('invoices.issue_date as date, SUM(invoice_products.price * invoice_products.quantity - COALESCE(invoice_products.discount, 0)) as amount')
+                ->groupBy('invoices.issue_date')
+                ->orderBy('invoices.issue_date')
+                ->get()
+                ->keyBy('date');
+            $salesTrendMonthly = \DB::table('invoices')
+                ->join('invoice_products', 'invoices.id', '=', 'invoice_products.invoice_id')
+                ->whereIn('invoices.id', $filteredInvoiceIds)
+                ->selectRaw("DATE_FORMAT(invoices.issue_date, '%Y-%m') as month, SUM(invoice_products.price * invoice_products.quantity - COALESCE(invoice_products.discount, 0)) as amount")
+                ->groupBy('month')
+                ->orderBy('month')
+                ->get()
+                ->keyBy('month');
+        }
+
+        $topSellingProducts = [];
+        $invoiceItems = [];
+        if ($hasInvoices) {
+            $topSellingProducts = InvoiceProduct::select('product_services.name', \DB::raw('sum(invoice_products.quantity) as quantity'), \DB::raw('sum(invoice_products.price * invoice_products.quantity) as price'))
+                ->leftJoin('product_services', 'product_services.id', 'invoice_products.product_id')
+                ->leftJoin('invoices', 'invoices.id', 'invoice_products.invoice_id')
+                ->whereIn('invoice_products.invoice_id', $filteredInvoiceIds)
+                ->where('product_services.created_by', $creatorId)
+                ->groupBy('invoice_products.product_id', 'product_services.name')
+                ->orderByDesc('price')
+                ->limit(10)
+                ->get()
+                ->toArray();
+
+            $invoiceItems = InvoiceProduct::select('product_services.name', \DB::raw('sum(invoice_products.quantity) as quantity'), \DB::raw('sum(invoice_products.price * invoice_products.quantity) as price'), \DB::raw('sum(invoice_products.price)/sum(invoice_products.quantity) as avg_price'))
+                ->leftJoin('product_services', 'product_services.id', 'invoice_products.product_id')
+                ->leftJoin('invoices', 'invoices.id', 'invoice_products.invoice_id')
+                ->whereIn('invoice_products.invoice_id', $filteredInvoiceIds)
+                ->where('product_services.created_by', $creatorId)
+                ->groupBy('invoice_products.product_id')
+                ->get()
+                ->toArray();
+        }
+
+        $invoiceCustomeres = [];
+        if ($hasInvoices) {
+            $invoiceCustomeres = Invoice::select('customers.name', \DB::raw('count(DISTINCT invoices.id) as invoice_count'))
+                ->selectRaw('sum((invoice_products.price * invoice_products.quantity) - COALESCE(invoice_products.discount, 0)) as price')
+                ->selectRaw('(SELECT SUM((price * quantity - COALESCE(discount,0)) * (COALESCE(taxes.rate,0) / 100)) FROM invoice_products ip2 LEFT JOIN taxes ON FIND_IN_SET(taxes.id, ip2.tax) > 0 WHERE ip2.invoice_id = invoices.id) as total_tax')
+                ->leftJoin('customers', 'customers.id', 'invoices.customer_id')
+                ->leftJoin('invoice_products', 'invoice_products.invoice_id', 'invoices.id')
+                ->whereIn('invoices.id', $filteredInvoiceIds)
+                ->groupBy('invoices.id', 'customers.name')
+                ->get()
+                ->toArray();
+        }
         $mergedArray = [];
         foreach ($invoiceCustomeres as $item) {
-            $name = $item["name"];
-
+            $name = $item['name'] ?? __('Walk-in Customer');
             if (!isset($mergedArray[$name])) {
-                $mergedArray[$name] = [
-                    "name" => $name,
-                    "invoice_count" => 0,
-                    "price" => 0.0,
-                    "total_tax" => 0.0,
-                ];
+                $mergedArray[$name] = ['name' => $name, 'invoice_count' => 0, 'price' => 0.0, 'total_tax' => 0.0];
             }
-
-            $mergedArray[$name]["invoice_count"] += $item["invoice_count"];
-            $mergedArray[$name]["price"] += $item["price"];
-            $mergedArray[$name]["total_tax"] += $item["total_tax"];
+            $mergedArray[$name]['invoice_count'] += $item['invoice_count'];
+            $mergedArray[$name]['price'] += (float) $item['price'];
+            $mergedArray[$name]['total_tax'] += (float) ($item['total_tax'] ?? 0);
         }
         $invoiceCustomers = array_values($mergedArray);
 
-        $filter['startDateRange'] = $start;
-        $filter['endDateRange'] = $end;
+        $filter = [
+            'startDateRange' => $start,
+            'endDateRange'   => $end,
+            'branch_id'      => $branchId ?? 'all',
+            'customer_id'    => $customerId ?? 'all',
+        ];
 
-        return view('report.sales_report', compact('filter', 'invoiceItems', 'invoiceCustomers'));
+        $salesTrendDailyJson = $salesTrendDaily->isEmpty() ? '[]' : $salesTrendDaily->map(fn ($r) => ['date' => $r->date, 'amount' => (float) $r->amount])->values()->toJson();
+        $salesTrendMonthlyJson = $salesTrendMonthly->isEmpty() ? '[]' : $salesTrendMonthly->map(fn ($r) => ['month' => $r->month, 'amount' => (float) $r->amount])->values()->toJson();
+
+        return view('report.sales_report', compact(
+            'filter', 'invoiceItems', 'invoiceCustomers', 'branches', 'customers',
+            'totalSales', 'totalTransactions', 'avgTransaction',
+            'salesTrendDaily', 'salesTrendMonthly', 'salesTrendDailyJson', 'salesTrendMonthlyJson',
+            'topSellingProducts'
+        ));
     }
 
     public function salesReportExport(Request $request)
     {
+        $creatorId = \Auth::user()->creatorId();
         if (!empty($request->start_date) && !empty($request->end_date)) {
             $start = $request->start_date;
             $end = $request->end_date;
         } else {
             $start = date('Y-01-01');
-            $end = date('Y-m-d', strtotime('+1 day'));
+            $end = date('Y-m-d');
         }
-        if ($request->report == '#item') {
-            $invoiceItems = InvoiceProduct::select('product_services.name', \DB::raw('sum(invoice_products.quantity) as quantity'), \DB::raw('sum(invoice_products.price * invoice_products.quantity) as price'), \DB::raw('sum(invoice_products.price)/sum(invoice_products.quantity) as avg_price'));
-            $invoiceItems->leftjoin('product_services', 'product_services.id', 'invoice_products.product_id');
-            $invoiceItems->leftjoin('invoices', 'invoices.id', 'invoice_products.invoice_id');
-            $invoiceItems->where('product_services.created_by', \Auth::user()->creatorId());
-            $invoiceItems->where('invoices.issue_date', '>=', $start);
-            $invoiceItems->where('invoices.issue_date', '<=', $end);
-            $invoiceItems->groupBy('invoice_products.product_id');
-            $invoiceItems = $invoiceItems->get()->toArray();
+        $branchId = $request->get('branch_id');
+        $customerId = $request->get('customer_id');
 
-            $reportName = 'Item';
-        } else {
-            $invoiceCustomeres = Invoice::select('customers.name', \DB::raw('count(DISTINCT invoices.customer_id, invoice_products.invoice_id) as invoice_count'))
-                ->selectRaw('sum((invoice_products.price * invoice_products.quantity) - invoice_products.discount) as price')
-                ->selectRaw('(SELECT SUM((price * quantity - discount) * (taxes.rate / 100)) FROM invoice_products
-             LEFT JOIN taxes ON FIND_IN_SET(taxes.id, invoice_products.tax) > 0
-             WHERE invoice_products.invoice_id = invoices.id) as total_tax')
-                ->leftJoin('customers', 'customers.id', 'invoices.customer_id')
-                ->leftJoin('invoice_products', 'invoice_products.invoice_id', 'invoices.id')
-                ->where('invoices.created_by', \Auth::user()->creatorId())
-                ->where('invoices.issue_date', '>=', $start)
-                ->where('invoices.issue_date', '<=', $end)
-                ->groupBy('invoices.invoice_id')
-                ->get()
-                ->toArray();
+        $baseInvoiceQuery = Invoice::query()
+            ->where('invoices.created_by', $creatorId)
+            ->where('invoices.issue_date', '>=', $start)
+            ->where('invoices.issue_date', '<=', $end);
+        if (!empty($branchId) && $branchId !== 'all') {
+            $baseInvoiceQuery->whereHas('pos', function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId);
+            });
+        }
+        if (!empty($customerId) && $customerId !== 'all') {
+            if ($customerId === 'walk_in') {
+                $baseInvoiceQuery->whereNull('invoices.customer_id');
+            } else {
+                $baseInvoiceQuery->where('invoices.customer_id', $customerId);
+            }
+        }
+        $filteredInvoiceIds = (clone $baseInvoiceQuery)->pluck('id')->toArray();
+
+        if ($request->report == '#customer') {
+            $reportName = 'Customer';
+            $invoiceCustomeres = [];
+            if (count($filteredInvoiceIds) > 0) {
+                $invoiceCustomeres = Invoice::select('customers.name', \DB::raw('count(DISTINCT invoices.id) as invoice_count'))
+                    ->selectRaw('sum((invoice_products.price * invoice_products.quantity) - COALESCE(invoice_products.discount, 0)) as price')
+                    ->selectRaw('(SELECT SUM((price * quantity - COALESCE(discount,0)) * (COALESCE(taxes.rate,0) / 100)) FROM invoice_products ip2 LEFT JOIN taxes ON FIND_IN_SET(taxes.id, ip2.tax) > 0 WHERE ip2.invoice_id = invoices.id) as total_tax')
+                    ->leftJoin('customers', 'customers.id', 'invoices.customer_id')
+                    ->leftJoin('invoice_products', 'invoice_products.invoice_id', 'invoices.id')
+                    ->whereIn('invoices.id', $filteredInvoiceIds)
+                    ->groupBy('invoices.id', 'customers.name')
+                    ->get()
+                    ->toArray();
+            }
             $mergedArray = [];
             foreach ($invoiceCustomeres as $item) {
-                $name = $item["name"];
-
+                $name = $item['name'] ?? __('Walk-in Customer');
                 if (!isset($mergedArray[$name])) {
-                    $mergedArray[$name] = [
-                        "name" => $name,
-                        "invoice_count" => 0,
-                        "price" => 0.0,
-                        "total_tax" => 0.0,
-                    ];
+                    $mergedArray[$name] = ['name' => $name, 'invoice_count' => 0, 'price' => 0.0, 'total_tax' => 0.0];
                 }
-
-                $mergedArray[$name]["invoice_count"] += $item["invoice_count"];
-                $mergedArray[$name]["price"] += $item["price"];
-                $mergedArray[$name]["total_tax"] += $item["total_tax"];
+                $mergedArray[$name]['invoice_count'] += $item['invoice_count'];
+                $mergedArray[$name]['price'] += (float) $item['price'];
+                $mergedArray[$name]['total_tax'] += (float) ($item['total_tax'] ?? 0);
             }
             $invoiceItems = array_values($mergedArray);
-
-            $reportName = 'Customer';
+        } else {
+            $reportName = 'Item';
+            $invoiceItems = [];
+            if (count($filteredInvoiceIds) > 0) {
+                $invoiceItems = InvoiceProduct::select('product_services.name', \DB::raw('sum(invoice_products.quantity) as quantity'), \DB::raw('sum(invoice_products.price * invoice_products.quantity) as price'), \DB::raw('sum(invoice_products.price)/sum(invoice_products.quantity) as avg_price'))
+                    ->leftJoin('product_services', 'product_services.id', 'invoice_products.product_id')
+                    ->leftJoin('invoices', 'invoices.id', 'invoice_products.invoice_id')
+                    ->whereIn('invoice_products.invoice_id', $filteredInvoiceIds)
+                    ->where('product_services.created_by', $creatorId)
+                    ->groupBy('invoice_products.product_id')
+                    ->get()
+                    ->toArray();
+            }
         }
-        $companyName = User::where('id', \Auth::user()->creatorId())->first();
-        $companyName = $companyName->name;
 
-        $name = 'Sales By ' . $reportName . '_ ' . date('Y-m-d i:h:s');
+        $companyName = User::where('id', $creatorId)->first();
+        $companyName = $companyName ? $companyName->name : '';
+
+        $name = 'Sales_By_' . $reportName . '_' . date('Y-m-d_His');
         $data = Excel::download(new SalesReportExport($invoiceItems, $start, $end, $companyName, $reportName), $name . '.xlsx');
         ob_end_clean();
 
         return $data;
-
     }
 
     public function ReceivablesReport(Request $request)
