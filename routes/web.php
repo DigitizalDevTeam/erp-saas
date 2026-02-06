@@ -106,6 +106,7 @@ use App\Http\Controllers\PlanRequestController;
 use App\Http\Controllers\PosAreaController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\PosShiftController;
+use App\Http\Controllers\PosPrinterController;
 use App\Http\Controllers\PosTableController;
 use App\Http\Controllers\ProductServiceCategoryController;
 use App\Http\Controllers\ProductServiceController;
@@ -1260,6 +1261,7 @@ Route::group(['middleware' => ['verified']], function () {
 
     Route::get('reports-daily-pos', [ReportController::class, 'posDailyReport'])->name('report.daily.pos')->middleware(['auth', 'XSS']);
     Route::get('reports-monthly-pos', [ReportController::class, 'posMonthlyReport'])->name('report.monthly.pos')->middleware(['auth', 'XSS']);
+    Route::get('report/pos-eod', [ReportController::class, 'posEodReport'])->name('report.pos.eod')->middleware(['auth', 'XSS']);
 
     Route::get('reports-pos-vs-purchase', [ReportController::class, 'posVsPurchaseReport'])->name('report.pos.vs.purchase')->middleware(['auth', 'XSS']);
     Route::get('reports-pos-by-branch', [ReportController::class, 'posBranchReport'])->name('report.pos.branch')->middleware(['auth', 'XSS']);
@@ -1811,6 +1813,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos/pdf/{id}', [PosController::class, 'pos'])->name('pos.pdf')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('pos/data/store', [PosController::class, 'store'])->name('pos.data.store')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('pos/sync', [PosController::class, 'sync'])->name('pos.sync')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::match(['get', 'post'], 'pos/sync-status', [PosController::class, 'syncStatus'])->name('pos.sync.status')->middleware(['auth', 'XSS']);
 
     Route::get('pos/balances', [PosController::class, 'balances'])->name('pos.balances')->middleware(['auth', 'XSS']);
     
@@ -1838,6 +1841,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos-table/tables-by-area', [PosTableController::class, 'getTablesByArea'])->name('pos-table.by.area')->middleware(['auth', 'XSS']);
     Route::get('pos-table/tables-by-branch', [PosTableController::class, 'getTablesByBranch'])->name('pos-table.by.branch')->middleware(['auth', 'XSS']);
     Route::patch('pos-table/{id}/status', [PosTableController::class, 'updateStatus'])->name('pos-table.update-status')->middleware(['auth', 'XSS']);
+    Route::post('pos-table/{id}/close', [PosTableController::class, 'closeTable'])->name('pos-table.close')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant-layout', [PosController::class, 'getRestaurantLayout'])->name('pos.restaurant.layout')->middleware(['auth', 'XSS']);
     Route::get('pos/active-shift', [PosController::class, 'getActiveShift'])->name('pos.active.shift')->middleware(['auth', 'XSS']);
     Route::get('pos/branch-open-shifts', [PosController::class, 'getBranchOpenShifts'])->name('pos.branch.open.shifts')->middleware(['auth', 'XSS']);
@@ -1847,8 +1851,11 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('pos-shift/{pos_shift}/close', [PosShiftController::class, 'close'])->name('pos-shift.close')->middleware(['auth', 'XSS']);
     Route::get('pos-shift/{pos_shift}/assign-table', [PosShiftController::class, 'assignTableForm'])->name('pos-shift.assign-table')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/{pos_shift}/assign-table', [PosShiftController::class, 'assignTable'])->name('pos-shift.assign-table.store')->middleware(['auth', 'XSS']);
+    Route::post('pos-shift/transfer-tables', [PosShiftController::class, 'transferTables'])->name('pos-shift.transfer-tables')->middleware(['auth', 'XSS']);
     Route::resource('pos-shift', PosShiftController::class)->middleware(['auth', 'XSS', 'revalidate']);
+    Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
+    Route::get('pos/retail/{cid?}', [PosController::class, 'index'])->name('pos.index')->defaults('cid', null)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('pos-restaurant', [PosController::class, 'indexRestaurant'])->name('pos.restaurant.index');
     Route::resource('pos', PosController::class)->middleware(['auth', 'XSS', 'revalidate']);
 

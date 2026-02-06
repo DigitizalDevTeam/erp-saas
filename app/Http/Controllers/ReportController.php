@@ -37,6 +37,8 @@ use App\Models\Payment;
 use App\Models\PaySlip;
 use App\Models\Pipeline;
 use App\Models\Pos;
+use App\Models\PosPayment;
+use App\Models\PosShift;
 use App\Models\ProductServiceCategory;
 use App\Models\Purchase;
 use App\Models\Revenue;
@@ -2578,7 +2580,7 @@ class ReportController extends Controller
 
     public function warehouseReport()
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $warehouse = warehouse::where('created_by', \Auth::user()->id)->get();
             $totalWarehouse = warehouse::where('created_by', \Auth::user()->id)->count();
             $totalProduct = WarehouseProduct::where('created_by', '=', \Auth::user()->creatorId())->count();
@@ -2600,7 +2602,7 @@ class ReportController extends Controller
 
     public function purchaseDailyReport(Request $request)
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $warehouse = warehouse::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $warehouse->prepend('All Warehouse', 0);
             $vendor = Vender::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
@@ -2662,7 +2664,7 @@ class ReportController extends Controller
 
     public function purchaseMonthlyReport(Request $request)
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $monthList = $this->yearMonth();
             $yearList = $this->yearList();
             $warehouse = warehouse::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
@@ -2720,7 +2722,7 @@ class ReportController extends Controller
 
     public function posDailyReport(Request $request)
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $warehouse = warehouse::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $warehouse->prepend('All Warehouse', 0);
 
@@ -2784,7 +2786,7 @@ class ReportController extends Controller
 
     public function posMonthlyReport(Request $request)
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $monthList = $this->yearMonth();
             $yearList = $this->yearList();
 
@@ -2841,9 +2843,47 @@ class ReportController extends Controller
         }
     }
 
+    /**
+     * Phase 4: End-of-day (EOD) report for Manager — closed shifts for date, total sales, payment mix, optional category summary.
+     */
+    public function posEodReport(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $date = $request->input('date', date('Y-m-d'));
+        $creatorId = \Auth::user()->creatorId();
+        $shifts = PosShift::where('created_by', $creatorId)
+            ->where('status', PosShift::STATUS_CLOSED)
+            ->whereDate('closed_at', $date)
+            ->with(['branch', 'user'])
+            ->orderBy('closed_at')
+            ->get();
+        $totalSales = $shifts->sum('sales_total');
+        $cashTotal = $shifts->sum('cash_total');
+        $cardTotal = $shifts->sum('card_total');
+        $creditTotal = $shifts->sum('credit_total');
+        $posIds = Pos::whereIn('shift_id', $shifts->pluck('id'))->pluck('id');
+        $categorySummary = [];
+        if ($posIds->isNotEmpty()) {
+            $items = \App\Models\PosProduct::whereIn('pos_id', $posIds)->get();
+            foreach ($items as $item) {
+                $product = \App\Models\ProductService::find($item->product_id);
+                $catId = $product && $product->category_id ? $product->category_id : 0;
+                $catName = $catId ? (ProductServiceCategory::find($catId)?->name ?? __('Uncategorized')) : __('Uncategorized');
+                if (!isset($categorySummary[$catName])) {
+                    $categorySummary[$catName] = ['qty' => 0, 'amount' => 0];
+                }
+                $categorySummary[$catName]['qty'] += $item->quantity;
+                $categorySummary[$catName]['amount'] += $item->quantity * $item->price;
+            }
+        }
+        return view('report.pos_eod', compact('shifts', 'date', 'totalSales', 'cashTotal', 'cardTotal', 'creditTotal', 'categorySummary'));
+    }
+
     public function posVsPurchaseReport(Request $request)
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $data['monthList'] = $month = $this->yearMonth();
             $data['yearList'] = $this->yearList();
 
@@ -2918,7 +2958,7 @@ class ReportController extends Controller
      */
     public function posBranchReport(Request $request)
     {
-        if (!\Auth::user()->can('manage pos')) {
+        if (!\Auth::user()->canManagePos()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $branches = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->get()->pluck('name', 'id');

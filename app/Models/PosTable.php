@@ -15,6 +15,7 @@ class PosTable extends Model
         'branch_id',
         'name',
         'capacity',
+        'current_guests',
         'status',
         'created_by',
     ];

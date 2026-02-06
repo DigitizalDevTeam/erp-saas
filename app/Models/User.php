@@ -78,6 +78,18 @@ class User extends Authenticatable implements MustVerifyEmail
         }
     }
 
+    /**
+     * Whether the user can access POS (retail or restaurant).
+     * True for "manage pos" or any POS restaurant role permission.
+     */
+    public function canManagePos(): bool
+    {
+        return $this->can('manage pos')
+            || $this->can('pos restaurant full')
+            || $this->can('pos restaurant waiter')
+            || $this->can('pos restaurant manager');
+    }
+
     public function ownerId()
     {
         if ($this->type == 'company' || $this->type == 'super admin') {

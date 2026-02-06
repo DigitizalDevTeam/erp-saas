@@ -76,7 +76,7 @@
                                                     @if ($quotation->is_converted == 0)
                                                         @can('convert quotation')
                                                             <div class="action-btn me-2">
-                                                                <a href="{{ route('poses.index', $quotation->id) }}"
+                                                                <a href="{{ route('pos.index', $quotation->id) }}"
                                                                     class="mx-3 btn btn-sm align-items-center bg-warning"
                                                                     data-bs-toggle="tooltip" title="{{ __('Convert to POS') }}"
                                                                     data-original-title="{{ __('Detail') }}">

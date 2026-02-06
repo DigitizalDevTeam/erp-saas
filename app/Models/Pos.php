@@ -24,6 +24,7 @@ class Pos extends Model
         'status',
         'shipping_display',
         'created_by',
+        'client_order_id',
     ];
 
     const ORDER_TYPE_DINE_IN = 'dine_in';
@@ -63,7 +64,13 @@ class Pos extends Model
 
     public function posPayment()
     {
-        return $this->hasOne('App\Models\PosPayment','pos_id','id');
+        return $this->hasOne('App\Models\PosPayment', 'pos_id', 'id');
+    }
+
+    /** Multiple payments (split bill). Use posPayments for split, posPayment for first/legacy. */
+    public function posPayments()
+    {
+        return $this->hasMany('App\Models\PosPayment', 'pos_id', 'id');
     }
 
     public function items()

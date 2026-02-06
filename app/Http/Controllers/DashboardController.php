@@ -475,7 +475,10 @@ class DashboardController extends Controller
     public function pos_dashboard_index()
     {
         $user = Auth::user();
-        if (\Auth::user()->can('show pos dashboard')) {
+        if (\Auth::user()->can('show pos dashboard')
+            || \Auth::user()->can('pos restaurant full')
+            || \Auth::user()->can('pos restaurant waiter')
+            || \Auth::user()->can('pos restaurant manager')) {
             if ($user->type == 'admin') {
                 return view('admin.dashboard');
             } else {

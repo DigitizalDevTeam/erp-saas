@@ -19,9 +19,20 @@
                     @php
                         $shiftSales = \App\Models\Pos::where('shift_id', $pos_shift->id)->get();
                         $shiftSalesCount = $shiftSales->count();
-                        $shiftSalesTotal = \App\Models\PosPayment::whereIn('pos_id', $shiftSales->pluck('id'))->sum('discount_amount');
+                        $posIds = $shiftSales->pluck('id');
+                        $shiftSalesTotal = \App\Models\PosPayment::whereIn('pos_id', $posIds)->sum('amount');
+                        $cashTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
+                            $q->where('payment_method', \App\Models\PosPayment::METHOD_CASH)->orWhereNull('payment_method');
+                        })->sum('amount');
+                        $cardTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CARD)->sum('amount');
+                        $creditTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
+                        $expectedCash = $pos_shift->opening_balance + $cashTotal;
                     @endphp
                     <p><strong>{{ __('Sales (this shift)') }}:</strong> {{ $shiftSalesCount }} {{ __('transactions') }}, {{ \Auth::user()->priceFormat($shiftSalesTotal) }}</p>
+                    <p><strong>{{ __('Cash (in)') }}:</strong> {{ \Auth::user()->priceFormat($cashTotal) }}</p>
+                    <p><strong>{{ __('Card (in)') }}:</strong> {{ \Auth::user()->priceFormat($cardTotal) }}</p>
+                    <p><strong>{{ __('Credit (in)') }}:</strong> {{ \Auth::user()->priceFormat($creditTotal) }}</p>
+                    <p><strong>{{ __('Expected cash (opening + cash in)') }}:</strong> {{ \Auth::user()->priceFormat($expectedCash) }}</p>
                     <hr>
                     {{ Form::open(['route' => ['pos-shift.close', $pos_shift], 'method' => 'post', 'class' => 'needs-validation', 'novalidate']) }}
                     <div class="form-group">

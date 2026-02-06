@@ -115,6 +115,8 @@
             <div class="d-flex align-items-center mt-4">
                 <select class="form-control" id="payment_method">
                     <option value="cash">{{ __('pos.payment_cash') }}</option>
+                    <option value="card">{{ __('pos.payment_card') }}</option>
+                    <option value="credit">{{ __('pos.payment_credit') }}</option>
                     <option value="visa">{{ __('pos.payment_visa') }}</option>
                     <option value="mpesa">{{ __('pos.payment_mpesa') }}</option>
                     <option value="bank_transfer">{{ __('pos.payment_bank_transfer') }}</option>

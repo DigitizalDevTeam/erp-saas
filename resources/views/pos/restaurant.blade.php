@@ -33,9 +33,14 @@
             </select>
             <small class="text-muted" id="pos-shift-hint">{{ __('pos.select_branch_first') }}</small>
         </div>
-        <div class="col-md-3">
-            <label class="form-label">{{ __('pos.select_table') }}</label>
-            <div id="pos-selected-table" class="form-control-plaintext fw-bold text-primary">—</div>
+        <div class="col-md-3 d-flex align-items-end gap-2 flex-wrap">
+            <div>
+                <label class="form-label">{{ __('pos.select_table') }}</label>
+                <div id="pos-selected-table" class="form-control-plaintext fw-bold text-primary">—</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-danger d-none" id="pos-close-table-btn" title="{{ __('pos.close_table') }}">
+                <i class="ti ti-door-exit"></i> {{ __('pos.close_table') }}
+            </button>
         </div>
     </div>
     <div class="row">
@@ -137,6 +142,30 @@
 {{ Form::hidden('pos_restaurant_table_name', '', ['id' => 'pos_restaurant_table_name']) }}
 {{ Form::hidden('pos_shift_id_hidden', '', ['id' => 'pos_shift_id_hidden']) }}
 {{ Form::hidden('pos_restaurant_warehouse_hidden', '', ['id' => 'pos_restaurant_warehouse_hidden']) }}
+
+{{-- Open table modal (guest count) --}}
+<div class="modal fade" id="posOpenTableModal" tabindex="-1" aria-labelledby="posOpenTableModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="posOpenTableModalLabel">{{ __('pos.open_table') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="pos-open-table-id" value="">
+                <input type="hidden" id="pos-open-table-name" value="">
+                <div class="mb-3">
+                    <label class="form-label">{{ __('pos.guests_count') }}</label>
+                    <input type="number" id="pos-open-table-guests" class="form-control" min="0" value="" placeholder="{{ __('pos.optional') }}">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="pos-open-table-confirm">{{ __('pos.open_table') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 {{-- Table management modal --}}
 <div class="modal fade" id="posTableManagementModal" tabindex="-1" aria-labelledby="posTableManagementModalLabel" aria-hidden="true">

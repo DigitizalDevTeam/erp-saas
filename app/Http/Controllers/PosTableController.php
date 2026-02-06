@@ -11,7 +11,7 @@ class PosTableController extends Controller
 {
     public function index()
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $tables = PosTable::where('created_by', \Auth::user()->creatorId())
                 ->with(['area', 'branch'])
                 ->orderBy('branch_id')
@@ -25,7 +25,7 @@ class PosTableController extends Controller
 
     public function create()
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $branches = Branch::where('created_by', \Auth::user()->creatorId())
                 ->where('is_active', true)
                 ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
@@ -39,7 +39,7 @@ class PosTableController extends Controller
 
     public function store(Request $request)
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $validator = \Validator::make($request->all(), [
                 'name' => 'required',
                 'area_id' => 'required|exists:pos_areas,id',
@@ -63,7 +63,7 @@ class PosTableController extends Controller
 
     public function edit(PosTable $pos_table)
     {
-        if (\Auth::user()->can('manage pos') && $pos_table->created_by == \Auth::user()->creatorId()) {
+        if (\Auth::user()->canManagePos() && $pos_table->created_by == \Auth::user()->creatorId()) {
             $branches = Branch::where('created_by', \Auth::user()->creatorId())
                 ->where('is_active', true)
                 ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
@@ -77,7 +77,7 @@ class PosTableController extends Controller
 
     public function update(Request $request, PosTable $pos_table)
     {
-        if (\Auth::user()->can('manage pos') && $pos_table->created_by == \Auth::user()->creatorId()) {
+        if (\Auth::user()->canManagePos() && $pos_table->created_by == \Auth::user()->creatorId()) {
             $validator = \Validator::make($request->all(), [
                 'name' => 'required',
                 'area_id' => 'required|exists:pos_areas,id',
@@ -99,7 +99,7 @@ class PosTableController extends Controller
 
     public function destroy(PosTable $pos_table)
     {
-        if (\Auth::user()->can('manage pos') && $pos_table->created_by == \Auth::user()->creatorId()) {
+        if (\Auth::user()->canManagePos() && $pos_table->created_by == \Auth::user()->creatorId()) {
             if ($pos_table->posSales()->count() > 0) {
                 return redirect()->back()->with('error', __('Table has sales history and cannot be deleted.'));
             }
@@ -139,7 +139,7 @@ class PosTableController extends Controller
      */
     public function updateStatus(Request $request, $id)
     {
-        if (!\Auth::user()->can('manage pos')) {
+        if (!\Auth::user()->canManagePos()) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
         $table = PosTable::where('id', $id)->where('created_by', \Auth::user()->creatorId())->first();
@@ -151,6 +151,36 @@ class PosTableController extends Controller
             return response()->json(['error' => __('Invalid status.')], 422);
         }
         $table->status = $status;
+        if ($request->has('guests_count')) {
+            $guests = $request->input('guests_count');
+            $table->current_guests = ($guests !== null && $guests !== '') ? (int) $guests : null;
+        }
+        if ($status === PosTable::STATUS_AVAILABLE) {
+            $table->current_guests = null;
+        }
+        $table->save();
+        return response()->json(['success' => true, 'status' => $table->status, 'current_guests' => $table->current_guests]);
+    }
+
+    /**
+     * Phase 4: Close table — set status to available. Only Cashier/Manager (or user with full/manager POS restaurant).
+     */
+    public function closeTable($id)
+    {
+        $user = \Auth::user();
+        if (!$user->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        // Restrict to Cashier/Manager: must have full, manager, or global manage pos
+        if (!$user->can('pos restaurant full') && !$user->can('pos restaurant manager') && !$user->can('manage pos')) {
+            return response()->json(['error' => __('Only Cashier or Manager can close tables.')], 403);
+        }
+        $table = PosTable::where('id', $id)->where('created_by', $user->creatorId())->first();
+        if (!$table) {
+            return response()->json(['error' => __('Table not found.')], 404);
+        }
+        $table->status = PosTable::STATUS_AVAILABLE;
+        $table->current_guests = null;
         $table->save();
         return response()->json(['success' => true, 'status' => $table->status]);
     }

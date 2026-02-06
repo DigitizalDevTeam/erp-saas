@@ -23,6 +23,7 @@ use Lab404\Impersonate\Impersonate;
 use Spatie\Permission\Models\Role;
 use App\Models\ReferralTransaction;
 use App\Models\ReferralSetting;
+use App\Services\PosRestaurantRoleService;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
@@ -141,6 +142,8 @@ class UserController extends Controller
                 ExperienceCertificate::defaultExpCertificatRegister($user->id);
                 JoiningLetter::defaultJoiningLetterRegister($user->id);
                 NOC::defaultNocCertificateRegister($user->id);
+
+                PosRestaurantRoleService::createPosRestaurantRolesForCompany($user->id);
             } else {
                 $validator = \Validator::make(
                     $request->all(), [

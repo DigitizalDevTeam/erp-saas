@@ -35,7 +35,7 @@ class PosController extends Controller
      */
     public function index($id = 0)
     {
-        if (Auth::user()->can('manage pos')) {
+        if (Auth::user()->canManagePos()) {
             // Phase 5: POS user limit per plan
             $creatorId = Auth::user()->creatorId();
             $owner = User::find($creatorId);
@@ -110,7 +110,7 @@ class PosController extends Controller
      */
     public function getRestaurantLayout(Request $request)
     {
-        if (!Auth::user()->can('manage pos')) {
+        if (!Auth::user()->canManagePos()) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
         $branchId = $request->branch_id;
@@ -122,12 +122,29 @@ class PosController extends Controller
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
-        $tables = PosTable::where('created_by', Auth::user()->creatorId())
+        $tablesQuery = PosTable::where('created_by', Auth::user()->creatorId())
             ->where('branch_id', $branchId)
-            ->with('area')
-            ->orderBy('area_id')
-            ->orderBy('name')
-            ->get();
+            ->with('area');
+
+        // Waiter sees only tables assigned to their current shift for this branch
+        if (Auth::user()->can('pos restaurant waiter') && !Auth::user()->can('pos restaurant full') && !Auth::user()->can('pos restaurant manager')) {
+            $openShift = \App\Models\PosShift::where('branch_id', $branchId)
+                ->where('user_id', Auth::id())
+                ->where('status', \App\Models\PosShift::STATUS_OPEN)
+                ->where('created_by', Auth::user()->creatorId())
+                ->orderBy('opened_at', 'desc')
+                ->first();
+            if ($openShift) {
+                $assignedTableIds = \App\Models\PosTableAssignment::where('shift_id', $openShift->id)
+                    ->whereNull('unassigned_at')
+                    ->pluck('table_id');
+                $tablesQuery->whereIn('id', $assignedTableIds);
+            } else {
+                $tablesQuery->whereRaw('0 = 1'); // no shift = no tables
+            }
+        }
+
+        $tables = $tablesQuery->orderBy('area_id')->orderBy('name')->get();
         $result = $areas->map(function ($area) use ($tables) {
             return [
                 'id' => $area->id,
@@ -137,6 +154,7 @@ class PosController extends Controller
                     'name' => $t->name,
                     'status' => $t->status,
                     'capacity' => $t->capacity,
+                    'current_guests' => $t->current_guests,
                 ])->toArray(),
             ];
         })->toArray();
@@ -151,6 +169,7 @@ class PosController extends Controller
                     'name' => $t->name,
                     'status' => $t->status,
                     'capacity' => $t->capacity,
+                    'current_guests' => $t->current_guests,
                 ])->toArray(),
             ];
         }
@@ -162,7 +181,7 @@ class PosController extends Controller
      */
     public function getActiveShift(Request $request)
     {
-        if (!Auth::user()->can('manage pos')) {
+        if (!Auth::user()->canManagePos()) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
         $branchId = $request->has('branch_id') ? (int) $request->branch_id : null;
@@ -191,7 +210,7 @@ class PosController extends Controller
      */
     public function getBranchOpenShifts(Request $request)
     {
-        if (!Auth::user()->can('manage pos')) {
+        if (!Auth::user()->canManagePos()) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
         $branchId = $request->has('branch_id') ? (int) $request->branch_id : null;
@@ -229,7 +248,7 @@ class PosController extends Controller
     {
         $sess = session()->get('pos');
 
-        if (Auth::user()->can('manage pos') && isset($sess) && !empty($sess) && count($sess) > 0) {
+        if (Auth::user()->canManagePos() && isset($sess) && !empty($sess) && count($sess) > 0) {
 
 
 
@@ -324,7 +343,7 @@ class PosController extends Controller
      */
     public function sync(Request $request)
     {
-        if (!Auth::user()->can('manage pos')) {
+        if (!Auth::user()->canManagePos()) {
             return response()->json(['code' => 403, 'error' => __('Permission denied.')], 403);
         }
 
@@ -336,11 +355,20 @@ class PosController extends Controller
         $synced = 0;
         $errors = [];
 
+        $creatorId = Auth::user()->creatorId();
         foreach ($sales as $index => $sale) {
             $cart = $sale['cart'] ?? [];
             if (empty($cart)) {
                 $errors[] = ['index' => $index, 'error' => __('Items not found!')];
                 continue;
+            }
+            // Phase 8: Idempotent sync - skip if client_order_id already synced
+            $clientOrderId = $sale['client_order_id'] ?? null;
+            if ($clientOrderId !== null && $clientOrderId !== '') {
+                if (Pos::where('created_by', $creatorId)->where('client_order_id', $clientOrderId)->exists()) {
+                    $synced++;
+                    continue;
+                }
             }
             session()->put('pos', $cart);
             $req = new Request(array_merge($sale, [
@@ -374,6 +402,31 @@ class PosController extends Controller
     }
 
     /**
+     * Phase 8: Return which client_order_ids have already been synced (for offline clients to reconcile).
+     */
+    public function syncStatus(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return response()->json(['code' => 403, 'error' => __('Permission denied.')], 403);
+        }
+        $ids = $request->input('client_order_ids', []);
+        if (!is_array($ids)) {
+            $ids = [];
+        }
+        $ids = array_filter(array_unique($ids));
+        $creatorId = Auth::user()->creatorId();
+        $synced = Pos::where('created_by', $creatorId)
+            ->whereIn('client_order_id', $ids)
+            ->whereNotNull('client_order_id')
+            ->pluck('client_order_id')
+            ->toArray();
+        return response()->json([
+            'code' => 200,
+            'synced' => $synced,
+        ]);
+    }
+
+    /**
      * Process a single POS sale (used by store and sync).
      *
      * @param  \Illuminate\Http\Request  $request  Must contain vc_name, warehouse_name, discount, payment_method; cart from request or session.
@@ -401,6 +454,14 @@ class PosController extends Controller
             return response()->json(['code' => 404, 'success' => __('Items not found!')], 404);
         }
 
+        // Phase 8: Idempotent - if client_order_id already exists, return success
+        $clientOrderId = $request->client_order_id ?? null;
+        if ($clientOrderId !== null && $clientOrderId !== '') {
+            if (Pos::where('created_by', $user_id)->where('client_order_id', $clientOrderId)->exists()) {
+                return response()->json(['code' => 200, 'success' => __('Payment is already completed!')]);
+            }
+        }
+
         $result = DB::table('pos')->where('pos_id', $pos_id)->where('created_by', $user_id)->get();
         if (count($result) > 0) {
             return response()->json(['code' => 200, 'success' => __('Payment is already completed!')]);
@@ -420,6 +481,7 @@ class PosController extends Controller
         $pos->pos_date = date('Y-m-d');
         $pos->payment_method = $request->payment_method;
         $pos->created_by = $user_id;
+        $pos->client_order_id = $clientOrderId;
         $pos->save();
 
         if ($request->quotation_id && (int) $request->quotation_id != 0) {
@@ -455,18 +517,45 @@ class PosController extends Controller
             Utility::addProductStock($positems->product_id, $positems->quantity, $type, $description, $type_id);
         }
 
-        $posPayment = new PosPayment();
-        $posPayment->pos_id = $pos->id;
-        $posPayment->branch_id = $pos->branch_id;
-        $posPayment->date = $request->date ?? date('Y-m-d');
         $mainsubtotal = 0;
         foreach (session()->get('pos', $sales) as $key => $value) {
             $mainsubtotal += $value['subtotal'] ?? ($value['price'] * $value['quantity']);
         }
-        $posPayment->amount = $mainsubtotal;
-        $posPayment->discount = $discount;
-        $posPayment->discount_amount = $mainsubtotal - $discount;
-        $posPayment->save();
+        $totalPaid = $mainsubtotal - $discount;
+        $payments = $request->input('payments'); // optional: [{ payment_method, amount, credit_terms?, customer_id? }, ...]
+        if (is_array($payments) && count($payments) > 0) {
+            foreach ($payments as $p) {
+                $amt = (float) ($p['amount'] ?? 0);
+                if ($amt <= 0) {
+                    continue;
+                }
+                $posPayment = new PosPayment();
+                $posPayment->pos_id = $pos->id;
+                $posPayment->branch_id = $pos->branch_id;
+                $posPayment->date = $request->date ?? date('Y-m-d');
+                $posPayment->payment_method = in_array($p['payment_method'] ?? '', [PosPayment::METHOD_CASH, PosPayment::METHOD_CARD, PosPayment::METHOD_CREDIT], true) ? $p['payment_method'] : PosPayment::METHOD_CASH;
+                $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
+                $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
+                $posPayment->amount = $amt;
+                $posPayment->discount = 0;
+                $posPayment->discount_amount = $amt;
+                $posPayment->created_by = $user_id;
+                $posPayment->save();
+            }
+        } else {
+            $posPayment = new PosPayment();
+            $posPayment->pos_id = $pos->id;
+            $posPayment->branch_id = $pos->branch_id;
+            $posPayment->date = $request->date ?? date('Y-m-d');
+            $posPayment->payment_method = in_array($request->payment_method ?? '', [PosPayment::METHOD_CASH, PosPayment::METHOD_CARD, PosPayment::METHOD_CREDIT], true) ? $request->payment_method : PosPayment::METHOD_CASH;
+            $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? $request->credit_terms : null;
+            $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($request->customer_id ?: $customer_id) : null;
+            $posPayment->amount = $totalPaid;
+            $posPayment->discount = $discount;
+            $posPayment->discount_amount = $totalPaid;
+            $posPayment->created_by = $user_id;
+            $posPayment->save();
+        }
 
         $pos->load('items');
         $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
@@ -489,7 +578,7 @@ class PosController extends Controller
     {
         $discount = $request->discount;
 
-        if (Auth::user()->can('manage pos')) {
+        if (Auth::user()->canManagePos()) {
 
             if($request->quotation_id != 0)
             {
@@ -571,16 +660,9 @@ class PosController extends Controller
 
                     }
 
-                    $posPayment = new PosPayment();
-                    $posPayment->pos_id = $pos->id;
-                    $posPayment->branch_id = $pos->branch_id;
-                    $posPayment->date = $request->date;
-
                     $mainsubtotal = 0;
                     $sales = [];
-
                     $sess = session()->get('pos');
-
                     foreach ($sess as $key => $value) {
                         $subtotal = $value['price'] * $value['quantity'];
                         $tax = ($subtotal * $value['tax']) / 100;
@@ -590,12 +672,41 @@ class PosController extends Controller
                         $sales['data'][$key]['subtotal'] = Auth::user()->priceFormat($value['subtotal']);
                         $mainsubtotal += $value['subtotal'];
                     }
-                    $amount = $mainsubtotal;
-                    $posPayment->amount = $amount;
                     $total = $mainsubtotal - $discount;
-                    $posPayment->discount = $discount;
-                    $posPayment->discount_amount = $total;
-                    $posPayment->save();
+                    $payments = $request->input('payments');
+                    if (is_array($payments) && count($payments) > 0) {
+                        foreach ($payments as $p) {
+                            $amt = (float) ($p['amount'] ?? 0);
+                            if ($amt <= 0) {
+                                continue;
+                            }
+                            $posPayment = new PosPayment();
+                            $posPayment->pos_id = $pos->id;
+                            $posPayment->branch_id = $pos->branch_id;
+                            $posPayment->date = $request->date;
+                            $posPayment->payment_method = in_array($p['payment_method'] ?? '', [PosPayment::METHOD_CASH, PosPayment::METHOD_CARD, PosPayment::METHOD_CREDIT], true) ? $p['payment_method'] : PosPayment::METHOD_CASH;
+                            $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
+                            $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
+                            $posPayment->amount = $amt;
+                            $posPayment->discount = 0;
+                            $posPayment->discount_amount = $amt;
+                            $posPayment->created_by = $user_id;
+                            $posPayment->save();
+                        }
+                    } else {
+                        $posPayment = new PosPayment();
+                        $posPayment->pos_id = $pos->id;
+                        $posPayment->branch_id = $pos->branch_id;
+                        $posPayment->date = $request->date;
+                        $posPayment->payment_method = in_array($request->payment_method ?? '', [PosPayment::METHOD_CASH, PosPayment::METHOD_CARD, PosPayment::METHOD_CREDIT], true) ? $request->payment_method : PosPayment::METHOD_CASH;
+                        $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? $request->credit_terms : null;
+                        $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($request->customer_id ?: $customer_id) : null;
+                        $posPayment->amount = $total;
+                        $posPayment->discount = $discount;
+                        $posPayment->discount_amount = $total;
+                        $posPayment->created_by = $user_id;
+                        $posPayment->save();
+                    }
 
                     // Phase 2: Create invoice and accounting entries from POS
                     $pos->load('items');
@@ -654,7 +765,7 @@ class PosController extends Controller
 
     public function invoicePosNumber()
     {
-        if (Auth::user()->can('manage pos')) {
+        if (Auth::user()->canManagePos()) {
             $latest = Pos::where('created_by', '=', \Auth::user()->creatorId())->orderBy('id', 'desc')->first();
 
             return $latest ? $latest->pos_id + 1 : 1;
@@ -665,7 +776,7 @@ class PosController extends Controller
 
     public function report()
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
 
             $posPayments = Pos::where('created_by', '=', \Auth::user()->creatorId())->with(['customer', 'warehouse', 'branch'])->get();
 
@@ -678,7 +789,7 @@ class PosController extends Controller
 
     public function barcode()
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $productServices = ProductService::where('created_by', '=', \Auth::user()->creatorId())->get();
             $barcode = [
                 'barcodeType' => Auth::user()->barcodeType(),
@@ -694,7 +805,7 @@ class PosController extends Controller
 
     public function setting()
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $settings = Utility::settings();
 
             return view('pos.setting', compact('settings'));
@@ -734,7 +845,7 @@ class PosController extends Controller
 
     public function printBarcode()
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $warehouses = warehouse::select('*', \DB::raw("CONCAT(name) AS name"))->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
 
             return view('pos.print', compact('warehouses'));
@@ -1185,7 +1296,7 @@ class PosController extends Controller
     
     public function indexRestaurant($id = 0)
     {
-        if (Auth::user()->can('manage pos')) {
+        if (Auth::user()->canManagePos()) {
             // Phase 5: POS user limit per plan
             $creatorId = Auth::user()->creatorId();
             $owner = User::find($creatorId);

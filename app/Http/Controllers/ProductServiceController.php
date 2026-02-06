@@ -419,7 +419,7 @@ class ProductServiceController extends Controller
     {
         $lastsegment = $request->session_key;
 
-        if (Auth::user()->can('manage pos') && $request->ajax() && isset($lastsegment) && !empty($lastsegment)) {
+        if ((Auth::user()->can('manage pos') || Auth::user()->canManagePos()) && $request->ajax() && isset($lastsegment) && !empty($lastsegment)) {
 
             $output = "";
             if($request->war_id == '0'){
@@ -469,10 +469,11 @@ class ProductServiceController extends Controller
                             $productprice = $product->sale_price != 0 ? $product->sale_price : $product->purchase_price;
                         }
                         $taxRate = \Utility::totalTaxRate($product->tax_id);
+                        $printZone = $product->print_zone ?? '';
                         $output .= '
 
                                     <div class="col-xl-3 col-lg-4 col-md-3 col-sm-4 col-6">
-                                        <div class="tab-pane fade show active toacart w-100" data-url="' . url('add-to-cart/' . $product->id . '/' . $lastsegment) . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e(asset(Storage::url($image_url))) . '">
+                                        <div class="tab-pane fade show active toacart w-100" data-url="' . url('add-to-cart/' . $product->id . '/' . $lastsegment) . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e(asset(Storage::url($image_url))) . '" data-product-print-zone="' . e($printZone) . '">
                                             <div class="position-relative card">
                                                 <img alt="Image placeholder" src="' . asset(Storage::url($image_url)) . '" class="card-image avatar shadow hover-shadow-lg" style=" height: 6rem; width: 100%;">
                                                   <div class="p-0 custom-card-body card-body d-flex ">
@@ -568,8 +569,20 @@ class ProductServiceController extends Controller
             $sku = $product->sku ?? '';
             $catName = $product->category ? $product->category->name : '';
             $taxDisplay = str_replace("'", "&#39;", strip_tags($product_tax));
+            $printZone = $product->print_zone ?? '';
             if ($session_key == 'pos') {
-                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" id="product-id-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '">';
+                if ($request->get('restaurant')) {
+                    $carthtml .= '<tr data-product-id="' . $id . '" id="product-id-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '">
+                            <td class="cart-images"><img alt="" src="' . asset(Storage::url($image_url)) . '" class="card-image avatar shadow hover-shadow-lg"></td>
+                            <td class="name">' . e($productname) . '</td>
+                            <td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" class="input-number" data-url="' . url('update-cart/') . '" data-id="' . $id . '" value="1"><input type="button" value="+" class="plus"></span></td>
+                            <td class="tax">' . $taxDisplay . '</td>
+                            <td class="price">' . Auth::user()->priceFormat($productprice) . '</td>
+                            <td class="subtotal">' . Auth::user()->priceFormat($subtotal) . '</td>
+                            <td class="action-btn"><a href="#" class="btn btn-sm bg-danger bs-pass-para-pos pos-remove-from-cart" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . $id . '"><i class="ti ti-trash text-white"></i></a><form method="post" action="' . url('remove-from-cart') . '" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . $id . '"></form></td>
+                        </tr>';
+                } else {
+                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" id="product-id-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '">';
                 $carthtml .= '<div class="card-body p-2">';
                 $carthtml .= '<div class="d-flex justify-content-between align-items-start gap-2">';
                 $carthtml .= '<div class="flex-grow-1 min-w-0"><h6 class="mb-0 text-dark fw-bold text-truncate name">' . e($productname) . '</h6>';
@@ -587,6 +600,7 @@ class ProductServiceController extends Controller
                 $carthtml .= '<div class="text-end"><div class="fw-bold text-dark subtotal">' . Auth::user()->priceFormat($subtotal) . '</div><small class="text-muted price">' . Auth::user()->priceFormat($productprice) . ' ' . __('each') . '</small></div></div>';
                 $carthtml .= '<small class="text-muted d-block mt-1 tax">' . __('Tax') . ': ' . $taxDisplay . '</small>';
                 $carthtml .= '</div></div>';
+                }
             } else {
                 $carthtml .= '<tr data-product-id="' . $id . '" id="product-id-' . $id . '">
                             <td class="cart-images">

@@ -37,6 +37,11 @@ class Branch extends Model
         return $this->hasMany(\App\Models\PosArea::class, 'branch_id');
     }
 
+    public function posPrinters()
+    {
+        return $this->hasMany(\App\Models\PosPrinter::class, 'branch_id');
+    }
+
     public function posTables()
     {
         return $this->hasMany(\App\Models\PosTable::class, 'branch_id');

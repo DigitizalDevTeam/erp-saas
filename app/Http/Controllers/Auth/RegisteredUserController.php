@@ -9,7 +9,8 @@ use App\Models\GenerateOfferLetter;
 use App\Models\JoiningLetter;
 use App\Models\NOC;
 use App\Models\User;
-use  App\Models\Utility;
+use App\Models\Utility;
+use App\Services\PosRestaurantRoleService;
 use Auth;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Auth\Events\Registered;
@@ -135,6 +136,8 @@ class RegisteredUserController extends Controller
                 JoiningLetter::defaultJoiningLetterRegister($user->id);
                 NOC::defaultNocCertificateRegister($user->id);
 
+                PosRestaurantRoleService::createPosRestaurantRolesForCompany($user->id);
+
             } catch (\Exception $e) {
 
                 $user->delete();
@@ -168,6 +171,8 @@ class RegisteredUserController extends Controller
             ExperienceCertificate::defaultExpCertificatRegister($user->id);
             JoiningLetter::defaultJoiningLetterRegister($user->id);
             NOC::defaultNocCertificateRegister($user->id);
+
+            PosRestaurantRoleService::createPosRestaurantRolesForCompany($user->id);
 
             $userArr = [
                 'email' => $user->email,

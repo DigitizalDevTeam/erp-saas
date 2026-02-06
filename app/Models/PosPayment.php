@@ -6,12 +6,20 @@ use Illuminate\Database\Eloquent\Model;
 
 class PosPayment extends Model
 {
+    const METHOD_CASH = 'cash';
+    const METHOD_CARD = 'card';
+    const METHOD_CREDIT = 'credit';
+
     protected $fillable = [
         'pos_id',
         'branch_id',
+        'payment_method',
+        'credit_terms',
+        'customer_id',
         'date',
         'amount',
         'discount',
+        'discount_amount',
         'created_by',
     ];
 

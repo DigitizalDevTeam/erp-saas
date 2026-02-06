@@ -10,7 +10,7 @@ class PosAreaController extends Controller
 {
     public function index()
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $areas = PosArea::where('created_by', \Auth::user()->creatorId())
                 ->with('branch')
                 ->orderBy('branch_id')
@@ -23,7 +23,7 @@ class PosAreaController extends Controller
 
     public function create()
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $branches = Branch::where('created_by', \Auth::user()->creatorId())
                 ->where('is_active', true)
                 ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
@@ -36,7 +36,7 @@ class PosAreaController extends Controller
 
     public function store(Request $request)
     {
-        if (\Auth::user()->can('manage pos')) {
+        if (\Auth::user()->canManagePos()) {
             $validator = \Validator::make($request->all(), [
                 'name' => 'required',
                 'branch_id' => 'required|exists:branches,id',
@@ -57,7 +57,7 @@ class PosAreaController extends Controller
 
     public function edit(PosArea $pos_area)
     {
-        if (\Auth::user()->can('manage pos') && $pos_area->created_by == \Auth::user()->creatorId()) {
+        if (\Auth::user()->canManagePos() && $pos_area->created_by == \Auth::user()->creatorId()) {
             $branches = Branch::where('created_by', \Auth::user()->creatorId())
                 ->where('is_active', true)
                 ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
@@ -70,7 +70,7 @@ class PosAreaController extends Controller
 
     public function update(Request $request, PosArea $pos_area)
     {
-        if (\Auth::user()->can('manage pos') && $pos_area->created_by == \Auth::user()->creatorId()) {
+        if (\Auth::user()->canManagePos() && $pos_area->created_by == \Auth::user()->creatorId()) {
             $validator = \Validator::make($request->all(), [
                 'name' => 'required',
                 'branch_id' => 'required|exists:branches,id',
@@ -89,7 +89,7 @@ class PosAreaController extends Controller
 
     public function destroy(PosArea $pos_area)
     {
-        if (\Auth::user()->can('manage pos') && $pos_area->created_by == \Auth::user()->creatorId()) {
+        if (\Auth::user()->canManagePos() && $pos_area->created_by == \Auth::user()->creatorId()) {
             if ($pos_area->tables()->count() > 0) {
                 return redirect()->back()->with('error', __('Remove tables from this area first.'));
             }

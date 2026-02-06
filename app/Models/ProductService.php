@@ -19,6 +19,7 @@ class ProductService extends Model
         'category_id',
         'unit_id',
         'type',
+        'print_zone',
         'sale_chartaccount_id',
         'expense_chartaccount_id',
         'created_by',
