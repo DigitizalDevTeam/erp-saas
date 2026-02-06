@@ -1357,8 +1357,11 @@
                                     </li>
                                 @endcan
                                 @can('manage pos')
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos.restaurant.index' ? ' active' : '' }}">
+                                        <a class="dash-link" href="{{ route('pos.restaurant.index') }}">{{ __('POS Restaurant') }}</a>
+                                    </li>
                                     <li class="dash-item {{ Request::route()->getName() == 'pos.index' ? ' active' : '' }}">
-                                        <a class="dash-link" href="{{ route('pos.index') }}">{{ __(' Add POS') }}</a>
+                                        <a class="dash-link" href="{{ route('pos.index') }}">{{ __('POS Retail') }}</a>
                                     </li>
                                     <li
                                         class="dash-item {{ Request::route()->getName() == 'pos.report' || Request::route()->getName() == 'pos.show' ? ' active' : '' }}">

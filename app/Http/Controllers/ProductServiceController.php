@@ -479,9 +479,8 @@ class ProductServiceController extends Controller
                                                     <div class="card-body mt-2 p-0 text-left card-bottom-content">
                                                         <h5 class="mb-2 text-dark product-title-name">' . $product->name . '</h5>
                                                         <h6 class="mb-2 text-dark product-title-name small">' . $product->sku . '</h6>
-                                                        <small class="badge badge-primary mb-0">' . Auth::user()->priceFormat($productprice) . '</small>
-                                                        <small class="top-badge badge badge-danger mb-0">' . $quantity . ' ' . $unit . '</small>
-
+                                                        <h5 class="">' . Auth::user()->priceFormat($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . $unit . '</small></h5>
+                                                        <button type="button" id="" class="btn btn-primary rounded d-flex align-items-center gap-3" ><i class="ti ti-plus"></i> ' . __('Add to Cart') . '</button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -566,14 +565,34 @@ class ProductServiceController extends Controller
             $model_delete_id = 'delete-form-' . $id;
 
             $carthtml = '';
-
-            $carthtml .= '<tr data-product-id="' . $id . '" id="product-id-' . $id . '">
+            $sku = $product->sku ?? '';
+            $catName = $product->category ? $product->category->name : '';
+            $taxDisplay = str_replace("'", "&#39;", strip_tags($product_tax));
+            if ($session_key == 'pos') {
+                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" id="product-id-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '">';
+                $carthtml .= '<div class="card-body p-2">';
+                $carthtml .= '<div class="d-flex justify-content-between align-items-start gap-2">';
+                $carthtml .= '<div class="flex-grow-1 min-w-0"><h6 class="mb-0 text-dark fw-bold text-truncate name">' . e($productname) . '</h6>';
+                if ($sku) {
+                    $carthtml .= '<small class="text-muted d-block">SKU: ' . e($sku) . '</small>';
+                }
+                if ($catName) {
+                    $carthtml .= '<span class="badge bg-light text-dark border mt-1">' . e($catName) . '</span>';
+                }
+                $carthtml .= '</div>';
+                $carthtml .= '<div class="action-btn"><a href="#" class="btn btn-sm btn-danger p-1 bs-pass-para-pos" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . $id . '"><i class="ti ti-trash"></i></a>';
+                $carthtml .= '<form method="post" action="' . url('remove-from-cart') . '" accept-charset="UTF-8" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . $id . '"></form></div></div>';
+                $carthtml .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">';
+                $carthtml .= '<span class="quantity buttons_added d-inline-flex align-items-center border rounded"><input type="button" value="-" class="minus btn btn-sm btn-outline-secondary border-0 py-0"><input type="number" step="1" min="1" max="" name="quantity" title="' . __('Quantity') . '" class="input-number form-control form-control-sm border-0 text-center" style="width: 2.5rem;" data-url="' . url('update-cart/') . '" data-id="' . $id . '" value="1"><input type="button" value="+" class="plus btn btn-sm btn-outline-secondary border-0 py-0"></span>';
+                $carthtml .= '<div class="text-end"><div class="fw-bold text-dark subtotal">' . Auth::user()->priceFormat($subtotal) . '</div><small class="text-muted price">' . Auth::user()->priceFormat($productprice) . ' ' . __('each') . '</small></div></div>';
+                $carthtml .= '<small class="text-muted d-block mt-1 tax">' . __('Tax') . ': ' . $taxDisplay . '</small>';
+                $carthtml .= '</div></div>';
+            } else {
+                $carthtml .= '<tr data-product-id="' . $id . '" id="product-id-' . $id . '">
                             <td class="cart-images">
                                 <img alt="Image placeholder" src="' . asset(Storage::url($image_url)) . '" class="card-image avatar shadow hover-shadow-lg">
                             </td>
-
                             <td class="name">' . $productname . '</td>
-
                             <td class="">
                                    <span class="quantity buttons_added">
                                          <input type="button" value="-" class="minus">
@@ -581,16 +600,11 @@ class ProductServiceController extends Controller
                                          <input type="button" value="+" class="plus">
                                    </span>
                             </td>
-
-
                             <td class="tax">' . $product_tax . '</td>
-
                             <td class="price">' . Auth::user()->priceFormat($productprice) . '</td>
-
                             <td class="subtotal">' . Auth::user()->priceFormat($subtotal) . '</td>
-
                             <td class="action-btn mt-3">
-                                 <a href="#" class="btn btn-sm bg-danger bs-pass-para-pos" data-confirm="' . __("Are You Sure?") . '" data-text="' . __("This action can not be undone. Do you want to continue?") . '" data-confirm-yes=' . $model_delete_id . ' title="' . __('Delete') . '}" data-id="' . $id . '" title="' . __('Delete') . '"   >
+                                 <a href="#" class="btn btn-sm bg-danger bs-pass-para-pos" data-confirm="' . __("Are You Sure?") . '" data-text="' . __("This action can not be undone. Do you want to continue?") . '" data-confirm-yes=' . $model_delete_id . ' title="' . __('Delete') . '" data-id="' . $id . '">
                                    <span class=""><i class="ti ti-trash text-white"></i></span>
                                  </a>
                                  <form method="post" action="' . url('remove-from-cart') . '"  accept-charset="UTF-8" id="' . $model_delete_id . '">
@@ -599,9 +613,9 @@ class ProductServiceController extends Controller
                                       <input type="hidden" name="session_key" value="' . $session_key . '">
                                       <input type="hidden" name="id" value="' . $id . '">
                                  </form>
-
                             </td>
-                        </td>';
+                        </tr>';
+            }
 
             // if cart is empty then this the first product
             if (!$cart) {

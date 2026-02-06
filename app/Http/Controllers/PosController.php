@@ -51,16 +51,26 @@ class PosController extends Controller
             session()->forget('pos');
             $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'name');
             $customers->prepend('Walk-in-customer', '');
-            $branches = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->get()->pluck('name', 'id');
-            $warehouses = warehouse::with('branch')->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-            $restaurantBranchIds = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->where('pos_type', Branch::POS_TYPE_RESTAURANT)->pluck('id')->toArray();
+            $customersForPos = Customer::where('created_by', \Auth::user()->creatorId())->get(['id', 'name', 'email', 'contact']);
+            $customersForPos = collect([(object)['id' => 0, 'name' => 'Walk-in-customer', 'email' => 'walkin@default.com', 'contact' => '0000000000']])->merge($customersForPos);
+            // Retail POS: only retail branches (pos_type = retail or null)
             $retailBranchIds = Branch::where('created_by', $creatorId)->where('is_active', true)
                 ->where(function ($q) {
                     $q->where('pos_type', Branch::POS_TYPE_RETAIL)->orWhereNull('pos_type');
                 })
                 ->pluck('id')->toArray();
+            $branches = Branch::whereIn('id', $retailBranchIds)->get()->pluck('name', 'id');
+            $warehouses = warehouse::with('branch')->where('created_by', \Auth::user()->creatorId())
+                ->where(function ($q) use ($retailBranchIds) {
+                    if (!empty($retailBranchIds)) {
+                        $q->whereIn('branch_id', $retailBranchIds);
+                    }
+                    $q->orWhereNull('branch_id');
+                })->get()->pluck('name', 'id');
+            $restaurantBranchIds = [];
             $hasRetailBranches = !empty($retailBranchIds);
-            $hasRestaurantBranches = !empty($restaurantBranchIds);
+            $hasRestaurantBranches = false;
+            $posMode = 'retail';
             $user = Auth::user();
             $details = [
                 'pos_id' => $user->posNumberFormat($this->invoicePosNumber()),
@@ -88,8 +98,8 @@ class PosController extends Controller
             } else {
                 $customer = '';
                 $warehouseId = '';
-            } 
-            return view('pos.index', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches'));
+            }
+            return view('pos.index', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -1169,6 +1179,69 @@ class PosController extends Controller
     {
         $pos_balances = PosBalance::where('user_id', \Auth::user()->creatorId())->orderBy('id', 'desc')->get();
         return view('pos.balances', compact('pos_balances'));
+    }
+
+
+    
+    public function indexRestaurant($id = 0)
+    {
+        if (Auth::user()->can('manage pos')) {
+            // Phase 5: POS user limit per plan
+            $creatorId = Auth::user()->creatorId();
+            $owner = User::find($creatorId);
+            if ($owner && $owner->plan) {
+                $plan = Plan::find($owner->plan);
+                if ($plan && $plan->pos == 1 && $plan->max_pos_users >= 0) {
+                    $posUserCount = Plan::countPosUsersForCompany($creatorId);
+                    if ($posUserCount > $plan->max_pos_users) {
+                        return redirect()->back()->with('error', __('POS user limit reached. Please upgrade your plan.'));
+                    }
+                }
+            }
+            session()->forget('pos');
+            $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'name');
+            $customers->prepend('Walk-in-customer', '');
+            // Restaurant POS: only restaurant branches
+            $restaurantBranchIds = Branch::where('created_by', $creatorId)->where('is_active', true)
+                ->where('pos_type', Branch::POS_TYPE_RESTAURANT)->pluck('id')->toArray();
+            $branches = Branch::whereIn('id', $restaurantBranchIds)->get()->pluck('name', 'id');
+            $warehouses = warehouse::with('branch')->where('created_by', \Auth::user()->creatorId())
+                ->whereIn('branch_id', $restaurantBranchIds)->get()->pluck('name', 'id');
+            $hasRetailBranches = false;
+            $hasRestaurantBranches = !empty($restaurantBranchIds);
+            $posMode = 'restaurant';
+            $user = Auth::user();
+            $details = [
+                'pos_id' => $user->posNumberFormat($this->invoicePosNumber()),
+                'customer' => $customers != null ? $customers->toArray() : [],
+                'user' => $user != null ? $user->toArray() : [],
+                'date' => date('Y-m-d'),
+                'pay' => 'show',
+            ];
+
+            if ($id != 0) {
+
+                $quotation = Quotation::find($id);
+
+                $customerId = $quotation->customer_id;
+                $customerId = Customer::find($customerId);
+                $customer = $customerId->name;
+
+                $warehouseId = $quotation->warehouse_id;
+
+                $quotationProduct = QuotationProduct::where('quotation_id', $id)->get();
+
+                foreach ($quotationProduct as $value) {
+                    $products = Quotation::quotationProduct($value);
+                }
+            } else {
+                $customer = '';
+                $warehouseId = '';
+            }
+            return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode'));
+        } else {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
     }
 
 }

@@ -1,21 +1,66 @@
-@extends('layouts.admin')
-@section('page-title')
-    {{ __('POS') }}
-@endsection
-@section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{ __('pos.dashboard') }}</a></li>
-    <li class="breadcrumb-item">{{ __('POS') }}</li>
-@endsection
-@push('css-page')
-<meta name="theme-color" content="#2563eb">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="mobile-web-app-capable" content="yes">
-<link rel="manifest" href="{{ asset('pos-manifest.json') }}">
-<link rel="stylesheet" href="{{ asset('css/pos.css') }}">
-@endpush
+@php
+    $logo = \App\Models\Utility::get_file('uploads/logo');
+    $company_favicon = Utility::getValByName('company_favicon');
+    $SITE_RTL = Utility::getValByName('SITE_RTL');
+    $setting = \App\Models\Utility::colorset();
+    $color = 'theme-3';
+    if (!empty($setting['color'])) {
+        $color = $setting['color'];
+    }
 
-@section('content')
+    if (isset($setting['color_flag']) && $setting['color_flag'] == 'true') {
+        $themeColor = 'theme-3';
+    } else {
+        $themeColor = $color;
+    }
+
+@endphp
+<!DOCTYPE html>
+
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="{{ asset('pos-manifest.json') }}">
+    <link rel="stylesheet" href="{{ asset('css/pos.css') }}">
+    <title>
+        {{ !empty($companySettings['header_text']) ? $companySettings['header_text']->value : config('app.name', 'ERPGO SaaS') }}
+        - {{ __('POS Retail') }}</title>
+
+    <link rel="icon"
+        href="{{ asset(Storage::url('uploads/logo/')) . '/' . (isset($companySettings['company_favicon']) && !empty($companySettings['company_favicon']) ? $companySettings['company_favicon']->value : 'favicon.png') }}"
+        type="image" sizes="16x16">
+    <link rel="stylesheet" href="{{ asset('assets/fonts/tabler-icons.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/site.css') }}" id="stylesheet">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    <!-- font css -->
+    <link rel="stylesheet" href="{{ asset('assets/fonts/tabler-icons.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/fonts/feather.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/fonts/fontawesome.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/fonts/material.css') }}">
+
+    <!--bootstrap switch-->
+    <link rel="stylesheet" href="{{ asset('assets/css/plugins/bootstrap-switch-button.min.css') }}">
+
+    <!-- vendor css -->
+    @if ($SITE_RTL == 'on')
+        <link rel="stylesheet" href="{{ asset('assets/css/style-rtl.css') }}">
+    @endif
+    @if ($setting['cust_darklayout'] == 'on')
+        <link rel="stylesheet" href="{{ asset('assets/css/style-dark.css') }}">
+    @else
+        <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}" id="main-style-link">
+    @endif
+
+    <link rel="stylesheet" href="{{ asset('assets/css/customizer.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/custom.css') }}" id="main-style-link">
+
     <style>
         .main_div{
             position: relative;
@@ -34,11 +79,6 @@
         .pos-top-bar .pos-brand { font-weight: 700; font-size: 1.25rem; letter-spacing: 0.02em; }
         .pos-cart-card .card-header { font-weight: 600; }
         .pos-cart-card .total-section { background: rgba(0,0,0,0.03); border-radius: 0.5rem; padding: 1rem; }
-        #categories-listing{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
         .pl-1{
             padding-left: 3px !important;
         }
@@ -62,6 +102,10 @@
         }
 
     </style>
+</head>
+
+
+<body class="{{ $themeColor }}">
     <div id="pos-offline-banner" class="alert alert-warning py-2 mb-0 rounded-0 text-center d-none" role="alert" style="z-index: 9998;">
         <span class="ti ti-wifi-off me-1"></span> {{ __('pos.offline_banner') }}
     </div>
@@ -78,7 +122,7 @@
             <div class="col-12">
                 <div class="mt-2 pos-top-bar bg-primary d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div class="d-flex align-items-center flex-wrap gap-2">
-                        <span class="text-white pos-brand">{{ __('pos.title') }}</span>
+                        <span class="text-white pos-brand">{{ __('POS Retail') }}</span>
                         @if($today_balance && $today_balance->opening_balance)
                             <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.opening_balance') }}:</strong> {{ Auth::user()->priceFormat($today_balance->opening_balance) }}</span>
                         @else
@@ -95,15 +139,17 @@
                         <button type="button" id="pos-install-app-btn" class="btn btn-sm btn-light" title="{{ __('pos.install_app') }}">
                             <i class="ti ti-download" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ __('pos.install_app') }}</span>
                         </button>
+                        <a href="{{ route('pos.restaurant.index') }}" class="btn btn-sm btn-outline-light" title="{{ __('POS Restaurant') }}"><i class="ti ti-building-store" style="font-size: 1.25rem;"></i></a>
                         <a href="{{ route('dashboard') }}" class="btn btn-sm btn-light" title="{{ __('pos.dashboard') }}"><i class="ti ti-home" style="font-size: 1.25rem;"></i></a>
                     </div>
                 </div>
             </div>
         </div>
         @php
+            $posMode = $posMode ?? 'retail';
             $hasRetailBranches = $hasRetailBranches ?? true;
             $hasRestaurantBranches = $hasRestaurantBranches ?? false;
-            $showModeTabs = $hasRetailBranches && $hasRestaurantBranches;
+            $showModeTabs = ($posMode !== 'retail' && $posMode !== 'restaurant') && $hasRetailBranches && $hasRestaurantBranches;
             $defaultMode = $hasRestaurantBranches && !$hasRetailBranches ? 'restaurant' : 'retail';
         @endphp
         @if($showModeTabs)
@@ -112,50 +158,50 @@
             <button type="button" class="btn btn-outline-primary pos-mode-btn" data-mode="restaurant">{{ __('pos.mode_restaurant') }}</button>
         </div>
         @endif
-        <div id="pos-retail-panel" class="pos-mode-panel {{ $defaultMode === 'retail' ? '' : 'd-none' }}">
-        <div class="mt-2 row mb-4 gy-2 main_div">
+        <div id="pos-retail-panel" class="mt-2 mb-4 pb-3 pos-mode-panel {{ ($posMode === 'restaurant') ? 'd-none' : '' }} card rounded">
+        <div class="row gy-2 main_div">
             @if(!$today_balance || !$today_balance->opening_balance)
                 <div class="disabled_div">
                     <h3>Add Opening Balance to Enable the transactions</h3>
                 </div>
             @endif
-            <div class="col-lg-8">
-                <div class="sop-card pos-products-card card mb-0">
-                    <div class="card-header p-2">
+            <div class="col-lg-8 border-right">
+                <div class="sop-card mb-0">
+                    <div class="p-2">
                         <div class="search-bar-left pos-search-bar">
                             <form>
-                                <div class="row">
-                                    <div class="col-md-6 pr-1">
+                                <div class="row g-2">
+                                    <div class="col-md-4">
                                         <div class="input-group">
                                             <div class="input-group-prepend">
-                                                <span class="input-group-text"><i class="ti ti-search"></i></span>
+                                                <span class="input-group-text" style="padding: 0.50rem 0.75rem !important;"><i class="ti ti-search"></i></span>
                                             </div>
                                             <input type="text" data-url="{{ route('search.products') }}"
                                                 placeholder="{{ __('pos.search_product') }}"
-                                                class="form-control pr-4 rounded-right searchproduct">
+                                                class="form-control form-control-sm pr-4 rounded-right searchproduct">
                                         </div>
                                     </div>
-
-                                    <div class="col-md-6 pl-1">
+                                    <div class="col-md-4">
                                         <div class="input-group">
                                             <div class="input-group-prepend">
-                                                <span class="input-group-text"><i class="ti ti-search"></i></span>
+                                                <span class="input-group-text" style="padding: 0.50rem 0.75rem !important;"><i class="ti ti-search"></i></span>
                                             </div>
                                             <input type="text" data-url="{{ route('search.products') }}"
                                                 placeholder="{{ __('pos.search_barcode') }}"
-                                                class="form-control pr-4 rounded-right barcodeScanner">
+                                                class="form-control pr-4 rounded-right barcodeScanner form-control-sm">
                                         </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <select class="form-control form-control-sm select" id="pos-retail-category">
+                                            <option value="0">{{ __('All Categories') }}</option>
+                                        </select>
                                     </div>
                                 </div>
                             </form>
                         </div>
                     </div>
-                    <div class="card-body p-2">
+                    <div class="p-2 bg-light">
                         <div class="right-content">
-                            <div class="button-list b-bottom catgory-pad mb-3">
-                                <div class="form-row m-0" id="categories-listing">
-                                </div>
-                            </div>
                             <div class="product-body-nop">
                                 <div class="form-row" id="product-listing">
                                 </div>
@@ -165,185 +211,198 @@
                 </div>
             </div>
             <div class="col-lg-4 ps-lg-0">
-                <div class="card m-0 h-100 pos-cart-card pos-cart-panel">
-                    <div class="card-header p-2">
-                        <div class="row gy-2">
-                            @php
-                                $restaurantBranchIds = $restaurantBranchIds ?? [];
-                                $defaultBranchId = (isset($branches) && $branches->count() == 1) ? $branches->keys()->first() : '';
-                            @endphp
-                            @if(isset($branches) && $branches->count() >= 1)
-                            <div class="col-12">
-                                {{ Form::select('branch_id', $branches, $defaultBranchId, ['class' => 'form-control select branch_select', 'id' => 'branch_id', 'placeholder' => __('Select Branch')]) }}
+                <div class="m-0 h-100">
+                    <div class="p-2">
+                        {{-- Branch & Warehouse: minimal one row --}}
+                        @php
+                            $restaurantBranchIds = $restaurantBranchIds ?? [];
+                            $defaultBranchId = (isset($branches) && $branches->count() == 1) ? $branches->keys()->first() : '';
+                            $customersForPos = $customersForPos ?? collect();
+                        @endphp
+                        @if(isset($branches) && $branches->count() >= 1)
+                        <div class="row g-1 mb-2">
+                            <div class="col-6">
+                                <select class="form-control form-control-sm select branch_select" id="branch_id">
+                                    <option value="">{{ __('Select Branch') }}</option>
+                                    @foreach($branches as $bid => $bname)
+                                        <option value="{{ $bid }}" {{ $bid == $defaultBranchId ? 'selected' : '' }}>{{ $bname }}</option>
+                                    @endforeach
+                                </select>
                             </div>
-                            @endif
-                            <div id="pos-restaurant-options" class="col-12 row gy-1 {{ empty($restaurantBranchIds) ? 'd-none' : '' }}">
-                                <div class="col-sm-6 pr-1">
-                                    {{ Form::select('pos_order_type', ['dine_in' => __('pos.dine_in'), 'takeaway' => __('pos.takeaway'), 'delivery' => __('pos.delivery'), 'kiosk' => __('pos.kiosk')], null, ['class' => 'form-control select', 'id' => 'pos_order_type', 'placeholder' => __('pos.select_order_type')]) }}
-                                    {{ Form::hidden('pos_order_type_hidden', '', ['id' => 'pos_order_type_hidden']) }}
-                                </div>
-                                <div class="col-sm-6 pl-1">
-                                    {{ Form::select('pos_table_id', [], null, ['class' => 'form-control select', 'id' => 'pos_table_id', 'placeholder' => __('Select Table')]) }}
-                                    {{ Form::hidden('pos_table_id_hidden', '', ['id' => 'pos_table_id_hidden']) }}
-                                </div>
+                            <div class="col-6">
+                                <select class="form-control form-control-sm select warehouse_select" id="warehouse" required>
+                                    <option value="">{{ __('Select Warehouse') }}</option>
+                                    @foreach($warehouses as $wid => $wname)
+                                        <option value="{{ $wid }}" {{ $wid == $warehouseId ? 'selected' : '' }}>{{ $wname }}</option>
+                                    @endforeach
+                                </select>
+                                {{ Form::hidden('warehouse_name_hidden', $warehouseId ?? '', ['id' => 'warehouse_name_hidden']) }}
                             </div>
+                        </div>
+                        @endif
+                        <div id="pos-restaurant-options" class="row gy-1 mb-2 {{ (($posMode ?? '') === 'restaurant' && !empty($restaurantBranchIds)) ? '' : 'd-none' }}">
                             <div class="col-sm-6 pr-1">
-                                {{ Form::select('customer_id', $customers, $customer, ['class' => 'form-control select customer_select', 'id' => 'customer', 'required' => 'required', 'placeholder' => __('pos.select_customer') ]) }}
-                                {{ Form::hidden('vc_name_hidden', '', ['id' => 'vc_name_hidden']) }}
-
+                                {{ Form::select('pos_order_type', ['dine_in' => __('pos.dine_in'), 'takeaway' => __('pos.takeaway'), 'delivery' => __('pos.delivery'), 'kiosk' => __('pos.kiosk')], null, ['class' => 'form-control select', 'id' => 'pos_order_type', 'placeholder' => __('pos.select_order_type')]) }}
+                                {{ Form::hidden('pos_order_type_hidden', '', ['id' => 'pos_order_type_hidden']) }}
                             </div>
                             <div class="col-sm-6 pl-1">
-                                <!-- {{ Form::label('warehouse_id', __('Warehouse'), ['class' => 'form-label d-none d-sm-block']) }} -->
-                                {{ Form::select('warehouse_id', $warehouses, $warehouseId, ['class' => 'form-control select warehouse_select ', 'id' => 'warehouse', 'required' => 'required', 'placeholder' => __('pos.select_warehouse') ]) }}
-                                {{ Form::hidden('warehouse_name_hidden', '', ['id' => 'warehouse_name_hidden']) }}
-                                {{ Form::hidden('quotation_id', $id, ['id' => 'quotation_id', 'class' => 'quotation']) }}
+                                {{ Form::select('pos_table_id', [], null, ['class' => 'form-control select', 'id' => 'pos_table_id', 'placeholder' => __('Select Table')]) }}
+                                {{ Form::hidden('pos_table_id_hidden', '', ['id' => 'pos_table_id_hidden']) }}
+                            </div>
+                        </div>
+                        {{ Form::hidden('quotation_id', $id, ['id' => 'quotation_id', 'class' => 'quotation']) }}
+
+                        {{-- Customer: header + Change + card --}}
+                        <div class="pos-customer-block mb-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="text-muted small fw-semibold d-flex align-items-center gap-1">
+                                    <i class="ti ti-user"></i> {{ __('Customer') }}
+                                </span>
+                                <a href="#" class="text-muted small pos-customer-change" id="pos-customer-change">{{ __('Change') }}</a>
+                            </div>
+                            <select class="form-control form-control-sm select customer_select d-none" id="customer" required>
+                                @foreach($customersForPos as $c)
+                                    <option value="{{ $c->name }}" data-email="{{ e($c->email ?? '') }}" data-contact="{{ e($c->contact ?? '') }}" data-type="{{ $c->name === 'Walk-in-customer' ? 'walk-in' : 'customer' }}" {{ (($customer ?? '') === $c->name || (($customer ?? '') === '' && $c->name === 'Walk-in-customer')) ? 'selected' : '' }}>{{ $c->name }}</option>
+                                @endforeach
+                            </select>
+                            {{ Form::hidden('vc_name_hidden', ($customer ?? '') ?: 'Walk-in-customer', ['id' => 'vc_name_hidden']) }}
+                            <div class="pos-customer-card card border rounded-2 shadow-sm p-2" id="pos-customer-card">
+                                @php
+                                    $selCustomer = $customersForPos->firstWhere('name', $customer ?? 'Walk-in-customer') ?? $customersForPos->first();
+                                @endphp
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div class="min-w-0">
+                                        <div class="fw-bold text-dark text-truncate" id="pos-customer-name">{{ $selCustomer->name ?? __('Walk-in-customer') }}</div>
+                                        <small class="text-muted d-block text-truncate" id="pos-customer-email">{{ $selCustomer->email ?? 'walkin@default.com' }}</small>
+                                        <small class="text-muted d-block" id="pos-customer-phone">{{ $selCustomer->contact ?? '0000000000' }}</small>
+                                    </div>
+                                    <span class="badge bg-light text-dark border" id="pos-customer-badge">{{ $selCustomer && $selCustomer->name === 'Walk-in-customer' ? __('Walk-in') : __('Customer') }}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="card-body carttable cart-product-list carttable-scroll" id="carthtml">
+                    @php
+                        $cartCount = session($lastsegment) && !empty(session($lastsegment)) ? count(session($lastsegment)) : 0;
+                    @endphp
+                    <div class="d-flex justify-content-between align-items-center p-2 mb-2 border-bottom">
+                        <h5 class="mb-0 d-flex align-items-center gap-2">
+                            <i class="ti ti-shopping-cart"></i>
+                            <span>{{ __('Cart') }} <span id="pos-cart-count">({{ $cartCount }})</span></span>
+                        </h5>
+                        <div class="tab-content btn-empty">
+                            <a href="#" class="btn btn-sm btn-outline-danger bs-pass-para-pos"
+                                data-toggle="tooltip" data-original-title="{{ __('pos.empty_cart') }}"
+                                data-confirm="{{ __('pos.are_you_sure') }}"
+                                data-text="{{ __('pos.confirm_undo') }}"
+                                data-confirm-yes="delete-form-emptycart">{{ __('Clear') }}</a>
+                            {!! Form::open(['method' => 'post', 'url' => ['empty-cart'], 'id' => 'delete-form-emptycart']) !!}
+                            <input type="hidden" name="session_key" value="{{ $lastsegment }}" id="empty_cart">
+                            {!! Form::close() !!}
+                        </div>
+                    </div>
+                    <div class="carttable cart-product-list carttable-scroll p-2" id="carthtml" style="max-height: 320px; overflow-y: auto;">
                         @php
                             $total = 0;
                             $netPrice = 0;
                             $discount = 0;
                         @endphp
-                        <div class="table-responsive">
-                            <table class="table pos-cart-table">
-                                <thead>
-                                    <tr>
-                                        <th></th>
-                                        <th class="text-left">{{ __('pos.name') }}</th>
-                                        <th class="text-center">{{ __('pos.qty') }}</th>
-                                        <th>{{ __('pos.tax') }}</th>
-                                        <th class="text-center">{{ __('pos.price') }}</th>
-                                        <th class="text-center">{{ __('pos.sub_total') }}</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tbody">
+                        <div id="tbody" class="pos-cart-cards">
                                     @if (session($lastsegment) && !empty(session($lastsegment)) && count(session($lastsegment)) > 0)
                                         @foreach (session($lastsegment) as $id => $details)
                                             @php
                                                 $product = \App\Models\ProductService::find($details['id']);
-                                                $image_url =
-                                                    !empty($product) && isset($product->pro_image)
-                                                        ? $product->pro_image
-                                                        : 'uploads/pro_image/';
+                                                $image_url = !empty($product) && isset($product->pro_image) ? $product->pro_image : 'uploads/pro_image/default.png';
+                                                $sku = $product && $product->sku ? $product->sku : '';
+                                                $catName = $product && $product->category ? $product->category->name : '';
                                                 $total += $details['subtotal'];
                                                 $netPrice += $details['netPrice'];
                                                 $discount += $details['discount'];
+                                                $taxStr = '-';
+                                                if (!empty($product->tax_id)) {
+                                                    $taxes = \Utility::tax($product->tax_id);
+                                                    $taxStr = $taxes->map(fn($t) => $t->name . ' (' . $t->rate . '%)')->join(', ');
+                                                }
                                             @endphp
-                                            <tr data-product-id="{{ $id }}" id="product-id-{{ $id }}"
+                                            <div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="{{ $id }}" id="product-id-{{ $id }}"
                                                 data-name="{{ e($details['name']) }}" data-price="{{ $details['price'] }}"
                                                 data-quantity="{{ $details['quantity'] }}" data-tax="{{ $details['tax'] ?? 0 }}"
                                                 data-subtotal="{{ $details['subtotal'] }}" data-discount="{{ $details['discount'] ?? 0 }}"
                                                 data-netprice="{{ $details['netPrice'] ?? $details['subtotal'] }}">
-                                                <td class="cart-images">
-                                                    <img alt="Image placeholder"
-                                                        src="{{ asset(Storage::url('uploads/pro_image/' . $image_url)) }}"
-                                                        class="card-image avatar rounded-circle-sale shadow hover-shadow-lg">
-                                                </td>
-                                                <td class="name">{{ $details['name'] }}</td>
-                                                <td>
-                                                    <span class="quantity buttons_added">
-                                                        <input type="button" value="-" class="minus">
-                                                        <input type="number" step="1" min="1"
-                                                            max="" name="quantity"
-                                                            title="{{ __('pos.quantity') }}" class="input-number"
-                                                            data-url="{{ url('update-cart/') }}"
-                                                            data-id="{{ $id }}" size="4"
-                                                            value="{{ $details['quantity'] }}" placeholder="{{ __('pos.enter_quantity') }}">
-                                                        <input type="button" value="+" class="plus">
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    @if (!empty($product->tax_id))
-                                                        @php
-                                                            $taxes = \Utility::tax($product->tax_id);
-                                                        @endphp
-                                                        @foreach ($taxes as $tax)
-                                                            <span
-                                                                class="badge bg-primary">{{ $tax->name . ' (' . $tax->rate . '%)' }}</span>
-                                                            <br>
-                                                        @endforeach
-                                                    @else
-                                                        -
-                                                    @endif
-                                                </td>
-                                                <td class="price text-right">
-                                                    {{ Auth::user()->priceFormat($details['price']) }}</td>
-                                                <td class="col-sm-3 mt-2">
-                                                    <span
-                                                        class="subtotal">{{ Auth::user()->priceFormat($details['subtotal']) }}</span>
-                                                </td>
-                                                <td class="col-sm-2 mt-2">
-                                                <div class="action-btn">
-                                                    <a href="#" class="btn btn-sm bg-danger bs-pass-para-pos"
-                                                        data-confirm="{{ __('Are You Sure?') }}"
-                                                        data-text="{{ __('This action can not be undone. Do you want to continue?') }}"
-                                                        data-confirm-yes="delete-form-{{ $id }}"
-                                                        title="{{ __('Delete') }}" data-id="{{ $id }}">
-                                                        <i class="ti ti-trash text-white "
-                                                            title="{{ __('Delete') }}"></i>
-                                                    </a>
-                                                    {!! Form::open(['method' => 'delete', 'url' => ['remove-from-cart'], 'id' => 'delete-form-' . $id]) !!}
-                                                    <input type="hidden" name="session_key"
-                                                        value="{{ $lastsegment }}">
-                                                    <input type="hidden" name="id"
-                                                        value="{{ $id }}">
-                                                    {!! Form::close() !!}
+                                                <div class="card-body p-2">
+                                                    <div class="d-flex justify-content-between align-items-start gap-2">
+                                                        <div class="flex-grow-1 min-w-0">
+                                                            <h6 class="mb-0 text-dark fw-bold text-truncate name">{{ $details['name'] }}</h6>
+                                                            @if($sku)
+                                                                <small class="text-muted d-block">SKU: {{ $sku }}</small>
+                                                            @endif
+                                                            @if($catName)
+                                                                <span class="badge bg-light text-dark border mt-1">{{ $catName }}</span>
+                                                            @endif
+                                                        </div>
+                                                        <div class="action-btn">
+                                                            <a href="#" class="btn btn-sm btn-danger p-1 bs-pass-para-pos"
+                                                                data-confirm="{{ __('Are You Sure?') }}"
+                                                                data-text="{{ __('This action can not be undone. Do you want to continue?') }}"
+                                                                data-confirm-yes="delete-form-{{ $id }}" title="{{ __('Delete') }}" data-id="{{ $id }}">
+                                                                <i class="ti ti-trash"></i>
+                                                            </a>
+                                                            {!! Form::open(['method' => 'delete', 'url' => ['remove-from-cart'], 'id' => 'delete-form-' . $id]) !!}
+                                                            <input type="hidden" name="session_key" value="{{ $lastsegment }}">
+                                                            <input type="hidden" name="id" value="{{ $id }}">
+                                                            {!! Form::close() !!}
+                                                        </div>
+                                                    </div>
+                                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">
+                                                        <span class="quantity buttons_added d-inline-flex align-items-center border rounded">
+                                                            <input type="button" value="-" class="minus btn btn-sm btn-outline-secondary border-0 py-0">
+                                                            <input type="number" step="1" min="1" max="" name="quantity" title="{{ __('pos.quantity') }}" class="input-number form-control form-control-sm border-0 text-center" style="width: 2.5rem;" data-url="{{ url('update-cart/') }}" data-id="{{ $id }}" value="{{ $details['quantity'] }}">
+                                                            <input type="button" value="+" class="plus btn btn-sm btn-outline-secondary border-0 py-0">
+                                                        </span>
+                                                        <div class="text-end">
+                                                            <div class="fw-bold text-dark subtotal">{{ Auth::user()->priceFormat($details['subtotal']) }}</div>
+                                                            <small class="text-muted price">{{ Auth::user()->priceFormat($details['price']) }} {{ __('each') }}</small>
+                                                        </div>
+                                                    </div>
+                                                    <small class="text-muted d-block mt-1 tax">{{ __('Tax') }}: {{ $taxStr }}</small>
                                                 </div>
-                                                </td>
-                                            </tr>
+                                            </div>
                                         @endforeach
                                     @else
-                                        <tr class="text-center no-found">
-                                            <td colspan="7">{{ __('pos.no_data_found') }}</td>
-                                        </tr>
+                                        <div class="text-center no-found py-4 text-muted">
+                                            {{ __('pos.no_data_found') }}
+                                        </div>
                                     @endif
-                                </tbody>
-                            </table>
                         </div>
                         <div class="total-section pos-totals mt-3">
                             <div class="sub-total">
-                                <div class="d-flex flex-column flex-sm-row justify-content-between gap-3">
-                                    <div class="sub-total-left flex-1" id="btn-pur">
-                                        <div class="d-flex align-items-center gap-2 mb-3 discount-wrap">
-                                            <span
-                                                class="input-group-text bg-transparent">{{ \Auth::user()->currencySymbol() }}</span>
-                                            {{ Form::number('discount', $discount, ['class' => ' form-control discount', 'required' => 'required', 'placeholder' => __('pos.discount')]) }}
+                                <div class="">
+                                    <div class="sub-total-right flex-1">
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <p class="mb-0 text-dark">{{ __('pos.sub_total') }} :</p>
+                                            <p class="mb-0 text-dark subtotal_price" id="displaytotal">
+                                                {{ Auth::user()->priceFormat($total) }}</p>
+                                        </div>
+                                        <div class="d-flex align-items-center justify-content-between align-items-center gap-2 mb-2 discount-wrap">
+                                            <p class="mb-0 text-dark">{{ __('pos.discount') }} :</p>
+                                            <div class="d-flex align-items-center input-group input-group-sm" style="max-width: 120px;">
+                                                <span class="input-group-text bg-transparent" style="padding: 0.50rem 0.75rem !important;">{{ \Auth::user()->currencySymbol() }}</span>
+                                                {{ Form::number('discount', $discount, ['class' => 'form-control form-control-sm discount', 'required' => 'required', 'placeholder' => '0']) }}
+                                            </div>
                                             {{ Form::hidden('discount_hidden', $discount, ['id' => 'discount_hidden']) }}
                                         </div>
-                                        <button type="button" id="pos-pay-btn" class="btn btn-primary rounded pos-pay-btn" data-ajax-popup="true"
+                                        <div class="d-flex align-items-center justify-content-between mb-3">
+                                            <p class="mb-0 text-dark">{{ __('Total') }} :</p>
+                                            <p class="mb-0 text-dark totalamount">
+                                                {{ Auth::user()->priceFormat($netPrice) }}</p>
+                                        </div>
+                                        <button type="button" id="pos-pay-btn" class="btn btn-primary rounded pos-pay-btn w-100" data-ajax-popup="true"
                                             data-size="xl" data-align="centered" data-url="{{ route('pos.create') }}"
                                             data-title="{{ __('pos.pos_invoice') }}"
                                             @if (session($lastsegment) && !empty(session($lastsegment)) && count(session($lastsegment)) > 0) @else disabled="disabled" @endif>
                                             {{ __('pos.pay') }}
                                         </button>
                                     </div>
-                                    <div class="sub-total-right flex-1">
-                                        <div class="d-flex align-items-center justify-content-sm-end mb-2">
-                                            <p class="mb-0 text-dark">{{ __('pos.sub_total') }} :</p>
-                                            <p class="mb-0 text-dark subtotal_price" id="displaytotal">
-                                                {{ Auth::user()->priceFormat($total) }}</p>
-                                        </div>
-                                        <div class="d-flex align-items-center justify-content-sm-end mb-3">
-                                            <p class="mb-0 text-dark">{{ __('Total') }} :</p>
-                                            <p class="mb-0 text-dark totalamount">
-                                                {{ Auth::user()->priceFormat($netPrice) }}</p>
-                                        </div>
-                                        <div class="tab-content btn-empty d-flex justify-content-sm-end">
-                                            <a href="#" class="btn btn-danger bs-pass-para-pos rounded m-0"
-                                                data-toggle="tooltip" data-original-title="{{ __('pos.empty_cart') }}"
-                                                data-confirm="{{ __('pos.are_you_sure') }}"
-                                                data-text="{{ __('pos.confirm_undo') }}"
-                                                data-confirm-yes="delete-form-emptycart">
-                                                {{ __('pos.empty_cart') }}
-                                            </a>
-                                            {!! Form::open(['method' => 'post', 'url' => ['empty-cart'], 'id' => 'delete-form-emptycart']) !!}
-                                            <input type="hidden" name="session_key" value="{{ $lastsegment }}"
-                                                id="empty_cart">
-                                            {!! Form::close() !!}
-                                        </div>
+                                    <div class="sub-total-left flex-1 d-none" id="btn-pur">
                                     </div>
                                 </div>
                             </div>
@@ -356,9 +415,11 @@
     </div>
         </div>{{-- /pos-retail-panel --}}
 
-        <div id="pos-restaurant-panel" class="pos-mode-panel mt-2 {{ $defaultMode === 'restaurant' ? '' : 'd-none' }}">
+        @if(($posMode ?? '') !== 'retail')
+        <div id="pos-restaurant-panel" class="pos-mode-panel mt-2 {{ ($posMode ?? '') === 'restaurant' ? '' : 'd-none' }}">
             @include('pos.restaurant')
         </div>{{-- /pos-restaurant-panel --}}
+        @endif
     </div>{{-- /pos-page --}}
 
     <div class="modal fade" id="commonModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
@@ -383,9 +444,43 @@
             </div>
         </div>
     </div>
+    <script src="{{ asset('js/jquery.min.js') }}"></script>
+    <script src="{{ asset('assets/js/plugins/popper.min.js') }}"></script>
+    <script src="{{ asset('assets/js/plugins/perfect-scrollbar.min.js') }}"></script>
+    <script src="{{ asset('assets/js/plugins/bootstrap.min.js') }}"></script>
+    <script src="{{ asset('assets/js/plugins/feather.min.js') }}"></script>
+    <script src="{{ asset('assets/js/dash.js') }}"></script>
+    <script src="{{ asset('js/moment.min.js') }}"></script>
 
-@endsection
-    @push('script-page')
+    <script src="{{ asset('assets/js/plugins/bootstrap-switch-button.min.js') }}"></script>
+
+    <script src="{{ asset('assets/js/plugins/sweetalert2.all.min.js') }}"></script>
+    <script src="{{ asset('assets/js/plugins/simple-datatables.js') }}"></script>
+
+    <!-- Apex Chart -->
+    <script src="{{ asset('assets/js/plugins/apexcharts.min.js') }}"></script>
+    <script src="{{ asset('assets/js/plugins/main.min.js') }}"></script>
+    <script src="{{ asset('assets/js/plugins/choices.min.js') }}"></script>
+    <script src="{{ asset('assets/js/plugins/flatpickr.min.js') }}"></script>
+
+
+    <script src="{{ asset('js/jscolor.js') }}"></script>
+    <script src="{{ asset('js/custom.js') }}"></script>
+
+    @if ($message = Session::get('success'))
+        <script>
+            show_toastr('success', '{!! $message !!}');
+        </script>
+    @endif
+    @if ($message = Session::get('error'))
+        <script>
+            show_toastr('error', '{!! $message !!}');
+        </script>
+    @endif
+    @stack('script-page')
+
+    <script src="{{ asset('js/jquery-ui.min.js') }}"></script>
+
     <script>
         var POS_PENDING_KEY = 'pos_pending_sales';
         var POS_CACHE_PRODUCTS = 'pos_cache_products';
@@ -394,8 +489,13 @@
         var posEmptyCartUrl = '{{ route("warehouse-empty-cart") }}';
         var posSearchProductsUrl = '{{ route("search.products") }}';
         var posCategoriesUrl = '{{ route("product.categories") }}';
+        var posCategoriesJsonUrl = '{{ route("product.categories.json") }}';
         var sessionKey = '{{ $lastsegment ?? "pos" }}';
         var session_key = sessionKey;
+        var posEmptyCartHtmlRetail = '<div class="text-center no-found py-4 text-muted">{{ __("pos.no_data_found") }}</div>';
+        var posEmptyCartHtmlRestaurant = '<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>';
+        function posEmptyCartHtml(selector) { return selector === '#tbody' ? posEmptyCartHtmlRetail : posEmptyCartHtmlRestaurant; }
+        function posCartItemSelector(selector) { return selector + ' [data-product-id]'; }
 
         function posProductCacheKey(warehouse, cat, search, type) {
             return (warehouse || '0') + '|' + (cat || '0') + '|' + (search || '') + '|' + (type || 'name');
@@ -447,7 +547,7 @@
         }
         function posGetCartFromDom() {
             var cart = {};
-            $('#tbody tr[data-product-id]').each(function () {
+            $('#tbody [data-product-id]').each(function () {
                 var id = $(this).attr('data-product-id');
                 var qty = parseInt($(this).find('input.input-number').val() || 1, 10);
                 var price = parseFloat($(this).attr('data-price')) || 0;
@@ -492,8 +592,9 @@
             return true;
         }
         function posClearCartDom() {
-            $('#tbody tr[data-product-id]').remove();
-            $('#tbody').append('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+            $('#tbody [data-product-id]').remove();
+            $('#tbody').html(posEmptyCartHtmlRetail);
+            $('#pos-cart-count').text('(0)');
             $('#btn-pur button').attr('disabled', 'disabled');
             $('.btn-empty button').removeClass('btn-clear-cart');
             $('#displaytotal, .totalamount').text('0');
@@ -561,7 +662,7 @@
                         e.stopImmediatePropagation();
                         var rows = '';
                         var subTotal = 0;
-                        $('#tbody tr[data-product-id]').each(function () {
+                        $('#tbody [data-product-id]').each(function () {
                             var name = $(this).attr('data-name') || '';
                             var qty = $(this).find('input.input-number').val() || 1;
                             var price = parseFloat($(this).attr('data-price')) || 0;
@@ -614,24 +715,50 @@
             $( "#discount_hidden").val($('.discount').val());
             $( "#quotation_id").val($('.quotation').val());
             $(function () {
-                getProductCategories();
+                fillRetailCategorySelect();
+            });
+
+            function fillRetailCategorySelect() {
+                var $sel = $('#pos-retail-category');
+                if (!$sel.length) return;
+                $.get(posCategoriesJsonUrl, function (data) {
+                    var currentVal = $sel.val();
+                    $sel.find('option:not(:first)').remove();
+                    (data || []).forEach(function (item) {
+                        if (item.id !== 0) {
+                            $sel.append($('<option></option>').val(item.id).text(item.name));
+                        }
+                    });
+                    $sel.val(currentVal || '0');
+                    var ware_id = $( "#warehouse" ).val();
+                    searchProducts(posSearchProductsUrl, '', $sel.val() || '0', ware_id, 'name');
+                });
+            }
+
+            $('#pos-retail-category').on('change', function () {
+                var cat = $(this).val() || '0';
+                var ware_id = $( "#warehouse" ).val();
+                searchProducts(posSearchProductsUrl, '', cat, ware_id, 'name');
             });
 
             if ($('.barcodeScanner').length > 0) {
                 var url = $('.barcodeScanner').data('url');
                 var ware_id = $( "#warehouse" ).val();
-                searchProducts(url, '', '0',ware_id, 'sku');
+                var cat = $( "#pos-retail-category" ).val() || '0';
+                searchProducts(url, '', cat, ware_id, 'sku');
             }
 
             if ($('.searchproduct').length > 0) {
                 var url = $('.searchproduct').data('url');
                 var ware_id = $( "#warehouse" ).val();
-                searchProducts(url, '', '0', ware_id, 'name');
+                var cat = $( "#pos-retail-category" ).val() || '0';
+                searchProducts(url, '', cat, ware_id, 'name');
             }
 
             $( '#warehouse' ).change(function() {
                 var ware_id = $( "#warehouse" ).val();
-                searchProducts(posSearchProductsUrl, '', '0', ware_id, 'name');
+                var cat = $( "#pos-retail-category" ).val() || '0';
+                searchProducts(posSearchProductsUrl, '', cat, ware_id, 'name');
             });
 
             var restaurantBranchIds = @json($restaurantBranchIds ?? []);
@@ -1033,22 +1160,45 @@
                             data: { session_key: session_key },
                             success: function () {
                                 $( "#tbody" ).empty();
-                                $("#tbody").html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+                                $("#tbody").html(posEmptyCartHtmlRetail);
+                                $('#pos-cart-count').text('(0)');
                             }
                         });
                     }
                 });
             });
 
+            function posUpdateCustomerCard() {
+                var $sel = $('#customer option:selected');
+                var name = $sel.text();
+                var email = $sel.data('email') || '';
+                var contact = $sel.data('contact') || '';
+                var type = $sel.data('type') || 'customer';
+                $('#pos-customer-name').text(name || '');
+                $('#pos-customer-email').text(email);
+                $('#pos-customer-phone').text(contact);
+                $('#pos-customer-badge').text(type === 'walk-in' ? '{{ __("Walk-in") }}' : '{{ __("Customer") }}');
+                $('#vc_name_hidden').val($('#customer').val());
+            }
+            $(document).on('click', '#pos-customer-change', function(e) {
+                e.preventDefault();
+                $('#customer').removeClass('d-none').focus();
+            });
+            $(document).on('change blur', '#customer', function() {
+                posUpdateCustomerCard();
+                $('#customer').addClass('d-none');
+            });
             $( '.customer_select' ).change(function() {
                 $( "#vc_name_hidden" ).val($(this).val());
+                posUpdateCustomerCard();
             });
             $( '.warehouse_select' ).change(function() {
                 $( "#warehouse_name_hidden" ).val($(this).val());
                 var ware_id = $( "#warehouse" ).val();
                 var clearCartAndLoad = function() {
                     $( "#tbody" ).empty();
-                    $("#tbody").html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+                    $("#tbody").html(posEmptyCartHtmlRetail);
+                    $('#pos-cart-count').text('(0)');
                     $('.no-found').removeClass('d-none');
                     $('#btn-pur button').attr('disabled', 'disabled');
                     $('.btn-empty button').removeClass('btn-clear-cart');
@@ -1083,8 +1233,8 @@
                 var url = $(this).data('url');
                 var value = this.value;
                 var ware_id = $( "#warehouse" ).val();
+                var cat = $( "#pos-retail-category" ).val() || '0';
                 if (value != '') {
-                    var cat = $('.cat-active').children().data('cat-id');
                     searchProducts(url, value, cat, ware_id, 'name');
                 }
             });
@@ -1101,9 +1251,9 @@
                 var url = $(this).data('url');
                 var value = this.value;
                 var ware_id = $( "#warehouse" ).val();
+                var cat = $( "#pos-retail-category" ).val() || '0';
                 if (value != '') {
-                    var cat = $('.cat-active').children().data('cat-id');
-                    searchProducts(url, value, cat,ware_id, 'sku');
+                    searchProducts(url, value, cat, ware_id, 'sku');
                 }
             });
 
@@ -1141,27 +1291,6 @@
                 });
             }
 
-            function getProductCategories() {
-                if (!navigator.onLine) {
-                    var cached = posGetCachedCategories();
-                    if (cached) $('#categories-listing').html(cached);
-                    else $('#categories-listing').html('<div class="col-12"><small class="text-muted">{{ __("pos.offline_no_products") }}</small></div>');
-                    return;
-                }
-                $.ajax({
-                    type: 'GET',
-                    url: posCategoriesUrl,
-                    success: function (data) {
-                        posSetCachedCategories(data);
-                        $('#categories-listing').html(data);
-                    },
-                    error: function() {
-                        var cached = posGetCachedCategories();
-                        if (cached) $('#categories-listing').html(cached);
-                    }
-                });
-            }
-
             $(document).on('click', '.toacart', function () {
                 var $el = $(this);
                 var isRestaurant = $el.closest('#pos-restaurant-panel').length > 0;
@@ -1186,7 +1315,7 @@
                         $row.attr('data-quantity', qty).attr('data-subtotal', subtotal);
                         $row.find('.subtotal').text(addCommas(subtotal));
                     } else {
-                        var row = '<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>';
+                        var row = isRestaurant ? ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>') : ('<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><div class="card-body p-2"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 min-w-0"><h6 class="mb-0 fw-bold name">' + (name.replace(/</g, '&lt;')) + '</h6></div><div class="action-btn"><a href="#" class="btn btn-sm btn-danger p-1 pos-offline-remove" data-id="' + id + '"><i class="ti ti-trash"></i></a></div></div><div class="d-flex align-items-center justify-content-between mt-2"><span class="quantity buttons_added d-inline-flex align-items-center border rounded"><input type="button" value="-" class="minus btn btn-sm btn-outline-secondary border-0 py-0"><input type="number" step="1" min="1" name="quantity" class="input-number form-control form-control-sm border-0 text-center" style="width:2.5rem;" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus btn btn-sm btn-outline-secondary border-0 py-0"></span><div class="fw-bold subtotal">' + addCommas(subtotal) + '</div></div><small class="text-muted tax">Tax: -</small></div></div>');
                         $(tbodySel + ' .no-found').addClass('d-none');
                         $(tbodySel).append(row);
                         if (!isRestaurant) {
@@ -1197,8 +1326,9 @@
                         }
                     }
                     var total = 0;
-                    $(tbodySel + ' tr[data-product-id]').each(function() { total += parseFloat($(this).attr('data-subtotal')) || 0; });
+                    $(posCartItemSelector(tbodySel)).each(function() { total += parseFloat($(this).attr('data-subtotal')) || 0; });
                     $(totalSel).text(addCommas(total));
+                    if (!isRestaurant) $('#pos-cart-count').text('(' + $(posCartItemSelector('#tbody')).length + ')');
                     return;
                 }
                 var sum = 0;
@@ -1207,7 +1337,7 @@
                     success: function (data) {
                         if (data.code == '200') {
                             if (isRestaurant) {
-                                var existing = $(tbodySel + ' tr[id="' + rowIdPrefix + data.product.id + '"]');
+                                var existing = $(tbodySel + ' [id="' + rowIdPrefix + data.product.id + '"]');
                                 if (existing.length || (data.carttotal && !data.carthtml)) {
                                     existing.find('input.input-number').val(data.product.quantity);
                                     existing.find('.subtotal').text(addCommas(data.product.subtotal));
@@ -1219,7 +1349,7 @@
                                     $('#pos-pay-btn-restaurant').prop('disabled', false);
                                 }
                                 sum = 0;
-                                $(tbodySel + ' tr[data-product-id]').each(function() { sum += parseFloat($(this).attr('data-subtotal')) || 0; });
+                                $(posCartItemSelector(tbodySel)).each(function() { sum += parseFloat($(this).attr('data-subtotal')) || 0; });
                                 $('#pos-restaurant-total').text(addCommas(sum));
                             } else {
                                 if ('carttotal' in data) {
@@ -1233,6 +1363,7 @@
                                 } else if (data.carthtml) {
                                     $('#tbody').append(data.carthtml);
                                     $('.no-found').addClass('d-none');
+                                    $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                                     $('.carttable #product-id-' + data.product.id + ' input[name="quantity"]').val(data.product.quantity);
                                 }
                                 $('#btn-pur button').removeAttr('disabled');
@@ -1250,18 +1381,18 @@
             $(document).on('click', '.pos-offline-remove', function(e) {
                 e.preventDefault();
                 var id = $(this).data('id');
-                var $row = $(this).closest('tr[data-product-id]');
+                var $row = $(this).closest('[data-product-id]');
                 var inRestaurant = $row.closest('#carthtml-restaurant').length > 0;
                 var tbodySel = inRestaurant ? '#tbody-restaurant' : '#tbody';
                 var totalSel = inRestaurant ? '#pos-restaurant-total' : '#displaytotal, .totalamount';
                 $row.remove();
-                if ($(tbodySel + ' tr[data-product-id]').length === 0) {
-                    $(tbodySel).html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+                if ($(posCartItemSelector(tbodySel)).length === 0) {
+                    $(tbodySel).html(posEmptyCartHtml(tbodySel));
                     if (inRestaurant) $('#pos-pay-btn-restaurant').prop('disabled', true);
-                    else { $('#btn-pur button').attr('disabled', 'disabled'); $('.btn-empty button').removeClass('btn-clear-cart'); }
-                }
+                    else { $('#pos-cart-count').text('(0)'); $('#btn-pur button').attr('disabled', 'disabled'); $('.btn-empty button').removeClass('btn-clear-cart'); }
+                } else if (!inRestaurant) $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                 var total = 0;
-                $(tbodySel + ' tr[data-product-id]').each(function() { total += parseFloat($(this).attr('data-subtotal')) || 0; });
+                $(posCartItemSelector(tbodySel)).each(function() { total += parseFloat($(this).attr('data-subtotal')) || 0; });
                 $(totalSel).text(addCommas(total));
             });
 
@@ -1273,7 +1404,7 @@
                 var rowIdPrefix = inRestaurant ? 'product-id-r-' : 'product-id-';
                 var quantity = parseInt(ele.closest('span').find('input[name="quantity"]').val(), 10) || 0;
                 if (!navigator.onLine) {
-                    var $row = ele.closest('tr[data-product-id]');
+                    var $row = ele.closest('[data-product-id]');
                     if ($row.length && quantity > 0) {
                         var price = parseFloat($row.attr('data-price')) || 0;
                         var taxRate = parseFloat($row.attr('data-tax')) || 0;
@@ -1282,16 +1413,16 @@
                         $row.attr('data-subtotal', subtotal);
                         $row.find('.subtotal').text(addCommas(subtotal));
                         var total = 0;
-                        $(tbodySel + ' tr[data-product-id]').each(function() { total += parseFloat($(this).attr('data-subtotal')) || 0; });
+                        $(posCartItemSelector(tbodySel)).each(function() { total += parseFloat($(this).attr('data-subtotal')) || 0; });
                         if (inRestaurant) $('#pos-restaurant-total').text(addCommas(total));
-                        else { $('#displaytotal').text(addCommas(total)); $('.totalamount').text(addCommas(total)); }
+                        else { $('#displaytotal').text(addCommas(total)); $('.totalamount').text(addCommas(total)); $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')'); }
                     } else if (quantity === 0) {
-                        ele.closest('tr').remove();
-                        if ($(tbodySel + ' tr[data-product-id]').length === 0) {
-                            $(tbodySel).html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+                        ele.closest('[data-product-id]').remove();
+                        if ($(posCartItemSelector(tbodySel)).length === 0) {
+                            $(tbodySel).html(posEmptyCartHtml(tbodySel));
                             if (inRestaurant) $('#pos-pay-btn-restaurant').prop('disabled', true);
-                            else { $('#btn-pur button').attr('disabled', 'disabled'); $('.btn-empty button').removeClass('btn-clear-cart'); }
-                        }
+                            else { $('#pos-cart-count').text('(0)'); $('#btn-pur button').attr('disabled', 'disabled'); $('.btn-empty button').removeClass('btn-clear-cart'); }
+                        } else if (!inRestaurant) $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                     }
                     return;
                 }
@@ -1310,10 +1441,10 @@
                         success: function (data) {
                             if (data.code == '200') {
                                 if (quantity == 0) {
-                                    var $tr = ele.closest('tr[data-product-id]');
+                                    var $tr = ele.closest('[data-product-id]');
                                     $tr.remove();
-                                    if ($(tbodySel + ' tr[data-product-id]').length === 0) {
-                                        $(tbodySel).html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+                                    if ($(posCartItemSelector(tbodySel)).length === 0) {
+                                        $(tbodySel).html(posEmptyCartHtml(tbodySel));
                                         if (inRestaurant) $('#pos-pay-btn-restaurant').prop('disabled', true);
                                         else { $('#btn-pur button').attr('disabled', 'disabled'); $('.btn-empty button').removeClass('btn-clear-cart'); }
                                     }
@@ -1338,16 +1469,18 @@
                 e.preventDefault();
                 var ele = $(this);
                 if (!navigator.onLine) {
-                    var $row = ele.closest('tr[data-product-id]');
+                    var $row = ele.closest('[data-product-id]');
                     if ($row.length && confirm('{{ __("pos.are_you_sure") }}')) {
                         $row.remove();
-                        if ($('#tbody tr[data-product-id]').length === 0) {
-                            $('#tbody').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+                        if ($('#tbody [data-product-id]').length === 0) {
+                            $('#tbody').html(posEmptyCartHtmlRetail);
+                            $('#pos-cart-count').text('(0)');
                             $('#btn-pur button').attr('disabled', 'disabled');
                             $('.btn-empty button').removeClass('btn-clear-cart');
                         }
                         var total = 0;
-                        $('#tbody tr[data-product-id]').each(function() { total += parseFloat($(this).attr('data-subtotal') || $(this).attr('data-price') * parseInt($(this).find('input.input-number').val() || 1, 10)) || 0; });
+                        $('#tbody [data-product-id]').each(function() { total += parseFloat($(this).attr('data-subtotal') || $(this).attr('data-price') * parseInt($(this).find('input.input-number').val() || 1, 10)) || 0; });
+                        $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                         $('#displaytotal').text(addCommas(total));
                         $('.totalamount').text(addCommas(total));
                     }
@@ -1451,8 +1584,9 @@
                     url: posEmptyCartUrl,
                     data: { session_key: sk },
                     success: function () {
-                        $('#tbody').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
-                        $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+                        $('#tbody').html(posEmptyCartHtmlRetail);
+                        $('#pos-cart-count').text('(0)');
+                        $('#tbody-restaurant').html(posEmptyCartHtmlRestaurant);
                         $('#displaytotal, .totalamount').text('0');
                         $('#pos-restaurant-total').text('0');
                         $('#btn-pur button').attr('disabled', 'disabled');
@@ -1480,7 +1614,7 @@
                 $( "#discount_hidden" ).val(discount);
                 if (!navigator.onLine) {
                     var subtotal = 0;
-                    $('#tbody tr[data-product-id]').each(function() {
+                    $('#tbody [data-product-id]').each(function() {
                         var p = parseFloat($(this).attr('data-price')) || 0;
                         var t = parseFloat($(this).attr('data-tax')) || 0;
                         var q = parseInt($(this).find('input.input-number').val() || 1, 10);
@@ -1559,4 +1693,5 @@
             });
         })();
     </script>
-    @endpush
+</body>
+</html> 

@@ -3,10 +3,11 @@
     $lastsegment = request()->segment(count(request()->segments()));
     $restaurantBranchIds = $restaurantBranchIds ?? [];
     $restaurantBranches = isset($branches) ? $branches->only($restaurantBranchIds) : collect();
+    $restaurantWarehouses = $warehouses ?? collect();
 @endphp
 <div class="pos-restaurant-layout">
     <div class="row mb-3">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <label class="form-label">{{ __('pos.branch') }}</label>
             <select class="form-control" id="pos-restaurant-branch">
                 <option value="">{{ __('pos.select_branch') }}</option>
@@ -15,14 +16,24 @@
                 @endforeach
             </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+            <label class="form-label">{{ __('pos.select_warehouse') }}</label>
+            <select class="form-control" id="pos-restaurant-warehouse">
+                <option value="">{{ __('pos.select_warehouse') }}</option>
+                @foreach($restaurantWarehouses as $id => $name)
+                    <option value="{{ $id }}">{{ $name }}</option>
+                @endforeach
+            </select>
+            <small class="text-muted" id="pos-restaurant-warehouse-hint">{{ __('pos.select_branch_first') }}</small>
+        </div>
+        <div class="col-md-3">
             <label class="form-label">{{ __('pos.waiter_shift') }}</label>
             <select class="form-control" id="pos-shift-select" data-current-user-id="{{ auth()->id() }}">
                 <option value="">{{ __('pos.select_shift') }}</option>
             </select>
             <small class="text-muted" id="pos-shift-hint">{{ __('pos.select_branch_first') }}</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <label class="form-label">{{ __('pos.select_table') }}</label>
             <div id="pos-selected-table" class="form-control-plaintext fw-bold text-primary">—</div>
         </div>
@@ -125,6 +136,7 @@
 {{ Form::hidden('pos_restaurant_table_id', '', ['id' => 'pos_restaurant_table_id']) }}
 {{ Form::hidden('pos_restaurant_table_name', '', ['id' => 'pos_restaurant_table_name']) }}
 {{ Form::hidden('pos_shift_id_hidden', '', ['id' => 'pos_shift_id_hidden']) }}
+{{ Form::hidden('pos_restaurant_warehouse_hidden', '', ['id' => 'pos_restaurant_warehouse_hidden']) }}
 
 {{-- Table management modal --}}
 <div class="modal fade" id="posTableManagementModal" tabindex="-1" aria-labelledby="posTableManagementModalLabel" aria-hidden="true">

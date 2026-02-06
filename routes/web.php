@@ -1849,10 +1849,12 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('pos-shift/{pos_shift}/assign-table', [PosShiftController::class, 'assignTable'])->name('pos-shift.assign-table.store')->middleware(['auth', 'XSS']);
     Route::resource('pos-shift', PosShiftController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
+    Route::get('pos-restaurant', [PosController::class, 'indexRestaurant'])->name('pos.restaurant.index');
     Route::resource('pos', PosController::class)->middleware(['auth', 'XSS', 'revalidate']);
 
 
     Route::get('product-categories', [ProductServiceCategoryController::class, 'getProductCategories'])->name('product.categories')->middleware(['auth', 'XSS']);
+    Route::get('product-categories-json', [ProductServiceCategoryController::class, 'getProductCategoriesJson'])->name('product.categories.json')->middleware(['auth', 'XSS']);
     Route::get('add-to-cart/{id}/{session}', [ProductServiceController::class, 'addToCart'])->middleware(['auth', 'XSS']);
     Route::patch('update-cart', [ProductServiceController::class, 'updateCart'])->middleware(['auth', 'XSS']);
     Route::delete('remove-from-cart', [ProductServiceController::class, 'removeFromCart'])->middleware(['auth', 'XSS']);

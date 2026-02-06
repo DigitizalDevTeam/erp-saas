@@ -174,6 +174,19 @@ class ProductServiceCategoryController extends Controller
         return Response($html);
     }
 
+    /**
+     * Return categories as JSON for POS category dropdown (id => name).
+     */
+    public function getProductCategoriesJson()
+    {
+        $categories = ProductServiceCategory::getallCategories();
+        $list = [['id' => 0, 'name' => __('All Categories')]];
+        foreach ($categories as $c) {
+            $list[] = ['id' => (int) $c->id, 'name' => $c->name];
+        }
+        return response()->json($list);
+    }
+
     public function getAccount(Request $request)
     {
 
