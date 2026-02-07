@@ -1326,88 +1326,130 @@
 
                 <!--------------------- Start POs System ----------------------------------->
                 @if (!empty($userPlan) && $userPlan->pos == 1)
-                    @if (Gate::check('manage purchase') ||
-                            Gate::check('manage quotation') ||
-                            Gate::check('create barcode') ||
-                            Gate::check('manage pos') ||
-                            Gate::check('manage print settings') ||
-                            Gate::check('pos restaurant full') ||
-                            Gate::check('pos restaurant waiter') ||
-                            Gate::check('pos restaurant manager'))
-                        <li
-                            class="dash-item dash-hasmenu {{ Request::segment(1) == 'purchase' || Request::segment(1) == 'quotation' || Request::route()->getName() == 'pos.barcode' || Request::route()->getName() == 'pos.print' || Request::route()->getName() == 'pos.show' ? ' active dash-trigger' : '' }}">
-                            <a href="#!" class="dash-link"><span class="dash-micon"><i
-                                        class="ti ti-layers-difference"></i></span><span
-                                    class="dash-mtext">{{ __('POS System') }}</span><span class="dash-arrow"><i
-                                        data-feather="chevron-right"></i></span></a>
-                            <ul
-                                class="dash-submenu {{Request::segment(1) == 'purchase' ||
-                                Request::route()->getName() == 'pos.barcode' ||
-                                Request::route()->getName() == 'pos.print' ||
-                                Request::route()->getName() == 'pos.show'
-                                    ? 'show'
-                                    : '' }}">
-                                @can('manage purchase')
-                                    <li
-                                        class="dash-item {{ Request::route()->getName() == 'purchase.index' || Request::route()->getName() == 'purchase.create' || Request::route()->getName() == 'purchase.edit' || Request::route()->getName() == 'purchase.show' ? ' active' : '' }}">
-                                        <a class="dash-link" href="{{ route('purchase.index') }}">{{ __('Purchase') }}</a>
+                    @if (
+                        Gate::check('manage purchase') ||
+                        Gate::check('manage quotation') ||
+                        Gate::check('manage pos') ||
+                        Gate::check('pos restaurant full') ||
+                        Gate::check('pos restaurant waiter') ||
+                        Gate::check('pos restaurant manager')
+                    )
+                    <li class="dash-item dash-hasmenu">
+                        <a href="#!" class="dash-link">
+                            <span class="dash-micon"><i class="ti ti-layers-difference"></i></span>
+                            <span class="dash-mtext">{{ __('POS System') }}</span>
+                            <span class="dash-arrow"><i data-feather="chevron-right"></i></span>
+                        </a>
+
+                        <ul class="dash-submenu">
+
+                            {{-- ================= PURCHASE / QUOTATION ================= --}}
+                            @can('manage purchase')
+                            <li class="dash-item">
+                                <a class="dash-link" href="{{ route('purchase.index') }}">{{ __('Purchase') }}</a>
+                            </li>
+                            @endcan
+
+                            @can('manage quotation')
+                            <li class="dash-item">
+                                <a class="dash-link" href="{{ route('quotation.index') }}">{{ __('Quotation') }}</a>
+                            </li>
+                            @endcan
+
+                            {{-- ================= RETAIL POS ================= --}}
+                            @if (Gate::check('manage pos') || Gate::check('pos restaurant waiter') )
+                            <li class="dash-item dash-hasmenu">
+                                <a href="#!" class="dash-link">
+                                    {{ __('Retail POS') }}
+                                    <span class="dash-arrow"><i data-feather="chevron-right"></i></span>
+                                </a>
+
+                                <ul class="dash-submenu">
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant waiter'))
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos.index' ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('pos.index') }}">{{ __('POS ') }}</a>
                                     </li>
-                                @endcan
-                                @can('manage quotation')
-                                    <li
-                                        class="dash-item {{ Request::route()->getName() == 'quotation.index' || Request::route()->getName() == 'quotations.create' || Request::route()->getName() == 'quotation.edit' || Request::route()->getName() == 'quotation.show' ? ' active' : '' }}">
-                                        <a class="dash-link" href="{{ route('quotation.index') }}">{{ __('Quotation') }}</a>
-                                    </li>
-                                @endcan
-                                @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant waiter') || Gate::check('pos restaurant manager'))
-                                    <li class="dash-item {{ Request::route()->getName() == 'pos.restaurant.index' ? ' active' : '' }}">
-                                        <a class="dash-link" href="{{ route('pos.restaurant.index') }}">{{ __('POS Restaurant') }}</a>
-                                    </li>
-                                    <li class="dash-item {{ Request::route()->getName() == 'pos.index' ? ' active' : '' }}">
-                                        <a class="dash-link" href="{{ route('pos.index') }}">{{ __('POS Retail') }}</a>
-                                    </li>
-                                    <li
-                                        class="dash-item {{ Request::route()->getName() == 'pos.report' || Request::route()->getName() == 'pos.show' ? ' active' : '' }}">
-                                        <a class="dash-link" href="{{ route('pos.report') }}">{{ __('POS') }}</a>
-                                    </li>
-                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full'))
-                                    <li class="dash-item {{ Request::route()->getName() == 'pos.balances' ? ' active' : '' }}">
+                                    @endif
+
+                                    @if (Gate::check('manage pos'))
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos.balances' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos.balances') }}">{{ __('POS Balances') }}</a>
+                                        </li>
+                                    @endif
+                                </ul>
+                            </li>
+                            @endif
+
+                            {{-- ================= RESTAURANT POS ================= --}}
+                            @if (
+                                Gate::check('manage pos') ||
+                                Gate::check('pos restaurant full') ||
+                                Gate::check('pos restaurant manager') || 
+                                Gate::check('pos restaurant waiter') 
+                            )
+                            <li class="dash-item dash-hasmenu">
+                                <a href="#!" class="dash-link">
+                                    {{ __('Restaurant POS') }}
+                                    <span class="dash-arrow"><i data-feather="chevron-right"></i></span>
+                                </a>
+
+                                <ul class="dash-submenu">
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant waiter')) 
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos.restaurant.index' ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('pos.restaurant.index') }}">{{ __('Restaurant POS') }}</a>
                                     </li>
-                                    <li class="dash-item {{ Request::route()->getName() == 'pos-area.index' || Request::route()->getName() == 'pos-area.create' || Request::route()->getName() == 'pos-area.edit' ? ' active' : '' }}">
+                                    @endif
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos-area.index' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos-area.index') }}">{{ __('POS Areas') }}</a>
                                     </li>
-                                    <li class="dash-item {{ Request::route()->getName() == 'pos-table.index' || Request::route()->getName() == 'pos-table.create' || Request::route()->getName() == 'pos-table.edit' ? ' active' : '' }}">
+                                    @endif
+
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos-table.index' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos-table.index') }}">{{ __('POS Tables') }}</a>
                                     </li>
-                                    <li class="dash-item {{ Request::route()->getName() == 'pos-printer.index' || Request::route()->getName() == 'pos-printer.create' || Request::route()->getName() == 'pos-printer.edit' ? ' active' : '' }}">
+                                    @endif
+
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos-printer.index' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos-printer.index') }}">{{ __('Kitchen/Bar Printers') }}</a>
                                     </li>
-                                    <li class="dash-item {{ Request::route()->getName() == 'pos-shift.index' || Request::route()->getName() == 'pos-shift.create' || Request::route()->getName() == 'pos-shift.show' ? ' active' : '' }}">
+                                    @endif
+
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos-shift.index' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos-shift.index') }}">{{ __('POS Shifts') }}</a>
                                     </li>
-                                    <li class="dash-item {{ request()->is('report/pos-eod') ? ' active' : '' }}">
+                                    @endif
+
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
+                                    <li class="dash-item {{ request()->is('report/pos-eod') ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('report.pos.eod') }}">{{ __('EOD Report') }}</a>
                                     </li>
                                     @endif
-                                @endif
-                                @can('create barcode')
-                                    <li
-                                        class="dash-item {{ Request::route()->getName() == 'pos.barcode' || Request::route()->getName() == 'pos.print' ? ' active' : '' }}">
-                                        <a class="dash-link" href="{{ route('pos.barcode') }}">{{ __('Print Barcode') }}</a>
-                                    </li>
-                                @endcan
-                                @if (Gate::check('manage pos') || Gate::check('pos restaurant full'))
-                                    <li
-                                        class="dash-item {{ Request::route()->getName() == 'pos-print-setting' ? ' active' : '' }}">
-                                        <a class="dash-link"
-                                            href="{{ route('pos.print.setting') }}">{{ __('Print Settings') }}</a>
-                                    </li>
-                                @endif
-                            </ul>
-                        </li>
+                                </ul>
+                            </li>
+                            @endif
+
+                            {{-- ================= BARCODE / PRINT ================= --}}
+                            @can('create barcode')
+                            <li class="dash-item">
+                                <a class="dash-link" href="{{ route('pos.barcode') }}">{{ __('Print Barcode') }}</a>
+                            </li>
+                            @endcan
+
+                            @if (Gate::check('manage pos'))
+                            <li class="dash-item">
+                                <a class="dash-link" href="{{ route('pos.print.setting') }}">{{ __('Print Settings') }}</a>
+                            </li>
+                            @endif
+
+                        </ul>
+                    </li>
                     @endif
-                @endif
+                    @endif
+
                 <!--------------------- End POs System ----------------------------------->
 
                 @if (\Auth::user()->type != 'super admin')

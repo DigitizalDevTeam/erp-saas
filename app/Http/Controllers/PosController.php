@@ -99,6 +99,16 @@ class PosController extends Controller
                 $customer = '';
                 $warehouseId = '';
             }
+            // Same as Restaurant POS: user who cannot change shift (e.g. waiter) must have an open shift to use Retail POS
+            $canChangeShift = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
+            $userOpenShifts = \App\Models\PosShift::where('user_id', $user->id)
+                ->where('status', \App\Models\PosShift::STATUS_OPEN)
+                ->where('created_by', $creatorId)
+                ->get();
+            $userOpenShiftByBranch = $userOpenShifts->pluck('id', 'branch_id')->toArray();
+            if (!$canChangeShift && empty($userOpenShiftByBranch)) {
+                return redirect()->back()->with('error', __('pos.open_shift_required_for_branch'));
+            }
             return view('pos.index', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
@@ -447,11 +457,20 @@ class PosController extends Controller
         }
 
         $customer_id = Customer::customer_id($request->vc_name);
-        $warehouse_id = warehouse::warehouse_id($request->warehouse_name);
         $pos_id = $this->invoicePosNumber();
 
         if (!isset($sales) || empty($sales) || count($sales) == 0) {
             return response()->json(['code' => 404, 'success' => __('Items not found!')], 404);
+        }
+
+        // Resolve warehouse_id: required, cannot be null. Use request value if valid, else first warehouse for creator.
+        $warehouse_id = warehouse::warehouse_id($request->warehouse_name);
+        if (empty($request->warehouse_name) || $warehouse_id <= 0) {
+            $defaultWarehouse = warehouse::where('created_by', $user_id)->first();
+            if (!$defaultWarehouse) {
+                return response()->json(['code' => 404, 'success' => __('Please create or select a warehouse.')], 404);
+            }
+            $warehouse_id = $defaultWarehouse->id;
         }
 
         // Phase 8: Idempotent - if client_order_id already exists, return success
@@ -467,7 +486,7 @@ class PosController extends Controller
             return response()->json(['code' => 200, 'success' => __('Payment is already completed!')]);
         }
 
-        $warehouse = warehouse::find($request->warehouse_name);
+        $warehouse = warehouse::find($warehouse_id);
         $branch_id = ($warehouse && $warehouse->branch_id) ? $warehouse->branch_id : Branch::where('created_by', $user_id)->value('id');
 
         $pos = new Pos();
@@ -477,7 +496,7 @@ class PosController extends Controller
         $pos->table_id = $request->pos_table_id ?: null;
         $pos->shift_id = $request->pos_shift_id ?: null;
         $pos->customer_id = $customer_id;
-        $pos->warehouse_id = $request->warehouse_name;
+        $pos->warehouse_id = $warehouse_id;
         $pos->pos_date = date('Y-m-d');
         $pos->payment_method = $request->payment_method;
         $pos->created_by = $user_id;
@@ -509,7 +528,7 @@ class PosController extends Controller
             $positems->tax = $tax_id;
             $positems->discount = $discount;
             $positems->save();
-            Utility::warehouse_quantity('minus', $positems->quantity, $positems->product_id, $request->warehouse_name);
+            Utility::warehouse_quantity('minus', $positems->quantity, $positems->product_id, $warehouse_id);
             $type = 'pos';
             $type_id = $pos->id;
             StockReport::where('type', '=', 'pos')->where('type_id', '=', $pos->id)->delete();
@@ -590,11 +609,20 @@ class PosController extends Controller
 
             $user_id = Auth::user()->creatorId();
             $customer_id = Customer::customer_id($request->vc_name);
-            $warehouse_id = warehouse::warehouse_id($request->warehouse_name);
             $pos_id = $this->invoicePosNumber();
             $sales = $request->input('cart') ?: session()->get('pos');
 
             if (isset($sales) && !empty($sales) && count($sales) > 0) {
+                $resolved_warehouse_id = warehouse::warehouse_id($request->warehouse_name);
+                if (empty($request->warehouse_name) || $resolved_warehouse_id <= 0) {
+                    $defaultWarehouse = warehouse::where('created_by', $user_id)->first();
+                    $resolved_warehouse_id = $defaultWarehouse ? $defaultWarehouse->id : null;
+                }
+                if (empty($resolved_warehouse_id)) {
+                    return response()->json(['code' => 404, 'success' => __('Please create or select a warehouse.')], 404);
+                }
+                $warehouse_id = $resolved_warehouse_id;
+
                 $result = DB::table('pos')->where('pos_id', $pos_id)->where('created_by', $user_id)->get();
                 if (count($result) > 0) {
                     return response()->json(
@@ -604,7 +632,7 @@ class PosController extends Controller
                         ]
                     );
                 } else {
-                    $warehouse = warehouse::find($request->warehouse_name);
+                    $warehouse = warehouse::find($warehouse_id);
                     $branch_id = ($warehouse && $warehouse->branch_id) ? $warehouse->branch_id : Branch::where('created_by', $user_id)->value('id');
 
                     $pos = new Pos();
@@ -614,7 +642,7 @@ class PosController extends Controller
                     $pos->table_id = $request->pos_table_id ?: null;
                     $pos->shift_id = $request->pos_shift_id ?: null;
                     $pos->customer_id = $customer_id;
-                    $pos->warehouse_id = $request->warehouse_name;
+                    $pos->warehouse_id = $warehouse_id;
                     $pos->pos_date = date('Y-m-d');
                     $pos->payment_method = $request->payment_method;
                     $pos->created_by = $user_id;
@@ -649,7 +677,7 @@ class PosController extends Controller
                         $positems->discount = $discount;
                         $positems->save();
 
-                        Utility::warehouse_quantity('minus', $positems->quantity, $positems->product_id, $request->warehouse_name);
+                        Utility::warehouse_quantity('minus', $positems->quantity, $positems->product_id, $warehouse_id);
 
                         //Product Stock Report
                         $type = 'pos';
@@ -1170,16 +1198,17 @@ class PosController extends Controller
             'pay' => 'show',
         ];
 
+        $warehouseName = $details['warehouse']['name'] ?? ($warehouse ? $warehouse->name : '-');
+        $warehousedetails = '<h7 class="text-dark">' . ucfirst($warehouseName) . '</p></h7>';
+
         if (!empty($details['customer'])) {
-            $warehousedetails = '<h7 class="text-dark">' . ucfirst($details['warehouse']['name']) . '</p></h7>';
             $details['customer']['billing_state'] = $details['customer']['billing_state'] != '' ? ", " . $details['customer']['billing_state'] : '';
             $details['customer']['shipping_state'] = $details['customer']['shipping_state'] != '' ? ", " . $details['customer']['shipping_state'] : '';
-            $customerdetails = '<h6 class="text-dark">' . ucfirst($details['customer']['name']) . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['billing_phone'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['billing_address'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['billing_city'] . $details['customer']['billing_state'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['billing_country'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['billing_zip'] . '</p></h6>';
-            $shippdetails = '<h6 class="text-dark"><b>' . ucfirst($details['customer']['name']) . '</b>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['shipping_phone'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['shipping_address'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['shipping_city'] . $details['customer']['shipping_state'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['shipping_country'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $details['customer']['shipping_zip'] . '</p></h6>';
+            $customerdetails = '<h6 class="text-dark">' . ucfirst($details['customer']['name']) . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_phone'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_address'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_city'] ?? '') . ($details['customer']['billing_state'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_country'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_zip'] ?? '') . '</p></h6>';
+            $shippdetails = '<h6 class="text-dark"><b>' . ucfirst($details['customer']['name']) . '</b>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_phone'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_address'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_city'] ?? '') . ($details['customer']['shipping_state'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_country'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_zip'] ?? '') . '</p></h6>';
 
         } else {
             $customerdetails = '<h2 class="h6"><b>' . __('Walk-in Customer') . '</b><h2>';
-            $warehousedetails = '<h7 class="text-dark">' . ucfirst($details['warehouse']['name']) . '</p></h7>';
             $shippdetails = '-';
 
         }
@@ -1187,7 +1216,8 @@ class PosController extends Controller
         $settings['company_telephone'] = $settings['company_telephone'] != '' ? ", " . $settings['company_telephone'] : '';
         $settings['company_state'] = $settings['company_state'] != '' ? ", " . $settings['company_state'] : '';
 
-        $userdetails = '<h6 class="text-dark"><b>' . ucfirst($details['user']['name']) . ' </b> <h2  class="font-weight-normal">' . '<p class="m-0 font-weight-normal">' . $settings['company_name'] . $settings['company_telephone'] . '</p>' . '<p class="m-0 font-weight-normal">' . $settings['company_address'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $settings['company_city'] . $settings['company_state'] . '</p>' . '<p class="m-0 font-weight-normal">' . $settings['company_country'] . '</p>' . '<p class="m-0 font-weight-normal">' . $settings['company_zipcode'] . '</p></h2>';
+        $userName = $details['user']['name'] ?? ($user ? $user->name : '-');
+        $userdetails = '<h6 class="text-dark"><b>' . ucfirst($userName) . ' </b> <h2  class="font-weight-normal">' . '<p class="m-0 font-weight-normal">' . $settings['company_name'] . $settings['company_telephone'] . '</p>' . '<p class="m-0 font-weight-normal">' . $settings['company_address'] . '</p>' . '<p class="m-0 h6 font-weight-normal">' . $settings['company_city'] . $settings['company_state'] . '</p>' . '<p class="m-0 font-weight-normal">' . $settings['company_country'] . '</p>' . '<p class="m-0 font-weight-normal">' . $settings['company_zipcode'] . '</p></h2>';
 
         $details['customer']['details'] = $customerdetails;
         $details['warehouse']['details'] = $warehousedetails;
@@ -1349,7 +1379,18 @@ class PosController extends Controller
                 $customer = '';
                 $warehouseId = '';
             }
-            return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode'));
+            // Manager/Cashier can change shift in POS; Waiter cannot (must use own open shift only)
+            $canChangeShift = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
+            $userOpenShifts = \App\Models\PosShift::where('user_id', $user->id)
+                ->where('status', \App\Models\PosShift::STATUS_OPEN)
+                ->where('created_by', $creatorId)
+                ->get();
+            $userOpenShiftByBranch = $userOpenShifts->pluck('id', 'branch_id')->toArray();
+            // Waiter must have at least one open shift to use Restaurant POS
+            if (!$canChangeShift && empty($userOpenShiftByBranch)) {
+                return redirect()->back()->with('error', __('pos.open_shift_required_for_branch'));
+            }
+            return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }

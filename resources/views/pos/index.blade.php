@@ -135,6 +135,8 @@
                         @endif
                     </div>
                     <div class="d-flex align-items-center gap-2">
+                        <span id="pos-current-time" class="text-white opacity-90 align-middle" style="min-width: 5rem;">--:--:--</span>
+                        <span id="pos-status-badge" class="badge bg-success align-middle" style="font-size: 0.75rem;">{{ __('pos.online') }}</span>
                         <span id="pos-pending-badge" class="badge bg-warning text-dark d-none" style="font-size: 0.8rem; cursor: pointer;" data-msg="{{ __('pos.pending_sync_label') }}" title="{{ __('pos.sync_now') }}"></span>
                         <button type="button" id="pos-install-app-btn" class="btn btn-sm btn-light" title="{{ __('pos.install_app') }}">
                             <i class="ti ti-download" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ __('pos.install_app') }}</span>
@@ -162,10 +164,10 @@
         <div class="row gy-2 main_div">
             @if(!$today_balance || !$today_balance->opening_balance)
                 <div class="disabled_div">
-                    <h3>Add Opening Balance to Enable the transactions</h3>
+                    <h3>{{ __('pos.add_opening_balance_to_enable') }}</h3>
                 </div>
             @endif
-            <div class="col-lg-8 border-right">
+            <div class="col-lg-9 border-right">
                 <div class="sop-card mb-0">
                     <div class="p-2">
                         <div class="search-bar-left pos-search-bar">
@@ -210,7 +212,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-4 ps-lg-0">
+            <div class="col-lg-3 ps-lg-0">
                 <div class="m-0 h-100">
                     <div class="p-2">
                         {{-- Branch & Warehouse: minimal one row --}}
@@ -530,6 +532,25 @@
         function posUpdateOfflineBanner() {
             var el = document.getElementById('pos-offline-banner');
             if (el) el.classList.toggle('d-none', navigator.onLine);
+            var badge = document.getElementById('pos-status-badge');
+            if (badge) {
+                if (navigator.onLine) {
+                    badge.textContent = '{{ __("pos.online") }}';
+                    badge.className = 'badge bg-success align-middle';
+                    badge.style.fontSize = '0.75rem';
+                } else {
+                    badge.textContent = '{{ __("pos.offline") }}';
+                    badge.className = 'badge bg-secondary align-middle';
+                    badge.style.fontSize = '0.75rem';
+                }
+            }
+        }
+        function posUpdateCurrentTime() {
+            var el = document.getElementById('pos-current-time');
+            if (el) {
+                var now = new Date();
+                el.textContent = now.toLocaleTimeString('en-GB', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
         }
         function posUpdatePendingBadge() {
             var pending = [];
@@ -595,7 +616,7 @@
             $('#tbody [data-product-id]').remove();
             $('#tbody').html(posEmptyCartHtmlRetail);
             $('#pos-cart-count').text('(0)');
-            $('#btn-pur button').attr('disabled', 'disabled');
+            $('#pos-pay-btn').prop('disabled', true);
             $('.btn-empty button').removeClass('btn-clear-cart');
             $('#displaytotal, .totalamount').text('0');
         }
@@ -646,7 +667,9 @@
         }
         window.addEventListener('online', function () { posUpdateOfflineBanner(); posSyncPending(); });
         window.addEventListener('offline', posUpdateOfflineBanner);
+        setInterval(posUpdateCurrentTime, 1000);
         $(document).ready(function () {
+            posUpdateCurrentTime();
             posUpdateOfflineBanner();
             posUpdatePendingBadge();
             if (navigator.onLine) posSyncPending();
@@ -1200,7 +1223,7 @@
                     $("#tbody").html(posEmptyCartHtmlRetail);
                     $('#pos-cart-count').text('(0)');
                     $('.no-found').removeClass('d-none');
-                    $('#btn-pur button').attr('disabled', 'disabled');
+                    $('#pos-pay-btn').prop('disabled', true);
                     $('.btn-empty button').removeClass('btn-clear-cart');
                     searchProducts(posSearchProductsUrl, '', '0', ware_id, 'name');
                 };
@@ -1319,7 +1342,7 @@
                         $(tbodySel + ' .no-found').addClass('d-none');
                         $(tbodySel).append(row);
                         if (!isRestaurant) {
-                            $('#btn-pur button').removeAttr('disabled');
+                            $('#pos-pay-btn').prop('disabled', false);
                             $('.btn-empty button').addClass('btn-clear-cart');
                         } else {
                             $('#pos-pay-btn-restaurant').prop('disabled', false);
@@ -1366,7 +1389,7 @@
                                     $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                                     $('.carttable #product-id-' + data.product.id + ' input[name="quantity"]').val(data.product.quantity);
                                 }
-                                $('#btn-pur button').removeAttr('disabled');
+                                $('#pos-pay-btn').prop('disabled', false);
                                 $('.btn-empty button').addClass('btn-clear-cart');
                             }
                         }
@@ -1389,7 +1412,7 @@
                 if ($(posCartItemSelector(tbodySel)).length === 0) {
                     $(tbodySel).html(posEmptyCartHtml(tbodySel));
                     if (inRestaurant) $('#pos-pay-btn-restaurant').prop('disabled', true);
-                    else { $('#pos-cart-count').text('(0)'); $('#btn-pur button').attr('disabled', 'disabled'); $('.btn-empty button').removeClass('btn-clear-cart'); }
+                    else { $('#pos-cart-count').text('(0)'); $('#pos-pay-btn').prop('disabled', true); $('.btn-empty button').removeClass('btn-clear-cart'); }
                 } else if (!inRestaurant) $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                 var total = 0;
                 $(posCartItemSelector(tbodySel)).each(function() { total += parseFloat($(this).attr('data-subtotal')) || 0; });
@@ -1421,7 +1444,7 @@
                         if ($(posCartItemSelector(tbodySel)).length === 0) {
                             $(tbodySel).html(posEmptyCartHtml(tbodySel));
                             if (inRestaurant) $('#pos-pay-btn-restaurant').prop('disabled', true);
-                            else { $('#pos-cart-count').text('(0)'); $('#btn-pur button').attr('disabled', 'disabled'); $('.btn-empty button').removeClass('btn-clear-cart'); }
+                            else { $('#pos-cart-count').text('(0)'); $('#pos-pay-btn').prop('disabled', true); $('.btn-empty button').removeClass('btn-clear-cart'); }
                         } else if (!inRestaurant) $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                     }
                     return;
@@ -1446,7 +1469,7 @@
                                     if ($(posCartItemSelector(tbodySel)).length === 0) {
                                         $(tbodySel).html(posEmptyCartHtml(tbodySel));
                                         if (inRestaurant) $('#pos-pay-btn-restaurant').prop('disabled', true);
-                                        else { $('#btn-pur button').attr('disabled', 'disabled'); $('.btn-empty button').removeClass('btn-clear-cart'); }
+                                        else { $('#pos-pay-btn').prop('disabled', true); $('.btn-empty button').removeClass('btn-clear-cart'); }
                                     }
                                 }
                                 $.each(data.product, function (key, value) {
@@ -1475,7 +1498,7 @@
                         if ($('#tbody [data-product-id]').length === 0) {
                             $('#tbody').html(posEmptyCartHtmlRetail);
                             $('#pos-cart-count').text('(0)');
-                            $('#btn-pur button').attr('disabled', 'disabled');
+                            $('#pos-pay-btn').prop('disabled', true);
                             $('.btn-empty button').removeClass('btn-clear-cart');
                         }
                         var total = 0;
@@ -1492,7 +1515,7 @@
                         ele.closest(".row").parent().parent().remove();
                     });
                     if (ele.closest(".row").is(":last-child")) {
-                        $('#btn-pur button').attr('disabled', 'disabled');
+                        $('#pos-pay-btn').prop('disabled', true);
                         $('.btn-empty button').removeClass('btn-clear-cart');
                     }
                     $.ajax({
@@ -1589,7 +1612,7 @@
                         $('#tbody-restaurant').html(posEmptyCartHtmlRestaurant);
                         $('#displaytotal, .totalamount').text('0');
                         $('#pos-restaurant-total').text('0');
-                        $('#btn-pur button').attr('disabled', 'disabled');
+                        $('#pos-pay-btn').prop('disabled', true);
                         $('.btn-empty button').removeClass('btn-clear-cart');
                         $('#pos-pay-btn-restaurant').prop('disabled', true);
                         if ($('#commonModal').length) $('#commonModal').modal('hide');

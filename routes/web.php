@@ -1262,6 +1262,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('reports-daily-pos', [ReportController::class, 'posDailyReport'])->name('report.daily.pos')->middleware(['auth', 'XSS']);
     Route::get('reports-monthly-pos', [ReportController::class, 'posMonthlyReport'])->name('report.monthly.pos')->middleware(['auth', 'XSS']);
     Route::get('report/pos-eod', [ReportController::class, 'posEodReport'])->name('report.pos.eod')->middleware(['auth', 'XSS']);
+    Route::get('report/pos-eod/export', [ReportController::class, 'posEodReportExport'])->name('report.pos.eod.export')->middleware(['auth', 'XSS']);
 
     Route::get('reports-pos-vs-purchase', [ReportController::class, 'posVsPurchaseReport'])->name('report.pos.vs.purchase')->middleware(['auth', 'XSS']);
     Route::get('reports-pos-by-branch', [ReportController::class, 'posBranchReport'])->name('report.pos.branch')->middleware(['auth', 'XSS']);

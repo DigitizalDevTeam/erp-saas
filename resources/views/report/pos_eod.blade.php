@@ -10,7 +10,7 @@
 @endsection
 
 @section('content')
-    <div class="row">
+    <div class="row mb-3">
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
@@ -22,109 +22,182 @@
                     <div class="col-auto">
                         <button type="submit" class="btn btn-primary">{{ __('Show') }}</button>
                     </div>
+                    <div class="col-auto ms-auto">
+                        <a href="{{ route('report.pos.eod.export', ['date' => $date]) }}" class="btn btn-success"><i class="ti ti-file-spreadsheet"></i> {{ __('Export Excel') }}</a>
+                        <button type="button" class="btn btn-secondary" onclick="window.print();"><i class="ti ti-printer"></i> {{ __('Print') }}</button>
+                    </div>
                     {{ Form::close() }}
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row">
+    <div class="row no-print">
         <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5>{{ __('EOD Summary') }} — {{ $date }}</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row mb-4">
-                        <div class="col-md-3">
-                            <div class="border rounded p-3">
-                                <div class="text-muted small">{{ __('Total Sales') }}</div>
-                                <div class="h4 mb-0">{{ \Auth::user()->priceFormat($totalSales) }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="border rounded p-3">
-                                <div class="text-muted small">{{ __('Cash') }}</div>
-                                <div class="h4 mb-0">{{ \Auth::user()->priceFormat($cashTotal) }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="border rounded p-3">
-                                <div class="text-muted small">{{ __('Card') }}</div>
-                                <div class="h4 mb-0">{{ \Auth::user()->priceFormat($cardTotal) }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="border rounded p-3">
-                                <div class="text-muted small">{{ __('Credit') }}</div>
-                                <div class="h4 mb-0">{{ \Auth::user()->priceFormat($creditTotal) }}</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <h6 class="mb-2">{{ __('Closed Shifts') }}</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered">
-                            <thead>
-                                <tr>
-                                    <th>{{ __('Branch') }}</th>
-                                    <th>{{ __('User') }}</th>
-                                    <th>{{ __('Opened') }}</th>
-                                    <th>{{ __('Closed') }}</th>
-                                    <th class="text-end">{{ __('Sales Total') }}</th>
-                                    <th class="text-end">{{ __('Cash') }}</th>
-                                    <th class="text-end">{{ __('Card') }}</th>
-                                    <th class="text-end">{{ __('Credit') }}</th>
-                                    <th class="text-end">{{ __('Difference') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($shifts as $s)
-                                    <tr>
-                                        <td>{{ $s->branch ? $s->branch->name : '-' }}</td>
-                                        <td>{{ $s->user ? $s->user->name : '-' }}</td>
-                                        <td>{{ $s->opened_at ? $s->opened_at->format('H:i') : '-' }}</td>
-                                        <td>{{ $s->closed_at ? $s->closed_at->format('H:i') : '-' }}</td>
-                                        <td class="text-end">{{ \Auth::user()->priceFormat($s->sales_total) }}</td>
-                                        <td class="text-end">{{ \Auth::user()->priceFormat($s->cash_total) }}</td>
-                                        <td class="text-end">{{ \Auth::user()->priceFormat($s->card_total) }}</td>
-                                        <td class="text-end">{{ \Auth::user()->priceFormat($s->credit_total) }}</td>
-                                        <td class="text-end">{{ $s->difference !== null ? \Auth::user()->priceFormat($s->difference) : '-' }}</td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="9" class="text-center text-muted">{{ __('No closed shifts for this date.') }}</td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-
-                    @if(count($categorySummary) > 0)
-                        <h6 class="mt-4 mb-2">{{ __('Sales by Category') }}</h6>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-bordered">
-                                <thead>
-                                    <tr>
-                                        <th>{{ __('Category') }}</th>
-                                        <th class="text-end">{{ __('Quantity') }}</th>
-                                        <th class="text-end">{{ __('Amount') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($categorySummary as $catName => $row)
-                                        <tr>
-                                            <td>{{ $catName }}</td>
-                                            <td class="text-end">{{ (int) $row['qty'] }}</td>
-                                            <td class="text-end">{{ \Auth::user()->priceFormat($row['amount']) }}</td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    @endif
-                </div>
-            </div>
+            <p class="text-muted small">{{ __('Use Print to print the report below. Use Export Excel to download as spreadsheet.') }}</p>
         </div>
     </div>
+
+    <div id="eod-printable" class="eod-report bg-white p-4" style="font-family: 'Courier New', monospace; font-size: 13px;">
+        <div class="border-bottom pb-2 mb-2">
+            <strong>----------------------------------------</strong><br>
+            {{ __('Company') }}: {{ $companyName }}<br>
+            {{ __('VAT NR') }}: {{ $vatNumber }}<br>
+            {{ __('Address') }}: {{ $companyAddress }}<br>
+            {{ __('Total Daily') }}: {{ \Auth::user()->priceFormat($totalSales) }} &nbsp; {{ __('Cash Register') }}: 1<br>
+            {{ __('Ticket From') }}: {{ sprintf('%09d', $ticketFrom ?? 0) }} {{ __('To') }}: {{ sprintf('%09d', $ticketTo ?? 0) }}<br>
+            {{ __('Receipts Issued') }}: {{ $receiptsCount }}<br>
+            {{ __('Date') }}: {{ \Carbon\Carbon::parse($date)->format('m/d/Y') }} &nbsp; {{ __('Time') }}: {{ date('H:i:s') }}<br>
+            {{ __('SALESPERSON') }}: {{ $salespersonName }}<br>
+            <strong>----------------------------------------</strong>
+        </div>
+
+        <div class="mb-3">
+            <strong>{{ __('SALES BY PAYMENT METHOD') }}</strong><br>
+            <table class="table table-sm table-bordered mb-0" style="font-size: 12px;">
+                <thead>
+                    <tr>
+                        <th>{{ __('PAYMENT METHOD') }}</th>
+                        <th class="text-end">{{ __('AMOUNT') }}</th>
+                        <th class="text-end">{{ __('NO.') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($paymentMethodRows as $r)
+                        <tr>
+                            <td>{{ $r['name'] }}</td>
+                            <td class="text-end">{{ \Auth::user()->priceFormat($r['amount']) }}</td>
+                            <td class="text-end">{{ $r['count'] }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+                <tfoot>
+                    <tr class="fw-bold">
+                        <td></td>
+                        <td class="text-end">{{ \Auth::user()->priceFormat($totalSales) }}</td>
+                        <td class="text-end">{{ $receiptsCount }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="mb-3">
+            <strong>{{ __('CASH REGISTER CHART') }}</strong><br>
+            @foreach($paymentMethodRows as $r)
+                {{ $r['name'] }}<br>
+                ----------------------------------------------------<br>
+                {{ $r['count'] }} {{ __('SALES (Positive)') }} &nbsp; {{ \Auth::user()->priceFormat($r['amount']) }}<br>
+            @endforeach
+            {{ __('TOTAL SALES') }} &nbsp; {{ \Auth::user()->priceFormat($totalSales) }}<br>
+            ----------------------------------------------------
+        </div>
+
+        <div class="mb-3">
+            <strong>{{ __('SUMMARY') }}</strong><br>
+            ----------------------------------------<br>
+            {{ __('PAYMENT METHOD') }} &nbsp; {{ __('DECLARED.') }} &nbsp; {{ __('CALCULATION') }} &nbsp; {{ __('DIFFERENCE') }}<br>
+            ----------------------------------------<br>
+            @foreach($paymentMethodRows as $r)
+                {{ $r['name'] }} &nbsp; 0.00 &nbsp; {{ \Auth::user()->priceFormat($r['amount']) }} &nbsp; {{ \Auth::user()->priceFormat(-$r['amount']) }}<br>
+            @endforeach
+            {{ __('TOTAL') }}: MT &nbsp; 0.00 &nbsp; {{ \Auth::user()->priceFormat($totalSales) }} &nbsp; {{ \Auth::user()->priceFormat(-$totalSales) }}<br>
+            ----------------------------------------<br>
+            {{ __('SALES (Pos.)') }} &nbsp; {{ __('CREDITS') }} &nbsp; {{ __('TOTAL SALES') }}<br>
+            ----------------------------------------<br>
+            {{ \Auth::user()->priceFormat($totalSales) }} &nbsp; 0.00 &nbsp; {{ \Auth::user()->priceFormat($totalSales) }}
+        </div>
+
+        <div class="mb-3">
+            <strong>{{ __('STATEMENT BY PAYMENT METHOD') }}</strong><br>
+            {{ __('POS') }}<br>
+            N. &nbsp; {{ __('TIKET') }} &nbsp; {{ __('COUNT') }} &nbsp; {{ __('TIME') }} &nbsp; {{ __('Employee') }} &nbsp; {{ __('AMOUNT') }}<br>
+            ----------------------------------------<br>
+            @foreach($statementRows as $idx => $r)
+                T001 &nbsp; {{ $r['ticket'] }} &nbsp; {{ $r['count'] }} &nbsp; {{ $r['time'] }} &nbsp; {{ $r['employee'] }} &nbsp; {{ \Auth::user()->priceFormat($r['amount']) }}<br>
+            @endforeach
+            =======<br>
+            {{ \Auth::user()->priceFormat($totalSales) }}
+        </div>
+
+        <div class="mb-3">
+            <strong>{{ __('SALES PER EMPLOYEE') }}</strong><br>
+            {{ __('Employee') }} &nbsp; {{ __('AMOUNT') }} &nbsp; N.O<br>
+            -----------------------------------------------------------------------------<br>
+            @foreach($salesPerEmployee as $r)
+                {{ $r['name'] }} &nbsp; {{ \Auth::user()->priceFormat($r['amount']) }} &nbsp; {{ $r['count'] }}<br>
+            @endforeach
+            ======= &nbsp; =====<br>
+            {{ \Auth::user()->priceFormat($totalSales) }} &nbsp; {{ $receiptsCount }}
+        </div>
+
+        <div class="mb-3">
+            <strong>{{ __('SALES SUMMARY') }}</strong><br>
+            BAR &nbsp; TABLES &nbsp; TOTAL<br>
+            ----------------------------------------<br>
+            {{ __('SALES') }} &nbsp; {{ \Auth::user()->priceFormat($totalSales) }} &nbsp; 0.00 &nbsp; {{ \Auth::user()->priceFormat($totalSales) }}<br>
+            {{ __('NUMBER OF RECEIPTS') }} &nbsp; {{ $receiptsCount }} &nbsp; 0 &nbsp; {{ $receiptsCount }}<br>
+            {{ __('NUMBER CUSTOMERS') }} &nbsp; {{ $customersCount }} &nbsp; 0 &nbsp; {{ $customersCount }}<br>
+            {{ __('Average X Receipt') }} &nbsp; {{ \Auth::user()->priceFormat($avgPerReceipt) }} &nbsp; 0.00 &nbsp; {{ \Auth::user()->priceFormat($avgPerReceipt) }}<br>
+            {{ __('Average X Customer') }} &nbsp; {{ \Auth::user()->priceFormat($avgPerCustomer) }} &nbsp; 0.00 &nbsp; {{ \Auth::user()->priceFormat($avgPerCustomer) }}<br>
+            {{ __('AMOUNT RETURNED') }} &nbsp; 0.00 &nbsp; 0.00 &nbsp; 0.00<br>
+            {{ __('NUMBER OF RETURNS') }} &nbsp; 0 &nbsp; 0 &nbsp; 0
+        </div>
+
+        @if(count($categorySummary) > 0)
+            <div class="mb-3">
+                <strong>{{ __('SALES BY SECTION') }}</strong><br>
+                {{ __('SECTION') }} &nbsp; N. ART &nbsp; {{ __('AMOUNT') }} &nbsp; %<br>
+                ----------------------------------------<br>
+                @php $totalCat = array_sum(array_map(fn($c) => $c['amount'], $categorySummary)); @endphp
+                @foreach($categorySummary as $catName => $row)
+                    @php $pct = $totalCat > 0 ? round($row['amount'] / $totalCat * 100, 2) : 0; @endphp
+                    {{ $catName }} &nbsp; {{ number_format($row['qty'], 2) }} &nbsp; {{ \Auth::user()->priceFormat($row['amount']) }} &nbsp; {{ $pct }}%<br>
+                @endforeach
+            </div>
+        @endif
+
+        @if(count($taxSummary) > 0)
+            <div class="mb-3">
+                <strong>{{ __('TAXES') }}</strong><br>
+                {{ __('TAX') }} &nbsp; {{ __('BASE') }} &nbsp; {{ __('QUOTA') }} &nbsp; {{ __('TOTAL') }}<br>
+                ----------------------------------------<br>
+                @foreach($taxSummary as $taxName => $r)
+                    {{ $taxName }} &nbsp; {{ \Auth::user()->priceFormat($r['base']) }} &nbsp; {{ \Auth::user()->priceFormat($r['quota']) }} &nbsp; {{ \Auth::user()->priceFormat($r['total']) }}<br>
+                @endforeach
+            </div>
+        @endif
+
+        @if(count($itemsSold) > 0)
+            <div class="mb-3">
+                <strong>{{ __('SUMMARY OF ITEMS SOLD') }}</strong><br>
+                {{ __('ITEM') }} &nbsp; QTY &nbsp; {{ __('AMOUNT') }}<br>
+                ----------------------------------------<br>
+                @foreach($itemsSold as $itemName => $row)
+                    {{ $itemName }} &nbsp; {{ number_format($row['qty'], 2) }} &nbsp; {{ \Auth::user()->priceFormat($row['amount']) }}<br>
+                @endforeach
+                ======= &nbsp; ==========<br>
+                {{ number_format(array_sum(array_column($itemsSold, 'qty')), 2) }} &nbsp; {{ \Auth::user()->priceFormat($totalSales) }}
+            </div>
+        @endif
+
+        <div class="mb-3">
+            <strong>{{ __('PREPAID CARD SUMMARY') }}</strong><br>
+            {{ __('ORDER NUMBER') }} &nbsp; {{ __('AMOUNT') }}<br>
+            ----------------------------------------<br>
+            {{ __('RECHARGES') }} &nbsp; 0 &nbsp; 0.00<br>
+            {{ __('SALES') }} &nbsp; 0 &nbsp; 0.00
+        </div>
+    </div>
+
 @endsection
+
+@push('css-page')
+<style>
+@media print {
+    .no-print, .card .btn, .breadcrumb, nav, .dash-hasmenu, .dash-submenu, .sidebar, header { display: none !important; }
+    #eod-printable { font-size: 11px; }
+    body { background: #fff; }
+    .content-wrapper { padding: 0 !important; }
+}
+</style>
+@endpush

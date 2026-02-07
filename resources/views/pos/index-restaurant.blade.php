@@ -140,6 +140,8 @@
                         @endif
                     </div>
                     <div class="d-flex align-items-center gap-2">
+                        <span id="pos-current-time" class="text-white opacity-90 small align-middle" style="min-width: 5rem;">--:--:--</span>
+                        <span id="pos-status-badge" class="badge bg-success align-middle" style="font-size: 0.75rem;">{{ __('pos.online') }}</span>
                         <span id="pos-pending-badge" class="badge bg-warning text-dark d-none" style="font-size: 0.8rem; cursor: pointer;" data-msg="{{ __('pos.pending_sync_label') }}" title="{{ __('pos.sync_now') }}"></span>
                         <button type="button" id="pos-install-app-btn" class="btn btn-sm btn-light" title="{{ __('pos.install_app') }}">
                             <i class="ti ti-download" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ __('pos.install_app') }}</span>
@@ -147,22 +149,30 @@
                         <a href="{{ route('pos.restaurant.index') }}" class="btn btn-sm btn-light me-1" title="{{ __('POS Restaurant') }}"><i class="ti ti-building-store" style="font-size: 1.25rem;"></i></a>
                         <a href="{{ route('pos.index') }}" class="btn btn-sm btn-outline-light" title="{{ __('POS Retail') }}"><i class="ti ti-shopping-cart" style="font-size: 1.25rem;"></i></a>
                         <a href="{{ route('dashboard') }}" class="btn btn-sm btn-light" title="{{ __('pos.dashboard') }}"><i class="ti ti-home" style="font-size: 1.25rem;"></i></a>
+                        <a href="{{ route('report.pos.eod', ['date' => date('Y-m-d')]) }}" class="btn btn-sm btn-light" title="{{ __('pos.day_closed') }}" target="_blank"><i class="ti ti-calendar-off"></i> <span class="d-none d-sm-inline">{{ __('pos.day_closed') }}</span></a>
+                        <a href="#" id="pos-end-shift-btn" class="btn btn-sm btn-warning d-none" title="{{ __('pos.end_shift') }}"><i class="ti ti-logout"></i> <span class="d-none d-sm-inline">{{ __('pos.end_shift') }}</span></a>
                     </div>
                 </div>
             </div>
         </div>
-        @php
+@php
             $posMode = $posMode ?? 'restaurant';
             $showModeTabs = false;
+            $canChangeShift = $canChangeShift ?? true;
+            $userOpenShiftByBranch = $userOpenShiftByBranch ?? [];
+            $has_closing_balance = ($today_balance && $today_balance->closing_balance);
         @endphp
         {{-- Restaurant-only: no mode tabs, only restaurant panel --}}
         <div id="pos-retail-panel" class="pos-mode-panel d-none">
         <div class="mt-2 row mb-4 gy-2 main_div">
             @if(!$today_balance || !$today_balance->opening_balance)
-                <div class="disabled_div">
-                    <h3>Add Opening Balance to Enable the transactions</h3>
+                <div class="disabled_div" id="pos-restaurant-no-opening-balance">
+                    <h3>{{ __('pos.add_opening_balance_to_enable') }}</h3>
                 </div>
             @endif
+            <div class="disabled_div d-none" id="pos-restaurant-no-shift">
+                <h3>{{ __('pos.open_shift_required_for_branch') }}</h3>
+            </div>
             <div class="col-lg-8">
                 <div class="sop-card pos-products-card card mb-0">
                     <div class="card-header p-2">
@@ -273,8 +283,8 @@
                                                         ? $product->pro_image
                                                         : 'uploads/pro_image/';
                                                 $total += $details['subtotal'];
-                                                $netPrice += $details['netPrice'];
-                                                $discount += $details['discount'];
+                                                $netPrice += $details['netPrice'] ?? $details['subtotal'];
+                                                $discount += $details['discount'] ?? 0;
                                             @endphp
                                             <tr data-product-id="{{ $id }}" id="product-id-{{ $id }}"
                                                 data-name="{{ e($details['name']) }}" data-price="{{ $details['price'] }}"
@@ -400,7 +410,15 @@
     </div>
         </div>{{-- /pos-retail-panel --}}
 
-        <div id="pos-restaurant-panel" class="pos-mode-panel mt-2">
+        <div id="pos-restaurant-panel" class="pos-mode-panel mt-2 position-relative" style="min-height:90vh">
+            @if(!$today_balance || !$today_balance->opening_balance)
+                <div class="disabled_div" id="pos-restaurant-panel-no-opening-balance">
+                    <h3>{{ __('pos.add_opening_balance_to_enable') }}</h3>
+                </div>
+            @endif
+            <div class="disabled_div d-none" id="pos-restaurant-panel-no-shift">
+                <h3>{{ __('pos.open_shift_required_for_branch') }}</h3>
+            </div>
             @include('pos.restaurant')
         </div>{{-- /pos-restaurant-panel --}}
     </div>{{-- /pos-page --}}
@@ -508,6 +526,25 @@
         function posUpdateOfflineBanner() {
             var el = document.getElementById('pos-offline-banner');
             if (el) el.classList.toggle('d-none', navigator.onLine);
+            var badge = document.getElementById('pos-status-badge');
+            if (badge) {
+                if (navigator.onLine) {
+                    badge.textContent = '{{ __("pos.online") }}';
+                    badge.className = 'badge bg-success align-middle';
+                    badge.style.fontSize = '0.75rem';
+                } else {
+                    badge.textContent = '{{ __("pos.offline") }}';
+                    badge.className = 'badge bg-secondary align-middle';
+                    badge.style.fontSize = '0.75rem';
+                }
+            }
+        }
+        function posUpdateCurrentTime() {
+            var el = document.getElementById('pos-current-time');
+            if (el) {
+                var now = new Date();
+                el.textContent = now.toLocaleTimeString('en-GB', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
         }
         function posUpdatePendingBadge() {
             var pending = [];
@@ -623,7 +660,9 @@
         }
         window.addEventListener('online', function () { posUpdateOfflineBanner(); posSyncPending(); });
         window.addEventListener('offline', posUpdateOfflineBanner);
+        setInterval(posUpdateCurrentTime, 1000);
         $(document).ready(function () {
+            posUpdateCurrentTime();
             posUpdateOfflineBanner();
             posUpdatePendingBadge();
             if (navigator.onLine) posSyncPending();
@@ -766,6 +805,33 @@
                         if (shifts.length === 0) {
                             $hint.text('{{ __("pos.no_open_shifts") }}').show();
                         }
+                        var canChange = {{ $canChangeShift ? 'true' : 'false' }};
+                        var userShiftByBranch = @json($userOpenShiftByBranch);
+                        if (!canChange && branchId) {
+                            var myShiftId = userShiftByBranch[branchId];
+                            if (!myShiftId) {
+                                $('#pos-restaurant-no-shift').removeClass('d-none');
+                                $('#pos-restaurant-panel-no-shift').removeClass('d-none');
+                            } else {
+                                $('#pos-restaurant-no-shift').addClass('d-none');
+                                $('#pos-restaurant-panel-no-shift').addClass('d-none');
+                                $select.val(myShiftId);
+                                $('#pos_shift_id_hidden').val(myShiftId);
+                            }
+                            $select.prop('disabled', true);
+                        } else {
+                            $('#pos-restaurant-no-shift').addClass('d-none');
+                            $('#pos-restaurant-panel-no-shift').addClass('d-none');
+                            $select.prop('disabled', false);
+                        }
+                        var endShiftBtn = $('#pos-end-shift-btn');
+                        var shiftIdForEnd = userShiftByBranch[branchId];
+                        var hasClosingBalance = {{ $has_closing_balance ? 'true' : 'false' }};
+                        if (shiftIdForEnd && hasClosingBalance) {
+                            endShiftBtn.attr('href', '{{ url("pos-shift") }}/' + shiftIdForEnd + '/close').removeClass('d-none');
+                        } else {
+                            endShiftBtn.addClass('d-none').attr('href', '#');
+                        }
                     },
                     error: function () {
                         $hint.text('{{ __("pos.no_shift") }}').show();
@@ -824,6 +890,9 @@
                     $('#pos-restaurant-placeholder').removeClass('d-none');
                     $('#pos-table-grid').html('<p class="text-muted small mb-0">{{ __("pos.select_branch_first") }}</p>');
                     loadBranchShifts(null);
+                    $('#pos-restaurant-no-shift').addClass('d-none');
+                    $('#pos-restaurant-panel-no-shift').addClass('d-none');
+                    $('#pos-end-shift-btn').addClass('d-none').attr('href', '#');
                 }
             });
 

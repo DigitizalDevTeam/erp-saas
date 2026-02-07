@@ -422,37 +422,52 @@ class ProductServiceController extends Controller
         if ((Auth::user()->can('manage pos') || Auth::user()->canManagePos()) && $request->ajax() && isset($lastsegment) && !empty($lastsegment)) {
 
             $output = "";
-            if($request->war_id == '0'){
-                $ids = WarehouseProduct::where('warehouse_id',1)->get()->pluck('product_id')->toArray();
+            $isPos = ($lastsegment === 'pos');
 
+            if ($isPos) {
+                // POS (retail/restaurant): show all products where type = product, stock = product.quantity
+                $q = ProductService::getallproducts()->with(['unit']);
                 if ($request->cat_id !== '' && $request->search == '') {
-                    if($request->cat_id == '0'){
-                        $products = ProductService::getallproducts()->whereIn('product_services.id',$ids)->with(['unit'])->get();
-
-                    }else{
-                        $products = ProductService::getallproducts()->where('category_id', $request->cat_id)->whereIn('product_services.id',$ids)->with(['unit'])->get();
+                    if ($request->cat_id != '0') {
+                        $q = $q->where('category_id', $request->cat_id);
                     }
                 } else {
-                    if($request->cat_id == '0'){
-                        $products = ProductService::getallproducts()->where('product_services.'.$request->type, 'LIKE', "%{$request->search}%")->with(['unit'])->get();
-                    }else{
-                        $products = ProductService::getallproducts()->where('product_services.'.$request->type, 'LIKE', "%{$request->search}%")->orWhere('category_id', $request->cat_id)->with(['unit'])->get();
+                    if ($request->search != '') {
+                        $q = $q->where('product_services.' . $request->type, 'LIKE', "%{$request->search}%");
+                    }
+                    if ($request->cat_id != '0') {
+                        $q = $q->where('category_id', $request->cat_id);
                     }
                 }
-            }else{
-                $ids = WarehouseProduct::where('warehouse_id',$request->war_id)->get()->pluck('product_id')->toArray();
-                if($request->cat_id == '0'){
-                    $products = ProductService::getallproducts()->whereIn('product_services.id',$ids)->with(['unit'])->get();
-                }else{
-                    $products = ProductService::getallproducts()->whereIn('product_services.id',$ids)->where('category_id', $request->cat_id)->with(['unit'])->get();
+                $products = $q->get();
+            } elseif ($request->war_id == '0') {
+                $ids = WarehouseProduct::where('warehouse_id', 1)->get()->pluck('product_id')->toArray();
+
+                if ($request->cat_id !== '' && $request->search == '') {
+                    if ($request->cat_id == '0') {
+                        $products = ProductService::getallproducts()->whereIn('product_services.id', $ids)->with(['unit'])->get();
+                    } else {
+                        $products = ProductService::getallproducts()->where('category_id', $request->cat_id)->whereIn('product_services.id', $ids)->with(['unit'])->get();
+                    }
+                } else {
+                    if ($request->cat_id == '0') {
+                        $products = ProductService::getallproducts()->where('product_services.' . $request->type, 'LIKE', "%{$request->search}%")->with(['unit'])->get();
+                    } else {
+                        $products = ProductService::getallproducts()->where('product_services.' . $request->type, 'LIKE', "%{$request->search}%")->orWhere('category_id', $request->cat_id)->with(['unit'])->get();
+                    }
+                }
+            } else {
+                $ids = WarehouseProduct::where('warehouse_id', $request->war_id)->get()->pluck('product_id')->toArray();
+                if ($request->cat_id == '0') {
+                    $products = ProductService::getallproducts()->whereIn('product_services.id', $ids)->with(['unit'])->get();
+                } else {
+                    $products = ProductService::getallproducts()->whereIn('product_services.id', $ids)->where('category_id', $request->cat_id)->with(['unit'])->get();
                 }
             }
 
-            if (count($products)>0)
-            {
-                foreach ($products as $key => $product)
-                {
-                    $quantity = $product->warehouseProduct($product->id, $request->war_id != 0 ? $request->war_id : 7);
+            if (count($products) > 0) {
+                foreach ($products as $key => $product) {
+                    $quantity = $isPos ? (int) $product->quantity : $product->warehouseProduct($product->id, $request->war_id != 0 ? $request->war_id : 7);
 
                     $unit = (!empty($product) && !empty($product->unit)) ? $product->unit->name : '';
 
@@ -472,7 +487,7 @@ class ProductServiceController extends Controller
                         $printZone = $product->print_zone ?? '';
                         $output .= '
 
-                                    <div class="col-xl-3 col-lg-4 col-md-3 col-sm-4 col-6">
+                                    <div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6">
                                         <div class="tab-pane fade show active toacart w-100" data-url="' . url('add-to-cart/' . $product->id . '/' . $lastsegment) . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e(asset(Storage::url($image_url))) . '" data-product-print-zone="' . e($printZone) . '">
                                             <div class="position-relative card">
                                                 <img alt="Image placeholder" src="' . asset(Storage::url($image_url)) . '" class="card-image avatar shadow hover-shadow-lg" style=" height: 6rem; width: 100%;">
@@ -481,7 +496,7 @@ class ProductServiceController extends Controller
                                                         <h5 class="mb-2 text-dark product-title-name">' . $product->name . '</h5>
                                                         <h6 class="mb-2 text-dark product-title-name small">' . $product->sku . '</h6>
                                                         <h5 class="">' . Auth::user()->priceFormat($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . $unit . '</small></h5>
-                                                        <button type="button" id="" class="btn btn-primary rounded d-flex align-items-center gap-3" ><i class="ti ti-plus"></i> ' . __('Add to Cart') . '</button>
+                                                        <button type="button" id="" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3" ><i class="ti ti-plus"></i> ' . __('Add to Cart') . '</button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -505,13 +520,14 @@ class ProductServiceController extends Controller
     public function addToCart(Request $request, $id, $session_key)
     {
 
-        $canManage = Auth::user()->can('manage product & service') || (Auth::user()->can('manage pos') && $session_key == 'pos');
+        $canManage = Auth::user()->can('manage product & service') || (Auth::user()->can('manage pos') || Auth::user()->can('pos restaurant waiter') || Auth::user()->can('pos restaurant full') || Auth::user()->can('pos restaurant manager')) && $session_key == 'pos';
         if ($canManage && $request->ajax()) {
             $product = ProductService::find($id);
             $productquantity = 0;
 
             if ($product) {
-                $productquantity = $product->getTotalProductQuantity();
+                // POS: stock = product's quantity; others (e.g. purchase): stock = purchase-based
+                $productquantity = ($session_key == 'pos') ? (int) $product->quantity : $product->getTotalProductQuantity();
             }
 
             if (!$product || ($session_key == 'pos' && $productquantity == 0)) {
@@ -763,7 +779,7 @@ class ProductServiceController extends Controller
         $discount    = $request->discount;
         $session_key = $request->session_key;
 
-        $canManage = Auth::user()->can('manage product & service') || (Auth::user()->can('manage pos') && $session_key == 'pos');
+        $canManage = Auth::user()->can('manage product & service') || ((Auth::user()->can('manage pos') || Auth::user()->can('pos restaurant waiter') || Auth::user()->can('pos restaurant full') || Auth::user()->can('pos restaurant manager')) && $session_key == 'pos');
         if ($canManage && $request->ajax() && isset($id) && !empty($id) && isset($session_key) && !empty($session_key)) {
             $cart = session()->get($session_key);
 
@@ -785,15 +801,21 @@ class ProductServiceController extends Controller
                 $cart[$id]["subtotal"] = $subtotal + $tax;
             }
 
-            if (isset($cart[$id]) && ($cart[$id]["originalquantity"]) < $cart[$id]['quantity'] && $session_key == 'pos') {
-                return response()->json(
-                    [
-                        'code' => 404,
-                        'status' => 'Error',
-                        'error' => __('This product is out of stock!'),
-                    ],
-                    404
-                );
+            // POS: validate against product's quantity (stock)
+            if (isset($cart[$id]) && $session_key == 'pos') {
+                $product = ProductService::find($id);
+                $maxQty = $product ? (int) $product->quantity : 0;
+                if ($cart[$id]['quantity'] > $maxQty) {
+                    return response()->json(
+                        [
+                            'code' => 404,
+                            'status' => 'Error',
+                            'error' => __('This product is out of stock!'),
+                        ],
+                        404
+                    );
+                }
+                $cart[$id]['originalquantity'] = $maxQty;
             }
 
             $subtotal = array_sum(array_column($cart, 'subtotal'));
