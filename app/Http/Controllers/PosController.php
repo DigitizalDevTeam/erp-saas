@@ -104,12 +104,14 @@ class PosController extends Controller
             $userOpenShifts = \App\Models\PosShift::where('user_id', $user->id)
                 ->where('status', \App\Models\PosShift::STATUS_OPEN)
                 ->where('created_by', $creatorId)
+                ->orderBy('opened_at', 'desc')
                 ->get();
             $userOpenShiftByBranch = $userOpenShifts->pluck('id', 'branch_id')->toArray();
+            $userOpenShift = $userOpenShifts->first();
             if (!$canChangeShift && empty($userOpenShiftByBranch)) {
                 return redirect()->back()->with('error', __('pos.open_shift_required_for_branch'));
             }
-            return view('pos.index', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode'));
+            return view('pos.index', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'userOpenShift'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -312,12 +314,13 @@ class PosController extends Controller
             $details['user']['details'] = $userdetails;
 
             $mainsubtotal = 0;
+            $taxTotal = 0;
             $sales = [];
 
             foreach ($sess as $key => $value) {
-
                 $subtotal = $value['price'] * $value['quantity'];
                 $tax = ($subtotal * ($value['tax'] ?? 0)) / 100;
+                $taxTotal += $tax;
                 $sales['data'][$key]['name'] = $value['name'] ?? __('Product');
                 $sales['data'][$key]['quantity'] = $value['quantity'];
                 $sales['data'][$key]['price'] = Auth::user()->priceFormat($value['price']);
@@ -328,13 +331,22 @@ class PosController extends Controller
                 $mainsubtotal += $value['subtotal'];
             }
 
-            $discount = !empty($request->discount) ? $request->discount : 0;
-            $sales['discount'] = Auth::user()->priceFormat($discount);
+            $discount = !empty($request->discount) ? (float) $request->discount : 0;
             $total = $mainsubtotal - $discount;
+            $sales['discount'] = Auth::user()->priceFormat($discount);
             $sales['sub_total'] = Auth::user()->priceFormat($mainsubtotal);
             $sales['total'] = Auth::user()->priceFormat($total);
 
-            return view('pos.show', compact('sales', 'details'));
+            $orderSummary = [
+                'items_count' => count($sess),
+                'subtotal' => Auth::user()->priceFormat($mainsubtotal),
+                'tax' => Auth::user()->priceFormat($taxTotal),
+                'discount' => Auth::user()->priceFormat($discount),
+                'total' => Auth::user()->priceFormat($total),
+                'total_raw' => round($total, 2),
+            ];
+
+            return view('pos.show', compact('sales', 'details', 'orderSummary'));
         } else {
             return response()->json(
                 [
@@ -562,16 +574,24 @@ class PosController extends Controller
                 $posPayment->save();
             }
         } else {
+            $paidAmount = (float) ($request->amount ?? $totalPaid);
+            if ($paidAmount <= 0) {
+                $paidAmount = $totalPaid;
+            }
+            $changeAmount = (float) ($request->change_amount ?? 0);
             $posPayment = new PosPayment();
             $posPayment->pos_id = $pos->id;
             $posPayment->branch_id = $pos->branch_id;
             $posPayment->date = $request->date ?? date('Y-m-d');
-            $posPayment->payment_method = in_array($request->payment_method ?? '', [PosPayment::METHOD_CASH, PosPayment::METHOD_CARD, PosPayment::METHOD_CREDIT], true) ? $request->payment_method : PosPayment::METHOD_CASH;
-            $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? $request->credit_terms : null;
-            $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($request->customer_id ?: $customer_id) : null;
-            $posPayment->amount = $totalPaid;
+            $posPayment->payment_method = $request->payment_method ?? PosPayment::METHOD_CASH;
+            $posPayment->credit_terms = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->credit_terms ?? null) : null;
+            $posPayment->customer_id = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->customer_id ?: $customer_id) : null;
+            $posPayment->transaction_id = $request->transaction_id ?: null;
+            $posPayment->amount = $paidAmount;
+            $posPayment->change_amount = $changeAmount;
             $posPayment->discount = $discount;
             $posPayment->discount_amount = $totalPaid;
+            $posPayment->notes = $request->notes ?: null;
             $posPayment->created_by = $user_id;
             $posPayment->save();
         }
@@ -722,16 +742,24 @@ class PosController extends Controller
                             $posPayment->save();
                         }
                     } else {
+                        $paidAmount = (float) ($request->amount ?? $total);
+                        if ($paidAmount <= 0) {
+                            $paidAmount = $total;
+                        }
+                        $changeAmount = (float) ($request->change_amount ?? 0);
                         $posPayment = new PosPayment();
                         $posPayment->pos_id = $pos->id;
                         $posPayment->branch_id = $pos->branch_id;
-                        $posPayment->date = $request->date;
-                        $posPayment->payment_method = in_array($request->payment_method ?? '', [PosPayment::METHOD_CASH, PosPayment::METHOD_CARD, PosPayment::METHOD_CREDIT], true) ? $request->payment_method : PosPayment::METHOD_CASH;
-                        $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? $request->credit_terms : null;
-                        $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($request->customer_id ?: $customer_id) : null;
-                        $posPayment->amount = $total;
+                        $posPayment->date = $request->date ?? date('Y-m-d');
+                        $posPayment->payment_method = $request->payment_method ?? PosPayment::METHOD_CASH;
+                        $posPayment->credit_terms = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->credit_terms ?? null) : null;
+                        $posPayment->customer_id = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->customer_id ?: $customer_id) : null;
+                        $posPayment->transaction_id = $request->transaction_id ?: null;
+                        $posPayment->amount = $paidAmount;
+                        $posPayment->change_amount = $changeAmount;
                         $posPayment->discount = $discount;
                         $posPayment->discount_amount = $total;
+                        $posPayment->notes = $request->notes ?: null;
                         $posPayment->created_by = $user_id;
                         $posPayment->save();
                     }
@@ -747,6 +775,7 @@ class PosController extends Controller
                             'code' => 200,
                             'success' => __('Payment completed successfully!'),
                             'invoice_id' => $invoice ? $invoice->id : null,
+                            'pos_id' => $pos->id,
                         ]
                     );
                 }
@@ -1177,15 +1206,67 @@ class PosController extends Controller
         return redirect()->back()->with('success', __('POS Setting updated successfully'));
     }
 
-    //for thermal print
+    //for thermal print (optional pos_id for receipt after payment with payment details)
     public function printView(Request $request)
     {
-
-        $sess = session()->get('pos');
-
         $user = Auth::user();
         $settings = Utility::settings();
+        $posPayments = collect();
 
+        if ($request->pos_id && Auth::user()->canManagePos()) {
+            $pos = Pos::with(['items', 'customer', 'warehouse', 'posPayments'])->where('id', $request->pos_id)->where('created_by', $user->creatorId())->first();
+            if ($pos) {
+                $posPayments = $pos->posPayments;
+                $customer = $pos->customer_id ? $pos->customer : null;
+                $warehouse = $pos->warehouse;
+                $details = [
+                    'pos_id' => $user->posNumberFormat($pos->pos_id),
+                    'customer' => $customer ? $customer->toArray() : [],
+                    'warehouse' => $warehouse ? $warehouse->toArray() : [],
+                    'user' => $user->toArray(),
+                    'date' => $pos->pos_date ?? date('Y-m-d'),
+                ];
+                $warehouseName = $details['warehouse']['name'] ?? ($warehouse ? $warehouse->name : '-');
+                $details['warehouse']['details'] = '<h7 class="text-dark">' . ucfirst($warehouseName) . '</p></h7>';
+                if (!empty($details['customer']['name'])) {
+                    $details['customer']['details'] = '<h6 class="text-dark">' . ucfirst($details['customer']['name']) . '</h6>';
+                } else {
+                    $details['customer']['details'] = '<h2 class="h6"><b>' . __('Walk-in Customer') . '</b></h2>';
+                }
+                $details['customer']['shippdetails'] = '-';
+                $details['user']['details'] = '<h6 class="text-dark"><b>' . ucfirst($user->name) . '</b></h6>';
+                $sales = ['data' => [], 'discount' => '0', 'sub_total' => '0', 'total' => '0'];
+                $mainsubtotal = 0;
+                $discount = 0;
+                foreach ($pos->items as $item) {
+                    $product = ProductService::find($item->product_id);
+                    $price = (float) $item->price;
+                    $qty = (int) $item->quantity;
+                    $taxRate = (float) Utility::totalTaxRate($item->tax);
+                    $subtotal = $price * $qty;
+                    $tax = ($subtotal * $taxRate) / 100;
+                    $lineTotal = $subtotal + $tax;
+                    $mainsubtotal += $lineTotal;
+                    $sales['data'][] = [
+                        'name' => $product ? $product->name : __('Product'),
+                        'quantity' => $qty,
+                        'price' => $user->priceFormat($price),
+                        'tax' => $taxRate . '%',
+                        'product_tax' => $taxRate . '%',
+                        'tax_amount' => $user->priceFormat($tax),
+                        'subtotal' => $user->priceFormat($lineTotal),
+                    ];
+                }
+                $sales['discount'] = $user->priceFormat($discount);
+                $sales['sub_total'] = $user->priceFormat($mainsubtotal);
+                $sales['total'] = $user->priceFormat($mainsubtotal - $discount);
+                $productServices = ProductService::where('created_by', $user->creatorId())->get();
+                $barcode = ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()];
+                return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments'));
+            }
+        }
+
+        $sess = session()->get('pos');
         $customer = Customer::where('name', '=', $request->vc_name)->where('created_by', $user->creatorId())->first();
         $warehouse = warehouse::where('id', '=', $request->warehouse_name)->where('created_by', $user->creatorId())->first();
 
@@ -1257,69 +1338,83 @@ class PosController extends Controller
             'barcodeFormat' => Auth::user()->barcodeFormat(),
         ];
 
-        return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode'));
+        return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments'));
 
     }
     
     public function add_opening_balance()
     {
-        return view('pos.add_opening_balance');
-    }
-    
-    public function save_opening_balance(Request $request)
-    {
-        $balance = \App\Models\PosBalance::firstOrNew([
-            'user_id' => \Auth::user()->creatorId(),
-            'created_at' => now()->startOfDay(), // Not effective, will override below
-        ]);
-    
-        $existing = \App\Models\PosBalance::where('user_id', \Auth::user()->creatorId())
-            ->whereDate('created_at', \Carbon\Carbon::today())
-            ->first();
-    
-        if ($existing) {
-            $existing->opening_balance = $request->amount;
-            $existing->save();
-        } else {
-            $new = new \App\Models\PosBalance();
-            $new->user_id = \Auth::user()->creatorId();
-            $new->opening_balance = $request->amount;
-            $new->save();
-        }
-    
-        return redirect()->back()->with('success', __('Opening Balance added successfully.'));
+        // Opening balance is set when a shift is started (POS Shifts). Redirect to shifts.
+        return redirect()->route('pos-shift.index')->with('info', __('pos.opening_balance_set_on_shift_start'));
     }
 
     
     public function add_closing_balance()
     {
-        return view('pos.add_closing_balance');
+        $userOpenShift = \App\Models\PosShift::where('user_id', \Auth::user()->id)
+            ->where('status', \App\Models\PosShift::STATUS_OPEN)
+            ->where('created_by', \Auth::user()->creatorId())
+            ->orderBy('opened_at', 'desc')
+            ->first();
+        if (!$userOpenShift) {
+            return redirect()->back()->with('error', __('pos.open_shift_required_to_add_closing'));
+        }
+        return view('pos.add_closing_balance', compact('userOpenShift'));
     }
     
     public function save_closing_balance(Request $request)
     {
-        $existing = \App\Models\PosBalance::where('user_id', \Auth::user()->creatorId())
-            ->whereDate('created_at', \Carbon\Carbon::today())
-            ->first();
-    
-        if ($existing) {
-            $existing->closing_balance = $request->amount;
-            $existing->save();
-        } else {
-            $new = new \App\Models\PosBalance();
-            $new->user_id = \Auth::user()->creatorId();
-            $new->closing_balance = $request->amount;
-            $new->save();
+        $request->validate([
+            'amount' => 'required|numeric|min:0',
+            'shift_id' => 'nullable|exists:pos_shifts,id',
+            'tips' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+        $shiftId = $request->shift_id;
+        $shift = $shiftId
+            ? \App\Models\PosShift::where('id', $shiftId)->where('user_id', \Auth::user()->id)->where('status', \App\Models\PosShift::STATUS_OPEN)->first()
+            : \App\Models\PosShift::where('user_id', \Auth::user()->id)->where('status', \App\Models\PosShift::STATUS_OPEN)->where('created_by', \Auth::user()->creatorId())->orderBy('opened_at', 'desc')->first();
+        if (!$shift) {
+            return redirect()->route('pos.dashboard')->with('error', __('pos.open_shift_required_to_add_closing'));
         }
-    
-        return redirect()->back()->with('success', __('Closing Balance added successfully.'));
+
+        $posIds = Pos::where('shift_id', $shift->id)->pluck('id');
+        $salesCount = $posIds->count();
+        $salesTotal = 0;
+        foreach (Pos::where('shift_id', $shift->id)->get() as $pos) {
+            $salesTotal += $pos->getTotal();
+        }
+        $cashTotal = PosPayment::whereIn('pos_id', $posIds)->where('payment_method', 'cash')->sum('amount');
+        $cardTotal = PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', ['card', 'visa', 'mpesa', 'bank_transfer', 'cheque'])->sum('amount');
+        $creditTotal = PosPayment::whereIn('pos_id', $posIds)->where('payment_method', 'credit')->sum('amount');
+        $opening = (float) ($shift->opening_balance ?? 0);
+        $closing = (float) $request->amount;
+        $difference = $closing - ($opening + $cashTotal);
+
+        $shift->closing_balance = $closing;
+        $shift->sales_count = $salesCount;
+        $shift->sales_total = round($salesTotal, 2);
+        $shift->cash_total = round($cashTotal, 2);
+        $shift->card_total = round($cardTotal, 2);
+        $shift->credit_total = round($creditTotal, 2);
+        $shift->difference = round($difference, 2);
+        $shift->tips = (float) ($request->tips ?? 0);
+        $shift->notes = $request->notes ? trim($request->notes) : null;
+        $shift->status = \App\Models\PosShift::STATUS_CLOSED;
+        $shift->closed_at = now();
+        $shift->save();
+
+        return redirect()->route('pos-shift.index')->with('success', __('Closing balance saved and shift closed.'));
     }
 
     
     public function balances()
     {
-        $pos_balances = PosBalance::where('user_id', \Auth::user()->creatorId())->orderBy('id', 'desc')->get();
-        return view('pos.balances', compact('pos_balances'));
+        $shifts = \App\Models\PosShift::where('created_by', \Auth::user()->creatorId())
+            ->with(['branch', 'user'])
+            ->orderBy('opened_at', 'desc')
+            ->paginate(20);
+        return view('pos.balances', compact('shifts'));
     }
 
 
@@ -1384,13 +1479,15 @@ class PosController extends Controller
             $userOpenShifts = \App\Models\PosShift::where('user_id', $user->id)
                 ->where('status', \App\Models\PosShift::STATUS_OPEN)
                 ->where('created_by', $creatorId)
+                ->orderBy('opened_at', 'desc')
                 ->get();
             $userOpenShiftByBranch = $userOpenShifts->pluck('id', 'branch_id')->toArray();
+            $userOpenShift = $userOpenShifts->first();
             // Waiter must have at least one open shift to use Restaurant POS
             if (!$canChangeShift && empty($userOpenShiftByBranch)) {
                 return redirect()->back()->with('error', __('pos.open_shift_required_for_branch'));
             }
-            return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch'));
+            return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }

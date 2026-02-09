@@ -9,6 +9,7 @@ class PosPayment extends Model
     const METHOD_CASH = 'cash';
     const METHOD_CARD = 'card';
     const METHOD_CREDIT = 'credit';
+    const METHOD_MIXED = 'mixed';
 
     protected $fillable = [
         'pos_id',
@@ -16,10 +17,13 @@ class PosPayment extends Model
         'payment_method',
         'credit_terms',
         'customer_id',
+        'transaction_id',
         'date',
         'amount',
+        'change_amount',
         'discount',
         'discount_amount',
+        'notes',
         'created_by',
     ];
 

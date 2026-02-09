@@ -100,7 +100,21 @@
                 padding-right: 12px !important;
             }
         }
-
+        @media print {
+            .no-print { display: none !important; }
+            body * { visibility: hidden; }
+            #commonModal, #commonModal .modal-dialog, #commonModal .modal-content, #commonModal .body,
+            #commonModal #printarea, #commonModal #printarea * { visibility: visible; }
+            #commonModal { position: absolute !important; left: 0; top: 0; width: 100% !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+            #commonModal .modal-header { display: none !important; }
+            #commonModal .modal-dialog { max-width: 100% !important; margin: 0 !important; box-shadow: none !important; }
+            #commonModal .modal-content { border: none !important; box-shadow: none !important; }
+            #commonModal .modal-footer { display: none !important; }
+            #commonModal .body { padding: 0 !important; border: none !important; }
+            #commonModal #printarea { position: static !important; width: 100%; padding: 0.5in; font-size: 12pt; }
+            #commonModal #printarea .pos-module-tbl { width: 100%; }
+            #commonModal #printarea .product-border { border-bottom: 1px solid #ddd !important; padding: 2px 0; }
+        }
     </style>
 </head>
 
@@ -110,11 +124,7 @@
         <span class="ti ti-wifi-off me-1"></span> {{ __('pos.offline_banner') }}
     </div>
 @php
-    $today_balance = \App\Models\PosBalance::where('user_id', \Auth::user()->creatorId())
-        ->whereDate('created_at', \Carbon\Carbon::today())
-        ->first();
-    
-
+    $userOpenShift = $userOpenShift ?? null;
 @endphp
     <div class="pos-page container-fluid px-2">
         <?php $lastsegment = request()->segment(count(request()->segments())); ?>
@@ -123,15 +133,13 @@
                 <div class="mt-2 pos-top-bar bg-primary d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div class="d-flex align-items-center flex-wrap gap-2">
                         <span class="text-white pos-brand">{{ __('POS Retail') }}</span>
-                        @if($today_balance && $today_balance->opening_balance)
-                            <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.opening_balance') }}:</strong> {{ Auth::user()->priceFormat($today_balance->opening_balance) }}</span>
-                        @else
-                            <a href="#" data-url="{{ route('pos.add_opening_balance') }}" data-bs-toggle="tooltip" title="{{ __('pos.add_opening_balance') }}" data-ajax-popup="true" data-title="{{ __('pos.add_opening_balance') }}" class="btn btn-sm btn-light">{{ __('pos.add_opening_balance') }}</a>
-                        @endif
-                        @if($today_balance && $today_balance->closing_balance)
-                            <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.closing_balance') }}:</strong> {{ Auth::user()->priceFormat($today_balance->closing_balance) }}</span>
-                        @else
-                            <a href="#" data-url="{{ route('pos.add_closing_balance') }}" data-bs-toggle="tooltip" title="{{ __('pos.add_closing_balance') }}" data-ajax-popup="true" data-title="{{ __('pos.add_closing_balance') }}" class="btn btn-sm btn-light">{{ __('pos.add_closing_balance') }}</a>
+                        @if($userOpenShift)
+                            <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.opening_balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->opening_balance ?? 0) }}</span>
+                            @if(isset($userOpenShift->closing_balance) && $userOpenShift->closing_balance !== null && $userOpenShift->closing_balance !== '')
+                                <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.closing_balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->closing_balance) }}</span>
+                            @else
+                                <a href="#" data-url="{{ route('pos.add_closing_balance') }}" data-bs-toggle="tooltip" title="{{ __('pos.add_closing_balance') }}" data-ajax-popup="true" data-title="{{ __('pos.add_closing_balance') }}" class="btn btn-sm btn-light">{{ __('pos.add_closing_balance') }}</a>
+                            @endif
                         @endif
                     </div>
                     <div class="d-flex align-items-center gap-2">
@@ -162,7 +170,7 @@
         @endif
         <div id="pos-retail-panel" class="mt-2 mb-4 pb-3 pos-mode-panel {{ ($posMode === 'restaurant') ? 'd-none' : '' }} card rounded">
         <div class="row gy-2 main_div">
-            @if(!$today_balance || !$today_balance->opening_balance)
+            @if(!$userOpenShift)
                 <div class="disabled_div">
                     <h3>{{ __('pos.add_opening_balance_to_enable') }}</h3>
                 </div>
@@ -488,6 +496,8 @@
         var POS_CACHE_PRODUCTS = 'pos_cache_products';
         var POS_CACHE_CATEGORIES = 'pos_cache_categories';
         var posSyncUrl = '{{ route("pos.sync") }}';
+        var posCurrencySymbol = @json(Auth::user()->currencySymbol() ?? '');
+        var posPrintSettings = @json(\App\Models\Utility::settings());
         var posEmptyCartUrl = '{{ route("warehouse-empty-cart") }}';
         var posSearchProductsUrl = '{{ route("search.products") }}';
         var posCategoriesUrl = '{{ route("product.categories") }}';
@@ -593,16 +603,24 @@
             var cart = posGetCartFromDom();
             if (Object.keys(cart).length === 0) return false;
             var pm = ($('#payment_method').length ? $('#payment_method').val() : null) || 'cash';
+            var amount = parseFloat($('#payment_amount').val()) || 0;
+            var changeAmount = parseFloat($('#payment_change').val()) || 0;
             var sale = {
                 vc_name: $('#vc_name_hidden').val() || '',
                 warehouse_name: $('#warehouse_name_hidden').val() || '',
                 discount: $('#discount_hidden').val() || 0,
                 payment_method: pm,
+                amount: amount,
+                change_amount: changeAmount,
+                transaction_id: ($('#payment_transaction_id').length ? $('#payment_transaction_id').val() : '') || null,
+                credit_terms: ($('#payment_credit_terms').length ? $('#payment_credit_terms').val() : '') || null,
+                notes: ($('#payment_notes').length ? $('#payment_notes').val() : '') || null,
                 pos_order_type: $('#pos_order_type_hidden').val() || '',
                 pos_table_id: $('#pos_table_id_hidden').val() || '',
                 pos_shift_id: $('#pos_shift_id_hidden').val() || '',
                 quotation_id: $('#quotation_id').val() || 0,
                 date: new Date().toISOString().slice(0, 10),
+                client_order_id: 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11),
                 cart: cart
             };
             try {
@@ -683,38 +701,183 @@
                         e.preventDefault();
                         e.stopPropagation();
                         e.stopImmediatePropagation();
-                        var rows = '';
-                        var subTotal = 0;
+                        var itemsCount = 0;
+                        var subTotalInclTax = 0;
+                        var taxTotal = 0;
                         $('#tbody [data-product-id]').each(function () {
-                            var name = $(this).attr('data-name') || '';
-                            var qty = $(this).find('input.input-number').val() || 1;
+                            var qty = parseInt($(this).find('input.input-number').val() || 1, 10);
                             var price = parseFloat($(this).attr('data-price')) || 0;
                             var tax = parseFloat($(this).attr('data-tax')) || 0;
-                            var taxAmt = price * qty * tax / 100;
-                            var subtotal = (price + price * tax / 100) * qty;
-                            subTotal += subtotal;
-                            rows += '<tr><td class="text-left">' + $('<div>').text(name).html() + '</td><td>' + qty + '</td><td class="text-right">' + (typeof addCommas === 'function' ? addCommas(price) : price) + '</td><td class="text-right">' + tax + '%</td><td class="text-right">' + (typeof addCommas === 'function' ? addCommas(taxAmt) : taxAmt) + '</td><td class="text-right">' + (typeof addCommas === 'function' ? addCommas(subtotal) : subtotal) + '</td></tr>';
+                            var lineSubtotal = (price + price * tax / 100) * qty;
+                            subTotalInclTax += lineSubtotal;
+                            taxTotal += price * qty * tax / 100;
+                            itemsCount += qty;
                         });
                         var discount = parseFloat($('#discount_hidden').val()) || 0;
-                        var total = Math.max(0, subTotal - discount);
-                        var html = '<div class="card"><div class="card-body"><p class="text-muted small mb-3">{{ __("pos.offline_banner") }}</p><div class="table-responsive"><table class="table table-sm"><thead><tr><th class="text-left">{{ __("pos.items") }}</th><th>{{ __("pos.qty") }}</th><th class="text-right">{{ __("pos.price") }}</th><th class="text-right">{{ __("pos.tax") }}</th><th class="text-right">{{ __("pos.tax_amount") }}</th><th class="text-right">{{ __("pos.sub_total") }}</th></tr></thead><tbody>' + rows + '</tbody><tfoot><tr><td colspan="5" class="text-end">{{ __("pos.sub_total") }}</td><td class="text-right">' + (typeof addCommas === 'function' ? addCommas(subTotal) : subTotal) + '</td></tr><tr><td colspan="5" class="text-end">{{ __("pos.discount") }}</td><td class="text-right">' + (typeof addCommas === 'function' ? addCommas(discount) : discount) + '</td></tr><tr><td colspan="5" class="text-end"><strong>{{ __("pos.total") }}</strong></td><td class="text-right"><strong>' + (typeof addCommas === 'function' ? addCommas(total) : total) + '</strong></td></tr></tfoot></table></div><div class="d-flex align-items-center mt-4"><select class="form-control" id="payment_method"><option value="cash">{{ __("pos.payment_cash") }}</option><option value="visa">{{ __("pos.payment_visa") }}</option><option value="mpesa">{{ __("pos.payment_mpesa") }}</option><option value="bank_transfer">{{ __("pos.payment_bank_transfer") }}</option><option value="cheque">{{ __("pos.payment_cheque") }}</option></select><button type="button" id="pos-offline-pay-confirm" class="btn btn-success ms-2">{{ __("pos.pay_button") }}</button></div></div></div>';
+                        var total = Math.max(0, subTotalInclTax - discount);
+                        var fmt = function (n) {
+                            var v = Number(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                            return (typeof posCurrencySymbol !== 'undefined' && posCurrencySymbol ? posCurrencySymbol + v : v);
+                        };
+                        var payOpts = '<option value="cash">{{ __("pos.payment_cash") }}</option><option value="card">{{ __("pos.payment_card") }}</option><option value="credit">{{ __("pos.payment_credit") }}</option><option value="mixed">{{ __("Mixed Payment") }}</option><option value="visa">{{ __("pos.payment_visa") }}</option><option value="mpesa">{{ __("pos.payment_mpesa") }}</option><option value="bank_transfer">{{ __("pos.payment_bank_transfer") }}</option><option value="cheque">{{ __("pos.payment_cheque") }}</option>';
+                        var html = '<div class="card border-0 shadow-sm pos-payment-modal-content"><div class="card-body p-3">' +
+                            '<p class="text-warning small mb-2"><span class="ti ti-wifi-off me-1"></span>{{ __("pos.offline_banner") }}</p>' +
+                            '<h6 class="card-title mb-2">{{ __("Process Payment") }}</h6>' +
+                            '<div class="card bg-light mb-2"><div class="card-body py-2 px-3 small">' +
+                            '<h6 class="card-subtitle mb-2 text-muted small">{{ __("Order Summary") }}</h6>' +
+                            '<div class="d-flex justify-content-between mb-1"><span>{{ __("Items") }} (' + $('#tbody [data-product-id]').length + '):</span><span>' + $('#tbody [data-product-id]').length + '</span></div>' +
+                            '<div class="d-flex justify-content-between mb-1"><span>{{ __("pos.sub_total") }}:</span><span>' + fmt(subTotalInclTax) + '</span></div>' +
+                            '<div class="d-flex justify-content-between mb-1"><span>{{ __("Tax") }}:</span><span>' + fmt(taxTotal) + '</span></div>' +
+                            '<div class="d-flex justify-content-between mb-1"><span>{{ __("pos.total") }}:</span><strong>' + fmt(total) + '</strong></div>' +
+                            '</div></div>' +
+                            '<div class="mb-2"><label class="form-label small mb-1">{{ __("Payment Method") }}</label><select class="form-select form-select-sm" id="payment_method" name="payment_method">' + payOpts + '</select></div>' +
+                            '<div class="mb-2"><label class="form-label small mb-1">{{ __("Amount") }}</label><input type="number" step="0.01" min="0" class="form-control form-control-sm" id="payment_amount" value="' + total + '" placeholder="{{ __("pos.enter_amount") }}"></div>' +
+                            '<div class="mb-2 d-none" id="change_wrap"><div class="alert alert-success mb-0 py-1 small"><strong>{{ __("Change") }}:</strong> <span id="change_display">0</span></div><input type="hidden" id="payment_change" name="change_amount" value="0"></div>' +
+                            '<div class="mb-2 d-none" id="transaction_id_wrap"><label class="form-label small mb-1">{{ __("Transaction ID") }}</label><input type="text" class="form-control form-control-sm" id="payment_transaction_id" name="transaction_id" placeholder="{{ __("Transaction ID") }}"></div>' +
+                            '<div class="mb-2 d-none" id="credit_days_wrap"><label class="form-label small mb-1">{{ __("Credit Days") }}</label><input type="number" min="1" class="form-control form-control-sm" id="payment_credit_terms" name="credit_terms" placeholder="{{ __("Enter days") }}"></div>' +
+                            '<div class="mb-3"><label class="form-label small mb-1">{{ __("Notes") }}</label><textarea class="form-control form-control-sm" id="payment_notes" name="notes" rows="2" placeholder="{{ __("Notes") }}"></textarea></div>' +
+                            '<button type="button" id="pos-offline-pay-confirm" class="btn btn-success btn-sm w-100 rounded">{{ __("pos.pay_button") }}</button>' +
+                            '</div></div>';
                         $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
-                        $('#commonModal .modal-dialog').addClass('modal-xl');
-                        $('#commonModal .body').html(html);
+                        $('.modal-dialog').removeClass('modal-xl modal-lg modal-md modal-sm').addClass('modal-sm');
+                        $('#commonModal .body').attr('data-offline-total', total).html(html);
                         $('#commonModal').modal('show');
+                        (function (totalRaw) {
+                            function togglePaymentFields() {
+                                var method = $('#payment_method').val();
+                                var isCard = /^(card|visa|mpesa|bank_transfer|cheque)$/.test(method);
+                                var isCredit = method === 'credit';
+                                $('#transaction_id_wrap').toggleClass('d-none', !isCard);
+                                $('#credit_days_wrap').toggleClass('d-none', !isCredit);
+                            }
+                            function updateChange() {
+                                var amount = parseFloat($('#payment_amount').val()) || 0;
+                                var change = amount - totalRaw;
+                                if (change > 0) {
+                                    $('#change_wrap').removeClass('d-none');
+                                    $('#change_display').text(fmt(change));
+                                    $('#payment_change').val(change.toFixed(2));
+                                } else {
+                                    $('#change_wrap').addClass('d-none');
+                                    $('#payment_change').val('0');
+                                }
+                            }
+                            $('#payment_method').off('change.posoffline').on('change.posoffline', togglePaymentFields);
+                            $('#payment_amount').off('input.posoffline change.posoffline').on('input.posoffline change.posoffline', updateChange);
+                            togglePaymentFields();
+                            updateChange();
+                        })(total);
                         return false;
                     }
                 }, true);
             }
             $(document).on('click', '#pos-offline-pay-confirm', function () {
+                var requiredTotal = parseFloat($('#commonModal .body').attr('data-offline-total')) || 0;
+                var enteredAmount = parseFloat($('#payment_amount').val()) || 0;
+                if (requiredTotal > 0 && enteredAmount < requiredTotal) {
+                    if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', '{{ __("pos.amount_cannot_less_than_total") }}', 'error');
+                    return;
+                }
+                var receiptData = null;
                 if (posSaveOfflineSale()) {
+                    receiptData = {
+                        items: [],
+                        subTotal: 0,
+                        taxTotal: 0,
+                        discount: parseFloat($('#discount_hidden').val()) || 0,
+                        total: requiredTotal,
+                        customer: ($('#vc_name_hidden').val() || '').trim() || 'Walk-in-customer',
+                        paymentMethod: ($('#payment_method').val() || 'cash').replace(/_/g, ' '),
+                        amount: parseFloat($('#payment_amount').val()) || 0,
+                        change: parseFloat($('#payment_change').val()) || 0,
+                        transactionId: ($('#payment_transaction_id').val() || '').trim(),
+                        creditTerms: ($('#payment_credit_terms').val() || '').trim(),
+                        notes: ($('#payment_notes').val() || '').trim(),
+                        date: new Date().toLocaleDateString(),
+                        warehouseName: ($('.warehouse_select option:selected').text() || '').trim()
+                    };
+                    $('#tbody [data-product-id]').each(function () {
+                        var name = $(this).attr('data-name') || '';
+                        var qty = parseInt($(this).find('input.input-number').val() || 1, 10);
+                        var price = parseFloat($(this).attr('data-price')) || 0;
+                        var tax = parseFloat($(this).attr('data-tax')) || 0;
+                        var subtotal = (price + price * tax / 100) * qty;
+                        receiptData.subTotal += subtotal;
+                        receiptData.taxTotal += price * qty * tax / 100;
+                        receiptData.items.push({ name: name, qty: qty, price: price, tax: tax, subtotal: subtotal });
+                    });
                     posClearCartDom();
                     posUpdatePendingBadge();
-                    $('#commonModal').modal('hide');
+                    var fmt = function (n) {
+                        var v = Number(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                        return (typeof posCurrencySymbol !== 'undefined' && posCurrencySymbol ? posCurrencySymbol + v : v);
+                    };
+                    var esc = function (s) { return $('<div>').text(s || '').html(); };
+                    var s = typeof posPrintSettings !== 'undefined' ? posPrintSettings : {};
+                    var companyName = (s.company_name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    var companyBlock = (companyName || s.company_address) ? ('<div class="text-left">' + companyName + '<br>' + esc(s.mail_from_address) + '<br>' + esc(s.company_address) + '<br>' + esc(s.company_city) + (s.company_city && (s.company_state || s.company_zipcode) ? ', ' : '') + esc(s.company_state) + (s.company_state && s.company_zipcode ? ', ' : '') + esc(s.company_zipcode) + '<br>' + esc(s.company_country) + '<br>' + esc(s.company_telephone) + '<br></div>') : '';
+                    var itemRows = '';
+                    receiptData.items.forEach(function (it) {
+                        var taxAmt = it.price * it.qty * it.tax / 100;
+                        itemRows += '<div class="mt-2"><div class="p-0"><b>' + esc(it.name) + '</b></div>' +
+                            '<div class="d-flex product-border"><div>{{ __("pos.quantity_colon") }}</div><div class="text-end ms-auto">' + it.qty + '</div></div>' +
+                            '<div class="d-flex product-border"><div>{{ __("pos.price_colon") }}</div><div class="text-end ms-auto">' + fmt(it.price) + '</div></div>' +
+                            '<div class="d-flex product-border"><div>{{ __("pos.tax_colon") }}</div><div class="text-end ms-auto">' + it.tax + '</div></div>' +
+                            '<div class="d-flex product-border mb-2"><div>{{ __("pos.tax_amount_colon") }}</div><div class="text-end ms-auto">' + fmt(taxAmt) + '</div></div>' +
+                            '<div class="d-flex product-border mb-2"><div>{{ __("pos.sub_total_colon") }}</div><div class="text-end ms-auto">' + fmt(it.subtotal) + '</div></div></div>';
+                    });
+                    var paySection = '<div class="product-border mb-2 mt-3 p-2"><div class="text-black fw-bold mb-2">{{ __("Payment") }}</div>' +
+                        '<div class="d-flex product-border mb-1"><div>{{ __("Payment Method") }}:</div><div class="text-end ms-auto text-capitalize">' + esc(receiptData.paymentMethod) + '</div></div>' +
+                        '<div class="d-flex product-border mb-1"><div>{{ __("Amount") }}:</div><div class="text-end ms-auto">' + fmt(receiptData.amount) + '</div></div>';
+                    if (receiptData.change > 0) {
+                        paySection += '<div class="d-flex product-border mb-1"><div><b>{{ __("Change") }}</b>:</div><div class="text-end ms-auto"><b>' + fmt(receiptData.change) + '</b></div></div>';
+                    }
+                    if (receiptData.transactionId) {
+                        paySection += '<div class="d-flex product-border mb-1"><div>{{ __("Transaction ID") }}:</div><div class="text-end ms-auto">' + esc(receiptData.transactionId) + '</div></div>';
+                    }
+                    if (receiptData.creditTerms) {
+                        paySection += '<div class="d-flex product-border mb-1"><div>{{ __("Credit Days") }}:</div><div class="text-end ms-auto">' + esc(receiptData.creditTerms) + '</div></div>';
+                    }
+                    if (receiptData.notes) {
+                        paySection += '<div class="product-border mb-1 p-1 small"><div>{{ __("Notes") }}:</div><div>' + esc(receiptData.notes) + '</div></div>';
+                    }
+                    paySection += '</div>';
+                    var printareaHtml = '<div class="pt-0 pb-3 modal-body pos-module" id="printarea">' +
+                        '<table class="table pos-module-tbl"><tbody>' +
+                        '<div class="text-center"><h3>' + companyName + '</h3></div><br>' +
+                        '<div class="text-left"><b>Offline</b></div>' +
+                        companyBlock +
+                        '<div class="mt-2 no-print"><span class="text-warning small"><span class="ti ti-wifi-off me-1"></span>{{ __("pos.offline_banner") }}</span></div><br>' +
+                        '<div>' + (receiptData.customer ? '{{ __("pos.name") }}:  ' + esc(receiptData.customer) : '') + '</div>' +
+                        '<div>{{ __("pos.date_of_pos") }}:  ' + esc(receiptData.date) + '</div>' +
+                        (receiptData.warehouseName ? '<div class="product-border">{{ __("pos.warehouse_name") }}:  ' + esc(receiptData.warehouseName) + '</div>' : '') +
+                        '</tbody></table>' +
+                        '<div class="text-black text-left fs-5 mt-0 mb-0">{{ __("Items") }}</div>' +
+                        itemRows +
+                        '<div class="d-flex product-border mb-2 mt-4"><div><b>{{ __("pos.discount_colon") }}</b></div><div class="text-end ms-auto">' + fmt(receiptData.discount) + '</div></div>' +
+                        '<div class="d-flex product-border mb-2"><div><b>{{ __("pos.total_colon") }}</b></div><div class="text-end ms-auto">' + fmt(receiptData.total) + '</div></div>' +
+                        paySection +
+                        '<h5 class="text-center mt-3 font-label">{{ __("pos.thank_you") }}</h5></div>' +
+                        '<div class="justify-content-center pt-2 modal-footer"><a href="#" id="print" class="btn btn-primary btn-sm text-right float-right mb-3">{{ __("pos.print") }}</a></div>';
+                    $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
+                    $('.modal-dialog').removeClass('modal-xl modal-lg modal-md modal-sm').addClass('modal-sm');
+                    $('#commonModal .body').attr('data-offline-total', '').html(printareaHtml);
+                    $('#commonModal').modal('show');
                     if (typeof show_toastr === 'function') show_toastr('success', '{{ __("pos.saved_for_sync") }}');
                 } else {
                     if (typeof show_toastr === 'function') show_toastr('warning', '{{ __("pos.no_data_found") }}');
                 }
+            });
+            $(document).on('click', '#commonModal #print', function () {
+                var print_div = document.getElementById('printarea');
+                if (!print_div) return;
+                $('.row').addClass('d-none');
+                $('.toast').addClass('d-none');
+                $('#commonModal #print').addClass('d-none');
+                window.print();
+                $('.row').removeClass('d-none');
+                $('#commonModal #print').removeClass('d-none');
+                $('.toast').removeClass('d-none');
             });
         });
         if ('serviceWorker' in navigator) {
@@ -966,7 +1129,7 @@
                 if ($('#pos_table_id_hidden').length) data['pos_table_id'] = $('#pos_table_id_hidden').val();
                 if ($('#pos_shift_id_hidden').length) data['pos_shift_id'] = $('#pos_shift_id_hidden').val();
                 $('#commonModal .modal-title').html(title);
-                $('.modal-dialog').removeClass('modal-xl modal-lg modal-md modal-sm').addClass('modal-' + ($(this).data('size') || 'xl'));
+                $('.modal-dialog').removeClass('modal-xl modal-lg modal-md modal-sm').addClass('modal-sm');
                 $.ajax({
                     url: url,
                     data: data,
@@ -1376,18 +1539,32 @@
                                 $('#pos-restaurant-total').text(addCommas(sum));
                             } else {
                                 if ('carttotal' in data) {
+                                    if (data.carthtml) {
+                                        $('#tbody').append(data.carthtml);
+                                        $('.no-found').addClass('d-none');
+                                    }
                                     $.each(data.carttotal, function (key, value) {
-                                        $('#product-id-' + value.id + ' .subtotal').text(addCommas(value.subtotal));
+                                        var $row = $('#product-id-' + value.id);
+                                        if ($row.length) {
+                                            $row.attr('data-subtotal', value.subtotal);
+                                            $row.find('.subtotal').text(addCommas(value.subtotal));
+                                            $row.find('input[name="quantity"]').val(value.quantity);
+                                        }
                                         sum += value.subtotal;
                                     });
                                     $('#displaytotal').text(addCommas(sum));
                                     $('.totalamount').text(addCommas(sum));
+                                    $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                                     $('.discount').val('');
                                 } else if (data.carthtml) {
                                     $('#tbody').append(data.carthtml);
                                     $('.no-found').addClass('d-none');
                                     $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                                     $('.carttable #product-id-' + data.product.id + ' input[name="quantity"]').val(data.product.quantity);
+                                    sum = 0;
+                                    $('#tbody [data-product-id]').each(function() { sum += parseFloat($(this).attr('data-subtotal')) || 0; });
+                                    $('#displaytotal').text(addCommas(sum));
+                                    $('.totalamount').text(addCommas(sum));
                                 }
                                 $('#pos-pay-btn').prop('disabled', false);
                                 $('.btn-empty button').addClass('btn-clear-cart');
@@ -1615,7 +1792,17 @@
                         $('#pos-pay-btn').prop('disabled', true);
                         $('.btn-empty button').removeClass('btn-clear-cart');
                         $('#pos-pay-btn-restaurant').prop('disabled', true);
-                        if ($('#commonModal').length) $('#commonModal').modal('hide');
+                        if (data && data.pos_id) {
+                            var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id;
+                            $.get(receiptUrl, function (html) {
+                                $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
+                                $('#commonModal .modal-dialog').removeClass('modal-xl').addClass('modal-sm');
+                                $('#commonModal .body').html(html);
+                                $('#commonModal').modal('show');
+                            });
+                        } else {
+                            if ($('#commonModal').length) $('#commonModal').modal('hide');
+                        }
                     }
                 });
             });

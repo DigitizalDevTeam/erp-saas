@@ -80,6 +80,46 @@
             <div class="text-end ms-auto"> {{ $sales['total'] }}</div>
         </div>
 
+        @if(!empty($posPayments) && $posPayments->isNotEmpty())
+            <div class="product-border mb-2 mt-3 p-2">
+                <div class="text-black fw-bold mb-2">{{ __('Payment') }}</div>
+                @foreach($posPayments as $pmt)
+                    <div class="d-flex product-border mb-1">
+                        <div>{{ __('Payment Method') }}:</div>
+                        <div class="text-end ms-auto text-capitalize">{{ str_replace('_', ' ', $pmt->payment_method ?? '') }}</div>
+                    </div>
+                    <div class="d-flex product-border mb-1">
+                        <div>{{ __('Amount') }}:</div>
+                        <div class="text-end ms-auto">{{ Auth::user()->priceFormat($pmt->amount ?? 0) }}</div>
+                    </div>
+                    @if(isset($pmt->change_amount) && $pmt->change_amount > 0)
+                        <div class="d-flex product-border mb-1">
+                            <div><b>{{ __('Change') }}</b>:</div>
+                            <div class="text-end ms-auto"><b>{{ Auth::user()->priceFormat($pmt->change_amount) }}</b></div>
+                        </div>
+                    @endif
+                    @if(!empty($pmt->transaction_id))
+                        <div class="d-flex product-border mb-1">
+                            <div>{{ __('Transaction ID') }}:</div>
+                            <div class="text-end ms-auto">{{ $pmt->transaction_id }}</div>
+                        </div>
+                    @endif
+                    @if(!empty($pmt->credit_terms))
+                        <div class="d-flex product-border mb-1">
+                            <div>{{ __('Credit Days') }}:</div>
+                            <div class="text-end ms-auto">{{ $pmt->credit_terms }}</div>
+                        </div>
+                    @endif
+                    @if(!empty($pmt->notes))
+                        <div class="product-border mb-1 p-1 small">
+                            <div>{{ __('Notes') }}:</div>
+                            <div>{{ $pmt->notes }}</div>
+                        </div>
+                    @endif
+                @endforeach
+            </div>
+        @endif
+
         <h5 class="text-center mt-3 font-label">{{ __('pos.thank_you') }}</h5>
 </div>
 

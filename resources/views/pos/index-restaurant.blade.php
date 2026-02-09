@@ -115,11 +115,7 @@
         <span class="ti ti-wifi-off me-1"></span> {{ __('pos.offline_banner') }}
     </div>
 @php
-    $today_balance = \App\Models\PosBalance::where('user_id', \Auth::user()->creatorId())
-        ->whereDate('created_at', \Carbon\Carbon::today())
-        ->first();
-    
-
+    $userOpenShift = $userOpenShift ?? null;
 @endphp
     <div class="pos-page container-fluid px-2">
         <?php $lastsegment = request()->segment(count(request()->segments())); ?>
@@ -128,15 +124,13 @@
                 <div class="mt-2 pos-top-bar bg-primary d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div class="d-flex align-items-center flex-wrap gap-2">
                         <span class="text-white pos-brand">{{ __('POS Restaurant') }}</span>
-                        @if($today_balance && $today_balance->opening_balance)
-                            <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.opening_balance') }}:</strong> {{ Auth::user()->priceFormat($today_balance->opening_balance) }}</span>
-                        @else
-                            <a href="#" data-url="{{ route('pos.add_opening_balance') }}" data-bs-toggle="tooltip" title="{{ __('pos.add_opening_balance') }}" data-ajax-popup="true" data-title="{{ __('pos.add_opening_balance') }}" class="btn btn-sm btn-light">{{ __('pos.add_opening_balance') }}</a>
-                        @endif
-                        @if($today_balance && $today_balance->closing_balance)
-                            <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.closing_balance') }}:</strong> {{ Auth::user()->priceFormat($today_balance->closing_balance) }}</span>
-                        @else
-                            <a href="#" data-url="{{ route('pos.add_closing_balance') }}" data-bs-toggle="tooltip" title="{{ __('pos.add_closing_balance') }}" data-ajax-popup="true" data-title="{{ __('pos.add_closing_balance') }}" class="btn btn-sm btn-light">{{ __('pos.add_closing_balance') }}</a>
+                        @if($userOpenShift)
+                            <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.opening_balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->opening_balance ?? 0) }}</span>
+                            @if(isset($userOpenShift->closing_balance) && $userOpenShift->closing_balance !== null && $userOpenShift->closing_balance !== '')
+                                <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.closing_balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->closing_balance) }}</span>
+                            @else
+                                <a href="#" data-url="{{ route('pos.add_closing_balance') }}" data-bs-toggle="tooltip" title="{{ __('pos.add_closing_balance') }}" data-ajax-popup="true" data-title="{{ __('pos.add_closing_balance') }}" class="btn btn-sm btn-light">{{ __('pos.add_closing_balance') }}</a>
+                            @endif
                         @endif
                     </div>
                     <div class="d-flex align-items-center gap-2">
@@ -160,12 +154,12 @@
             $showModeTabs = false;
             $canChangeShift = $canChangeShift ?? true;
             $userOpenShiftByBranch = $userOpenShiftByBranch ?? [];
-            $has_closing_balance = ($today_balance && $today_balance->closing_balance);
+            $has_closing_balance = ($userOpenShift && isset($userOpenShift->closing_balance) && $userOpenShift->closing_balance !== null && $userOpenShift->closing_balance !== '');
         @endphp
         {{-- Restaurant-only: no mode tabs, only restaurant panel --}}
         <div id="pos-retail-panel" class="pos-mode-panel d-none">
         <div class="mt-2 row mb-4 gy-2 main_div">
-            @if(!$today_balance || !$today_balance->opening_balance)
+            @if(!$userOpenShift)
                 <div class="disabled_div" id="pos-restaurant-no-opening-balance">
                     <h3>{{ __('pos.add_opening_balance_to_enable') }}</h3>
                 </div>
@@ -411,7 +405,7 @@
         </div>{{-- /pos-retail-panel --}}
 
         <div id="pos-restaurant-panel" class="pos-mode-panel mt-2 position-relative" style="min-height:90vh">
-            @if(!$today_balance || !$today_balance->opening_balance)
+            @if(!$userOpenShift)
                 <div class="disabled_div" id="pos-restaurant-panel-no-opening-balance">
                     <h3>{{ __('pos.add_opening_balance_to_enable') }}</h3>
                 </div>
@@ -1703,7 +1697,17 @@
                         $('#btn-pur button').attr('disabled', 'disabled');
                         $('.btn-empty button').removeClass('btn-clear-cart');
                         $('#pos-pay-btn-restaurant').prop('disabled', true);
-                        if ($('#commonModal').length) $('#commonModal').modal('hide');
+                        if (data && data.pos_id) {
+                            var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id;
+                            $.get(receiptUrl, function (html) {
+                                $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
+                                $('#commonModal .modal-dialog').removeClass('modal-xl').addClass('modal-lg');
+                                $('#commonModal .body').html(html);
+                                $('#commonModal').modal('show');
+                            });
+                        } else {
+                            if ($('#commonModal').length) $('#commonModal').modal('hide');
+                        }
                     }
                 });
             });

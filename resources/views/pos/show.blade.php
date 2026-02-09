@@ -1,188 +1,166 @@
 @php
-    $logo=\App\Models\Utility::get_file('uploads/logo');
-    $company_logo=Utility::getValByName('company_logo');
+    $orderSummary = $orderSummary ?? [];
+    $totalRaw = $orderSummary['total_raw'] ?? 0;
+    $itemsCount = $orderSummary['items_count'] ?? 0;
+    $subtotalFmt = $orderSummary['subtotal'] ?? '0';
+    $taxFmt = $orderSummary['tax'] ?? '0';
+    $totalFmt = $orderSummary['total'] ?? '0';
 @endphp
 
 @if (!empty($sales) && count($sales) > 0)
-    <div class="card">
-        <div class="card-body">
-            <div class="row mt-2">
-                <div class="col-6">
-                    <img src="{{$logo.'/'.(isset($company_logo) && !empty($company_logo)?$company_logo:'logo-dark.png')}}" width="120px;">
-                </div>
-            </div>
-            <div id="printableArea">
-                <div class="row mt-3">
-                    <div class="col-6">
-                        <h1 class="invoice-id h6">{{ $details['pos_id'] }}</h1>
-                        <div class="date"><b>{{ __('pos.date') }}: </b>{{ $details['date'] }}</div>
+    <div class="card border-0 shadow-sm pos-payment-modal-content">
+        <div class="card-body p-3">
+            <h6 class="card-title mb-2">{{ __('Process Payment') }}</h6>
+
+            {{-- Order Summary (no full invoice) --}}
+            <div class="card bg-light mb-2">
+                <div class="card-body py-2 px-3 small">
+                    <h6 class="card-subtitle mb-2 text-muted small">{{ __('Order Summary') }}</h6>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>{{ __('Items') }} ({{ $itemsCount }}):</span>
+                        <span>{{ $itemsCount }}</span>
                     </div>
-                    <div class="col-6 text-end">
-                        <div class="text-dark "><b>{{ __('pos.warehouse_name') }}: </b>
-                            {!! $details['warehouse']['details'] !!}
-                        </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>{{ __('pos.sub_total') }}:</span>
+                        <span>{{ $subtotalFmt }}</span>
                     </div>
-                </div>
-                <div class="row mt-2">
-                    <div class="col contacts d-flex justify-content-between pb-4">
-                        <div class="invoice-to">
-
-
-                        <div class="text-dark h6"><b>{{ __('Billed To :') }}</b></div>
-                            {!! $details['customer']['details'] !!}
-                        </div>
-                        @if(!empty( $details['customer']['shippdetails']))
-                            <div class="invoice-to">
-                                <div class="text-dark h6"><b>{{ __('pos.shipped_to') }}</b></div>
-                                {!! $details['customer']['shippdetails'] !!}
-                            </div>
-                        @endif
-                        <div class="company-details">
-                            <div class="text-dark h6"><b>{{ __('pos.from') }}</b></div>
-                            {!! $details['user']['details'] !!}
-                        </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>{{ __('Tax') }}:</span>
+                        <span>{{ $taxFmt }}</span>
                     </div>
-                </div>
-                <div class="row">
-                    <table class="table">
-                        <thead>
-                        <tr>
-                            <th class="text-left">{{ __('Items') }}</th>
-                            <th>{{ __('Quantity') }}</th>
-                            <th class="text-right">{{ __('Price') }}</th>
-                            <th class="text-right">{{ __('Tax') }}</th>
-                            <th class="text-right">{{ __('Tax Amount') }}</th>
-                            <th class="text-right">{{ __('Total') }}</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        @foreach ($sales['data'] as $key => $value)
-                            <tr>
-                                <td class="cart-summary-table text-left">
-                                    {{ $value['name'] }}
-                                </td>
-                                <td class="cart-summary-table">
-                                    {{ $value['quantity'] }}
-                                </td>
-                                <td class="text-right cart-summary-table">
-                                    {{ $value['price'] }}
-                                </td>
-                                <td class="text-right cart-summary-table">
-                                    {!! $value['product_tax'] !!}
-                                </td>
-
-
-                                <td class="text-right cart-summary-table">
-                                    {{ $value['tax_amount'] }}
-                                </td>
-                                <td class="text-right cart-summary-table">
-                                    {{ $value['subtotal'] }}
-                                </td>
-                            </tr>
-                        @endforeach
-                        </tbody>
-                        <tfoot>
-                        <tr>
-                            <td class="">{{ __('pos.sub_total') }}</td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td class="text-right">{{ $sales['sub_total'] }}</td>
-                        </tr>
-                        <tr>
-                            <td class="">{{ __('Discount') }}</td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td class="text-right">{{ $sales['discount'] }}</td>
-                        </tr>
-                        <tr class="pos-header">
-                            <td class="">{{ __('pos.total') }}</td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td class="text-right">{{ $sales['total'] }}</td>
-                        </tr>
-                        </tfoot>
-                    </table>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>{{ __('pos.total') }}:</span>
+                        <strong>{{ $totalFmt }}</strong>
+                    </div>
                 </div>
             </div>
 
-            @if ($details['pay'] == 'show')
-            <div class="d-flex align-items-center mt-4">
-                <select class="form-control" id="payment_method">
-                    <option value="cash">{{ __('pos.payment_cash') }}</option>
-                    <option value="card">{{ __('pos.payment_card') }}</option>
-                    <option value="credit">{{ __('pos.payment_credit') }}</option>
-                    <option value="visa">{{ __('pos.payment_visa') }}</option>
-                    <option value="mpesa">{{ __('pos.payment_mpesa') }}</option>
-                    <option value="bank_transfer">{{ __('pos.payment_bank_transfer') }}</option>
-                    <option value="cheque">{{ __('pos.payment_cheque') }}</option>
-                </select>
-                <button class="btn btn-success ms-2 payment-done-btn rounded float-right" data-url="{{ route('pos.printview') }}" data-ajax-popup="true" data-size="sm"
-                        data-bs-toggle="tooltip" data-title="{{ __('pos.pos_invoice') }}">
+            @if (($details['pay'] ?? '') == 'show')
+                <div class="mb-2">
+                    <label class="form-label small mb-1">{{ __('Payment Method') }}</label>
+                    <select class="form-select form-select-sm" id="payment_method" name="payment_method">
+                        <option value="cash">{{ __('pos.payment_cash') }}</option>
+                        <option value="card">{{ __('pos.payment_card') }}</option>
+                        <option value="credit">{{ __('pos.payment_credit') }}</option>
+                        <option value="mixed">{{ __('Mixed Payment') }}</option>
+                        <option value="visa">{{ __('pos.payment_visa') }}</option>
+                        <option value="mpesa">{{ __('pos.payment_mpesa') }}</option>
+                        <option value="bank_transfer">{{ __('pos.payment_bank_transfer') }}</option>
+                        <option value="cheque">{{ __('pos.payment_cheque') }}</option>
+                    </select>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label small mb-1">{{ __('Amount') }}</label>
+                    <input type="number" step="0.01" min="0" class="form-control form-control-sm" id="payment_amount" value="{{ $totalRaw }}" placeholder="{{ __('pos.enter_amount') }}">
+                </div>
+                <div class="mb-2 d-none" id="change_wrap">
+                    <div class="alert alert-success mb-0 py-1 small">
+                        <strong>{{ __('Change') }}:</strong> <span id="change_display">0</span>
+                    </div>
+                    <input type="hidden" id="payment_change" name="change_amount" value="0">
+                </div>
+
+                <div class="mb-2 d-none" id="transaction_id_wrap">
+                    <label class="form-label small mb-1">{{ __('Transaction ID') }}</label>
+                    <input type="text" class="form-control form-control-sm" id="payment_transaction_id" name="transaction_id" placeholder="{{ __('Transaction ID') }}">
+                </div>
+
+                <div class="mb-2 d-none" id="credit_days_wrap">
+                    <label class="form-label small mb-1">{{ __('Credit Days') }}</label>
+                    <input type="number" min="1" class="form-control form-control-sm" id="payment_credit_terms" name="credit_terms" placeholder="{{ __('Enter days') }}">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small mb-1">{{ __('Notes') }}</label>
+                    <textarea class="form-control form-control-sm" id="payment_notes" name="notes" rows="2" placeholder="{{ __('Notes') }}"></textarea>
+                </div>
+
+                <button type="button" class="btn btn-success btn-sm w-100 payment-done-btn rounded" data-url="{{ route('pos.printview') }}" data-ajax-popup="true" data-size="sm" data-bs-toggle="tooltip" data-title="{{ __('pos.pos_invoice') }}">
                     {{ __('pos.pay_button') }}
                 </button>
-            </div>
             @endif
         </div>
     </div>
-
 @endif
 
-
-<script type="text/javascript" src="{{ asset('js/html2pdf.bundle.min.js') }}"></script>
 <script>
+(function() {
+    var totalRaw = {{ $totalRaw }};
+    var currencySymbol = @json(Auth::user()->currencySymbol() ?? '');
+    var formatNum = function(n) {
+        var v = Number(n).toFixed(2);
+        if (currencySymbol) return currencySymbol + v.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        return v;
+    };
 
-    var filename = $('#filename').val()
-
-    function saveAsPDF() {
-        var element = document.getElementById('printableArea');
-        var opt = {
-            margin: 0.3,
-            filename: filename,
-            image: {type: 'jpeg', quality: 1},
-            html2canvas: {scale: 4, dpi: 72, letterRendering: true},
-            jsPDF: {unit: 'in', format: 'A2'}
-        };
-        html2pdf().set(opt).from(element).save();
+    function togglePaymentFields() {
+        var method = $('#payment_method').val();
+        var isCard = /^(card|visa|mpesa|bank_transfer|cheque)$/.test(method);
+        var isCredit = method === 'credit';
+        $('#transaction_id_wrap').toggleClass('d-none', !isCard);
+        $('#credit_days_wrap').toggleClass('d-none', !isCredit);
     }
+
+    function updateChange() {
+        var amount = parseFloat($('#payment_amount').val()) || 0;
+        var change = amount - totalRaw;
+        if (change > 0) {
+            $('#change_wrap').removeClass('d-none');
+            $('#change_display').text(formatNum(change));
+            $('#payment_change').val(change.toFixed(2));
+        } else {
+            $('#change_wrap').addClass('d-none');
+            $('#payment_change').val('0');
+        }
+    }
+
+    $('#payment_method').on('change', togglePaymentFields);
+    $('#payment_amount').on('input change', updateChange);
+    togglePaymentFields();
+    updateChange();
 
     $(document).on('click', '.payment-done-btn', function (e) {
         e.preventDefault();
         var ele = $(this);
-
+        var amount = parseFloat($('#payment_amount').val()) || totalRaw;
+        if (amount < totalRaw) {
+            if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', '{{ __("pos.amount_cannot_less_than_total") }}', 'error');
+            return;
+        }
         $.ajax({
             url: "{{ route('pos.data.store') }}",
-
             method: 'GET',
             data: {
                 vc_name: $('#vc_name_hidden').val(),
                 warehouse_name: $('#warehouse_name_hidden').val(),
-                discount : $('#discount_hidden').val(),
-                quotation_id : $('#quotation_id').val(),
-                payment_method : $('#payment_method').val(),
+                discount: $('#discount_hidden').val(),
+                quotation_id: $('#quotation_id').val(),
+                payment_method: $('#payment_method').val(),
+                amount: amount.toFixed(2),
+                change_amount: $('#payment_change').val() || '0',
+                transaction_id: $('#payment_transaction_id').val() || '',
+                credit_terms: $('#payment_credit_terms').val() || '',
+                notes: $('#payment_notes').val() || '',
                 pos_order_type: $('#pos_order_type_hidden').val() || '',
                 pos_table_id: $('#pos_table_id_hidden').val() || '',
                 pos_shift_id: $('#pos_shift_id_hidden').val() || '',
             },
             beforeSend: function () {
-                ele.remove();
+                ele.prop('disabled', true);
             },
             success: function (data) {
                 if (data.code == 200) {
                     $(document).trigger('pos-payment-completed', [data]);
-                    show_toastr('success', data.success, 'success');
+                    if (typeof show_toastr === 'function') show_toastr('success', data.success, 'success');
                 }
             },
-            error: function (data) {
-                data = data.responseJSON;
-                show_toastr('{{ __("pos.error") }}', data.error, 'error');
+            error: function (xhr) {
+                var data = xhr.responseJSON || {};
+                if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', data.error || data.success || '{{ __("pos.error") }}', 'error');
+                ele.prop('disabled', false);
             }
-
         });
     });
+})();
 </script>

@@ -1357,7 +1357,7 @@
                             @endcan
 
                             {{-- ================= RETAIL POS ================= --}}
-                            @if (Gate::check('manage pos') || Gate::check('pos restaurant waiter') )
+                            @if (Gate::check('manage pos') || Gate::check('pos restaurant waiter') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
                             <li class="dash-item dash-hasmenu">
                                 <a href="#!" class="dash-link">
                                     {{ __('Retail POS') }}
@@ -1365,13 +1365,13 @@
                                 </a>
 
                                 <ul class="dash-submenu">
-                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant waiter'))
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant waiter') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
                                     <li class="dash-item {{ Request::route()->getName() == 'pos.index' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos.index') }}">{{ __('POS ') }}</a>
                                     </li>
                                     @endif
 
-                                    @if (Gate::check('manage pos'))
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
                                     <li class="dash-item {{ Request::route()->getName() == 'pos.balances' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos.balances') }}">{{ __('POS Balances') }}</a>
                                         </li>
