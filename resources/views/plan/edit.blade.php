@@ -16,8 +16,24 @@
 
     <div class="row">
         <div class="form-group col-md-6">
-            {{Form::label('name',__('Name'),['class'=>'form-label'])}}<x-required></x-required>
+            {{Form::label('name',__('Name') .'(en)',['class'=>'form-label'])}}<x-required></x-required>
             {{Form::text('name',null,array('class'=>'form-control font-style','placeholder'=>__('Enter Plan Name'),'required'=>'required'))}}
+        </div>
+        <div class="form-group col-md-6">
+            {{Form::label('name',__('Name') .'(fr)',['class'=>'form-label'])}}<x-required></x-required>
+            {{Form::text('name_fr',null,array('class'=>'form-control font-style','placeholder'=>__('Enter Plan Name'),'required'=>'required'))}}
+        </div>
+        <div class="form-group col-md-6">
+            {{Form::label('name',__('Name') .'(zh)',['class'=>'form-label'])}}<x-required></x-required>
+            {{Form::text('name_zh',null,array('class'=>'form-control font-style','placeholder'=>__('Enter Plan Name'),'required'=>'required'))}}
+        </div>
+        <div class="form-group col-md-6">
+            {{Form::label('name',__('Name') .'(es)',['class'=>'form-label'])}}<x-required></x-required>
+            {{Form::text('name_es',null,array('class'=>'form-control font-style','placeholder'=>__('Enter Plan Name'),'required'=>'required'))}}
+        </div>
+        <div class="form-group col-md-6">
+            {{Form::label('name',__('Name') .'(pt)',['class'=>'form-label'])}}<x-required></x-required>
+            {{Form::text('name_pt_br',null,array('class'=>'form-control font-style','placeholder'=>__('Enter Plan Name'),'required'=>'required'))}}
         </div>
         @if($plan->price > 0)
             <div class="form-group col-md-6">
@@ -61,9 +77,25 @@
         </div>
 
 
-        <div class="form-group col-md-12">
+        <div class="form-group col-md-6">
             {{ Form::label('description', __('Description'),['class'=>'form-label']) }}
             {!! Form::textarea('description', null, ['class'=>'form-control','rows'=>'2', 'placeholder' => __('Enter Description')]) !!}
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('description', __('Description') .'(fr)',['class'=>'form-label']) }}
+            {!! Form::textarea('description_fr', null, ['class'=>'form-control','rows'=>'2', 'placeholder' => __('Enter Description')]) !!}
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('description', __('Description') .'(zh)',['class'=>'form-label']) }}
+            {!! Form::textarea('description_zh', null, ['class'=>'form-control','rows'=>'2', 'placeholder' => __('Enter Description')]) !!}
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('description', __('Description') .'(es)',['class'=>'form-label']) }}
+            {!! Form::textarea('description_es', null, ['class'=>'form-control','rows'=>'2', 'placeholder' => __('Enter Description')]) !!}
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('description', __('Description') .'(pt)',['class'=>'form-label']) }}
+            {!! Form::textarea('description_pt_br', null, ['class'=>'form-control','rows'=>'2', 'placeholder' => __('Enter Description')]) !!}
         </div>
         @if($plan->price > 0)
         <div class="col-md-6">

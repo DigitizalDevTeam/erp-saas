@@ -10,6 +10,7 @@
 
 @section('action-btn')
     @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
+        <a href="{{ route('pos-shift.report', $pos_shift) }}" class="btn btn-sm btn-info">{{ __('Shift Report') }}</a>
         @if($pos_shift->status === 'open')
             <a href="{{ route('pos-shift.assign-table', $pos_shift) }}" class="btn btn-sm btn-warning">{{ __('Assign Tables') }}</a>
             <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#transferTablesModal">{{ __('pos.transfer_tables') }}</button>

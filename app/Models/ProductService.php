@@ -98,6 +98,29 @@ class ProductService extends Model
             ->orderBy('product_services.id', 'DESC');
     }
 
+    /**
+     * Lean query for POS product list: no join, only columns needed for grid.
+     */
+    public function scopePosList($query)
+    {
+        return $query->select(
+            'product_services.id',
+            'product_services.name',
+            'product_services.sku',
+            'product_services.sale_price',
+            'product_services.purchase_price',
+            'product_services.quantity',
+            'product_services.tax_id',
+            'product_services.pro_image',
+            'product_services.unit_id',
+            'product_services.category_id',
+            'product_services.print_zone'
+        )
+            ->where('product_services.type', 'product')
+            ->where('product_services.created_by', Auth::user()->creatorId())
+            ->orderBy('product_services.id', 'DESC');
+    }
+
     public function getTotalProductQuantity()
     {
         $totalquantity = $purchasedquantity = $posquantity = 0;

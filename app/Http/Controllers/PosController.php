@@ -99,7 +99,6 @@ class PosController extends Controller
                 $customer = '';
                 $warehouseId = '';
             }
-            // Same as Restaurant POS: user who cannot change shift (e.g. waiter) must have an open shift to use Retail POS
             $canChangeShift = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
             $userOpenShifts = \App\Models\PosShift::where('user_id', $user->id)
                 ->where('status', \App\Models\PosShift::STATUS_OPEN)
@@ -108,10 +107,14 @@ class PosController extends Controller
                 ->get();
             $userOpenShiftByBranch = $userOpenShifts->pluck('id', 'branch_id')->toArray();
             $userOpenShift = $userOpenShifts->first();
-            if (!$canChangeShift && empty($userOpenShiftByBranch)) {
-                return redirect()->back()->with('error', __('pos.open_shift_required_for_branch'));
+            $defaultBranchIdFromShift = $userOpenShift ? $userOpenShift->branch_id : null;
+            if ($defaultBranchIdFromShift && $id == 0) {
+                $wh = warehouse::where('branch_id', $defaultBranchIdFromShift)->where('created_by', $creatorId)->value('id');
+                if ($wh) {
+                    $warehouseId = $wh;
+                }
             }
-            return view('pos.index', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'userOpenShift'));
+            return view('pos.index', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'userOpenShift', 'canChangeShift', 'userOpenShiftByBranch', 'defaultBranchIdFromShift'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -732,7 +735,7 @@ class PosController extends Controller
                             $posPayment->pos_id = $pos->id;
                             $posPayment->branch_id = $pos->branch_id;
                             $posPayment->date = $request->date;
-                            $posPayment->payment_method = in_array($p['payment_method'] ?? '', [PosPayment::METHOD_CASH, PosPayment::METHOD_CARD, PosPayment::METHOD_CREDIT], true) ? $p['payment_method'] : PosPayment::METHOD_CASH;
+                            $posPayment->payment_method = !empty($p['payment_method']) ? $p['payment_method'] : PosPayment::METHOD_CASH;
                             $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
                             $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
                             $posPayment->amount = $amt;
@@ -1483,10 +1486,6 @@ class PosController extends Controller
                 ->get();
             $userOpenShiftByBranch = $userOpenShifts->pluck('id', 'branch_id')->toArray();
             $userOpenShift = $userOpenShifts->first();
-            // Waiter must have at least one open shift to use Restaurant POS
-            if (!$canChangeShift && empty($userOpenShiftByBranch)) {
-                return redirect()->back()->with('error', __('pos.open_shift_required_for_branch'));
-            }
             return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));

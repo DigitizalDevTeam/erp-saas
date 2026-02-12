@@ -20,6 +20,7 @@ use App\Models\PriceLevel;
 use Google\Service\Dataproc\Session;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -421,99 +422,125 @@ class ProductServiceController extends Controller
 
         if ((Auth::user()->can('manage pos') || Auth::user()->canManagePos()) && $request->ajax() && isset($lastsegment) && !empty($lastsegment)) {
 
-            $output = "";
             $isPos = ($lastsegment === 'pos');
+            $page = max(1, (int) $request->get('page', 1));
+            $perPage = 50;
 
+            $cacheKey = null;
             if ($isPos) {
-                // POS (retail/restaurant): show all products where type = product, stock = product.quantity
-                $q = ProductService::getallproducts()->with(['unit']);
-                if ($request->cat_id !== '' && $request->search == '') {
-                    if ($request->cat_id != '0') {
-                        $q = $q->where('category_id', $request->cat_id);
-                    }
-                } else {
-                    if ($request->search != '') {
-                        $q = $q->where('product_services.' . $request->type, 'LIKE', "%{$request->search}%");
-                    }
-                    if ($request->cat_id != '0') {
-                        $q = $q->where('category_id', $request->cat_id);
-                    }
+                $cacheKey = 'pos_products_html_' . Auth::user()->creatorId() . '_' . $lastsegment . '_' . ($request->war_id ?? '0') . '_' . ($request->cat_id ?? '0') . '_' . ($request->search ?? '') . '_' . ($request->type ?? 'name') . '_' . $page;
+                $cachedHtml = Cache::get($cacheKey);
+                if ($cachedHtml !== null) {
+                    return Response($cachedHtml);
                 }
-                $products = $q->get();
-            } elseif ($request->war_id == '0') {
-                $ids = WarehouseProduct::where('warehouse_id', 1)->get()->pluck('product_id')->toArray();
+            }
 
-                if ($request->cat_id !== '' && $request->search == '') {
-                    if ($request->cat_id == '0') {
-                        $products = ProductService::getallproducts()->whereIn('product_services.id', $ids)->with(['unit'])->get();
+            $output = "";
+            $runQuery = function () use ($request, $isPos, $page, $perPage) {
+                if ($isPos) {
+                    $q = ProductService::posList()->with(['unit:id,name']);
+                    if ($request->cat_id !== '' && $request->search == '') {
+                        if ($request->cat_id != '0') {
+                            $q = $q->where('product_services.category_id', $request->cat_id);
+                        }
                     } else {
-                        $products = ProductService::getallproducts()->where('category_id', $request->cat_id)->whereIn('product_services.id', $ids)->with(['unit'])->get();
+                        if ($request->search != '') {
+                            $q = $q->where('product_services.' . $request->type, 'LIKE', "%{$request->search}%");
+                        }
+                        if ($request->cat_id != '0') {
+                            $q = $q->where('product_services.category_id', $request->cat_id);
+                        }
                     }
-                } else {
-                    if ($request->cat_id == '0') {
-                        $products = ProductService::getallproducts()->where('product_services.' . $request->type, 'LIKE', "%{$request->search}%")->with(['unit'])->get();
-                    } else {
-                        $products = ProductService::getallproducts()->where('product_services.' . $request->type, 'LIKE', "%{$request->search}%")->orWhere('category_id', $request->cat_id)->with(['unit'])->get();
-                    }
+                    $q = $q->limit($perPage)->offset(($page - 1) * $perPage);
+                    return $q->get();
                 }
-            } else {
+                if ($request->war_id == '0') {
+                    $ids = WarehouseProduct::where('warehouse_id', 1)->get()->pluck('product_id')->toArray();
+                    if ($request->cat_id !== '' && $request->search == '') {
+                        if ($request->cat_id == '0') {
+                            return ProductService::getallproducts()->whereIn('product_services.id', $ids)->with(['unit'])->get();
+                        }
+                        return ProductService::getallproducts()->where('category_id', $request->cat_id)->whereIn('product_services.id', $ids)->with(['unit'])->get();
+                    }
+                    if ($request->cat_id == '0') {
+                        return ProductService::getallproducts()->where('product_services.' . $request->type, 'LIKE', "%{$request->search}%")->with(['unit'])->get();
+                    }
+                    return ProductService::getallproducts()->where('product_services.' . $request->type, 'LIKE', "%{$request->search}%")->orWhere('category_id', $request->cat_id)->with(['unit'])->get();
+                }
                 $ids = WarehouseProduct::where('warehouse_id', $request->war_id)->get()->pluck('product_id')->toArray();
                 if ($request->cat_id == '0') {
-                    $products = ProductService::getallproducts()->whereIn('product_services.id', $ids)->with(['unit'])->get();
-                } else {
-                    $products = ProductService::getallproducts()->whereIn('product_services.id', $ids)->where('category_id', $request->cat_id)->with(['unit'])->get();
+                    return ProductService::getallproducts()->whereIn('product_services.id', $ids)->with(['unit'])->get();
+                }
+                return ProductService::getallproducts()->whereIn('product_services.id', $ids)->where('category_id', $request->cat_id)->with(['unit'])->get();
+            };
+
+            $products = $runQuery();
+
+            // Build tax rate map in one query (avoid N+1)
+            $taxRateMap = [];
+            if (count($products) > 0) {
+                $allTaxIds = [];
+                foreach ($products as $product) {
+                    if (!empty($product->tax_id)) {
+                        foreach (array_filter(array_map('trim', explode(',', $product->tax_id))) as $tid) {
+                            $allTaxIds[] = $tid;
+                        }
+                    }
+                }
+                $allTaxIds = array_unique(array_filter($allTaxIds));
+                $taxModels = !empty($allTaxIds) ? Tax::whereIn('id', $allTaxIds)->get()->keyBy('id') : collect();
+                foreach ($products as $product) {
+                    $key = $product->tax_id ?? '';
+                    if (!array_key_exists($key, $taxRateMap)) {
+                        $rate = 0;
+                        if (!empty($product->tax_id)) {
+                            foreach (array_filter(array_map('trim', explode(',', $product->tax_id))) as $tid) {
+                                $t = $taxModels->get($tid);
+                                $rate += $t ? $t->rate : 0;
+                            }
+                        }
+                        $taxRateMap[$key] = $rate;
+                    }
                 }
             }
 
             if (count($products) > 0) {
-                foreach ($products as $key => $product) {
+                $user = Auth::user();
+                $priceFormatted = function ($price) use ($user) {
+                    return $user->priceFormat($price);
+                };
+                $baseImgUrl = asset(Storage::url('uploads/pro_image/'));
+                $addToCartBase = url('add-to-cart');
+                foreach ($products as $product) {
                     $quantity = $isPos ? (int) $product->quantity : $product->warehouseProduct($product->id, $request->war_id != 0 ? $request->war_id : 7);
-
-                    $unit = (!empty($product) && !empty($product->unit)) ? $product->unit->name : '';
-
-                        if (!empty($product->pro_image)) {
-                            $image_url = ('uploads/pro_image') . '/' . $product->pro_image;
-                        } else {
-                            $image_url = ('uploads/pro_image') . '/default.png';
-                        }
-                        if ($request->session_key == 'purchases') {
-                            $productprice = $product->purchase_price != 0 ? $product->purchase_price : 0;
-                        } else if ($request->session_key == 'pos') {
-                            $productprice = $product->sale_price != 0 ? $product->sale_price : 0;
-                        } else {
-                            $productprice = $product->sale_price != 0 ? $product->sale_price : $product->purchase_price;
-                        }
-                        $taxRate = \Utility::totalTaxRate($product->tax_id);
-                        $printZone = $product->print_zone ?? '';
-                        $output .= '
-
-                                    <div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6">
-                                        <div class="tab-pane fade show active toacart w-100" data-url="' . url('add-to-cart/' . $product->id . '/' . $lastsegment) . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e(asset(Storage::url($image_url))) . '" data-product-print-zone="' . e($printZone) . '">
-                                            <div class="position-relative card">
-                                                <img alt="Image placeholder" src="' . asset(Storage::url($image_url)) . '" class="card-image avatar shadow hover-shadow-lg" style=" height: 6rem; width: 100%;">
-                                                  <div class="p-0 custom-card-body card-body d-flex ">
-                                                    <div class="card-body mt-2 p-0 text-left card-bottom-content">
-                                                        <h5 class="mb-2 text-dark product-title-name">' . $product->name . '</h5>
-                                                        <h6 class="mb-2 text-dark product-title-name small">' . $product->sku . '</h6>
-                                                        <h5 class="">' . Auth::user()->priceFormat($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . $unit . '</small></h5>
-                                                        <button type="button" id="" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3" ><i class="ti ti-plus"></i> ' . __('Add to Cart') . '</button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                            ';
-
+                    $unit = (!empty($product->unit)) ? $product->unit->name : '';
+                    $imgFile = !empty($product->pro_image) ? $product->pro_image : 'default.png';
+                    $imgSrc = rtrim($baseImgUrl, '/') . '/' . $imgFile;
+                    if ($request->session_key == 'purchases') {
+                        $productprice = $product->purchase_price != 0 ? $product->purchase_price : 0;
+                    } elseif ($request->session_key == 'pos') {
+                        $productprice = $product->sale_price != 0 ? $product->sale_price : 0;
+                    } else {
+                        $productprice = $product->sale_price != 0 ? $product->sale_price : $product->purchase_price;
+                    }
+                    $taxRate = $taxRateMap[$product->tax_id ?? ''] ?? 0;
+                    $printZone = $product->print_zone ?? '';
+                    $output .= '<div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body mt-2 p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Add to Cart') . '</button></div></div></div></div></div>';
                 }
-
-                return Response($output);
-            } else {
-                $output='<div class="card card-body col-12 text-center">
-                    <h5>'.__("No Product Available").'</h5>
-                    </div>';
+                if ($cacheKey) {
+                    Cache::put($cacheKey, $output, 90);
+                }
                 return Response($output);
             }
+
+            $output = '<div class="card card-body col-12 text-center"><h5>' . __("No Product Available") . '</h5></div>';
+            if ($isPos && $page > 1) {
+                $output = '';
+            }
+            if ($cacheKey) {
+                Cache::put($cacheKey, $output, 90);
+            }
+            return Response($output);
         }
     }
 
@@ -522,11 +549,10 @@ class ProductServiceController extends Controller
 
         $canManage = Auth::user()->can('manage product & service') || (Auth::user()->can('manage pos') || Auth::user()->can('pos restaurant waiter') || Auth::user()->can('pos restaurant full') || Auth::user()->can('pos restaurant manager')) && $session_key == 'pos';
         if ($canManage && $request->ajax()) {
-            $product = ProductService::find($id);
+            $product = ProductService::with('category:id,name')->find($id);
             $productquantity = 0;
 
             if ($product) {
-                // POS: stock = product's quantity; others (e.g. purchase): stock = purchase-based
                 $productquantity = ($session_key == 'pos') ? (int) $product->quantity : $product->getTotalProductQuantity();
             }
 
@@ -544,31 +570,42 @@ class ProductServiceController extends Controller
             $productname = $product->name;
 
             if ($session_key == 'purchases') {
-
                 $productprice = $product->purchase_price != 0 ? $product->purchase_price : 0;
-            } else if ($session_key == 'pos') {
-
+            } elseif ($session_key == 'pos') {
                 $productprice = $product->sale_price != 0 ? $product->sale_price : 0;
             } else {
-
                 $productprice = $product->sale_price != 0 ? $product->sale_price : $product->purchase_price;
             }
 
-            $originalquantity = (int)$productquantity;
+            $originalquantity = (int) $productquantity;
 
-            $taxes = Utility::tax($product->tax_id);
-
-            $totalTaxRate = Utility::totalTaxRate($product->tax_id);
-
-            $product_tax = '';
+            $product_tax = '-';
             $product_tax_id = [];
-            foreach ($taxes as $tax) {
-                $product_tax .= !empty($tax) ? "<span class='badge bg-primary'>" . $tax->name . ' (' . $tax->rate . '%)' . "</span><br>" : '';
-                $product_tax_id[] = !empty($tax) ? $tax->id : 0;
-            }
+            $totalTaxRate = 0;
 
-            if (empty($product_tax)) {
-                $product_tax = "-";
+            if ($session_key == 'pos' && $request->has('tax_rate') && is_numeric($request->tax_rate)) {
+                $totalTaxRate = (float) $request->tax_rate;
+                $product_tax = $request->get('tax_display', $totalTaxRate . '%');
+                if (is_string($product_tax)) {
+                    $product_tax = e($product_tax);
+                }
+                $product_tax_id = !empty($product->tax_id) ? array_filter(array_map('trim', explode(',', $product->tax_id))) : [];
+            } else {
+                $product_tax = '';
+                if (!empty($product->tax_id)) {
+                    $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
+                    if (!empty($taxIds)) {
+                        $taxModels = Tax::whereIn('id', $taxIds)->get();
+                        foreach ($taxModels as $tax) {
+                            $totalTaxRate += $tax->rate ?? 0;
+                            $product_tax .= "<span class='badge bg-primary'>" . e($tax->name) . ' (' . $tax->rate . '%)' . "</span><br>";
+                            $product_tax_id[] = $tax->id;
+                        }
+                    }
+                }
+                if ($product_tax === '') {
+                    $product_tax = '-';
+                }
             }
             $producttax = $totalTaxRate;
 
@@ -577,7 +614,7 @@ class ProductServiceController extends Controller
 
             $subtotal        = $productprice + $tax;
             $cart            = session()->get($session_key);
-            $image_url = (!empty($product->pro_image) && Storage::exists($product->pro_image)) ? $product->pro_image : 'uploads/pro_image/' . $product->pro_image;
+            $image_url = !empty($product->pro_image) ? 'uploads/pro_image/' . $product->pro_image : 'uploads/pro_image/default.png';
 
             $model_delete_id = 'delete-form-' . $id;
 

@@ -50,8 +50,9 @@
                     </select>
                 </div>
 
-                <div class="mb-2">
-                    <label class="form-label small mb-1">{{ __('Amount') }}</label>
+                {{-- Single payment: amount / cash received --}}
+                <div class="mb-2" id="single_payment_wrap">
+                    <label class="form-label small mb-1" id="payment_amount_label">{{ __('pos.cash_received') }}</label>
                     <input type="number" step="0.01" min="0" class="form-control form-control-sm" id="payment_amount" value="{{ $totalRaw }}" placeholder="{{ __('pos.enter_amount') }}">
                 </div>
                 <div class="mb-2 d-none" id="change_wrap">
@@ -59,6 +60,17 @@
                         <strong>{{ __('Change') }}:</strong> <span id="change_display">0</span>
                     </div>
                     <input type="hidden" id="payment_change" name="change_amount" value="0">
+                </div>
+
+                {{-- Mixed payment: multiple rows --}}
+                <div class="mb-2 d-none" id="mixed_payment_wrap">
+                    <label class="form-label small mb-1">{{ __('Mixed Payment') }}</label>
+                    <div id="mixed_payment_rows"></div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-1" id="mixed_add_row">{{ __('Add Payment') }}</button>
+                    <div class="mt-2 small">
+                        <span>{{ __('pos.total_paid') }}:</span> <strong id="mixed_total_paid">0</strong>
+                        <span class="ms-2">{{ __('pos.remaining') }}:</span> <strong id="mixed_remaining">0</strong>
+                    </div>
                 </div>
 
                 <div class="mb-2 d-none" id="transaction_id_wrap">
@@ -93,19 +105,37 @@
         if (currencySymbol) return currencySymbol + v.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         return v;
     };
+    var payMethodOpts = '<option value="cash">{{ __("pos.payment_cash") }}</option><option value="card">{{ __("pos.payment_card") }}</option><option value="credit">{{ __("pos.payment_credit") }}</option><option value="visa">{{ __("pos.payment_visa") }}</option><option value="mpesa">{{ __("pos.payment_mpesa") }}</option><option value="bank_transfer">{{ __("pos.payment_bank_transfer") }}</option><option value="cheque">{{ __("pos.payment_cheque") }}</option>';
 
     function togglePaymentFields() {
         var method = $('#payment_method').val();
+        var isMixed = method === 'mixed';
+        var isCash = method === 'cash';
         var isCard = /^(card|visa|mpesa|bank_transfer|cheque)$/.test(method);
         var isCredit = method === 'credit';
+        $('#single_payment_wrap').toggleClass('d-none', isMixed);
+        $('#mixed_payment_wrap').toggleClass('d-none', !isMixed);
         $('#transaction_id_wrap').toggleClass('d-none', !isCard);
         $('#credit_days_wrap').toggleClass('d-none', !isCredit);
+        $('#payment_amount_label').text(isCash ? '{{ __("pos.cash_received") }}' : '{{ __("Amount") }}');
+        if (isCash) {
+            updateChange();
+        } else {
+            $('#change_wrap').addClass('d-none');
+            $('#payment_change').val('0');
+        }
+        if (isMixed) {
+            if ($('#mixed_payment_rows .mixed-row').length === 0) {
+                addMixedRow();
+            }
+            updateMixedTotals();
+        }
     }
 
     function updateChange() {
         var amount = parseFloat($('#payment_amount').val()) || 0;
         var change = amount - totalRaw;
-        if (change > 0) {
+        if ($('#payment_method').val() === 'cash' && change > 0) {
             $('#change_wrap').removeClass('d-none');
             $('#change_display').text(formatNum(change));
             $('#payment_change').val(change.toFixed(2));
@@ -115,14 +145,86 @@
         }
     }
 
+    function addMixedRow() {
+        var row = '<div class="mixed-row input-group input-group-sm mb-1"><select class="form-select form-select-sm mixed-method">' + payMethodOpts + '</select><input type="number" step="0.01" min="0" class="form-control form-control-sm mixed-amount" placeholder="{{ __("pos.enter_amount") }}"><button type="button" class="btn btn-outline-danger btn-sm mixed-remove">&times;</button></div>';
+        $('#mixed_payment_rows').append(row);
+        $(document).off('input change', '.mixed-amount').on('input change', '.mixed-amount', updateMixedTotals);
+        $(document).off('click', '.mixed-remove').on('click', '.mixed-remove', function() {
+            $(this).closest('.mixed-row').remove();
+            updateMixedTotals();
+        });
+        updateMixedTotals();
+    }
+
+    function updateMixedTotals() {
+        var sum = 0;
+        $('.mixed-amount').each(function() {
+            sum += parseFloat($(this).val()) || 0;
+        });
+        var remaining = Math.max(0, totalRaw - sum);
+        $('#mixed_total_paid').text(formatNum(sum));
+        $('#mixed_remaining').text(formatNum(remaining));
+    }
+
     $('#payment_method').on('change', togglePaymentFields);
     $('#payment_amount').on('input change', updateChange);
+    $('#mixed_add_row').on('click', addMixedRow);
     togglePaymentFields();
     updateChange();
 
     $(document).on('click', '.payment-done-btn', function (e) {
         e.preventDefault();
         var ele = $(this);
+        var method = $('#payment_method').val();
+        if (method === 'mixed') {
+            var payments = [];
+            $('.mixed-row').each(function() {
+                var amt = parseFloat($(this).find('.mixed-amount').val()) || 0;
+                if (amt <= 0) return;
+                payments.push({
+                    payment_method: $(this).find('.mixed-method').val(),
+                    amount: amt.toFixed(2)
+                });
+            });
+            var totalPaid = payments.reduce(function(s, p) { return s + parseFloat(p.amount); }, 0);
+            if (totalPaid < totalRaw) {
+                if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', '{{ __("pos.amount_cannot_less_than_total") }}', 'error');
+                return;
+            }
+            var data = {
+                vc_name: $('#vc_name_hidden').val(),
+                warehouse_name: $('#warehouse_name_hidden').val(),
+                discount: $('#discount_hidden').val(),
+                quotation_id: $('#quotation_id').val(),
+                payment_method: 'mixed',
+                notes: $('#payment_notes').val() || '',
+                pos_order_type: $('#pos_order_type_hidden').val() || '',
+                pos_table_id: $('#pos_table_id_hidden').val() || '',
+                pos_shift_id: $('#pos_shift_id_hidden').val() || '',
+            };
+            payments.forEach(function(p, i) {
+                data['payments[' + i + '][payment_method]'] = p.payment_method;
+                data['payments[' + i + '][amount]'] = p.amount;
+            });
+            $.ajax({
+                url: "{{ route('pos.data.store') }}",
+                method: 'GET',
+                data: data,
+                beforeSend: function () { ele.prop('disabled', true); },
+                success: function (data) {
+                    if (data.code == 200) {
+                        $(document).trigger('pos-payment-completed', [data]);
+                        if (typeof show_toastr === 'function') show_toastr('success', data.success, 'success');
+                    }
+                },
+                error: function (xhr) {
+                    var data = xhr.responseJSON || {};
+                    if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', data.error || data.success || '{{ __("pos.error") }}', 'error');
+                    ele.prop('disabled', false);
+                }
+            });
+            return;
+        }
         var amount = parseFloat($('#payment_amount').val()) || totalRaw;
         if (amount < totalRaw) {
             if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', '{{ __("pos.amount_cannot_less_than_total") }}', 'error');
@@ -136,7 +238,7 @@
                 warehouse_name: $('#warehouse_name_hidden').val(),
                 discount: $('#discount_hidden').val(),
                 quotation_id: $('#quotation_id').val(),
-                payment_method: $('#payment_method').val(),
+                payment_method: method,
                 amount: amount.toFixed(2),
                 change_amount: $('#payment_change').val() || '0',
                 transaction_id: $('#payment_transaction_id').val() || '',

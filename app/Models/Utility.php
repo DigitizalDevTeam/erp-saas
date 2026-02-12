@@ -273,7 +273,7 @@ class Utility extends Model
             "employee_prefix" => "#EMP00",
             'leave_status' => '1',
             "bug_prefix" => "#ISSUE",
-            'title_text' => 'ErpGo Saas',
+            'title_text' => 'ERP SaaS',
             'footer_text' => '',
             "company_start_time" => "09:00",
             "company_end_time" => "18:00",
@@ -494,7 +494,7 @@ class Utility extends Model
             "employee_prefix" => "#EMP00",
             'leave_status' => '1',
             "bug_prefix" => "#ISSUE",
-            'title_text' => 'ErpGo Saas',
+            'title_text' => 'ERP SaaS',
             'footer_text' => '',
             "company_start_time" => "09:00",
             "company_end_time" => "18:00",
@@ -4049,15 +4049,22 @@ class Utility extends Model
     {
         $product = WarehouseProduct::where('warehouse_id', $warehouse_id)->where('product_id', $product_id)->first();
 
-        $pro_quantity = (!empty($product) && !empty($product->quantity)) ? $product->quantity : 0;
+        if (empty($product)) {
+            $product = new WarehouseProduct();
+            $product->warehouse_id = $warehouse_id;
+            $product->product_id = $product_id;
+            $product->quantity = 0;
+            $product->created_by = \Auth::check() ? \Auth::user()->creatorId() : null;
+        }
+
+        $pro_quantity = (int) $product->quantity;
 
         if ($type == 'minus') {
-            $product->quantity = $pro_quantity != 0 ? $pro_quantity - $quantity : $quantity;
+            $product->quantity = $pro_quantity - (int) $quantity;
         } else {
-            $product->quantity = $pro_quantity + $quantity;
+            $product->quantity = $pro_quantity + (int) $quantity;
         }
         $product->save();
-
     }
 
     //warehouse transfer

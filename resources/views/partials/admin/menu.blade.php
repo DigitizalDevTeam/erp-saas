@@ -1424,6 +1424,12 @@
                                     @endif
 
                                     @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
+                                    <li class="dash-item {{ Request::route()->getName() == 'report.pos.day-summary' ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('report.pos.day-summary', ['date' => date('Y-m-d')]) }}">{{ __('Day Summary') }}</a>
+                                    </li>
+                                    @endif
+
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
                                     <li class="dash-item {{ request()->is('report/pos-eod') ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('report.pos.eod') }}">{{ __('EOD Report') }}</a>
                                     </li>

@@ -147,7 +147,7 @@
     @php
         $parentBalance = App\Models\Utility::getAccountBalance($parent->id, $filter['startDateRange'], $filter['endDateRange']);
     @endphp
-    {{-- 🔹 Parent Row --}}
+    {{-- ðŸ”¹ Parent Row --}}
     <tr style="font-weight:bold; background:#f8f9fa;">
         <td>{{ $parent->accountMain ? $parent->accountMain->code : '-' }}</td>
         <td>{{ $parent->$name_column }}</td>
@@ -169,10 +169,44 @@
             @endif
             @endif
         </td>
-        <td>-</td>
+        <td>
+            @if(count($parent->children) == 0)
+            @can('edit chart of account')
+                <div class="action-btn me-2">
+                    <a href="#" class="mx-3 btn btn-sm align-items-center bg-info"
+                        data-url="{{ route('chart-of-account.edit', $parent->accountMain->id) }}"
+                        data-ajax-popup="true"
+                        data-title="{{ __('Edit Account') }}"
+                        title="{{ __('Edit') }}">
+                        <i class="ti ti-pencil text-white"></i>
+                    </a>
+                </div>
+            @endcan
+
+            @can('delete chart of account')
+                <div class="action-btn ">
+                    {!! Form::open([
+                        'method' => 'DELETE',
+                        'route' => ['chart-of-account.destroy', $parent->accountMain->id],
+                        'id' => 'delete-form-' . $parent->accountMain->id,
+                    ]) !!}
+                    <a href="#"
+                        class="mx-3 btn btn-sm align-items-center bs-pass-para bg-danger"
+                        title="{{ __('Delete') }}"
+                        data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
+                        data-confirm-yes="document.getElementById('delete-form-{{ $child->id }}').submit();">
+                        <i class="ti ti-trash text-white"></i>
+                    </a>
+                    {!! Form::close() !!}
+                </div>
+            @endcan
+            @else
+            -
+            @endif
+        </td>
     </tr>
     
-    {{-- 🔸 Child Accounts --}}
+    {{-- ðŸ”¸ Child Accounts --}}
 
 @foreach ($parent->children as $child)
         @php

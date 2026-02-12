@@ -3158,6 +3158,40 @@ class ReportController extends Controller
         );
     }
 
+    /**
+     * Day summary: all shifts (opened or closed) for a given date. Summary table per shift.
+     */
+    public function posDaySummary(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $date = $request->input('date', date('Y-m-d'));
+        $creatorId = \Auth::user()->creatorId();
+        $shifts = PosShift::where('created_by', $creatorId)
+            ->where(function ($q) use ($date) {
+                $q->whereDate('opened_at', $date)
+                    ->orWhereDate('closed_at', $date);
+            })
+            ->with(['branch', 'user'])
+            ->orderBy('opened_at')
+            ->get();
+        // For open shifts, totals are not in DB yet — compute from Pos/PosPayment
+        foreach ($shifts as $s) {
+            if ($s->status === 'open' || $s->sales_total === null) {
+                $posIds = Pos::where('shift_id', $s->id)->pluck('id');
+                $s->sales_count = $posIds->count();
+                $s->sales_total = Pos::where('shift_id', $s->id)->get()->sum(fn ($p) => $p->getTotal());
+                $s->cash_total = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
+                    $q->where('payment_method', PosPayment::METHOD_CASH)->orWhereNull('payment_method');
+                })->sum('amount');
+                $s->card_total = (float) PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', ['card', 'visa', 'mpesa', 'bank_transfer', 'cheque'])->sum('amount');
+                $s->credit_total = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', PosPayment::METHOD_CREDIT)->sum('amount');
+            }
+        }
+        return view('report.pos_day_summary', compact('date', 'shifts'));
+    }
+
     public function posVsPurchaseReport(Request $request)
     {
         if (\Auth::user()->canManagePos()) {

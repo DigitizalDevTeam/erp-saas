@@ -591,13 +591,35 @@ https://cdn.jsdelivr.net/npm/lightbox2@2.11.5/dist/css/lightbox.min.css
                 @php
                     $collection = \App\Models\Plan::orderBy('price', 'ASC')->get();
                     $admin_payment_setting = Utility::getAdminPaymentSetting();
+                    $name_column = '';
+                    switch($lang)
+                    {
+                        case 'en':
+                            $name_column = '';
+                            break;
+                        case 'fr':
+                            $name_column = '_fr';
+                            break;
+                        case 'zh':
+                            $name_column = '_zh';
+                            break;
+                        case 'es':
+                            $name_column = '_es';
+                            break;
+                        case 'pt':
+                            $name_column = '_pt_br';
+                            break;
+                        default:
+                            $name_column = '';
+                            break;
+                    }
                 @endphp
                 @foreach ($collection as $key => $value)
                     @if($value->is_disable == 1 && (int)$value->price > 0)
                         <div class="col-xxl-3 col-lg-4 col-md-6">
                             <div class="card price-card shadow-none {{ $key == 2 ? 'bg-dark' : '' }}">
                                 <div class="card-body">
-                                    <span class="price-badge bg-dark">{{ $value->name }}</span>
+                                    <span class="price-badge bg-dark">{{ $value->name.$name_column }}</span>
                                     @if((int)$value->price > 0)
                                     <span
                                         class="mb-4 f-w-00 p-price">{{ number_format((int)$value->price, 0, '', '.') }} {{ isset($admin_payment_setting['currency_symbol']) ? $admin_payment_setting['currency_symbol'] : '$' }}<small
@@ -607,34 +629,34 @@ https://cdn.jsdelivr.net/npm/lightbox2@2.11.5/dist/css/lightbox.min.css
                                         class="mb-4 f-w-00 p-price">{{ __('Free Test') }}</span>
                                         @endif
                                     <p>
-                                        {!! $value->description !!}
+                                        {!! $value->description.$name_column !!}
                                     </p>
                                     <ul class="list-unstyled my-3">
                                         <li>
                                             <div class="form-check text-start">
                                                 <label class="form-check-label"
-                                                    for="customCheckc1">{{ $value->max_users == -1 ? 'Unlimited' : $value->max_users }}
+                                                    for="customCheckc1">{{ $value->max_users == -1 ? __('Unlimited') : $value->max_users }}
                                                     {{ __('User') }}</label>
                                             </div>
                                         </li>
                                         <li>
                                             <div class="form-check text-start">
                                                 <label class="form-check-label"
-                                                    for="customCheckc1">{{ $value->max_customers == -1 ? 'Unlimited' : $value->max_customers }}
+                                                    for="customCheckc1">{{ $value->max_customers == -1 ? __('Unlimited') : $value->max_customers }}
                                                     {{ __('Customer') }}</label>
                                             </div>
                                         </li>
                                         <li>
                                             <div class="form-check text-start">
                                                 <label class="form-check-label"
-                                                    for="customCheckc1">{{ $value->max_venders == -1 ? 'Unlimited' : $value->max_venders }}
+                                                    for="customCheckc1">{{ $value->max_venders == -1 ? __('Unlimited') : $value->max_venders }}
                                                     {{ __('Vendors') }}</label>
                                             </div>
                                         </li>
                                         <li>
                                             <div class="form-check text-start">
                                                 <label class="form-check-label"
-                                                    for="customCheckc1">{{ $value->max_clients == -1 ? 'Unlimited' : $value->max_clients }}
+                                                    for="customCheckc1">{{ $value->max_clients == -1 ? __('Unlimited') : $value->max_clients }}
                                                     {{ __('Clients') }}</label>
                                             </div>
                                         </li>
@@ -642,42 +664,42 @@ https://cdn.jsdelivr.net/npm/lightbox2@2.11.5/dist/css/lightbox.min.css
                                         <li>
                                             <div class="form-check text-start">
                                                 <label class="form-check-label"
-                                                    for="customCheckc1">{{ $value->account == 1 ? 'Enable' : 'Disable' }}
+                                                    for="customCheckc1">{{ $value->account == 1 ? __('Enable') : __('Disable') }}
                                                     {{ __('Account') }}</label>
                                             </div>
                                         </li>
                                         <li>
                                             <div class="form-check text-start">
                                                 <label class="form-check-label"
-                                                    for="customCheckc1">{{ $value->crm == 1 ? 'Enable' : 'Disable' }}
+                                                    for="customCheckc1">{{ $value->crm == 1 ? __('Enable') : __('Disable') }}
                                                     {{ __('CRM') }}</label>
                                             </div>
                                         </li>
                                         <li>
                                             <div class="form-check text-start">
                                                 <label class="form-check-label"
-                                                    for="customCheckc1">{{ $value->hrm == 1 ? 'Enable' : 'Disable' }}
+                                                    for="customCheckc1">{{ $value->hrm == 1 ? __('Enable') : __('Disable') }}
                                                     {{ __('HRM') }}</label>
                                             </div>
                                         </li>
                                         <li>
                                             <div class="form-check text-start">
                                                 <label class="form-check-label"
-                                                    for="customCheckc1">{{ $value->project == 1 ? 'Enable' : 'Disable' }}
+                                                    for="customCheckc1">{{ $value->project == 1 ? __('Enable') : __('Disable') }}
                                                     {{ __('Project') }}</label>
                                             </div>
                                         </li>
                                         <li>
                                             <div class="form-check text-start">
                                                 <label class="form-check-label"
-                                                    for="customCheckc1">{{ $value->pos == 1 ? 'Enable' : 'Disable' }}
+                                                    for="customCheckc1">{{ $value->pos == 1 ? __('Enable') : __('Disable') }}
                                                     {{ __('POS') }}</label>
                                             </div>
                                         </li>
                                         <li>
                                             <div class="form-check text-start">
                                                 <label class="form-check-label"
-                                                    for="customCheckc1">{{ $value->chatgpt == 1 ? 'Enable' : 'Disable' }}
+                                                    for="customCheckc1">{{ $value->chatgpt == 1 ? __('Enable') : __('Disable') }}
                                                     {{ __('ChatGPT') }}</label>
                                             </div>
                                         </li>

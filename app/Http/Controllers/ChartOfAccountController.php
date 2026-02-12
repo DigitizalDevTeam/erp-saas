@@ -58,7 +58,10 @@ class ChartOfAccountController extends Controller
             });
         }
 
-        $parents = $query->get();
+        $parents = $query->get()->sortBy(function ($parent) {
+            return (int) ($parent->accountMain->code ?? 0);
+        });
+
 
         // ✅ Hide parents with no matching children and not matching themselves
         if (!empty($search)) {
@@ -98,7 +101,6 @@ class ChartOfAccountController extends Controller
                 $name_column = 'name';
                 break;
         }
-        
 
         return view('chartOfAccount.index', compact('chartAccounts', 'types', 'filter','name_column'));
     }
@@ -387,6 +389,14 @@ class ChartOfAccountController extends Controller
     {
         if(\Auth::user()->can('delete chart of account'))
         {
+            if($chartOfAccount->parent == 0)
+            {
+                $parent = ChartOfAccountParent::where('account' , $chartOfAccount->id)->first();
+                if($parent)
+                {
+                    $parent->delete();
+                }
+            }
             $chartOfAccount->delete();
 
             return redirect()->route('chart-of-account.index')->with('success', __('Account successfully deleted.'));

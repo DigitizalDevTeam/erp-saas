@@ -16,6 +16,9 @@ return [
     | Supported: "file", "cookie", "database", "apc",
     |            "memcached", "redis", "dynamodb", "array"
     |
+    | For high-traffic POS, use "redis" or "database" (with sessions table
+    | indexed) for faster session read/write than file driver.
+    |
     */
 
     'driver' => env('SESSION_DRIVER', 'file'),

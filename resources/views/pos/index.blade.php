@@ -29,7 +29,7 @@
     <link rel="manifest" href="{{ asset('pos-manifest.json') }}">
     <link rel="stylesheet" href="{{ asset('css/pos.css') }}">
     <title>
-        {{ !empty($companySettings['header_text']) ? $companySettings['header_text']->value : config('app.name', 'ERPGO SaaS') }}
+        {{ !empty($companySettings['header_text']) ? $companySettings['header_text']->value : config('app.name', 'ERP SaaS') }}
         - {{ __('POS Retail') }}</title>
 
     <link rel="icon"
@@ -140,6 +140,10 @@
                             @else
                                 <a href="#" data-url="{{ route('pos.add_closing_balance') }}" data-bs-toggle="tooltip" title="{{ __('pos.add_closing_balance') }}" data-ajax-popup="true" data-title="{{ __('pos.add_closing_balance') }}" class="btn btn-sm btn-light">{{ __('pos.add_closing_balance') }}</a>
                             @endif
+                        @else
+                            <button type="button" class="btn btn-sm btn-light ms-2" id="pos-open-shift-btn" title="{{ __('pos.open_shift') }}">
+                                <i class="ti ti-login"></i> {{ __('pos.open_shift') }}
+                            </button>
                         @endif
                     </div>
                     <div class="d-flex align-items-center gap-2">
@@ -172,7 +176,8 @@
         <div class="row gy-2 main_div">
             @if(!$userOpenShift)
                 <div class="disabled_div">
-                    <h3>{{ __('pos.add_opening_balance_to_enable') }}</h3>
+                    <h3>{{ __('pos.open_shift_and_balance') }}</h3>
+                    <p class="mb-0 mt-2 small">{{ __('pos.open_shift_click_above') }}</p>
                 </div>
             @endif
             <div class="col-lg-9 border-right">
@@ -226,7 +231,7 @@
                         {{-- Branch & Warehouse: minimal one row --}}
                         @php
                             $restaurantBranchIds = $restaurantBranchIds ?? [];
-                            $defaultBranchId = (isset($branches) && $branches->count() == 1) ? $branches->keys()->first() : '';
+                            $defaultBranchId = $defaultBranchIdFromShift ?? ((isset($branches) && $branches->count() == 1) ? $branches->keys()->first() : '');
                             $customersForPos = $customersForPos ?? collect();
                         @endphp
                         @if(isset($branches) && $branches->count() >= 1)
@@ -235,7 +240,7 @@
                                 <select class="form-control form-control-sm select branch_select" id="branch_id">
                                     <option value="">{{ __('Select Branch') }}</option>
                                     @foreach($branches as $bid => $bname)
-                                        <option value="{{ $bid }}" {{ $bid == $defaultBranchId ? 'selected' : '' }}>{{ $bname }}</option>
+                                        <option value="{{ $bid }}" {{ (string)$bid === (string)$defaultBranchId ? 'selected' : '' }}>{{ $bname }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -445,6 +450,42 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="posOpenShiftModal" tabindex="-1" aria-labelledby="posOpenShiftModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="posOpenShiftModalLabel">{{ __('pos.open_shift') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="pos-open-shift-form">
+                    <div class="modal-body">
+                        @csrf
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('pos.branch') }}</label>
+                            <select name="branch_id" class="form-select" required>
+                                <option value="">{{ __('pos.select_branch') }}</option>
+                                @isset($branches)
+                                    @foreach($branches as $bid => $bname)
+                                        <option value="{{ $bid }}">{{ $bname }}</option>
+                                    @endforeach
+                                @endisset
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('pos.opening_balance') }}</label>
+                            <input type="number" name="opening_balance" class="form-control" min="0" step="0.01" value="0" placeholder="0">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
+                        <button type="submit" class="btn btn-primary" id="pos-open-shift-submit">{{ __('pos.open_shift') }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div class="position-fixed top-0 end-0 p-3" style="z-index: 99999">
         <div id="liveToast" class="toast text-white  fade" role="alert" aria-live="assertive" aria-atomic="true">
             <div class="d-flex">
@@ -623,6 +664,23 @@
                 client_order_id: 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11),
                 cart: cart
             };
+            if (pm === 'mixed' && $('#mixed_payment_wrap').length && !$('#mixed_payment_wrap').hasClass('d-none')) {
+                var payments = [];
+                var totalPaid = 0;
+                $('.mixed-row').each(function() {
+                    var amt = parseFloat($(this).find('.mixed-amount').val()) || 0;
+                    if (amt > 0) {
+                        payments.push({ payment_method: $(this).find('.mixed-method').val(), amount: amt });
+                        totalPaid += amt;
+                    }
+                });
+                if (payments.length > 0) {
+                    sale.payment_method = 'mixed';
+                    sale.payments = payments;
+                    sale.amount = totalPaid;
+                    sale.change_amount = 0;
+                }
+            }
             try {
                 var pending = JSON.parse(localStorage.getItem(POS_PENDING_KEY) || '[]');
                 pending.push(sale);
@@ -731,8 +789,9 @@
                             '<div class="d-flex justify-content-between mb-1"><span>{{ __("pos.total") }}:</span><strong>' + fmt(total) + '</strong></div>' +
                             '</div></div>' +
                             '<div class="mb-2"><label class="form-label small mb-1">{{ __("Payment Method") }}</label><select class="form-select form-select-sm" id="payment_method" name="payment_method">' + payOpts + '</select></div>' +
-                            '<div class="mb-2"><label class="form-label small mb-1">{{ __("Amount") }}</label><input type="number" step="0.01" min="0" class="form-control form-control-sm" id="payment_amount" value="' + total + '" placeholder="{{ __("pos.enter_amount") }}"></div>' +
+                            '<div class="mb-2" id="single_payment_wrap"><label class="form-label small mb-1" id="payment_amount_label">{{ __("pos.cash_received") }}</label><input type="number" step="0.01" min="0" class="form-control form-control-sm" id="payment_amount" value="' + total + '" placeholder="{{ __("pos.enter_amount") }}"></div>' +
                             '<div class="mb-2 d-none" id="change_wrap"><div class="alert alert-success mb-0 py-1 small"><strong>{{ __("Change") }}:</strong> <span id="change_display">0</span></div><input type="hidden" id="payment_change" name="change_amount" value="0"></div>' +
+                            '<div class="mb-2 d-none" id="mixed_payment_wrap"><label class="form-label small mb-1">{{ __("Mixed Payment") }}</label><div id="mixed_payment_rows"></div><button type="button" class="btn btn-outline-secondary btn-sm mt-1" id="mixed_add_row">{{ __("Add Payment") }}</button><div class="mt-2 small"><span>{{ __("pos.total_paid") }}:</span> <strong id="mixed_total_paid">0</strong> <span class="ms-2">{{ __("pos.remaining") }}:</span> <strong id="mixed_remaining">0</strong></div></div>' +
                             '<div class="mb-2 d-none" id="transaction_id_wrap"><label class="form-label small mb-1">{{ __("Transaction ID") }}</label><input type="text" class="form-control form-control-sm" id="payment_transaction_id" name="transaction_id" placeholder="{{ __("Transaction ID") }}"></div>' +
                             '<div class="mb-2 d-none" id="credit_days_wrap"><label class="form-label small mb-1">{{ __("Credit Days") }}</label><input type="number" min="1" class="form-control form-control-sm" id="payment_credit_terms" name="credit_terms" placeholder="{{ __("Enter days") }}"></div>' +
                             '<div class="mb-3"><label class="form-label small mb-1">{{ __("Notes") }}</label><textarea class="form-control form-control-sm" id="payment_notes" name="notes" rows="2" placeholder="{{ __("Notes") }}"></textarea></div>' +
@@ -743,14 +802,24 @@
                         $('#commonModal .body').attr('data-offline-total', total).html(html);
                         $('#commonModal').modal('show');
                         (function (totalRaw) {
+                            var payOptsRow = '<option value="cash">{{ __("pos.payment_cash") }}</option><option value="card">{{ __("pos.payment_card") }}</option><option value="credit">{{ __("pos.payment_credit") }}</option><option value="visa">{{ __("pos.payment_visa") }}</option><option value="mpesa">{{ __("pos.payment_mpesa") }}</option><option value="bank_transfer">{{ __("pos.payment_bank_transfer") }}</option><option value="cheque">{{ __("pos.payment_cheque") }}</option>';
                             function togglePaymentFields() {
                                 var method = $('#payment_method').val();
+                                var isMixed = method === 'mixed';
+                                var isCash = method === 'cash';
                                 var isCard = /^(card|visa|mpesa|bank_transfer|cheque)$/.test(method);
                                 var isCredit = method === 'credit';
+                                $('#single_payment_wrap').toggleClass('d-none', isMixed);
+                                $('#mixed_payment_wrap').toggleClass('d-none', !isMixed);
                                 $('#transaction_id_wrap').toggleClass('d-none', !isCard);
                                 $('#credit_days_wrap').toggleClass('d-none', !isCredit);
+                                $('#payment_amount_label').text(isCash ? '{{ __("pos.cash_received") }}' : '{{ __("Amount") }}');
+                                if (isCash) { updateChange(); } else { $('#change_wrap').addClass('d-none'); $('#payment_change').val('0'); }
+                                if (isMixed && $('#mixed_payment_rows .mixed-row').length === 0) { addMixedRow(); }
+                                if (isMixed) updateMixedTotals();
                             }
                             function updateChange() {
+                                if ($('#payment_method').val() !== 'cash') return;
                                 var amount = parseFloat($('#payment_amount').val()) || 0;
                                 var change = amount - totalRaw;
                                 if (change > 0) {
@@ -762,8 +831,22 @@
                                     $('#payment_change').val('0');
                                 }
                             }
+                            function addMixedRow() {
+                                var row = '<div class="mixed-row input-group input-group-sm mb-1"><select class="form-select form-select-sm mixed-method">' + payOptsRow + '</select><input type="number" step="0.01" min="0" class="form-control form-control-sm mixed-amount" placeholder="{{ __("pos.enter_amount") }}"><button type="button" class="btn btn-outline-danger btn-sm mixed-remove">&times;</button></div>';
+                                $('#mixed_payment_rows').append(row);
+                                $(document).off('input.posoffline change.posoffline', '.mixed-amount').on('input.posoffline change.posoffline', '.mixed-amount', updateMixedTotals);
+                                $(document).off('click.posoffline', '.mixed-remove').on('click.posoffline', '.mixed-remove', function() { $(this).closest('.mixed-row').remove(); updateMixedTotals(); });
+                                updateMixedTotals();
+                            }
+                            function updateMixedTotals() {
+                                var sum = 0;
+                                $('.mixed-amount').each(function() { sum += parseFloat($(this).val()) || 0; });
+                                $('#mixed_total_paid').text(fmt(Math.max(0, sum)));
+                                $('#mixed_remaining').text(fmt(Math.max(0, totalRaw - sum)));
+                            }
                             $('#payment_method').off('change.posoffline').on('change.posoffline', togglePaymentFields);
                             $('#payment_amount').off('input.posoffline change.posoffline').on('input.posoffline change.posoffline', updateChange);
+                            $('#mixed_add_row').off('click.posoffline').on('click.posoffline', addMixedRow);
                             togglePaymentFields();
                             updateChange();
                         })(total);
@@ -773,13 +856,27 @@
             }
             $(document).on('click', '#pos-offline-pay-confirm', function () {
                 var requiredTotal = parseFloat($('#commonModal .body').attr('data-offline-total')) || 0;
-                var enteredAmount = parseFloat($('#payment_amount').val()) || 0;
-                if (requiredTotal > 0 && enteredAmount < requiredTotal) {
-                    if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', '{{ __("pos.amount_cannot_less_than_total") }}', 'error');
-                    return;
+                var method = ($('#payment_method').length ? $('#payment_method').val() : '') || 'cash';
+                if (method === 'mixed') {
+                    var totalPaid = 0;
+                    $('.mixed-amount').each(function() { totalPaid += parseFloat($(this).val()) || 0; });
+                    if (requiredTotal > 0 && totalPaid < requiredTotal) {
+                        if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', '{{ __("pos.amount_cannot_less_than_total") }}', 'error');
+                        return;
+                    }
+                } else {
+                    var enteredAmount = parseFloat($('#payment_amount').val()) || 0;
+                    if (requiredTotal > 0 && enteredAmount < requiredTotal) {
+                        if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', '{{ __("pos.amount_cannot_less_than_total") }}', 'error');
+                        return;
+                    }
                 }
                 var receiptData = null;
                 if (posSaveOfflineSale()) {
+                    var payAmt = method === 'mixed' ? 0 : (parseFloat($('#payment_amount').val()) || 0);
+                    if (method === 'mixed') {
+                        $('.mixed-row').each(function() { payAmt += parseFloat($(this).find('.mixed-amount').val()) || 0; });
+                    }
                     receiptData = {
                         items: [],
                         subTotal: 0,
@@ -787,9 +884,9 @@
                         discount: parseFloat($('#discount_hidden').val()) || 0,
                         total: requiredTotal,
                         customer: ($('#vc_name_hidden').val() || '').trim() || 'Walk-in-customer',
-                        paymentMethod: ($('#payment_method').val() || 'cash').replace(/_/g, ' '),
-                        amount: parseFloat($('#payment_amount').val()) || 0,
-                        change: parseFloat($('#payment_change').val()) || 0,
+                        paymentMethod: (method === 'mixed' ? 'Mixed Payment' : (method || 'cash').replace(/_/g, ' ')),
+                        amount: payAmt,
+                        change: method === 'cash' ? (parseFloat($('#payment_change').val()) || 0) : 0,
                         transactionId: ($('#payment_transaction_id').val() || '').trim(),
                         creditTerms: ($('#payment_credit_terms').val() || '').trim(),
                         notes: ($('#payment_notes').val() || '').trim(),
@@ -971,15 +1068,8 @@
             });
 
             function loadBranchShifts(branchId) {
-                var $select = $('#pos-shift-select');
-                var $hint = $('#pos-shift-hint');
-                $select.find('option:not(:first)').remove();
                 $('#pos_shift_id_hidden').val('');
-                if (!branchId) {
-                    $hint.text('{{ __("pos.select_branch_first") }}').show();
-                    return;
-                }
-                $hint.text('').hide();
+                if (!branchId) return;
                 $.ajax({
                     url: posBranchOpenShiftsUrl,
                     data: { branch_id: branchId },
@@ -988,29 +1078,12 @@
                         var shifts = res && res.shifts ? res.shifts : [];
                         var currentUserShiftId = null;
                         shifts.forEach(function (s) {
-                            var label = s.user_name + ' — #' + s.id + (s.opened_at ? ' (' + s.opened_at + ')' : '');
-                            $select.append($('<option></option>').attr('value', s.id).attr('data-user-id', s.user_id).text(label));
                             if (s.is_current_user) currentUserShiftId = s.id;
                         });
-                        if (currentUserShiftId) {
-                            $select.val(currentUserShiftId);
-                        } else if (shifts.length > 0) {
-                            $select.val(shifts[0].id);
-                        }
-                        $('#pos_shift_id_hidden').val($select.val() || '');
-                        if (shifts.length === 0) {
-                            $hint.text('{{ __("pos.no_open_shifts") }}').show();
-                        }
-                    },
-                    error: function () {
-                        $hint.text('{{ __("pos.no_shift") }}').show();
+                        $('#pos_shift_id_hidden').val(currentUserShiftId || '');
                     }
                 });
             }
-
-            $('#pos-shift-select').on('change', function () {
-                $('#pos_shift_id_hidden').val($(this).val() || '');
-            });
 
             $('#pos-restaurant-branch').on('change', function () {
                 var branchId = $(this).val();
@@ -1415,7 +1488,15 @@
                 $(IDs.toString()).val('');
             });
 
-            $(document).on('keyup', 'input.searchproduct', function() {
+            function posDebounce(fn, ms) {
+                var t;
+                return function() {
+                    var self = this, args = arguments;
+                    clearTimeout(t);
+                    t = setTimeout(function() { fn.apply(self, args); }, ms);
+                };
+            }
+            var searchProductDebounced = posDebounce(function() {
                 var url = $(this).data('url');
                 var value = this.value;
                 var ware_id = $( "#warehouse" ).val();
@@ -1423,17 +1504,15 @@
                 if (value != '') {
                     searchProducts(url, value, cat, ware_id, 'name');
                 }
-            });
-
-            $(document).on('keyup', 'input.searchproduct-restaurant', function() {
+            }, 280);
+            var searchProductRestaurantDebounced = posDebounce(function() {
                 var url = $(this).data('url');
                 var value = this.value;
                 var ware_id = $( "#warehouse" ).val();
                 var cat = $('#pos-restaurant-panel .cat-active').length ? $('#pos-restaurant-panel .cat-active').first().children().data('cat-id') : '0';
                 searchProducts(url, value, cat, ware_id, 'name', 'product-listing-restaurant');
-            });
-
-            $(document).on('keyup', 'input.barcodeScanner', function() {
+            }, 280);
+            var barcodeSearchDebounced = posDebounce(function() {
                 var url = $(this).data('url');
                 var value = this.value;
                 var ware_id = $( "#warehouse" ).val();
@@ -1441,19 +1520,44 @@
                 if (value != '') {
                     searchProducts(url, value, cat, ware_id, 'sku');
                 }
-            });
+            }, 280);
+            $(document).on('keyup', 'input.searchproduct', searchProductDebounced);
+            $(document).on('keyup', 'input.searchproduct-restaurant', searchProductRestaurantDebounced);
+            $(document).on('keyup', 'input.barcodeScanner', barcodeSearchDebounced);
 
 
-            function searchProducts(url, value, cat_id, war_id, type, targetId) {
+            var posSearchPage = 1;
+            var posLastSearchParams = {};
+            function searchProducts(url, value, cat_id, war_id, type, targetId, appendPage) {
                 war_id = war_id || '0';
                 type = type || 'name';
                 targetId = targetId || 'product-listing';
+                var page = (appendPage === true) ? (posSearchPage + 1) : 1;
+                if (appendPage !== true) { posSearchPage = 1; posLastSearchParams = { url: url, value: value, cat_id: cat_id, war_id: war_id, type: type, targetId: targetId }; }
                 var cacheKey = posProductCacheKey(war_id, cat_id, value, type);
-                function renderProducts(html) {
-                    $('#' + targetId).html(html);
+                function renderProducts(html, append) {
+                    var $target = $('#' + targetId);
+                    if (append) {
+                        $target.find('.pos-load-more-wrap').remove();
+                        $target.append(html);
+                    } else {
+                        $target.html(html);
+                    }
+                }
+                function showLoading() {
+                    $('#' + targetId).html('<div class="col-12 text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>{{ __("Loading...") }}</div>');
                 }
                 function showOfflineNoProducts() {
                     renderProducts('<div class="card card-body col-12 text-center"><h5>{{ __("pos.offline_no_products") }}</h5><small>{{ __("pos.offline_load_first") }}</small></div>');
+                }
+                function maybeAddLoadMore(htmlStr) {
+                    var $tmp = $('<div>').append($.parseHTML(htmlStr));
+                    var count = $tmp.find('.toacart').length;
+                    if (count >= 50 && posLastSearchParams.url) {
+                        var loadMoreHtml = '<div class="col-12 pos-load-more-wrap text-center py-2"><button type="button" class="btn btn-outline-primary btn-sm pos-load-more-products">{{ __("pos.load_more") }}</button></div>';
+                        $('#' + targetId).find('.pos-load-more-wrap').remove();
+                        $('#' + targetId).append(loadMoreHtml);
+                    }
                 }
                 if (!navigator.onLine) {
                     var cached = posGetCachedProducts(cacheKey);
@@ -1461,13 +1565,21 @@
                     else showOfflineNoProducts();
                     return;
                 }
+                if (appendPage !== true) showLoading();
                 $.ajax({
                     type: 'GET',
                     url: url,
-                    data: { 'search': value, 'cat_id': cat_id, 'war_id': war_id, 'session_key': session_key, 'type': type },
+                    data: { 'search': value, 'cat_id': cat_id, 'war_id': war_id, 'session_key': session_key, 'type': type, 'page': page },
                     success: function(data) {
-                        posSetCachedProducts(cacheKey, data);
-                        renderProducts(data);
+                        if (appendPage === true) {
+                            posSearchPage = page;
+                            renderProducts(data, true);
+                            maybeAddLoadMore(data);
+                        } else {
+                            posSetCachedProducts(cacheKey, data);
+                            renderProducts(data);
+                            maybeAddLoadMore(data);
+                        }
                     },
                     error: function() {
                         var cached = posGetCachedProducts(cacheKey);
@@ -1476,9 +1588,14 @@
                     }
                 });
             }
+            $(document).on('click', '.pos-load-more-products', function() {
+                var p = posLastSearchParams;
+                if (p.url) searchProducts(p.url, p.value, p.cat_id, p.war_id, p.type, p.targetId, true);
+            });
 
             $(document).on('click', '.toacart', function () {
                 var $el = $(this);
+                var $btn = $el.find('.pos-add-cart-btn, button').first();
                 var isRestaurant = $el.closest('#pos-restaurant-panel').length > 0;
                 var tbodySel = isRestaurant ? '#tbody-restaurant' : '#tbody';
                 var rowIdPrefix = isRestaurant ? 'product-id-r-' : 'product-id-';
@@ -1518,8 +1635,19 @@
                     return;
                 }
                 var sum = 0;
+                var wasDisabled = $btn.length && $btn.prop('disabled');
+                if ($btn.length && !wasDisabled) {
+                    $btn.prop('disabled', true).addClass('pos-add-cart-loading');
+                    var $icon = $btn.find('i');
+                    if ($icon.length) $icon.removeClass('ti-plus').addClass('ti-loader ti-spin');
+                }
+                var addToCartUrl = $el.data('url');
+                var taxRate = $el.data('product-tax');
+                if (taxRate !== undefined && taxRate !== '' && !isNaN(parseFloat(taxRate))) {
+                    addToCartUrl += (addToCartUrl.indexOf('?') !== -1 ? '&' : '?') + 'tax_rate=' + encodeURIComponent(taxRate);
+                }
                 $.ajax({
-                    url: $el.data('url'),
+                    url: addToCartUrl,
                     success: function (data) {
                         if (data.code == '200') {
                             if (isRestaurant) {
@@ -1574,6 +1702,15 @@
                     error: function (data) {
                         data = data.responseJSON || {};
                         show_toastr('{{ __("Error") }}', data.error || '{{ __("pos.error") }}', 'error');
+                    },
+                    complete: function() {
+                        if ($btn.length && !wasDisabled) {
+                            setTimeout(function() {
+                                $btn.prop('disabled', false).removeClass('pos-add-cart-loading');
+                                var $icon = $btn.find('i');
+                                if ($icon.length) $icon.removeClass('ti-loader ti-spin').addClass('ti-plus');
+                            }, 800);
+                        }
                     }
                 });
             });
@@ -1857,6 +1994,37 @@
     <script>
         var site_currency_symbol_position = '{{ \App\Models\Utility::getValByName('site_currency_symbol_position') }}';
         var site_currency_symbol = '{{ \App\Models\Utility::getValByName('site_currency_symbol') }}';
+    </script>
+    {{-- Open Shift from POS --}}
+    <script>
+        $(function () {
+            var $btn = $('#pos-open-shift-btn');
+            var $modal = $('#posOpenShiftModal');
+            var $form = $('#pos-open-shift-form');
+            if ($btn.length && $modal.length) {
+                $btn.on('click', function () { $modal.modal('show'); });
+                $form.on('submit', function (e) {
+                    e.preventDefault();
+                    var $submit = $('#pos-open-shift-submit').prop('disabled', true);
+                    $.ajax({
+                        url: '{{ route("pos-shift.open-from-pos") }}',
+                        method: 'POST',
+                        data: { branch_id: $form.find('[name=branch_id]').val(), opening_balance: $form.find('[name=opening_balance]').val() || 0, _token: $form.find('[name=_token]').val() },
+                        headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'), 'Accept': 'application/json' },
+                        success: function () {
+                            if (typeof show_toastr === 'function') show_toastr('success', '{{ __("Shift opened successfully.") }}', 'success');
+                            $modal.modal('hide');
+                            window.location.reload();
+                        },
+                        error: function (xhr) {
+                            var msg = (xhr.responseJSON && xhr.responseJSON.error) || '{{ __("pos.error") }}';
+                            if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', msg, 'error');
+                            $submit.prop('disabled', false);
+                        }
+                    });
+                });
+            }
+        });
     </script>
     {{-- PWA Install: button always visible when not standalone; click = native prompt or fallback --}}
     <script>

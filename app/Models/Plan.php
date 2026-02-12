@@ -9,6 +9,10 @@ class Plan extends Model
 {
     protected $fillable = [
         'name',
+        'name_fr',
+        'name_zh',
+        'name_es',
+        'name_pt_br',
         'price',
         'duration',
         'max_users',
@@ -18,6 +22,10 @@ class Plan extends Model
         'trial',
         'trial_days',
         'description',
+        'description_fr',
+        'description_zh',
+        'description_es',
+        'description_pt_br',
         'image',
         'crm',
         'hrm',

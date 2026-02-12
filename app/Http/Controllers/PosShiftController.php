@@ -14,6 +14,47 @@ use Illuminate\Http\Request;
 
 class PosShiftController extends Controller
 {
+    /**
+     * Open a shift from POS (current user). Used when user has no open shift and clicks "Open Shift" on POS.
+     */
+    public function openFromPos(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $validator = \Validator::make($request->all(), [
+            'branch_id' => 'required|exists:branches,id',
+            'opening_balance' => 'nullable|numeric|min:0',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->getMessageBag()->first()], 422);
+        }
+        $creatorId = \Auth::user()->creatorId();
+        $userId = \Auth::user()->id;
+        $branchId = $request->branch_id;
+        // Ensure branch belongs to company
+        $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->where('is_active', true)->first();
+        if (!$branch) {
+            return response()->json(['error' => __('Invalid branch.')], 422);
+        }
+        $existing = PosShift::where('branch_id', $branchId)
+            ->where('user_id', $userId)
+            ->where('status', PosShift::STATUS_OPEN)
+            ->first();
+        if ($existing) {
+            return response()->json(['error' => __('You already have an open shift for this branch.')], 422);
+        }
+        $shift = new PosShift();
+        $shift->branch_id = $branchId;
+        $shift->user_id = $userId;
+        $shift->opened_at = now();
+        $shift->opening_balance = (float) ($request->opening_balance ?? 0);
+        $shift->status = PosShift::STATUS_OPEN;
+        $shift->created_by = $creatorId;
+        $shift->save();
+        return response()->json(['success' => true, 'message' => __('Shift opened successfully.'), 'shift_id' => $shift->id]);
+    }
+
     public function index()
     {
         if (\Auth::user()->canManagePos()) {
@@ -78,6 +119,27 @@ class PosShiftController extends Controller
             return view('pos_shift.show', compact('pos_shift'));
         }
         return redirect()->back()->with('error', __('Permission denied.'));
+    }
+
+    /**
+     * Proper shift report: sales list, payment summary, opening/closing balance. Printable.
+     */
+    public function shiftReport(PosShift $pos_shift)
+    {
+        if (!\Auth::user()->canManagePos() || $pos_shift->created_by != \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $pos_shift->load(['branch', 'user']);
+        $posIds = \App\Models\Pos::where('shift_id', $pos_shift->id)->pluck('id');
+        $sales = \App\Models\Pos::where('shift_id', $pos_shift->id)->with(['items', 'posPayments'])->orderBy('pos_id')->get();
+        $paymentsByMethod = \App\Models\PosPayment::whereIn('pos_id', $posIds)->selectRaw('payment_method, sum(amount) as total, count(*) as cnt')->groupBy('payment_method')->get()->keyBy('payment_method');
+        $cashTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
+            $q->where('payment_method', \App\Models\PosPayment::METHOD_CASH)->orWhereNull('payment_method');
+        })->sum('amount');
+        $cardTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', ['card', 'visa', 'mpesa', 'bank_transfer', 'cheque'])->sum('amount');
+        $creditTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
+        $salesTotal = $sales->sum(fn ($p) => $p->getTotal());
+        return view('pos_shift.report', compact('pos_shift', 'sales', 'paymentsByMethod', 'cashTotal', 'cardTotal', 'creditTotal', 'salesTotal'));
     }
 
     public function closeForm(PosShift $pos_shift)
