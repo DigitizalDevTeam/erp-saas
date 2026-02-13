@@ -27,12 +27,35 @@ class JournalEntryController extends Controller
     public function create()
     {
         if (\Auth::user()->can('create journal entry')) {
-            $chartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name,chart_of_accounts.id, chart_of_accounts.code,  chart_of_accounts.parent'))
+            $ulane = auth()->user()->lang ?? 'en';
+            $name_column = 'name';
+            switch($ulane)
+            {
+                case 'en':
+                    $name_column = 'name';
+                    break;
+                case 'fr':
+                    $name_column = 'name_fr';
+                    break;
+                case 'zh':
+                    $name_column = 'name_zh';
+                    break;
+                case 'es':
+                    $name_column = 'name_es';
+                    break;
+                case 'pt':
+                    $name_column = 'name_pt_br';
+                    break;
+                default:
+                    $name_column = 'name';
+                    break;
+            }
+            $chartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.'.$name_column.') AS code_name,chart_of_accounts.id, chart_of_accounts.code,  chart_of_accounts.parent'))
                 ->where('parent', '=', 0)
                 ->where('created_by', \Auth::user()->creatorId())->get()
                 ->toarray();
 
-            $subAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name , chart_of_accounts.id, chart_of_accounts.code , chart_of_account_parents.account'));
+            $subAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.'.$name_column.') AS code_name , chart_of_accounts.id, chart_of_accounts.code , chart_of_account_parents.account'));
             $subAccounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id');
             $subAccounts->where('chart_of_accounts.parent', '!=', 0);
             $subAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
@@ -40,7 +63,7 @@ class JournalEntryController extends Controller
 
             $journalId = $this->journalNumber();
 
-            return view('journalEntry.create', compact('chartAccounts', 'subAccounts', 'journalId'));
+            return view('journalEntry.create', compact('chartAccounts', 'subAccounts', 'journalId','name_column'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
@@ -147,8 +170,32 @@ class JournalEntryController extends Controller
             if ($journalEntry->created_by == \Auth::user()->creatorId()) {
                 $accounts = $journalEntry->accounts;
                 $settings = Utility::settings();
+                    
+                $ulane = auth()->user()->lang ?? 'en';
+                $name_column = 'name';
+                switch($ulane)
+                {
+                    case 'en':
+                        $name_column = 'name';
+                        break;
+                    case 'fr':
+                        $name_column = 'name_fr';
+                        break;
+                    case 'zh':
+                        $name_column = 'name_zh';
+                        break;
+                    case 'es':
+                        $name_column = 'name_es';
+                        break;
+                    case 'pt':
+                        $name_column = 'name_pt_br';
+                        break;
+                    default:
+                        $name_column = 'name';
+                        break;
+                }
 
-                return view('journalEntry.view', compact('journalEntry', 'accounts', 'settings'));
+                return view('journalEntry.view', compact('journalEntry', 'accounts', 'settings','name_column'));
             } else {
                 return redirect()->back()->with('error', __('Permission denied.'));
             }
@@ -160,12 +207,35 @@ class JournalEntryController extends Controller
     public function edit(JournalEntry $journalEntry)
     {
         if (\Auth::user()->can('edit journal entry')) {
-            $chartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name,chart_of_accounts.id, chart_of_accounts.code,  chart_of_accounts.parent'))
+            $ulane = auth()->user()->lang ?? 'en';
+            $name_column = 'name';
+            switch($ulane)
+            {
+                case 'en':
+                    $name_column = 'name';
+                    break;
+                case 'fr':
+                    $name_column = 'name_fr';
+                    break;
+                case 'zh':
+                    $name_column = 'name_zh';
+                    break;
+                case 'es':
+                    $name_column = 'name_es';
+                    break;
+                case 'pt':
+                    $name_column = 'name_pt_br';
+                    break;
+                default:
+                    $name_column = 'name';
+                    break;
+            }
+            $chartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.'.$name_column.') AS code_name,chart_of_accounts.id, chart_of_accounts.code,  chart_of_accounts.parent'))
                 ->where('parent', '=', 0)
                 ->where('created_by', \Auth::user()->creatorId())->get()
                 ->toarray();
 
-            $subAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name , chart_of_accounts.id, chart_of_accounts.code , chart_of_account_parents.account'));
+            $subAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.'.$name_column.') AS code_name , chart_of_accounts.id, chart_of_accounts.code , chart_of_account_parents.account'));
             $subAccounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id');
             $subAccounts->where('chart_of_accounts.parent', '!=', 0);
             $subAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());

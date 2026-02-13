@@ -178,7 +178,7 @@ class ChartOfAccountController extends Controller
             if($request->parent == '0')
             {
                 $account              = new ChartOfAccount();
-                $account->name        = $request->name;
+                $account->name        = $request->name ?? $request->name_pt_br;
                 $account->name_fr        = $request->name_fr ?? $request->name_pt_br;
                 $account->name_zh        = $request->name_zh ?? $request->name_pt_br;
                 $account->name_es        = $request->name_es ?? $request->name_pt_br;
@@ -193,6 +193,7 @@ class ChartOfAccountController extends Controller
                 $account->description_es = $request->description_es;
                 $account->description_pt_br = $request->description_pt_br;
                 $account->is_enabled  = isset($request->is_enabled) ? 1 : 0;
+                $account->is_default  = 0;
                 $account->created_by  = \Auth::user()->creatorId();
                 $account->save();
                 
@@ -230,10 +231,10 @@ class ChartOfAccountController extends Controller
                 // }
     
                 $account              = new ChartOfAccount();
-                $account->name        = $request->name;
-                $account->name_fr        = $request->name_fr;
-                $account->name_zh        = $request->name_zh;
-                $account->name_es        = $request->name_es;
+                $account->name        = $request->name ?? $request->name_pt_br;
+                $account->name_fr        = $request->name_fr ?? $request->name_pt_br;
+                $account->name_zh        = $request->name_zh ?? $request->name_pt_br;
+                $account->name_es        = $request->name_es ?? $request->name_pt_br;
                 $account->name_pt_br        = $request->name_pt_br;
                 $account->code        = $request->code;
                 $account->type        = $type->type;
@@ -242,6 +243,7 @@ class ChartOfAccountController extends Controller
                 $account->description = $request->description;
                 $account->is_enabled  = isset($request->is_enabled) ? 1 : 0;
                 $account->created_by  = \Auth::user()->creatorId();
+                $account->is_default  = 0;
                 $account->save();
             }
             
@@ -337,7 +339,10 @@ class ChartOfAccountController extends Controller
 
     public function edit(ChartOfAccount $chartOfAccount)
     {
-        
+        if($chartOfAccount->is_default)
+        {
+            return redirect()->back();
+        }
         $types = ChartOfAccountType::get()->pluck('name', 'id');
         $types->prepend('Select Account Type', 0);
 
@@ -348,6 +353,10 @@ class ChartOfAccountController extends Controller
     public function update(Request $request, ChartOfAccount $chartOfAccount)
     {
 
+        if($chartOfAccount->is_default)
+        {
+            return redirect()->back();
+        }
         if(\Auth::user()->can('edit chart of account'))
         {
             $validator = \Validator::make(
@@ -364,7 +373,7 @@ class ChartOfAccountController extends Controller
             }
 
 
-            $chartOfAccount->name        = $request->name;
+            $chartOfAccount->name        = $request->name ?? $request->name_pt_br;
             $chartOfAccount->name_fr        = $request->name_fr ?? $request->name_pt_br;
             $chartOfAccount->name_zh        = $request->name_zh ?? $request->name_pt_br;
             $chartOfAccount->name_es        = $request->name_es ?? $request->name_pt_br;

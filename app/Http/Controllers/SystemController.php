@@ -360,7 +360,6 @@ class SystemController extends Controller
     }
     public function saveCompanySettings(Request $request)
     {
-
         if (\Auth::user()->can('manage company settings')) {
             $user = \Auth::user();
             $request->validate(
@@ -389,7 +388,7 @@ class SystemController extends Controller
                     \DB::insert(
                         'insert into settings (`value`, `name`,`created_by`) values (?, ?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`) ',
                         [
-                            $data,
+                            is_array($data) ? json_encode($data) : $data,
                             $key,
                             \Auth::user()->creatorId(),
                         ]

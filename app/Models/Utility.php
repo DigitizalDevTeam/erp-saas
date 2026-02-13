@@ -228,6 +228,7 @@ class Utility extends Model
             "site_currency_symbol_position" => "pre",
             "site_date_format" => "M j, Y",
             "site_time_format" => "g:i A",
+            "languages" => '',
             "timezone" => '',
             "company_name" => "",
             "company_address" => "",
@@ -273,7 +274,7 @@ class Utility extends Model
             "employee_prefix" => "#EMP00",
             'leave_status' => '1',
             "bug_prefix" => "#ISSUE",
-            'title_text' => 'ERP SaaS',
+            'title_text' => 'ErpGo Saas',
             'footer_text' => '',
             "company_start_time" => "09:00",
             "company_end_time" => "18:00",
@@ -450,6 +451,7 @@ class Utility extends Model
             "site_currency_symbol_position" => "pre",
             "site_date_format" => "M j, Y",
             "site_time_format" => "g:i A",
+            "languages" => '["pt"]',
             "company_name" => "",
             "company_address" => "",
             "company_city" => "",
@@ -494,7 +496,7 @@ class Utility extends Model
             "employee_prefix" => "#EMP00",
             'leave_status' => '1',
             "bug_prefix" => "#ISSUE",
-            'title_text' => 'ERP SaaS',
+            'title_text' => 'ErpGo Saas',
             'footer_text' => '',
             "company_start_time" => "09:00",
             "company_end_time" => "18:00",
@@ -4049,22 +4051,15 @@ class Utility extends Model
     {
         $product = WarehouseProduct::where('warehouse_id', $warehouse_id)->where('product_id', $product_id)->first();
 
-        if (empty($product)) {
-            $product = new WarehouseProduct();
-            $product->warehouse_id = $warehouse_id;
-            $product->product_id = $product_id;
-            $product->quantity = 0;
-            $product->created_by = \Auth::check() ? \Auth::user()->creatorId() : null;
-        }
-
-        $pro_quantity = (int) $product->quantity;
+        $pro_quantity = (!empty($product) && !empty($product->quantity)) ? $product->quantity : 0;
 
         if ($type == 'minus') {
-            $product->quantity = $pro_quantity - (int) $quantity;
+            $product->quantity = $pro_quantity != 0 ? $pro_quantity - $quantity : $quantity;
         } else {
-            $product->quantity = $pro_quantity + (int) $quantity;
+            $product->quantity = $pro_quantity + $quantity;
         }
         $product->save();
+
     }
 
     //warehouse transfer

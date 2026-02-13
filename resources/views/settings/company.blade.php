@@ -585,7 +585,7 @@
                         <!--        <div class="col-md-4 col-12">-->
                         <!--            <div class="form-group mb-0">-->
                         <!--                {{ Form::label('title_text', __('Title Text'), ['class' => 'form-label']) }}-->
-                        <!--                {{ Form::text('title_text', Utility::getValByName('title_text') ? Utility::getValByName('title_text') : 'ERP SaaS', ['class' => 'form-control', 'placeholder' => __('Title Text')]) }}-->
+                        <!--                {{ Form::text('title_text', Utility::getValByName('title_text') ? Utility::getValByName('title_text') : 'ErpGo Saas', ['class' => 'form-control', 'placeholder' => __('Title Text')]) }}-->
                         <!--                @error('title_text')-->
                         <!--                    <span class="invalid-title_text" role="alert">-->
                         <!--                        <strong class="text-danger">{{ $message }}</strong>-->
@@ -1135,6 +1135,71 @@
                                                     {{ isset($setting['vat_gst_number_switch']) && $setting['vat_gst_number_switch'] == 'on' ? ' checked ' : '' }}>
 
                                                 <label class="form-check-label" for="vat_gst_number_switch"></label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <style>
+                                    .fw-normal{
+                                        font-weight:normal !important;
+                                    }
+                                </style>
+                                <?php
+                                    $languages = isset($setting['languages']) ?  json_decode($setting['languages']) : [];
+                                ?>
+                                <div class="form-group col-xxl-3 col-sm-6">
+                                    <div class="card mb-0">
+                                        <div class="card-body p-3">
+                                            <label for="language_label">{{ __('Select Languages') }}</label>
+                                            <div class="mb-2 mt-4">
+                                                <label for="language_label fw-normal">{{ __('Portuguese') }}</label>
+                                                <div class="form-check form-switch custom-switch-v1 float-end">
+                                                    <input type="checkbox" name="languages[]"
+                                                        class="form-check-input input-primary pointer" value="pt"
+                                                        id="language_pt" checked disabled>
+    
+                                                    <label class="form-check-label" for="language_pt"></label>
+                                                </div>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label for="language_label fw-normal">{{ __('English') }}</label>
+                                                <div class="form-check form-switch custom-switch-v1 float-end">
+                                                    <input type="checkbox" name="languages[]"
+                                                        class="form-check-input input-primary pointer" value="en"
+                                                        id="language_en" {{ in_array("en" , $languages) ? 'checked' : '' }} >
+    
+                                                    <label class="form-check-label" for="language_en"></label>
+                                                </div>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label for="language_label fw-normal">{{ __('Spanish') }}</label>
+                                                <div class="form-check form-switch custom-switch-v1 float-end">
+                                                    <input type="checkbox" name="languages[]"
+                                                        class="form-check-input input-primary pointer" value="es"
+                                                        id="language_es" {{ in_array("es" , $languages) ? 'checked' : '' }} >
+    
+                                                    <label class="form-check-label" for="language_es"></label>
+                                                </div>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label for="language_label fw-normal">{{ __('French') }}</label>
+                                                <div class="form-check form-switch custom-switch-v1 float-end">
+                                                    <input type="checkbox" name="languages[]"
+                                                        class="form-check-input input-primary pointer" value="fr"
+                                                        id="language_fr" {{ in_array("fr" , $languages) ? 'checked' : '' }} >
+    
+                                                    <label class="form-check-label" for="language_fr"></label>
+                                                </div>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label for="language_label fw-normal">{{ __('Chinese') }}</label>
+                                                <div class="form-check form-switch custom-switch-v1 float-end">
+                                                    <input type="checkbox" name="languages[]"
+                                                        class="form-check-input input-primary pointer" value="zh"
+                                                        id="language_zh" {{ in_array("zh" , $languages) ? 'checked' : '' }} >
+    
+                                                    <label class="form-check-label" for="language_zh"></label>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

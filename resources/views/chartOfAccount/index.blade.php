@@ -170,7 +170,7 @@
             @endif
         </td>
         <td>
-            @if(count($parent->children) == 0)
+            @if($parent->accountMain->is_default != 1)
             @can('edit chart of account')
                 <div class="action-btn me-2">
                     <a href="#" class="mx-3 btn btn-sm align-items-center bg-info"
@@ -242,6 +242,7 @@
                     </a>
                 </div>
 
+            @if($child->is_default != 1)
                 @can('edit chart of account')
                     <div class="action-btn me-2">
                         <a href="#" class="mx-3 btn btn-sm align-items-center bg-info"
@@ -271,6 +272,7 @@
                         {!! Form::close() !!}
                     </div>
                 @endcan
+                @endif
             </td>
         </tr>
     @endforeach

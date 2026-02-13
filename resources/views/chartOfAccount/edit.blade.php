@@ -3,6 +3,8 @@
     {{-- start for ai module--}}
     @php
         $plan= \App\Models\Utility::getChatGPTSettings();
+        $settings = \App\Models\Utility::settings();
+        $act_lan = isset($settings['languages']) ?  json_decode($settings['languages']) : [];
     @endphp
     @if($plan->chatgpt == 1)
     <div class="text-end">
@@ -14,22 +16,30 @@
     @endif
     {{-- end for ai module--}}
     <div class="row">
+        @if(in_array('en',$act_lan))
         <div class="form-group col-md-6">
             {{ Form::label('name', __('Name').' (english)',['class'=>'form-label']) }}<x-required></x-required>
             {{ Form::text('name', null, array('class' => 'form-control','required'=>'required' , 'placeholder'=>__('Enter Name'))) }}
         </div>
+        @endif
+        @if(in_array('fr',$act_lan))
         <div class="form-group col-md-6">
             {{ Form::label('name', __('Name').' (french)',['class'=>'form-label']) }}
             {{ Form::text('name_fr', null, array('class' => 'form-control', 'placeholder'=>__('Enter Name'))) }}
         </div>
+        @endif
+        @if(in_array('zh',$act_lan))
         <div class="form-group col-md-6">
             {{ Form::label('name', __('Name').' (chinese)',['class'=>'form-label']) }}
             {{ Form::text('name_zh', null, array('class' => 'form-control', 'placeholder'=>__('Enter Name'))) }}
         </div>
+        @endif
+        @if(in_array('es',$act_lan))
         <div class="form-group col-md-6">
             {{ Form::label('name', __('Name').' (spanish)',['class'=>'form-label']) }}
             {{ Form::text('name_es', null, array('class' => 'form-control', 'placeholder'=>__('Enter Name'))) }}
         </div>
+        @endif
         <div class="form-group col-md-6">
             {{ Form::label('name', __('Name').' (portuguese)',['class'=>'form-label']) }}<x-required></x-required>
             {{ Form::text('name_pt_br', null, array('class' => 'form-control','required'=>'required' , 'placeholder'=>__('Enter Name'))) }}
@@ -47,22 +57,30 @@
         </div>
 
 
+        @if(in_array('en',$act_lan))
         <div class="form-group col-md-6">
             {{ Form::label('description', __('Description').' (english)',['class'=>'form-label']) }}
             {!! Form::textarea('description', null, ['class'=>'form-control','rows'=>'2' , 'placeholder'=>__('Enter Description')]) !!}
         </div>
+        @endif
+        @if(in_array('fr',$act_lan))
         <div class="form-group col-md-6">
             {{ Form::label('description', __('Description').' (french)',['class'=>'form-label']) }}
             {!! Form::textarea('description_fr', null, ['class'=>'form-control','rows'=>'2' , 'placeholder'=>__('Enter Description')]) !!}
         </div>
+        @endif
+        @if(in_array('zh',$act_lan))
         <div class="form-group col-md-6">
             {{ Form::label('description', __('Description').' (chinese)',['class'=>'form-label']) }}
             {!! Form::textarea('description_zh', null, ['class'=>'form-control','rows'=>'2' , 'placeholder'=>__('Enter Description')]) !!}
         </div>
+        @endif
+        @if(in_array('es',$act_lan))
         <div class="form-group col-md-6">
             {{ Form::label('description', __('Description').' (spanish)',['class'=>'form-label']) }}
             {!! Form::textarea('description_es', null, ['class'=>'form-control','rows'=>'2' , 'placeholder'=>__('Enter Description')]) !!}
         </div>
+        @endif
         <div class="form-group col-md-6">
             {{ Form::label('description', __('Description').' (portuguese)',['class'=>'form-label']) }}
             {!! Form::textarea('description_pt_br', null, ['class'=>'form-control','rows'=>'2' , 'placeholder'=>__('Enter Description')]) !!}
@@ -75,4 +93,3 @@
     <input type="submit" value="{{__('Update')}}" class="btn  btn-primary">
 </div>
 {{ Form::close() }}
-

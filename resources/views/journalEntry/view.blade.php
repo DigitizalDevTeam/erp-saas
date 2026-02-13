@@ -73,7 +73,7 @@
 
                                                 <tr>
                                                     <td>{{$key+1}}</td>
-                                                    <td>{{!empty($account->accounts)?$account->accounts->code.' - '.$account->accounts->name:''}}</td>
+                                                    <td>{{!empty($account->accounts)?$account->accounts->code.' - '.$account->accounts->$name_column:''}}</td>
                                                     <td>{{!empty($account->description)?$account->description:'-'}}</td>
                                                     <td>{{\Auth::user()->priceFormat($account->debit)}}</td>
                                                     <td>{{\Auth::user()->priceFormat($account->credit)}}</td>
