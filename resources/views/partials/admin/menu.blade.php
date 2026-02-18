@@ -24,10 +24,10 @@
 
             @if ($setting['cust_darklayout'] && $setting['cust_darklayout'] == 'on')
                 <img src="{{ $logo . '/' . 'logo-light.png' . '?' . time() }}"
-                    alt="{{ config('app.name', 'ERPGo-SaaS') }}" class="logo logo-lg">
+                    alt="{{ config('app.name', 'ERP-SaaS') }}" class="logo logo-lg">
             @else
                 <img src="{{ $logo . '/' . 'logo-dark.png' . '?' . time() }}"
-                    alt="{{ config('app.name', 'ERPGo-SaaS') }}" class="logo logo-lg">
+                    alt="{{ config('app.name', 'ERP-SaaS') }}" class="logo logo-lg">
             @endif
 
         </a>

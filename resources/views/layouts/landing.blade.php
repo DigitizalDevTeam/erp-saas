@@ -950,7 +950,7 @@
             </div>
             <div class="col-lg-6 col-sm-12 text-end">
 
-                <p class="text-body">Copyright © 2023 | Design By ERPGo</p>
+                <p class="text-body">Copyright © 2023 | Design By ERP_SaaS</p>
             </div>
         </div>
     </div>
