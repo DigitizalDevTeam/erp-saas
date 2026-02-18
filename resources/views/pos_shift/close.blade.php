@@ -24,15 +24,19 @@
                         $cashTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
                             $q->where('payment_method', \App\Models\PosPayment::METHOD_CASH)->orWhereNull('payment_method');
                         })->sum('amount');
-                        $cardTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CARD)->sum('amount');
+                        $cardTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', [\App\Models\PosPayment::METHOD_CARD, \App\Models\PosPayment::METHOD_MPESA, \App\Models\PosPayment::METHOD_BANK_TRANSFER, 'visa', 'cheque'])->sum('amount');
                         $creditTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
-                        $expectedCash = $pos_shift->opening_balance + $cashTotal;
+                        $cashDropsTotal = (float) ($pos_shift->cashDrops->sum('amount') ?? 0);
+                        $expectedCash = $pos_shift->opening_balance + $cashTotal - $cashDropsTotal;
                     @endphp
                     <p><strong>{{ __('Sales (this shift)') }}:</strong> {{ $shiftSalesCount }} {{ __('transactions') }}, {{ \Auth::user()->priceFormat($shiftSalesTotal) }}</p>
                     <p><strong>{{ __('Cash (in)') }}:</strong> {{ \Auth::user()->priceFormat($cashTotal) }}</p>
-                    <p><strong>{{ __('Card (in)') }}:</strong> {{ \Auth::user()->priceFormat($cardTotal) }}</p>
+                    <p><strong>{{ __('Card / M-Pesa / Bank transfer (in)') }}:</strong> {{ \Auth::user()->priceFormat($cardTotal) }}</p>
                     <p><strong>{{ __('Credit (in)') }}:</strong> {{ \Auth::user()->priceFormat($creditTotal) }}</p>
-                    <p><strong>{{ __('Expected cash (opening + cash in)') }}:</strong> {{ \Auth::user()->priceFormat($expectedCash) }}</p>
+                    @if($cashDropsTotal > 0)
+                    <p><strong>{{ __('Cash drops (out)') }}:</strong> {{ \Auth::user()->priceFormat($cashDropsTotal) }}</p>
+                    @endif
+                    <p><strong>{{ __('Expected cash (opening + cash in − cash drops)') }}:</strong> {{ \Auth::user()->priceFormat($expectedCash) }}</p>
                     <hr>
                     {{ Form::open(['route' => ['pos-shift.close', $pos_shift], 'method' => 'post', 'class' => 'needs-validation', 'novalidate']) }}
                     <div class="form-group">

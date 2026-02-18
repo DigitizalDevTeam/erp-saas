@@ -38,7 +38,9 @@ use App\Models\PaySlip;
 use App\Models\Pipeline;
 use App\Models\Pos;
 use App\Models\PosPayment;
+use App\Models\PosProduct;
 use App\Models\PosShift;
+use App\Models\ProductService;
 use App\Models\ProductServiceCategory;
 use App\Models\Purchase;
 use App\Models\Revenue;
@@ -3192,6 +3194,26 @@ class ReportController extends Controller
         return view('report.pos_day_summary', compact('date', 'shifts'));
     }
 
+    /**
+     * Phase 5: Low stock report – products below threshold.
+     */
+    public function posLowStockReport(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $threshold = (float) (\App\Models\Utility::getValByName('pos_low_stock_threshold') ?: 10);
+        if ($request->filled('threshold')) {
+            $threshold = (float) $request->threshold;
+        }
+        $products = ProductService::where('created_by', \Auth::user()->creatorId())
+            ->where('type', 'product')
+            ->whereRaw('quantity < ?', [$threshold])
+            ->orderBy('quantity')
+            ->get();
+        return view('report.pos_low_stock', compact('products', 'threshold'));
+    }
+
     public function posVsPurchaseReport(Request $request)
     {
         if (\Auth::user()->canManagePos()) {
@@ -3304,6 +3326,197 @@ class ReportController extends Controller
 
         $filter = ['start_date' => $start, 'end_date' => $end, 'branch_id' => $branchId];
         return view('report.pos_branch', compact('branches', 'byBranch', 'totalSales', 'totalCount', 'filter'));
+    }
+
+    /**
+     * Phase 7: Restaurant reports dashboard – single entry point with links to all reports.
+     */
+    public function restaurantReportsIndex()
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        return view('report.restaurant_index');
+    }
+
+    /**
+     * Phase 7: Sales by product (paid POS only).
+     */
+    public function posSalesByProductReport(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $creatorId = \Auth::user()->creatorId();
+        $start = $request->get('start_date', date('Y-m-d', strtotime('-30 days')));
+        $end = $request->get('end_date', date('Y-m-d'));
+        $paidPosIds = Pos::where('created_by', $creatorId)
+            ->whereBetween('pos_date', [$start, $end])
+            ->whereHas('posPayments')
+            ->pluck('id');
+        $lines = PosProduct::whereIn('pos_id', $paidPosIds)
+            ->with('product')
+            ->get();
+        $byProduct = [];
+        foreach ($lines as $line) {
+            $pid = $line->product_id ?: 0;
+            $name = $line->product ? $line->product->name : __('Unknown');
+            $revenue = (float) ($line->price * $line->quantity - $line->discount);
+            if (!isset($byProduct[$pid])) {
+                $byProduct[$pid] = ['name' => $name, 'quantity' => 0, 'revenue' => 0];
+            }
+            $byProduct[$pid]['quantity'] += $line->quantity;
+            $byProduct[$pid]['revenue'] += $revenue;
+        }
+        usort($byProduct, fn($a, $b) => $b['revenue'] <=> $a['revenue']);
+        return view('report.restaurant_sales_by_product', compact('byProduct', 'start', 'end'));
+    }
+
+    /**
+     * Phase 7: Sales by waiter (shift user).
+     */
+    public function posSalesByWaiterReport(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $creatorId = \Auth::user()->creatorId();
+        $start = $request->get('start_date', date('Y-m-d', strtotime('-30 days')));
+        $end = $request->get('end_date', date('Y-m-d'));
+        $poses = Pos::where('created_by', $creatorId)
+            ->whereBetween('pos_date', [$start, $end])
+            ->with(['shift.user', 'posPayments'])
+            ->whereHas('posPayments')
+            ->get();
+        $byWaiter = [];
+        foreach ($poses as $pos) {
+            $uid = $pos->shift_id ? ($pos->shift->user_id ?? 0) : 0;
+            $name = $pos->shift && $pos->shift->user ? $pos->shift->user->name : __('No waiter');
+            $total = (float) $pos->posPayments->sum('amount');
+            if (!isset($byWaiter[$uid])) {
+                $byWaiter[$uid] = ['name' => $name, 'count' => 0, 'total' => 0];
+            }
+            $byWaiter[$uid]['count']++;
+            $byWaiter[$uid]['total'] += $total;
+        }
+        usort($byWaiter, fn($a, $b) => $b['total'] <=> $a['total']);
+        return view('report.restaurant_sales_by_waiter', compact('byWaiter', 'start', 'end'));
+    }
+
+    /**
+     * Phase 7: Cancelled orders (Pos with cancelled_at or cancelled lines).
+     */
+    public function posCancellationsReport(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $creatorId = \Auth::user()->creatorId();
+        $start = $request->get('start_date', date('Y-m-d', strtotime('-30 days')));
+        $end = $request->get('end_date', date('Y-m-d'));
+        $cancelled = Pos::where('created_by', $creatorId)
+            ->whereBetween('pos_date', [$start, $end])
+            ->whereNotNull('cancelled_at')
+            ->with(['branch', 'table'])
+            ->orderBy('cancelled_at', 'desc')
+            ->get();
+        return view('report.restaurant_cancellations', compact('cancelled', 'start', 'end'));
+    }
+
+    /**
+     * Phase 7: Discounts applied (from PosProduct and PosPayment).
+     */
+    public function posDiscountsReport(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $creatorId = \Auth::user()->creatorId();
+        $start = $request->get('start_date', date('Y-m-d', strtotime('-30 days')));
+        $end = $request->get('end_date', date('Y-m-d'));
+        $poses = Pos::where('created_by', $creatorId)->whereBetween('pos_date', [$start, $end])->pluck('id');
+        $lineDiscount = (float) PosProduct::whereIn('pos_id', $poses)->sum('discount');
+        $paymentDiscount = (float) PosPayment::whereIn('pos_id', $poses)->sum('discount_amount');
+        $totalDiscount = $lineDiscount + $paymentDiscount;
+        $rows = Pos::where('created_by', $creatorId)
+            ->whereBetween('pos_date', [$start, $end])
+            ->with(['posPayments', 'items'])
+            ->get()
+            ->filter(fn($p) => $p->getTotalDiscount() > 0 || ($p->posPayments->sum('discount_amount') > 0));
+        return view('report.restaurant_discounts', compact('rows', 'totalDiscount', 'start', 'end'));
+    }
+
+    /**
+     * Phase 7: Best-selling items (by quantity).
+     */
+    public function posBestSellingReport(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $creatorId = \Auth::user()->creatorId();
+        $start = $request->get('start_date', date('Y-m-d', strtotime('-30 days')));
+        $end = $request->get('end_date', date('Y-m-d'));
+        $paidPosIds = Pos::where('created_by', $creatorId)->whereBetween('pos_date', [$start, $end])->whereHas('posPayments')->pluck('id');
+        $lines = PosProduct::whereIn('pos_id', $paidPosIds)->with('product')->get();
+        $byProduct = [];
+        foreach ($lines as $line) {
+            $pid = $line->product_id ?: 0;
+            $name = $line->product ? $line->product->name : __('Unknown');
+            if (!isset($byProduct[$pid])) {
+                $byProduct[$pid] = ['name' => $name, 'quantity' => 0, 'revenue' => 0];
+            }
+            $byProduct[$pid]['quantity'] += $line->quantity;
+            $byProduct[$pid]['revenue'] += (float) ($line->price * $line->quantity - $line->discount);
+        }
+        usort($byProduct, fn($a, $b) => $b['quantity'] <=> $a['quantity']);
+        $byProduct = array_slice($byProduct, 0, 50);
+        return view('report.restaurant_best_selling', compact('byProduct', 'start', 'end'));
+    }
+
+    /**
+     * Phase 7: Gross profit (revenue - cost using product purchase_price).
+     */
+    public function posGrossProfitReport(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $creatorId = \Auth::user()->creatorId();
+        $start = $request->get('start_date', date('Y-m-d', strtotime('-30 days')));
+        $end = $request->get('end_date', date('Y-m-d'));
+        $paidPosIds = Pos::where('created_by', $creatorId)->whereBetween('pos_date', [$start, $end])->whereHas('posPayments')->pluck('id');
+        $lines = PosProduct::whereIn('pos_id', $paidPosIds)->with('product')->get();
+        $revenue = 0;
+        $cost = 0;
+        foreach ($lines as $line) {
+            $revenue += (float) ($line->price * $line->quantity - $line->discount);
+            $c = $line->product ? (float) ($line->product->purchase_price ?? 0) : 0;
+            $cost += $c * $line->quantity;
+        }
+        $profit = $revenue - $cost;
+        return view('report.restaurant_gross_profit', compact('revenue', 'cost', 'profit', 'start', 'end'));
+    }
+
+    /**
+     * Phase 7: Cash discrepancies (closed shifts with difference != 0).
+     */
+    public function posCashDiscrepanciesReport(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $creatorId = \Auth::user()->creatorId();
+        $start = $request->get('start_date', date('Y-m-d', strtotime('-30 days')));
+        $end = $request->get('end_date', date('Y-m-d'));
+        $shifts = PosShift::where('created_by', $creatorId)
+            ->where('status', PosShift::STATUS_CLOSED)
+            ->whereBetween('closed_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
+            ->whereRaw('COALESCE(difference, 0) != 0')
+            ->with(['branch', 'user'])
+            ->orderBy('closed_at', 'desc')
+            ->get();
+        return view('report.restaurant_cash_discrepancies', compact('shifts', 'start', 'end'));
     }
 
     public function profitLoss(Request $request, $view = '', $collapseView = 'expand')

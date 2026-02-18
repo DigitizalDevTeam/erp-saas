@@ -8,6 +8,7 @@ use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AppraisalController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AttendanceEmployeeController;
+use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\PriceLevelController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -55,6 +56,7 @@ use App\Http\Controllers\EmailTemplateController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExpenseRecordController;
 use App\Http\Controllers\FedapayController;
 use App\Http\Controllers\FlutterwavePaymentController;
 use App\Http\Controllers\FormBuilderController;
@@ -107,8 +109,11 @@ use App\Http\Controllers\PosAreaController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\PosShiftController;
 use App\Http\Controllers\PosPrinterController;
+use App\Http\Controllers\PosAuditLogController;
+use App\Http\Controllers\PosProductionController;
 use App\Http\Controllers\PosTableController;
 use App\Http\Controllers\ProductServiceCategoryController;
+use App\Http\Controllers\ProductRecipeController;
 use App\Http\Controllers\ProductServiceController;
 use App\Http\Controllers\ProductServiceUnitController;
 use App\Http\Controllers\ProductStockController;
@@ -1264,6 +1269,18 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('report/pos-eod', [ReportController::class, 'posEodReport'])->name('report.pos.eod')->middleware(['auth', 'XSS']);
     Route::get('report/pos-eod/export', [ReportController::class, 'posEodReportExport'])->name('report.pos.eod.export')->middleware(['auth', 'XSS']);
     Route::get('report/pos-day-summary', [ReportController::class, 'posDaySummary'])->name('report.pos.day-summary')->middleware(['auth', 'XSS']);
+    Route::get('report/pos-low-stock', [ReportController::class, 'posLowStockReport'])->name('report.pos.low-stock')->middleware(['auth', 'XSS']);
+    Route::get('report/restaurant', [ReportController::class, 'restaurantReportsIndex'])->name('report.restaurant.index')->middleware(['auth', 'XSS']);
+    Route::get('report/restaurant/sales-by-product', [ReportController::class, 'posSalesByProductReport'])->name('report.restaurant.sales-by-product')->middleware(['auth', 'XSS']);
+    Route::get('report/restaurant/sales-by-waiter', [ReportController::class, 'posSalesByWaiterReport'])->name('report.restaurant.sales-by-waiter')->middleware(['auth', 'XSS']);
+    Route::get('report/restaurant/cancellations', [ReportController::class, 'posCancellationsReport'])->name('report.restaurant.cancellations')->middleware(['auth', 'XSS']);
+    Route::get('report/restaurant/discounts', [ReportController::class, 'posDiscountsReport'])->name('report.restaurant.discounts')->middleware(['auth', 'XSS']);
+    Route::get('report/restaurant/best-selling', [ReportController::class, 'posBestSellingReport'])->name('report.restaurant.best-selling')->middleware(['auth', 'XSS']);
+    Route::get('report/restaurant/gross-profit', [ReportController::class, 'posGrossProfitReport'])->name('report.restaurant.gross-profit')->middleware(['auth', 'XSS']);
+    Route::get('report/restaurant/cash-discrepancies', [ReportController::class, 'posCashDiscrepanciesReport'])->name('report.restaurant.cash-discrepancies')->middleware(['auth', 'XSS']);
+    Route::get('product-recipe', [ProductRecipeController::class, 'index'])->name('product-recipe.index')->middleware(['auth', 'XSS']);
+    Route::post('product-recipe', [ProductRecipeController::class, 'store'])->name('product-recipe.store')->middleware(['auth', 'XSS']);
+    Route::delete('product-recipe/{product_recipe}', [ProductRecipeController::class, 'destroy'])->name('product-recipe.destroy')->middleware(['auth', 'XSS']);
 
     Route::get('reports-pos-vs-purchase', [ReportController::class, 'posVsPurchaseReport'])->name('report.pos.vs.purchase')->middleware(['auth', 'XSS']);
     Route::get('reports-pos-by-branch', [ReportController::class, 'posBranchReport'])->name('report.pos.branch')->middleware(['auth', 'XSS']);
@@ -1845,6 +1862,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::patch('pos-table/{id}/status', [PosTableController::class, 'updateStatus'])->name('pos-table.update-status')->middleware(['auth', 'XSS']);
     Route::post('pos-table/{id}/close', [PosTableController::class, 'closeTable'])->name('pos-table.close')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant-layout', [PosController::class, 'getRestaurantLayout'])->name('pos.restaurant.layout')->middleware(['auth', 'XSS']);
+    Route::post('pos/send-to-production', [PosController::class, 'sendToProduction'])->name('pos.send.to.production')->middleware(['auth', 'XSS']);
+    Route::post('pos/cancel-order', [PosController::class, 'cancelOrder'])->name('pos.cancel.order')->middleware(['auth', 'XSS']);
     Route::get('pos/active-shift', [PosController::class, 'getActiveShift'])->name('pos.active.shift')->middleware(['auth', 'XSS']);
     Route::get('pos/branch-open-shifts', [PosController::class, 'getBranchOpenShifts'])->name('pos.branch.open.shifts')->middleware(['auth', 'XSS']);
     Route::resource('pos-area', PosAreaController::class)->middleware(['auth', 'XSS', 'revalidate']);
@@ -1852,11 +1871,17 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos-shift/{pos_shift}/report', [PosShiftController::class, 'shiftReport'])->name('pos-shift.report')->middleware(['auth', 'XSS']);
     Route::get('pos-shift/{pos_shift}/close', [PosShiftController::class, 'closeForm'])->name('pos-shift.close-form')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/{pos_shift}/close', [PosShiftController::class, 'close'])->name('pos-shift.close')->middleware(['auth', 'XSS']);
+    Route::post('pos-shift/{pos_shift}/cash-drop', [PosShiftController::class, 'storeCashDrop'])->name('pos-shift.cash-drop')->middleware(['auth', 'XSS']);
     Route::get('pos-shift/{pos_shift}/assign-table', [PosShiftController::class, 'assignTableForm'])->name('pos-shift.assign-table')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/{pos_shift}/assign-table', [PosShiftController::class, 'assignTable'])->name('pos-shift.assign-table.store')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/transfer-tables', [PosShiftController::class, 'transferTables'])->name('pos-shift.transfer-tables')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/open-from-pos', [PosShiftController::class, 'openFromPos'])->name('pos-shift.open-from-pos')->middleware(['auth', 'XSS']);
     Route::resource('pos-shift', PosShiftController::class)->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('pos-audit-log', [PosAuditLogController::class, 'index'])->name('pos.audit-log.index')->middleware(['auth', 'XSS']);
+    Route::get('pos-restaurant-settings', [\App\Http\Controllers\PosRestaurantSettingsController::class, 'index'])->name('pos-restaurant-settings.index')->middleware(['auth', 'XSS']);
+    Route::post('pos-restaurant-settings', [\App\Http\Controllers\PosRestaurantSettingsController::class, 'store'])->name('pos-restaurant-settings.store')->middleware(['auth', 'XSS']);
+    Route::get('pos-production', [PosProductionController::class, 'index'])->name('pos.production.index')->middleware(['auth', 'XSS']);
+    Route::patch('pos-production/line/{line}', [PosProductionController::class, 'updateLineStatus'])->name('pos.production.line.update')->middleware(['auth', 'XSS']);
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
     Route::get('pos/retail/{cid?}', [PosController::class, 'index'])->name('pos.index')->defaults('cid', null)->middleware(['auth', 'XSS', 'revalidate']);
@@ -2026,7 +2051,13 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('request-amount-cancel/{id}', [ReferralProgramController::class, 'requestCancel'])->name('request.amount.cancel');
     Route::post('request-amount-store/{id}', [ReferralProgramController::class, 'requestedAmountStore'])->name('request.amount.store');
     Route::get('request-amount/{id}/{status}', [ReferralProgramController::class, 'requestedAmount'])->name('amount.request');
-});
+    Route::resource('company-policy', CompanyPolicyController::class)->middleware(['auth', 'XSS']);
+    Route::resource('expense-category', ExpenseCategoryController::class)->middleware(['auth', 'XSS']);
+    Route::post('expenses/{expense}/approve', [ExpenseRecordController::class, 'approve'])->name('expenses.approve')->middleware(['auth', 'XSS']);
+    Route::post('expenses/{expense}/reject', [ExpenseRecordController::class, 'reject'])->name('expenses.reject')->middleware(['auth', 'XSS']);
+    Route::resource('expenses', ExpenseRecordController::class)->middleware(['auth', 'XSS']);
+
+    });
 
 
 Route::any('/cookie-consent', [SystemController::class, 'CookieConsent'])->name('cookie-consent');

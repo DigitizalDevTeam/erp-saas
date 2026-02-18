@@ -44,6 +44,13 @@ class ProductService extends Model
     {
         return $this->hasOne('App\Models\ProductServiceCategory', 'id', 'category_id');
     }
+
+    /** Phase 5: Recipe (BOM) – ingredients for this product. If not empty, POS deducts by recipe. */
+    public function recipes()
+    {
+        return $this->hasMany(ProductRecipe::class, 'product_id', 'id');
+    }
+
     public function warehouse()
     {
         return $this->hasOne('App\Models\Warehouse', 'id', 'category_id');

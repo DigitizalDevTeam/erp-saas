@@ -28,6 +28,9 @@ class PosRestaurantRoleService
     public const ROLE_CASHIER = 'Cashier';
     public const ROLE_WAITER = 'Waiter';
     public const ROLE_MANAGER = 'Manager';
+    public const ROLE_BAR = 'Bar';
+    public const ROLE_KITCHEN = 'Kitchen';
+
 
     /** All permissions that must exist globally */
     public static function permissionNames(): array
@@ -67,6 +70,8 @@ class PosRestaurantRoleService
             self::ROLE_CASHIER => [self::PERMISSION_CASHIER, 'show pos dashboard'],
             self::ROLE_WAITER  => [self::PERMISSION_WAITER, 'show pos dashboard'],
             self::ROLE_MANAGER => [self::PERMISSION_MANAGER, 'show pos dashboard'],
+            self::ROLE_BAR => [self::PERMISSION_WAITER, 'show pos dashboard'],
+            self::ROLE_KITCHEN => [self::PERMISSION_WAITER, 'show pos dashboard'],
         ];
 
         foreach ($roleConfig as $roleName => $permissionNames) {

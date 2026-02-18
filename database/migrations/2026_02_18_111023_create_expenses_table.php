@@ -21,6 +21,10 @@ class CreateExpensesTable extends Migration
                 $table->string('description')->nullable();
                 $table->decimal('amount', 16, 2)->default('0.0');
                 $table->string('attachment')->nullable();
+                $table->integer('status')->default(0);
+                $table->integer('user_id')->default(0);
+                $table->integer('expense_category_id')->default(0);
+                $table->integer('branch_id')->default(0);
                 $table->integer('project_id')->default(0);
                 $table->integer('task_id')->default(0);
                 $table->integer('created_by')->default(0);

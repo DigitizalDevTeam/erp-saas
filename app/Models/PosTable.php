@@ -16,6 +16,7 @@ class PosTable extends Model
         'name',
         'capacity',
         'current_guests',
+        'customer_name',
         'status',
         'created_by',
     ];

@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\PosArea;
+use App\Models\PosAuditLog;
 use App\Models\PosTable;
+use App\Services\PosAuditLogService;
 use Illuminate\Http\Request;
 
 class PosTableController extends Controller
@@ -136,6 +138,7 @@ class PosTableController extends Controller
 
     /**
      * Update table status (available / occupied / reserved).
+     * Phase 4: Reopen (available → occupied) requires manager password; audit log.
      */
     public function updateStatus(Request $request, $id)
     {
@@ -150,15 +153,32 @@ class PosTableController extends Controller
         if (!in_array($status, [PosTable::STATUS_AVAILABLE, PosTable::STATUS_OCCUPIED, PosTable::STATUS_RESERVED], true)) {
             return response()->json(['error' => __('Invalid status.')], 422);
         }
+        $oldStatus = $table->status;
+        if ($oldStatus === PosTable::STATUS_AVAILABLE && $status === PosTable::STATUS_OCCUPIED) {
+            if (!PosAuditLogService::requireManagerPassword($request)) {
+                return response()->json(['error' => __('Manager password required to reopen table.')], 403);
+            }
+        }
         $table->status = $status;
         if ($request->has('guests_count')) {
             $guests = $request->input('guests_count');
             $table->current_guests = ($guests !== null && $guests !== '') ? (int) $guests : null;
         }
+        if ($request->has('customer_name')) {
+            $table->customer_name = $request->input('customer_name') ? trim($request->input('customer_name')) : null;
+        }
         if ($status === PosTable::STATUS_AVAILABLE) {
             $table->current_guests = null;
+            $table->customer_name = null;
         }
         $table->save();
+        if ($oldStatus === PosTable::STATUS_AVAILABLE && $status === PosTable::STATUS_OCCUPIED) {
+            PosAuditLogService::log(PosAuditLog::ACTION_REOPEN_TABLE, 'pos_table', (int) $table->id, __('Table reopened'), ['table_name' => $table->name]);
+        } elseif ($status === PosTable::STATUS_OCCUPIED) {
+            PosAuditLogService::log(PosAuditLog::ACTION_OPEN_TABLE, 'pos_table', (int) $table->id, __('Table opened'), ['table_name' => $table->name, 'guests' => $table->current_guests]);
+        } elseif ($status === PosTable::STATUS_AVAILABLE) {
+            PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_TABLE, 'pos_table', (int) $table->id, __('Table closed'), ['table_name' => $table->name]);
+        }
         return response()->json(['success' => true, 'status' => $table->status, 'current_guests' => $table->current_guests]);
     }
 
@@ -181,7 +201,9 @@ class PosTableController extends Controller
         }
         $table->status = PosTable::STATUS_AVAILABLE;
         $table->current_guests = null;
+        $table->customer_name = null;
         $table->save();
+        PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_TABLE, 'pos_table', (int) $table->id, __('Table closed (force)'), ['table_name' => $table->name]);
         return response()->json(['success' => true, 'status' => $table->status]);
     }
 }

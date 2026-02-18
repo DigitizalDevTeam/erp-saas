@@ -61,6 +61,7 @@
                     <div class="card-header py-2 d-flex justify-content-between align-items-center flex-wrap gap-2 bg-light">
                         <span class="fw-semibold">{{ __('pos.pos_invoice') }}</span>
                         <div class="d-flex gap-1 flex-wrap">
+                            <button type="button" class="btn btn-sm btn-success" id="pos-send-to-production" title="{{ __('Send to production') }}"><i class="ti ti-send"></i> {{ __('Send to production') }}</button>
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="pos-print-kitchen-slip" title="{{ __('pos.print_kitchen_slip') }}"><i class="ti ti-printer"></i></button>
                             <button type="button" class="btn btn-sm btn-outline-warning" id="pos-split-bill-restaurant" title="{{ __('pos.split_bill') }}"><i class="ti ti-separator-horizontal"></i></button>
                             <button type="button" class="btn btn-sm btn-outline-danger" id="pos-empty-cart-restaurant" title="{{ __('pos.empty_cart') }}"><i class="ti ti-trash"></i></button>
@@ -142,6 +143,10 @@
                 <div class="mb-3">
                     <label class="form-label">{{ __('pos.guests_count') }}</label>
                     <input type="number" id="pos-open-table-guests" class="form-control" min="0" value="" placeholder="{{ __('pos.optional') }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">{{ __('Customer name') }}</label>
+                    <input type="text" id="pos-open-table-customer-name" class="form-control" value="" placeholder="{{ __('pos.optional') }}" maxlength="255">
                 </div>
             </div>
             <div class="modal-footer">

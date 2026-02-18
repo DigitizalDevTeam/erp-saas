@@ -47,7 +47,7 @@
                 </thead>
                 <tbody>
                     <tr><td>{{ __('pos.payment_cash') }}</td><td class="text-end">{{ \Auth::user()->priceFormat($cashTotal) }}</td></tr>
-                    <tr><td>{{ __('Card / Other') }}</td><td class="text-end">{{ \Auth::user()->priceFormat($cardTotal) }}</td></tr>
+                    <tr><td>{{ __('Card / M-Pesa / Bank transfer') }}</td><td class="text-end">{{ \Auth::user()->priceFormat($cardTotal) }}</td></tr>
                     <tr><td>{{ __('pos.payment_credit') }}</td><td class="text-end">{{ \Auth::user()->priceFormat($creditTotal) }}</td></tr>
                 </tbody>
                 <tfoot>
@@ -57,6 +57,30 @@
                     </tr>
                 </tfoot>
             </table>
+            @if(isset($cashDropsTotal) && $cashDropsTotal > 0)
+            <h6 class="border-bottom pb-2 mb-2 mt-3">{{ __('Cash drops') }}</h6>
+            <p class="mb-1">{{ __('Total withdrawn during shift') }}: {{ \Auth::user()->priceFormat($cashDropsTotal) }}</p>
+            <table class="table table-sm table-bordered">
+                <thead>
+                    <tr>
+                        <th>{{ __('Date') }}</th>
+                        <th class="text-end">{{ __('Amount') }}</th>
+                        <th>{{ __('Reason') }}</th>
+                        <th>{{ __('By') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($pos_shift->cashDrops ?? [] as $drop)
+                        <tr>
+                            <td>{{ $drop->created_at ? $drop->created_at->format('Y-m-d H:i') : '-' }}</td>
+                            <td class="text-end">{{ \Auth::user()->priceFormat($drop->amount) }}</td>
+                            <td>{{ $drop->reason ?: '—' }}</td>
+                            <td>{{ $drop->user ? $drop->user->name : '-' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+            @endif
 
             <h6 class="border-bottom pb-2 mb-2 mt-4">{{ __('Sales') }} ({{ $sales->count() }} {{ __('transactions') }})</h6>
             <div class="table-responsive">

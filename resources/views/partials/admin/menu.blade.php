@@ -1399,6 +1399,11 @@
                                         <a class="dash-link" href="{{ route('pos.restaurant.index') }}">{{ __('Restaurant POS') }}</a>
                                     </li>
                                     @endif
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant waiter') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos.production.index' ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('pos.production.index') }}">{{ __('Production') }}</a>
+                                    </li>
+                                    @endif
                                     @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
                                     <li class="dash-item {{ Request::route()->getName() == 'pos-area.index' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos-area.index') }}">{{ __('POS Areas') }}</a>
@@ -1434,6 +1439,30 @@
                                         <a class="dash-link" href="{{ route('report.pos.eod') }}">{{ __('EOD Report') }}</a>
                                     </li>
                                     @endif
+
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos.audit-log.index' ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('pos.audit-log.index') }}">{{ __('POS Audit Log') }}</a>
+                                    </li>
+                                    @endif
+
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
+                                    <li class="dash-item {{ Request::route()->getName() == 'report.pos.low-stock' ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('report.pos.low-stock') }}">{{ __('Low Stock') }}</a>
+                                    </li>
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos-restaurant-settings.index' ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('pos-restaurant-settings.index') }}">{{ __('Restaurant Settings') }}</a>
+                                    </li>
+                                    <li class="dash-item {{ Request::route()->getName() == 'report.restaurant.index' ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('report.restaurant.index') }}">{{ __('Restaurant Reports') }}</a>
+                                    </li>
+                                    @endif
+
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager') || Gate::check('manage product & service'))
+                                    <li class="dash-item {{ Request::route()->getName() == 'product-recipe.index' ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('product-recipe.index') }}">{{ __('Recipes (BOM)') }}</a>
+                                    </li>
+                                    @endif
                                 </ul>
                             </li>
                             @endif
@@ -1457,6 +1486,29 @@
                     @endif
 
                 <!--------------------- End POs System ----------------------------------->
+                {{-- Expense Management --}}
+                @if(Gate::check('manage expense category') || Gate::check('manage expense'))
+                <li class="dash-item dash-hasmenu">
+                        <a href="#!" class="dash-link">
+                            <span class="dash-micon"><i class="ti ti-credit-card"></i></span>
+                            <span class="dash-mtext">{{ __('Expense Management') }}</span>
+                            <span class="dash-arrow"><i data-feather="chevron-right"></i></span>
+                        </a>
+
+                        <ul class="dash-submenu">
+                            @can('manage expense category')
+                            <li class="dash-item">
+                                <a class="dash-link" href="{{ route('expense-category.index') }}">{{ __('Expense Category') }}</a>
+                            </li>
+                            @endcan
+                            @can('manage expense')
+                            <li class="dash-item">
+                                <a class="dash-link" href="{{ route('expenses.index') }}">{{ __('Expenses') }}</a>
+                            </li>
+                            @endcan
+                        </ul>
+                </li>
+                @endif
 
                 @if (\Auth::user()->type != 'super admin')
                     <li class="dash-item dash-hasmenu {{ Request::segment(1) == 'support' ? 'active' : '' }}">

@@ -11,6 +11,9 @@ use App\Models\PosProduct;
 use App\Models\ProductService;
 use App\Models\Quotation;
 use App\Models\PosBalance;
+use App\Models\PosAuditLog;
+use App\Services\PosAuditLogService;
+use App\Services\PosRecipeDeductionService;
 use App\Services\PosToInvoiceService;
 use App\Models\QuotationProduct;
 use App\Models\StockReport;
@@ -478,6 +481,25 @@ class PosController extends Controller
             return response()->json(['code' => 404, 'success' => __('Items not found!')], 404);
         }
 
+        // Phase 4: Discount above X% requires manager password
+        $discountAmount = (float) $discount;
+        if ($discountAmount > 0) {
+            $subtotal = 0;
+            foreach ($sales as $v) {
+                $subtotal += ($v['price'] ?? 0) * ($v['quantity'] ?? 0);
+            }
+            if ($subtotal > 0) {
+                $discountPercent = ($discountAmount / $subtotal) * 100;
+                $maxPercent = (float) (Utility::getValByName('pos_max_discount_percent') ?: 10);
+                if ($discountPercent > $maxPercent && !PosAuditLogService::requireManagerPassword($request)) {
+                    return response()->json(['code' => 403, 'error' => __('Manager password required for discount above :max%.', ['max' => $maxPercent])], 403);
+                }
+                if ($discountPercent > $maxPercent) {
+                    PosAuditLogService::log(PosAuditLog::ACTION_DISCOUNT, null, null, __('Discount applied with manager approval'), ['percent' => round($discountPercent, 2), 'amount' => $discountAmount]);
+                }
+            }
+        }
+
         // Resolve warehouse_id: required, cannot be null. Use request value if valid, else first warehouse for creator.
         $warehouse_id = warehouse::warehouse_id($request->warehouse_name);
         if (empty($request->warehouse_name) || $warehouse_id <= 0) {
@@ -526,15 +548,12 @@ class PosController extends Controller
             }
         }
 
+        // Phase 5: Clear stock reports for this pos once (then we add per ingredient/product)
+        StockReport::where('type', 'pos')->where('type_id', $pos->id)->delete();
         foreach ($sales as $key => $value) {
             $product_id = $value['id'];
             $product = ProductService::whereId($product_id)->where('created_by', $user_id)->first();
-            $original_quantity = ($product == null) ? 0 : (int) $product->quantity;
-            $product_quantity = $original_quantity - $value['quantity'];
-            if ($product != null && !empty($product)) {
-                ProductService::where('id', $product_id)->update(['quantity' => $product_quantity]);
-            }
-            $tax_id = ProductService::tax_id($product_id);
+            $tax_id = $product ? ProductService::tax_id($product_id) : '0';
             $positems = new PosProduct();
             $positems->pos_id = $pos->id;
             $positems->product_id = $product_id;
@@ -543,12 +562,14 @@ class PosController extends Controller
             $positems->tax = $tax_id;
             $positems->discount = $discount;
             $positems->save();
-            Utility::warehouse_quantity('minus', $positems->quantity, $positems->product_id, $warehouse_id);
-            $type = 'pos';
-            $type_id = $pos->id;
-            StockReport::where('type', '=', 'pos')->where('type_id', '=', $pos->id)->delete();
-            $description = $positems->quantity . '  ' . __(' quantity sold in pos') . ' ' . \Auth::user()->posNumberFormat($pos->pos_id);
-            Utility::addProductStock($positems->product_id, $positems->quantity, $type, $description, $type_id);
+            PosRecipeDeductionService::deductForSale(
+                (int) $product_id,
+                (float) $value['quantity'],
+                $warehouse_id,
+                $user_id,
+                \Auth::user()->posNumberFormat($pos->pos_id),
+                (int) $pos->id
+            );
         }
 
         $mainsubtotal = 0;
@@ -567,7 +588,8 @@ class PosController extends Controller
                 $posPayment->pos_id = $pos->id;
                 $posPayment->branch_id = $pos->branch_id;
                 $posPayment->date = $request->date ?? date('Y-m-d');
-                $posPayment->payment_method = in_array($p['payment_method'] ?? '', [PosPayment::METHOD_CASH, PosPayment::METHOD_CARD, PosPayment::METHOD_CREDIT], true) ? $p['payment_method'] : PosPayment::METHOD_CASH;
+                $allowedMethods = [PosPayment::METHOD_CASH, PosPayment::METHOD_CARD, PosPayment::METHOD_CREDIT, PosPayment::METHOD_MPESA, PosPayment::METHOD_BANK_TRANSFER, 'visa', 'cheque'];
+$posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMethods, true) ? $p['payment_method'] : PosPayment::METHOD_CASH;
                 $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
                 $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
                 $posPayment->amount = $amt;
@@ -597,6 +619,14 @@ class PosController extends Controller
             $posPayment->notes = $request->notes ?: null;
             $posPayment->created_by = $user_id;
             $posPayment->save();
+        }
+
+        // Phase 3: Close table after payment (restaurant flow)
+        if ($pos->table_id) {
+            PosTable::where('id', $pos->table_id)->where('created_by', $user_id)->update([
+                'status' => PosTable::STATUS_AVAILABLE,
+                'current_guests' => 0,
+            ]);
         }
 
         $pos->load('items');
@@ -676,21 +706,11 @@ class PosController extends Controller
                         $quotation->converted_pos_id = $pos->id;
                         $quotation->save();
                     }
+                    StockReport::where('type', 'pos')->where('type_id', $pos->id)->delete();
                     foreach ($sales as $key => $value) {
                         $product_id = $value['id'];
-
                         $product = ProductService::whereId($product_id)->where('created_by', $user_id)->first();
-
-                        $original_quantity = ($product == null) ? 0 : (int) $product->quantity;
-
-                        $product_quantity = $original_quantity - $value['quantity'];
-
-                        if ($product != null && !empty($product)) {
-                            ProductService::where('id', $product_id)->update(['quantity' => $product_quantity]);
-                        }
-
-                        $tax_id = ProductService::tax_id($product_id);
-
+                        $tax_id = $product ? ProductService::tax_id($product_id) : '0';
                         $positems = new PosProduct();
                         $positems->pos_id = $pos->id;
                         $positems->product_id = $product_id;
@@ -699,16 +719,14 @@ class PosController extends Controller
                         $positems->tax = $tax_id;
                         $positems->discount = $discount;
                         $positems->save();
-
-                        Utility::warehouse_quantity('minus', $positems->quantity, $positems->product_id, $warehouse_id);
-
-                        //Product Stock Report
-                        $type = 'pos';
-                        $type_id = $pos->id;
-                        StockReport::where('type', '=', 'pos')->where('type_id', '=', $pos->id)->delete();
-                        $description = $positems->quantity . '  ' . __(' quantity sold in pos') . ' ' . \Auth::user()->posNumberFormat($pos->pos_id);
-                        Utility::addProductStock($positems->product_id, $positems->quantity, $type, $description, $type_id);
-
+                        PosRecipeDeductionService::deductForSale(
+                            (int) $product_id,
+                            (float) $value['quantity'],
+                            $warehouse_id,
+                            $user_id,
+                            \Auth::user()->posNumberFormat($pos->pos_id),
+                            (int) $pos->id
+                        );
                     }
 
                     $mainsubtotal = 0;
@@ -942,6 +960,131 @@ class PosController extends Controller
         $warehouses = $warehouses->get()->pluck('name', 'id')->toArray();
 
         return response()->json($warehouses);
+    }
+
+    /**
+     * Phase 1: Send to production – save order + lines (no payment, no stock deduction).
+     * Creates or reuses open Pos for table+shift and adds PosProduct lines with status pending.
+     */
+    public function sendToProduction(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $request->validate([
+            'branch_id' => 'required|exists:branches,id',
+            'table_id' => 'required|exists:pos_tables,id',
+            'shift_id' => 'required|exists:pos_shifts,id',
+            'items' => 'required|array',
+            'items.*.id' => 'required|exists:product_services,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.price' => 'required|numeric|min:0',
+        ]);
+
+        $creatorId = Auth::user()->creatorId();
+        $branchId = (int) $request->branch_id;
+        $tableId = (int) $request->table_id;
+        $shiftId = (int) $request->shift_id;
+
+        $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->first();
+        if (!$branch) {
+            return response()->json(['error' => __('Invalid branch.')], 422);
+        }
+
+        $warehouse = warehouse::where('created_by', $creatorId)->where('branch_id', $branchId)->first();
+        if (!$warehouse) {
+            $warehouse = warehouse::where('created_by', $creatorId)->first();
+        }
+        if (!$warehouse) {
+            return response()->json(['error' => __('Please create or select a warehouse.')], 422);
+        }
+
+        $pos = Pos::where('table_id', $tableId)
+            ->where('shift_id', $shiftId)
+            ->where('created_by', $creatorId)
+            ->whereNull('cancelled_at')
+            ->whereDoesntHave('posPayments')
+            ->first();
+
+        if (!$pos) {
+            $pos = new Pos();
+            $pos->pos_id = $this->invoicePosNumber();
+            $pos->branch_id = $branchId;
+            $pos->order_type = Pos::ORDER_TYPE_DINE_IN;
+            $pos->table_id = $tableId;
+            $pos->shift_id = $shiftId;
+            $pos->customer_id = 0;
+            $pos->warehouse_id = $warehouse->id;
+            $pos->pos_date = date('Y-m-d');
+            $pos->payment_method = null;
+            $pos->created_by = $creatorId;
+            $pos->save();
+        }
+
+        $now = now();
+        foreach ($request->items as $item) {
+            $product = ProductService::where('id', $item['id'])->where('created_by', $creatorId)->first();
+            if (!$product) {
+                continue;
+            }
+            $printZone = $product->print_zone ?? PosProduct::PRINT_ZONE_KITCHEN;
+            if ($printZone !== PosProduct::PRINT_ZONE_BAR && $printZone !== PosProduct::PRINT_ZONE_BOTH) {
+                $printZone = PosProduct::PRINT_ZONE_KITCHEN;
+            }
+            $taxId = is_string($product->tax_id ?? null) ? $product->tax_id : ($product->tax_id ?? '0');
+            PosProduct::create([
+                'pos_id' => $pos->id,
+                'product_id' => $product->id,
+                'quantity' => (int) $item['quantity'],
+                'price' => (float) $item['price'],
+                'tax' => $taxId,
+                'discount' => (float) ($item['discount'] ?? 0),
+                'description' => $item['description'] ?? null,
+                'status' => PosProduct::STATUS_PENDING,
+                'sent_at' => $now,
+                'print_zone' => $printZone,
+            ]);
+        }
+
+        \App\Services\PosAuditLogService::log(
+            PosAuditLog::ACTION_SEND_ORDER,
+            'pos',
+            (int) $pos->id,
+            __('Order sent to production'),
+            ['table_id' => $pos->table_id, 'items_count' => count($request->items)]
+        );
+        return response()->json([
+            'success' => true,
+            'message' => __('Order sent to production.'),
+            'pos_id' => $pos->id,
+        ]);
+    }
+
+    /**
+     * Phase 4: Cancel order (open order, no payment). Requires manager password.
+     */
+    public function cancelOrder(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        if (!PosAuditLogService::requireManagerPassword($request)) {
+            return response()->json(['error' => __('Manager password required to cancel order.')], 403);
+        }
+        $request->validate(['pos_id' => 'required|exists:pos,id']);
+        $pos = Pos::where('id', $request->pos_id)->where('created_by', Auth::user()->creatorId())->first();
+        if (!$pos) {
+            return response()->json(['error' => __('Order not found.')], 404);
+        }
+        if ($pos->posPayments()->exists()) {
+            return response()->json(['error' => __('Cannot cancel order that has payments.')], 422);
+        }
+        $pos->cancelled_at = now();
+        $pos->save();
+        PosProduct::where('pos_id', $pos->id)->update(['status' => PosProduct::STATUS_CANCELLED]);
+        PosAuditLogService::log(PosAuditLog::ACTION_CANCEL_ORDER, 'pos', (int) $pos->id, __('Order cancelled'), ['pos_id' => $pos->pos_id, 'table_id' => $pos->table_id]);
+        return response()->json(['success' => true, 'message' => __('Order cancelled.')]);
     }
 
     public function receipt(Request $request)

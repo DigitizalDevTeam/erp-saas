@@ -25,6 +25,11 @@ class Pos extends Model
         'shipping_display',
         'created_by',
         'client_order_id',
+        'cancelled_at',
+    ];
+
+    protected $casts = [
+        'cancelled_at' => 'datetime',
     ];
 
     const ORDER_TYPE_DINE_IN = 'dine_in';

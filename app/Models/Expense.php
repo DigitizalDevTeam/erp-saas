@@ -6,27 +6,55 @@ use Illuminate\Database\Eloquent\Model;
 
 class Expense extends Model
 {
+    const STATUS_PENDING = 0;
+    const STATUS_APPROVED = 1;
+    const STATUS_REJECTED = 2;
+
+    public static function getStatuses()
+    {
+        return [
+            self::STATUS_PENDING   => __('Pending'),
+            self::STATUS_APPROVED  => __('Approve'),
+            self::STATUS_REJECTED  => __('Reject'),
+        ];
+    }
+
+    public function getStatusLabelAttribute()
+    {
+        return self::getStatuses()[$this->status] ?? $this->status;
+    }
+
     protected $fillable = [
         'name',
+        
         'date',
         'description',
         'amount',
         'attachment',
-        'project_id',
-        'task_id',
+        'status',
+        'user_id',
+        'expense_category_id',
+        'branch_id',
         'created_by',
     ];
 
-    // Get Expense based task
-    public function task()
+    protected $casts = [
+        'date' => 'date',
+        'amount' => 'decimal:2',
+    ];
+
+    public function expenseCategory()
     {
-        return $this->hasOne('App\Models\ProjectTask', 'id', 'task_id');
+        return $this->belongsTo(ExpenseCategory::class, 'expense_category_id');
     }
 
-    // Get Expense based project
-    public function project()
+    public function branch()
     {
-        return $this->hasOne('App\Models\Project', 'id', 'project_id');
+        return $this->belongsTo(Branch::class, 'branch_id');
     }
 
+    public function createdByUser()
+    {
+        return $this->belongsTo(User::class, 'created_by', 'id');
+    }
 }

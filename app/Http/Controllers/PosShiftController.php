@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\Pos;
 use App\Models\PosArea;
+use App\Models\PosAuditLog;
+use App\Models\PosCashDrop;
 use App\Models\PosPayment;
+use App\Services\PosAuditLogService;
 use App\Models\PosShift;
 use App\Models\PosTable;
 use App\Models\PosTableAssignment;
@@ -115,21 +118,50 @@ class PosShiftController extends Controller
     public function show(PosShift $pos_shift)
     {
         if (\Auth::user()->canManagePos() && $pos_shift->created_by == \Auth::user()->creatorId()) {
-            $pos_shift->load(['branch', 'user', 'tableAssignments.table', 'tableAssignments.user']);
+            $pos_shift->load(['branch', 'user', 'tableAssignments.table', 'tableAssignments.user', 'cashDrops.user']);
             return view('pos_shift.show', compact('pos_shift'));
         }
         return redirect()->back()->with('error', __('Permission denied.'));
     }
 
     /**
-     * Proper shift report: sales list, payment summary, opening/closing balance. Printable.
+     * Phase 2: Store cash drop (withdrawal) for open shift.
+     */
+    public function storeCashDrop(Request $request, PosShift $pos_shift)
+    {
+        if (!\Auth::user()->canManagePos() || $pos_shift->created_by != \Auth::user()->creatorId() || $pos_shift->status !== PosShift::STATUS_OPEN) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => __('Permission denied.')], 403);
+            }
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'reason' => 'nullable|string|max:255',
+        ]);
+        $drop = new PosCashDrop();
+        $drop->shift_id = $pos_shift->id;
+        $drop->amount = (float) $request->amount;
+        $drop->reason = $request->reason ? trim($request->reason) : null;
+        $drop->user_id = \Auth::user()->id;
+        $drop->created_by = \Auth::user()->creatorId();
+        $drop->save();
+        PosAuditLogService::log(PosAuditLog::ACTION_CASH_DROP, 'pos_cash_drop', (int) $drop->id, __('Cash drop'), ['shift_id' => $pos_shift->id, 'amount' => $drop->amount, 'reason' => $drop->reason]);
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'message' => __('Cash drop recorded.'), 'drop' => $drop->load('user')]);
+        }
+        return redirect()->route('pos-shift.show', $pos_shift)->with('success', __('Cash drop recorded.'));
+    }
+
+    /**
+     * Proper shift report: sales list, payment summary, cash drops, opening/closing balance. Printable.
      */
     public function shiftReport(PosShift $pos_shift)
     {
         if (!\Auth::user()->canManagePos() || $pos_shift->created_by != \Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
-        $pos_shift->load(['branch', 'user']);
+        $pos_shift->load(['branch', 'user', 'cashDrops.user']);
         $posIds = \App\Models\Pos::where('shift_id', $pos_shift->id)->pluck('id');
         $sales = \App\Models\Pos::where('shift_id', $pos_shift->id)->with(['items', 'posPayments'])->orderBy('pos_id')->get();
         $paymentsByMethod = \App\Models\PosPayment::whereIn('pos_id', $posIds)->selectRaw('payment_method, sum(amount) as total, count(*) as cnt')->groupBy('payment_method')->get()->keyBy('payment_method');
@@ -139,12 +171,14 @@ class PosShiftController extends Controller
         $cardTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', ['card', 'visa', 'mpesa', 'bank_transfer', 'cheque'])->sum('amount');
         $creditTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
         $salesTotal = $sales->sum(fn ($p) => $p->getTotal());
-        return view('pos_shift.report', compact('pos_shift', 'sales', 'paymentsByMethod', 'cashTotal', 'cardTotal', 'creditTotal', 'salesTotal'));
+        $cashDropsTotal = (float) $pos_shift->cashDrops->sum('amount');
+        return view('pos_shift.report', compact('pos_shift', 'sales', 'paymentsByMethod', 'cashTotal', 'cardTotal', 'creditTotal', 'salesTotal', 'cashDropsTotal'));
     }
 
     public function closeForm(PosShift $pos_shift)
     {
         if (\Auth::user()->canManagePos() && $pos_shift->created_by == \Auth::user()->creatorId() && $pos_shift->status === PosShift::STATUS_OPEN) {
+            $pos_shift->load('cashDrops');
             return view('pos_shift.close', compact('pos_shift'));
         }
         return redirect()->back()->with('error', __('Permission denied.'));
@@ -155,14 +189,15 @@ class PosShiftController extends Controller
         if (\Auth::user()->canManagePos() && $pos_shift->created_by == \Auth::user()->creatorId() && $pos_shift->status === PosShift::STATUS_OPEN) {
             $posIds = Pos::where('shift_id', $pos_shift->id)->pluck('id');
             $salesTotal = PosPayment::whereIn('pos_id', $posIds)->sum('amount');
-            // Phase 4: Cash-up totals by payment type (treat null payment_method as cash for backward compat)
             $cashTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
                 $q->where('payment_method', \App\Models\PosPayment::METHOD_CASH)->orWhereNull('payment_method');
             })->sum('amount');
-            $cardTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CARD)->sum('amount');
+            $cardTotal = (float) PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', [\App\Models\PosPayment::METHOD_CARD, \App\Models\PosPayment::METHOD_MPESA, \App\Models\PosPayment::METHOD_BANK_TRANSFER, 'visa', 'cheque'])->sum('amount');
             $creditTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
+            $cashDropsTotal = (float) PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');
             $closingBalance = (float) $request->closing_balance;
-            $difference = ($pos_shift->opening_balance + $cashTotal) - $closingBalance;
+            $expectedCash = $pos_shift->opening_balance + $cashTotal - $cashDropsTotal;
+            $difference = $closingBalance - $expectedCash;
 
             $pos_shift->closed_at = now();
             $pos_shift->closing_balance = $closingBalance;
@@ -176,6 +211,7 @@ class PosShiftController extends Controller
             $pos_shift->sales_total = $salesTotal;
             $pos_shift->status = PosShift::STATUS_CLOSED;
             $pos_shift->save();
+            PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
             PosTableAssignment::where('shift_id', $pos_shift->id)->whereNull('unassigned_at')->update(['unassigned_at' => now()]);
             return redirect()->route('pos-shift.index')->with('success', __('Shift closed successfully.'));
         }

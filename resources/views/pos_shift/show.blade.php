@@ -66,12 +66,72 @@
                             </tbody>
                         </table>
                     </div>
+                    @if($pos_shift->status === 'open' && (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')))
+                    <hr>
+                    <h6>{{ __('Cash drops') }}</h6>
+                    <p class="text-muted small mb-2">{{ __('Withdrawals from register during shift.') }}</p>
+                    <button type="button" class="btn btn-sm btn-outline-primary mb-2" data-bs-toggle="modal" data-bs-target="#cashDropModal"><i class="ti ti-cash-off"></i> {{ __('Add cash drop') }}</button>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>{{ __('Date') }}</th>
+                                    <th class="text-end">{{ __('Amount') }}</th>
+                                    <th>{{ __('Reason') }}</th>
+                                    <th>{{ __('By') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse(($pos_shift->cashDrops ?? collect()) as $drop)
+                                    <tr>
+                                        <td>{{ $drop->created_at ? $drop->created_at->format('Y-m-d H:i') : '-' }}</td>
+                                        <td class="text-end">{{ Auth::user()->priceFormat($drop->amount) }}</td>
+                                        <td>{{ $drop->reason ?: '—' }}</td>
+                                        <td>{{ $drop->user ? $drop->user->name : '-' }}</td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="4" class="text-muted">{{ __('No cash drops.') }}</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    @if(($pos_shift->cashDrops ?? collect())->isNotEmpty())
+                    <p class="mb-0 small"><strong>{{ __('Total cash drops') }}:</strong> {{ Auth::user()->priceFormat($pos_shift->cashDrops->sum('amount')) }}</p>
+                    @endif
+                    @endif
                 </div>
             </div>
         </div>
     </div>
 
     @if (($pos_shift->status === 'open') && (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')))
+    <div class="modal fade" id="cashDropModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">{{ __('Add cash drop') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="{{ route('pos-shift.cash-drop', $pos_shift) }}" method="POST">
+                    @csrf
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Amount') }} <span class="text-danger">*</span></label>
+                            <input type="number" name="amount" class="form-control" min="0.01" step="0.01" required placeholder="0.00">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Reason') }}</label>
+                            <input type="text" name="reason" class="form-control" maxlength="255" placeholder="{{ __('Optional') }}">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                        <button type="submit" class="btn btn-primary">{{ __('Record cash drop') }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
     <div class="modal fade" id="transferTablesModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">

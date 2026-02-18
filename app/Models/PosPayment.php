@@ -10,6 +10,8 @@ class PosPayment extends Model
     const METHOD_CARD = 'card';
     const METHOD_CREDIT = 'credit';
     const METHOD_MIXED = 'mixed';
+    const METHOD_MPESA = 'mpesa';
+    const METHOD_BANK_TRANSFER = 'bank_transfer';
 
     protected $fillable = [
         'pos_id',

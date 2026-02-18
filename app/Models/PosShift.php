@@ -52,4 +52,15 @@ class PosShift extends Model
     {
         return $this->hasMany(Pos::class, 'shift_id');
     }
+
+    /** Phase 2: Cash drops (withdrawals) during shift */
+    public function cashDrops()
+    {
+        return $this->hasMany(PosCashDrop::class, 'shift_id', 'id');
+    }
+
+    public function getCashDropsTotalAttribute(): float
+    {
+        return (float) $this->cashDrops()->sum('amount');
+    }
 }
