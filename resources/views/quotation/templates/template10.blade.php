@@ -251,13 +251,13 @@
                                     <tr>
                                         <td>{{ __('Number') }}:</td>
                                         <td class="text-right">
-                                            {{ Utility::quotationNumberFormat($quotation->quotation_id) }}</td>
+                                            {{ \App\Models\Utility::quotationNumberFormat($quotation->quotation_id) }}</td>
                                     </tr>
 
                                     <tr>
                                         <td>{{ __('Issue Date') }}:</td>
                                         <td class="text-right">
-                                            {{ Utility::dateFormat($settings, $quotation->quotation_date) }}</td>
+                                            {{ \App\Models\Utility::dateFormat($settings, $quotation->quotation_date) }}</td>
                                     </tr>
                                     @if (!empty($customFields) && count($quotation->customField) > 0)
                                         @foreach ($customFields as $field)
@@ -342,7 +342,7 @@
                             <tr>
                                 <td>{{ $item->name }}</td>
                                 <td>{{ $item->quantity }}</td>
-                                <td>{{ Utility::priceFormat($settings, $item->price) }}</td>
+                                <td>{{ \App\Models\Utility::priceFormat($settings, $item->price) }}</td>
                                 <td>
                                     @php
                                         $totalTaxRate = 0;
@@ -362,8 +362,8 @@
                                     @endif
                                 </td>
 
-                                <td>{{ Utility::priceFormat($settings, $totalTaxPrice) }}</td>
-                                <td>{{ Utility::priceFormat($settings, $item->price * $item->quantity + $totalTaxPrice) }}
+                                <td>{{ \App\Models\Utility::priceFormat($settings, $totalTaxPrice) }}</td>
+                                <td>{{ \App\Models\Utility::priceFormat($settings, $item->price * $item->quantity + $totalTaxPrice) }}
                                 </td>
 
                             </tr>
@@ -384,13 +384,13 @@
                             <table class="total-table">
                                 <tr>
                                     <td>{{ __('Subtotal') }}:</td>
-                                    <td>{{ Utility::priceFormat($settings, $subTotal) }}</td>
+                                    <td>{{ \App\Models\Utility::priceFormat($settings, $subTotal) }}</td>
                                 </tr>
 
                                 <tr>
                                     <td>{{ __('Discount') }}:</td>
                                     @if (!empty($totalDiscount))
-                                        <td>{{ Utility::priceFormat($settings, $totalDiscount) }}</td>
+                                        <td>{{ \App\Models\Utility::priceFormat($settings, $totalDiscount) }}</td>
                                     @else
                                         <td>-</td>
                                     @endif
@@ -398,7 +398,7 @@
                                 <tr>
                                     <td>{{ __('Total') }}:</td>
 
-                                    <td>{{ Utility::priceFormat($settings, $total) }}</td>
+                                    <td>{{ \App\Models\Utility::priceFormat($settings, $total) }}</td>
                                 </tr>
                             </table>
                         </td>
