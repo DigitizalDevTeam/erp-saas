@@ -60,7 +60,7 @@
                                             {{ !empty($note->invoice_data->billing_address?->name) ? $note->invoice_data->billing_address?->name : '' }}<br>
                                             {{ !empty($note->invoice_data->billing_address?->address) ? $note->invoice_data->billing_address?->address : '' }}<br>
                                             {{ !empty($note->invoice_data->billing_address?->billing_city) ? $note->invoice_data->billing_address?->city : '' . ', ' }}<br>
-                                            {{ !empty($note->invoice_data->billing_address?->state) ? $note->invoice_data->billing_address?->state : '', ', ' }},
+                                            {{ !empty($note->invoice_data->billing_address?->state) ? $note->invoice_data->billing_address?->state : ''. ', ' }},
                                             {{ !empty($note->invoice_data->billing_address?->zip) ? $note->invoice_data->billing_address?->zip : '' }}<br>
                                             {{ !empty($note->invoice_data->billing_address?->country) ? $note->invoice_data->billing_address?->country : '' }}<br>
                                             {{ !empty($note->invoice_data->billing_address?->phone) ? $note->invoice_data->billing_address?->phone : '' }}<br>

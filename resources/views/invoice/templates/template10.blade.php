@@ -304,7 +304,7 @@
                                 {{!empty($customer->billing_name)?$customer->billing_name:''}}<br>
                                 {{!empty($customer->billing_address)?$customer->billing_address:''}}<br>
                                 {{!empty($customer->billing_city)?$customer->billing_city:'' .', '}}<br>
-                                {{!empty($customer->billing_state)?$customer->billing_state:'',', '}},
+                                {{!empty($customer->billing_state)?$customer->billing_state:''.', '}},
                                 {{!empty($customer->billing_zip)?$customer->billing_zip:''}}<br>
                                 {{!empty($customer->billing_country)?$customer->billing_country:''}}<br>
                                 {{!empty($customer->billing_phone)?$customer->billing_phone:''}}<br>

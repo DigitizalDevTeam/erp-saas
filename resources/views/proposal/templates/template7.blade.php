@@ -293,7 +293,7 @@
                                 {{$proposal->billing_address->name?$proposal->billing_address->name:''}}<br>
                                 {{$proposal->billing_address->address?$proposal->billing_address->address:''}}<br>
                                 {{$proposal->billing_address->city?$proposal->billing_address->city:'' .', '}}<br>
-                                {{$proposal->billing_address->state?$proposal->billing_address->state:'',', '}},
+                                {{$proposal->billing_address->state?$proposal->billing_address->state:''.', '}},
                                 {{$proposal->billing_address->zip?$proposal->billing_address->zip:''}}<br>
                                 {{$proposal->billing_address->country?$proposal->billing_address->country:''}}<br>
                                 {{$proposal->billing_address->phone?$proposal->billing_address->phone:''}}<br>

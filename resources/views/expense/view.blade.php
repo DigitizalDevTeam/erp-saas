@@ -59,7 +59,7 @@
                                                 {{!empty($user->billing_name)?$user->billing_name:''}}<br>
                                                 {{!empty($user->billing_address)?$user->billing_address:''}}<br>
                                                 {{!empty($user->billing_city)?$user->billing_city:'' .', '}}<br>
-                                                {{!empty($user->billing_state)?$user->billing_state:'',', '}},
+                                                {{!empty($user->billing_state)?$user->billing_state:''.', '}},
                                                 {{!empty($user->billing_zip)?$user->billing_zip:''}}<br>
                                                 {{!empty($user->billing_country)?$user->billing_country:''}}<br>
                                                 {{!empty($user->billing_phone)?$user->billing_phone:''}}<br>
@@ -98,7 +98,7 @@
                                                 {{!empty($user->billing_name)?$user->billing_name:''}}<br>
                                                 {{!empty($user->billing_address)?$user->billing_address:''}}<br>
                                                 {{!empty($user->billing_city)?$user->billing_city:'' .', '}}<br>
-                                                {{!empty($user->billing_state)?$user->billing_state:'',', '}},
+                                                {{!empty($user->billing_state)?$user->billing_state:''.', '}},
                                                 {{!empty($user->billing_zip)?$user->billing_zip:''}}<br>
                                                 {{!empty($user->billing_country)?$user->billing_country:''}}<br>
                                                 {{!empty($user->billing_phone)?$user->billing_phone:''}}<br>

@@ -1,6 +1,6 @@
 @php
    // $logo=asset(Storage::url('uploads/logo/'));
-    $logo=\App\Models\Utility::get_file('uploads/logo');
+    $logo =\App\Models\Utility::get_file('uploads/logo');
     $company_favicon=Utility::companyData($bill->created_by,'company_favicon');
     $setting = \App\Models\Utility::colorset();
     $color = (!empty($setting['color'])) ? $setting['color'] : 'theme-3';
@@ -140,7 +140,7 @@
                                             {{!empty($vendor->billing_phone)?$vendor->billing_phone:''}}<br>
                                             {{!empty($vendor->billing_address)?$vendor->billing_address:''}}<br>
                                             {{!empty($vendor->billing_zip)?$vendor->billing_zip:''}}<br>
-                                            {{!empty($vendor->billing_city)?$vendor->billing_city:'' .', '}} {{!empty($vendor->billing_state)?$vendor->billing_state:'',', '}} {{!empty($vendor->billing_country)?$vendor->billing_country:''}}
+                                            {{!empty($vendor->billing_city)?$vendor->billing_city:'' .', '}} {{!empty($vendor->billing_state)?$vendor->billing_state:''.', '}} {{!empty($vendor->billing_country)?$vendor->billing_country:''}}
                                         </small>
                                     </div>
                                 @endif
@@ -152,7 +152,7 @@
                                             {{!empty($vendor->shipping_phone)?$vendor->shipping_phone:''}}<br>
                                             {{!empty($vendor->shipping_address)?$vendor->shipping_address:''}}<br>
                                             {{!empty($vendor->shipping_zip)?$vendor->shipping_zip:''}}<br>
-                                            {{!empty($vendor->shipping_city)?$vendor->shipping_city:'' .', '}} {{!empty($vendor->shipping_state)?$vendor->shipping_state:'',', '}} {{!empty($vendor->shipping_country)?$vendor->shipping_country:''}}
+                                            {{!empty($vendor->shipping_city)?$vendor->shipping_city:'' .', '}} {{!empty($vendor->shipping_state)?$vendor->shipping_state:''.', '}} {{!empty($vendor->shipping_country)?$vendor->shipping_country:''}}
                                         </small>
                                     </div>
                                 @endif

@@ -249,7 +249,7 @@
                                             {{!empty($proposal->billing_address->name)?$proposal->billing_address->name:''}}<br>
                                             {{!empty($proposal->billing_address->address)?$proposal->billing_address->address:''}}<br>
                                             {{!empty($proposal->billing_address->city)?$proposal->billing_address->city:'' .', '}}<br>
-                                            {{!empty($proposal->billing_address->state)?$proposal->billing_address->state:'',', '}},
+                                            {{!empty($proposal->billing_address->state)?$proposal->billing_address->state:''.', '}},
                                             {{!empty($proposal->billing_address->zip)?$proposal->billing_address->zip:''}}<br>
                                             {{!empty($proposal->billing_address->country)?$proposal->billing_address->country:''}}<br>
                                             {{!empty($proposal->billing_address->phone)?$proposal->billing_address->phone:''}}<br>

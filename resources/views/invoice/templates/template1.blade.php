@@ -301,7 +301,7 @@
                             {{!empty($invoice->billing_address->name)?$invoice->billing_address->name:''}}<br>
                             {{!empty($invoice->billing_address->address)?$invoice->billing_address->address:''}}<br>
                             {{!empty($invoice->billing_address->city)?$invoice->billing_address->city:'' .', '}}<br>
-                            {{!empty($invoice->billing_address->state)?$invoice->billing_address->state:'',', '}},
+                            {{!empty($invoice->billing_address->state)?$invoice->billing_address->state:''.', '}},
                             {{!empty($invoice->billing_address->zip)?$invoice->billing_address->zip:''}}<br>
                             {{!empty($invoice->billing_address->country)?$invoice->billing_address->country:''}}<br>
                             {{!empty($invoice->billing_address->phone)?$invoice->billing_address->phone:''}}<br>

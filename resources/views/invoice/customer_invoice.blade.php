@@ -209,7 +209,7 @@
                                                 {{ !empty($customer->billing_address) ? $customer->billing_address : '' }}<br>
                                                 {{ !empty($customer->billing_zip) ? $customer->billing_zip : '' }}<br>
                                                 {{ !empty($customer->billing_city) ? $customer->billing_city : '' . ', ' }}
-                                                {{ !empty($customer->billing_state) ? $customer->billing_state : '', ', ' }}
+                                                {{ !empty($customer->billing_state) ? $customer->billing_state : ''. ', ' }}
                                                 {{ !empty($customer->billing_country) ? $customer->billing_country : '' }}
                                             </small>
                                         </div>
