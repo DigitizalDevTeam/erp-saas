@@ -70,7 +70,7 @@
             </div>
             <div class="form-group col-md-6">
                 {{ Form::label('role', __('User Role'), ['class' => 'form-label']) }}<x-required></x-required>
-                {!! Form::select('role', $roles, null, ['class' => 'form-control select', 'required' => 'required']) !!}
+                {!! Form::select('role', $roles, null, ['class' => 'form-control select', 'required' => 'required', 'id' => 'user-create-role']) !!}
                 <div class="text-xs mt-1">
                     {{ __('Create role here.') }} <a href="{{ route('roles.index') }}"><b>{{ __('Create role') }}</b></a>
                 </div>
@@ -78,6 +78,14 @@
                     <small class="invalid-role" role="alert">
                         <strong class="text-danger">{{ $message }}</strong>
                     </small>
+                @enderror
+            </div>
+            <div class="form-group col-md-6 pos-branch-div d-none">
+                {{ Form::label('pos_branch_id', __('POS Branch (assigned branch for Waiter/Cashier/Manager/Kitchen/Bar)'), ['class' => 'form-label']) }}<x-required></x-required>
+                {!! Form::select('pos_branch_id', $branches ?? [], null, ['class' => 'form-control select', 'placeholder' => __('Select Branch')]) !!}
+                <small class="text-muted">{{ __('This user will only use this branch in POS; they cannot change branch.') }}</small>
+                @error('pos_branch_id')
+                    <small class="invalid-feedback d-block"><strong class="text-danger">{{ $message }}</strong></small>
                 @enderror
             </div>
             <div class="col-md-5 mb-3 form-group mt-4">
@@ -112,3 +120,27 @@
 </div>
 
 {{ Form::close() }}
+@if(!empty($posBranchRoleNames))
+<script>
+(function() {
+    var posRoleNames = @json($posBranchRoleNames);
+    function togglePosBranch() {
+        var sel = document.getElementById('user-create-role');
+        var div = document.querySelector('.pos-branch-div');
+        if (!sel || !div) return;
+        var text = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+        if (posRoleNames.indexOf(text) !== -1) {
+            div.classList.remove('d-none');
+            div.querySelector('select').setAttribute('required', 'required');
+        } else {
+            div.classList.add('d-none');
+            div.querySelector('select').removeAttribute('required');
+            div.querySelector('select').value = '';
+        }
+    }
+    document.getElementById('user-create-role').addEventListener('change', togglePosBranch);
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', togglePosBranch);
+    else togglePosBranch();
+})();
+</script>
+@endif

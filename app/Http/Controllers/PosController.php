@@ -62,6 +62,10 @@ class PosController extends Controller
                     $q->where('pos_type', Branch::POS_TYPE_RETAIL)->orWhereNull('pos_type');
                 })
                 ->pluck('id')->toArray();
+            $posBranchLocked = Auth::user()->hasPosBranchRestriction();
+            if ($posBranchLocked && Auth::user()->pos_branch_id) {
+                $retailBranchIds = array_intersect($retailBranchIds, [Auth::user()->pos_branch_id]);
+            }
             $branches = Branch::whereIn('id', $retailBranchIds)->get()->pluck('name', 'id');
             $warehouses = warehouse::with('branch')->where('created_by', \Auth::user()->creatorId())
                 ->where(function ($q) use ($retailBranchIds) {
@@ -117,7 +121,7 @@ class PosController extends Controller
                     $warehouseId = $wh;
                 }
             }
-            return view('pos.index', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'userOpenShift', 'canChangeShift', 'userOpenShiftByBranch', 'defaultBranchIdFromShift'));
+            return view('pos.index', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'userOpenShift', 'canChangeShift', 'userOpenShiftByBranch', 'defaultBranchIdFromShift', 'posBranchLocked'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -265,6 +269,71 @@ class PosController extends Controller
     public function create(Request $request)
     {
         $sess = session()->get('pos');
+
+        // Restaurant: when paying a table order, load cart from existing Pos if session cart is empty
+        $tableId = (int) $request->get('pos_table_id');
+        $shiftId = (int) $request->get('pos_shift_id');
+        if (Auth::user()->canManagePos() && $tableId && $shiftId && (empty($sess) || !is_array($sess) || count($sess) === 0)) {
+            $creatorId = Auth::user()->creatorId();
+            $pos = Pos::where('table_id', $tableId)
+                ->where('shift_id', $shiftId)
+                ->where('created_by', $creatorId)
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->with(['items.product'])
+                ->first();
+            if ($pos && $pos->items->isNotEmpty()) {
+                $sess = [];
+                foreach ($pos->items as $line) {
+                    $product = $line->product;
+                    $price = (float) $line->price;
+                    $qty = (int) $line->quantity;
+                    $taxRate = 0;
+                    if ($product && !empty($product->tax_id)) {
+                        $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
+                        $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
+                        foreach ($taxModels as $t) {
+                            $taxRate += $t->rate ?? 0;
+                        }
+                    }
+                    $subtotal = $price * $qty;
+                    $taxAmount = ($subtotal * $taxRate) / 100;
+                    $sess[$line->product_id] = [
+                        'id' => $line->product_id,
+                        'name' => $product ? $product->name : __('Product'),
+                        'quantity' => $qty,
+                        'price' => $price,
+                        'tax' => $taxRate,
+                        'subtotal' => $subtotal + $taxAmount,
+                        'product_tax' => $taxRate ? $taxRate . '%' : '-',
+                    ];
+                }
+                // Merge any unsent session cart for this table
+                $cartKey = 'pos_restaurant_cart';
+                $tableKey = $tableId . '_' . $shiftId;
+                $allCarts = $request->session()->get($cartKey, []);
+                if (!empty($allCarts[$tableKey])) {
+                    foreach ($allCarts[$tableKey] as $pid => $v) {
+                        $pid = is_numeric($pid) ? (int) $pid : $pid;
+                        if (isset($sess[$pid])) {
+                            $sess[$pid]['quantity'] += (int) ($v['quantity'] ?? 0);
+                            $sub = ($sess[$pid]['price'] * $sess[$pid]['quantity']) * (1 + ($sess[$pid]['tax'] ?? 0) / 100);
+                            $sess[$pid]['subtotal'] = $sub;
+                        } else {
+                            $sess[$pid] = [
+                                'id' => $pid,
+                                'name' => $v['name'] ?? __('Product'),
+                                'quantity' => (int) ($v['quantity'] ?? 1),
+                                'price' => (float) ($v['price'] ?? 0),
+                                'tax' => (float) ($v['tax'] ?? 0),
+                                'subtotal' => (float) ($v['subtotal'] ?? 0),
+                                'product_tax' => $v['product_tax'] ?? '-',
+                            ];
+                        }
+                    }
+                }
+            }
+        }
 
         if (Auth::user()->canManagePos() && isset($sess) && !empty($sess) && count($sess) > 0) {
 
@@ -665,6 +734,45 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $pos_id = $this->invoicePosNumber();
             $sales = $request->input('cart') ?: session()->get('pos');
 
+            // Restaurant: pay existing table order from DB when session cart is empty
+            $tableId = (int) $request->get('pos_table_id');
+            $shiftId = (int) $request->get('pos_shift_id');
+            if (($tableId && $shiftId) && (empty($sales) || !is_array($sales) || count($sales) === 0)) {
+                $existingPos = Pos::where('table_id', $tableId)
+                    ->where('shift_id', $shiftId)
+                    ->where('created_by', $user_id)
+                    ->whereNull('cancelled_at')
+                    ->whereDoesntHave('posPayments')
+                    ->with(['items.product'])
+                    ->first();
+                if ($existingPos && $existingPos->items->isNotEmpty()) {
+                    $sales = [];
+                    foreach ($existingPos->items as $line) {
+                        $product = $line->product;
+                        $price = (float) $line->price;
+                        $qty = (int) $line->quantity;
+                        $taxRate = 0;
+                        if ($product && !empty($product->tax_id)) {
+                            $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
+                            $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
+                            foreach ($taxModels as $t) {
+                                $taxRate += $t->rate ?? 0;
+                            }
+                        }
+                        $subtotal = $price * $qty * (1 + $taxRate / 100);
+                        $sales[$line->product_id] = [
+                            'id' => $line->product_id,
+                            'name' => $product ? $product->name : __('Product'),
+                            'quantity' => $qty,
+                            'price' => $price,
+                            'tax' => $taxRate,
+                            'subtotal' => $subtotal,
+                            'product_tax' => $taxRate ? $taxRate . '%' : '-',
+                        ];
+                    }
+                }
+            }
+
             if (isset($sales) && !empty($sales) && count($sales) > 0) {
                 $resolved_warehouse_id = warehouse::warehouse_id($request->warehouse_name);
                 if (empty($request->warehouse_name) || $resolved_warehouse_id <= 0) {
@@ -676,19 +784,111 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 }
                 $warehouse_id = $resolved_warehouse_id;
 
+                // Restaurant: use existing Pos for this table+shift if we just loaded $sales from it
+                $useExistingPos = false;
+                if ($tableId && $shiftId) {
+                    $existingPos = Pos::where('table_id', $tableId)
+                        ->where('shift_id', $shiftId)
+                        ->where('created_by', $user_id)
+                        ->whereNull('cancelled_at')
+                        ->whereDoesntHave('posPayments')
+                        ->with('items')
+                        ->first();
+                    if ($existingPos && $existingPos->items->isNotEmpty()) {
+                        $useExistingPos = true;
+                    }
+                }
+
                 $result = DB::table('pos')->where('pos_id', $pos_id)->where('created_by', $user_id)->get();
-                if (count($result) > 0) {
+                if (count($result) > 0 && !$useExistingPos) {
                     return response()->json(
                         [
                             'code' => 200,
                             'success' => __('Payment is already completed!'),
                         ]
                     );
-                } else {
-                    $warehouse = warehouse::find($warehouse_id);
-                    $branch_id = ($warehouse && $warehouse->branch_id) ? $warehouse->branch_id : Branch::where('created_by', $user_id)->value('id');
+                }
+                if ($useExistingPos) {
+                    $pos = $existingPos;
+                    $pos->customer_id = $customer_id;
+                    $pos->payment_method = $request->payment_method ?? $pos->payment_method;
+                    $pos->save();
+                    foreach ($pos->items as $line) {
+                        PosRecipeDeductionService::deductForSale(
+                            (int) $line->product_id,
+                            (float) $line->quantity,
+                            (int) $pos->warehouse_id,
+                            $user_id,
+                            \Auth::user()->posNumberFormat($pos->pos_id),
+                            (int) $pos->id
+                        );
+                    }
+                    $mainsubtotal = 0;
+                    $sessForTotal = $sales;
+                    foreach ($sessForTotal as $key => $value) {
+                        $mainsubtotal += $value['subtotal'] ?? (($value['price'] ?? 0) * ($value['quantity'] ?? 0));
+                    }
+                    $total = $mainsubtotal - (float) $discount;
+                    $payments = $request->input('payments');
+                    if (is_array($payments) && count($payments) > 0) {
+                        foreach ($payments as $p) {
+                            $amt = (float) ($p['amount'] ?? 0);
+                            if ($amt <= 0) continue;
+                            $posPayment = new PosPayment();
+                            $posPayment->pos_id = $pos->id;
+                            $posPayment->branch_id = $pos->branch_id;
+                            $posPayment->date = $request->date ?? date('Y-m-d');
+                            $posPayment->payment_method = !empty($p['payment_method']) ? $p['payment_method'] : PosPayment::METHOD_CASH;
+                            $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
+                            $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
+                            $posPayment->amount = $amt;
+                            $posPayment->discount = 0;
+                            $posPayment->discount_amount = $amt;
+                            $posPayment->created_by = $user_id;
+                            $posPayment->save();
+                        }
+                    } else {
+                        $paidAmount = (float) ($request->amount ?? $total);
+                        if ($paidAmount <= 0) $paidAmount = $total;
+                        $changeAmount = (float) ($request->change_amount ?? 0);
+                        $posPayment = new PosPayment();
+                        $posPayment->pos_id = $pos->id;
+                        $posPayment->branch_id = $pos->branch_id;
+                        $posPayment->date = $request->date ?? date('Y-m-d');
+                        $posPayment->payment_method = $request->payment_method ?? PosPayment::METHOD_CASH;
+                        $posPayment->credit_terms = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->credit_terms ?? null) : null;
+                        $posPayment->customer_id = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->customer_id ?: $customer_id) : null;
+                        $posPayment->transaction_id = $request->transaction_id ?: null;
+                        $posPayment->amount = $paidAmount;
+                        $posPayment->change_amount = $changeAmount;
+                        $posPayment->discount = $discount;
+                        $posPayment->discount_amount = $total;
+                        $posPayment->notes = $request->notes ?: null;
+                        $posPayment->created_by = $user_id;
+                        $posPayment->save();
+                    }
+                    $pos->load('items');
+                    $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
+                    session()->forget('pos');
+                    $cartKey = 'pos_restaurant_cart';
+                    $tableKey = $tableId . '_' . $shiftId;
+                    $allCarts = session()->get($cartKey, []);
+                    if (isset($allCarts[$tableKey])) {
+                        unset($allCarts[$tableKey]);
+                        session()->put($cartKey, $allCarts);
+                    }
+                    return response()->json([
+                        'code' => 200,
+                        'success' => __('Payment completed successfully!'),
+                        'invoice_id' => $invoice ? $invoice->id : null,
+                        'pos_id' => $pos->id,
+                    ]);
+                }
 
-                    $pos = new Pos();
+                $warehouse = warehouse::find($warehouse_id);
+                $branch_id = ($warehouse && $warehouse->branch_id) ? $warehouse->branch_id : Branch::where('created_by', $user_id)->value('id');
+
+                $pos = new Pos();
                     $pos->pos_id = $pos_id;
                     $pos->branch_id = $branch_id;
                     $pos->order_type = $request->pos_order_type ?: null;
@@ -800,7 +1000,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         ]
                     );
                 }
-            } else {
+            else {
                 return response()->json(
                     [
                         'code' => 404,
@@ -808,6 +1008,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     ]
                 );
             }
+
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -963,8 +1164,56 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
     }
 
     /**
+     * Get open order for a table+shift (for per-table cart: load existing order + session cart).
+     */
+    public function getRestaurantOrder(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $tableId = (int) $request->get('table_id');
+        $shiftId = (int) $request->get('shift_id');
+        if (!$tableId || !$shiftId) {
+            return response()->json(['pos_id' => null, 'items' => [], 'session_items' => []]);
+        }
+        $creatorId = Auth::user()->creatorId();
+        $pos = Pos::where('table_id', $tableId)
+            ->where('shift_id', $shiftId)
+            ->where('created_by', $creatorId)
+            ->whereNull('cancelled_at')
+            ->whereDoesntHave('posPayments')
+            ->with(['items.product'])
+            ->first();
+        $items = [];
+        if ($pos) {
+            foreach ($pos->items as $line) {
+                $items[] = [
+                    'id' => $line->product_id,
+                    'name' => $line->product ? $line->product->name : '',
+                    'quantity' => (int) $line->quantity,
+                    'price' => (float) $line->price,
+                    'discount' => (float) $line->discount,
+                    'tax' => $line->tax,
+                    'subtotal' => (float) ($line->price * $line->quantity - $line->discount),
+                    'print_zone' => $line->print_zone ?? '',
+                    'pro_image' => $line->product && $line->product->pro_image ? $line->product->pro_image : 'default.png',
+                ];
+            }
+        }
+        $cartKey = 'pos_restaurant_cart';
+        $tableKey = $tableId . '_' . $shiftId;
+        $allCarts = $request->session()->get($cartKey, []);
+        $sessionItems = isset($allCarts[$tableKey]) ? array_values($allCarts[$tableKey]) : [];
+        return response()->json([
+            'pos_id' => $pos ? $pos->id : null,
+            'items' => $items,
+            'session_items' => $sessionItems,
+        ]);
+    }
+
+    /**
      * Phase 1: Send to production – save order + lines (no payment, no stock deduction).
-     * Creates or reuses open Pos for table+shift and adds PosProduct lines with status pending.
+     * Replaces existing lines with payload so same table can be edited and re-sent. Clears per-table session cart after send.
      */
     public function sendToProduction(Request $request)
     {
@@ -1022,6 +1271,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $pos->save();
         }
 
+        // Replace all lines with current payload (so we can edit qty / add items and send again).
+        PosProduct::where('pos_id', $pos->id)->delete();
+
         $now = now();
         foreach ($request->items as $item) {
             $product = ProductService::where('id', $item['id'])->where('created_by', $creatorId)->first();
@@ -1045,6 +1297,15 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 'sent_at' => $now,
                 'print_zone' => $printZone,
             ]);
+        }
+
+        // Clear per-table session cart so UI loads from DB next time.
+        $cartKey = 'pos_restaurant_cart';
+        $tableKey = $tableId . '_' . $shiftId;
+        $allCarts = $request->session()->get($cartKey, []);
+        if (isset($allCarts[$tableKey])) {
+            unset($allCarts[$tableKey]);
+            $request->session()->put($cartKey, $allCarts);
         }
 
         \App\Services\PosAuditLogService::log(
@@ -1586,6 +1847,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             // Restaurant POS: only restaurant branches
             $restaurantBranchIds = Branch::where('created_by', $creatorId)->where('is_active', true)
                 ->where('pos_type', Branch::POS_TYPE_RESTAURANT)->pluck('id')->toArray();
+            $posBranchLocked = Auth::user()->hasPosBranchRestriction();
+            if ($posBranchLocked && Auth::user()->pos_branch_id) {
+                $restaurantBranchIds = array_intersect($restaurantBranchIds, [Auth::user()->pos_branch_id]);
+            }
             $branches = Branch::whereIn('id', $restaurantBranchIds)->get()->pluck('name', 'id');
             $warehouses = warehouse::with('branch')->where('created_by', \Auth::user()->creatorId())
                 ->whereIn('branch_id', $restaurantBranchIds)->get()->pluck('name', 'id');
@@ -1629,7 +1894,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 ->get();
             $userOpenShiftByBranch = $userOpenShifts->pluck('id', 'branch_id')->toArray();
             $userOpenShift = $userOpenShifts->first();
-            return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift'));
+            return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }

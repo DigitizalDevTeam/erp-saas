@@ -138,7 +138,7 @@ class PosTableController extends Controller
 
     /**
      * Update table status (available / occupied / reserved).
-     * Phase 4: Reopen (available → occupied) requires manager password; audit log.
+     * Open table (available → occupied) is allowed for any POS user (waiter/cashier/manager). No manager password needed.
      */
     public function updateStatus(Request $request, $id)
     {
@@ -154,11 +154,6 @@ class PosTableController extends Controller
             return response()->json(['error' => __('Invalid status.')], 422);
         }
         $oldStatus = $table->status;
-        if ($oldStatus === PosTable::STATUS_AVAILABLE && $status === PosTable::STATUS_OCCUPIED) {
-            if (!PosAuditLogService::requireManagerPassword($request)) {
-                return response()->json(['error' => __('Manager password required to reopen table.')], 403);
-            }
-        }
         $table->status = $status;
         if ($request->has('guests_count')) {
             $guests = $request->input('guests_count');
@@ -173,7 +168,7 @@ class PosTableController extends Controller
         }
         $table->save();
         if ($oldStatus === PosTable::STATUS_AVAILABLE && $status === PosTable::STATUS_OCCUPIED) {
-            PosAuditLogService::log(PosAuditLog::ACTION_REOPEN_TABLE, 'pos_table', (int) $table->id, __('Table reopened'), ['table_name' => $table->name]);
+            PosAuditLogService::log(PosAuditLog::ACTION_OPEN_TABLE, 'pos_table', (int) $table->id, __('Table opened'), ['table_name' => $table->name, 'guests' => $table->current_guests]);
         } elseif ($status === PosTable::STATUS_OCCUPIED) {
             PosAuditLogService::log(PosAuditLog::ACTION_OPEN_TABLE, 'pos_table', (int) $table->id, __('Table opened'), ['table_name' => $table->name, 'guests' => $table->current_guests]);
         } elseif ($status === PosTable::STATUS_AVAILABLE) {

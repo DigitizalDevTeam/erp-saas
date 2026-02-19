@@ -25,6 +25,9 @@ class PosRestaurantRoleService
     /** Permission: view all sales, shifts, reports, EOD */
     public const PERMISSION_MANAGER = 'pos restaurant manager';
 
+    /** Permission: POS Production only (Kitchen/Bar – view orders, update line status) */
+    public const PERMISSION_POS_PRODUCTION = 'manage pos production';
+
     public const ROLE_CASHIER = 'Cashier';
     public const ROLE_WAITER = 'Waiter';
     public const ROLE_MANAGER = 'Manager';
@@ -39,6 +42,7 @@ class PosRestaurantRoleService
             self::PERMISSION_CASHIER,
             self::PERMISSION_WAITER,
             self::PERMISSION_MANAGER,
+            self::PERMISSION_POS_PRODUCTION,
         ];
     }
 
@@ -70,8 +74,8 @@ class PosRestaurantRoleService
             self::ROLE_CASHIER => [self::PERMISSION_CASHIER, 'show pos dashboard'],
             self::ROLE_WAITER  => [self::PERMISSION_WAITER, 'show pos dashboard'],
             self::ROLE_MANAGER => [self::PERMISSION_MANAGER, 'show pos dashboard'],
-            self::ROLE_BAR => [self::PERMISSION_WAITER, 'show pos dashboard'],
-            self::ROLE_KITCHEN => [self::PERMISSION_WAITER, 'show pos dashboard'],
+            self::ROLE_BAR     => [self::PERMISSION_POS_PRODUCTION, 'show pos dashboard'],
+            self::ROLE_KITCHEN => [self::PERMISSION_POS_PRODUCTION, 'show pos dashboard'],
         ];
 
         foreach ($roleConfig as $roleName => $permissionNames) {

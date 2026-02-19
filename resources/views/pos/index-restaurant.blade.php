@@ -226,7 +226,8 @@
                             @endphp
                             @if(isset($branches) && $branches->count() >= 1)
                             <div class="col-12">
-                                {{ Form::select('branch_id', $branches, $defaultBranchId, ['class' => 'form-control select branch_select', 'id' => 'branch_id', 'placeholder' => __('Select Branch')]) }}
+                                {{ Form::select('branch_id', $branches, $defaultBranchId, ['class' => 'form-control select branch_select', 'id' => 'branch_id', 'placeholder' => __('Select Branch'), 'readonly' => !empty($posBranchLocked), 'disabled' => !empty($posBranchLocked)]) }}
+                                @if(!empty($posBranchLocked))<small class="text-muted">{{ __('Assigned branch only') }}</small>@endif
                             </div>
                             @endif
                             <div id="pos-restaurant-options" class="col-12 row gy-1 {{ empty($restaurantBranchIds) ? 'd-none' : '' }}">
@@ -446,6 +447,13 @@
                 <form id="pos-open-shift-form">
                     <div class="modal-body">
                         @csrf
+                        @if(!empty($posBranchLocked) && Auth::user()->pos_branch_id && isset($branches) && $branches->has(Auth::user()->pos_branch_id))
+                            <input type="hidden" name="branch_id" value="{{ Auth::user()->pos_branch_id }}">
+                            <div class="mb-3">
+                                <label class="form-label">{{ __('pos.branch') }}</label>
+                                <div class="form-control-plaintext fw-semibold">{{ $branches[Auth::user()->pos_branch_id] ?? __('Assigned branch') }}</div>
+                            </div>
+                        @else
                         <div class="mb-3">
                             <label class="form-label">{{ __('pos.branch') }}</label>
                             <select name="branch_id" class="form-select" required>
@@ -457,6 +465,7 @@
                                 @endisset
                             </select>
                         </div>
+                        @endif
                         <div class="mb-3">
                             <label class="form-label">{{ __('pos.opening_balance') }}</label>
                             <input type="number" name="opening_balance" class="form-control" min="0" step="0.01" value="0" placeholder="0">
@@ -523,6 +532,7 @@
         var POS_CACHE_CATEGORIES = 'pos_cache_categories';
         var posSyncUrl = '{{ route("pos.sync") }}';
         var posEmptyCartUrl = '{{ route("warehouse-empty-cart") }}';
+        var posRestaurantOrderUrl = '{{ route("pos.restaurant.order") }}';
         var posSearchProductsUrl = '{{ route("search.products") }}';
         var posCategoriesUrl = '{{ route("product.categories") }}';
         var sessionKey = '{{ $lastsegment ?? "pos" }}';
@@ -1045,6 +1055,72 @@
                 var $closeBtn = $('#pos-close-table-btn');
                 $closeBtn.data('table-id', id).data('table-status', status || '');
                 $closeBtn.toggleClass('d-none', (status || '') !== 'occupied');
+                var shiftId = $('#pos_shift_id_hidden').val();
+                if (id && shiftId) {
+                    loadRestaurantOrder(id, shiftId);
+                } else {
+                    $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+                    $('#pos-restaurant-total').text('0');
+                    $('#pos-pay-btn-restaurant').prop('disabled', true);
+                }
+            }
+            function loadRestaurantOrder(tableId, shiftId) {
+                if (!tableId || !shiftId) return;
+                $.get(posRestaurantOrderUrl, { table_id: tableId, shift_id: shiftId }, function (res) {
+                    var items = res.items || [];
+                    var sessionItems = res.session_items || [];
+                    var byId = {};
+                    items.forEach(function (it) {
+                        byId[it.id] = { id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, print_zone: it.print_zone || '', pro_image: it.pro_image || 'default.png' };
+                    });
+                    sessionItems.forEach(function (it) {
+                        var id = it.id;
+                        var qty = (it.quantity || 0);
+                        var price = parseFloat(it.price) || 0;
+                        var tax = parseFloat(it.tax) || 0;
+                        var sub = (it.subtotal != null) ? parseFloat(it.subtotal) : (price * (1 + tax / 100) * qty);
+                        if (byId[id]) {
+                            byId[id].quantity += qty;
+                            byId[id].subtotal = byId[id].price * byId[id].quantity * (1 + byId[id].tax / 100);
+                        } else {
+                            byId[id] = { id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, print_zone: (it.print_zone || ''), pro_image: (it.pro_image || 'default.png') };
+                        }
+                    });
+                    var list = Object.keys(byId).map(function (k) { return byId[k]; });
+                    var tbody = $('#tbody-restaurant');
+                    var total = 0;
+                    if (list.length === 0) {
+                        tbody.html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+                    } else {
+                        var rows = '';
+                        var csrf = '{{ csrf_token() }}';
+                        var sessionKeyVal = sessionKey;
+                        var deleteFormBase = '{{ url("remove-from-cart") }}';
+                        list.forEach(function (it) {
+                            var sub = (it.price * it.quantity * (1 + it.tax / 100));
+                            total += sub;
+                            var imgUrl = (it.pro_image && it.pro_image !== 'default.png') ? '{{ asset(Storage::url("uploads/pro_image")) }}/' + it.pro_image : '{{ asset(Storage::url("uploads/pro_image/default.png")) }}';
+                            var taxDisplay = (it.tax && it.tax !== 0) ? (it.tax + '%') : '-';
+                            rows += '<tr data-product-id="' + it.id + '" id="product-id-r-' + it.id + '" data-name="' + (it.name || '').replace(/"/g, '&quot;') + '" data-price="' + it.price + '" data-quantity="' + it.quantity + '" data-tax="' + it.tax + '" data-subtotal="' + sub + '" data-print-zone="' + (it.print_zone || '').replace(/"/g, '&quot;') + '">';
+                            rows += '<td class="cart-images"><img alt="" src="' + imgUrl + '" class="card-image avatar shadow hover-shadow-lg"></td>';
+                            rows += '<td class="name">' + (it.name || '').replace(/</g, '&lt;') + '</td>';
+                            rows += '<td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + it.id + '" value="' + it.quantity + '"><input type="button" value="+" class="plus"></span></td>';
+                            rows += '<td class="tax">' + taxDisplay + '</td>';
+                            rows += '<td class="price">' + (typeof addCommas === 'function' ? addCommas(it.price) : it.price) + '</td>';
+                            rows += '<td class="subtotal">' + (typeof addCommas === 'function' ? addCommas(sub) : sub) + '</td>';
+                            rows += '<td class="action-btn"><a href="#" class="btn btn-sm bg-danger bs-pass-para-pos pos-remove-from-cart" data-confirm="{{ __("Are You Sure?") }}" data-text="{{ __("This action can not be undone. Do you want to continue?") }}" data-confirm-yes="delete-form-r-' + it.id + '" title="{{ __("Delete") }}" data-id="' + it.id + '"><i class="ti ti-trash text-white"></i></a>';
+                            rows += '<form method="post" action="' + deleteFormBase + '" id="delete-form-r-' + it.id + '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' + csrf + '"><input type="hidden" name="session_key" value="' + sessionKeyVal + '"><input type="hidden" name="id" value="' + it.id + '"><input type="hidden" name="table_id" value="' + tableId + '"><input type="hidden" name="shift_id" value="' + shiftId + '"></form></td>';
+                            rows += '</tr>';
+                        });
+                        tbody.html(rows);
+                    }
+                    $('#pos-restaurant-total').text(typeof addCommas === 'function' ? addCommas(total) : total);
+                    $('#pos-pay-btn-restaurant').prop('disabled', list.length === 0);
+                }).fail(function () {
+                    $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+                    $('#pos-restaurant-total').text('0');
+                    $('#pos-pay-btn-restaurant').prop('disabled', true);
+                });
             }
 
             function getProductCategoriesRestaurant() {
@@ -1110,10 +1186,14 @@
             $(document).on('click', '#pos-empty-cart-restaurant', function () {
                 if (!confirm('{{ __("pos.remove_all_items") }}')) return;
                 var sk = $( "#empty_cart" ).val() || sessionKey;
+                var data = { session_key: sk };
+                var tid = $('#pos_table_id_hidden').val();
+                var sid = $('#pos_shift_id_hidden').val();
+                if (tid && sid) { data.table_id = tid; data.shift_id = sid; }
                 $.ajax({
                     type: 'POST',
                     url: posEmptyCartUrl,
-                    data: { session_key: sk },
+                    data: data,
                     success: function () {
                         $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
                         $('#pos-restaurant-total').text('0');
@@ -1188,6 +1268,9 @@
                         if (res.success) {
                             show_toastr('{{ __("Success") }}', res.message || '{{ __("Order sent to production.") }}', 'success');
                             posRestaurantPrintSlips($('#pos-selected-table').text());
+                            var tid = $('#pos_table_id_hidden').val();
+                            var sid = $('#pos_shift_id_hidden').val();
+                            if (tid && sid) loadRestaurantOrder(tid, sid);
                         }
                     },
                     error: function (xhr) {
@@ -1573,7 +1656,14 @@
                 }
                 var sum = 0;
                 var addUrl = $el.data('url');
-                if (isRestaurant) addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'restaurant=1';
+                if (isRestaurant) {
+                    addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'restaurant=1';
+                    var tid = $('#pos_table_id_hidden').val();
+                    var sid = $('#pos_shift_id_hidden').val();
+                    if (tid && sid) {
+                        addUrl += '&table_id=' + encodeURIComponent(tid) + '&shift_id=' + encodeURIComponent(sid);
+                    }
+                }
                 var taxRate = $el.data('product-tax');
                 if (taxRate !== undefined && taxRate !== '' && !isNaN(parseFloat(taxRate))) {
                     addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'tax_rate=' + encodeURIComponent(taxRate);
@@ -1692,12 +1782,14 @@
                     $.ajax({
                         url: ele.data('url'),
                         method: "patch",
-                        data: {
-                            id: ele.attr("data-id"),
-                            quantity: quantity,
-                            discount: discount,
-                            session_key: session_key
-                        },
+                        data: (function () {
+                            var d = { id: ele.attr("data-id"), quantity: quantity, discount: discount, session_key: session_key };
+                            if (inRestaurant) {
+                                d.table_id = $('#pos_table_id_hidden').val();
+                                d.shift_id = $('#pos_shift_id_hidden').val();
+                            }
+                            return d;
+                        })(),
                         success: function (data) {
                             if (data.code == '200') {
                                 if (quantity == 0) {
@@ -1838,10 +1930,17 @@
 
             $(document).on('pos-payment-completed', function (e, data) {
                 var sk = $('#empty_cart').val() || sessionKey;
+                var emptyData = { session_key: sk };
+                var tid = $('#pos_table_id_hidden').val();
+                var sid = $('#pos_shift_id_hidden').val();
+                if (sk === 'pos-restaurant' && tid && sid) {
+                    emptyData.table_id = tid;
+                    emptyData.shift_id = sid;
+                }
                 $.ajax({
                     type: 'POST',
                     url: posEmptyCartUrl,
-                    data: { session_key: sk },
+                    data: emptyData,
                     success: function () {
                         $('#tbody').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
                         $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');

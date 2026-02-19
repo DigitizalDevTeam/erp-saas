@@ -41,6 +41,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'is_enable_login',
         'last_login_at',
         'created_by',
+        'pos_branch_id',
     ];
 
     protected $hidden = [
@@ -88,6 +89,29 @@ class User extends Authenticatable implements MustVerifyEmail
             || $this->can('pos restaurant full')
             || $this->can('pos restaurant waiter')
             || $this->can('pos restaurant manager');
+    }
+
+    /**
+     * Whether this user is restricted to a single branch in POS (Waiter/Cashier/Manager with assigned branch).
+     * Such users cannot change branch in retail or restaurant POS.
+     */
+    public function hasPosBranchRestriction(): bool
+    {
+        if ($this->can('manage pos')) {
+            return false;
+        }
+        if (!$this->can('pos restaurant full') && !$this->can('pos restaurant waiter') && !$this->can('pos restaurant manager')) {
+            return false;
+        }
+        return !empty($this->pos_branch_id);
+    }
+
+    /**
+     * Branch assigned to this user for POS (null = no restriction).
+     */
+    public function posBranch()
+    {
+        return $this->belongsTo(Branch::class, 'pos_branch_id');
     }
 
     public function ownerId()

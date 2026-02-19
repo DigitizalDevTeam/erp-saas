@@ -15,13 +15,31 @@ class PosProductionController extends Controller
 {
     public function index(Request $request)
     {
-        if (!\Auth::user()->canManagePos()) {
+        if (!\Auth::user()->canManagePos() && !\Auth::user()->can('manage pos production')) {
             return redirect()->route('dashboard')->with('error', __('Permission denied.'));
         }
 
-        $creatorId = \Auth::user()->creatorId();
-        $branchId = $request->get('branch_id');
-        $zone = $request->get('zone', PosProduct::PRINT_ZONE_KITCHEN);
+        $user = \Auth::user();
+        $creatorId = $user->creatorId();
+        $showBranchZoneSelection = $user->can('manage pos');
+
+        $branchId = null;
+        $zone = PosProduct::PRINT_ZONE_KITCHEN;
+
+        if ($showBranchZoneSelection) {
+            $branchId = $request->get('branch_id');
+            $zone = $request->get('zone', PosProduct::PRINT_ZONE_KITCHEN);
+        } else {
+            $branchId = $user->pos_branch_id;
+            if ($user->can('manage pos production')) {
+                $roleNames = $user->roles->pluck('name')->toArray();
+                if (in_array(\App\Services\PosRestaurantRoleService::ROLE_BAR, $roleNames)) {
+                    $zone = PosProduct::PRINT_ZONE_BAR;
+                } else {
+                    $zone = PosProduct::PRINT_ZONE_KITCHEN;
+                }
+            }
+        }
 
         $branches = Branch::where('created_by', $creatorId)
             ->where('is_active', true)
@@ -31,6 +49,10 @@ class PosProductionController extends Controller
 
         if (!$branchId && $branches->isNotEmpty()) {
             $branchId = $branches->first()->id;
+        }
+
+        if (!$showBranchZoneSelection && !$branchId) {
+            return redirect()->route('dashboard')->with('error', __('No branch assigned. Please contact admin to assign a branch.'));
         }
 
         $lines = collect();
@@ -53,12 +75,12 @@ class PosProductionController extends Controller
                 ->get();
         }
 
-        return view('pos_production.index', compact('branches', 'branchId', 'zone', 'lines'));
+        return view('pos_production.index', compact('branches', 'branchId', 'zone', 'lines', 'showBranchZoneSelection'));
     }
 
     public function updateLineStatus(Request $request, PosProduct $line)
     {
-        if (!\Auth::user()->canManagePos()) {
+        if (!\Auth::user()->canManagePos() && !\Auth::user()->can('manage pos production')) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
 

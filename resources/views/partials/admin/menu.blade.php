@@ -1332,6 +1332,7 @@
                         Gate::check('manage pos') ||
                         Gate::check('pos restaurant full') ||
                         Gate::check('pos restaurant waiter') ||
+                        Gate::check('manage pos production') ||
                         Gate::check('pos restaurant manager')
                     )
                     <li class="dash-item dash-hasmenu">
@@ -1385,7 +1386,8 @@
                                 Gate::check('manage pos') ||
                                 Gate::check('pos restaurant full') ||
                                 Gate::check('pos restaurant manager') || 
-                                Gate::check('pos restaurant waiter') 
+                                Gate::check('pos restaurant waiter') ||
+                                Gate::check('manage pos production')
                             )
                             <li class="dash-item dash-hasmenu">
                                 <a href="#!" class="dash-link">
@@ -1399,7 +1401,7 @@
                                         <a class="dash-link" href="{{ route('pos.restaurant.index') }}">{{ __('Restaurant POS') }}</a>
                                     </li>
                                     @endif
-                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant waiter') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant manager') || Gate::check('manage pos production'))
                                     <li class="dash-item {{ Request::route()->getName() == 'pos.production.index' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos.production.index') }}">{{ __('Production') }}</a>
                                     </li>

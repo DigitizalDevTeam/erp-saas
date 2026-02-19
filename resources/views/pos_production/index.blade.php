@@ -13,6 +13,7 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
+                    @if(!empty($showBranchZoneSelection))
                     <form method="get" class="row g-3 align-items-end mb-4">
                         <div class="col-auto">
                             <label class="form-label">{{ __('Branch') }}</label>
@@ -33,6 +34,7 @@
                             <button type="submit" class="btn btn-sm btn-primary"><i class="ti ti-refresh"></i> {{ __('Apply') }}</button>
                         </div>
                     </form>
+                    @endif
 
                     <div class="table-responsive">
                         <table class="table table-hover align-middle">

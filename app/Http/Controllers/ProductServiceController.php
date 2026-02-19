@@ -422,7 +422,8 @@ class ProductServiceController extends Controller
 
         if ((Auth::user()->can('manage pos') || Auth::user()->canManagePos()) && $request->ajax() && isset($lastsegment) && !empty($lastsegment)) {
 
-            $isPos = ($lastsegment === 'pos');
+            // Retail and Restaurant POS use the same product query (posList – all products by creator, no warehouse filter).
+            $isPos = in_array($lastsegment, ['pos', 'pos-restaurant'], true);
             $page = max(1, (int) $request->get('page', 1));
             $perPage = 50;
 
@@ -518,7 +519,7 @@ class ProductServiceController extends Controller
                     $imgSrc = rtrim($baseImgUrl, '/') . '/' . $imgFile;
                     if ($request->session_key == 'purchases') {
                         $productprice = $product->purchase_price != 0 ? $product->purchase_price : 0;
-                    } elseif ($request->session_key == 'pos') {
+                    } elseif (in_array($request->session_key, ['pos', 'pos-restaurant'], true)) {
                         $productprice = $product->sale_price != 0 ? $product->sale_price : 0;
                     } else {
                         $productprice = $product->sale_price != 0 ? $product->sale_price : $product->purchase_price;
@@ -547,16 +548,28 @@ class ProductServiceController extends Controller
     public function addToCart(Request $request, $id, $session_key)
     {
 
-        $canManage = Auth::user()->can('manage product & service') || (Auth::user()->can('manage pos') || Auth::user()->can('pos restaurant waiter') || Auth::user()->can('pos restaurant full') || Auth::user()->can('pos restaurant manager')) && $session_key == 'pos';
+        $isPosSession = in_array($session_key, ['pos', 'pos-restaurant'], true);
+            $canManage = Auth::user()->can('manage product & service') || ((Auth::user()->can('manage pos') || Auth::user()->can('pos restaurant waiter') || Auth::user()->can('pos restaurant full') || Auth::user()->can('pos restaurant manager')) && $isPosSession);
         if ($canManage && $request->ajax()) {
+            $cartKey = $session_key;
+            $tableKey = null;
+            if ($session_key === 'pos-restaurant') {
+                $tableId = (int) $request->get('table_id');
+                $shiftId = (int) $request->get('shift_id');
+                if (!$tableId || !$shiftId) {
+                    return response()->json(['code' => 404, 'status' => 'Error', 'error' => __('Select a table and ensure shift is open.')], 404);
+                }
+                $cartKey = 'pos_restaurant_cart';
+                $tableKey = $tableId . '_' . $shiftId;
+            }
             $product = ProductService::with('category:id,name')->find($id);
             $productquantity = 0;
 
             if ($product) {
-                $productquantity = ($session_key == 'pos') ? (int) $product->quantity : $product->getTotalProductQuantity();
+                $productquantity = $isPosSession ? (int) $product->quantity : $product->getTotalProductQuantity();
             }
 
-            if (!$product || ($session_key == 'pos' && $productquantity == 0)) {
+            if (!$product || ($isPosSession && $productquantity == 0)) {
                 return response()->json(
                     [
                         'code' => 404,
@@ -571,7 +584,7 @@ class ProductServiceController extends Controller
 
             if ($session_key == 'purchases') {
                 $productprice = $product->purchase_price != 0 ? $product->purchase_price : 0;
-            } elseif ($session_key == 'pos') {
+            } elseif ($isPosSession) {
                 $productprice = $product->sale_price != 0 ? $product->sale_price : 0;
             } else {
                 $productprice = $product->sale_price != 0 ? $product->sale_price : $product->purchase_price;
@@ -583,7 +596,7 @@ class ProductServiceController extends Controller
             $product_tax_id = [];
             $totalTaxRate = 0;
 
-            if ($session_key == 'pos' && $request->has('tax_rate') && is_numeric($request->tax_rate)) {
+            if ($isPosSession && $request->has('tax_rate') && is_numeric($request->tax_rate)) {
                 $totalTaxRate = (float) $request->tax_rate;
                 $product_tax = $request->get('tax_display', $totalTaxRate . '%');
                 if (is_string($product_tax)) {
@@ -613,7 +626,12 @@ class ProductServiceController extends Controller
             $tax = ($productprice * $producttax) / 100;
 
             $subtotal        = $productprice + $tax;
-            $cart            = session()->get($session_key);
+            if ($tableKey !== null) {
+                $all = session()->get($cartKey, []);
+                $cart = $all[$tableKey] ?? null;
+            } else {
+                $cart = session()->get($cartKey);
+            }
             $image_url = !empty($product->pro_image) ? 'uploads/pro_image/' . $product->pro_image : 'uploads/pro_image/default.png';
 
             $model_delete_id = 'delete-form-' . $id;
@@ -623,16 +641,18 @@ class ProductServiceController extends Controller
             $catName = $product->category ? $product->category->name : '';
             $taxDisplay = str_replace("'", "&#39;", strip_tags($product_tax));
             $printZone = $product->print_zone ?? '';
-            if ($session_key == 'pos') {
-                if ($request->get('restaurant')) {
-                    $carthtml .= '<tr data-product-id="' . $id . '" id="product-id-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '">
+            if ($isPosSession) {
+                if ($request->get('restaurant') || $session_key === 'pos-restaurant') {
+                    $tid = $tableKey !== null ? (int) $request->get('table_id') : '';
+                    $sid = $tableKey !== null ? (int) $request->get('shift_id') : '';
+                    $carthtml .= '<tr data-product-id="' . $id . '" id="product-id-r-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '">
                             <td class="cart-images"><img alt="" src="' . asset(Storage::url($image_url)) . '" class="card-image avatar shadow hover-shadow-lg"></td>
                             <td class="name">' . e($productname) . '</td>
                             <td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" class="input-number" data-url="' . url('update-cart/') . '" data-id="' . $id . '" value="1"><input type="button" value="+" class="plus"></span></td>
                             <td class="tax">' . $taxDisplay . '</td>
                             <td class="price">' . Auth::user()->priceFormat($productprice) . '</td>
                             <td class="subtotal">' . Auth::user()->priceFormat($subtotal) . '</td>
-                            <td class="action-btn"><a href="#" class="btn btn-sm bg-danger bs-pass-para-pos pos-remove-from-cart" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . $id . '"><i class="ti ti-trash text-white"></i></a><form method="post" action="' . url('remove-from-cart') . '" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . $id . '"></form></td>
+                            <td class="action-btn"><a href="#" class="btn btn-sm bg-danger bs-pass-para-pos pos-remove-from-cart" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . $id . '"><i class="ti ti-trash text-white"></i></a><form method="post" action="' . url('remove-from-cart') . '" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . $id . '">' . ($tableKey !== null ? '<input type="hidden" name="table_id" value="' . $tid . '"><input type="hidden" name="shift_id" value="' . $sid . '">' : '') . '</form></td>
                         </tr>';
                 } else {
                 $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" id="product-id-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '">';
@@ -701,7 +721,7 @@ class ProductServiceController extends Controller
                 ];
 
 
-                if ($originalquantity < $cart[$id]['quantity'] && $session_key == 'pos') {
+                if ($originalquantity < $cart[$id]['quantity'] && $isPosSession) {
                     return response()->json(
                         [
                             'code' => 404,
@@ -712,7 +732,13 @@ class ProductServiceController extends Controller
                     );
                 }
 
-                session()->put($session_key, $cart);
+                if ($tableKey !== null) {
+                    $all = session()->get($cartKey, []);
+                    $all[$tableKey] = $cart;
+                    session()->put($cartKey, $all);
+                } else {
+                    session()->put($session_key, $cart);
+                }
 
                 return response()->json(
                     [
@@ -737,7 +763,7 @@ class ProductServiceController extends Controller
                 $cart[$id]["subtotal"]         = $subtotal + $tax;
                 $cart[$id]["originalquantity"] = $originalquantity;
 
-                if ($originalquantity < $cart[$id]['quantity'] && $session_key == 'pos') {
+                if ($originalquantity < $cart[$id]['quantity'] && $isPosSession) {
                     return response()->json(
                         [
                             'code' => 404,
@@ -748,7 +774,13 @@ class ProductServiceController extends Controller
                     );
                 }
 
-                session()->put($session_key, $cart);
+                if ($tableKey !== null) {
+                    $all = session()->get($cartKey, []);
+                    $all[$tableKey] = $cart;
+                    session()->put($cartKey, $all);
+                } else {
+                    session()->put($session_key, $cart);
+                }
 
                 return response()->json(
                     [
@@ -773,7 +805,7 @@ class ProductServiceController extends Controller
                 "product_tax" => $product_tax,
             ];
 
-            if ($originalquantity < $cart[$id]['quantity'] && $session_key == 'pos') {
+            if ($originalquantity < $cart[$id]['quantity'] && $isPosSession) {
                 return response()->json(
                     [
                         'code' => 404,
@@ -784,7 +816,13 @@ class ProductServiceController extends Controller
                 );
             }
 
-            session()->put($session_key, $cart);
+            if ($tableKey !== null) {
+                $all = session()->get($cartKey, []);
+                $all[$tableKey] = $cart;
+                session()->put($cartKey, $all);
+            } else {
+                session()->put($session_key, $cart);
+            }
 
             return response()->json(
                 [
@@ -816,10 +854,29 @@ class ProductServiceController extends Controller
         $discount    = $request->discount;
         $session_key = $request->session_key;
 
-        $canManage = Auth::user()->can('manage product & service') || ((Auth::user()->can('manage pos') || Auth::user()->can('pos restaurant waiter') || Auth::user()->can('pos restaurant full') || Auth::user()->can('pos restaurant manager')) && $session_key == 'pos');
+        $isPosSession = in_array($session_key, ['pos', 'pos-restaurant'], true);
+            $canManage = Auth::user()->can('manage product & service') || ((Auth::user()->can('manage pos') || Auth::user()->can('pos restaurant waiter') || Auth::user()->can('pos restaurant full') || Auth::user()->can('pos restaurant manager')) && $isPosSession);
         if ($canManage && $request->ajax() && isset($id) && !empty($id) && isset($session_key) && !empty($session_key)) {
-            $cart = session()->get($session_key);
-
+            $cartKey = $session_key;
+            $tableKey = null;
+            if ($session_key === 'pos-restaurant') {
+                $tableId = (int) $request->get('table_id');
+                $shiftId = (int) $request->get('shift_id');
+                if (!$tableId || !$shiftId) {
+                    return response()->json(['code' => 404, 'status' => 'Error', 'error' => __('Select a table and ensure shift is open.')], 404);
+                }
+                $cartKey = 'pos_restaurant_cart';
+                $tableKey = $tableId . '_' . $shiftId;
+            }
+            if ($tableKey !== null) {
+                $all = session()->get($cartKey, []);
+                $cart = $all[$tableKey] ?? [];
+            } else {
+                $cart = session()->get($cartKey);
+            }
+            if (!is_array($cart)) {
+                $cart = [];
+            }
 
             if (isset($cart[$id]) && $quantity == 0) {
                 unset($cart[$id]);
@@ -839,7 +896,7 @@ class ProductServiceController extends Controller
             }
 
             // POS: validate against product's quantity (stock)
-            if (isset($cart[$id]) && $session_key == 'pos') {
+            if (isset($cart[$id]) && $isPosSession) {
                 $product = ProductService::find($id);
                 $maxQty = $product ? (int) $product->quantity : 0;
                 if ($cart[$id]['quantity'] > $maxQty) {
@@ -862,8 +919,13 @@ class ProductServiceController extends Controller
             $totalDiscount = Auth::user()->priceFormat($total);
             $discount = $totalDiscount;
 
-
-            session()->put($session_key, $cart);
+            if ($tableKey !== null) {
+                $all = session()->get($cartKey, []);
+                $all[$tableKey] = $cart;
+                session()->put($cartKey, $all);
+            } else {
+                session()->put($session_key, $cart);
+            }
 
             return response()->json(
                 [
@@ -889,11 +951,26 @@ class ProductServiceController extends Controller
     {
         $session_key = $request->session_key;
 
-        $canManage = Auth::user()->can('manage product & service') || (Auth::user()->can('manage pos') && $session_key == 'pos');
+        $isPosSession = in_array($session_key, ['pos', 'pos-restaurant'], true);
+            $canManage = Auth::user()->can('manage product & service') || ((Auth::user()->can('manage pos') || Auth::user()->can('pos restaurant waiter') || Auth::user()->can('pos restaurant full') || Auth::user()->can('pos restaurant manager')) && $isPosSession);
         if ($canManage && isset($session_key) && !empty($session_key)) {
-            $cart = session()->get($session_key);
-            if (isset($cart) && count($cart) > 0) {
-                session()->forget($session_key);
+            if ($session_key === 'pos-restaurant') {
+                $tableId = (int) $request->get('table_id');
+                $shiftId = (int) $request->get('shift_id');
+                if ($tableId && $shiftId) {
+                    $cartKey = 'pos_restaurant_cart';
+                    $all = session()->get($cartKey, []);
+                    $tableKey = $tableId . '_' . $shiftId;
+                    if (isset($all[$tableKey])) {
+                        unset($all[$tableKey]);
+                        session()->put($cartKey, $all);
+                    }
+                }
+            } else {
+                $cart = session()->get($session_key);
+                if (isset($cart) && count($cart) > 0) {
+                    session()->forget($session_key);
+                }
             }
 
             return redirect()->back()->with('error', __('Cart is empty!'));
@@ -906,9 +983,23 @@ class ProductServiceController extends Controller
     {
         $session_key = $request->session_key;
 
-        $cart = session()->get($session_key);
-        if (isset($cart) && count($cart) > 0) {
-            session()->forget($session_key);
+        if ($session_key === 'pos-restaurant') {
+            $tableId = (int) $request->get('table_id');
+            $shiftId = (int) $request->get('shift_id');
+            if ($tableId && $shiftId) {
+                $cartKey = 'pos_restaurant_cart';
+                $all = session()->get($cartKey, []);
+                $tableKey = $tableId . '_' . $shiftId;
+                if (isset($all[$tableKey])) {
+                    unset($all[$tableKey]);
+                    session()->put($cartKey, $all);
+                }
+            }
+        } else {
+            $cart = session()->get($session_key);
+            if (isset($cart) && count($cart) > 0) {
+                session()->forget($session_key);
+            }
         }
 
         return response()->json();
@@ -918,12 +1009,35 @@ class ProductServiceController extends Controller
     {
         $id          = $request->id;
         $session_key = $request->session_key;
-        $canManage = Auth::user()->can('manage product & service') || (Auth::user()->can('manage pos') && $session_key == 'pos');
+        $isPosSession = in_array($session_key, ['pos', 'pos-restaurant'], true);
+            $canManage = Auth::user()->can('manage product & service') || ((Auth::user()->can('manage pos') || Auth::user()->can('pos restaurant waiter') || Auth::user()->can('pos restaurant full') || Auth::user()->can('pos restaurant manager')) && $isPosSession);
         if ($canManage && isset($id) && !empty($id) && isset($session_key) && !empty($session_key)) {
-            $cart = session()->get($session_key);
-            if (isset($cart[$id])) {
+            $cartKey = $session_key;
+            $tableKey = null;
+            if ($session_key === 'pos-restaurant') {
+                $tableId = (int) $request->get('table_id');
+                $shiftId = (int) $request->get('shift_id');
+                if (!$tableId || !$shiftId) {
+                    return redirect()->back()->with('error', __('Select a table and ensure shift is open.'));
+                }
+                $cartKey = 'pos_restaurant_cart';
+                $tableKey = $tableId . '_' . $shiftId;
+            }
+            if ($tableKey !== null) {
+                $all = session()->get($cartKey, []);
+                $cart = $all[$tableKey] ?? [];
+            } else {
+                $cart = session()->get($cartKey);
+            }
+            if (is_array($cart) && isset($cart[$id])) {
                 unset($cart[$id]);
-                session()->put($session_key, $cart);
+                if ($tableKey !== null) {
+                    $all = session()->get($cartKey, []);
+                    $all[$tableKey] = $cart;
+                    session()->put($cartKey, $all);
+                } else {
+                    session()->put($session_key, $cart);
+                }
             }
 
             return redirect()->back()->with('error', __('Product removed from cart!'));

@@ -40,6 +40,9 @@ class PosShiftController extends Controller
         if (!$branch) {
             return response()->json(['error' => __('Invalid branch.')], 422);
         }
+        if (\Auth::user()->hasPosBranchRestriction() && (int) \Auth::user()->pos_branch_id !== (int) $branchId) {
+            return response()->json(['error' => __('You can only open a shift for your assigned branch.')], 422);
+        }
         $existing = PosShift::where('branch_id', $branchId)
             ->where('user_id', $userId)
             ->where('status', PosShift::STATUS_OPEN)
@@ -94,6 +97,10 @@ class PosShiftController extends Controller
             ]);
             if ($validator->fails()) {
                 return redirect()->back()->with('error', $validator->getMessageBag()->first());
+            }
+            $assignee = \App\Models\User::find($request->user_id);
+            if ($assignee && $assignee->pos_branch_id && (int) $assignee->pos_branch_id !== (int) $request->branch_id) {
+                return redirect()->back()->with('error', __('This user is assigned to another branch. You can only create a shift for their assigned branch.'));
             }
             $openShift = PosShift::where('branch_id', $request->branch_id)
                 ->where('user_id', $request->user_id)

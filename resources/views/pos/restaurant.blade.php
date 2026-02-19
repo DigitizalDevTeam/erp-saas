@@ -12,11 +12,11 @@
         <div class="card-body py-2 px-3">
             <div class="row align-items-center mb-2">
                 <div class="col-md-3 m-0">
-                    <label class="form-label small text-muted mb-0">{{ __('pos.branch') }}</label>
-                    <select class="form-control form-control-sm" id="pos-restaurant-branch" style="min-width: 140px;">
+                    <label class="form-label small text-muted mb-0">{{ __('pos.branch') }}@if(!empty($posBranchLocked)) <span class="text-muted">({{ __('Assigned') }})</span>@endif</label>
+                    <select class="form-control form-control-sm" id="pos-restaurant-branch" style="min-width: 140px;" @if(!empty($posBranchLocked)) disabled @endif>
                         <option value="">{{ __('pos.select_branch') }}</option>
                         @foreach($restaurantBranches as $id => $name)
-                            <option value="{{ $id }}" {{ $shiftBranchId && (string)$id === (string)$shiftBranchId ? 'selected' : '' }}>{{ $name }}</option>
+                            <option value="{{ $id }}" {{ ($shiftBranchId && (string)$id === (string)$shiftBranchId) || (!empty($posBranchLocked) && $restaurantBranches->count() === 1) ? 'selected' : '' }}>{{ $name }}</option>
                         @endforeach
                     </select>
                 </div>

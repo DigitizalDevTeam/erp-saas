@@ -54,8 +54,16 @@ class UserController extends Controller
         $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'user')->get();
         $user = \Auth::user();
         $roles = Role::where('created_by', '=', $user->creatorId())->where('name', '!=', 'client')->get()->pluck('name', 'id');
+        $branches = \App\Models\Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->orderBy('name')->get()->pluck('name', 'id');
+        $posBranchRoleNames = [
+            \App\Services\PosRestaurantRoleService::ROLE_CASHIER,
+            \App\Services\PosRestaurantRoleService::ROLE_WAITER,
+            \App\Services\PosRestaurantRoleService::ROLE_MANAGER,
+            \App\Services\PosRestaurantRoleService::ROLE_BAR,
+            \App\Services\PosRestaurantRoleService::ROLE_KITCHEN,
+        ];
         if (\Auth::user()->can('create user')) {
-            return view('user.create', compact('roles', 'customFields'));
+            return view('user.create', compact('roles', 'customFields', 'branches', 'posBranchRoleNames'));
         } else {
             return redirect()->back();
         }
@@ -183,6 +191,37 @@ class UserController extends Controller
                     $request['created_by'] = \Auth::user()->creatorId();
                     $request['email_verified_at'] = date('Y-m-d H:i:s');
                     $request['is_enable_login'] = $enableLogin;
+                    $posBranchRoleNames = [
+                        \App\Services\PosRestaurantRoleService::ROLE_CASHIER,
+                        \App\Services\PosRestaurantRoleService::ROLE_WAITER,
+                        \App\Services\PosRestaurantRoleService::ROLE_MANAGER,
+                        \App\Services\PosRestaurantRoleService::ROLE_BAR,
+                        \App\Services\PosRestaurantRoleService::ROLE_KITCHEN,
+                    ];
+                    if (in_array($role_r->name, $posBranchRoleNames)) {
+                        $request->validate(['pos_branch_id' => 'required|exists:branches,id']);
+                        $request['pos_branch_id'] = (int) $request->pos_branch_id;
+                        if ($role_r->name === PosRestaurantRoleService::ROLE_KITCHEN) {
+                            $exists = User::where('created_by', \Auth::user()->creatorId())
+                                ->where('pos_branch_id', $request['pos_branch_id'])
+                                ->whereHas('roles', fn ($q) => $q->where('name', PosRestaurantRoleService::ROLE_KITCHEN))
+                                ->exists();
+                            if ($exists) {
+                                return redirect()->back()->with('error', __('This branch already has a Kitchen user. Only one Kitchen per branch is allowed.'));
+                            }
+                        }
+                        if ($role_r->name === PosRestaurantRoleService::ROLE_BAR) {
+                            $exists = User::where('created_by', \Auth::user()->creatorId())
+                                ->where('pos_branch_id', $request['pos_branch_id'])
+                                ->whereHas('roles', fn ($q) => $q->where('name', PosRestaurantRoleService::ROLE_BAR))
+                                ->exists();
+                            if ($exists) {
+                                return redirect()->back()->with('error', __('This branch already has a Bar user. Only one Bar per branch is allowed.'));
+                            }
+                        }
+                    } else {
+                        $request['pos_branch_id'] = null;
+                    }
 
                     $user = User::create($request->all());
                     $user->assignRole($role_r);
@@ -240,8 +279,16 @@ class UserController extends Controller
             $user = User::findOrFail($id);
             $user->customField = CustomField::getData($user, 'user');
             $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'user')->get();
+            $branches = \App\Models\Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->orderBy('name')->get()->pluck('name', 'id');
+            $posBranchRoleNames = [
+                \App\Services\PosRestaurantRoleService::ROLE_CASHIER,
+                \App\Services\PosRestaurantRoleService::ROLE_WAITER,
+                \App\Services\PosRestaurantRoleService::ROLE_MANAGER,
+                \App\Services\PosRestaurantRoleService::ROLE_BAR,
+                \App\Services\PosRestaurantRoleService::ROLE_KITCHEN,
+            ];
 
-            return view('user.edit', compact('user', 'roles', 'customFields'));
+            return view('user.edit', compact('user', 'roles', 'customFields', 'branches', 'posBranchRoleNames'));
         } else {
             return redirect()->back();
         }
@@ -293,8 +340,41 @@ class UserController extends Controller
                 }
 
                 $role = Role::findById($request->role);
+                $posBranchRoleNames = [
+                    \App\Services\PosRestaurantRoleService::ROLE_CASHIER,
+                    \App\Services\PosRestaurantRoleService::ROLE_WAITER,
+                    \App\Services\PosRestaurantRoleService::ROLE_MANAGER,
+                    \App\Services\PosRestaurantRoleService::ROLE_BAR,
+                    \App\Services\PosRestaurantRoleService::ROLE_KITCHEN,
+                ];
                 $input = $request->all();
                 $input['type'] = $role->name;
+                if (in_array($role->name, $posBranchRoleNames)) {
+                    $request->validate(['pos_branch_id' => 'required|exists:branches,id']);
+                    $input['pos_branch_id'] = (int) $request->pos_branch_id;
+                    if ($role->name === PosRestaurantRoleService::ROLE_KITCHEN) {
+                        $exists = User::where('created_by', \Auth::user()->creatorId())
+                            ->where('pos_branch_id', $input['pos_branch_id'])
+                            ->whereHas('roles', fn ($q) => $q->where('name', PosRestaurantRoleService::ROLE_KITCHEN))
+                            ->where('id', '!=', $user->id)
+                            ->exists();
+                        if ($exists) {
+                            return redirect()->back()->with('error', __('This branch already has a Kitchen user. Only one Kitchen per branch is allowed.'));
+                        }
+                    }
+                    if ($role->name === PosRestaurantRoleService::ROLE_BAR) {
+                        $exists = User::where('created_by', \Auth::user()->creatorId())
+                            ->where('pos_branch_id', $input['pos_branch_id'])
+                            ->whereHas('roles', fn ($q) => $q->where('name', PosRestaurantRoleService::ROLE_BAR))
+                            ->where('id', '!=', $user->id)
+                            ->exists();
+                        if ($exists) {
+                            return redirect()->back()->with('error', __('This branch already has a Bar user. Only one Bar per branch is allowed.'));
+                        }
+                    }
+                } else {
+                    $input['pos_branch_id'] = null;
+                }
                 $user->fill($input)->save();
                 Utility::employeeDetailsUpdate($user->id, \Auth::user()->creatorId());
                 CustomField::saveData($user, $request->customField);

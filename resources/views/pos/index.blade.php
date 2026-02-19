@@ -237,12 +237,13 @@
                         @if(isset($branches) && $branches->count() >= 1)
                         <div class="row g-1 mb-2">
                             <div class="col-6">
-                                <select class="form-control form-control-sm select branch_select" id="branch_id">
+                                <select class="form-control form-control-sm select branch_select" id="branch_id" @if(!empty($posBranchLocked)) disabled @endif>
                                     <option value="">{{ __('Select Branch') }}</option>
                                     @foreach($branches as $bid => $bname)
                                         <option value="{{ $bid }}" {{ (string)$bid === (string)$defaultBranchId ? 'selected' : '' }}>{{ $bname }}</option>
                                     @endforeach
                                 </select>
+                                @if(!empty($posBranchLocked))<small class="text-muted d-block">{{ __('Assigned branch only') }}</small>@endif
                             </div>
                             <div class="col-6">
                                 <select class="form-control form-control-sm select warehouse_select" id="warehouse" required>
@@ -461,6 +462,13 @@
                 <form id="pos-open-shift-form">
                     <div class="modal-body">
                         @csrf
+                        @if(!empty($posBranchLocked) && Auth::user()->pos_branch_id && isset($branches) && $branches->has(Auth::user()->pos_branch_id))
+                            <input type="hidden" name="branch_id" value="{{ Auth::user()->pos_branch_id }}">
+                            <div class="mb-3">
+                                <label class="form-label">{{ __('pos.branch') }}</label>
+                                <div class="form-control-plaintext fw-semibold">{{ $branches[Auth::user()->pos_branch_id] ?? __('Assigned branch') }}</div>
+                            </div>
+                        @else
                         <div class="mb-3">
                             <label class="form-label">{{ __('pos.branch') }}</label>
                             <select name="branch_id" class="form-select" required>
@@ -472,6 +480,7 @@
                                 @endisset
                             </select>
                         </div>
+                        @endif
                         <div class="mb-3">
                             <label class="form-label">{{ __('pos.opening_balance') }}</label>
                             <input type="number" name="opening_balance" class="form-control" min="0" step="0.01" value="0" placeholder="0">
