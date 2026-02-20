@@ -44,6 +44,14 @@
                 <small class="invalid-feedback d-block"><strong class="text-danger">{{ $message }}</strong></small>
                 @enderror
             </div>
+            <div class="form-group col-md-6 pos-pin-div d-none">
+                {{ Form::label('pos_pin', __('Restaurant POS PIN'), ['class' => 'form-label']) }}
+                {{ Form::text('pos_pin', $user->pos_pin ?? null, ['class' => 'form-control', 'placeholder' => __('4-8 digits'), 'maxlength' => 8, 'autocomplete' => 'off']) }}
+                <small class="text-muted">{{ __('Used to log in on shared Restaurant POS.') }}</small>
+                @error('pos_pin')
+                <small class="invalid-feedback d-block"><strong class="text-danger">{{ $message }}</strong></small>
+                @enderror
+            </div>
         @endif
         @if(!$customFields->isEmpty())
                     @include('customFields.formBuilder')
@@ -64,17 +72,16 @@
     var posRoleNames = @json($posBranchRoleNames);
     function togglePosBranch() {
         var sel = document.getElementById('user-edit-role');
-        var div = document.querySelector('.pos-branch-div');
-        if (!sel || !div) return;
+        var branchDiv = document.querySelector('.pos-branch-div');
+        var pinDiv = document.querySelector('.pos-pin-div');
+        if (!sel) return;
         var text = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
-        if (posRoleNames.indexOf(text) !== -1) {
-            div.classList.remove('d-none');
-            div.querySelector('select').setAttribute('required', 'required');
-        } else {
-            div.classList.add('d-none');
-            div.querySelector('select').removeAttribute('required');
-            div.querySelector('select').value = '';
+        var show = posRoleNames.indexOf(text) !== -1;
+        if (branchDiv) {
+            if (show) { branchDiv.classList.remove('d-none'); branchDiv.querySelector('select').setAttribute('required', 'required'); }
+            else { branchDiv.classList.add('d-none'); branchDiv.querySelector('select').removeAttribute('required'); branchDiv.querySelector('select').value = ''; }
         }
+        if (pinDiv) { if (show) pinDiv.classList.remove('d-none'); else pinDiv.classList.add('d-none'); }
     }
     document.getElementById('user-edit-role').addEventListener('change', togglePosBranch);
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', togglePosBranch);

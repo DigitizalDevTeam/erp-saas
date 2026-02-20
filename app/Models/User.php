@@ -42,11 +42,13 @@ class User extends Authenticatable implements MustVerifyEmail
         'last_login_at',
         'created_by',
         'pos_branch_id',
+        'pos_pin',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'pos_pin',
     ];
 
     protected $casts = [

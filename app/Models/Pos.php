@@ -24,6 +24,7 @@ class Pos extends Model
         'status',
         'shipping_display',
         'created_by',
+        'pos_user_id',
         'client_order_id',
         'cancelled_at',
     ];

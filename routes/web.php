@@ -1887,6 +1887,9 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
     Route::get('pos/retail/{cid?}', [PosController::class, 'index'])->name('pos.index')->defaults('cid', null)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('pos-restaurant', [PosController::class, 'indexRestaurant'])->name('pos.restaurant.index');
+    Route::post('pos-restaurant/validate-pin', [PosController::class, 'validateRestaurantPin'])->name('pos.restaurant.validate-pin');
+    Route::post('pos-restaurant/logout-pin', [PosController::class, 'logoutRestaurantPin'])->name('pos.restaurant.logout-pin');
+    Route::post('pos-restaurant/void-line/{line}', [PosController::class, 'voidRestaurantLine'])->name('pos.restaurant.void-line');
     Route::resource('pos', PosController::class)->middleware(['auth', 'XSS', 'revalidate']);
 
 

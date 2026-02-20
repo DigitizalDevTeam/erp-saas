@@ -35,9 +35,11 @@
                         <label class="form-label small text-muted mb-0">{{ __('pos.select_table') }}</label>
                         <div id="pos-selected-table" class="fw-bold text-primary">—</div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-danger d-none" id="pos-close-table-btn" title="{{ __('pos.close_table') }}">
+                    @if($canShowPayButton ?? true)
+                    <button type="button" class="btn btn-sm btn-outline-danger d-none" id="pos-close-table-btn" title="{{ __('pos.close_table') }} ({{ __('pos.manager_emergency') }})">
                         <i class="ti ti-door-exit"></i>
                     </button>
+                    @endif
                 </div>
                 <div class="col-md-2 ms-auto">
                     <button type="button" class="btn btn-sm btn-outline-secondary" id="pos-manage-tables-btn" title="{{ __('pos.manage_tables') }}">
@@ -65,7 +67,9 @@
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="pos-print-kitchen-slip" title="{{ __('pos.print_kitchen_slip') }}"><i class="ti ti-printer"></i></button>
                             <button type="button" class="btn btn-sm btn-outline-warning" id="pos-split-bill-restaurant" title="{{ __('pos.split_bill') }}"><i class="ti ti-separator-horizontal"></i></button>
                             <button type="button" class="btn btn-sm btn-outline-danger" id="pos-empty-cart-restaurant" title="{{ __('pos.empty_cart') }}"><i class="ti ti-trash"></i></button>
+                            @if($canShowPayButton ?? true)
                             <button type="button" id="pos-pay-btn-restaurant" class="btn btn-sm btn-primary" data-size="xl" data-url="{{ route('pos.create') }}" data-title="{{ __('pos.pos_invoice') }}" disabled>{{ __('pos.pay') }}</button>
+                            @endif
                         </div>
                     </div>
                     <div class="card-body p-2 carttable carttable-scroll" id="carthtml-restaurant" style="max-height: 55vh; overflow-y: auto;">
@@ -79,6 +83,7 @@
                                         <th>{{ __('pos.tax') }}</th>
                                         <th class="text-center">{{ __('pos.price') }}</th>
                                         <th class="text-center">{{ __('pos.sub_total') }}</th>
+                                        <th class="text-center">{{ __('pos.status') }}</th>
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -201,3 +206,26 @@
         </div>
     </div>
 </div>
+
+{{-- Void line modal (Manager/Cashier only) --}}
+@if($canShowPayButton ?? true)
+<div class="modal fade" id="posVoidLineModal" tabindex="-1" aria-labelledby="posVoidLineModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="posVoidLineModalLabel">{{ __('pos.void') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2" id="pos-void-line-name"></p>
+                <label class="form-label">{{ __('Reason') }} <span class="text-danger">*</span></label>
+                <textarea id="pos-void-reason-input" class="form-control" rows="3" maxlength="500" placeholder="{{ __('pos.void_reason_required') }}"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
+                <button type="button" class="btn btn-warning" id="pos-void-confirm-btn">{{ __('pos.void') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif

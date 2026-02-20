@@ -36,6 +36,10 @@
                     </form>
                     @endif
 
+                    <div class="alert alert-info py-2 mb-3 small">
+                        <i class="ti ti-info-circle me-1"></i> {{ __('pos.kitchen_display_info') }}
+                    </div>
+
                     <div class="table-responsive">
                         <table class="table table-hover align-middle">
                             <thead>

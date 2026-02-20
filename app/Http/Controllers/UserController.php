@@ -222,6 +222,21 @@ class UserController extends Controller
                     } else {
                         $request['pos_branch_id'] = null;
                     }
+                    if (in_array($role_r->name, $posBranchRoleNames)) {
+                        $pin = $request->pos_pin ? preg_replace('/\D/', '', (string) $request->pos_pin) : null;
+                        $request['pos_pin'] = ($pin !== '' && strlen($pin) >= 4 && strlen($pin) <= 8) ? $pin : null;
+                        if ($request['pos_pin'] !== null) {
+                            $v = \Validator::make(
+                                ['pos_pin' => $request['pos_pin']],
+                                ['pos_pin' => Rule::unique('users', 'pos_pin')->where('created_by', \Auth::user()->creatorId())]
+                            );
+                            if ($v->fails()) {
+                                return redirect()->back()->with('error', __('This PIN is already used by another user.'));
+                            }
+                        }
+                    } else {
+                        $request['pos_pin'] = null;
+                    }
 
                     $user = User::create($request->all());
                     $user->assignRole($role_r);
@@ -374,6 +389,21 @@ class UserController extends Controller
                     }
                 } else {
                     $input['pos_branch_id'] = null;
+                }
+                if (in_array($role->name, $posBranchRoleNames)) {
+                    $pin = $request->pos_pin ? preg_replace('/\D/', '', (string) $request->pos_pin) : null;
+                    $input['pos_pin'] = ($pin !== '' && strlen($pin) >= 4 && strlen($pin) <= 8) ? $pin : null;
+                    if ($input['pos_pin'] !== null) {
+                        $v = \Validator::make(
+                            ['pos_pin' => $input['pos_pin']],
+                            ['pos_pin' => Rule::unique('users', 'pos_pin')->where('created_by', \Auth::user()->creatorId())->ignore($user->id)]
+                        );
+                        if ($v->fails()) {
+                            return redirect()->back()->with('error', __('This PIN is already used by another user.'));
+                        }
+                    }
+                } else {
+                    $input['pos_pin'] = null;
                 }
                 $user->fill($input)->save();
                 Utility::employeeDetailsUpdate($user->id, \Auth::user()->creatorId());

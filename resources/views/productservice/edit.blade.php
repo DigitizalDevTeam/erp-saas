@@ -144,6 +144,11 @@
                 </div>
             </div>
         </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('print_zone', __('Print destination (Restaurant)'), ['class' => 'form-label']) }}
+            {{ Form::select('print_zone', ['' => __('None'), 'kitchen' => __('Kitchen'), 'bar' => __('Bar'), 'both' => __('Both')], $productService->print_zone ?? '', ['class' => 'form-control select']) }}
+            <small class="text-muted">{{ __('Where this product prints when sent to production (Kitchen/Bar slip).') }}</small>
+        </div>
 
         <div class="form-group col-md-6 quantity {{$productService->type=='service' ? 'd-none':''}}">
             {{ Form::label('quantity', __('Quantity'),['class'=>'form-label']) }}<x-required></x-required>

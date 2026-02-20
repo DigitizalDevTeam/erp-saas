@@ -33,14 +33,15 @@ class PosShiftController extends Controller
             return response()->json(['error' => $validator->getMessageBag()->first()], 422);
         }
         $creatorId = \Auth::user()->creatorId();
-        $userId = \Auth::user()->id;
+        $userId = session('pos_pin_user_id', \Auth::user()->id);
         $branchId = $request->branch_id;
         // Ensure branch belongs to company
         $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->where('is_active', true)->first();
         if (!$branch) {
             return response()->json(['error' => __('Invalid branch.')], 422);
         }
-        if (\Auth::user()->hasPosBranchRestriction() && (int) \Auth::user()->pos_branch_id !== (int) $branchId) {
+        $actingUser = \App\Models\User::find($userId);
+        if ($actingUser && $actingUser->pos_branch_id && (int) $actingUser->pos_branch_id !== (int) $branchId) {
             return response()->json(['error' => __('You can only open a shift for your assigned branch.')], 422);
         }
         $existing = PosShift::where('branch_id', $branchId)
@@ -179,7 +180,12 @@ class PosShiftController extends Controller
         $creditTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
         $salesTotal = $sales->sum(fn ($p) => $p->getTotal());
         $cashDropsTotal = (float) $pos_shift->cashDrops->sum('amount');
-        return view('pos_shift.report', compact('pos_shift', 'sales', 'paymentsByMethod', 'cashTotal', 'cardTotal', 'creditTotal', 'salesTotal', 'cashDropsTotal'));
+        $voidedLines = \App\Models\PosProduct::whereIn('pos_id', $posIds)
+            ->whereNotNull('voided_at')
+            ->with(['product', 'pos', 'voidedByUser'])
+            ->orderBy('voided_at')
+            ->get();
+        return view('pos_shift.report', compact('pos_shift', 'sales', 'paymentsByMethod', 'cashTotal', 'cardTotal', 'creditTotal', 'salesTotal', 'cashDropsTotal', 'voidedLines'));
     }
 
     public function closeForm(PosShift $pos_shift)

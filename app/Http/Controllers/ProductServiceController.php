@@ -140,6 +140,7 @@ class ProductServiceController extends Controller
                 $productService->quantity   = 0;
             }
             $productService->type                       = $request->type;
+            $productService->print_zone                 = $request->print_zone ?: null;
             $productService->sale_chartaccount_id       = $request->sale_chartaccount_id;
             $productService->expense_chartaccount_id    = $request->expense_chartaccount_id;
             $productService->category_id                = $request->category_id;
@@ -269,6 +270,7 @@ class ProductServiceController extends Controller
                     $productService->quantity   = 0;
                 }
                 $productService->type                       = $request->type;
+                $productService->print_zone                 = $request->print_zone ?: null;
                 $productService->sale_chartaccount_id       = $request->sale_chartaccount_id;
                 $productService->expense_chartaccount_id    = $request->expense_chartaccount_id;
                 $productService->category_id                = $request->category_id;
@@ -645,13 +647,15 @@ class ProductServiceController extends Controller
                 if ($request->get('restaurant') || $session_key === 'pos-restaurant') {
                     $tid = $tableKey !== null ? (int) $request->get('table_id') : '';
                     $sid = $tableKey !== null ? (int) $request->get('shift_id') : '';
-                    $carthtml .= '<tr data-product-id="' . $id . '" id="product-id-r-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '">
+                    $statusNotSent = __('pos.status_not_sent');
+                    $carthtml .= '<tr data-product-id="' . $id . '" data-line-id="" data-is-sent="0" data-discount="0" id="product-id-r-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '">
                             <td class="cart-images"><img alt="" src="' . asset(Storage::url($image_url)) . '" class="card-image avatar shadow hover-shadow-lg"></td>
                             <td class="name">' . e($productname) . '</td>
                             <td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" class="input-number" data-url="' . url('update-cart/') . '" data-id="' . $id . '" value="1"><input type="button" value="+" class="plus"></span></td>
                             <td class="tax">' . $taxDisplay . '</td>
                             <td class="price">' . Auth::user()->priceFormat($productprice) . '</td>
                             <td class="subtotal">' . Auth::user()->priceFormat($subtotal) . '</td>
+                            <td class="text-center"><span class="badge pos-line-status">' . e($statusNotSent) . '</span></td>
                             <td class="action-btn"><a href="#" class="btn btn-sm bg-danger bs-pass-para-pos pos-remove-from-cart" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . $id . '"><i class="ti ti-trash text-white"></i></a><form method="post" action="' . url('remove-from-cart') . '" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . $id . '">' . ($tableKey !== null ? '<input type="hidden" name="table_id" value="' . $tid . '"><input type="hidden" name="shift_id" value="' . $sid . '">' : '') . '</form></td>
                         </tr>';
                 } else {

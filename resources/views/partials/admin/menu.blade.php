@@ -1396,7 +1396,7 @@
                                 </a>
 
                                 <ul class="dash-submenu">
-                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant waiter')) 
+                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant waiter') || Gate::check('pos restaurant manager') || Gate::check('pos restaurant full')) 
                                     <li class="dash-item {{ Request::route()->getName() == 'pos.restaurant.index' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos.restaurant.index') }}">{{ __('Restaurant POS') }}</a>
                                     </li>

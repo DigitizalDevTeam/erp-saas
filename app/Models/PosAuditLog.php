@@ -15,6 +15,7 @@ class PosAuditLog extends Model
     const ACTION_CLOSE_SHIFT = 'close_shift';
     const ACTION_REOPEN_TABLE = 'reopen_table';
     const ACTION_REFUND = 'refund';
+    const ACTION_VOID_LINE = 'void_line';
 
     protected $fillable = [
         'created_by',

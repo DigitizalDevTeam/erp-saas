@@ -29,11 +29,15 @@ class PosProduct extends Model
         'sent_at',
         'ready_at',
         'print_zone',
+        'voided_at',
+        'void_reason',
+        'voided_by',
     ];
 
     protected $casts = [
         'sent_at' => 'datetime',
         'ready_at' => 'datetime',
+        'voided_at' => 'datetime',
     ];
 
     public function pos()
@@ -44,6 +48,11 @@ class PosProduct extends Model
     public function product()
     {
         return $this->belongsTo(ProductService::class, 'product_id', 'id');
+    }
+
+    public function voidedByUser()
+    {
+        return $this->belongsTo(User::class, 'voided_by', 'id');
     }
 
     public function getProductNameAttribute(): string

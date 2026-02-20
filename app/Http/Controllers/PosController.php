@@ -148,10 +148,12 @@ class PosController extends Controller
             ->where('branch_id', $branchId)
             ->with('area');
 
+        $posActorId = session('pos_pin_user_id', Auth::id());
+        $posActor = User::find($posActorId);
         // Waiter sees only tables assigned to their current shift for this branch
-        if (Auth::user()->can('pos restaurant waiter') && !Auth::user()->can('pos restaurant full') && !Auth::user()->can('pos restaurant manager')) {
+        if ($posActor && $posActor->can('pos restaurant waiter') && !$posActor->can('pos restaurant full') && !$posActor->can('pos restaurant manager')) {
             $openShift = \App\Models\PosShift::where('branch_id', $branchId)
-                ->where('user_id', Auth::id())
+                ->where('user_id', $posActorId)
                 ->where('status', \App\Models\PosShift::STATUS_OPEN)
                 ->where('created_by', Auth::user()->creatorId())
                 ->orderBy('opened_at', 'desc')
@@ -210,8 +212,9 @@ class PosController extends Controller
         if (!$branchId) {
             return response()->json(['shift' => null]);
         }
+        $posActorId = session('pos_pin_user_id', Auth::id());
         $shift = \App\Models\PosShift::where('branch_id', $branchId)
-            ->where('user_id', Auth::id())
+            ->where('user_id', $posActorId)
             ->where('status', \App\Models\PosShift::STATUS_OPEN)
             ->where('created_by', Auth::user()->creatorId())
             ->orderBy('opened_at', 'desc')
@@ -239,7 +242,7 @@ class PosController extends Controller
         if (!$branchId) {
             return response()->json(['shifts' => []]);
         }
-        $currentUserId = Auth::id();
+        $currentUserId = session('pos_pin_user_id', Auth::id());
         $shifts = \App\Models\PosShift::where('branch_id', $branchId)
             ->where('status', \App\Models\PosShift::STATUS_OPEN)
             ->where('created_by', Auth::user()->creatorId())
@@ -247,7 +250,20 @@ class PosController extends Controller
             ->orderBy('opened_at', 'desc')
             ->get();
 
-        $list = $shifts->map(function ($shift) use ($currentUserId) {
+        $shiftIds = $shifts->pluck('id');
+        $assignments = \App\Models\PosTableAssignment::whereIn('shift_id', $shiftIds)
+            ->whereNull('unassigned_at')
+            ->with('table:id,name')
+            ->get()
+            ->groupBy('shift_id');
+
+        $list = $shifts->map(function ($shift) use ($currentUserId, $assignments) {
+            $tables = ($assignments->get($shift->id) ?? collect())->map(function ($a) {
+                return [
+                    'id' => $a->table_id,
+                    'name' => $a->table ? $a->table->name : ('Table ' . $a->table_id),
+                ];
+            })->values()->toArray();
             return [
                 'id' => $shift->id,
                 'user_id' => $shift->user_id,
@@ -255,6 +271,7 @@ class PosController extends Controller
                 'opened_at' => $shift->opened_at ? $shift->opened_at->format('H:i') : '',
                 'opening_balance' => $shift->opening_balance,
                 'is_current_user' => (int) $shift->user_id === (int) $currentUserId,
+                'assigned_tables' => $tables,
             ];
         })->values()->toArray();
 
@@ -1164,7 +1181,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
     }
 
     /**
-     * Get open order for a table+shift (for per-table cart: load existing order + session cart).
+     * Get open order for a table. Cashier: pass branch_id to get order for that table (any waiter's shift). Waiter: pass shift_id for own shift.
      */
     public function getRestaurantOrder(Request $request)
     {
@@ -1173,22 +1190,38 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         }
         $tableId = (int) $request->get('table_id');
         $shiftId = (int) $request->get('shift_id');
-        if (!$tableId || !$shiftId) {
-            return response()->json(['pos_id' => null, 'items' => [], 'session_items' => []]);
-        }
+        $branchId = (int) $request->get('branch_id');
         $creatorId = Auth::user()->creatorId();
-        $pos = Pos::where('table_id', $tableId)
-            ->where('shift_id', $shiftId)
-            ->where('created_by', $creatorId)
-            ->whereNull('cancelled_at')
-            ->whereDoesntHave('posPayments')
-            ->with(['items.product'])
-            ->first();
-        $items = [];
+        $pos = null;
+        if ($tableId && $branchId) {
+            $pos = Pos::where('table_id', $tableId)
+                ->where('branch_id', $branchId)
+                ->where('created_by', $creatorId)
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->whereHas('shift', fn ($q) => $q->where('status', \App\Models\PosShift::STATUS_OPEN))
+                ->with(['items.product'])
+                ->first();
+        }
+        if (!$pos && $tableId && $shiftId) {
+            $pos = Pos::where('table_id', $tableId)
+                ->where('shift_id', $shiftId)
+                ->where('created_by', $creatorId)
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->with(['items.product'])
+                ->first();
+        }
+        if (!$tableId) {
+            return response()->json(['pos_id' => null, 'order_lines' => [], 'session_items' => [], 'shift_id' => null]);
+        }
+        $orderLines = [];
         if ($pos) {
             foreach ($pos->items as $line) {
-                $items[] = [
+                $orderLines[] = [
+                    'line_id' => $line->id,
                     'id' => $line->product_id,
+                    'product_id' => $line->product_id,
                     'name' => $line->product ? $line->product->name : '',
                     'quantity' => (int) $line->quantity,
                     'price' => (float) $line->price,
@@ -1196,17 +1229,24 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     'tax' => $line->tax,
                     'subtotal' => (float) ($line->price * $line->quantity - $line->discount),
                     'print_zone' => $line->print_zone ?? '',
+                    'status' => $line->status ?? PosProduct::STATUS_PENDING,
+                    'sent_at' => $line->sent_at ? $line->sent_at->toIso8601String() : null,
+                    'is_sent' => true,
+                    'voided_at' => $line->voided_at ? $line->voided_at->toIso8601String() : null,
+                    'void_reason' => $line->void_reason ?? null,
                     'pro_image' => $line->product && $line->product->pro_image ? $line->product->pro_image : 'default.png',
                 ];
             }
         }
+        $shiftIdForCart = $pos ? $pos->shift_id : $shiftId;
         $cartKey = 'pos_restaurant_cart';
-        $tableKey = $tableId . '_' . $shiftId;
+        $tableKey = $tableId . '_' . $shiftIdForCart;
         $allCarts = $request->session()->get($cartKey, []);
         $sessionItems = isset($allCarts[$tableKey]) ? array_values($allCarts[$tableKey]) : [];
         return response()->json([
             'pos_id' => $pos ? $pos->id : null,
-            'items' => $items,
+            'shift_id' => $pos ? $pos->shift_id : $shiftId,
+            'order_lines' => $orderLines,
             'session_items' => $sessionItems,
         ]);
     }
@@ -1268,12 +1308,11 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $pos->pos_date = date('Y-m-d');
             $pos->payment_method = null;
             $pos->created_by = $creatorId;
+            $pos->pos_user_id = session('pos_pin_user_id', Auth::id());
             $pos->save();
         }
 
-        // Replace all lines with current payload (so we can edit qty / add items and send again).
-        PosProduct::where('pos_id', $pos->id)->delete();
-
+        // Add only new lines (do not delete or change already-sent lines). Request items = unsent items to send.
         $now = now();
         foreach ($request->items as $item) {
             $product = ProductService::where('id', $item['id'])->where('created_by', $creatorId)->first();
@@ -1346,6 +1385,47 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         PosProduct::where('pos_id', $pos->id)->update(['status' => PosProduct::STATUS_CANCELLED]);
         PosAuditLogService::log(PosAuditLog::ACTION_CANCEL_ORDER, 'pos', (int) $pos->id, __('Order cancelled'), ['pos_id' => $pos->pos_id, 'table_id' => $pos->table_id]);
         return response()->json(['success' => true, 'message' => __('Order cancelled.')]);
+    }
+
+    /**
+     * Void a sent line (manager/cashier only). Reason is mandatory; void appears in shift report.
+     */
+    public function voidRestaurantLine(Request $request, $line)
+    {
+        $user = Auth::user();
+        if (!$user->canManagePos() || (!$user->can('pos restaurant full') && !$user->can('pos restaurant manager') && !$user->can('pos restaurant cashier'))) {
+            return response()->json(['error' => __('Only Manager or Cashier can void items.')], 403);
+        }
+        $request->validate(['reason' => 'required|string|max:500']);
+        $posProduct = PosProduct::where('id', $line)->whereHas('pos', function ($q) use ($user) {
+            $q->where('created_by', $user->creatorId());
+        })->with('pos')->first();
+        if (!$posProduct) {
+            return response()->json(['error' => __('Line not found.')], 404);
+        }
+        $pos = $posProduct->pos;
+        if ($pos->posPayments()->exists()) {
+            return response()->json(['error' => __('Cannot void lines on a paid order.')], 422);
+        }
+        if (!$posProduct->sent_at) {
+            return response()->json(['error' => __('Only sent items can be voided.')], 422);
+        }
+        if ($posProduct->voided_at) {
+            return response()->json(['error' => __('This line is already voided.')], 422);
+        }
+        $posProduct->status = PosProduct::STATUS_CANCELLED;
+        $posProduct->voided_at = now();
+        $posProduct->void_reason = $request->reason;
+        $posProduct->voided_by = $user->id;
+        $posProduct->save();
+        PosAuditLogService::log(
+            PosAuditLog::ACTION_VOID_LINE,
+            'pos_product',
+            (int) $posProduct->id,
+            __('Line voided: :reason', ['reason' => $request->reason]),
+            ['pos_id' => $pos->id, 'line_id' => $posProduct->id]
+        );
+        return response()->json(['success' => true, 'message' => __('Line voided.')]);
     }
 
     public function receipt(Request $request)
@@ -1825,79 +1905,134 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
     }
 
 
-    
+    /**
+     * Restaurant POS: validate PIN and set session. Called from PIN entry form.
+     */
+    public function validateRestaurantPin(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $pin = $request->get('pin');
+        $pin = is_string($pin) ? preg_replace('/\D/', '', $pin) : '';
+        if (strlen($pin) < 4 || strlen($pin) > 8) {
+            return response()->json(['success' => false, 'error' => __('PIN must be 4-8 digits.')]);
+        }
+        $creatorId = Auth::user()->creatorId();
+        $user = User::where('created_by', $creatorId)
+            ->where('pos_pin', $pin)
+            ->first();
+        if (!$user) {
+            return response()->json(['success' => false, 'error' => __('Invalid PIN.')]);
+        }
+        $request->session()->put('pos_pin_user_id', $user->id);
+        $openShift = \App\Models\PosShift::where('user_id', $user->id)
+            ->where('status', \App\Models\PosShift::STATUS_OPEN)
+            ->where('created_by', $creatorId)
+            ->orderBy('opened_at', 'desc')
+            ->first();
+        return response()->json([
+            'success' => true,
+            'user' => ['id' => $user->id, 'name' => $user->name],
+            'has_open_shift' => (bool) $openShift,
+            'open_shift' => $openShift ? ['id' => $openShift->id, 'branch_id' => $openShift->branch_id] : null,
+        ]);
+    }
+
+    /**
+     * Restaurant POS: clear PIN user and return to PIN entry.
+     */
+    public function logoutRestaurantPin(Request $request)
+    {
+        $request->session()->forget('pos_pin_user_id');
+        return redirect()->route('pos.restaurant.index');
+    }
+
+    /**
+     * Get current PIN user for restaurant POS (from session). Returns null if not set or invalid.
+     */
+    protected function getRestaurantPinUser()
+    {
+        $id = session('pos_pin_user_id');
+        if (!$id) {
+            return null;
+        }
+        $user = User::find($id);
+        if (!$user || $user->created_by != Auth::user()->creatorId()) {
+            session()->forget('pos_pin_user_id');
+            return null;
+        }
+        return $user;
+    }
+
     public function indexRestaurant($id = 0)
     {
-        if (Auth::user()->canManagePos()) {
-            // Phase 5: POS user limit per plan
-            $creatorId = Auth::user()->creatorId();
-            $owner = User::find($creatorId);
-            if ($owner && $owner->plan) {
-                $plan = Plan::find($owner->plan);
-                if ($plan && $plan->pos == 1 && $plan->max_pos_users >= 0) {
-                    $posUserCount = Plan::countPosUsersForCompany($creatorId);
-                    if ($posUserCount > $plan->max_pos_users) {
-                        return redirect()->back()->with('error', __('POS user limit reached. Please upgrade your plan.'));
-                    }
-                }
-            }
-            session()->forget('pos');
-            $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'name');
-            $customers->prepend('Walk-in-customer', '');
-            // Restaurant POS: only restaurant branches
-            $restaurantBranchIds = Branch::where('created_by', $creatorId)->where('is_active', true)
-                ->where('pos_type', Branch::POS_TYPE_RESTAURANT)->pluck('id')->toArray();
-            $posBranchLocked = Auth::user()->hasPosBranchRestriction();
-            if ($posBranchLocked && Auth::user()->pos_branch_id) {
-                $restaurantBranchIds = array_intersect($restaurantBranchIds, [Auth::user()->pos_branch_id]);
-            }
-            $branches = Branch::whereIn('id', $restaurantBranchIds)->get()->pluck('name', 'id');
-            $warehouses = warehouse::with('branch')->where('created_by', \Auth::user()->creatorId())
-                ->whereIn('branch_id', $restaurantBranchIds)->get()->pluck('name', 'id');
-            $hasRetailBranches = false;
-            $hasRestaurantBranches = !empty($restaurantBranchIds);
-            $posMode = 'restaurant';
-            $user = Auth::user();
-            $details = [
-                'pos_id' => $user->posNumberFormat($this->invoicePosNumber()),
-                'customer' => $customers != null ? $customers->toArray() : [],
-                'user' => $user != null ? $user->toArray() : [],
-                'date' => date('Y-m-d'),
-                'pay' => 'show',
-            ];
-
-            if ($id != 0) {
-
-                $quotation = Quotation::find($id);
-
-                $customerId = $quotation->customer_id;
-                $customerId = Customer::find($customerId);
-                $customer = $customerId->name;
-
-                $warehouseId = $quotation->warehouse_id;
-
-                $quotationProduct = QuotationProduct::where('quotation_id', $id)->get();
-
-                foreach ($quotationProduct as $value) {
-                    $products = Quotation::quotationProduct($value);
-                }
-            } else {
-                $customer = '';
-                $warehouseId = '';
-            }
-            // Manager/Cashier can change shift in POS; Waiter cannot (must use own open shift only)
-            $canChangeShift = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
-            $userOpenShifts = \App\Models\PosShift::where('user_id', $user->id)
-                ->where('status', \App\Models\PosShift::STATUS_OPEN)
-                ->where('created_by', $creatorId)
-                ->orderBy('opened_at', 'desc')
-                ->get();
-            $userOpenShiftByBranch = $userOpenShifts->pluck('id', 'branch_id')->toArray();
-            $userOpenShift = $userOpenShifts->first();
-            return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked'));
-        } else {
+        if (!Auth::user()->canManagePos()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+        $creatorId = Auth::user()->creatorId();
+        $posPinUser = $this->getRestaurantPinUser();
+        if (!$posPinUser) {
+            return view('pos.pin-entry');
+        }
+        // Use PIN user for all POS actions (shift, orders). Company scope still via creatorId.
+        $owner = User::find($creatorId);
+        if ($owner && $owner->plan) {
+            $plan = Plan::find($owner->plan);
+            if ($plan && $plan->pos == 1 && $plan->max_pos_users >= 0) {
+                $posUserCount = Plan::countPosUsersForCompany($creatorId);
+                if ($posUserCount > $plan->max_pos_users) {
+                    return redirect()->back()->with('error', __('POS user limit reached. Please upgrade your plan.'));
+                }
+            }
+        }
+        session()->forget('pos');
+        $customers = Customer::where('created_by', $creatorId)->get()->pluck('name', 'name');
+        $customers->prepend('Walk-in-customer', '');
+        $restaurantBranchIds = Branch::where('created_by', $creatorId)->where('is_active', true)
+            ->where('pos_type', Branch::POS_TYPE_RESTAURANT)->pluck('id')->toArray();
+        $posBranchLocked = $posPinUser->pos_branch_id ? true : false;
+        if ($posBranchLocked && $posPinUser->pos_branch_id) {
+            $restaurantBranchIds = array_intersect($restaurantBranchIds, [$posPinUser->pos_branch_id]);
+        }
+        $branches = Branch::whereIn('id', $restaurantBranchIds)->get()->pluck('name', 'id');
+        $warehouses = warehouse::with('branch')->where('created_by', $creatorId)
+            ->whereIn('branch_id', $restaurantBranchIds)->get()->pluck('name', 'id');
+        $hasRetailBranches = false;
+        $hasRestaurantBranches = !empty($restaurantBranchIds);
+        $posMode = 'restaurant';
+        $user = $posPinUser;
+        $details = [
+            'pos_id' => $user->posNumberFormat($this->invoicePosNumber()),
+            'customer' => $customers != null ? $customers->toArray() : [],
+            'user' => $user->toArray(),
+            'date' => date('Y-m-d'),
+            'pay' => 'show',
+        ];
+        if ($id != 0) {
+            $quotation = Quotation::find($id);
+            $customerId = $quotation->customer_id;
+            $customerId = Customer::find($customerId);
+            $customer = $customerId->name;
+            $warehouseId = $quotation->warehouse_id;
+            $quotationProduct = QuotationProduct::where('quotation_id', $id)->get();
+            foreach ($quotationProduct as $value) {
+                $products = Quotation::quotationProduct($value);
+            }
+        } else {
+            $customer = '';
+            $warehouseId = '';
+        }
+        $canChangeShift = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
+        $userOpenShifts = \App\Models\PosShift::where('user_id', $user->id)
+            ->where('status', \App\Models\PosShift::STATUS_OPEN)
+            ->where('created_by', $creatorId)
+            ->orderBy('opened_at', 'desc')
+            ->get();
+        $userOpenShiftByBranch = $userOpenShifts->pluck('id', 'branch_id')->toArray();
+        $userOpenShift = $userOpenShifts->first();
+        $canShowPayButton = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
+        return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'posPinUser'));
     }
 
 }

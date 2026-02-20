@@ -82,6 +82,38 @@
             </table>
             @endif
 
+            @if(isset($voidedLines) && $voidedLines->isNotEmpty())
+            <h6 class="border-bottom pb-2 mb-2 mt-4">{{ __('pos.void_summary') }} ({{ $voidedLines->count() }})</h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead>
+                        <tr>
+                            <th>{{ __('pos.pos_id') }}</th>
+                            <th>{{ __('Product') }}</th>
+                            <th class="text-center">{{ __('Qty') }}</th>
+                            <th class="text-end">{{ __('Amount') }}</th>
+                            <th>{{ __('Reason') }}</th>
+                            <th>{{ __('Voided at') }}</th>
+                            <th>{{ __('By') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($voidedLines as $line)
+                            <tr>
+                                <td>{{ $line->pos ? \Auth::user()->posNumberFormat($line->pos->pos_id) : '-' }}</td>
+                                <td>{{ $line->product ? $line->product->name : '-' }}</td>
+                                <td class="text-center">{{ $line->quantity }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat($line->price * $line->quantity) }}</td>
+                                <td>{{ $line->void_reason ?: '—' }}</td>
+                                <td>{{ $line->voided_at ? $line->voided_at->format('Y-m-d H:i') : '-' }}</td>
+                                <td>{{ $line->voidedByUser ? $line->voidedByUser->name : '-' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @endif
+
             <h6 class="border-bottom pb-2 mb-2 mt-4">{{ __('Sales') }} ({{ $sales->count() }} {{ __('transactions') }})</h6>
             <div class="table-responsive">
                 <table class="table table-sm table-bordered">
