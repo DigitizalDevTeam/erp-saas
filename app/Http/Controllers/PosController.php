@@ -894,6 +894,13 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         unset($allCarts[$tableKey]);
                         session()->put($cartKey, $allCarts);
                     }
+                    // Table becomes available after payment so next click asks for guests
+                    if ($pos->table_id) {
+                        PosTable::where('id', $pos->table_id)->where('created_by', $user_id)->update([
+                            'status' => PosTable::STATUS_AVAILABLE,
+                            'current_guests' => null,
+                        ]);
+                    }
                     return response()->json([
                         'code' => 200,
                         'success' => __('Payment completed successfully!'),
@@ -1393,8 +1400,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
     public function voidRestaurantLine(Request $request, $line)
     {
         $user = Auth::user();
-        if (!$user->canManagePos() || (!$user->can('pos restaurant full') && !$user->can('pos restaurant manager') && !$user->can('pos restaurant cashier'))) {
-            return response()->json(['error' => __('Only Manager or Cashier can void items.')], 403);
+        if (!$user->canManagePos() || (!$user->can('pos restaurant full') && !$user->can('pos restaurant manager'))) {
+            return response()->json(['error' => __('Only Manager can void items.')], 403);
         }
         $request->validate(['reason' => 'required|string|max:500']);
         $posProduct = PosProduct::where('id', $line)->whereHas('pos', function ($q) use ($user) {
@@ -1426,6 +1433,122 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             ['pos_id' => $pos->id, 'line_id' => $posProduct->id]
         );
         return response()->json(['success' => true, 'message' => __('Line voided.')]);
+    }
+
+    /**
+     * Join tables: merge one or more source table orders into the current (target) table.
+     * Target table must be selected. Source tables must be different, have open unpaid orders in same branch.
+     */
+    public function joinRestaurantTables(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $request->validate([
+            'branch_id' => 'required|exists:branches,id',
+            'target_table_id' => 'required|exists:pos_tables,id',
+            'target_shift_id' => 'required|exists:pos_shifts,id',
+            'source_table_ids' => 'required|array',
+            'source_table_ids.*' => 'exists:pos_tables,id',
+        ]);
+        $creatorId = Auth::user()->creatorId();
+        $branchId = (int) $request->branch_id;
+        $targetTableId = (int) $request->target_table_id;
+        $targetShiftId = (int) $request->target_shift_id;
+        $sourceTableIds = array_unique(array_map('intval', $request->source_table_ids));
+
+        if (in_array($targetTableId, $sourceTableIds)) {
+            return response()->json(['error' => __('Target table cannot be in source tables.')], 422);
+        }
+
+        $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->first();
+        if (!$branch) {
+            return response()->json(['error' => __('Invalid branch.')], 422);
+        }
+        $warehouse = warehouse::where('created_by', $creatorId)->where('branch_id', $branchId)->first();
+        if (!$warehouse) {
+            $warehouse = warehouse::where('created_by', $creatorId)->first();
+        }
+        if (!$warehouse) {
+            return response()->json(['error' => __('Please create or select a warehouse.')], 422);
+        }
+
+        $targetPos = Pos::where('table_id', $targetTableId)
+            ->where('shift_id', $targetShiftId)
+            ->where('created_by', $creatorId)
+            ->whereNull('cancelled_at')
+            ->whereDoesntHave('posPayments')
+            ->first();
+
+        if (!$targetPos) {
+            $targetPos = new Pos();
+            $targetPos->pos_id = $this->invoicePosNumber();
+            $targetPos->branch_id = $branchId;
+            $targetPos->order_type = Pos::ORDER_TYPE_DINE_IN;
+            $targetPos->table_id = $targetTableId;
+            $targetPos->shift_id = $targetShiftId;
+            $targetPos->customer_id = 0;
+            $targetPos->warehouse_id = $warehouse->id;
+            $targetPos->pos_date = date('Y-m-d');
+            $targetPos->payment_method = null;
+            $targetPos->created_by = $creatorId;
+            $targetPos->pos_user_id = session('pos_pin_user_id', Auth::id());
+            $targetPos->save();
+        }
+
+        $openShiftIds = \App\Models\PosShift::where('branch_id', $branchId)
+            ->where('status', \App\Models\PosShift::STATUS_OPEN)
+            ->where('created_by', $creatorId)
+            ->pluck('id');
+
+        $movedCount = 0;
+        $cartKey = 'pos_restaurant_cart';
+        $allCarts = $request->session()->get($cartKey, []);
+
+        foreach ($sourceTableIds as $srcTableId) {
+            $sourcePos = Pos::where('table_id', $srcTableId)
+                ->where('branch_id', $branchId)
+                ->whereIn('shift_id', $openShiftIds)
+                ->where('created_by', $creatorId)
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->with('items')
+                ->first();
+            if (!$sourcePos || $sourcePos->id === $targetPos->id) {
+                continue;
+            }
+            foreach ($sourcePos->items as $item) {
+                $item->pos_id = $targetPos->id;
+                $item->save();
+                $movedCount++;
+            }
+            $sourcePos->cancelled_at = now();
+            $sourcePos->save();
+            \App\Models\PosTable::where('id', $srcTableId)->where('created_by', $creatorId)->update(['status' => 'available']);
+            foreach ($openShiftIds as $sid) {
+                $tableKey = $srcTableId . '_' . $sid;
+                if (isset($allCarts[$tableKey])) {
+                    unset($allCarts[$tableKey]);
+                }
+            }
+        }
+        $request->session()->put($cartKey, $allCarts);
+
+        if ($movedCount > 0) {
+            PosAuditLogService::log(
+                PosAuditLog::ACTION_SEND_ORDER,
+                'pos',
+                (int) $targetPos->id,
+                __('Tables joined'),
+                ['target_table_id' => $targetTableId, 'source_table_ids' => $sourceTableIds, 'items_moved' => $movedCount]
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $movedCount > 0 ? __('Orders merged successfully.') : __('No orders to merge.'),
+            'pos_id' => $targetPos->id,
+        ]);
     }
 
     public function receipt(Request $request)
@@ -2031,8 +2154,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             ->get();
         $userOpenShiftByBranch = $userOpenShifts->pluck('id', 'branch_id')->toArray();
         $userOpenShift = $userOpenShifts->first();
-        $canShowPayButton = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
-        return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'posPinUser'));
+        $canShowPayButton = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('pos restaurant cashier') || $user->can('manage pos');
+        $canShowVoid = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
+        return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'posPinUser'));
     }
 
 }

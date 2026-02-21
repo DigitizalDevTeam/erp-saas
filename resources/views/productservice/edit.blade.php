@@ -154,6 +154,11 @@
             {{ Form::label('quantity', __('Quantity'),['class'=>'form-label']) }}<x-required></x-required>
             {{ Form::text('quantity',null, array('class' => 'form-control','required'=>'required')) }}
         </div>
+        <div class="form-group col-md-6 quantity {{$productService->type=='service' ? 'd-none':''}}">
+            {{ Form::label('low_stock_threshold', __('Low stock alert at'),['class'=>'form-label']) }}
+            {{ Form::number('low_stock_threshold', $productService->low_stock_threshold, array('class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Default'))) }}
+            <small class="text-muted">{{ __('Leave empty to use system default. Alert when quantity is below this.') }}</small>
+        </div>
         <div class="form-group  col-md-12">
             {{ Form::label('description', __('Description'),['class'=>'form-label']) }}
             {!! Form::textarea('description', null, ['class'=>'form-control','rows'=>'2']) !!}

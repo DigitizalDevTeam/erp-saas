@@ -141,6 +141,7 @@ class ProductServiceController extends Controller
             }
             $productService->type                       = $request->type;
             $productService->print_zone                 = $request->print_zone ?: null;
+            $productService->low_stock_threshold         = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
             $productService->sale_chartaccount_id       = $request->sale_chartaccount_id;
             $productService->expense_chartaccount_id    = $request->expense_chartaccount_id;
             $productService->category_id                = $request->category_id;
@@ -271,6 +272,7 @@ class ProductServiceController extends Controller
                 }
                 $productService->type                       = $request->type;
                 $productService->print_zone                 = $request->print_zone ?: null;
+                $productService->low_stock_threshold        = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
                 $productService->sale_chartaccount_id       = $request->sale_chartaccount_id;
                 $productService->expense_chartaccount_id    = $request->expense_chartaccount_id;
                 $productService->category_id                = $request->category_id;
@@ -648,8 +650,7 @@ class ProductServiceController extends Controller
                     $tid = $tableKey !== null ? (int) $request->get('table_id') : '';
                     $sid = $tableKey !== null ? (int) $request->get('shift_id') : '';
                     $statusNotSent = __('pos.status_not_sent');
-                    $carthtml .= '<tr data-product-id="' . $id . '" data-line-id="" data-is-sent="0" data-discount="0" id="product-id-r-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '">
-                            <td class="cart-images"><img alt="" src="' . asset(Storage::url($image_url)) . '" class="card-image avatar shadow hover-shadow-lg"></td>
+                    $carthtml .= '<tr data-product-id="' . $id . '" data-line-id="" data-is-sent="0" data-status="not_sent" data-discount="0" id="product-id-r-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '">
                             <td class="name">' . e($productname) . '</td>
                             <td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" class="input-number" data-url="' . url('update-cart/') . '" data-id="' . $id . '" value="1"><input type="button" value="+" class="plus"></span></td>
                             <td class="tax">' . $taxDisplay . '</td>

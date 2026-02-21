@@ -108,6 +108,7 @@ use App\Http\Controllers\PlanRequestController;
 use App\Http\Controllers\PosAreaController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\PosShiftController;
+use App\Http\Controllers\BranchSalesTargetController;
 use App\Http\Controllers\PosPrinterController;
 use App\Http\Controllers\PosAuditLogController;
 use App\Http\Controllers\PosProductionController;
@@ -1878,6 +1879,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('pos-shift/transfer-tables', [PosShiftController::class, 'transferTables'])->name('pos-shift.transfer-tables')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/open-from-pos', [PosShiftController::class, 'openFromPos'])->name('pos-shift.open-from-pos')->middleware(['auth', 'XSS']);
     Route::resource('pos-shift', PosShiftController::class)->middleware(['auth', 'XSS', 'revalidate']);
+    Route::resource('branch-sales-targets', BranchSalesTargetController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('pos-audit-log', [PosAuditLogController::class, 'index'])->name('pos.audit-log.index')->middleware(['auth', 'XSS']);
     Route::get('pos-restaurant-settings', [\App\Http\Controllers\PosRestaurantSettingsController::class, 'index'])->name('pos-restaurant-settings.index')->middleware(['auth', 'XSS']);
     Route::post('pos-restaurant-settings', [\App\Http\Controllers\PosRestaurantSettingsController::class, 'store'])->name('pos-restaurant-settings.store')->middleware(['auth', 'XSS']);
@@ -1890,6 +1892,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('pos-restaurant/validate-pin', [PosController::class, 'validateRestaurantPin'])->name('pos.restaurant.validate-pin');
     Route::post('pos-restaurant/logout-pin', [PosController::class, 'logoutRestaurantPin'])->name('pos.restaurant.logout-pin');
     Route::post('pos-restaurant/void-line/{line}', [PosController::class, 'voidRestaurantLine'])->name('pos.restaurant.void-line');
+    Route::post('pos-restaurant/join-tables', [PosController::class, 'joinRestaurantTables'])->name('pos.restaurant.join-tables');
     Route::resource('pos', PosController::class)->middleware(['auth', 'XSS', 'revalidate']);
 
 

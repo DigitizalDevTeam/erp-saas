@@ -194,7 +194,7 @@
                         class="mx-3 btn btn-sm align-items-center bs-pass-para bg-danger"
                         title="{{ __('Delete') }}"
                         data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
-                        data-confirm-yes="document.getElementById('delete-form-{{ $child->id }}').submit();">
+                        data-confirm-yes="document.getElementById('delete-form-{{ $parent->accountMain->id }}').submit();">
                         <i class="ti ti-trash text-white"></i>
                     </a>
                     {!! Form::close() !!}

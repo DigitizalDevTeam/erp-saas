@@ -157,6 +157,11 @@
             <!--{{ Form::text('quantity',null, array('class' => 'form-control', 'required'=>'required', 'placeholder' => __('Enter Quantity'))) }}-->
             {{ Form::text('quantity',null, array('class' => 'form-control', 'placeholder' => __('Enter Quantity'))) }}
         </div>
+        <div class="form-group col-md-6 quantity">
+            {{ Form::label('low_stock_threshold', __('Low stock alert at'),['class'=>'form-label']) }}
+            {{ Form::number('low_stock_threshold', null, array('class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Default'))) }}
+            <small class="text-muted">{{ __('Leave empty to use system default. Alert when quantity is below this.') }}</small>
+        </div>
 
         <div class="form-group col-md-12">
             {{ Form::label('description', __('Description'),['class'=>'form-label']) }}

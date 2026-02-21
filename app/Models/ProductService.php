@@ -20,6 +20,7 @@ class ProductService extends Model
         'unit_id',
         'type',
         'print_zone',
+        'low_stock_threshold',
         'sale_chartaccount_id',
         'expense_chartaccount_id',
         'created_by',

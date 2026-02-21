@@ -65,6 +65,7 @@
                         <div class="d-flex gap-1 flex-wrap">
                             <button type="button" class="btn btn-sm btn-success" id="pos-send-to-production" title="{{ __('Send to production') }}"><i class="ti ti-send"></i> {{ __('Send to production') }}</button>
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="pos-print-kitchen-slip" title="{{ __('pos.print_kitchen_slip') }}"><i class="ti ti-printer"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-info" id="pos-join-table-restaurant" title="{{ __('pos.join_table') }}"><i class="ti ti-table-plus"></i> {{ __('pos.join_table') }}</button>
                             <button type="button" class="btn btn-sm btn-outline-warning" id="pos-split-bill-restaurant" title="{{ __('pos.split_bill') }}"><i class="ti ti-separator-horizontal"></i></button>
                             <button type="button" class="btn btn-sm btn-outline-danger" id="pos-empty-cart-restaurant" title="{{ __('pos.empty_cart') }}"><i class="ti ti-trash"></i></button>
                             @if($canShowPayButton ?? true)
@@ -73,11 +74,16 @@
                         </div>
                     </div>
                     <div class="card-body p-2 carttable carttable-scroll" id="carthtml-restaurant" style="max-height: 55vh; overflow-y: auto;">
+                        <style>
+                            .pos-cart-table tbody tr.pos-cart-row-sent { background-color: #ffcdd2 !important; }
+                            .pos-cart-table tbody tr.pos-cart-row-preparation { background-color: #ffe0b2 !important; }
+                            .pos-cart-table tbody tr.pos-cart-row-ready { background-color: #c8e6c9 !important; }
+                            .pos-cart-table tbody tr.pos-cart-row-cancelled { background-color: #eeeeee !important; }
+                        </style>
                         <div class="table-responsive">
                             <table class="table table-sm pos-cart-table mb-0">
                                 <thead>
                                     <tr>
-                                        <th></th>
                                         <th class="text-left">{{ __('pos.name') }}</th>
                                         <th class="text-center">{{ __('pos.qty') }}</th>
                                         <th>{{ __('pos.tax') }}</th>
@@ -177,6 +183,27 @@
     </div>
 </div>
 
+{{-- Join table modal --}}
+<div class="modal fade" id="posJoinTableModal" tabindex="-1" aria-labelledby="posJoinTableModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="posJoinTableModalLabel">{{ __('pos.join_table') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">{{ __('pos.join_table_hint') }}</p>
+                <label class="form-label">{{ __('pos.select_tables_to_join') }}</label>
+                <div id="pos-join-table-list" class="border rounded p-2" style="max-height:220px;overflow-y:auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="pos-join-table-confirm">{{ __('pos.join_tables') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- Split bill modal --}}
 <div class="modal fade" id="posSplitBillModal" tabindex="-1" aria-labelledby="posSplitBillModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -208,7 +235,7 @@
 </div>
 
 {{-- Void line modal (Manager/Cashier only) --}}
-@if($canShowPayButton ?? true)
+@if($canShowVoid ?? false)
 <div class="modal fade" id="posVoidLineModal" tabindex="-1" aria-labelledby="posVoidLineModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">

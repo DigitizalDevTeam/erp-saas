@@ -365,7 +365,7 @@
                                         @endforeach
                                     @else
                                         <tr class="text-center no-found">
-                                            <td colspan="8">{{ __('pos.no_data_found') }}</td>
+                                            <td colspan="7">{{ __('pos.no_data_found') }}</td>
                                         </tr>
                                     @endif
                                 </tbody>
@@ -915,7 +915,7 @@
                                 }
                                 $('#pos-restaurant-warehouse-hint').text(ids.length ? '' : '{{ __("No warehouses for this branch") }}').toggle(ids.length === 0);
                             });
-                            $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="8">{{ __("pos.no_data_found") }}</td></tr>');
+                            $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
                             $('#pos-restaurant-total').text('0');
                             $('#pos-pay-btn-restaurant').prop('disabled', false);
                         }
@@ -947,7 +947,7 @@
                     url: posEmptyCartUrl,
                     data: { session_key: sk },
                     success: function () {
-                        $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="8">{{ __("pos.no_data_found") }}</td></tr>');
+                        $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
                         $('#pos-restaurant-total').text('0');
                         $('#pos-pay-btn-restaurant').prop('disabled', true);
                     }
@@ -1075,13 +1075,13 @@
                 if (id && (branchId || shiftId)) {
                     loadRestaurantOrder(id, shiftId, branchId);
                 } else {
-                    $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="8">{{ __("pos.no_data_found") }}</td></tr>');
+                    $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
                     $('#pos-restaurant-total').text('0');
                     $('#pos-pay-btn-restaurant').prop('disabled', true);
                 }
             }
             var posStatusLabels = { 'pending': '{{ __("pos.status_pending") }}', 'in_preparation': '{{ __("pos.status_in_preparation") }}', 'ready': '{{ __("pos.status_ready") }}', 'served': '{{ __("pos.status_served") }}', 'cancelled': '{{ __("pos.status_cancelled") }}', 'not_sent': '{{ __("pos.status_not_sent") }}' };
-            var canShowVoid = {{ ($canShowPayButton ?? false) ? 'true' : 'false' }};
+            var canShowVoid = {{ ($canShowVoid ?? false) ? 'true' : 'false' }};
             var posRestaurantVoidLineUrl = '{{ route("pos.restaurant.void-line", ["line" => "__LINE__"]) }}';
             function loadRestaurantOrder(tableId, shiftId, branchId) {
                 if (!tableId) return;
@@ -1107,21 +1107,21 @@
                     var tbody = $('#tbody-restaurant');
                     var total = 0;
                     if (list.length === 0) {
-                        tbody.html('<tr class="text-center no-found"><td colspan="8">{{ __("pos.no_data_found") }}</td></tr>');
+                        tbody.html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
                     } else {
                         var rows = '';
                         var csrf = '{{ csrf_token() }}';
                         var sessionKeyVal = sessionKey;
                         var deleteFormBase = '{{ url("remove-from-cart") }}';
+                        var statusRowClass = { 'pending': 'pos-cart-row-sent', 'not_sent': '', 'in_preparation': 'pos-cart-row-preparation', 'ready': 'pos-cart-row-ready', 'served': 'pos-cart-row-ready', 'cancelled': 'pos-cart-row-cancelled' };
                         list.forEach(function (it, idx) {
                             var sub = (it.price * it.quantity * (1 + (it.tax || 0) / 100));
                             total += sub;
-                            var imgUrl = (it.pro_image && it.pro_image !== 'default.png') ? '{{ asset(Storage::url("uploads/pro_image")) }}/' + it.pro_image : '{{ asset(Storage::url("uploads/pro_image/default.png")) }}';
                             var taxDisplay = (it.tax && it.tax !== 0) ? (it.tax + '%') : '-';
                             var rowId = it.line_id ? ('product-id-r-' + it.line_id) : ('product-id-r-s-' + it.id + '-' + idx);
                             var statusText = posStatusLabels[it.status] || it.status;
-                            rows += '<tr data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" id="' + rowId + '" data-name="' + (it.name || '').replace(/"/g, '&quot;') + '" data-price="' + it.price + '" data-quantity="' + it.quantity + '" data-tax="' + it.tax + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + (it.print_zone || '').replace(/"/g, '&quot;') + '">';
-                            rows += '<td class="cart-images"><img alt="" src="' + imgUrl + '" class="card-image avatar shadow hover-shadow-lg"></td>';
+                            var rowClass = statusRowClass[it.status] || '';
+                            rows += '<tr class="' + rowClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-status="' + (it.status || '') + '" id="' + rowId + '" data-name="' + (it.name || '').replace(/"/g, '&quot;') + '" data-price="' + it.price + '" data-quantity="' + it.quantity + '" data-tax="' + it.tax + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + (it.print_zone || '').replace(/"/g, '&quot;') + '">';
                             rows += '<td class="name">' + (it.name || '').replace(/</g, '&lt;') + '</td>';
                             if (it.is_sent) {
                                 rows += '<td class="text-center">' + it.quantity + '</td>';
@@ -1152,7 +1152,7 @@
                     var payBtn = document.getElementById('pos-pay-btn-restaurant');
                     if (payBtn) payBtn.disabled = list.length === 0;
                 }).fail(function () {
-                    $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="8">{{ __("pos.no_data_found") }}</td></tr>');
+                    $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
                     $('#pos-restaurant-total').text('0');
                     var payBtn = document.getElementById('pos-pay-btn-restaurant');
                     if (payBtn) payBtn.disabled = true;
@@ -1267,7 +1267,7 @@
                     url: posEmptyCartUrl,
                     data: data,
                     success: function () {
-                        $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="8">{{ __("pos.no_data_found") }}</td></tr>');
+                        $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
                         $('#pos-restaurant-total').text('0');
                         $('#pos-pay-btn-restaurant').prop('disabled', true);
                         show_toastr('success', '{{ __("Cart is empty!") }}', 'success');
@@ -1408,6 +1408,67 @@
                 $('#posSplitBillModal').modal('hide');
                 var msg = '{{ __("pos.split_result") }}'.replace(':count', n).replace(':amount', posFormatAmount(perPart));
                 show_toastr('{{ __("pos.split_bill") }}', msg, 'success');
+            });
+
+            $(document).on('click', '#pos-join-table-restaurant', function () {
+                var targetTableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                var branchId = $('#pos-restaurant-branch').val();
+                var shiftId = $('#pos_shift_id_hidden').val();
+                if (!targetTableId || !branchId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_table") }}', 'error');
+                    return;
+                }
+                if (!shiftId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.open_shift_required_for_branch") }}', 'error');
+                    return;
+                }
+                $('#posJoinTableModal').modal('show');
+                $('#pos-join-table-list').html('<p class="text-muted small mb-0">{{ __("Loading...") }}</p>');
+                $.get(posRestaurantLayoutUrl, { branch_id: branchId }, function (res) {
+                    var tblList = '';
+                    var found = 0;
+                    (res.areas || []).forEach(function (area) {
+                        (area.tables || []).forEach(function (t) {
+                            if (String(t.id) === String(targetTableId)) return;
+                            if (t.status !== 'occupied' && t.status !== 'reserved') return;
+                            found++;
+                            tblList += '<div class="form-check"><input class="form-check-input pos-join-tbl" type="checkbox" value="' + t.id + '" id="jt' + t.id + '"><label class="form-check-label" for="jt' + t.id + '">' + (t.name || 'Table ' + t.id) + '</label></div>';
+                        });
+                    });
+                    if (tblList === '') {
+                        tblList = '<p class="text-muted small mb-0">' + (found === 0 ? '{{ __("pos.no_other_occupied_tables") }}' : '{{ __("pos.no_data_found") }}') + '</p>';
+                    }
+                    $('#pos-join-table-list').html(tblList);
+                }).fail(function () {
+                    $('#pos-join-table-list').html('<p class="text-muted small mb-0">{{ __("pos.error") }}</p>');
+                });
+            });
+            $(document).on('click', '#pos-join-table-confirm', function () {
+                var targetTableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                var branchId = $('#pos-restaurant-branch').val();
+                var shiftId = $('#pos_shift_id_hidden').val();
+                if (!targetTableId || !branchId || !shiftId) return;
+                var ids = [];
+                $('.pos-join-tbl:checked').each(function () { ids.push($(this).val()); });
+                if (ids.length === 0) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_tables_to_join") }}', 'error');
+                    return;
+                }
+                $.ajax({
+                    url: '{{ route("pos.restaurant.join-tables") }}',
+                    method: 'POST',
+                    data: { _token: $('meta[name="csrf-token"]').attr('content'), branch_id: branchId, target_table_id: targetTableId, target_shift_id: shiftId, source_table_ids: ids },
+                    success: function (data) {
+                        $('#posJoinTableModal').modal('hide');
+                        show_toastr('{{ __("Success") }}', data.message || '{{ __("Orders merged successfully.") }}', 'success');
+                        loadRestaurantOrder(targetTableId, shiftId, branchId);
+                        if (branchId) loadRestaurantTables(branchId);
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("pos.error") }}';
+                        show_toastr('{{ __("Error") }}', msg, 'error');
+                    }
+                });
             });
 
             $(document).on('click', '#pos-manage-tables-btn', function () {
@@ -1778,7 +1839,9 @@
                         $row.attr('data-quantity', qty).attr('data-subtotal', subtotal);
                         $row.find('.subtotal').text(addCommas(subtotal));
                     } else {
-                        var row = '<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>';
+                        var row = isRestaurant
+                            ? ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>')
+                            : ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>');
                         $(tbodySel + ' .no-found').addClass('d-none');
                         $(tbodySel).append(row);
                         if (!isRestaurant) {
@@ -1877,7 +1940,7 @@
                 var totalSel = inRestaurant ? '#pos-restaurant-total' : '#displaytotal, .totalamount';
                 $row.remove();
                 if ($(tbodySel + ' tr[data-product-id]').length === 0) {
-                    $(tbodySel).html('<tr class="text-center no-found"><td colspan="' + (inRestaurant ? 8 : 7) + '">{{ __("pos.no_data_found") }}</td></tr>');
+                    $(tbodySel).html('<tr class="text-center no-found"><td colspan="' + (inRestaurant ? 7 : 7) + '">{{ __("pos.no_data_found") }}</td></tr>');
                     if (inRestaurant) $('#pos-pay-btn-restaurant').prop('disabled', true);
                     else { $('#btn-pur button').attr('disabled', 'disabled'); $('.btn-empty button').removeClass('btn-clear-cart'); }
                 }
@@ -1909,7 +1972,7 @@
                     } else if (quantity === 0) {
                         ele.closest('tr').remove();
                         if ($(tbodySel + ' tr[data-product-id]').length === 0) {
-                            $(tbodySel).html('<tr class="text-center no-found"><td colspan="' + (inRestaurant ? 8 : 7) + '">{{ __("pos.no_data_found") }}</td></tr>');
+                            $(tbodySel).html('<tr class="text-center no-found"><td colspan="' + (inRestaurant ? 7 : 7) + '">{{ __("pos.no_data_found") }}</td></tr>');
                             if (inRestaurant) $('#pos-pay-btn-restaurant').prop('disabled', true);
                             else { $('#btn-pur button').attr('disabled', 'disabled'); $('.btn-empty button').removeClass('btn-clear-cart'); }
                         }
@@ -1936,7 +1999,7 @@
                                     var $tr = ele.closest('tr[data-product-id]');
                                     $tr.remove();
                                     if ($(tbodySel + ' tr[data-product-id]').length === 0) {
-                                        $(tbodySel).html('<tr class="text-center no-found"><td colspan="' + (inRestaurant ? 8 : 7) + '">{{ __("pos.no_data_found") }}</td></tr>');
+                                        $(tbodySel).html('<tr class="text-center no-found"><td colspan="' + (inRestaurant ? 7 : 7) + '">{{ __("pos.no_data_found") }}</td></tr>');
                                         if (inRestaurant) $('#pos-pay-btn-restaurant').prop('disabled', true);
                                         else { $('#btn-pur button').attr('disabled', 'disabled'); $('.btn-empty button').removeClass('btn-clear-cart'); }
                                     }
@@ -2091,7 +2154,7 @@
                     data: emptyData,
                     success: function () {
                         $('#tbody').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
-                        $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="8">{{ __("pos.no_data_found") }}</td></tr>');
+                        $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
                         $('#displaytotal, .totalamount').text('0');
                         $('#pos-restaurant-total').text('0');
                         $('#btn-pur button').attr('disabled', 'disabled');

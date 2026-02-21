@@ -3202,16 +3202,22 @@ class ReportController extends Controller
         if (!\Auth::user()->canManagePos()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
-        $threshold = (float) (\App\Models\Utility::getValByName('pos_low_stock_threshold') ?: 10);
+        $globalThreshold = (float) (\App\Models\Utility::getValByName('pos_low_stock_threshold') ?: 10);
         if ($request->filled('threshold')) {
-            $threshold = (float) $request->threshold;
+            $globalThreshold = (float) $request->threshold;
         }
         $products = ProductService::where('created_by', \Auth::user()->creatorId())
             ->where('type', 'product')
-            ->whereRaw('quantity < ?', [$threshold])
+            ->where(function ($q) use ($globalThreshold) {
+                $q->where(function ($q2) use ($globalThreshold) {
+                    $q2->whereNotNull('low_stock_threshold')->whereRaw('quantity < low_stock_threshold');
+                })->orWhere(function ($q2) use ($globalThreshold) {
+                    $q2->whereNull('low_stock_threshold')->whereRaw('quantity < ?', [$globalThreshold]);
+                });
+            })
             ->orderBy('quantity')
             ->get();
-        return view('report.pos_low_stock', compact('products', 'threshold'));
+        return view('report.pos_low_stock', compact('products', 'globalThreshold'));
     }
 
     public function posVsPurchaseReport(Request $request)
