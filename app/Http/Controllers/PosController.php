@@ -1207,7 +1207,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 ->whereNull('cancelled_at')
                 ->whereDoesntHave('posPayments')
                 ->whereHas('shift', fn ($q) => $q->where('status', \App\Models\PosShift::STATUS_OPEN))
-                ->with(['items.product'])
+                ->with(['items.product.posPrinter', 'items.posPrinter'])
                 ->first();
         }
         if (!$pos && $tableId && $shiftId) {
@@ -1216,7 +1216,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 ->where('created_by', $creatorId)
                 ->whereNull('cancelled_at')
                 ->whereDoesntHave('posPayments')
-                ->with(['items.product'])
+                ->with(['items.product.posPrinter', 'items.posPrinter'])
                 ->first();
         }
         if (!$tableId) {
@@ -1225,6 +1225,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $orderLines = [];
         if ($pos) {
             foreach ($pos->items as $line) {
+                $printer = $line->posPrinter ?? ($line->product ? $line->product->posPrinter : null);
                 $orderLines[] = [
                     'line_id' => $line->id,
                     'id' => $line->product_id,
@@ -1236,6 +1237,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     'tax' => $line->tax,
                     'subtotal' => (float) ($line->price * $line->quantity - $line->discount),
                     'print_zone' => $line->print_zone ?? '',
+                    'pos_printer_id' => $printer ? $printer->id : null,
+                    'printer_name' => $printer ? $printer->name : null,
                     'status' => $line->status ?? PosProduct::STATUS_PENDING,
                     'sent_at' => $line->sent_at ? $line->sent_at->toIso8601String() : null,
                     'is_sent' => true,
@@ -1250,6 +1253,27 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $tableKey = $tableId . '_' . $shiftIdForCart;
         $allCarts = $request->session()->get($cartKey, []);
         $sessionItems = isset($allCarts[$tableKey]) ? array_values($allCarts[$tableKey]) : [];
+        $productIds = array_unique(array_filter(array_merge(array_column($orderLines, 'id'), array_column($sessionItems, 'id'))));
+        $productsWithPrinter = $productIds ? ProductService::whereIn('id', $productIds)->where('created_by', $creatorId)->with('posPrinter')->get()->keyBy('id') : collect();
+        foreach ($orderLines as &$line) {
+            if (!isset($line['pos_printer_id']) && isset($productsWithPrinter[$line['id']])) {
+                $pr = $productsWithPrinter[$line['id']]->posPrinter;
+                $line['pos_printer_id'] = $pr ? $pr->id : null;
+                $line['printer_name'] = $pr ? $pr->name : null;
+            }
+        }
+        foreach ($sessionItems as &$item) {
+            $item = (array) $item;
+            if (isset($productsWithPrinter[$item['id'] ?? 0])) {
+                $pr = $productsWithPrinter[$item['id']]->posPrinter;
+                $item['pos_printer_id'] = $pr ? $pr->id : null;
+                $item['printer_name'] = $pr ? $pr->name : null;
+            } else {
+                $item['pos_printer_id'] = null;
+                $item['printer_name'] = null;
+            }
+        }
+        $sessionItems = array_values($sessionItems);
         return response()->json([
             'pos_id' => $pos ? $pos->id : null,
             'shift_id' => $pos ? $pos->shift_id : $shiftId,
@@ -1342,6 +1366,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 'status' => PosProduct::STATUS_PENDING,
                 'sent_at' => $now,
                 'print_zone' => $printZone,
+                'pos_printer_id' => $product->pos_printer_id ?? null,
             ]);
         }
 

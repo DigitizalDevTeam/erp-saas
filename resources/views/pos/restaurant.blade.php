@@ -65,6 +65,7 @@
                         <div class="d-flex gap-1 flex-wrap">
                             <button type="button" class="btn btn-sm btn-success" id="pos-send-to-production" title="{{ __('Send to production') }}"><i class="ti ti-send"></i> {{ __('Send to production') }}</button>
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="pos-print-kitchen-slip" title="{{ __('pos.print_kitchen_slip') }}"><i class="ti ti-printer"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary pos-open-drawer-btn" title="{{ __('pos.open_drawer') }}"><i class="ti ti-cash"></i> {{ __('pos.open_drawer') }}</button>
                             <button type="button" class="btn btn-sm btn-outline-info" id="pos-join-table-restaurant" title="{{ __('pos.join_table') }}"><i class="ti ti-table-plus"></i> {{ __('pos.join_table') }}</button>
                             <button type="button" class="btn btn-sm btn-outline-warning" id="pos-split-bill-restaurant" title="{{ __('pos.split_bill') }}"><i class="ti ti-separator-horizontal"></i></button>
                             <button type="button" class="btn btn-sm btn-outline-danger" id="pos-empty-cart-restaurant" title="{{ __('pos.empty_cart') }}"><i class="ti ti-trash"></i></button>

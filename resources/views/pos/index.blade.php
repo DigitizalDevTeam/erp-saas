@@ -153,6 +153,30 @@
                         <button type="button" id="pos-install-app-btn" class="btn btn-sm btn-light" title="{{ __('pos.install_app') }}">
                             <i class="ti ti-download" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ __('pos.install_app') }}</span>
                         </button>
+                        <button type="button" class="btn btn-sm btn-light pos-open-drawer-btn" title="{{ __('pos.open_drawer') }}">
+                            <i class="ti ti-cash" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ __('pos.open_drawer') }}</span>
+                        </button>
+                        <div class="dropdown d-inline-block">
+                            <button type="button" class="btn btn-sm btn-light dropdown-toggle" id="pos-reports-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="{{ __('Reports & more') }}">
+                                <i class="ti ti-report" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ __('Reports') }}</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="pos-reports-dropdown">
+                                <li><h6 class="dropdown-header">{{ __('Reports') }}</h6></li>
+                                <li><a class="dropdown-item" href="{{ route('pos.report') }}" target="_blank"><i class="ti ti-summary me-2"></i>{{ __('pos.pos_summary') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('pos.balances') }}" target="_blank"><i class="ti ti-wallet me-2"></i>{{ __('pos.pos_balances') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('report.daily.pos') }}" target="_blank"><i class="ti ti-calendar me-2"></i>{{ __('POS Daily/Monthly Report') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('report.pos.branch') }}" target="_blank"><i class="ti ti-building-store me-2"></i>{{ __('POS by Branch') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('report.pos.vs.purchase') }}" target="_blank"><i class="ti ti-chart-bar me-2"></i>{{ __('Pos VS Purchase Report') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('report.pos.day-summary', ['date' => date('Y-m-d')]) }}" target="_blank"><i class="ti ti-calendar-event me-2"></i>{{ __('Day Summary') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('report.pos.eod', ['date' => date('Y-m-d')]) }}" target="_blank"><i class="ti ti-calendar-off me-2"></i>{{ __('pos.day_closed') }} / {{ __('EOD Report') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('report.pos.low-stock') }}" target="_blank"><i class="ti ti-box me-2"></i>{{ __('Low Stock') }}</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">{{ __('Other') }}</h6></li>
+                                <li><a class="dropdown-item" href="{{ route('pos.barcode') }}" target="_blank"><i class="ti ti-barcode me-2"></i>{{ __('pos.pos_product_barcode') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('pos.setting') }}" target="_blank"><i class="ti ti-settings me-2"></i>{{ __('pos.barcode_setting') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('pos.print.setting') }}" target="_blank"><i class="ti ti-printer me-2"></i>{{ __('Print') }} {{ __('Setting') }}</a></li>
+                            </ul>
+                        </div>
                         <a href="{{ route('pos.restaurant.index') }}" class="btn btn-sm btn-outline-light" title="{{ __('POS Restaurant') }}"><i class="ti ti-building-store" style="font-size: 1.25rem;"></i></a>
                         <a href="{{ route('dashboard') }}" class="btn btn-sm btn-light" title="{{ __('pos.dashboard') }}"><i class="ti ti-home" style="font-size: 1.25rem;"></i></a>
                     </div>
@@ -1925,10 +1949,17 @@
 
             $(document).on('pos-payment-completed', function (e, data) {
                 var sk = $('#empty_cart').val() || sessionKey;
+                var emptyData = { session_key: sk };
+                var tid = $('#pos_table_id_hidden').val();
+                var sid = $('#pos_shift_id_hidden').val();
+                if (sk === 'pos-restaurant' && tid && sid) {
+                    emptyData.table_id = tid;
+                    emptyData.shift_id = sid;
+                }
                 $.ajax({
                     type: 'POST',
                     url: posEmptyCartUrl,
-                    data: { session_key: sk },
+                    data: emptyData,
                     success: function () {
                         $('#tbody').html(posEmptyCartHtmlRetail);
                         $('#pos-cart-count').text('(0)');
@@ -1938,6 +1969,13 @@
                         $('#pos-pay-btn').prop('disabled', true);
                         $('.btn-empty button').removeClass('btn-clear-cart');
                         $('#pos-pay-btn-restaurant').prop('disabled', true);
+                        var branchId = $('#pos-restaurant-branch').val();
+                        if (branchId && typeof loadRestaurantTables === 'function') loadRestaurantTables(branchId);
+                        $('#pos_table_id_hidden').val('');
+                        $('#pos_restaurant_table_id').val('');
+                        $('#pos_restaurant_table_name').val('');
+                        $('#pos-selected-table').text('—');
+                        $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
                         if (data && data.pos_id) {
                             var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id;
                             $.get(receiptUrl, function (html) {
@@ -2033,6 +2071,15 @@
                     });
                 });
             }
+        });
+        $(document).on('click', '.pos-open-drawer-btn', function () {
+            var w = window.open('', '_blank', 'width=300,height=200');
+            if (!w) { if (typeof show_toastr === 'function') show_toastr('{{ __("Error") }}', '{{ __("pos.open_drawer_allow_popup") }}', 'error'); else alert('{{ __("pos.open_drawer_allow_popup") }}'); return; }
+            w.document.write('<html><head><title>{{ __("pos.open_drawer") }}</title><style>body{font-family:monospace;padding:20px;text-align:center;font-size:16px;}</style></head><body><p>{{ __("pos.open_drawer") }}</p><p><small>' + new Date().toLocaleString() + '</small></p></body></html>');
+            w.document.close();
+            w.focus();
+            w.print();
+            w.onafterprint = function() { w.close(); };
         });
     </script>
     {{-- PWA Install: button always visible when not standalone; click = native prompt or fallback --}}

@@ -1094,7 +1094,7 @@
                     var sessionItems = res.session_items || [];
                     var list = [];
                     orderLines.forEach(function (it) {
-                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, print_zone: it.print_zone || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: true, voided_at: it.voided_at || null });
+                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: true, voided_at: it.voided_at || null });
                     });
                     sessionItems.forEach(function (it) {
                         var id = it.id;
@@ -1102,7 +1102,7 @@
                         var price = parseFloat(it.price) || 0;
                         var tax = parseFloat(it.tax) || 0;
                         var sub = (it.subtotal != null) ? parseFloat(it.subtotal) : (price * (1 + (tax || 0) / 100) * qty);
-                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, print_zone: (it.print_zone || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false });
+                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false });
                     });
                     var tbody = $('#tbody-restaurant');
                     var total = 0;
@@ -1121,7 +1121,7 @@
                             var rowId = it.line_id ? ('product-id-r-' + it.line_id) : ('product-id-r-s-' + it.id + '-' + idx);
                             var statusText = posStatusLabels[it.status] || it.status;
                             var rowClass = statusRowClass[it.status] || '';
-                            rows += '<tr class="' + rowClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-status="' + (it.status || '') + '" id="' + rowId + '" data-name="' + (it.name || '').replace(/"/g, '&quot;') + '" data-price="' + it.price + '" data-quantity="' + it.quantity + '" data-tax="' + it.tax + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + (it.print_zone || '').replace(/"/g, '&quot;') + '">';
+                            rows += '<tr class="' + rowClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-status="' + (it.status || '') + '" id="' + rowId + '" data-name="' + (it.name || '').replace(/"/g, '&quot;') + '" data-price="' + it.price + '" data-quantity="' + it.quantity + '" data-tax="' + it.tax + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + (it.print_zone || '').replace(/"/g, '&quot;') + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + (it.printer_name || '').replace(/"/g, '&quot;') + '">';
                             rows += '<td class="name">' + (it.name || '').replace(/</g, '&lt;') + '</td>';
                             if (it.is_sent) {
                                 rows += '<td class="text-center">' + it.quantity + '</td>';
@@ -1277,20 +1277,27 @@
 
             function posRestaurantGetKitchenBarRows() {
                 var kitchenRows = [], barRows = [];
+                var byPrinter = {};
                 $('#tbody-restaurant tr[data-product-id]').each(function () {
                     var name = $(this).attr('data-name') || $(this).find('.name').text();
                     var qty = parseInt($(this).find('input[name="quantity"]').val() || 1, 10);
                     var zone = ($(this).attr('data-print-zone') || '').toLowerCase();
+                    var printerId = $(this).attr('data-printer-id') || '';
+                    var printerName = $(this).attr('data-printer-name') || '';
                     var item = { name: name, qty: qty };
-                    if (zone === 'bar') barRows.push(item); else if (zone === 'both') { kitchenRows.push(item); barRows.push(item); } else kitchenRows.push(item);
+                    if (printerId && printerId !== '') {
+                        if (!byPrinter[printerId]) byPrinter[printerId] = { name: printerName || ('Printer ' + printerId), rows: [] };
+                        byPrinter[printerId].rows.push(item);
+                    } else {
+                        if (zone === 'bar') barRows.push(item); else if (zone === 'both') { kitchenRows.push(item); barRows.push(item); } else kitchenRows.push(item);
+                    }
                 });
-                return { kitchen: kitchenRows, bar: barRows };
+                return { kitchen: kitchenRows, bar: barRows, byPrinter: byPrinter };
             }
             function posRestaurantPrintSlips(tableName) {
                 var rows = posRestaurantGetKitchenBarRows();
-                var kitchenRows = rows.kitchen, barRows = rows.bar;
-                var allRows = kitchenRows.concat(barRows);
-                if (allRows.length === 0) return;
+                var kitchenRows = rows.kitchen, barRows = rows.bar, byPrinter = rows.byPrinter || {};
+                var delay = 0;
                 function printSlip(title, slipRows) {
                     if (slipRows.length === 0) return;
                     var w = window.open('', '_blank', 'width=300,height=400');
@@ -1308,8 +1315,15 @@
                     w.print();
                     w.close();
                 }
-                printSlip('{{ __("pos.kitchen_slip") }}', kitchenRows);
-                if (barRows.length > 0) setTimeout(function() { printSlip('{{ __("pos.bar_slip") }}', barRows); }, 400);
+                Object.keys(byPrinter).forEach(function(printerId) {
+                    var p = byPrinter[printerId];
+                    if (p.rows && p.rows.length > 0) {
+                        (function(pr, pid, d) { setTimeout(function() { printSlip(pr.name || ('Printer ' + pid), pr.rows); }, d); })(p, printerId, delay);
+                        delay += 400;
+                    }
+                });
+                (function(d) { setTimeout(function() { printSlip('{{ __("pos.kitchen_slip") }}', kitchenRows); }, d); })(delay);
+                if (barRows.length > 0) (function(d) { setTimeout(function() { printSlip('{{ __("pos.bar_slip") }}', barRows); }, d); })(delay + 400);
             }
             $(document).on('click', '#pos-send-to-production', function () {
                 var branchId = $('#pos-restaurant-branch').val();
@@ -1360,6 +1374,15 @@
                     return;
                 }
                 posRestaurantPrintSlips(tableName);
+            });
+            $(document).on('click', '.pos-open-drawer-btn', function () {
+                var w = window.open('', '_blank', 'width=300,height=200');
+                if (!w) { show_toastr('{{ __("Error") }}', '{{ __("pos.open_drawer_allow_popup") }}', 'error'); return; }
+                w.document.write('<html><head><title>{{ __("pos.open_drawer") }}</title><style>body{font-family:monospace;padding:20px;text-align:center;font-size:16px;}</style></head><body><p>{{ __("pos.open_drawer") }}</p><p><small>' + new Date().toLocaleString() + '</small></p></body></html>');
+                w.document.close();
+                w.focus();
+                w.print();
+                w.onafterprint = function() { w.close(); };
             });
 
             function posGetRestaurantTotal() {
@@ -2160,6 +2183,13 @@
                         $('#btn-pur button').attr('disabled', 'disabled');
                         $('.btn-empty button').removeClass('btn-clear-cart');
                         $('#pos-pay-btn-restaurant').prop('disabled', true);
+                        var branchId = $('#pos-restaurant-branch').val();
+                        if (branchId) loadRestaurantTables(branchId);
+                        $('#pos_table_id_hidden').val('');
+                        $('#pos_restaurant_table_id').val('');
+                        $('#pos_restaurant_table_name').val('');
+                        $('#pos-selected-table').text('—');
+                        $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
                         if (data && data.pos_id) {
                             var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id;
                             $.get(receiptUrl, function (html) {

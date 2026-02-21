@@ -20,6 +20,7 @@ class ProductService extends Model
         'unit_id',
         'type',
         'print_zone',
+        'pos_printer_id',
         'low_stock_threshold',
         'sale_chartaccount_id',
         'expense_chartaccount_id',
@@ -44,6 +45,11 @@ class ProductService extends Model
     public function category()
     {
         return $this->hasOne('App\Models\ProductServiceCategory', 'id', 'category_id');
+    }
+
+    public function posPrinter()
+    {
+        return $this->belongsTo(\App\Models\PosPrinter::class, 'pos_printer_id', 'id');
     }
 
     /** Phase 5: Recipe (BOM) – ingredients for this product. If not empty, POS deducts by recipe. */

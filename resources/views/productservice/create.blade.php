@@ -151,6 +151,16 @@
             {{ Form::select('print_zone', ['' => __('None'), 'kitchen' => __('Kitchen'), 'bar' => __('Bar'), 'both' => __('Both')], '', ['class' => 'form-control select']) }}
             <small class="text-muted">{{ __('Where this product prints when sent to production (Kitchen/Bar slip).') }}</small>
         </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('pos_printer_id', __('POS Printer'), ['class' => 'form-label']) }}
+            <select name="pos_printer_id" class="form-control select">
+                <option value="">{{ __('Default (by zone)') }}</option>
+                @foreach($printers ?? [] as $pr)
+                    <option value="{{ $pr->id }}">{{ $pr->branch ? $pr->branch->name : '' }} – {{ $pr->name }} ({{ $pr->type }})</option>
+                @endforeach
+            </select>
+            <small class="text-muted">{{ __('Send this product to this printer in POS. Leave default to use zone.') }}</small>
+        </div>
 
         <div class="form-group col-md-6 quantity">
             {{ Form::label('quantity', __('Quantity'),['class'=>'form-label']) }}<x-required></x-required>

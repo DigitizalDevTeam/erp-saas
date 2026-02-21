@@ -17,6 +17,7 @@ use App\Models\Utility;
 use App\Models\Vender;
 use App\Models\WarehouseProduct;
 use App\Models\PriceLevel;
+use App\Models\PosPrinter;
 use Google\Service\Dataproc\Session;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -91,8 +92,9 @@ class ProductServiceController extends Controller
             $expenseSubAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
             $expenseSubAccounts = $expenseSubAccounts->get()->toArray();
             $priceLevels = PriceLevel::where('created_by', '=', \Auth::user()->creatorId())->get();
+            $printers = PosPrinter::where('created_by', \Auth::user()->creatorId())->with('branch')->orderBy('branch_id')->orderBy('type')->get();
 
-            return view('productservice.create', compact('category', 'unit', 'tax', 'customFields', 'incomeChartAccounts', 'incomeSubAccounts', 'expenseChartAccounts', 'expenseSubAccounts', 'priceLevels'));
+            return view('productservice.create', compact('category', 'unit', 'tax', 'customFields', 'incomeChartAccounts', 'incomeSubAccounts', 'expenseChartAccounts', 'expenseSubAccounts', 'priceLevels', 'printers'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
@@ -141,6 +143,7 @@ class ProductServiceController extends Controller
             }
             $productService->type                       = $request->type;
             $productService->print_zone                 = $request->print_zone ?: null;
+            $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
             $productService->low_stock_threshold         = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
             $productService->sale_chartaccount_id       = $request->sale_chartaccount_id;
             $productService->expense_chartaccount_id    = $request->expense_chartaccount_id;
@@ -222,8 +225,9 @@ class ProductServiceController extends Controller
                 $expenseSubAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
                 $expenseSubAccounts = $expenseSubAccounts->get()->toArray();
                 $priceLevels = PriceLevel::where('created_by', '=', \Auth::user()->creatorId())->get();
+                $printers = PosPrinter::where('created_by', \Auth::user()->creatorId())->with('branch')->orderBy('branch_id')->orderBy('type')->get();
 
-                return view('productservice.edit', compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'incomeSubAccounts', 'expenseSubAccounts', 'priceLevels'));
+                return view('productservice.edit', compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'incomeSubAccounts', 'expenseSubAccounts', 'priceLevels', 'printers'));
             } else {
                 return response()->json(['error' => __('Permission denied.')], 401);
             }
@@ -272,6 +276,7 @@ class ProductServiceController extends Controller
                 }
                 $productService->type                       = $request->type;
                 $productService->print_zone                 = $request->print_zone ?: null;
+                $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
                 $productService->low_stock_threshold        = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
                 $productService->sale_chartaccount_id       = $request->sale_chartaccount_id;
                 $productService->expense_chartaccount_id    = $request->expense_chartaccount_id;
@@ -566,7 +571,7 @@ class ProductServiceController extends Controller
                 $cartKey = 'pos_restaurant_cart';
                 $tableKey = $tableId . '_' . $shiftId;
             }
-            $product = ProductService::with('category:id,name')->find($id);
+            $product = ProductService::with('category:id,name', 'posPrinter')->find($id);
             $productquantity = 0;
 
             if ($product) {
@@ -645,12 +650,14 @@ class ProductServiceController extends Controller
             $catName = $product->category ? $product->category->name : '';
             $taxDisplay = str_replace("'", "&#39;", strip_tags($product_tax));
             $printZone = $product->print_zone ?? '';
+            $printerId = $product->posPrinter ? $product->posPrinter->id : '';
+            $printerName = $product->posPrinter ? e($product->posPrinter->name) : '';
             if ($isPosSession) {
                 if ($request->get('restaurant') || $session_key === 'pos-restaurant') {
                     $tid = $tableKey !== null ? (int) $request->get('table_id') : '';
                     $sid = $tableKey !== null ? (int) $request->get('shift_id') : '';
                     $statusNotSent = __('pos.status_not_sent');
-                    $carthtml .= '<tr data-product-id="' . $id . '" data-line-id="" data-is-sent="0" data-status="not_sent" data-discount="0" id="product-id-r-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '">
+                    $carthtml .= '<tr data-product-id="' . $id . '" data-line-id="" data-is-sent="0" data-status="not_sent" data-discount="0" id="product-id-r-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '">
                             <td class="name">' . e($productname) . '</td>
                             <td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" class="input-number" data-url="' . url('update-cart/') . '" data-id="' . $id . '" value="1"><input type="button" value="+" class="plus"></span></td>
                             <td class="tax">' . $taxDisplay . '</td>
@@ -660,7 +667,7 @@ class ProductServiceController extends Controller
                             <td class="action-btn"><a href="#" class="btn btn-sm bg-danger bs-pass-para-pos pos-remove-from-cart" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . $id . '"><i class="ti ti-trash text-white"></i></a><form method="post" action="' . url('remove-from-cart') . '" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . $id . '">' . ($tableKey !== null ? '<input type="hidden" name="table_id" value="' . $tid . '"><input type="hidden" name="shift_id" value="' . $sid . '">' : '') . '</form></td>
                         </tr>';
                 } else {
-                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" id="product-id-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '">';
+                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" id="product-id-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '">';
                 $carthtml .= '<div class="card-body p-2">';
                 $carthtml .= '<div class="d-flex justify-content-between align-items-start gap-2">';
                 $carthtml .= '<div class="flex-grow-1 min-w-0"><h6 class="mb-0 text-dark fw-bold text-truncate name">' . e($productname) . '</h6>';

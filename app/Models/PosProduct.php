@@ -29,6 +29,7 @@ class PosProduct extends Model
         'sent_at',
         'ready_at',
         'print_zone',
+        'pos_printer_id',
         'voided_at',
         'void_reason',
         'voided_by',
@@ -48,6 +49,11 @@ class PosProduct extends Model
     public function product()
     {
         return $this->belongsTo(ProductService::class, 'product_id', 'id');
+    }
+
+    public function posPrinter()
+    {
+        return $this->belongsTo(\App\Models\PosPrinter::class, 'pos_printer_id', 'id');
     }
 
     public function voidedByUser()
