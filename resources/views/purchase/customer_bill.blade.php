@@ -42,7 +42,7 @@
 <html lang="en">
 
 <head>
-    <title>{{__('ERP_SaaS')}}</title>
+    <title>{{__('ERP SaaS')}}</title>
 
     <meta name="title" content="{{$metatitle}}">
     <meta name="description" content="{{$metsdesc}}">

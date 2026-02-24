@@ -635,6 +635,7 @@ Route::group(['middleware' => ['verified']], function () {
         ],
         function () {
             Route::resource('customer', CustomerController::class);
+            Route::post('customer/store-from-pos', [CustomerController::class, 'storeFromPos'])->name('customer.store.from.pos');
         }
     );
 
@@ -1893,6 +1894,9 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('pos-restaurant/logout-pin', [PosController::class, 'logoutRestaurantPin'])->name('pos.restaurant.logout-pin');
     Route::post('pos-restaurant/void-line/{line}', [PosController::class, 'voidRestaurantLine'])->name('pos.restaurant.void-line');
     Route::post('pos-restaurant/join-tables', [PosController::class, 'joinRestaurantTables'])->name('pos.restaurant.join-tables');
+    Route::get('pos/customer-balance', [PosController::class, 'getCustomerBalance'])->name('pos.customer.balance')->middleware(['auth', 'XSS']);
+    Route::get('pos/bank-accounts', [PosController::class, 'getPosBankAccounts'])->name('pos.bank.accounts')->middleware(['auth', 'XSS']);
+    Route::post('pos/customer-pay-balance', [PosController::class, 'payCustomerBalance'])->name('pos.customer.pay.balance')->middleware(['auth', 'XSS', 'revalidate']);
     Route::resource('pos', PosController::class)->middleware(['auth', 'XSS', 'revalidate']);
 
 

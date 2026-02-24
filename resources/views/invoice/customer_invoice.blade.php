@@ -28,7 +28,7 @@
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no" name="viewport">
     <title>
-        {{ Utility::companyData($invoice->created_by, 'title_text') ? Utility::companyData($invoice->created_by, 'title_text') : config('app.name', 'ERP_SaaS') }}
+        {{ Utility::companyData($invoice->created_by, 'title_text') ? Utility::companyData($invoice->created_by, 'title_text') : config('app.name', 'ERP SaaS') }}
         - {{ __('Invoice') }}</title>
 
     <meta name="title" content="{{ $metatitle }}">

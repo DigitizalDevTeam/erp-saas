@@ -23,6 +23,11 @@ use App\Models\warehouse;
 use App\Models\WarehouseProduct;
 use App\Models\PosArea;
 use App\Models\PosTable;
+use App\Models\Invoice;
+use App\Models\InvoicePayment;
+use App\Models\BankAccount;
+use App\Models\Transaction;
+use App\Models\TransactionLines;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -2182,6 +2187,171 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $canShowPayButton = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('pos restaurant cashier') || $user->can('manage pos');
         $canShowVoid = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
         return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'posPinUser'));
+    }
+
+    /**
+     * Get customer outstanding balance for POS (JSON). Used when a customer is selected on Retail POS.
+     */
+    public function getCustomerBalance(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+        $vcName = $request->input('vc_name', '');
+        if (trim($vcName) === '' || $vcName === 'Walk-in-customer') {
+            return response()->json(['success' => true, 'balance' => 0, 'formatted' => Auth::user()->priceFormat(0), 'customer_id' => 0]);
+        }
+        $customerId = Customer::customer_id($vcName);
+        if (!$customerId) {
+            return response()->json(['success' => true, 'balance' => 0, 'formatted' => Auth::user()->priceFormat(0), 'customer_id' => 0]);
+        }
+        $balance = Customer::totalOutstanding($customerId);
+        return response()->json([
+            'success' => true,
+            'balance' => $balance,
+            'formatted' => Auth::user()->priceFormat($balance),
+            'customer_id' => $customerId,
+        ]);
+    }
+
+    /**
+     * Bank accounts list for POS pay-balance modal (JSON).
+     */
+    public function getPosBankAccounts(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return response()->json(['success' => false], 403);
+        }
+        $accounts = BankAccount::where('created_by', Auth::user()->creatorId())
+            ->select('id', 'holder_name', 'bank_name', 'account_number')
+            ->get()
+            ->map(function ($a) {
+                return ['id' => $a->id, 'label' => $a->holder_name . ' - ' . $a->bank_name . ' (' . $a->account_number . ')'];
+            });
+        return response()->json(['success' => true, 'accounts' => $accounts]);
+    }
+
+    /**
+     * Apply payment to customer's outstanding invoices from POS (pay balance).
+     */
+    public function payCustomerBalance(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+        $validator = \Validator::make($request->all(), [
+            'vc_name' => 'required|string',
+            'amount' => 'required|numeric|min:0.01',
+            'account_id' => 'required|exists:bank_accounts,id',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->getMessageBag()->first()], 422);
+        }
+        $vcName = trim($request->vc_name);
+        if ($vcName === '' || $vcName === 'Walk-in-customer') {
+            return response()->json(['success' => false, 'message' => __('Select a customer.')], 422);
+        }
+        $customerId = Customer::customer_id($vcName);
+        if (!$customerId) {
+            return response()->json(['success' => false, 'message' => __('Customer not found.')], 422);
+        }
+        $totalOutstanding = Customer::totalOutstanding($customerId);
+        if ($totalOutstanding <= 0) {
+            return response()->json(['success' => false, 'message' => __('Customer has no outstanding balance.')], 422);
+        }
+        $amount = (float) $request->amount;
+        if ($amount > $totalOutstanding) {
+            $amount = $totalOutstanding;
+        }
+        $accountId = (int) $request->account_id;
+        $bankAccount = BankAccount::where('id', $accountId)->where('created_by', Auth::user()->creatorId())->first();
+        if (!$bankAccount) {
+            return response()->json(['success' => false, 'message' => __('Invalid account.')], 422);
+        }
+
+        $invoices = Invoice::where('customer_id', $customerId)
+            ->whereIn('status', ['0', '1', '2', '3'])
+            ->with('payments')
+            ->orderBy('issue_date', 'asc')
+            ->get();
+
+        $remaining = $amount;
+        $date = date('Y-m-d');
+        $user = Auth::user();
+
+        foreach ($invoices as $invoice) {
+            if ($remaining <= 0) {
+                break;
+            }
+            $due = $invoice->getDue();
+            if ($due <= 0) {
+                continue;
+            }
+            $payThis = min($remaining, $due);
+
+            $invoicePayment = new InvoicePayment();
+            $invoicePayment->invoice_id = $invoice->id;
+            $invoicePayment->date = $date;
+            $invoicePayment->amount = $payThis;
+            $invoicePayment->account_id = $accountId;
+            $invoicePayment->payment_method = 0;
+            $invoicePayment->reference = __('POS balance payment');
+            $invoicePayment->description = 'POS ' . __('Balance payment');
+            $invoicePayment->save();
+
+            $invoice->load('payments');
+            $newDue = $invoice->getDue();
+            if ($invoice->status == 0) {
+                $invoice->send_date = $date;
+                $invoice->save();
+            }
+            if ($newDue <= 0) {
+                $invoice->status = 4;
+                $invoice->save();
+            } else {
+                $invoice->status = 3;
+                $invoice->save();
+            }
+
+            $invoicePayment->user_id = $invoice->customer_id;
+            $invoicePayment->user_type = 'Customer';
+            $invoicePayment->type = 'Partial';
+            $invoicePayment->created_by = $user->id;
+            $invoicePayment->payment_id = $invoicePayment->id;
+            $invoicePayment->category = 'Invoice';
+            $invoicePayment->account = $accountId;
+            $invoicePayment->description = $invoicePayment->description ?? 'Invoice Payment';
+
+            Transaction::addTransaction($invoicePayment);
+            if (method_exists(\App\Models\Utility::class, 'updateUserBalance')) {
+                Utility::updateUserBalance('customer', $invoice->customer_id, $payThis, 'credit');
+            }
+            Utility::bankAccountBalance($accountId, $payThis, 'credit');
+
+            $acc = BankAccount::find($accountId);
+            if ($acc && $acc->chart_account_id) {
+                $data = [
+                    'account_id' => $acc->chart_account_id,
+                    'transaction_type' => 'Debit',
+                    'transaction_amount' => $payThis,
+                    'reference' => 'Invoice Payment',
+                    'reference_id' => $invoice->id,
+                    'reference_sub_id' => $invoicePayment->id,
+                    'date' => $date,
+                ];
+                Utility::addTransactionLines($data, 'create');
+            }
+
+            $remaining -= $payThis;
+        }
+
+        $newBalance = Customer::totalOutstanding($customerId);
+        return response()->json([
+            'success' => true,
+            'message' => __('Payment successfully added.'),
+            'balance' => $newBalance,
+            'formatted' => $user->priceFormat($newBalance),
+        ]);
     }
 
 }

@@ -47,7 +47,7 @@
 
 <head>
     <title>
-        {{ Utility::getValByName('title_text') ? Utility::getValByName('title_text') : config('app.name', 'ERP_SaaS') }}
+        {{ Utility::getValByName('title_text') ? Utility::getValByName('title_text') : config('app.name', 'ERP SaaS') }}
         - @yield('page-title')</title>
 
     <meta name="title" content="{{ $metatitle }}">

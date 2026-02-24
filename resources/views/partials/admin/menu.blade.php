@@ -1442,12 +1442,6 @@
                                     </li>
                                     @endif
 
-                                    @if (Gate::check('manage pos'))
-                                    <li class="dash-item {{ Request::route()->getName() == 'branch-sales-targets.index' ? 'active' : '' }}">
-                                        <a class="dash-link" href="{{ route('branch-sales-targets.index') }}">{{ __('Branch Sales Targets') }}</a>
-                                    </li>
-                                    @endif
-
                                     @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
                                     <li class="dash-item {{ Request::route()->getName() == 'pos.audit-log.index' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos.audit-log.index') }}">{{ __('POS Audit Log') }}</a>
@@ -1485,6 +1479,11 @@
                             @if (Gate::check('manage pos'))
                             <li class="dash-item">
                                 <a class="dash-link" href="{{ route('pos.print.setting') }}">{{ __('Print Settings') }}</a>
+                            </li>
+                            @endif
+                            @if (Gate::check('manage pos'))
+                            <li class="dash-item">
+                                <a class="dash-link" href="{{ route('branch-sales-targets.index') }}">{{ __('Branch Sales Targets') }}</a>
                             </li>
                             @endif
 

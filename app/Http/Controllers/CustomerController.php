@@ -237,6 +237,68 @@ class CustomerController extends Controller
         }
     }
 
+    /**
+     * Create a customer from POS (AJAX). Returns JSON. No page redirect.
+     * Permission: create customer OR manage pos.
+     */
+    public function storeFromPos(Request $request)
+    {
+        if (!\Auth::user()->can('create customer') && !\Auth::user()->can('manage pos')) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+
+        $rules = [
+            'name' => 'required|string|max:255',
+            'contact' => 'required|string|max:50',
+            'email' => [
+                'required',
+                'email',
+                Rule::unique('customers')->where(function ($query) {
+                    return $query->where('created_by', \Auth::user()->creatorId());
+                }),
+            ],
+        ];
+        $validator = \Validator::make($request->all(), $rules);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->getMessageBag()->first(),
+            ], 422);
+        }
+
+        $objCustomer = \Auth::user();
+        $creator = User::find($objCustomer->creatorId());
+        $total_customer = $objCustomer->countCustomers();
+        $plan = Plan::find($creator->plan);
+        if ($plan && $plan->max_customers != -1 && $total_customer >= $plan->max_customers) {
+            return response()->json(['success' => false, 'message' => __('Your user limit is over, Please upgrade plan.')], 422);
+        }
+
+        $default_language = DB::table('settings')->select('value')->where('name', 'default_language')->first();
+        $customer = new Customer();
+        $customer->customer_id = $this->customerNumber();
+        $customer->name = $request->name;
+        $customer->contact = $request->contact;
+        $customer->email = $request->email;
+        $customer->payment_type = 'cash';
+        $customer->credit_terms = null;
+        $customer->created_by = \Auth::user()->creatorId();
+        $customer->lang = !empty($default_language) ? $default_language->value : '';
+        $customer->bank_account = json_encode([]);
+        $customer->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => __('Customer successfully created.'),
+            'customer' => [
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'email' => $customer->email,
+                'contact' => $customer->contact,
+            ],
+        ]);
+    }
+
 
     public function show($ids)
     {

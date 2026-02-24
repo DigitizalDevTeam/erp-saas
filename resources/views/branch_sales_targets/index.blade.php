@@ -24,7 +24,7 @@
                             <thead>
                                 <tr>
                                     <th>{{ __('Branch') }}</th>
-                                    <th>{{ __('Month') }}</th>
+                                    <th>{{ __('Period') }}</th>
                                     <th class="text-end">{{ __('Target') }}</th>
                                     <th class="text-end">{{ __('Actual') }}</th>
                                     <th style="min-width: 180px;">{{ __('Progress') }}</th>
@@ -34,16 +34,15 @@
                             <tbody>
                                 @foreach ($targets as $t)
                                     @php
-                                        $key = $t->branch_id . '-' . $t->month;
+                                        $key = $t->branch_id . '-' . $t->period_type . '-' . $t->period_value;
                                         $actual = $actualMap[$key] ?? 0;
                                         $targetVal = (float) $t->target_amount;
                                         $pct = $targetVal > 0 ? round(($actual / $targetVal) * 100, 1) : 0;
                                         $barWidth = min(100, $pct);
-                                        $monthLabel = \Carbon\Carbon::createFromFormat('Y-m', $t->month)->format('F Y');
                                     @endphp
                                     <tr>
                                         <td>{{ $t->branch ? $t->branch->name : '-' }}</td>
-                                        <td>{{ $monthLabel }}</td>
+                                        <td>{{ $t->period_label }}</td>
                                         <td class="text-end">{{ Auth::user()->priceFormat($t->target_amount) }}</td>
                                         <td class="text-end">{{ Auth::user()->priceFormat($actual) }}</td>
                                         <td>

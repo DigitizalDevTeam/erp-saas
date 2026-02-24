@@ -292,13 +292,16 @@
                         </div>
                         {{ Form::hidden('quotation_id', $id, ['id' => 'quotation_id', 'class' => 'quotation']) }}
 
-                        {{-- Customer: header + Change + card --}}
+                        {{-- Customer: header + Change + Edit (when Walk-in) + card --}}
                         <div class="pos-customer-block mb-2">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span class="text-muted small fw-semibold d-flex align-items-center gap-1">
                                     <i class="ti ti-user"></i> {{ __('Customer') }}
                                 </span>
-                                <a href="#" class="text-muted small pos-customer-change" id="pos-customer-change">{{ __('Change') }}</a>
+                                <div class="d-flex align-items-center gap-1">
+                                    <a href="#" class="text-muted small pos-customer-edit d-none" id="pos-customer-edit" title="{{ __('Add New Customer') }}"><i class="ti ti-edit"></i> {{ __('Edit') }}</a>
+                                    <a href="#" class="text-muted small pos-customer-change" id="pos-customer-change">{{ __('Change') }}</a>
+                                </div>
                             </div>
                             <select class="form-control form-control-sm select customer_select d-none" id="customer" required>
                                 @foreach($customersForPos as $c)
@@ -317,6 +320,13 @@
                                         <small class="text-muted d-block" id="pos-customer-phone">{{ $selCustomer->contact ?? '0000000000' }}</small>
                                     </div>
                                     <span class="badge bg-light text-dark border" id="pos-customer-badge">{{ $selCustomer && $selCustomer->name === 'Walk-in-customer' ? __('Walk-in') : __('Customer') }}</span>
+                                </div>
+                                <div id="pos-customer-balance-wrap" class="mt-2 pt-2 border-top d-none">
+                                    <div class="d-flex justify-content-between align-items-center small">
+                                        <span class="text-muted">{{ __('Balance due') }}:</span>
+                                        <span id="pos-customer-balance" class="fw-semibold text-danger" data-raw="0">0</span>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary mt-1 w-100" id="pos-pay-balance-btn"><i class="ti ti-cash me-1"></i> {{ __('Pay balance') }}</button>
                                 </div>
                             </div>
                         </div>
@@ -513,6 +523,73 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
                         <button type="submit" class="btn btn-primary" id="pos-open-shift-submit">{{ __('pos.open_shift') }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {{-- Add New Customer from POS (when Walk-in selected) --}}
+    <div class="modal fade" id="posNewCustomerModal" tabindex="-1" aria-labelledby="posNewCustomerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="posNewCustomerModalLabel">{{ __('Add New Customer') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="pos-new-customer-form">
+                    <div class="modal-body">
+                        @csrf
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Name') }} <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required maxlength="255" placeholder="{{ __('Name') }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Contact') }} <span class="text-danger">*</span></label>
+                            <input type="text" name="contact" class="form-control" required maxlength="50" placeholder="{{ __('Contact') }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Email') }} <span class="text-danger">*</span></label>
+                            <input type="email" name="email" class="form-control" required placeholder="{{ __('Email') }}">
+                        </div>
+                        <div id="pos-new-customer-error" class="alert alert-danger py-2 d-none mb-0"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                        <button type="submit" class="btn btn-primary" id="pos-new-customer-submit">{{ __('Save') }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {{-- Pay customer balance (outstanding invoices) from POS --}}
+    <div class="modal fade" id="posPayBalanceModal" tabindex="-1" aria-labelledby="posPayBalanceModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="posPayBalanceModalLabel">{{ __('Pay balance') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="pos-pay-balance-form">
+                    <div class="modal-body">
+                        @csrf
+                        <input type="hidden" name="vc_name" id="pos-pay-balance-vc-name" value="">
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Amount') }} <span class="text-danger">*</span></label>
+                            <input type="number" name="amount" id="pos-pay-balance-amount" class="form-control" required min="0.01" step="0.01" placeholder="0.00">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Bank account') }} <span class="text-danger">*</span></label>
+                            <select name="account_id" id="pos-pay-balance-account" class="form-select" required>
+                                <option value="">{{ __('Loading...') }}</option>
+                            </select>
+                        </div>
+                        <div id="pos-pay-balance-error" class="alert alert-danger py-2 d-none mb-0"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                        <button type="submit" class="btn btn-primary" id="pos-pay-balance-submit">{{ __('Pay') }}</button>
                     </div>
                 </form>
             </div>
@@ -1471,10 +1548,134 @@
                 $('#pos-customer-phone').text(contact);
                 $('#pos-customer-badge').text(type === 'walk-in' ? '{{ __("Walk-in") }}' : '{{ __("Customer") }}');
                 $('#vc_name_hidden').val($('#customer').val());
+                // Show Edit only when Walk-in customer is selected (retail: add new customer)
+                var isWalkIn = ($('#customer').val() || '').toString() === 'Walk-in-customer' || type === 'walk-in';
+                $('#pos-customer-edit').toggleClass('d-none', !isWalkIn);
+                // Fetch and show customer balance when a real customer is selected
+                posFetchCustomerBalance();
             }
+            function posFetchCustomerBalance() {
+                var vc = ($('#vc_name_hidden').val() || $('#customer').val() || '').toString().trim();
+                if (vc === '' || vc === 'Walk-in-customer') {
+                    $('#pos-customer-balance-wrap').addClass('d-none');
+                    $('#pos-customer-balance').text('0');
+                    return;
+                }
+                $.get('{{ route("pos.customer.balance") }}', { vc_name: vc }, function(res) {
+                    if (res.success) {
+                        var bal = parseFloat(res.balance) || 0;
+                        $('#pos-customer-balance').text(res.formatted || '0').attr('data-raw', bal);
+                        if (bal > 0) {
+                            $('#pos-customer-balance-wrap').removeClass('d-none');
+                        } else {
+                            $('#pos-customer-balance-wrap').addClass('d-none');
+                        }
+                    } else {
+                        $('#pos-customer-balance-wrap').addClass('d-none');
+                    }
+                }).fail(function() {
+                    $('#pos-customer-balance-wrap').addClass('d-none');
+                });
+            }
+            $(document).on('click', '#pos-pay-balance-btn', function(e) {
+                e.preventDefault();
+                var vc = ($('#vc_name_hidden').val() || '').toString().trim();
+                var balanceNum = parseFloat($('#pos-customer-balance').attr('data-raw')) || 0;
+                $('#pos-pay-balance-vc-name').val(vc);
+                $('#pos-pay-balance-amount').val(balanceNum > 0 ? balanceNum.toFixed(2) : '');
+                $('#pos-pay-balance-error').addClass('d-none').text('');
+                var $sel = $('#pos-pay-balance-account');
+                $sel.empty().append('<option value="">{{ __("Loading...") }}</option>');
+                $.get('{{ route("pos.bank.accounts") }}', function(res) {
+                    $sel.empty().append('<option value="">{{ __("Select account") }}</option>');
+                    if (res.success && res.accounts && res.accounts.length) {
+                        $.each(res.accounts, function(i, a) {
+                            $sel.append($('<option></option>').val(a.id).text(a.label));
+                        });
+                    }
+                });
+                $('#posPayBalanceModal').modal('show');
+            });
+            $(document).on('submit', '#pos-pay-balance-form', function(e) {
+                e.preventDefault();
+                var $form = $(this);
+                var $err = $('#pos-pay-balance-error');
+                var $submit = $('#pos-pay-balance-submit');
+                $err.addClass('d-none').text('');
+                $submit.prop('disabled', true);
+                $.ajax({
+                    url: '{{ route("pos.customer.pay.balance") }}',
+                    type: 'POST',
+                    data: $form.serialize(),
+                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    success: function(res) {
+                        if (res.success) {
+                            $('#pos-customer-balance').text(res.formatted || '0');
+                            if (res.balance <= 0) {
+                                $('#pos-customer-balance-wrap').addClass('d-none');
+                            }
+                            $('#posPayBalanceModal').modal('hide');
+                            if ($('#liveToast').length) {
+                                var t = new bootstrap.Toast(document.getElementById('liveToast'));
+                                $('#liveToast .toast-body').text(res.message || '{{ __("Payment successfully added.") }}');
+                                t.show();
+                            }
+                        } else {
+                            $err.text(res.message || '{{ __("Error.") }}').removeClass('d-none');
+                        }
+                    },
+                    error: function(xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : (xhr.statusText || '{{ __("Error.") }}');
+                        $err.text(msg).removeClass('d-none');
+                    },
+                    complete: function() {
+                        $submit.prop('disabled', false);
+                    }
+                });
+            });
             $(document).on('click', '#pos-customer-change', function(e) {
                 e.preventDefault();
                 $('#customer').removeClass('d-none').focus();
+            });
+            $(document).on('click', '#pos-customer-edit', function(e) {
+                e.preventDefault();
+                $('#pos-new-customer-form')[0].reset();
+                $('#pos-new-customer-error').addClass('d-none').text('');
+                $('#posNewCustomerModal').modal('show');
+            });
+            $(document).on('submit', '#pos-new-customer-form', function(e) {
+                e.preventDefault();
+                var $form = $(this);
+                var $err = $('#pos-new-customer-error');
+                var $submit = $('#pos-new-customer-submit');
+                $err.addClass('d-none').text('');
+                $submit.prop('disabled', true);
+                $.ajax({
+                    url: '{{ route("customer.store.from.pos") }}',
+                    type: 'POST',
+                    data: $form.serialize(),
+                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    success: function(res) {
+                        if (res.success && res.customer) {
+                            var c = res.customer;
+                            var $opt = $('<option></option>').attr('value', c.name).text(c.name)
+                                .attr('data-email', c.email || '').attr('data-contact', c.contact || '').attr('data-type', 'customer');
+                            $('#customer').append($opt).val(c.name).addClass('d-none');
+                            posUpdateCustomerCard();
+                            $('#posNewCustomerModal').modal('hide');
+                            $form[0].reset();
+                        } else {
+                            $err.text(res.message || '{{ __("Error saving customer.") }}').removeClass('d-none');
+                        }
+                    },
+                    error: function(xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : (xhr.statusText || '{{ __("Error saving customer.") }}');
+                        $err.text(msg).removeClass('d-none');
+                    },
+                    complete: function() {
+                        $submit.prop('disabled', false);
+                    }
+                });
             });
             $(document).on('change blur', '#customer', function() {
                 posUpdateCustomerCard();
@@ -1484,6 +1685,7 @@
                 $( "#vc_name_hidden" ).val($(this).val());
                 posUpdateCustomerCard();
             });
+            posUpdateCustomerCard();
             $( '.warehouse_select' ).change(function() {
                 $( "#warehouse_name_hidden" ).val($(this).val());
                 var ware_id = $( "#warehouse" ).val();

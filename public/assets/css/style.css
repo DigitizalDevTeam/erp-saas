@@ -15757,10 +15757,10 @@ body.theme-1 .dash-sidebar.light-sidebar .dash-navbar > .dash-item.active > .das
     color: #0CAF60;
 }
 
-body.theme-1 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item::before,
+/* body.theme-1 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item::before,
   body.theme-1 .dash-sidebar .dash-item .dash-submenu .dash-item::before {
     border-right-color: #0CAF60;
-}
+} */
 
 body.theme-1 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item.active > .dash-link, body.theme-1 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item:active > .dash-link, body.theme-1 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item:focus > .dash-link, body.theme-1 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item:hover > .dash-link,
   body.theme-1 .dash-sidebar .dash-item .dash-submenu .dash-item.active > .dash-link,
@@ -16221,18 +16221,26 @@ body.theme-3 .dash-sidebar.light-sidebar .dash-navbar > .dash-item.active > .das
     color: #43b536;
 }
 
-body.theme-3 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item::before,
+/* body.theme-3 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item::before,
   body.theme-3 .dash-sidebar .dash-item .dash-submenu .dash-item::before {
     border-right-color: #43b536;
-}
+} */
 
-body.theme-3 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item.active > .dash-link, body.theme-3 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item:active > .dash-link, body.theme-3 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item:focus > .dash-link, body.theme-3 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item:hover > .dash-link,
+  body.theme-3 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item.active > .dash-link,
+  body.theme-3 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item:active > .dash-link,
+  body.theme-3 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item:focus > .dash-link,
+  body.theme-3 .dash-sidebar.light-sidebar .dash-item .dash-submenu .dash-item:hover > .dash-link,
   body.theme-3 .dash-sidebar .dash-item .dash-submenu .dash-item.active > .dash-link,
   body.theme-3 .dash-sidebar .dash-item .dash-submenu .dash-item:active > .dash-link,
   body.theme-3 .dash-sidebar .dash-item .dash-submenu .dash-item:focus > .dash-link,
   body.theme-3 .dash-sidebar .dash-item .dash-submenu .dash-item:hover > .dash-link {
     color: #43b536;
 }
+body.theme-3 .dash-sidebar .dash-item .dash-submenu .dash-item.active::before {
+    border-color: #43b536;
+    background-color: #43b536;
+}
+
 
 body.theme-3 a:not([class]) {
     color: #43b536;
@@ -18281,12 +18289,13 @@ body:not(.minimenu) .dash-sidebar .dash-submenu .dash-item:before {
     width: 8px;
     height: 8px;
     border: 2px solid #ced4dc;
-    border-right-color: #51459d;
+    border-right-color: #ced4dc;
     border-radius: 50%;
     z-index: 1;
     transform: rotate(45deg);
     transition: 0.35s cubic-bezier(0.54, 1.6, 0.5, 1);
     color: #778290;
+    background-color: #ced4dc;
 }
 
 body:not(.minimenu) .dash-sidebar .dash-submenu .dash-item.active:before {
