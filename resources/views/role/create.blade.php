@@ -1287,6 +1287,23 @@
                                             </td>
                                         </tr>
                                     @endforeach
+                                    @if(in_array('give pos credit', (array) $permissions))
+                                        @php $givePosCreditKey = array_search('give pos credit', $permissions); @endphp
+                                        @if($givePosCreditKey !== false)
+                                        <tr>
+                                            <td><input type="checkbox" class="form-check-input ischeck pos_checkall" data-id="giveposcredit"></td>
+                                            <td><label class="ischeck" data-id="giveposcredit">{{ __('Give POS Credit') }}</label></td>
+                                            <td>
+                                                <div class="row">
+                                                    <div class="col-md-3 custom-control custom-checkbox">
+                                                        {{ Form::checkbox('permissions[]', $givePosCreditKey, false, ['class' => 'form-check-input isscheck pos_checkall isscheck_giveposcredit', 'id' => 'permission'.$givePosCreditKey]) }}
+                                                        {{ Form::label('permission'.$givePosCreditKey, __('Allow credit payment at POS'), ['class' => 'custom-control-label']) }}<br>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        @endif
+                                    @endif
                                     </tbody>
                                 </table>
                             @endif

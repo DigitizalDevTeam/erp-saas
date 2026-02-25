@@ -9,8 +9,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('branch_sales_targets', function (Blueprint $table) {
-            $table->string('period_type', 10)->default('month')->after('branch_id');
-            $table->string('period_value', 20)->nullable()->after('period_type');
+            if (!Schema::hasColumn('branch_sales_targets', 'period_type')) {
+                $table->string('period_type', 10)->default('month')->after('branch_id');
+            }
+            if (!Schema::hasColumn('branch_sales_targets', 'period_value')) {
+                $table->string('period_value', 20)->nullable()->after('period_type');
+            }
         });
 
         \DB::table('branch_sales_targets')->update([
@@ -18,12 +22,9 @@ return new class extends Migration
         ]);
 
         Schema::table('branch_sales_targets', function (Blueprint $table) {
-            $table->string('period_value', 20)->nullable(false)->change();
-        });
-
-        Schema::table('branch_sales_targets', function (Blueprint $table) {
-            $table->dropUnique(['branch_id', 'month']);
-            $table->dropColumn('month');
+            if (Schema::hasColumn('branch_sales_targets', 'period_value')) {
+                $table->string('period_value', 20)->nullable(false)->change();
+            }
         });
     }
 

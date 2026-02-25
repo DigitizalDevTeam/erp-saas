@@ -1,11 +1,14 @@
 @php
     $settings = Utility::settings();
+    $hasCreditPayment = !empty($posPayments) && $posPayments->isNotEmpty() && $posPayments->contains(function ($p) { return in_array(strtolower($p->payment_method ?? ''), ['credit']); });
+    $paymentDocumentTitle = $hasCreditPayment ? __('Credit Sale') : __('Cash Sale');
 @endphp
 <div class="pt-0 pb-3 modal-body pos-module" id="printarea" >
     <table class="table pos-module-tbl">
         <tbody>
             <div class="text-center ">
-                <h3>{{$settings['company_name']}}</h3>
+                <h3>{{ $settings['company_name'] }}</h3>
+                <h4 class="text-dark mt-1 mb-0">{{ __('Bill') }}</h4>
             </div>
             <br>
 
@@ -82,7 +85,7 @@
 
         @if(!empty($posPayments) && $posPayments->isNotEmpty())
             <div class="product-border mb-2 mt-3 p-2">
-                <div class="text-black fw-bold mb-2">{{ __('Payment') }}</div>
+                <div class="text-black fw-bold mb-2">{{ $paymentDocumentTitle }}</div>
                 @foreach($posPayments as $pmt)
                     <div class="d-flex product-border mb-1">
                         <div>{{ __('Payment Method') }}:</div>

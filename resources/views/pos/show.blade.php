@@ -35,13 +35,14 @@
                 </div>
             </div>
 
+            @php $canGivePosCredit = $canGivePosCredit ?? false; $posCreditTermOptions = $posCreditTermOptions ?? []; @endphp
             @if (($details['pay'] ?? '') == 'show')
                 <div class="mb-2">
                     <label class="form-label small mb-1">{{ __('Payment Method') }}</label>
                     <select class="form-select form-select-sm" id="payment_method" name="payment_method">
                         <option value="cash">{{ __('pos.payment_cash') }}</option>
                         <option value="card">{{ __('pos.payment_card') }}</option>
-                        <option value="credit">{{ __('pos.payment_credit') }}</option>
+                        @if($canGivePosCredit)<option value="credit">{{ __('pos.payment_credit') }}</option>@endif
                         <option value="mixed">{{ __('Mixed Payment') }}</option>
                         <option value="visa">{{ __('pos.payment_visa') }}</option>
                         <option value="mpesa">{{ __('pos.payment_mpesa') }}</option>
@@ -79,8 +80,17 @@
                 </div>
 
                 <div class="mb-2 d-none" id="credit_days_wrap">
-                    <label class="form-label small mb-1">{{ __('Credit Days') }}</label>
-                    <input type="number" min="1" class="form-control form-control-sm" id="payment_credit_terms" name="credit_terms" placeholder="{{ __('Enter days') }}">
+                    <label class="form-label small mb-1">{{ __('Credit Terms') }}</label>
+                    @if(!empty($posCreditTermOptions))
+                        <select class="form-select form-select-sm" id="payment_credit_terms" name="credit_terms">
+                            <option value="">{{ __('Select Credit Terms') }}</option>
+                            @foreach($posCreditTermOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    @else
+                        <input type="number" min="1" class="form-control form-control-sm" id="payment_credit_terms" name="credit_terms" placeholder="{{ __('Enter days') }}">
+                    @endif
                 </div>
 
                 <div class="mb-3">
@@ -105,7 +115,8 @@
         if (currencySymbol) return currencySymbol + v.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         return v;
     };
-    var payMethodOpts = '<option value="cash">{{ __("pos.payment_cash") }}</option><option value="card">{{ __("pos.payment_card") }}</option><option value="credit">{{ __("pos.payment_credit") }}</option><option value="visa">{{ __("pos.payment_visa") }}</option><option value="mpesa">{{ __("pos.payment_mpesa") }}</option><option value="bank_transfer">{{ __("pos.payment_bank_transfer") }}</option><option value="cheque">{{ __("pos.payment_cheque") }}</option>';
+    var canGivePosCredit = @json($canGivePosCredit ?? false);
+    var payMethodOpts = '<option value="cash">{{ __("pos.payment_cash") }}</option><option value="card">{{ __("pos.payment_card") }}</option>' + (canGivePosCredit ? '<option value="credit">{{ __("pos.payment_credit") }}</option>' : '') + '<option value="visa">{{ __("pos.payment_visa") }}</option><option value="mpesa">{{ __("pos.payment_mpesa") }}</option><option value="bank_transfer">{{ __("pos.payment_bank_transfer") }}</option><option value="cheque">{{ __("pos.payment_cheque") }}</option>';
 
     function togglePaymentFields() {
         var method = $('#payment_method').val();

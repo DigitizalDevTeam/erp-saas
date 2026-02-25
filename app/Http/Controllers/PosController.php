@@ -112,6 +112,8 @@ class PosController extends Controller
                 $warehouseId = '';
             }
             $canChangeShift = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
+            $canGivePosCredit = $user->can('give pos credit') || $user->can('manage pos');
+            $posCreditTermOptions = ['7 days' => '7 ' . __('Days'), '15 days' => '15 ' . __('Days'), '30 days' => '30 ' . __('Days'), '90 days' => '90 ' . __('Days'), '120 days' => '120 ' . __('Days')];
             $userOpenShifts = \App\Models\PosShift::where('user_id', $user->id)
                 ->where('status', \App\Models\PosShift::STATUS_OPEN)
                 ->where('created_by', $creatorId)
@@ -126,7 +128,7 @@ class PosController extends Controller
                     $warehouseId = $wh;
                 }
             }
-            return view('pos.index', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'userOpenShift', 'canChangeShift', 'userOpenShiftByBranch', 'defaultBranchIdFromShift', 'posBranchLocked'));
+            return view('pos.index', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'userOpenShift', 'canChangeShift', 'canGivePosCredit', 'posCreditTermOptions', 'userOpenShiftByBranch', 'defaultBranchIdFromShift', 'posBranchLocked'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -443,7 +445,9 @@ class PosController extends Controller
                 'total_raw' => round($total, 2),
             ];
 
-            return view('pos.show', compact('sales', 'details', 'orderSummary'));
+            $canGivePosCredit = Auth::user()->can('give pos credit') || Auth::user()->can('manage pos');
+            $posCreditTermOptions = ['7 days' => '7 ' . __('Days'), '15 days' => '15 ' . __('Days'), '30 days' => '30 ' . __('Days'), '90 days' => '90 ' . __('Days'), '120 days' => '120 ' . __('Days')];
+            return view('pos.show', compact('sales', 'details', 'orderSummary', 'canGivePosCredit', 'posCreditTermOptions'));
         } else {
             return response()->json(
                 [
@@ -607,6 +611,15 @@ class PosController extends Controller
             if (Pos::where('created_by', $user_id)->where('client_order_id', $clientOrderId)->exists()) {
                 return response()->json(['code' => 200, 'success' => __('Payment is already completed!')]);
             }
+        }
+
+        // Only admin or users with "give pos credit" permission can use Credit payment at POS
+        $paymentsInput = $request->input('payments');
+        $singleMethod = $request->payment_method ?? null;
+        $wantsCredit = ($singleMethod === PosPayment::METHOD_CREDIT)
+            || (is_array($paymentsInput) && collect($paymentsInput)->contains(fn ($p) => ($p['payment_method'] ?? '') === PosPayment::METHOD_CREDIT));
+        if ($wantsCredit && !Auth::user()->can('give pos credit') && !Auth::user()->can('manage pos')) {
+            return response()->json(['code' => 403, 'error' => __('You are not allowed to give credit at POS.')], 403);
         }
 
         $result = DB::table('pos')->where('pos_id', $pos_id)->where('created_by', $user_id)->get();

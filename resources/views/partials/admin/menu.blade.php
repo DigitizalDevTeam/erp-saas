@@ -1425,20 +1425,8 @@
                                     @endif
 
                                     @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
-                                    <li class="dash-item {{ Request::route()->getName() == 'pos-shift.index' ? 'active' : '' }}">
-                                        <a class="dash-link" href="{{ route('pos-shift.index') }}">{{ __('POS Shifts') }}</a>
-                                    </li>
-                                    @endif
-
-                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
                                     <li class="dash-item {{ Request::route()->getName() == 'report.pos.day-summary' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('report.pos.day-summary', ['date' => date('Y-m-d')]) }}">{{ __('Day Summary') }}</a>
-                                    </li>
-                                    @endif
-
-                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
-                                    <li class="dash-item {{ request()->is('report/pos-eod') ? 'active' : '' }}">
-                                        <a class="dash-link" href="{{ route('report.pos.eod') }}">{{ __('EOD Report') }}</a>
                                     </li>
                                     @endif
 
@@ -1469,6 +1457,24 @@
                             </li>
                             @endif
 
+                            @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
+                            <li class="dash-item {{ Request::route()->getName() == 'pos-shift.index' ? 'active' : '' }}">
+                                <a class="dash-link" href="{{ route('pos-shift.index') }}">{{ __('POS Shifts') }}</a>
+                            </li>
+                            @endif
+
+                            @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')) 
+                            <li class="dash-item {{ request()->is('report/pos-eod') ? 'active' : '' }}">
+                                <a class="dash-link" href="{{ route('report.pos.eod') }}">{{ __('EOD Report') }}</a>
+                            </li>
+                            @endif
+
+                            @if (Gate::check('manage pos'))
+                            <li class="dash-item">
+                                <a class="dash-link" href="{{ route('branch-sales-targets.index') }}">{{ __('Branch Sales Targets') }}</a>
+                            </li>
+                            @endif
+
                             {{-- ================= BARCODE / PRINT ================= --}}
                             @can('create barcode')
                             <li class="dash-item">
@@ -1479,11 +1485,6 @@
                             @if (Gate::check('manage pos'))
                             <li class="dash-item">
                                 <a class="dash-link" href="{{ route('pos.print.setting') }}">{{ __('Print Settings') }}</a>
-                            </li>
-                            @endif
-                            @if (Gate::check('manage pos'))
-                            <li class="dash-item">
-                                <a class="dash-link" href="{{ route('branch-sales-targets.index') }}">{{ __('Branch Sales Targets') }}</a>
                             </li>
                             @endif
 
