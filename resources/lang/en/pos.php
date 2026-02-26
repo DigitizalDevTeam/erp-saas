@@ -17,6 +17,7 @@ return [
     'closing_balance' => 'Closing Balance',
     'enable_transactions' => 'Add Opening Balance to Enable the transactions',
     'name' => 'Name',
+    'note_placeholder' => 'e.g. No ice, extra sauce',
     'qty' => 'QTY',
     'tax' => 'Tax',
     'price' => 'Price',

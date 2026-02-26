@@ -659,6 +659,7 @@ class ProductServiceController extends Controller
                     $statusNotSent = __('pos.status_not_sent');
                     $carthtml .= '<tr data-product-id="' . $id . '" data-line-id="" data-is-sent="0" data-status="not_sent" data-discount="0" id="product-id-r-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '">
                             <td class="name">' . e($productname) . '</td>
+                            <td class="pos-note-cell"><textarea class="form-control form-control-sm notes pos-item-notes" placeholder="' . e(__('pos.note_placeholder')) . '" maxlength="200" rows="2" title="' . e(__('Note')) . '"></textarea></td>
                             <td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" class="input-number" data-url="' . url('update-cart/') . '" data-id="' . $id . '" value="1"><input type="button" value="+" class="plus"></span></td>
                             <td class="tax">' . $taxDisplay . '</td>
                             <td class="price">' . Auth::user()->priceFormat($productprice) . '</td>

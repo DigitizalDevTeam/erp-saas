@@ -1094,7 +1094,7 @@
                     var sessionItems = res.session_items || [];
                     var list = [];
                     orderLines.forEach(function (it) {
-                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: true, voided_at: it.voided_at || null });
+                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: true, voided_at: it.voided_at || null });
                     });
                     sessionItems.forEach(function (it) {
                         var id = it.id;
@@ -1102,12 +1102,15 @@
                         var price = parseFloat(it.price) || 0;
                         var tax = parseFloat(it.tax) || 0;
                         var sub = (it.subtotal != null) ? parseFloat(it.subtotal) : (price * (1 + (tax || 0) / 100) * qty);
-                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false });
+                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false });
                     });
+                    if (res.order_type && $('#pos-restaurant-order-type').length) {
+                        $('#pos-restaurant-order-type').val(res.order_type);
+                    }
                     var tbody = $('#tbody-restaurant');
                     var total = 0;
                     if (list.length === 0) {
-                        tbody.html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+                        tbody.html('<tr class="text-center no-found"><td colspan="8">{{ __("pos.no_data_found") }}</td></tr>');
                     } else {
                         var rows = '';
                         var csrf = '{{ csrf_token() }}';
@@ -1123,6 +1126,12 @@
                             var rowClass = statusRowClass[it.status] || '';
                             rows += '<tr class="' + rowClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-status="' + (it.status || '') + '" id="' + rowId + '" data-name="' + (it.name || '').replace(/"/g, '&quot;') + '" data-price="' + it.price + '" data-quantity="' + it.quantity + '" data-tax="' + it.tax + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + (it.print_zone || '').replace(/"/g, '&quot;') + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + (it.printer_name || '').replace(/"/g, '&quot;') + '">';
                             rows += '<td class="name">' + (it.name || '').replace(/</g, '&lt;') + '</td>';
+                            var descEsc = (it.description || '').replace(/</g, '&lt;').replace(/"/g, '&quot;').replace(/\n/g, '&#10;');
+                            if (it.is_sent) {
+                                rows += '<td class="pos-note-cell"><div class="notes pos-item-note-readonly">' + (descEsc || '—') + '</div></td>';
+                            } else {
+                                rows += '<td class="pos-note-cell"><textarea class="form-control form-control-sm notes pos-item-notes" placeholder="{{ __("pos.note_placeholder") }}" maxlength="200" rows="2" title="{{ __("Note") }}">' + (it.description || '').replace(/</g, '&lt;').replace(/&/g, '&amp;') + '</textarea></td>';
+                            }
                             if (it.is_sent) {
                                 rows += '<td class="text-center">' + it.quantity + '</td>';
                             } else {
@@ -1152,7 +1161,7 @@
                     var payBtn = document.getElementById('pos-pay-btn-restaurant');
                     if (payBtn) payBtn.disabled = list.length === 0;
                 }).fail(function () {
-                    $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
+                    $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="8">{{ __("pos.no_data_found") }}</td></tr>');
                     $('#pos-restaurant-total').text('0');
                     var payBtn = document.getElementById('pos-pay-btn-restaurant');
                     if (payBtn) payBtn.disabled = true;
@@ -1281,10 +1290,12 @@
                 $('#tbody-restaurant tr[data-product-id]').each(function () {
                     var name = $(this).attr('data-name') || $(this).find('.name').text();
                     var qty = parseInt($(this).find('input[name="quantity"]').val() || 1, 10);
+                    var $n = $(this).find('.notes');
+                    var note = ($n.length && ($n.is('input') || $n.is('textarea'))) ? ($n.val() || '').trim() : ($n.text() || '').trim();
                     var zone = ($(this).attr('data-print-zone') || '').toLowerCase();
                     var printerId = $(this).attr('data-printer-id') || '';
                     var printerName = $(this).attr('data-printer-name') || '';
-                    var item = { name: name, qty: qty };
+                    var item = { name: name, qty: qty, note: note };
                     if (printerId && printerId !== '') {
                         if (!byPrinter[printerId]) byPrinter[printerId] = { name: printerName || ('Printer ' + printerId), rows: [] };
                         byPrinter[printerId].rows.push(item);
@@ -1300,14 +1311,15 @@
                 var delay = 0;
                 function printSlip(title, slipRows) {
                     if (slipRows.length === 0) return;
-                    var w = window.open('', '_blank', 'width=300,height=400');
-                    w.document.write('<html><head><title>' + title + '</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}</style></head><body>');
+                    var w = window.open('', '_blank', 'width=380,height=400');
+                    w.document.write('<html><head><title>' + title + '</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note{font-size:12px;color:#555;font-style:italic;}</style></head><body>');
                     w.document.write('<h3>' + title + '</h3>');
                     w.document.write('<p><strong>{{ __("pos.table") }}:</strong> ' + (tableName || '—') + '</p>');
                     w.document.write('<p><small>' + new Date().toLocaleString() + '</small></p>');
-                    w.document.write('<table><thead><tr><th>{{ __("pos.name") }}</th><th>{{ __("pos.qty") }}</th></tr></thead><tbody>');
+                    w.document.write('<table><thead><tr><th>{{ __("pos.name") }}</th><th>{{ __("pos.qty") }}</th><th>{{ __("Note") }}</th></tr></thead><tbody>');
                     slipRows.forEach(function(r) {
-                        w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + '</td><td>' + r.qty + '</td></tr>');
+                        var note = (r.note || '').replace(/</g, '&lt;');
+                        w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + '</td><td>' + r.qty + '</td><td class="note">' + note + '</td></tr>');
                     });
                     w.document.write('</tbody></table></body></html>');
                     w.document.close();
@@ -1336,9 +1348,11 @@
                     var qty = parseInt($(this).find('input[name="quantity"]').val() || $(this).attr('data-quantity') || 1, 10);
                     var price = parseFloat($(this).attr('data-price')) || 0;
                     var discount = parseFloat($(this).attr('data-discount')) || 0;
-                    var desc = $(this).find('.notes').text() || '';
+                    var $n = $(this).find('.notes');
+                    var desc = ($n.length && ($n.is('input') || $n.is('textarea'))) ? ($n.val() || '').trim() : ($n.text() || '').trim();
                     if (id && qty > 0) items.push({ id: id, quantity: qty, price: price, discount: discount, description: desc });
                 });
+                var orderType = ($('#pos-restaurant-order-type').length ? $('#pos-restaurant-order-type').val() : '') || 'dine_in';
                 if (!branchId || !tableId || !shiftId) {
                     show_toastr('{{ __("Error") }}', '{{ __("pos.select_branch_first") }}', 'error');
                     return;
@@ -1350,7 +1364,7 @@
                 $.ajax({
                     type: 'POST',
                     url: '{{ route("pos.send.to.production") }}',
-                    data: { _token: '{{ csrf_token() }}', branch_id: branchId, table_id: tableId, shift_id: shiftId, items: items },
+                    data: { _token: '{{ csrf_token() }}', branch_id: branchId, table_id: tableId, shift_id: shiftId, order_type: orderType, items: items },
                     success: function (res) {
                         if (res.success) {
                             show_toastr('{{ __("Success") }}', res.message || '{{ __("Order sent to production.") }}', 'success');
@@ -1368,12 +1382,52 @@
             });
             $(document).on('click', '#pos-print-kitchen-slip', function () {
                 var tableName = $('#pos-selected-table').text();
+                var branchId = $('#pos-restaurant-branch').val();
+                var tableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                var shiftId = $('#pos_shift_id_hidden').val();
+                var items = [];
+                $('#tbody-restaurant tr[data-product-id]').each(function () {
+                    if ($(this).attr('data-is-sent') === '1') return;
+                    var zone = ($(this).attr('data-print-zone') || '').trim();
+                    var printerId = ($(this).attr('data-printer-id') || '').trim();
+                    if (!zone && !printerId) return;
+                    var id = $(this).attr('data-product-id');
+                    var qty = parseInt($(this).find('input[name="quantity"]').val() || $(this).attr('data-quantity') || 1, 10);
+                    var price = parseFloat($(this).attr('data-price')) || 0;
+                    var discount = parseFloat($(this).attr('data-discount')) || 0;
+                    var $n = $(this).find('.notes');
+                    var desc = ($n.length && ($n.is('input') || $n.is('textarea'))) ? ($n.val() || '').trim() : ($n.text() || '').trim();
+                    if (id && qty > 0) items.push({ id: id, quantity: qty, price: price, discount: discount, description: desc });
+                });
+                var orderTypePrint = ($('#pos-restaurant-order-type').length ? $('#pos-restaurant-order-type').val() : '') || 'dine_in';
                 var rows = posRestaurantGetKitchenBarRows();
-                if (rows.kitchen.length === 0 && rows.bar.length === 0) {
+                if (rows.kitchen.length === 0 && rows.bar.length === 0 && Object.keys(rows.byPrinter || {}).every(function(k) { return !(rows.byPrinter[k].rows && rows.byPrinter[k].rows.length); })) {
                     show_toastr('{{ __("Error") }}', '{{ __("pos.no_data_found") }}', 'error');
                     return;
                 }
-                posRestaurantPrintSlips(tableName);
+                if (items.length > 0 && branchId && tableId && shiftId) {
+                    $.ajax({
+                        type: 'POST',
+                        url: '{{ route("pos.send.to.production") }}',
+                        data: { _token: '{{ csrf_token() }}', branch_id: branchId, table_id: tableId, shift_id: shiftId, order_type: orderTypePrint, items: items, kitchen_slip_only: 1 },
+                        success: function (res) {
+                            if (res.success) {
+                                posRestaurantPrintSlips(tableName);
+                                var tid = $('#pos_table_id_hidden').val();
+                                var sid = $('#pos_shift_id_hidden').val();
+                                if (tid) loadRestaurantOrder(tid, sid, $('#pos-restaurant-branch').val());
+                            }
+                        },
+                        error: function (xhr) {
+                            var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("Error") }}';
+                            show_toastr('{{ __("Error") }}', msg, 'error');
+                        }
+                    });
+                } else if (items.length > 0) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_branch_first") }}', 'error');
+                } else {
+                    posRestaurantPrintSlips(tableName);
+                }
             });
             $(document).on('click', '.pos-open-drawer-btn', function () {
                 var w = window.open('', '_blank', 'width=300,height=200');
@@ -1863,7 +1917,7 @@
                         $row.find('.subtotal').text(addCommas(subtotal));
                     } else {
                         var row = isRestaurant
-                            ? ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>')
+                            ? ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td class="pos-note-cell"><textarea class="form-control form-control-sm notes pos-item-notes" placeholder="{{ __("pos.note_placeholder") }}" maxlength="200" rows="2" title="{{ __("Note") }}"></textarea></td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="text-center"><span class="badge pos-line-status">{{ __("pos.status_not_sent") }}</span></td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>')
                             : ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>');
                         $(tbodySel + ' .no-found').addClass('d-none');
                         $(tbodySel).append(row);

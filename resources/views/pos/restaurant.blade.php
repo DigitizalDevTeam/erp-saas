@@ -30,7 +30,16 @@
                     </select>
                     <small class="text-muted d-block" id="pos-restaurant-warehouse-hint">{{ __('pos.select_branch_first') }}</small>
                 </div>
-                <div class="col-md-4 d-flex align-items-end gap-1">
+                <div class="col-md-2">
+                    <label class="form-label small text-muted mb-0">{{ __('pos.order_type') }}</label>
+                    <select class="form-control form-control-sm" id="pos-restaurant-order-type" style="min-width: 100px;">
+                        <option value="dine_in">{{ __('pos.dine_in') }}</option>
+                        <option value="delivery">{{ __('pos.delivery') }}</option>
+                        <option value="takeaway">{{ __('pos.takeaway') }}</option>
+                        <option value="kiosk">{{ __('pos.kiosk') }}</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end gap-1">
                     <div>
                         <label class="form-label small text-muted mb-0">{{ __('pos.select_table') }}</label>
                         <div id="pos-selected-table" class="fw-bold text-primary">—</div>
@@ -80,12 +89,33 @@
                             .pos-cart-table tbody tr.pos-cart-row-preparation { background-color: #ffe0b2 !important; }
                             .pos-cart-table tbody tr.pos-cart-row-ready { background-color: #c8e6c9 !important; }
                             .pos-cart-table tbody tr.pos-cart-row-cancelled { background-color: #eeeeee !important; }
+                            .pos-item-notes {
+                                min-height: 2.25rem; font-size: 0.8125rem; border-radius: 6px;
+                                background-color: #f8fafc; border: 1px solid #e2e8f0;
+                                transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+                                resize: none;
+                            }
+                            .pos-item-notes::placeholder { color: #94a3b8; }
+                            .pos-item-notes:hover { background-color: #f1f5f9; border-color: #cbd5e1; }
+                            .pos-item-notes:focus {
+                                background-color: #fff; border-color: var(--bs-primary, #0d6efd);
+                                box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
+                                outline: 0;
+                            }
+                            .pos-item-note-readonly {
+                                font-size: 0.8125rem; color: #475569; background: #f1f5f9;
+                                border-radius: 6px; padding: 0.35rem 0.5rem; min-height: 2rem;
+                                border-left: 3px solid var(--bs-primary, #0d6efd);
+                                line-height: 1.35; white-space: pre-wrap; word-break: break-word;
+                            }
+                            .pos-cart-table .pos-note-cell { vertical-align: middle; min-width: 140px; max-width: 180px; }
                         </style>
                         <div class="table-responsive">
                             <table class="table table-sm pos-cart-table mb-0">
                                 <thead>
                                     <tr>
                                         <th class="text-left">{{ __('pos.name') }}</th>
+                                        <th class="text-left pos-note-cell"><span class="text-muted small">{{ __('Note') }}</span></th>
                                         <th class="text-center">{{ __('pos.qty') }}</th>
                                         <th>{{ __('pos.tax') }}</th>
                                         <th class="text-center">{{ __('pos.price') }}</th>

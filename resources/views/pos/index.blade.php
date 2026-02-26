@@ -1380,30 +1380,65 @@
 
             $(document).on('click', '#pos-print-kitchen-slip', function () {
                 var tableName = $('#pos-selected-table').text();
+                var branchId = $('#pos-restaurant-branch').val();
+                var tableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                var shiftId = $('#pos_shift_id_hidden').val();
                 var rows = [];
+                var items = [];
                 $('#tbody-restaurant tr[data-product-id]').each(function () {
                     var name = $(this).attr('data-name') || $(this).find('.name').text();
                     var qty = parseInt($(this).find('input[name="quantity"]').val() || 1, 10);
-                    rows.push({ name: name, qty: qty });
+                    var $n = $(this).find('.notes');
+                    var note = ($n.length && ($n.is('input') || $n.is('textarea'))) ? ($n.val() || '').trim() : ($n.text() || '').trim();
+                    rows.push({ name: name, qty: qty, note: note });
+                    var id = $(this).attr('data-product-id');
+                    var price = parseFloat($(this).attr('data-price')) || 0;
+                    var discount = parseFloat($(this).attr('data-discount')) || 0;
+                    if (id && qty > 0) items.push({ id: id, quantity: qty, price: price, discount: discount, description: note });
                 });
                 if (rows.length === 0) {
                     show_toastr('{{ __("Error") }}', '{{ __("pos.no_data_found") }}', 'error');
                     return;
                 }
-                var w = window.open('', '_blank', 'width=300,height=400');
-                w.document.write('<html><head><title>{{ __("pos.kitchen_slip") }}</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}</style></head><body>');
-                w.document.write('<h3>{{ __("pos.kitchen_slip") }}</h3>');
-                w.document.write('<p><strong>{{ __("pos.table") }}:</strong> ' + (tableName || '—') + '</p>');
-                w.document.write('<p><small>' + new Date().toLocaleString() + '</small></p>');
-                w.document.write('<table><thead><tr><th>{{ __("pos.name") }}</th><th>{{ __("pos.qty") }}</th></tr></thead><tbody>');
-                rows.forEach(function(r) {
-                    w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + '</td><td>' + r.qty + '</td></tr>');
-                });
-                w.document.write('</tbody></table></body></html>');
-                w.document.close();
-                w.focus();
-                w.print();
-                w.close();
+                function doPrint() {
+                    var w = window.open('', '_blank', 'width=380,height=400');
+                    w.document.write('<html><head><title>{{ __("pos.kitchen_slip") }}</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note{font-size:12px;color:#555;font-style:italic;}</style></head><body>');
+                    w.document.write('<h3>{{ __("pos.kitchen_slip") }}</h3>');
+                    w.document.write('<p><strong>{{ __("pos.table") }}:</strong> ' + (tableName || '—') + '</p>');
+                    w.document.write('<p><small>' + new Date().toLocaleString() + '</small></p>');
+                    w.document.write('<table><thead><tr><th>{{ __("pos.name") }}</th><th>{{ __("pos.qty") }}</th><th>{{ __("Note") }}</th></tr></thead><tbody>');
+                    rows.forEach(function(r) {
+                        var note = (r.note || '').replace(/</g, '&lt;');
+                        w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + '</td><td>' + r.qty + '</td><td class="note">' + note + '</td></tr>');
+                    });
+                    w.document.write('</tbody></table></body></html>');
+                    w.document.close();
+                    w.focus();
+                    w.print();
+                    w.close();
+                }
+                var orderTypeMain = ($('#pos-restaurant-order-type').length ? $('#pos-restaurant-order-type').val() : '') || 'dine_in';
+                if (items.length > 0 && branchId && tableId && shiftId) {
+                    $.ajax({
+                        type: 'POST',
+                        url: '{{ route("pos.send.to.production") }}',
+                        data: { _token: '{{ csrf_token() }}', branch_id: branchId, table_id: tableId, shift_id: shiftId, order_type: orderTypeMain, items: items },
+                        success: function (res) {
+                            if (res.success) {
+                                doPrint();
+                                $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="8">{{ __("pos.no_data_found") }}</td></tr>');
+                                $('#pos-restaurant-total').text('0');
+                                $('#pos-pay-btn-restaurant').prop('disabled', true);
+                            }
+                        },
+                        error: function (xhr) {
+                            var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("Error") }}';
+                            show_toastr('{{ __("Error") }}', msg, 'error');
+                        }
+                    });
+                } else {
+                    doPrint();
+                }
             });
 
             function posGetRestaurantTotal() {

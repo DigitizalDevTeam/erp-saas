@@ -1254,6 +1254,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     'discount' => (float) $line->discount,
                     'tax' => $line->tax,
                     'subtotal' => (float) ($line->price * $line->quantity - $line->discount),
+                    'description' => $line->description ?? '',
                     'print_zone' => $line->print_zone ?? '',
                     'pos_printer_id' => $printer ? $printer->id : null,
                     'printer_name' => $printer ? $printer->name : null,
@@ -1295,6 +1296,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         return response()->json([
             'pos_id' => $pos ? $pos->id : null,
             'shift_id' => $pos ? $pos->shift_id : $shiftId,
+            'order_type' => $pos ? ($pos->order_type ?? null) : null,
             'order_lines' => $orderLines,
             'session_items' => $sessionItems,
         ]);
@@ -1345,11 +1347,16 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             ->whereDoesntHave('posPayments')
             ->first();
 
+        $orderType = $request->get('order_type');
+        $allowedOrderTypes = [Pos::ORDER_TYPE_DINE_IN, Pos::ORDER_TYPE_TAKEAWAY, Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_KIOSK];
+        if (!$orderType || !in_array($orderType, $allowedOrderTypes, true)) {
+            $orderType = Pos::ORDER_TYPE_DINE_IN;
+        }
         if (!$pos) {
             $pos = new Pos();
             $pos->pos_id = $this->invoicePosNumber();
             $pos->branch_id = $branchId;
-            $pos->order_type = Pos::ORDER_TYPE_DINE_IN;
+            $pos->order_type = $orderType;
             $pos->table_id = $tableId;
             $pos->shift_id = $shiftId;
             $pos->customer_id = 0;
@@ -1358,6 +1365,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $pos->payment_method = null;
             $pos->created_by = $creatorId;
             $pos->pos_user_id = session('pos_pin_user_id', Auth::id());
+            $pos->save();
+        } else {
+            $pos->order_type = $orderType;
             $pos->save();
         }
 
@@ -1388,13 +1398,16 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             ]);
         }
 
-        // Clear per-table session cart so UI loads from DB next time.
-        $cartKey = 'pos_restaurant_cart';
-        $tableKey = $tableId . '_' . $shiftId;
-        $allCarts = $request->session()->get($cartKey, []);
-        if (isset($allCarts[$tableKey])) {
-            unset($allCarts[$tableKey]);
-            $request->session()->put($cartKey, $allCarts);
+        // Clear per-table session cart so UI loads from DB next time (skip when kitchen slip only – only those items sent).
+        $kitchenSlipOnly = $request->boolean('kitchen_slip_only');
+        if (!$kitchenSlipOnly) {
+            $cartKey = 'pos_restaurant_cart';
+            $tableKey = $tableId . '_' . $shiftId;
+            $allCarts = $request->session()->get($cartKey, []);
+            if (isset($allCarts[$tableKey])) {
+                unset($allCarts[$tableKey]);
+                $request->session()->put($cartKey, $allCarts);
+            }
         }
 
         \App\Services\PosAuditLogService::log(
