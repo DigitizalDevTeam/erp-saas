@@ -552,6 +552,14 @@
                             <label class="form-label">{{ __('Email') }} <span class="text-danger">*</span></label>
                             <input type="email" name="email" class="form-control" required placeholder="{{ __('Email') }}">
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Tax Number') }} / {{ __('VAT') }}</label>
+                            <input type="text" name="tax_number" class="form-control" maxlength="50" placeholder="{{ __('Tax Number') }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Address') }}</label>
+                            <textarea name="billing_address" class="form-control" rows="2" placeholder="{{ __('Enter Address') }}"></textarea>
+                        </div>
                         <div id="pos-new-customer-error" class="alert alert-danger py-2 d-none mb-0"></div>
                     </div>
                     <div class="modal-footer">

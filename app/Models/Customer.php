@@ -21,6 +21,7 @@ class Customer extends Authenticatable
         'email',
         'password',
         'contact',
+        'tax_number',
         'avatar',
         'payment_type',
         'credit_terms',

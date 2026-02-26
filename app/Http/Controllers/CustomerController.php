@@ -280,6 +280,8 @@ class CustomerController extends Controller
         $customer->name = $request->name;
         $customer->contact = $request->contact;
         $customer->email = $request->email;
+        $customer->tax_number = $request->filled('tax_number') ? $request->tax_number : null;
+        $customer->billing_address = $request->filled('billing_address') ? $request->billing_address : null;
         $customer->payment_type = 'cash';
         $customer->credit_terms = null;
         $customer->created_by = \Auth::user()->creatorId();
