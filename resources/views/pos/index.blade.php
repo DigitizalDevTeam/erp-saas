@@ -280,7 +280,8 @@
                             </div>
                         </div>
                         @endif
-                        <div id="pos-restaurant-options" class="row gy-1 mb-2 {{ (($posMode ?? '') === 'restaurant' && !empty($restaurantBranchIds)) ? '' : 'd-none' }}">
+                        @if(($posMode ?? '') === 'restaurant' && !empty($restaurantBranchIds))
+                        <div id="pos-restaurant-options" class="row gy-1 mb-2">
                             <div class="col-sm-6 pr-1">
                                 {{ Form::select('pos_order_type', ['dine_in' => __('pos.dine_in'), 'takeaway' => __('pos.takeaway'), 'delivery' => __('pos.delivery'), 'kiosk' => __('pos.kiosk')], null, ['class' => 'form-control select', 'id' => 'pos_order_type', 'placeholder' => __('pos.select_order_type')]) }}
                                 {{ Form::hidden('pos_order_type_hidden', '', ['id' => 'pos_order_type_hidden']) }}
@@ -290,6 +291,7 @@
                                 {{ Form::hidden('pos_table_id_hidden', '', ['id' => 'pos_table_id_hidden']) }}
                             </div>
                         </div>
+                        @endif
                         {{ Form::hidden('quotation_id', $id, ['id' => 'quotation_id', 'class' => 'quotation']) }}
 
                         {{-- Customer: header + Change + Edit (when Walk-in) + card --}}
@@ -573,7 +575,7 @@
 
     {{-- Pay customer balance (outstanding invoices) from POS --}}
     <div class="modal fade" id="posPayBalanceModal" tabindex="-1" aria-labelledby="posPayBalanceModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-sm">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="posPayBalanceModalLabel">{{ __('Pay balance') }}</h5>
@@ -584,8 +586,26 @@
                         @csrf
                         <input type="hidden" name="vc_name" id="pos-pay-balance-vc-name" value="">
                         <div class="mb-3">
-                            <label class="form-label">{{ __('Amount') }} <span class="text-danger">*</span></label>
-                            <input type="number" name="amount" id="pos-pay-balance-amount" class="form-control" required min="0.01" step="0.01" placeholder="0.00">
+                            <label class="form-label fw-bold">{{ __('Outstanding Invoices') }}</label>
+                            <div id="pos-pay-balance-invoices" class="border rounded p-2 bg-light" style="max-height: 200px; overflow-y: auto;">
+                                <p class="text-muted small mb-0">{{ __('Loading...') }}</p>
+                            </div>
+                            <p class="small text-muted mt-1 mb-0"><strong>{{ __('Total due') }}:</strong> <span id="pos-pay-balance-total-due">0</span></p>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{{ __('Amount to pay') }} <span class="text-danger">*</span></label>
+                                <input type="number" name="amount" id="pos-pay-balance-amount" class="form-control" required min="0.01" step="0.01" placeholder="0.00">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{{ __('Payment method') }} <span class="text-danger">*</span></label>
+                                <select name="payment_method" id="pos-pay-balance-payment-method" class="form-select" required>
+                                    <option value="cash">{{ __('pos.payment_cash') }}</option>
+                                    <option value="card">{{ __('pos.payment_card') }}</option>
+                                    <option value="visa">{{ __('pos.payment_visa') }}</option>
+                                    <option value="cheque">{{ __('pos.payment_cheque') }}</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">{{ __('Bank account') }} <span class="text-danger">*</span></label>
@@ -663,6 +683,7 @@
         var posCategoriesJsonUrl = '{{ route("product.categories.json") }}';
         var sessionKey = '{{ $lastsegment ?? "pos" }}';
         var session_key = sessionKey;
+        var posIsRetail = @json(($posMode ?? '') === 'retail');
         var posEmptyCartHtmlRetail = '<div class="text-center no-found py-4 text-muted">{{ __("pos.no_data_found") }}</div>';
         var posEmptyCartHtmlRestaurant = '<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>';
         function posEmptyCartHtml(selector) { return selector === '#tbody' ? posEmptyCartHtmlRetail : posEmptyCartHtmlRestaurant; }
@@ -774,14 +795,13 @@
                 transaction_id: ($('#payment_transaction_id').length ? $('#payment_transaction_id').val() : '') || null,
                 credit_terms: ($('#payment_credit_terms').length ? $('#payment_credit_terms').val() : '') || null,
                 notes: ($('#payment_notes').length ? $('#payment_notes').val() : '') || null,
-                pos_order_type: $('#pos_order_type_hidden').val() || '',
-                pos_table_id: $('#pos_table_id_hidden').val() || '',
-                pos_shift_id: $('#pos_shift_id_hidden').val() || '',
+                pos_shift_id: ($('#pos_shift_id_hidden').length ? $('#pos_shift_id_hidden').val() : '') || '',
                 quotation_id: $('#quotation_id').val() || 0,
                 date: new Date().toISOString().slice(0, 10),
                 client_order_id: 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11),
                 cart: cart
             };
+            if (!posIsRetail && $('#pos_order_type_hidden').length) { sale.pos_order_type = $('#pos_order_type_hidden').val() || ''; sale.pos_table_id = $('#pos_table_id_hidden').length ? $('#pos_table_id_hidden').val() || '' : ''; }
             if (pm === 'mixed' && $('#mixed_payment_wrap').length && !$('#mixed_payment_wrap').hasClass('d-none')) {
                 var payments = [];
                 var totalPaid = 0;
@@ -1595,6 +1615,26 @@
                 $('#pos-pay-balance-vc-name').val(vc);
                 $('#pos-pay-balance-amount').val(balanceNum > 0 ? balanceNum.toFixed(2) : '');
                 $('#pos-pay-balance-error').addClass('d-none').text('');
+                var $inv = $('#pos-pay-balance-invoices');
+                var $totalDue = $('#pos-pay-balance-total-due');
+                $inv.html('<p class="text-muted small mb-0">{{ __("Loading...") }}</p>');
+                $totalDue.text('0');
+                $.get('{{ route("pos.customer.outstanding.invoices") }}', { vc_name: vc }, function(res) {
+                    if (res.success && res.invoices && res.invoices.length) {
+                        var html = '<div class="small">';
+                        res.invoices.forEach(function(inv) {
+                            html += '<label class="d-flex align-items-center gap-2 py-1 border-bottom border-light"><input type="checkbox" name="invoice_ids[]" value="' + inv.id + '" class="form-check-input pos-pay-inv-cb" checked> <span class="flex-grow-1">' + (inv.ref_number || inv.invoice_id) + '</span> <span class="text-end">' + inv.due_formatted + '</span></label>';
+                        });
+                        html += '</div>';
+                        $inv.html(html);
+                        $totalDue.text(res.formatted || '0');
+                    } else {
+                        $inv.html('<p class="text-muted small mb-0">{{ __("No outstanding invoices.") }}</p>');
+                        $totalDue.text(res.formatted || '0');
+                    }
+                }).fail(function() {
+                    $inv.html('<p class="text-danger small mb-0">{{ __("Error loading invoices.") }}</p>');
+                });
                 var $sel = $('#pos-pay-balance-account');
                 $sel.empty().append('<option value="">{{ __("Loading...") }}</option>');
                 $.get('{{ route("pos.bank.accounts") }}', function(res) {
@@ -1614,14 +1654,18 @@
                 var $submit = $('#pos-pay-balance-submit');
                 $err.addClass('d-none').text('');
                 $submit.prop('disabled', true);
+                var data = $form.serializeArray();
+                if (!$('#pos-pay-balance-payment-method').length || !$('#pos-pay-balance-payment-method').val()) {
+                    data.push({ name: 'payment_method', value: 'cash' });
+                }
                 $.ajax({
                     url: '{{ route("pos.customer.pay.balance") }}',
                     type: 'POST',
-                    data: $form.serialize(),
+                    data: $.param(data),
                     headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
                     success: function(res) {
                         if (res.success) {
-                            $('#pos-customer-balance').text(res.formatted || '0');
+                            $('#pos-customer-balance').text(res.formatted || '0').attr('data-raw', res.balance);
                             if (res.balance <= 0) {
                                 $('#pos-customer-balance-wrap').addClass('d-none');
                             }
@@ -1630,6 +1674,25 @@
                                 var t = new bootstrap.Toast(document.getElementById('liveToast'));
                                 $('#liveToast .toast-body').text(res.message || '{{ __("Payment successfully added.") }}');
                                 t.show();
+                            }
+                            if (res.receipt) {
+                                var r = res.receipt;
+                                var win = window.open('', '_blank', 'width=400,height=500');
+                                win.document.write('<html><head><title>{{ __("Payment Receipt") }}</title><style>body{font-family:system-ui;padding:16px;} table{width:100%;} th{text-align:left;} .text-end{text-align:right;}</style></head><body>');
+                                win.document.write('<h4>{{ __("Payment Receipt") }}</h4>');
+                                win.document.write('<p><strong>{{ __("Customer") }}:</strong> ' + (r.customer_name || '') + '</p>');
+                                win.document.write('<p><strong>{{ __("Date") }}:</strong> ' + (r.date || '') + '</p>');
+                                win.document.write('<p><strong>{{ __("Payment method") }}:</strong> ' + (r.payment_method || '') + '</p>');
+                                win.document.write('<p><strong>{{ __("Amount paid") }}:</strong> ' + (r.amount_formatted || '') + '</p>');
+                                if (r.invoices_paid && r.invoices_paid.length) {
+                                    win.document.write('<p><strong>{{ __("Applied to invoices") }}:</strong></p><ul>');
+                                    r.invoices_paid.forEach(function(i) { win.document.write('<li>' + (i.ref_number || '') + ': ' + (i.amount || 0) + '</li>'); });
+                                    win.document.write('</ul>');
+                                }
+                                win.document.write('<p><strong>{{ __("Remaining balance") }}:</strong> ' + (r.new_balance_formatted || '') + '</p>');
+                                win.document.write('<p class="mt-4"><button onclick="window.print()">{{ __("Print") }}</button></p>');
+                                win.document.write('</body></html>');
+                                win.document.close();
                             }
                         } else {
                             $err.text(res.message || '{{ __("Error.") }}').removeClass('d-none');
@@ -2135,16 +2198,18 @@
                 $.ajax({
                     url: ele.data('url') || '{{ route("pos.data.store") }}',
                     method: 'GET',
-                    data: {
-                        vc_name: $('#vc_name_hidden').val(),
-                        warehouse_name: $('#warehouse_name_hidden').val(),
-                        discount: $('#discount_hidden').val(),
-                        quotation_id: $('#quotation_id').val(),
-                        payment_method: $('#payment_method').length ? $('#payment_method').val() : 'cash',
-                        pos_order_type: $('#pos_order_type_hidden').val() || '',
-                        pos_table_id: $('#pos_table_id_hidden').val() || '',
-                        pos_shift_id: $('#pos_shift_id_hidden').val() || '',
-                    },
+                    data: (function() {
+                        var d = {
+                            vc_name: $('#vc_name_hidden').val(),
+                            warehouse_name: $('#warehouse_name_hidden').val(),
+                            discount: $('#discount_hidden').val(),
+                            quotation_id: $('#quotation_id').val(),
+                            payment_method: $('#payment_method').length ? $('#payment_method').val() : 'cash',
+                            pos_shift_id: $('#pos_shift_id_hidden').length ? $('#pos_shift_id_hidden').val() || '' : ''
+                        };
+                        if (!posIsRetail && $('#pos_order_type_hidden').length) { d.pos_order_type = $('#pos_order_type_hidden').val() || ''; d.pos_table_id = $('#pos_table_id_hidden').length ? $('#pos_table_id_hidden').val() || '' : ''; }
+                        return d;
+                    })(),
                     beforeSend: function () { ele.prop('disabled', true); },
                     success: function (data) {
                         if (data.code == 200) {

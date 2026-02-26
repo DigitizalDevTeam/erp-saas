@@ -10,6 +10,7 @@ use App\Models\Pos;
 use App\Models\ProductServiceCategory;
 use App\Models\Transaction;
 use App\Models\Utility;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -32,24 +33,50 @@ class PosToInvoiceService
                 $categoryId = $this->getDefaultIncomeCategoryId($creatorId);
                 $customerId = $pos->customer_id ?: 0;
 
+                $pos->load(['posPayments', 'items']);
+                $payments = $pos->posPayments instanceof Collection ? $pos->posPayments : collect($pos->posPayments ?: []);
+                $hasCredit = $payments->contains(function ($p) {
+                    return strtolower((string) ($p->payment_method ?? '')) === 'credit';
+                });
+                $creditTermsRaw = null;
+                if ($hasCredit) {
+                    $creditPayment = $payments->first(function ($p) {
+                        return strtolower((string) ($p->payment_method ?? '')) === 'credit';
+                    });
+                    $creditTermsRaw = $creditPayment ? $creditPayment->credit_terms : null;
+                }
+                $creditDays = $this->parseCreditDays($creditTermsRaw);
+                $totalAmount = $payments->isNotEmpty()
+                    ? (float) $payments->sum('amount')
+                    : (float) $pos->getTotal();
+                if ($totalAmount <= 0) {
+                    $totalAmount = (float) $pos->getTotal();
+                }
+                $paidNow = (float) $payments->filter(function ($p) {
+                    return strtolower((string) ($p->payment_method ?? '')) !== 'credit';
+                })->sum('amount');
+                $isCreditSale = $hasCredit && ($paidNow < $totalAmount);
+
                 $invoice = new Invoice();
                 $invoice->invoice_id = $invoiceId;
                 $invoice->pos_id = $pos->id;
                 $invoice->customer_id = $customerId;
                 $invoice->issue_date = $pos->pos_date ?? date('Y-m-d');
-                $invoice->due_date = $invoice->issue_date;
+                $invoice->due_date = $creditDays > 0
+                    ? date('Y-m-d', strtotime($invoice->issue_date . ' +' . $creditDays . ' days'))
+                    : $invoice->issue_date;
                 $invoice->ref_number = 'POS-' . $pos->pos_id;
-                $invoice->status = 4; // Paid
+                $invoice->status = $isCreditSale ? ($paidNow > 0 ? 3 : 2) : 4; // 2=Unpaid, 3=Partially Paid, 4=Paid
                 $invoice->category_id = $categoryId ?: 0;
                 $invoice->created_by = $creatorId;
                 $invoice->save();
 
-                $posPayment = $pos->posPayment;
+                $posPayment = $payments->isNotEmpty() ? $payments->first() : $pos->posPayment;
                 $cartDiscount = $posPayment ? (float) ($posPayment->discount ?? 0) : 0;
                 $first = true;
 
                 foreach ($pos->items as $posItem) {
-                    $product = $posItem->product();
+                    $product = $posItem->product; // relation as property returns the Product model
                     $price = (float) $posItem->price;
                     $qty = (int) $posItem->quantity;
                     $subtotal = $price * $qty;
@@ -63,18 +90,19 @@ class PosToInvoiceService
                     $invoiceProduct->tax = $posItem->tax ?? '';
                     $invoiceProduct->discount = $lineDiscount;
                     $invoiceProduct->price = $price;
-                    $invoiceProduct->description = is_object($product) ? $product->name : '';
+                    $invoiceProduct->description = ($product && is_object($product)) ? $product->name : '';
                     $invoiceProduct->save();
                 }
 
-                $totalAmount = $posPayment ? (float) $posPayment->discount_amount : (float) $pos->getTotal();
                 $accountId = $this->getDefaultBankAccountId($creatorId);
+                $amountToRecord = $isCreditSale ? $paidNow : $totalAmount;
+                $paymentDate = $posPayment ? ($posPayment->date ?? date('Y-m-d')) : date('Y-m-d');
 
-                if ($accountId) {
+                if ($accountId && $amountToRecord > 0) {
                     $invoicePayment = new InvoicePayment();
                     $invoicePayment->invoice_id = $invoice->id;
-                    $invoicePayment->date = $posPayment ? ($posPayment->date ?? date('Y-m-d')) : date('Y-m-d');
-                    $invoicePayment->amount = $totalAmount;
+                    $invoicePayment->date = $paymentDate;
+                    $invoicePayment->amount = $amountToRecord;
                     $invoicePayment->account_id = $accountId;
                     $invoicePayment->payment_method = 0;
                     $invoicePayment->reference = 'POS-' . $pos->pos_id;
@@ -91,16 +119,16 @@ class PosToInvoiceService
                     Transaction::addTransaction($invoicePayment);
 
                     if ($customerId > 0) {
-                        Utility::updateUserBalance('customer', $customerId, $totalAmount, 'credit');
+                        Utility::updateUserBalance('customer', $customerId, $amountToRecord, 'credit');
                     }
-                    Utility::bankAccountBalance($accountId, $totalAmount, 'credit');
+                    Utility::bankAccountBalance($accountId, $amountToRecord, 'credit');
 
                     $bankAccount = BankAccount::find($accountId);
                     if ($bankAccount && $bankAccount->chart_account_id) {
                         $data = [
                             'account_id' => $bankAccount->chart_account_id,
                             'transaction_type' => 'Debit',
-                            'transaction_amount' => $totalAmount,
+                            'transaction_amount' => $amountToRecord,
                             'reference' => 'Invoice Payment',
                             'reference_id' => $invoice->id,
                             'reference_sub_id' => $invoicePayment->id,
@@ -140,5 +168,19 @@ class PosToInvoiceService
     {
         $account = BankAccount::where('created_by', $creatorId)->first();
         return $account ? (int) $account->id : null;
+    }
+
+    /**
+     * Parse credit terms string (e.g. "7 days", "30 days") to number of days.
+     */
+    protected function parseCreditDays(?string $creditTerms): int
+    {
+        if (empty($creditTerms)) {
+            return 0;
+        }
+        if (preg_match('/^(\d+)\s*(?:day|days)?$/i', trim($creditTerms), $m)) {
+            return (int) $m[1];
+        }
+        return 0;
     }
 }

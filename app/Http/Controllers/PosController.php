@@ -2228,6 +2228,53 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
     }
 
     /**
+     * Get customer's outstanding invoices for POS Pay balance modal (list to show, select which to pay).
+     */
+    public function getCustomerOutstandingInvoices(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+        $vcName = $request->input('vc_name', '');
+        if (trim($vcName) === '' || $vcName === 'Walk-in-customer') {
+            return response()->json(['success' => true, 'invoices' => [], 'total_outstanding' => 0, 'formatted' => Auth::user()->priceFormat(0)]);
+        }
+        $customerId = Customer::customer_id($vcName);
+        if (!$customerId) {
+            return response()->json(['success' => true, 'invoices' => [], 'total_outstanding' => 0, 'formatted' => Auth::user()->priceFormat(0)]);
+        }
+        $invoices = Invoice::where('customer_id', $customerId)
+            ->whereIn('status', ['0', '1', '2', '3'])
+            ->with('payments')
+            ->orderBy('issue_date', 'asc')
+            ->get();
+        $list = [];
+        $totalOutstanding = 0;
+        foreach ($invoices as $inv) {
+            $due = $inv->getDue();
+            if ($due <= 0) {
+                continue;
+            }
+            $list[] = [
+                'id' => $inv->id,
+                'invoice_id' => $inv->invoice_id,
+                'ref_number' => $inv->ref_number ?? ('INV-' . $inv->invoice_id),
+                'issue_date' => $inv->issue_date,
+                'due_date' => $inv->due_date ?? $inv->issue_date,
+                'due_amount' => round($due, 2),
+                'due_formatted' => Auth::user()->priceFormat($due),
+            ];
+            $totalOutstanding += $due;
+        }
+        return response()->json([
+            'success' => true,
+            'invoices' => $list,
+            'total_outstanding' => round($totalOutstanding, 2),
+            'formatted' => Auth::user()->priceFormat($totalOutstanding),
+        ]);
+    }
+
+    /**
      * Bank accounts list for POS pay-balance modal (JSON).
      */
     public function getPosBankAccounts(Request $request)
@@ -2256,6 +2303,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'vc_name' => 'required|string',
             'amount' => 'required|numeric|min:0.01',
             'account_id' => 'required|exists:bank_accounts,id',
+            'payment_method' => 'required|string|in:cash,card,visa,cheque',
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'message' => $validator->getMessageBag()->first()], 422);
@@ -2268,6 +2316,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         if (!$customerId) {
             return response()->json(['success' => false, 'message' => __('Customer not found.')], 422);
         }
+        $customer = Customer::find($customerId);
         $totalOutstanding = Customer::totalOutstanding($customerId);
         if ($totalOutstanding <= 0) {
             return response()->json(['success' => false, 'message' => __('Customer has no outstanding balance.')], 422);
@@ -2282,15 +2331,29 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             return response()->json(['success' => false, 'message' => __('Invalid account.')], 422);
         }
 
-        $invoices = Invoice::where('customer_id', $customerId)
+        $paymentMethod = $request->payment_method; // cash, card, visa, cheque
+        $paymentMethodMap = ['cash' => 0, 'card' => 1, 'visa' => 2, 'cheque' => 3];
+        $paymentMethodId = $paymentMethodMap[$paymentMethod] ?? 0;
+
+        $invoiceIds = $request->input('invoice_ids', []);
+        if (!is_array($invoiceIds)) {
+            $invoiceIds = [];
+        }
+        $invoiceIds = array_filter(array_map('intval', $invoiceIds));
+
+        $query = Invoice::where('customer_id', $customerId)
             ->whereIn('status', ['0', '1', '2', '3'])
             ->with('payments')
-            ->orderBy('issue_date', 'asc')
-            ->get();
+            ->orderBy('issue_date', 'asc');
+        if (!empty($invoiceIds)) {
+            $query->whereIn('id', $invoiceIds);
+        }
+        $invoices = $query->get();
 
         $remaining = $amount;
         $date = date('Y-m-d');
         $user = Auth::user();
+        $paidInvoices = [];
 
         foreach ($invoices as $invoice) {
             if ($remaining <= 0) {
@@ -2307,10 +2370,12 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $invoicePayment->date = $date;
             $invoicePayment->amount = $payThis;
             $invoicePayment->account_id = $accountId;
-            $invoicePayment->payment_method = 0;
+            $invoicePayment->payment_method = $paymentMethodId;
             $invoicePayment->reference = __('POS balance payment');
-            $invoicePayment->description = 'POS ' . __('Balance payment');
+            $invoicePayment->description = 'POS ' . __('Balance payment') . ' (' . ucfirst($paymentMethod) . ')';
             $invoicePayment->save();
+
+            $paidInvoices[] = ['ref_number' => $invoice->ref_number ?? ('INV-' . $invoice->invoice_id), 'amount' => $payThis];
 
             $invoice->load('payments');
             $newDue = $invoice->getDue();
@@ -2364,6 +2429,16 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'message' => __('Payment successfully added.'),
             'balance' => $newBalance,
             'formatted' => $user->priceFormat($newBalance),
+            'receipt' => [
+                'customer_name' => $customer ? $customer->name : $vcName,
+                'date' => $date,
+                'amount' => $amount,
+                'amount_formatted' => $user->priceFormat($amount),
+                'payment_method' => ucfirst($paymentMethod),
+                'invoices_paid' => $paidInvoices,
+                'new_balance' => $newBalance,
+                'new_balance_formatted' => $user->priceFormat($newBalance),
+            ],
         ]);
     }
 

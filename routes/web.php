@@ -1895,6 +1895,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('pos-restaurant/void-line/{line}', [PosController::class, 'voidRestaurantLine'])->name('pos.restaurant.void-line');
     Route::post('pos-restaurant/join-tables', [PosController::class, 'joinRestaurantTables'])->name('pos.restaurant.join-tables');
     Route::get('pos/customer-balance', [PosController::class, 'getCustomerBalance'])->name('pos.customer.balance')->middleware(['auth', 'XSS']);
+    Route::get('pos/customer-outstanding-invoices', [PosController::class, 'getCustomerOutstandingInvoices'])->name('pos.customer.outstanding.invoices')->middleware(['auth', 'XSS']);
     Route::get('pos/bank-accounts', [PosController::class, 'getPosBankAccounts'])->name('pos.bank.accounts')->middleware(['auth', 'XSS']);
     Route::post('pos/customer-pay-balance', [PosController::class, 'payCustomerBalance'])->name('pos.customer.pay.balance')->middleware(['auth', 'XSS', 'revalidate']);
     Route::resource('pos', PosController::class)->middleware(['auth', 'XSS', 'revalidate']);
