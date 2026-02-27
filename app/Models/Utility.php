@@ -228,7 +228,7 @@ class Utility extends Model
             "site_currency_symbol_position" => "pre",
             "site_date_format" => "M j, Y",
             "site_time_format" => "g:i A",
-            "languages" => '',
+            "languages" => '["en","fr","zh","es","pt"]',
             "timezone" => '',
             "company_name" => "",
             "company_address" => "",

@@ -2898,6 +2898,25 @@ class ReportController extends Controller
                 ];
             }
         }
+        // Cash received from pay-balance (invoice payments linked to shifts for this day)
+        $shiftIdsForDay = \App\Models\PosShift::where('created_by', $creatorId)->whereDate('opened_at', $date)->pluck('id');
+        $cashFromBalance = $shiftIdsForDay->isNotEmpty()
+            ? (float) \App\Models\InvoicePayment::whereIn('pos_shift_id', $shiftIdsForDay)->where('payment_method', 0)->sum('amount')
+            : 0;
+        if ($cashFromBalance > 0) {
+            $cashRowKey = null;
+            foreach ($paymentMethodRows as $i => $r) {
+                if ($r['name'] === __('Cash')) {
+                    $cashRowKey = $i;
+                    break;
+                }
+            }
+            if ($cashRowKey !== null) {
+                $paymentMethodRows[$cashRowKey]['amount'] += $cashFromBalance;
+            } else {
+                array_unshift($paymentMethodRows, ['name' => __('Cash'), 'amount' => $cashFromBalance, 'count' => 0]);
+            }
+        }
         if (empty($paymentMethodRows)) {
             $paymentMethodRows[] = ['name' => 'POS', 'amount' => $totalSales, 'count' => $receiptsCount];
         }
@@ -3000,28 +3019,37 @@ class ReportController extends Controller
             }
         }
 
+        $openShiftsForDate = \App\Models\PosShift::where('created_by', $creatorId)
+            ->where('status', \App\Models\PosShift::STATUS_OPEN)
+            ->whereDate('opened_at', $date)
+            ->with(['branch', 'user'])
+            ->get();
+        $isDayClosed = \App\Models\PosDayClosed::where('closed_date', $date)->where('created_by', $creatorId)->exists();
+
         $reportData = [
+            'date' => $date,
             'companyName' => $companyName,
             'vatNumber' => $vatNumber,
             'companyAddress' => $companyAddress,
-            'date' => $date,
             'totalSales' => $totalSales,
-            'receiptsCount' => $receiptsCount,
             'ticketFrom' => $ticketFrom,
             'ticketTo' => $ticketTo,
+            'receiptsCount' => $receiptsCount,
             'salespersonName' => $salespersonName,
             'paymentMethodRows' => $paymentMethodRows,
+            'cashFromBalance' => $cashFromBalance ?? 0,
+            'cashTotal' => $cashTotal,
             'statementRows' => $statementRows,
             'salesPerEmployee' => array_values($salesPerEmployee),
-            'categorySummary' => $categorySummary,
-            'taxSummary' => $taxSummary,
-            'itemsSold' => $itemsSold,
             'customersCount' => $customersCount,
             'avgPerReceipt' => $avgPerReceipt,
             'avgPerCustomer' => $avgPerCustomer,
-            'cashTotal' => $cashTotal,
-            'cardTotal' => $cardTotal,
-            'creditTotal' => $creditTotal,
+            'categorySummary' => $categorySummary,
+            'taxSummary' => $taxSummary,
+            'itemsSold' => $itemsSold,
+            'openShiftsForDate' => $openShiftsForDate,
+            'isDayClosed' => $isDayClosed,
+            'canCloseDay' => \Auth::user()->creatorId() === \Auth::user()->id,
         ];
 
         return view('report.pos_eod', $reportData);
@@ -3158,6 +3186,47 @@ class ReportController extends Controller
             ),
             $filename
         );
+    }
+
+    /**
+     * Close POS day: block new shifts for that date. Requires no open shifts.
+     */
+    public function posCloseDay(Request $request)
+    {
+        if (!\Auth::user()->canManagePos() || \Auth::user()->creatorId() !== \Auth::user()->id) {
+            return redirect()->back()->with('error', __('Permission denied. Only administrator can close the day.'));
+        }
+        $date = $request->input('date', date('Y-m-d'));
+        $creatorId = \Auth::user()->creatorId();
+        $openShifts = \App\Models\PosShift::where('created_by', $creatorId)
+            ->where('status', \App\Models\PosShift::STATUS_OPEN)
+            ->whereDate('opened_at', $date)
+            ->count();
+        if ($openShifts > 0) {
+            return redirect()->route('report.pos.eod', ['date' => $date])
+                ->with('error', __('Shift(s) still open. Please close all shifts before closing the day.'));
+        }
+        \App\Models\PosDayClosed::firstOrCreate(
+            ['closed_date' => $date, 'created_by' => $creatorId],
+            ['closed_by' => \Auth::user()->id, 'closed_at' => now()]
+        );
+        return redirect()->route('report.pos.eod', ['date' => $date])
+            ->with('success', __('Day closed. No new shifts can be opened for this date until an administrator reopens.'));
+    }
+
+    /**
+     * Reopen POS day (admin only). Allows opening shifts for that date again.
+     */
+    public function posReopenDay(Request $request)
+    {
+        if (!\Auth::user()->canManagePos() || \Auth::user()->creatorId() !== \Auth::user()->id) {
+            return redirect()->back()->with('error', __('Permission denied. Only administrator can reopen the day.'));
+        }
+        $date = $request->input('date', date('Y-m-d'));
+        $creatorId = \Auth::user()->creatorId();
+        \App\Models\PosDayClosed::where('closed_date', $date)->where('created_by', $creatorId)->delete();
+        return redirect()->route('report.pos.eod', ['date' => $date])
+            ->with('success', __('Day reopened. Shifts can be opened for this date.'));
     }
 
     /**

@@ -585,6 +585,7 @@
                     <div class="modal-body">
                         @csrf
                         <input type="hidden" name="vc_name" id="pos-pay-balance-vc-name" value="">
+                        <input type="hidden" name="pos_shift_id" id="pos-pay-balance-shift-id" value="">
                         <div class="mb-3">
                             <label class="form-label fw-bold">{{ __('Outstanding Invoices') }}</label>
                             <div id="pos-pay-balance-invoices" class="border rounded p-2 bg-light" style="max-height: 200px; overflow-y: auto;">
@@ -1559,10 +1560,11 @@
             $( '#pos_order_type' ).change(function() { $( '#pos_order_type_hidden' ).val($(this).val()); });
             $( '#pos_table_id' ).change(function() { $( '#pos_table_id_hidden' ).val($(this).val()); });
 
-            // On load: if branch is pre-selected (e.g. single branch), load restaurant options & warehouses
+            // On load: if branch is pre-selected (e.g. single branch), load restaurant options & warehouses and current user's open shift (for retail shift report)
             var initBranchId = $( '#branch_id' ).val();
             if (initBranchId) {
                 toggleRestaurantOptions(initBranchId);
+                loadBranchShifts(initBranchId);
                 $.get('{{ route("pos.warehouses.by.branch") }}', { branch_id: initBranchId }, function(data) {
                     var $warehouse = $( '#warehouse' );
                     $warehouse.empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
@@ -1572,10 +1574,11 @@
                 });
             }
 
-            // Multi-branch: filter warehouses when branch changes
+            // Multi-branch: filter warehouses when branch changes; also load current user's open shift for this branch (retail)
             $( '#branch_id' ).change(function() {
                 var branchId = $(this).val();
                 toggleRestaurantOptions(branchId);
+                loadBranchShifts(branchId);
                 var session_key = $( "#empty_cart" ).val();
                 $.ajax({
                     type: 'GET',
@@ -1648,6 +1651,7 @@
                 var vc = ($('#vc_name_hidden').val() || '').toString().trim();
                 var balanceNum = parseFloat($('#pos-customer-balance').attr('data-raw')) || 0;
                 $('#pos-pay-balance-vc-name').val(vc);
+                $('#pos-pay-balance-shift-id').val($('#pos_shift_id_hidden').length ? ($('#pos_shift_id_hidden').val() || '') : '');
                 $('#pos-pay-balance-amount').val(balanceNum > 0 ? balanceNum.toFixed(2) : '');
                 $('#pos-pay-balance-error').addClass('d-none').text('');
                 var $inv = $('#pos-pay-balance-invoices');

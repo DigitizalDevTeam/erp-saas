@@ -630,12 +630,24 @@ class PosController extends Controller
         $warehouse = warehouse::find($warehouse_id);
         $branch_id = ($warehouse && $warehouse->branch_id) ? $warehouse->branch_id : Branch::where('created_by', $user_id)->value('id');
 
+        $shiftId = $request->pos_shift_id ?: null;
+        if (!$shiftId && $branch_id) {
+            $openShift = \App\Models\PosShift::where('branch_id', $branch_id)
+                ->where('user_id', session('pos_pin_user_id', Auth::id()))
+                ->where('status', \App\Models\PosShift::STATUS_OPEN)
+                ->where('created_by', Auth::user()->creatorId())
+                ->first();
+            if ($openShift) {
+                $shiftId = $openShift->id;
+            }
+        }
+
         $pos = new Pos();
         $pos->pos_id = $pos_id;
         $pos->branch_id = $branch_id;
         $pos->order_type = $request->pos_order_type ?: null;
         $pos->table_id = $request->pos_table_id ?: null;
-        $pos->shift_id = $request->pos_shift_id ?: null;
+        $pos->shift_id = $shiftId;
         $pos->customer_id = $customer_id;
         $pos->warehouse_id = $warehouse_id;
         $pos->pos_date = date('Y-m-d');
@@ -930,12 +942,24 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $warehouse = warehouse::find($warehouse_id);
                 $branch_id = ($warehouse && $warehouse->branch_id) ? $warehouse->branch_id : Branch::where('created_by', $user_id)->value('id');
 
+                $shiftId = $request->pos_shift_id ?: null;
+                if (!$shiftId && $branch_id) {
+                    $openShift = \App\Models\PosShift::where('branch_id', $branch_id)
+                        ->where('user_id', session('pos_pin_user_id', Auth::id()))
+                        ->where('status', \App\Models\PosShift::STATUS_OPEN)
+                        ->where('created_by', Auth::user()->creatorId())
+                        ->first();
+                    if ($openShift) {
+                        $shiftId = $openShift->id;
+                    }
+                }
+
                 $pos = new Pos();
                     $pos->pos_id = $pos_id;
                     $pos->branch_id = $branch_id;
                     $pos->order_type = $request->pos_order_type ?: null;
                     $pos->table_id = $request->pos_table_id ?: null;
-                    $pos->shift_id = $request->pos_shift_id ?: null;
+                    $pos->shift_id = $shiftId;
                     $pos->customer_id = $customer_id;
                     $pos->warehouse_id = $warehouse_id;
                     $pos->pos_date = date('Y-m-d');
@@ -2025,7 +2049,11 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         if (!$userOpenShift) {
             return redirect()->back()->with('error', __('pos.open_shift_required_to_add_closing'));
         }
-        return view('pos.add_closing_balance', compact('userOpenShift'));
+        $posIds = Pos::where('shift_id', $userOpenShift->id)->pluck('id');
+        $cashFromSales = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', 'cash')->sum('amount');
+        $cashFromBalance = (float) InvoicePayment::where('pos_shift_id', $userOpenShift->id)->where('payment_method', 0)->sum('amount');
+        $expectedCash = (float) ($userOpenShift->opening_balance ?? 0) + $cashFromSales + $cashFromBalance;
+        return view('pos.add_closing_balance', compact('userOpenShift', 'expectedCash', 'cashFromBalance'));
     }
     
     public function save_closing_balance(Request $request)
@@ -2051,6 +2079,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $salesTotal += $pos->getTotal();
         }
         $cashTotal = PosPayment::whereIn('pos_id', $posIds)->where('payment_method', 'cash')->sum('amount');
+        $balanceCashTotal = (float) InvoicePayment::where('pos_shift_id', $shift->id)->where('payment_method', 0)->sum('amount');
+        $cashTotal += $balanceCashTotal;
         $cardTotal = PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', ['card', 'visa', 'mpesa', 'bank_transfer', 'cheque'])->sum('amount');
         $creditTotal = PosPayment::whereIn('pos_id', $posIds)->where('payment_method', 'credit')->sum('amount');
         $opening = (float) ($shift->opening_balance ?? 0);
@@ -2344,6 +2374,18 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             return response()->json(['success' => false, 'message' => __('Invalid account.')], 422);
         }
 
+        $posShiftId = null;
+        if ($request->has('pos_shift_id') && $request->pos_shift_id) {
+            $shift = \App\Models\PosShift::where('id', (int) $request->pos_shift_id)
+                ->where('created_by', Auth::user()->creatorId())
+                ->where('status', \App\Models\PosShift::STATUS_OPEN)
+                ->where('user_id', session('pos_pin_user_id', Auth::id()))
+                ->first();
+            if ($shift) {
+                $posShiftId = $shift->id;
+            }
+        }
+
         $paymentMethod = $request->payment_method; // cash, card, visa, cheque
         $paymentMethodMap = ['cash' => 0, 'card' => 1, 'visa' => 2, 'cheque' => 3];
         $paymentMethodId = $paymentMethodMap[$paymentMethod] ?? 0;
@@ -2386,6 +2428,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $invoicePayment->payment_method = $paymentMethodId;
             $invoicePayment->reference = __('POS balance payment');
             $invoicePayment->description = 'POS ' . __('Balance payment') . ' (' . ucfirst($paymentMethod) . ')';
+            if ($posShiftId) {
+                $invoicePayment->pos_shift_id = $posShiftId;
+            }
             $invoicePayment->save();
 
             $paidInvoices[] = ['ref_number' => $invoice->ref_number ?? ('INV-' . $invoice->invoice_id), 'amount' => $payThis];

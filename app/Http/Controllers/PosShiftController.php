@@ -44,6 +44,14 @@ class PosShiftController extends Controller
         if ($actingUser && $actingUser->pos_branch_id && (int) $actingUser->pos_branch_id !== (int) $branchId) {
             return response()->json(['error' => __('You can only open a shift for your assigned branch.')], 422);
         }
+        $today = date('Y-m-d');
+        $dayClosed = \App\Models\PosDayClosed::where('closed_date', $today)->where('created_by', $creatorId)->first();
+        if ($dayClosed) {
+            $isOwner = (\Auth::user()->creatorId() === \Auth::user()->id);
+            if (!$isOwner) {
+                return response()->json(['error' => __('Day is closed. Only an administrator can reopen.')], 422);
+            }
+        }
         $existing = PosShift::where('branch_id', $branchId)
             ->where('user_id', $userId)
             ->where('status', PosShift::STATUS_OPEN)
@@ -205,6 +213,8 @@ class PosShiftController extends Controller
             $cashTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
                 $q->where('payment_method', \App\Models\PosPayment::METHOD_CASH)->orWhereNull('payment_method');
             })->sum('amount');
+            $balanceCash = (float) \App\Models\InvoicePayment::where('pos_shift_id', $pos_shift->id)->where('payment_method', 0)->sum('amount');
+            $cashTotal += $balanceCash;
             $cardTotal = (float) PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', [\App\Models\PosPayment::METHOD_CARD, \App\Models\PosPayment::METHOD_MPESA, \App\Models\PosPayment::METHOD_BANK_TRANSFER, 'visa', 'cheque'])->sum('amount');
             $creditTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
             $cashDropsTotal = (float) PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');

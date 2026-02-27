@@ -19,11 +19,17 @@ class InvoicePayment extends Model
         'receipt',
         'reference',
         'description',
+        'pos_shift_id',
     ];
 
 
     public function bankAccount()
     {
         return $this->hasOne('App\Models\BankAccount', 'id', 'account_id');
+    }
+
+    public function posShift()
+    {
+        return $this->belongsTo(\App\Models\PosShift::class, 'pos_shift_id');
     }
 }

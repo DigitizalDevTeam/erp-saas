@@ -10,6 +10,25 @@
 @endsection
 
 @section('content')
+    @if(session('success'))
+        <div class="alert alert-success mb-3">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="alert alert-danger mb-3">{{ session('error') }}</div>
+    @endif
+    @if(!empty($openShiftsForDate) && $openShiftsForDate->count() > 0)
+        <div class="alert alert-warning mb-3">
+            <strong>{{ __('Shift(s) still open') }}</strong>: {{ __('Please close all shifts before closing the day.') }}
+            <ul class="mb-0 mt-1">
+                @foreach($openShiftsForDate ?? [] as $s)
+                    <li>{{ $s->branch ? $s->branch->name : '-' }} — {{ $s->user ? $s->user->name : '-' }} ({{ __('opened') }} {{ $s->opened_at ? $s->opened_at->format('H:i') : '-' }})</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+    @if(!empty($isDayClosed))
+        <div class="alert alert-info mb-3">{{ __('Day is closed. No new shifts can be opened for this date until an administrator reopens.') }}</div>
+    @endif
     <div class="row mb-3">
         <div class="col-12">
             <div class="card">
@@ -25,6 +44,23 @@
                     <div class="col-auto ms-auto">
                         <a href="{{ route('report.pos.eod.export', ['date' => $date]) }}" class="btn btn-success"><i class="ti ti-file-spreadsheet"></i> {{ __('Export Excel') }}</a>
                         <button type="button" class="btn btn-secondary" onclick="window.print();"><i class="ti ti-printer"></i> {{ __('Print') }}</button>
+                        @if(!empty($canCloseDay))
+                            @if(empty($isDayClosed))
+                                @if(empty($openShiftsForDate) || $openShiftsForDate->count() === 0)
+                                    {{ Form::open(['route' => 'report.pos.close.day', 'method' => 'post', 'class' => 'd-inline']) }}
+                                    {{ Form::hidden('date', $date) }}
+                                    @csrf
+                                    <button type="submit" class="btn btn-danger"><i class="ti ti-lock"></i> {{ __('Close day') }}</button>
+                                    {{ Form::close() }}
+                                @endif
+                            @else
+                                {{ Form::open(['route' => 'report.pos.reopen.day', 'method' => 'post', 'class' => 'd-inline']) }}
+                                {{ Form::hidden('date', $date) }}
+                                @csrf
+                                <button type="submit" class="btn btn-outline-success"><i class="ti ti-lock-open"></i> {{ __('Reopen day') }}</button>
+                                {{ Form::close() }}
+                            @endif
+                        @endif
                     </div>
                     {{ Form::close() }}
                 </div>
@@ -38,6 +74,14 @@
         </div>
     </div>
 
+    <div class="no-print mb-2">
+        <label class="me-2">{{ __('Print width') }}:</label>
+        <select id="eod-print-width" class="form-select form-select-sm d-inline-block" style="width: auto;">
+            <option value="full">{{ __('Full page') }}</option>
+            <option value="80">{{ __('80mm receipt') }}</option>
+            <option value="58">{{ __('58mm receipt') }}</option>
+        </select>
+    </div>
     <div id="eod-printable" class="eod-report bg-white p-4" style="font-family: 'Courier New', monospace; font-size: 13px;">
         <div class="border-bottom pb-2 mb-2">
             <strong>----------------------------------------</strong><br>
@@ -81,6 +125,15 @@
             </table>
         </div>
 
+        @if(isset($cashFromBalance) && $cashFromBalance > 0)
+        <div class="mb-2">
+            <strong>{{ __('CASH RECEIVED') }}</strong><br>
+            {{ __('Cash from sales') }} &nbsp; {{ \Auth::user()->priceFormat($cashTotal ?? 0) }}<br>
+            {{ __('Cash from balance payments') }} &nbsp; {{ \Auth::user()->priceFormat($cashFromBalance) }}<br>
+            {{ __('Total cash received') }} &nbsp; {{ \Auth::user()->priceFormat(($cashTotal ?? 0) + $cashFromBalance) }}<br>
+            ----------------------------------------
+        </div>
+        @endif
         <div class="mb-3">
             <strong>{{ __('CASH REGISTER CHART') }}</strong><br>
             @foreach($paymentMethodRows as $r)
@@ -191,13 +244,39 @@
 
 @endsection
 
+@push('script-page')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var sel = document.getElementById('eod-print-width');
+    var el = document.getElementById('eod-printable');
+    if (sel && el) {
+        sel.addEventListener('change', function() {
+            el.classList.remove('eod-print-80', 'eod-print-58');
+            if (this.value === '80') el.classList.add('eod-print-80');
+            else if (this.value === '58') el.classList.add('eod-print-58');
+        });
+    }
+});
+</script>
+@endpush
+
 @push('css-page')
 <style>
+/* EOD printable: align for thermal receipt 80mm (302px) or 58mm (219px) */
+#eod-printable.eod-print-80 { max-width: 302px; margin: 0 auto; }
+#eod-printable.eod-print-58 { max-width: 219px; margin: 0 auto; font-size: 10px !important; }
+#eod-printable.eod-print-80 .table { font-size: 10px; }
+#eod-printable.eod-print-58 .table { font-size: 9px; }
 @media print {
     .no-print, .card .btn, .breadcrumb, nav, .dash-hasmenu, .dash-submenu, .sidebar, header { display: none !important; }
     #eod-printable { font-size: 11px; }
     body { background: #fff; }
     .content-wrapper { padding: 0 !important; }
+    /* Receipt width: use 80mm (302px) or 58mm (219px) via class on #eod-printable */
+    #eod-printable.eod-print-80 { max-width: 302px; margin: 0 auto; width: 302px; font-size: 10px; }
+    #eod-printable.eod-print-58 { max-width: 219px; margin: 0 auto; width: 219px; font-size: 9px; }
+    #eod-printable.eod-print-80 .table, #eod-printable.eod-print-80 table { font-size: 9px; }
+    #eod-printable.eod-print-58 .table, #eod-printable.eod-print-58 table { font-size: 8px; }
 }
 </style>
 @endpush
