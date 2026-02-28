@@ -1867,6 +1867,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('pos-table/{id}/close', [PosTableController::class, 'closeTable'])->name('pos-table.close')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant-layout', [PosController::class, 'getRestaurantLayout'])->name('pos.restaurant.layout')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant/order', [PosController::class, 'getRestaurantOrder'])->name('pos.restaurant.order')->middleware(['auth', 'XSS']);
+    Route::get('pos/restaurant/delivery-takeaway-orders', [PosController::class, 'getRestaurantDeliveryTakeawayOrders'])->name('pos.restaurant.delivery-takeaway-orders')->middleware(['auth', 'XSS']);
     Route::post('pos/send-to-production', [PosController::class, 'sendToProduction'])->name('pos.send.to.production')->middleware(['auth', 'XSS']);
     Route::post('pos/cancel-order', [PosController::class, 'cancelOrder'])->name('pos.cancel.order')->middleware(['auth', 'XSS']);
     Route::get('pos/active-shift', [PosController::class, 'getActiveShift'])->name('pos.active.shift')->middleware(['auth', 'XSS']);
@@ -1881,6 +1882,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('pos-shift/{pos_shift}/assign-table', [PosShiftController::class, 'assignTable'])->name('pos-shift.assign-table.store')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/transfer-tables', [PosShiftController::class, 'transferTables'])->name('pos-shift.transfer-tables')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/open-from-pos', [PosShiftController::class, 'openFromPos'])->name('pos-shift.open-from-pos')->middleware(['auth', 'XSS']);
+    Route::post('pos/close-all-shifts-and-eod', [PosShiftController::class, 'closeAllShiftsAndRedirectToEod'])->name('pos.close-all-shifts-and-eod')->middleware(['auth', 'XSS']);
     Route::resource('pos-shift', PosShiftController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::resource('branch-sales-targets', BranchSalesTargetController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('pos-audit-log', [PosAuditLogController::class, 'index'])->name('pos.audit-log.index')->middleware(['auth', 'XSS']);

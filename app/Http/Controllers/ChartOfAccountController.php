@@ -10,6 +10,7 @@ use App\Models\Utility;
 use App\Models\JournalItem;
 use App\Models\ChartOfAccountParent;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ChartOfAccountController extends Controller
 {
@@ -30,9 +31,22 @@ class ChartOfAccountController extends Controller
 
         $types = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->get();
 
+        // Name column for locale-aware sibling sort (used in ordering)
+        $ulane = auth()->user()->lang ?? 'en';
+        $name_column = match ($ulane) {
+            'fr' => 'name_fr',
+            'zh' => 'name_zh',
+            'es' => 'name_es',
+            'pt' => 'name_pt_br',
+            default => 'name',
+        };
+
         $query = ChartOfAccountParent::where('created_by', \Auth::user()->creatorId())
             ->with([
-                'children' => function ($q) use ($search) {
+                'children' => function ($q) use ($search, $name_column) {
+                    // Sort by account code (numeric) to keep hierarchy, then siblings by name
+                    $q->orderByRaw('CAST(code AS UNSIGNED)')
+                      ->orderBy($name_column);
                     if (!empty($search)) {
                         $q->where('name', 'LIKE', "%{$search}%")
                           ->orWhere('code', 'LIKE', "%{$search}%");
@@ -58,8 +72,9 @@ class ChartOfAccountController extends Controller
             });
         }
 
-        $parents = $query->get()->sortBy(function ($parent) {
-            return (int) ($parent->accountMain->code ?? 0);
+        $parents = $query->get()->sortBy(function ($parent) use ($name_column) {
+            // Primary: account code (numeric), secondary: name (siblings alphabetically)
+            return [(int) ($parent->accountMain->code ?? 0), $parent->{$name_column} ?? ''];
         });
 
 
@@ -78,31 +93,8 @@ class ChartOfAccountController extends Controller
         foreach ($types as $type) {
             $chartAccounts[$type->name] = $parents[$type->id] ?? [];
         }
-        $ulane = auth()->user()->lang ?? 'en';
-        $name_column = 'name';
-        switch($ulane)
-        {
-            case 'en':
-                $name_column = 'name';
-                break;
-            case 'fr':
-                $name_column = 'name_fr';
-                break;
-            case 'zh':
-                $name_column = 'name_zh';
-                break;
-            case 'es':
-                $name_column = 'name_es';
-                break;
-            case 'pt':
-                $name_column = 'name_pt_br';
-                break;
-            default:
-                $name_column = 'name';
-                break;
-        }
 
-        return view('chartOfAccount.index', compact('chartAccounts', 'types', 'filter','name_column'));
+        return view('chartOfAccount.index', compact('chartAccounts', 'types', 'filter', 'name_column'));
     }
 
     return redirect()->back()->with('error', __('Permission denied.'));
@@ -158,14 +150,19 @@ class ChartOfAccountController extends Controller
 
     public function store(Request $request)
     {
-
         if(\Auth::user()->can('create chart of account'))
         {
             $validator = \Validator::make(
                 $request->all(), [
-                                   'name' => 'required',
                                    'name_pt_br' => 'required',
                                    'sub_type' => 'required',
+                                   'code'        => [
+                                        'required',
+                                        Rule::unique('chart_of_accounts', 'code')
+                                            ->where(function ($query) {
+                                                return $query->where('created_by', \Auth::user()->creatorId());
+                                            }),
+                                    ],
                                ]
             );
             if($validator->fails())
@@ -175,13 +172,14 @@ class ChartOfAccountController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
             $type = ChartOfAccountSubType::where('id',$request->sub_type)->where('created_by', '=', \Auth::user()->creatorId())->first();
-            if($request->parent == '0')
+            $parentId = $request->input('parent');
+            if (empty($parentId) || $parentId == '0')
             {
                 $account              = new ChartOfAccount();
-                $account->name        = $request->name ?? $request->name_pt_br;
-                $account->name_fr        = $request->name_fr ?? $request->name_pt_br;
-                $account->name_zh        = $request->name_zh ?? $request->name_pt_br;
-                $account->name_es        = $request->name_es ?? $request->name_pt_br;
+                $account->name        = $request->name ?? '';
+                $account->name_fr        = $request->name_fr ?? '';
+                $account->name_zh        = $request->name_zh ?? '';
+                $account->name_es        = $request->name_es ?? '';
                 $account->name_pt_br        = $request->name_pt_br;
                 $account->code        = $request->code;
                 $account->type        = $type->type;
@@ -212,8 +210,20 @@ class ChartOfAccountController extends Controller
                 
             }
             else{
-                // $account = ChartOfAccount::where('id',$request->parent)->where('created_by', '=', \Auth::user()->creatorId())->first();
-                $existingparentAccount = ChartOfAccountParent::where('account',$request->parent)->where('created_by',\Auth::user()->creatorId())->first();
+                // Resolve parent: request can be ChartOfAccount id (main account) or we resolve via ChartOfAccount.parent
+                $existingparentAccount = ChartOfAccountParent::where('account', $parentId)
+                    ->where('created_by', \Auth::user()->creatorId())
+                    ->first();
+                if (!$existingparentAccount) {
+                    $selectedAccount = ChartOfAccount::where('id', $parentId)
+                        ->where('created_by', \Auth::user()->creatorId())
+                        ->first();
+                    if ($selectedAccount && $selectedAccount->parent > 0) {
+                        $existingparentAccount = ChartOfAccountParent::where('id', $selectedAccount->parent)
+                            ->where('created_by', \Auth::user()->creatorId())
+                            ->first();
+                    }
+                }
                 // if($account != null){
     
                 //     if ($existingparentAccount) {
@@ -231,11 +241,11 @@ class ChartOfAccountController extends Controller
                 // }
     
                 $account              = new ChartOfAccount();
-                $account->name        = $request->name ?? $request->name_pt_br;
-                $account->name_fr        = $request->name_fr ?? $request->name_pt_br;
-                $account->name_zh        = $request->name_zh ?? $request->name_pt_br;
-                $account->name_es        = $request->name_es ?? $request->name_pt_br;
-                $account->name_pt_br        = $request->name_pt_br;
+                $account->name        = $request->name ?? '';
+                $account->name_fr        = $request->name_fr ?? '';
+                $account->name_zh        = $request->name_zh ?? '';
+                $account->name_es        = $request->name_es ?? '';
+                $account->name_pt_br        = $request->name_pt_br ?? '';
                 $account->code        = $request->code;
                 $account->type        = $type->type;
                 $account->sub_type    = $request->sub_type;
@@ -361,8 +371,15 @@ class ChartOfAccountController extends Controller
         {
             $validator = \Validator::make(
                 $request->all(), [
-                                   'name' => 'required',
                                    'name_pt_br' => 'required',
+                                   'code'        => [
+                                        'required',
+                                        Rule::unique('chart_of_accounts', 'code')
+                                            ->where(function ($query) {
+                                                return $query->where('created_by', \Auth::user()->creatorId());
+                                            })
+                                            ->ignore($chartOfAccount->id),
+                                    ],
                                ]
             );
             if($validator->fails())
@@ -373,10 +390,10 @@ class ChartOfAccountController extends Controller
             }
 
 
-            $chartOfAccount->name        = $request->name ?? $request->name_pt_br;
-            $chartOfAccount->name_fr        = $request->name_fr ?? $request->name_pt_br;
-            $chartOfAccount->name_zh        = $request->name_zh ?? $request->name_pt_br;
-            $chartOfAccount->name_es        = $request->name_es ?? $request->name_pt_br;
+            $chartOfAccount->name        = $request->name ?? '';
+            $chartOfAccount->name_fr        = $request->name_fr ?? '';
+            $chartOfAccount->name_zh        = $request->name_zh ?? '';
+            $chartOfAccount->name_es        = $request->name_es ?? '';
             $chartOfAccount->name_pt_br        = $request->name_pt_br;
             $chartOfAccount->code        = $request->code;
             $chartOfAccount->description = $request->description;
@@ -418,8 +435,39 @@ class ChartOfAccountController extends Controller
 
     public function getSubType(Request $request)
     {
-        $types = ChartOfAccount::where('sub_type', $request->type)->get()->pluck('name', 'id');
-        $types->prepend('Select an account', 0);
+        $ulane = auth()->user()->lang ?? 'en';
+        $name_column = 'name';
+        switch($ulane)
+        {
+            case 'en':
+                $name_column = 'name';
+                break;
+            case 'fr':
+                $name_column = 'name_fr';
+                break;
+            case 'zh':
+                $name_column = 'name_zh';
+                break;
+            case 'es':
+                $name_column = 'name_es';
+                break;
+            case 'pt':
+                $name_column = 'name_pt_br';
+                break;
+            default:
+                $name_column = 'name';
+                break;
+        }
+        // Only parent (top-level) accounts can be selected as parent — they have a row in ChartOfAccountParent
+        $parentAccountIds = ChartOfAccountParent::where('created_by', \Auth::user()->creatorId())
+            ->pluck('account');
+        $types = ChartOfAccount::where('sub_type', $request->type)
+            ->whereIn('id', $parentAccountIds)
+            ->select('id', "$name_column as name")
+            ->orderByRaw('CAST(code AS UNSIGNED)')
+            ->get()
+            ->pluck('name', 'id');
+        $types->prepend(__('Select an account'), '0');
 
         return response()->json($types);
     }

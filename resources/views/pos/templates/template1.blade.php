@@ -226,6 +226,26 @@
                             <td class="text-right">{{ __('pos.' . $pos->order_type) }}</td>
                         </tr>
                         @endif
+                        @if(!empty($pos->guest_name) || !empty($pos->guest_email) || !empty($pos->guest_phone))
+                        @if(!empty($pos->guest_name))
+                        <tr>
+                            <td>{{ __('pos.guest_name') }}:</td>
+                            <td class="text-right">{{ $pos->guest_name }}</td>
+                        </tr>
+                        @endif
+                        @if(!empty($pos->guest_email))
+                        <tr>
+                            <td>{{ __('pos.guest_email') }}:</td>
+                            <td class="text-right">{{ $pos->guest_email }}</td>
+                        </tr>
+                        @endif
+                        @if(!empty($pos->guest_phone))
+                        <tr>
+                            <td>{{ __('pos.guest_phone') }}:</td>
+                            <td class="text-right">{{ $pos->guest_phone }}</td>
+                        </tr>
+                        @endif
+                        @endif
                         @if(!empty($pos->table))
                         <tr>
                             <td>{{__('pos.table')}}:</td>

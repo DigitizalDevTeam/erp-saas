@@ -138,7 +138,7 @@
                             @if(isset($userOpenShift->closing_balance) && $userOpenShift->closing_balance !== null && $userOpenShift->closing_balance !== '')
                                 <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.closing_balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->closing_balance) }}</span>
                             @else
-                                <a href="#" data-url="{{ route('pos.add_closing_balance') }}" data-bs-toggle="tooltip" title="{{ __('pos.add_closing_balance') }}" data-ajax-popup="true" data-title="{{ __('pos.add_closing_balance') }}" class="btn btn-sm btn-light">{{ __('pos.add_closing_balance') }}</a>
+                                <a href="#" class="btn btn-sm btn-light pos-add-closing-balance-btn" data-url="{{ route('pos.add_closing_balance') }}" data-title="{{ __('pos.add_closing_balance') }}" data-bs-toggle="tooltip" title="{{ __('pos.add_closing_balance') }}">{{ __('pos.add_closing_balance') }}</a>
                             @endif
                         @else
                             <button type="button" class="btn btn-sm btn-light ms-2" id="pos-open-shift-btn" title="{{ __('pos.open_shift') }}">
@@ -156,6 +156,7 @@
                         <button type="button" class="btn btn-sm btn-light pos-open-drawer-btn" title="{{ __('pos.open_drawer') }}">
                             <i class="ti ti-cash" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ __('pos.open_drawer') }}</span>
                         </button>
+                        @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
                         <div class="dropdown d-inline-block">
                             <button type="button" class="btn btn-sm btn-light dropdown-toggle" id="pos-reports-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="{{ __('Reports & more') }}">
                                 <i class="ti ti-report" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ __('Reports') }}</span>
@@ -168,7 +169,7 @@
                                 <li><a class="dropdown-item" href="{{ route('report.pos.branch') }}" target="_blank"><i class="ti ti-building-store me-2"></i>{{ __('POS by Branch') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('report.pos.vs.purchase') }}" target="_blank"><i class="ti ti-chart-bar me-2"></i>{{ __('Pos VS Purchase Report') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('report.pos.day-summary', ['date' => date('Y-m-d')]) }}" target="_blank"><i class="ti ti-calendar-event me-2"></i>{{ __('Day Summary') }}</a></li>
-                                <li><a class="dropdown-item" href="{{ route('report.pos.eod', ['date' => date('Y-m-d')]) }}" target="_blank"><i class="ti ti-calendar-off me-2"></i>{{ __('pos.day_closed') }} / {{ __('EOD Report') }}</a></li>
+                                <li><a class="dropdown-item pos-eod-link" href="#" data-date="{{ date('Y-m-d') }}" data-bs-toggle="modal" data-bs-target="#posEodWarningModal"><i class="ti ti-calendar-off me-2"></i>{{ __('pos.day_closed') }} / {{ __('EOD Report') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('report.pos.low-stock') }}" target="_blank"><i class="ti ti-box me-2"></i>{{ __('Low Stock') }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">{{ __('Other') }}</h6></li>
@@ -177,6 +178,7 @@
                                 <li><a class="dropdown-item" href="{{ route('pos.print.setting') }}" target="_blank"><i class="ti ti-printer me-2"></i>{{ __('Print') }} {{ __('Setting') }}</a></li>
                             </ul>
                         </div>
+                        @endif
                         <a href="{{ route('pos.restaurant.index') }}" class="btn btn-sm btn-outline-light" title="{{ __('POS Restaurant') }}"><i class="ti ti-building-store" style="font-size: 1.25rem;"></i></a>
                         <a href="{{ route('dashboard') }}" class="btn btn-sm btn-light" title="{{ __('pos.dashboard') }}"><i class="ti ti-home" style="font-size: 1.25rem;"></i></a>
                     </div>
@@ -483,6 +485,29 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="body">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- EOD Report: warn that all open shifts will be closed --}}
+    <div class="modal fade" id="posEodWarningModal" tabindex="-1" aria-labelledby="posEodWarningModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="posEodWarningModalLabel">{{ __('pos.day_closed') }} / {{ __('EOD Report') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0 text-warning"><i class="ti ti-alert-triangle me-2"></i>{{ __('pos.eod_close_all_shifts_warning') }}</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                    <form id="pos-eod-confirm-form" action="{{ route('pos.close-all-shifts-and-eod') }}" method="post" class="d-inline">
+                        @csrf
+                        <input type="hidden" name="date" id="pos-eod-date-input" value="{{ date('Y-m-d') }}">
+                        <button type="submit" class="btn btn-primary">{{ __('OK') }}</button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -2397,6 +2422,35 @@
             w.focus();
             w.print();
             w.onafterprint = function() { w.close(); };
+        });
+        $(document).on('click', '.pos-eod-link', function (e) {
+            e.preventDefault();
+            var date = $(this).data('date');
+            if (date) $('#pos-eod-date-input').val(date);
+        });
+        $(document).on('click', '.pos-add-closing-balance-btn', function (e) {
+            e.preventDefault();
+            var $btn = $(this);
+            var url = $btn.data('url');
+            var title = $btn.data('title');
+            if (!url) return;
+            $('#commonModal .modal-dialog').removeClass('modal-xl modal-lg').addClass('modal-sm');
+            $('#commonModal .modal-title').html(title || '{{ __("pos.add_closing_balance") }}');
+            $.ajax({
+                url: url,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                success: function (html) {
+                    $('#commonModal .body').html(html);
+                    $('#commonModal').modal('show');
+                    if (typeof common_bind === 'function') common_bind('#commonModal');
+                    if (typeof validation === 'function') validation();
+                },
+                error: function (xhr) {
+                    var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("Error") }}';
+                    if (typeof show_toastr === 'function') show_toastr('{{ __("Error") }}', msg, 'error');
+                    else alert(msg);
+                }
+            });
         });
     </script>
     {{-- PWA Install: button always visible when not standalone; click = native prompt or fallback --}}

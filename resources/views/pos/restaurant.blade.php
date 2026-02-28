@@ -36,10 +36,9 @@
                         <option value="dine_in">{{ __('pos.dine_in') }}</option>
                         <option value="delivery">{{ __('pos.delivery') }}</option>
                         <option value="takeaway">{{ __('pos.takeaway') }}</option>
-                        <option value="kiosk">{{ __('pos.kiosk') }}</option>
                     </select>
                 </div>
-                <div class="col-md-2 d-flex align-items-end gap-1">
+                <div id="pos-restaurant-table-block" class="col-md-2 d-flex align-items-end gap-1">
                     <div>
                         <label class="form-label small text-muted mb-0">{{ __('pos.select_table') }}</label>
                         <div id="pos-selected-table" class="fw-bold text-primary">—</div>
@@ -50,16 +49,33 @@
                     </button>
                     @endif
                 </div>
-                <div class="col-md-2 ms-auto">
+                <div id="pos-restaurant-guest-block" class="col-md-4 d-none">
+                    <label class="form-label small text-muted mb-0">{{ __('pos.customer_details_required') }}</label>
+                    <div class="row g-1">
+                        <div class="col-4"><input type="text" class="form-control form-control-sm" id="pos-guest-name" placeholder="{{ __('pos.guest_name') }}" maxlength="255"></div>
+                        <div class="col-4"><input type="email" class="form-control form-control-sm" id="pos-guest-email" placeholder="{{ __('pos.guest_email') }}" maxlength="255"></div>
+                        <div class="col-4"><input type="text" class="form-control form-control-sm" id="pos-guest-phone" placeholder="{{ __('pos.guest_phone') }}" maxlength="64"></div>
+                    </div>
+                </div>
+                <div class="col-md-2 ms-auto" id="pos-restaurant-manage-tables-wrap">
                     <button type="button" class="btn btn-sm btn-outline-secondary" id="pos-manage-tables-btn" title="{{ __('pos.manage_tables') }}">
                         <i class="ti ti-settings"></i> {{ __('pos.manage_tables') }}
                     </button>
                 </div>
             </div>
-            <div class="border-top pt-2">
+            <div id="pos-restaurant-table-grid-wrap" class="border-top pt-2">
                 <div class="d-flex flex-wrap gap-2 align-items-center" id="pos-table-grid">
                     <p class="text-muted small mb-0">{{ __('pos.select_branch_first') }}</p>
                 </div>
+            </div>
+            <div id="pos-restaurant-customer-grid-wrap" class="border-top pt-2 d-none">
+                <label class="form-label small text-muted mb-1">{{ __('pos.select_customer') }}</label>
+                <div class="d-flex flex-wrap gap-2 align-items-center" id="pos-customer-grid">
+                    <p class="text-muted small mb-0">{{ __('pos.select_branch_first') }}</p>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="pos-new-delivery-takeaway-btn">
+                    <i class="ti ti-plus"></i> <span id="pos-new-delivery-takeaway-label">{{ __('pos.new_delivery') }}</span>
+                </button>
             </div>
         </div>
     </div>
@@ -170,6 +186,7 @@
 {{ Form::hidden('pos_restaurant_table_name', '', ['id' => 'pos_restaurant_table_name']) }}
 {{ Form::hidden('pos_shift_id_hidden', '', ['id' => 'pos_shift_id_hidden']) }}
 {{ Form::hidden('pos_restaurant_warehouse_hidden', '', ['id' => 'pos_restaurant_warehouse_hidden']) }}
+{{ Form::hidden('pos_restaurant_pos_id', '', ['id' => 'pos_restaurant_pos_id']) }}
 
 {{-- Open table modal (guest count) --}}
 <div class="modal fade" id="posOpenTableModal" tabindex="-1" aria-labelledby="posOpenTableModalLabel" aria-hidden="true">

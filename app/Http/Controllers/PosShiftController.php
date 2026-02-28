@@ -241,6 +241,57 @@ class PosShiftController extends Controller
         return redirect()->back()->with('error', __('Permission denied.'));
     }
 
+    /**
+     * Close all open shifts for the current user's company and redirect to EOD report.
+     * Used when user goes to Day Closed / EOD Report from POS; all open shifts are auto-closed with expected cash as closing balance.
+     */
+    public function closeAllShiftsAndRedirectToEod(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $creatorId = \Auth::user()->creatorId();
+        $date = $request->get('date', date('Y-m-d'));
+
+        $openShifts = PosShift::where('created_by', $creatorId)
+            ->where('status', PosShift::STATUS_OPEN)
+            ->get();
+
+        foreach ($openShifts as $pos_shift) {
+            $posIds = Pos::where('shift_id', $pos_shift->id)->pluck('id');
+            $salesTotal = PosPayment::whereIn('pos_id', $posIds)->sum('amount');
+            $cashTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
+                $q->where('payment_method', \App\Models\PosPayment::METHOD_CASH)->orWhereNull('payment_method');
+            })->sum('amount');
+            $balanceCash = (float) \App\Models\InvoicePayment::where('pos_shift_id', $pos_shift->id)->where('payment_method', 0)->sum('amount');
+            $cashTotal += $balanceCash;
+            $cardTotal = (float) PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', [\App\Models\PosPayment::METHOD_CARD, \App\Models\PosPayment::METHOD_MPESA, \App\Models\PosPayment::METHOD_BANK_TRANSFER, 'visa', 'cheque'])->sum('amount');
+            $creditTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
+            $cashDropsTotal = (float) PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');
+            $openingBalance = (float) ($pos_shift->opening_balance ?? 0);
+            $expectedCash = $openingBalance + $cashTotal - $cashDropsTotal;
+            $closingBalance = $expectedCash;
+            $difference = 0;
+
+            $pos_shift->closed_at = now();
+            $pos_shift->closing_balance = $closingBalance;
+            $pos_shift->cash_total = $cashTotal;
+            $pos_shift->card_total = $cardTotal;
+            $pos_shift->credit_total = $creditTotal;
+            $pos_shift->difference = $difference;
+            $pos_shift->tips = 0;
+            $pos_shift->notes = __('Auto-closed for EOD report');
+            $pos_shift->sales_count = $posIds->count();
+            $pos_shift->sales_total = $salesTotal;
+            $pos_shift->status = PosShift::STATUS_CLOSED;
+            $pos_shift->save();
+            PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed (EOD)'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
+            PosTableAssignment::where('shift_id', $pos_shift->id)->whereNull('unassigned_at')->update(['unassigned_at' => now()]);
+        }
+
+        return redirect()->route('report.pos.eod', ['date' => $date])->with('success', __('All open shifts have been closed.'));
+    }
+
     public function assignTableForm(PosShift $pos_shift)
     {
         if (\Auth::user()->canManagePos() && $pos_shift->created_by == \Auth::user()->creatorId() && $pos_shift->status === PosShift::STATUS_OPEN) {

@@ -208,6 +208,45 @@ class PosController extends Controller
     }
 
     /**
+     * List open delivery/takeaway orders for branch + shift (multiple orders, like tables list).
+     * Used to show customer-name buttons for delivery/takeaway; click = load that order.
+     */
+    public function getRestaurantDeliveryTakeawayOrders(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $branchId = (int) $request->get('branch_id');
+        $shiftId = (int) $request->get('shift_id');
+        $orderType = $request->get('order_type');
+        if (!$branchId || !$shiftId || !in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
+            return response()->json(['orders' => []]);
+        }
+        $creatorId = Auth::user()->creatorId();
+        $orders = Pos::whereNull('table_id')
+            ->where('order_type', $orderType)
+            ->where('shift_id', $shiftId)
+            ->where('branch_id', $branchId)
+            ->where('created_by', $creatorId)
+            ->whereNull('cancelled_at')
+            ->whereDoesntHave('posPayments')
+            ->whereHas('shift', fn ($q) => $q->where('status', \App\Models\PosShift::STATUS_OPEN))
+            ->withCount('items')
+            ->orderBy('id', 'desc')
+            ->get()
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'guest_name' => $p->guest_name ?? '',
+                'guest_email' => $p->guest_email ?? '',
+                'guest_phone' => $p->guest_phone ?? '',
+                'items_count' => $p->items_count ?? 0,
+                'display_label' => $p->guest_name ?: ($p->guest_phone ?: __('pos.customer') . ' #' . $p->id),
+            ])
+            ->toArray();
+        return response()->json(['orders' => $orders]);
+    }
+
+    /**
      * Get current user's active (open) shift for a branch.
      */
     public function getActiveShift(Request $request)
@@ -1230,7 +1269,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
     }
 
     /**
-     * Get open order for a table. Cashier: pass branch_id to get order for that table (any waiter's shift). Waiter: pass shift_id for own shift.
+     * Get open order for a table (dine-in) or for delivery/takeaway (no table).
+     * Dine-in: pass table_id + branch_id or shift_id.
+     * Delivery/Takeaway: pass order_type (delivery|takeaway) + shift_id + branch_id (no table_id).
      */
     public function getRestaurantOrder(Request $request)
     {
@@ -1240,30 +1281,74 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $tableId = (int) $request->get('table_id');
         $shiftId = (int) $request->get('shift_id');
         $branchId = (int) $request->get('branch_id');
+        $orderType = $request->get('order_type');
+        $posId = (int) $request->get('pos_id');
         $creatorId = Auth::user()->creatorId();
         $pos = null;
-        if ($tableId && $branchId) {
-            $pos = Pos::where('table_id', $tableId)
-                ->where('branch_id', $branchId)
-                ->where('created_by', $creatorId)
-                ->whereNull('cancelled_at')
-                ->whereDoesntHave('posPayments')
-                ->whereHas('shift', fn ($q) => $q->where('status', \App\Models\PosShift::STATUS_OPEN))
-                ->with(['items.product.posPrinter', 'items.posPrinter'])
-                ->first();
+        $sessionCartKey = null; // tableId_shiftId | delivery_shiftId / takeaway_shiftId | pos_N
+
+        if ($tableId && ($branchId || $shiftId)) {
+            if ($tableId && $branchId) {
+                $pos = Pos::where('table_id', $tableId)
+                    ->where('branch_id', $branchId)
+                    ->where('created_by', $creatorId)
+                    ->whereNull('cancelled_at')
+                    ->whereDoesntHave('posPayments')
+                    ->whereHas('shift', fn ($q) => $q->where('status', \App\Models\PosShift::STATUS_OPEN))
+                    ->with(['items.product.posPrinter', 'items.posPrinter'])
+                    ->first();
+            }
+            if (!$pos && $tableId && $shiftId) {
+                $pos = Pos::where('table_id', $tableId)
+                    ->where('shift_id', $shiftId)
+                    ->where('created_by', $creatorId)
+                    ->whereNull('cancelled_at')
+                    ->whereDoesntHave('posPayments')
+                    ->with(['items.product.posPrinter', 'items.posPrinter'])
+                    ->first();
+            }
+            if ($pos) {
+                $sessionCartKey = $tableId . '_' . ($pos->shift_id ?? $shiftId);
+            } else {
+                $sessionCartKey = $tableId . '_' . $shiftId;
+            }
+        } elseif (in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true) && $shiftId && $branchId) {
+            // Explicit pos_id = load that existing order (cart key pos_N). No pos_id = "New" order (cart key delivery_shiftId / takeaway_shiftId, no DB order).
+            if ($posId > 0) {
+                $pos = Pos::where('id', $posId)
+                    ->whereNull('table_id')
+                    ->where('order_type', $orderType)
+                    ->where('shift_id', $shiftId)
+                    ->where('branch_id', $branchId)
+                    ->where('created_by', $creatorId)
+                    ->whereNull('cancelled_at')
+                    ->whereDoesntHave('posPayments')
+                    ->whereHas('shift', fn ($q) => $q->where('status', \App\Models\PosShift::STATUS_OPEN))
+                    ->with(['items.product.posPrinter', 'items.posPrinter'])
+                    ->first();
+                if ($pos) {
+                    $sessionCartKey = 'pos_' . $pos->id;
+                }
+            }
+            if ($sessionCartKey === null) {
+                $sessionCartKey = $orderType . '_' . $shiftId;
+                // Do not load any existing pos for "New" order; $pos stays null, only session cart is used
+            }
         }
-        if (!$pos && $tableId && $shiftId) {
-            $pos = Pos::where('table_id', $tableId)
-                ->where('shift_id', $shiftId)
-                ->where('created_by', $creatorId)
-                ->whereNull('cancelled_at')
-                ->whereDoesntHave('posPayments')
-                ->with(['items.product.posPrinter', 'items.posPrinter'])
-                ->first();
+
+        if ($sessionCartKey === null) {
+            return response()->json([
+                'pos_id' => null,
+                'order_lines' => [],
+                'session_items' => [],
+                'shift_id' => $shiftId ?: null,
+                'order_type' => $orderType,
+                'guest_name' => null,
+                'guest_email' => null,
+                'guest_phone' => null,
+            ]);
         }
-        if (!$tableId) {
-            return response()->json(['pos_id' => null, 'order_lines' => [], 'session_items' => [], 'shift_id' => null]);
-        }
+
         $orderLines = [];
         if ($pos) {
             foreach ($pos->items as $line) {
@@ -1291,11 +1376,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 ];
             }
         }
-        $shiftIdForCart = $pos ? $pos->shift_id : $shiftId;
         $cartKey = 'pos_restaurant_cart';
-        $tableKey = $tableId . '_' . $shiftIdForCart;
         $allCarts = $request->session()->get($cartKey, []);
-        $sessionItems = isset($allCarts[$tableKey]) ? array_values($allCarts[$tableKey]) : [];
+        $sessionItems = isset($allCarts[$sessionCartKey]) ? array_values($allCarts[$sessionCartKey]) : [];
         $productIds = array_unique(array_filter(array_merge(array_column($orderLines, 'id'), array_column($sessionItems, 'id'))));
         $productsWithPrinter = $productIds ? ProductService::whereIn('id', $productIds)->where('created_by', $creatorId)->with('posPrinter')->get()->keyBy('id') : collect();
         foreach ($orderLines as &$line) {
@@ -1317,18 +1400,29 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             }
         }
         $sessionItems = array_values($sessionItems);
-        return response()->json([
+        $payload = [
             'pos_id' => $pos ? $pos->id : null,
             'shift_id' => $pos ? $pos->shift_id : $shiftId,
-            'order_type' => $pos ? ($pos->order_type ?? null) : null,
+            'order_type' => $pos ? ($pos->order_type ?? null) : $orderType,
+            'session_cart_key' => $sessionCartKey,
             'order_lines' => $orderLines,
             'session_items' => $sessionItems,
-        ]);
+        ];
+        if ($pos && in_array($pos->order_type, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
+            $payload['guest_name'] = $pos->guest_name ?? null;
+            $payload['guest_email'] = $pos->guest_email ?? null;
+            $payload['guest_phone'] = $pos->guest_phone ?? null;
+        } else {
+            $payload['guest_name'] = null;
+            $payload['guest_email'] = null;
+            $payload['guest_phone'] = null;
+        }
+        return response()->json($payload);
     }
 
     /**
      * Phase 1: Send to production – save order + lines (no payment, no stock deduction).
-     * Replaces existing lines with payload so same table can be edited and re-sent. Clears per-table session cart after send.
+     * Dine-in: table_id required. Delivery/Takeaway: table_id null, guest_name, guest_email, guest_phone required.
      */
     public function sendToProduction(Request $request)
     {
@@ -1336,20 +1430,35 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             return response()->json(['error' => __('Permission denied.')], 403);
         }
 
-        $request->validate([
+        $orderType = $request->get('order_type');
+        $allowedOrderTypes = [Pos::ORDER_TYPE_DINE_IN, Pos::ORDER_TYPE_TAKEAWAY, Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_KIOSK];
+        if (!$orderType || !in_array($orderType, $allowedOrderTypes, true)) {
+            $orderType = Pos::ORDER_TYPE_DINE_IN;
+        }
+        $isNonDineIn = in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true);
+
+        $rules = [
             'branch_id' => 'required|exists:branches,id',
-            'table_id' => 'required|exists:pos_tables,id',
             'shift_id' => 'required|exists:pos_shifts,id',
             'items' => 'required|array',
             'items.*.id' => 'required|exists:product_services,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.price' => 'required|numeric|min:0',
-        ]);
+        ];
+        if ($isNonDineIn) {
+            $rules['guest_name'] = 'required|string|max:255';
+            $rules['guest_email'] = 'required|email';
+            $rules['guest_phone'] = 'required|string|max:64';
+        } else {
+            $rules['table_id'] = 'required|exists:pos_tables,id';
+        }
+        $request->validate($rules);
 
         $creatorId = Auth::user()->creatorId();
         $branchId = (int) $request->branch_id;
-        $tableId = (int) $request->table_id;
+        $tableId = $isNonDineIn ? null : (int) $request->table_id;
         $shiftId = (int) $request->shift_id;
+        $posId = $isNonDineIn ? (int) $request->get('pos_id', 0) : 0;
 
         $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->first();
         if (!$branch) {
@@ -1364,18 +1473,30 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             return response()->json(['error' => __('Please create or select a warehouse.')], 422);
         }
 
-        $pos = Pos::where('table_id', $tableId)
-            ->where('shift_id', $shiftId)
-            ->where('created_by', $creatorId)
-            ->whereNull('cancelled_at')
-            ->whereDoesntHave('posPayments')
-            ->first();
-
-        $orderType = $request->get('order_type');
-        $allowedOrderTypes = [Pos::ORDER_TYPE_DINE_IN, Pos::ORDER_TYPE_TAKEAWAY, Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_KIOSK];
-        if (!$orderType || !in_array($orderType, $allowedOrderTypes, true)) {
-            $orderType = Pos::ORDER_TYPE_DINE_IN;
+        $pos = null;
+        if ($isNonDineIn && $posId > 0) {
+            $pos = Pos::where('id', $posId)
+                ->whereNull('table_id')
+                ->where('order_type', $orderType)
+                ->where('shift_id', $shiftId)
+                ->where('branch_id', $branchId)
+                ->where('created_by', $creatorId)
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->first();
         }
+        if (!$pos && !$isNonDineIn) {
+            // Dine-in: find existing open order for this table
+            $posQuery = Pos::where('shift_id', $shiftId)
+                ->where('branch_id', $branchId)
+                ->where('created_by', $creatorId)
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->where('table_id', $tableId);
+            $pos = $posQuery->first();
+        }
+        // Delivery/takeaway without pos_id = always create new Pos (do not find first open order)
+
         if (!$pos) {
             $pos = new Pos();
             $pos->pos_id = $this->invoicePosNumber();
@@ -1389,9 +1510,19 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $pos->payment_method = null;
             $pos->created_by = $creatorId;
             $pos->pos_user_id = session('pos_pin_user_id', Auth::id());
+            if ($isNonDineIn) {
+                $pos->guest_name = $request->guest_name;
+                $pos->guest_email = $request->guest_email;
+                $pos->guest_phone = $request->guest_phone;
+            }
             $pos->save();
         } else {
             $pos->order_type = $orderType;
+            if ($isNonDineIn) {
+                $pos->guest_name = $request->guest_name;
+                $pos->guest_email = $request->guest_email;
+                $pos->guest_phone = $request->guest_phone;
+            }
             $pos->save();
         }
 
@@ -1422,14 +1553,14 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             ]);
         }
 
-        // Clear per-table session cart so UI loads from DB next time (skip when kitchen slip only – only those items sent).
+        // Clear session cart so UI loads from DB next time (skip when kitchen slip only).
         $kitchenSlipOnly = $request->boolean('kitchen_slip_only');
         if (!$kitchenSlipOnly) {
             $cartKey = 'pos_restaurant_cart';
-            $tableKey = $tableId . '_' . $shiftId;
+            $sessionCartKey = $isNonDineIn && $posId > 0 ? ('pos_' . $pos->id) : ($isNonDineIn ? ($orderType . '_' . $shiftId) : ($tableId . '_' . $shiftId));
             $allCarts = $request->session()->get($cartKey, []);
-            if (isset($allCarts[$tableKey])) {
-                unset($allCarts[$tableKey]);
+            if (isset($allCarts[$sessionCartKey])) {
+                unset($allCarts[$sessionCartKey]);
                 $request->session()->put($cartKey, $allCarts);
             }
         }
@@ -1439,7 +1570,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'pos',
             (int) $pos->id,
             __('Order sent to production'),
-            ['table_id' => $pos->table_id, 'items_count' => count($request->items)]
+            ['table_id' => $pos->table_id, 'order_type' => $pos->order_type, 'items_count' => count($request->items)]
         );
         return response()->json([
             'success' => true,
@@ -2041,12 +2172,16 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
     
     public function add_closing_balance()
     {
-        $userOpenShift = \App\Models\PosShift::where('user_id', \Auth::user()->id)
+        $userId = session('pos_pin_user_id', \Auth::id());
+        $userOpenShift = \App\Models\PosShift::where('user_id', $userId)
             ->where('status', \App\Models\PosShift::STATUS_OPEN)
             ->where('created_by', \Auth::user()->creatorId())
             ->orderBy('opened_at', 'desc')
             ->first();
         if (!$userOpenShift) {
+            if (request()->ajax() || request()->wantsJson()) {
+                return response()->json(['error' => __('pos.open_shift_required_to_add_closing')], 422);
+            }
             return redirect()->back()->with('error', __('pos.open_shift_required_to_add_closing'));
         }
         $posIds = Pos::where('shift_id', $userOpenShift->id)->pluck('id');
@@ -2064,10 +2199,11 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'tips' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:1000',
         ]);
+        $userId = session('pos_pin_user_id', \Auth::id());
         $shiftId = $request->shift_id;
         $shift = $shiftId
-            ? \App\Models\PosShift::where('id', $shiftId)->where('user_id', \Auth::user()->id)->where('status', \App\Models\PosShift::STATUS_OPEN)->first()
-            : \App\Models\PosShift::where('user_id', \Auth::user()->id)->where('status', \App\Models\PosShift::STATUS_OPEN)->where('created_by', \Auth::user()->creatorId())->orderBy('opened_at', 'desc')->first();
+            ? \App\Models\PosShift::where('id', $shiftId)->where('user_id', $userId)->where('status', \App\Models\PosShift::STATUS_OPEN)->first()
+            : \App\Models\PosShift::where('user_id', $userId)->where('status', \App\Models\PosShift::STATUS_OPEN)->where('created_by', \Auth::user()->creatorId())->orderBy('opened_at', 'desc')->first();
         if (!$shift) {
             return redirect()->route('pos.dashboard')->with('error', __('pos.open_shift_required_to_add_closing'));
         }

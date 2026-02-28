@@ -563,13 +563,24 @@ class ProductServiceController extends Controller
             $cartKey = $session_key;
             $tableKey = null;
             if ($session_key === 'pos-restaurant') {
-                $tableId = (int) $request->get('table_id');
-                $shiftId = (int) $request->get('shift_id');
-                if (!$tableId || !$shiftId) {
-                    return response()->json(['code' => 404, 'status' => 'Error', 'error' => __('Select a table and ensure shift is open.')], 404);
+                $reqCartKey = $request->get('cart_key');
+                if ($reqCartKey && is_string($reqCartKey) && preg_match('/^(\d+_\d+|delivery_\d+|takeaway_\d+|pos_\d+)$/', $reqCartKey)) {
+                    $cartKey = 'pos_restaurant_cart';
+                    $tableKey = $reqCartKey;
+                } else {
+                    $tableId = (int) $request->get('table_id');
+                    $shiftId = (int) $request->get('shift_id');
+                    $orderType = $request->get('order_type');
+                    if ($tableId && $shiftId) {
+                        $cartKey = 'pos_restaurant_cart';
+                        $tableKey = $tableId . '_' . $shiftId;
+                    } elseif (in_array($orderType, ['delivery', 'takeaway'], true) && $shiftId) {
+                        $cartKey = 'pos_restaurant_cart';
+                        $tableKey = $orderType . '_' . $shiftId;
+                    } else {
+                        return response()->json(['code' => 404, 'status' => 'Error', 'error' => __('Select a table or order type (delivery/takeaway) and ensure shift is open.')], 404);
+                    }
                 }
-                $cartKey = 'pos_restaurant_cart';
-                $tableKey = $tableId . '_' . $shiftId;
             }
             $product = ProductService::with('category:id,name', 'posPrinter')->find($id);
             $productquantity = 0;
@@ -654,9 +665,8 @@ class ProductServiceController extends Controller
             $printerName = $product->posPrinter ? e($product->posPrinter->name) : '';
             if ($isPosSession) {
                 if ($request->get('restaurant') || $session_key === 'pos-restaurant') {
-                    $tid = $tableKey !== null ? (int) $request->get('table_id') : '';
-                    $sid = $tableKey !== null ? (int) $request->get('shift_id') : '';
                     $statusNotSent = __('pos.status_not_sent');
+                    $cartKeyVal = $tableKey !== null ? $tableKey : '';
                     $carthtml .= '<tr data-product-id="' . $id . '" data-line-id="" data-is-sent="0" data-status="not_sent" data-discount="0" id="product-id-r-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '">
                             <td class="name">' . e($productname) . '</td>
                             <td class="pos-note-cell"><textarea class="form-control form-control-sm notes pos-item-notes" placeholder="' . e(__('pos.note_placeholder')) . '" maxlength="200" rows="2" title="' . e(__('Note')) . '"></textarea></td>
@@ -665,7 +675,7 @@ class ProductServiceController extends Controller
                             <td class="price">' . Auth::user()->priceFormat($productprice) . '</td>
                             <td class="subtotal">' . Auth::user()->priceFormat($subtotal) . '</td>
                             <td class="text-center"><span class="badge pos-line-status">' . e($statusNotSent) . '</span></td>
-                            <td class="action-btn"><a href="#" class="btn btn-sm bg-danger bs-pass-para-pos pos-remove-from-cart" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . $id . '"><i class="ti ti-trash text-white"></i></a><form method="post" action="' . url('remove-from-cart') . '" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . $id . '">' . ($tableKey !== null ? '<input type="hidden" name="table_id" value="' . $tid . '"><input type="hidden" name="shift_id" value="' . $sid . '">' : '') . '</form></td>
+                            <td class="action-btn"><a href="#" class="btn btn-sm bg-danger bs-pass-para-pos pos-remove-from-cart" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . $id . '"><i class="ti ti-trash text-white"></i></a><form method="post" action="' . url('remove-from-cart') . '" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . $id . '">' . ($tableKey !== null ? '<input type="hidden" name="cart_key" value="' . e($tableKey) . '">' : '') . '</form></td>
                         </tr>';
                 } else {
                 $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" id="product-id-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '">';
@@ -873,13 +883,24 @@ class ProductServiceController extends Controller
             $cartKey = $session_key;
             $tableKey = null;
             if ($session_key === 'pos-restaurant') {
-                $tableId = (int) $request->get('table_id');
-                $shiftId = (int) $request->get('shift_id');
-                if (!$tableId || !$shiftId) {
-                    return response()->json(['code' => 404, 'status' => 'Error', 'error' => __('Select a table and ensure shift is open.')], 404);
+                $reqCartKey = $request->get('cart_key');
+                if ($reqCartKey && is_string($reqCartKey) && preg_match('/^(\d+_\d+|delivery_\d+|takeaway_\d+|pos_\d+)$/', $reqCartKey)) {
+                    $tableKey = $reqCartKey;
+                } else {
+                    $tableId = (int) $request->get('table_id');
+                    $shiftId = (int) $request->get('shift_id');
+                    $orderType = $request->get('order_type');
+                    if ($tableId && $shiftId) {
+                        $tableKey = $tableId . '_' . $shiftId;
+                    } elseif (in_array($orderType, ['delivery', 'takeaway'], true) && $shiftId) {
+                        $tableKey = $orderType . '_' . $shiftId;
+                    }
                 }
-                $cartKey = 'pos_restaurant_cart';
-                $tableKey = $tableId . '_' . $shiftId;
+                if ($tableKey) {
+                    $cartKey = 'pos_restaurant_cart';
+                } else {
+                    return response()->json(['code' => 404, 'status' => 'Error', 'error' => __('Select a table or order type and ensure shift is open.')], 404);
+                }
             }
             if ($tableKey !== null) {
                 $all = session()->get($cartKey, []);
@@ -968,15 +989,25 @@ class ProductServiceController extends Controller
             $canManage = Auth::user()->can('manage product & service') || ((Auth::user()->can('manage pos') || Auth::user()->can('pos restaurant waiter') || Auth::user()->can('pos restaurant full') || Auth::user()->can('pos restaurant manager')) && $isPosSession);
         if ($canManage && isset($session_key) && !empty($session_key)) {
             if ($session_key === 'pos-restaurant') {
-                $tableId = (int) $request->get('table_id');
-                $shiftId = (int) $request->get('shift_id');
-                if ($tableId && $shiftId) {
+                $reqCartKey = $request->get('cart_key');
+                if ($reqCartKey && is_string($reqCartKey)) {
                     $cartKey = 'pos_restaurant_cart';
                     $all = session()->get($cartKey, []);
-                    $tableKey = $tableId . '_' . $shiftId;
-                    if (isset($all[$tableKey])) {
-                        unset($all[$tableKey]);
+                    if (isset($all[$reqCartKey])) {
+                        unset($all[$reqCartKey]);
                         session()->put($cartKey, $all);
+                    }
+                } else {
+                    $tableId = (int) $request->get('table_id');
+                    $shiftId = (int) $request->get('shift_id');
+                    if ($tableId && $shiftId) {
+                        $cartKey = 'pos_restaurant_cart';
+                        $all = session()->get($cartKey, []);
+                        $tableKey = $tableId . '_' . $shiftId;
+                        if (isset($all[$tableKey])) {
+                            unset($all[$tableKey]);
+                            session()->put($cartKey, $all);
+                        }
                     }
                 }
             } else {
@@ -997,15 +1028,25 @@ class ProductServiceController extends Controller
         $session_key = $request->session_key;
 
         if ($session_key === 'pos-restaurant') {
-            $tableId = (int) $request->get('table_id');
-            $shiftId = (int) $request->get('shift_id');
-            if ($tableId && $shiftId) {
+            $reqCartKey = $request->get('cart_key');
+            if ($reqCartKey && is_string($reqCartKey)) {
                 $cartKey = 'pos_restaurant_cart';
                 $all = session()->get($cartKey, []);
-                $tableKey = $tableId . '_' . $shiftId;
-                if (isset($all[$tableKey])) {
-                    unset($all[$tableKey]);
+                if (isset($all[$reqCartKey])) {
+                    unset($all[$reqCartKey]);
                     session()->put($cartKey, $all);
+                }
+            } else {
+                $tableId = (int) $request->get('table_id');
+                $shiftId = (int) $request->get('shift_id');
+                if ($tableId && $shiftId) {
+                    $cartKey = 'pos_restaurant_cart';
+                    $all = session()->get($cartKey, []);
+                    $tableKey = $tableId . '_' . $shiftId;
+                    if (isset($all[$tableKey])) {
+                        unset($all[$tableKey]);
+                        session()->put($cartKey, $all);
+                    }
                 }
             }
         } else {
@@ -1028,13 +1069,24 @@ class ProductServiceController extends Controller
             $cartKey = $session_key;
             $tableKey = null;
             if ($session_key === 'pos-restaurant') {
-                $tableId = (int) $request->get('table_id');
-                $shiftId = (int) $request->get('shift_id');
-                if (!$tableId || !$shiftId) {
-                    return redirect()->back()->with('error', __('Select a table and ensure shift is open.'));
+                $reqCartKey = $request->get('cart_key');
+                if ($reqCartKey && is_string($reqCartKey) && preg_match('/^(\d+_\d+|delivery_\d+|takeaway_\d+|pos_\d+)$/', $reqCartKey)) {
+                    $tableKey = $reqCartKey;
+                } else {
+                    $tableId = (int) $request->get('table_id');
+                    $shiftId = (int) $request->get('shift_id');
+                    $orderType = $request->get('order_type');
+                    if ($tableId && $shiftId) {
+                        $tableKey = $tableId . '_' . $shiftId;
+                    } elseif (in_array($orderType, ['delivery', 'takeaway'], true) && $shiftId) {
+                        $tableKey = $orderType . '_' . $shiftId;
+                    }
                 }
-                $cartKey = 'pos_restaurant_cart';
-                $tableKey = $tableId . '_' . $shiftId;
+                if ($tableKey) {
+                    $cartKey = 'pos_restaurant_cart';
+                } else {
+                    return redirect()->back()->with('error', __('Select a table or order type and ensure shift is open.'));
+                }
             }
             if ($tableKey !== null) {
                 $all = session()->get($cartKey, []);
