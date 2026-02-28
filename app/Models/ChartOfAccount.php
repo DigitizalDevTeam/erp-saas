@@ -16,6 +16,7 @@ class ChartOfAccount extends Model
         'type',
         'sub_type',
         'parent',
+        'parent_account_id',
         'is_enabled',
         'description',
         'description_fr',
@@ -56,5 +57,17 @@ class ChartOfAccount extends Model
     public function parentAccount()
     {
         return $this->hasOne('App\Models\ChartOfAccountParent', 'id', 'parent');
+    }
+
+    /** Direct sub-accounts under this account (3rd level in hierarchy) */
+    public function subChildren()
+    {
+        return $this->hasMany(ChartOfAccount::class, 'parent_account_id', 'id');
+    }
+
+    /** Parent account record when this account is under a sub-account */
+    public function parentAccountRecord()
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'parent_account_id', 'id');
     }
 }

@@ -917,6 +917,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('custom-field', CustomFieldController::class)->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::post('chart-of-account/subtype', [ChartOfAccountController::class, 'getSubType'])->name('charofAccount.subType')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('chart-of-account/parent-children', [ChartOfAccountController::class, 'getParentChildren'])->name('chart-of-account.parent-children')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::group(
         [

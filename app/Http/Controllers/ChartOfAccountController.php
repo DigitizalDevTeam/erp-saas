@@ -44,15 +44,17 @@ class ChartOfAccountController extends Controller
         $query = ChartOfAccountParent::where('created_by', \Auth::user()->creatorId())
             ->with([
                 'children' => function ($q) use ($search, $name_column) {
-                    // Sort by account code (numeric) to keep hierarchy, then siblings by name
-                    $q->orderByRaw('CAST(code AS UNSIGNED)')
-                      ->orderBy($name_column);
+                    $q->orderByRaw('CAST(code AS UNSIGNED)')->orderBy($name_column);
                     if (!empty($search)) {
                         $q->where('name', 'LIKE', "%{$search}%")
                           ->orWhere('code', 'LIKE', "%{$search}%");
                     }
                 },
+                'children.subChildren' => function ($q) use ($name_column) {
+                    $q->orderByRaw('CAST(code AS UNSIGNED)')->orderBy($name_column);
+                },
                 'children.subType',
+                'children.subChildren.subType',
                 'children.parentAccount',
                 'accountMain'
             ]);
@@ -250,6 +252,16 @@ class ChartOfAccountController extends Controller
                 $account->type        = $type->type;
                 $account->sub_type    = $request->sub_type;
                 $account->parent      = !empty($existingparentAccount) ? $existingparentAccount->id : 0;
+                $parentAccountIdInput = $request->input('parent_account_id');
+                if (!empty($parentAccountIdInput) && $parentAccountIdInput != '0') {
+                    $underSub = ChartOfAccount::where('id', $parentAccountIdInput)
+                        ->where('parent', $existingparentAccount->id)
+                        ->where('created_by', \Auth::user()->creatorId())
+                        ->first();
+                    $account->parent_account_id = $underSub ? $underSub->id : null;
+                } else {
+                    $account->parent_account_id = null;
+                }
                 $account->description = $request->description;
                 $account->is_enabled  = isset($request->is_enabled) ? 1 : 0;
                 $account->created_by  = \Auth::user()->creatorId();
@@ -470,5 +482,39 @@ class ChartOfAccountController extends Controller
         $types->prepend(__('Select an account'), '0');
 
         return response()->json($types);
+    }
+
+    /**
+     * Return direct sub-accounts of a parent (for "Under sub-account" dropdown when creating).
+     */
+    public function getParentChildren(Request $request)
+    {
+        $parentAccountId = $request->input('parent');
+        if (empty($parentAccountId) || $parentAccountId == '0') {
+            return response()->json(['0' => __('Direct under parent')]);
+        }
+        $parentRecord = ChartOfAccountParent::where('account', $parentAccountId)
+            ->where('created_by', \Auth::user()->creatorId())
+            ->first();
+        if (!$parentRecord) {
+            return response()->json(['0' => __('Direct under parent')]);
+        }
+        $ulane = auth()->user()->lang ?? 'en';
+        $name_column = match ($ulane) {
+            'fr' => 'name_fr',
+            'zh' => 'name_zh',
+            'es' => 'name_es',
+            'pt' => 'name_pt_br',
+            default => 'name',
+        };
+        $children = ChartOfAccount::where('parent', $parentRecord->id)
+            ->whereNull('parent_account_id')
+            ->where('created_by', \Auth::user()->creatorId())
+            ->orderByRaw('CAST(code AS UNSIGNED)')
+            ->orderBy($name_column)
+            ->get()
+            ->pluck($name_column, 'id');
+        $children->prepend(__('Direct under parent'), '0');
+        return response()->json($children);
     }
 }

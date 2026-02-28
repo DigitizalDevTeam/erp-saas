@@ -1415,6 +1415,10 @@
                 if ($('#pos_order_type_hidden').length) data['pos_order_type'] = $('#pos_order_type_hidden').val();
                 if ($('#pos_table_id_hidden').length) data['pos_table_id'] = $('#pos_table_id_hidden').val();
                 if ($('#pos_shift_id_hidden').length) data['pos_shift_id'] = $('#pos_shift_id_hidden').val();
+                if ($('#pos_restaurant_pos_id').length && (orderType === 'delivery' || orderType === 'takeaway')) {
+                    var pid = $('#pos_restaurant_pos_id').val();
+                    if (pid) data['pos_id'] = pid;
+                }
                 $('#commonModal .modal-title').html(title);
                 $('.modal-dialog').removeClass('modal-xl modal-lg modal-md modal-sm').addClass('modal-' + ($(this).data('size') || 'xl'));
                 $.ajax({

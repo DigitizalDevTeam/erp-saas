@@ -76,6 +76,12 @@
             <select class="form-control select" name="parent" id="parent" required>
             </select>
         </div>
+        <div class="form-group col-md-6 acc_sub_type d-none">
+            {{ Form::label('parent_account_id', __('Under sub-account'), ['class' => 'form-label']) }}
+            <select class="form-control select" name="parent_account_id" id="parent_account_id">
+                <option value="0">{{ __('Direct under parent') }}</option>
+            </select>
+        </div>
 
         @if(in_array('en',$act_lan))
         <div class="form-group col-md-6">

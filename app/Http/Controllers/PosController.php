@@ -398,6 +398,92 @@ class PosController extends Controller
             }
         }
 
+        // Restaurant: when paying delivery/takeaway order, load cart from Pos (by pos_id) or from session (new order)
+        $orderType = $request->get('pos_order_type');
+        $posId = (int) $request->get('pos_id');
+        $sessEmpty = empty($sess) || !is_array($sess) || count($sess) === 0;
+        if (Auth::user()->canManagePos() && $sessEmpty && $shiftId && in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
+            $creatorId = Auth::user()->creatorId();
+            $cartKey = 'pos_restaurant_cart';
+            $allCarts = $request->session()->get($cartKey, []);
+
+            if ($posId > 0) {
+                $pos = Pos::where('id', $posId)
+                    ->whereNull('table_id')
+                    ->where('order_type', $orderType)
+                    ->where('shift_id', $shiftId)
+                    ->where('created_by', $creatorId)
+                    ->whereNull('cancelled_at')
+                    ->whereDoesntHave('posPayments')
+                    ->with(['items.product'])
+                    ->first();
+                if ($pos && $pos->items->isNotEmpty()) {
+                    $sess = [];
+                    foreach ($pos->items as $line) {
+                        $product = $line->product;
+                        $price = (float) $line->price;
+                        $qty = (int) $line->quantity;
+                        $taxRate = 0;
+                        if ($product && !empty($product->tax_id)) {
+                            $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
+                            $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
+                            foreach ($taxModels as $t) {
+                                $taxRate += $t->rate ?? 0;
+                            }
+                        }
+                        $subtotal = $price * $qty;
+                        $taxAmount = ($subtotal * $taxRate) / 100;
+                        $sess[$line->product_id] = [
+                            'id' => $line->product_id,
+                            'name' => $product ? $product->name : __('Product'),
+                            'quantity' => $qty,
+                            'price' => $price,
+                            'tax' => $taxRate,
+                            'subtotal' => $subtotal + $taxAmount,
+                            'product_tax' => $taxRate ? $taxRate . '%' : '-',
+                        ];
+                    }
+                    $sessionCartKey = 'pos_' . $pos->id;
+                    if (!empty($allCarts[$sessionCartKey])) {
+                        foreach ($allCarts[$sessionCartKey] as $pid => $v) {
+                            $pid = is_numeric($pid) ? (int) $pid : $pid;
+                            if (isset($sess[$pid])) {
+                                $sess[$pid]['quantity'] += (int) ($v['quantity'] ?? 0);
+                                $sess[$pid]['subtotal'] = ($sess[$pid]['price'] * $sess[$pid]['quantity']) * (1 + ($sess[$pid]['tax'] ?? 0) / 100);
+                            } else {
+                                $sess[$pid] = [
+                                    'id' => $pid,
+                                    'name' => $v['name'] ?? __('Product'),
+                                    'quantity' => (int) ($v['quantity'] ?? 1),
+                                    'price' => (float) ($v['price'] ?? 0),
+                                    'tax' => (float) ($v['tax'] ?? 0),
+                                    'subtotal' => (float) ($v['subtotal'] ?? 0),
+                                    'product_tax' => $v['product_tax'] ?? '-',
+                                ];
+                            }
+                        }
+                    }
+                }
+            } else {
+                $sessionCartKey = $orderType . '_' . $shiftId;
+                if (!empty($allCarts[$sessionCartKey])) {
+                    $sess = [];
+                    foreach ($allCarts[$sessionCartKey] as $pid => $v) {
+                        $pid = is_numeric($pid) ? (int) $pid : $pid;
+                        $sess[$pid] = [
+                            'id' => $pid,
+                            'name' => $v['name'] ?? __('Product'),
+                            'quantity' => (int) ($v['quantity'] ?? 1),
+                            'price' => (float) ($v['price'] ?? 0),
+                            'tax' => (float) ($v['tax'] ?? 0),
+                            'subtotal' => (float) ($v['subtotal'] ?? 0),
+                            'product_tax' => $v['product_tax'] ?? '-',
+                        ];
+                    }
+                }
+            }
+        }
+
         if (Auth::user()->canManagePos() && isset($sess) && !empty($sess) && count($sess) > 0) {
 
 
@@ -823,6 +909,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             // Restaurant: pay existing table order from DB when session cart is empty
             $tableId = (int) $request->get('pos_table_id');
             $shiftId = (int) $request->get('pos_shift_id');
+            $orderType = $request->get('pos_order_type');
+            $posIdParam = (int) $request->get('pos_id');
             if (($tableId && $shiftId) && (empty($sales) || !is_array($sales) || count($sales) === 0)) {
                 $existingPos = Pos::where('table_id', $tableId)
                     ->where('shift_id', $shiftId)
@@ -858,6 +946,85 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     }
                 }
             }
+            // Restaurant: pay delivery/takeaway order from DB or session when cart is empty
+            if ((empty($sales) || !is_array($sales) || count($sales) === 0) && $shiftId && in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
+                $cartKey = 'pos_restaurant_cart';
+                $allCarts = $request->session()->get($cartKey, []);
+                if ($posIdParam > 0) {
+                    $existingPos = Pos::where('id', $posIdParam)
+                        ->whereNull('table_id')
+                        ->where('order_type', $orderType)
+                        ->where('shift_id', $shiftId)
+                        ->where('created_by', $user_id)
+                        ->whereNull('cancelled_at')
+                        ->whereDoesntHave('posPayments')
+                        ->with(['items.product'])
+                        ->first();
+                    if ($existingPos && $existingPos->items->isNotEmpty()) {
+                        $sales = [];
+                        foreach ($existingPos->items as $line) {
+                            $product = $line->product;
+                            $price = (float) $line->price;
+                            $qty = (int) $line->quantity;
+                            $taxRate = 0;
+                            if ($product && !empty($product->tax_id)) {
+                                $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
+                                $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
+                                foreach ($taxModels as $t) {
+                                    $taxRate += $t->rate ?? 0;
+                                }
+                            }
+                            $subtotal = $price * $qty * (1 + $taxRate / 100);
+                            $sales[$line->product_id] = [
+                                'id' => $line->product_id,
+                                'name' => $product ? $product->name : __('Product'),
+                                'quantity' => $qty,
+                                'price' => $price,
+                                'tax' => $taxRate,
+                                'subtotal' => $subtotal,
+                                'product_tax' => $taxRate ? $taxRate . '%' : '-',
+                            ];
+                        }
+                        $sessionCartKey = 'pos_' . $existingPos->id;
+                        if (!empty($allCarts[$sessionCartKey])) {
+                            foreach ($allCarts[$sessionCartKey] as $pid => $v) {
+                                $pid = is_numeric($pid) ? (int) $pid : $pid;
+                                if (isset($sales[$pid])) {
+                                    $sales[$pid]['quantity'] += (int) ($v['quantity'] ?? 0);
+                                    $sales[$pid]['subtotal'] = ($sales[$pid]['price'] * $sales[$pid]['quantity']) * (1 + ($sales[$pid]['tax'] ?? 0) / 100);
+                                } else {
+                                    $sales[$pid] = [
+                                        'id' => $pid,
+                                        'name' => $v['name'] ?? __('Product'),
+                                        'quantity' => (int) ($v['quantity'] ?? 1),
+                                        'price' => (float) ($v['price'] ?? 0),
+                                        'tax' => (float) ($v['tax'] ?? 0),
+                                        'subtotal' => (float) ($v['subtotal'] ?? 0),
+                                        'product_tax' => $v['product_tax'] ?? '-',
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    $sessionCartKey = $orderType . '_' . $shiftId;
+                    if (!empty($allCarts[$sessionCartKey])) {
+                        $sales = [];
+                        foreach ($allCarts[$sessionCartKey] as $pid => $v) {
+                            $pid = is_numeric($pid) ? (int) $pid : $pid;
+                            $sales[$pid] = [
+                                'id' => $pid,
+                                'name' => $v['name'] ?? __('Product'),
+                                'quantity' => (int) ($v['quantity'] ?? 1),
+                                'price' => (float) ($v['price'] ?? 0),
+                                'tax' => (float) ($v['tax'] ?? 0),
+                                'subtotal' => (float) ($v['subtotal'] ?? 0),
+                                'product_tax' => $v['product_tax'] ?? '-',
+                            ];
+                        }
+                    }
+                }
+            }
 
             if (isset($sales) && !empty($sales) && count($sales) > 0) {
                 $resolved_warehouse_id = warehouse::warehouse_id($request->warehouse_name);
@@ -870,10 +1037,25 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 }
                 $warehouse_id = $resolved_warehouse_id;
 
-                // Restaurant: use existing Pos for this table+shift if we just loaded $sales from it
+                // Restaurant: use existing Pos for this table+shift or delivery/takeaway+pos_id
                 $useExistingPos = false;
+                $existingPos = null;
                 if ($tableId && $shiftId) {
                     $existingPos = Pos::where('table_id', $tableId)
+                        ->where('shift_id', $shiftId)
+                        ->where('created_by', $user_id)
+                        ->whereNull('cancelled_at')
+                        ->whereDoesntHave('posPayments')
+                        ->with('items')
+                        ->first();
+                    if ($existingPos && $existingPos->items->isNotEmpty()) {
+                        $useExistingPos = true;
+                    }
+                }
+                if (!$useExistingPos && $posIdParam > 0 && $shiftId && in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
+                    $existingPos = Pos::where('id', $posIdParam)
+                        ->whereNull('table_id')
+                        ->where('order_type', $orderType)
                         ->where('shift_id', $shiftId)
                         ->where('created_by', $user_id)
                         ->whereNull('cancelled_at')
@@ -957,10 +1139,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
                     session()->forget('pos');
                     $cartKey = 'pos_restaurant_cart';
-                    $tableKey = $tableId . '_' . $shiftId;
+                    $sessionCartKeyToClear = $pos->table_id ? ($tableId . '_' . $shiftId) : ('pos_' . $pos->id);
                     $allCarts = session()->get($cartKey, []);
-                    if (isset($allCarts[$tableKey])) {
-                        unset($allCarts[$tableKey]);
+                    if (isset($allCarts[$sessionCartKeyToClear])) {
+                        unset($allCarts[$sessionCartKeyToClear]);
                         session()->put($cartKey, $allCarts);
                     }
                     // Table becomes available after payment so next click asks for guests

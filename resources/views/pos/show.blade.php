@@ -213,6 +213,7 @@
                 pos_table_id: $('#pos_table_id_hidden').val() || '',
                 pos_shift_id: $('#pos_shift_id_hidden').val() || '',
             };
+                if ($('#pos_restaurant_pos_id').length && $('#pos_restaurant_pos_id').val()) data.pos_id = $('#pos_restaurant_pos_id').val();
             payments.forEach(function(p, i) {
                 data['payments[' + i + '][payment_method]'] = p.payment_method;
                 data['payments[' + i + '][amount]'] = p.amount;
@@ -244,21 +245,25 @@
         $.ajax({
             url: "{{ route('pos.data.store') }}",
             method: 'GET',
-            data: {
-                vc_name: $('#vc_name_hidden').val(),
-                warehouse_name: $('#warehouse_name_hidden').val(),
-                discount: $('#discount_hidden').val(),
-                quotation_id: $('#quotation_id').val(),
-                payment_method: method,
-                amount: amount.toFixed(2),
-                change_amount: $('#payment_change').val() || '0',
-                transaction_id: $('#payment_transaction_id').val() || '',
-                credit_terms: $('#payment_credit_terms').val() || '',
-                notes: $('#payment_notes').val() || '',
-                pos_order_type: $('#pos_order_type_hidden').val() || '',
-                pos_table_id: $('#pos_table_id_hidden').val() || '',
-                pos_shift_id: $('#pos_shift_id_hidden').val() || '',
-            },
+            data: (function() {
+                var d = {
+                    vc_name: $('#vc_name_hidden').val(),
+                    warehouse_name: $('#warehouse_name_hidden').val(),
+                    discount: $('#discount_hidden').val(),
+                    quotation_id: $('#quotation_id').val(),
+                    payment_method: method,
+                    amount: amount.toFixed(2),
+                    change_amount: $('#payment_change').val() || '0',
+                    transaction_id: $('#payment_transaction_id').val() || '',
+                    credit_terms: $('#payment_credit_terms').val() || '',
+                    notes: $('#payment_notes').val() || '',
+                    pos_order_type: $('#pos_order_type_hidden').val() || '',
+                    pos_table_id: $('#pos_table_id_hidden').val() || '',
+                    pos_shift_id: $('#pos_shift_id_hidden').val() || '',
+                };
+                if ($('#pos_restaurant_pos_id').length && $('#pos_restaurant_pos_id').val()) d.pos_id = $('#pos_restaurant_pos_id').val();
+                return d;
+            })(),
             beforeSend: function () {
                 ele.prop('disabled', true);
             },
