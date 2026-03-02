@@ -93,6 +93,11 @@
                     @endif
                 </div>
 
+                <div class="mb-2">
+                    <label class="form-label small mb-1">{{ __('Tip') }}</label>
+                    <input type="number" step="0.01" min="0" class="form-control form-control-sm" id="payment_tip" value="0" placeholder="0">
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label small mb-1">{{ __('Notes') }}</label>
                     <textarea class="form-control form-control-sm" id="payment_notes" name="notes" rows="2" placeholder="{{ __('Notes') }}"></textarea>
@@ -209,6 +214,7 @@
                 quotation_id: $('#quotation_id').val(),
                 payment_method: 'mixed',
                 notes: $('#payment_notes').val() || '',
+                tip: parseFloat($('#payment_tip').val()) || 0,
                 pos_order_type: $('#pos_order_type_hidden').val() || '',
                 pos_table_id: $('#pos_table_id_hidden').val() || '',
                 pos_shift_id: $('#pos_shift_id_hidden').val() || '',
@@ -255,9 +261,10 @@
                     amount: amount.toFixed(2),
                     change_amount: $('#payment_change').val() || '0',
                     transaction_id: $('#payment_transaction_id').val() || '',
-                    credit_terms: $('#payment_credit_terms').val() || '',
-                    notes: $('#payment_notes').val() || '',
-                    pos_order_type: $('#pos_order_type_hidden').val() || '',
+credit_terms: $('#payment_credit_terms').val() || '',
+                notes: $('#payment_notes').val() || '',
+                tip: parseFloat($('#payment_tip').val()) || 0,
+                pos_order_type: $('#pos_order_type_hidden').val() || '',
                     pos_table_id: $('#pos_table_id_hidden').val() || '',
                     pos_shift_id: $('#pos_shift_id_hidden').val() || '',
                 };

@@ -25,6 +25,7 @@ class PosPayment extends Model
         'change_amount',
         'discount',
         'discount_amount',
+        'tip',
         'notes',
         'created_by',
     ];

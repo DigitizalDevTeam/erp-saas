@@ -882,6 +882,35 @@ class Utility extends Model
         return $settings["bill_prefix"] . sprintf("%05d", $number);
     }
 
+    /**
+     * Convert amount to words (for receipts). Handles integers and 2 decimal places.
+     */
+    public static function amountInWords($amount)
+    {
+        $amount = (float) $amount;
+        $int = (int) floor($amount);
+        $dec = (int) round(($amount - $int) * 100);
+        $ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+        $tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+        $h = function ($n) use ($ones, $tens) {
+            if ($n < 20) return $ones[$n];
+            return $tens[(int)($n / 10)] . ($n % 10 ? ' ' . $ones[$n % 10] : '');
+        };
+        $word = '';
+        if ($int >= 1000) {
+            $word .= $h((int)($int / 1000)) . ' thousand ';
+            $int %= 1000;
+        }
+        if ($int >= 100) {
+            $word .= $ones[(int)($int / 100)] . ' hundred ';
+            $int %= 100;
+        }
+        if ($int > 0) $word .= $h($int);
+        $word = trim($word) ?: 'zero';
+        if ($dec > 0) $word .= ' point ' . $h((int)($dec / 10)) . ($dec % 10 ? ' ' . $ones[$dec % 10] : '');
+        return ucfirst($word);
+    }
+
     public static function vendorBillNumberFormat($number)
     {
         $settings = Utility::settings();

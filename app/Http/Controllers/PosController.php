@@ -820,6 +820,7 @@ class PosController extends Controller
         $totalPaid = $mainsubtotal - $discount;
         $payments = $request->input('payments'); // optional: [{ payment_method, amount, credit_terms?, customer_id? }, ...]
         if (is_array($payments) && count($payments) > 0) {
+            $firstPayment = true;
             foreach ($payments as $p) {
                 $amt = (float) ($p['amount'] ?? 0);
                 if ($amt <= 0) {
@@ -836,8 +837,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $posPayment->amount = $amt;
                 $posPayment->discount = 0;
                 $posPayment->discount_amount = $amt;
+                $posPayment->tip = $firstPayment ? (float) ($request->tip ?? 0) : 0;
                 $posPayment->created_by = $user_id;
                 $posPayment->save();
+                $firstPayment = false;
             }
         } else {
             $paidAmount = (float) ($request->amount ?? $totalPaid);
@@ -857,6 +860,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $posPayment->change_amount = $changeAmount;
             $posPayment->discount = $discount;
             $posPayment->discount_amount = $totalPaid;
+            $posPayment->tip = (float) ($request->tip ?? 0);
             $posPayment->notes = $request->notes ?: null;
             $posPayment->created_by = $user_id;
             $posPayment->save();
@@ -1099,6 +1103,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $total = $mainsubtotal - (float) $discount;
                     $payments = $request->input('payments');
                     if (is_array($payments) && count($payments) > 0) {
+                        $firstPmt = true;
                         foreach ($payments as $p) {
                             $amt = (float) ($p['amount'] ?? 0);
                             if ($amt <= 0) continue;
@@ -1112,8 +1117,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                             $posPayment->amount = $amt;
                             $posPayment->discount = 0;
                             $posPayment->discount_amount = $amt;
+                            $posPayment->tip = $firstPmt ? (float) ($request->tip ?? 0) : 0;
                             $posPayment->created_by = $user_id;
                             $posPayment->save();
+                            $firstPmt = false;
                         }
                     } else {
                         $paidAmount = (float) ($request->amount ?? $total);
@@ -1131,6 +1138,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $posPayment->change_amount = $changeAmount;
                         $posPayment->discount = $discount;
                         $posPayment->discount_amount = $total;
+                        $posPayment->tip = (float) ($request->tip ?? 0);
                         $posPayment->notes = $request->notes ?: null;
                         $posPayment->created_by = $user_id;
                         $posPayment->save();
@@ -2217,30 +2225,34 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $posPayments = collect();
 
         if ($request->pos_id && Auth::user()->canManagePos()) {
-            $pos = Pos::with(['items', 'customer', 'warehouse', 'posPayments'])->where('id', $request->pos_id)->where('created_by', $user->creatorId())->first();
+            $pos = Pos::with(['items', 'customer', 'warehouse', 'posPayments', 'table'])->where('id', $request->pos_id)->where('created_by', $user->creatorId())->first();
             if ($pos) {
                 $posPayments = $pos->posPayments;
                 $customer = $pos->customer_id ? $pos->customer : null;
                 $warehouse = $pos->warehouse;
+                $clientName = !empty($pos->guest_name) ? $pos->guest_name : (!empty($customer->name) ? $customer->name : __('pos.walkin_customer'));
                 $details = [
                     'pos_id' => $user->posNumberFormat($pos->pos_id),
                     'customer' => $customer ? $customer->toArray() : [],
                     'warehouse' => $warehouse ? $warehouse->toArray() : [],
                     'user' => $user->toArray(),
                     'date' => $pos->pos_date ?? date('Y-m-d'),
+                    'client_name' => $clientName,
+                    'table_name' => $pos->table ? $pos->table->name : null,
                 ];
                 $warehouseName = $details['warehouse']['name'] ?? ($warehouse ? $warehouse->name : '-');
                 $details['warehouse']['details'] = '<h7 class="text-dark">' . ucfirst($warehouseName) . '</p></h7>';
                 if (!empty($details['customer']['name'])) {
                     $details['customer']['details'] = '<h6 class="text-dark">' . ucfirst($details['customer']['name']) . '</h6>';
                 } else {
-                    $details['customer']['details'] = '<h2 class="h6"><b>' . __('Walk-in Customer') . '</b></h2>';
+                    $details['customer']['details'] = '<h2 class="h6"><b>' . __('pos.walkin_customer') . '</b></h2>';
                 }
                 $details['customer']['shippdetails'] = '-';
                 $details['user']['details'] = '<h6 class="text-dark"><b>' . ucfirst($user->name) . '</b></h6>';
-                $sales = ['data' => [], 'discount' => '0', 'sub_total' => '0', 'total' => '0'];
+                $sales = ['data' => [], 'discount' => '0', 'sub_total' => '0', 'total' => '0', 'tip' => '0'];
                 $mainsubtotal = 0;
                 $discount = 0;
+                $totalTip = (float) $posPayments->sum('tip');
                 foreach ($pos->items as $item) {
                     $product = ProductService::find($item->product_id);
                     $price = (float) $item->price;
@@ -2258,14 +2270,34 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         'product_tax' => $taxRate . '%',
                         'tax_amount' => $user->priceFormat($tax),
                         'subtotal' => $user->priceFormat($lineTotal),
+                        'description' => $item->description ?? '',
                     ];
                 }
                 $sales['discount'] = $user->priceFormat($discount);
                 $sales['sub_total'] = $user->priceFormat($mainsubtotal);
+                $sales['tip'] = $user->priceFormat($totalTip);
                 $sales['total'] = $user->priceFormat($mainsubtotal - $discount);
+                $vatBreakdown = [];
+                foreach ($pos->items as $item) {
+                    $price = (float) $item->price;
+                    $qty = (int) $item->quantity;
+                    $taxRate = (float) Utility::totalTaxRate($item->tax);
+                    $net = $price * $qty;
+                    $vatAmount = ($net * $taxRate) / 100;
+                    $key = (string) $taxRate;
+                    if (!isset($vatBreakdown[$key])) {
+                        $vatBreakdown[$key] = ['rate' => $taxRate, 'net' => 0, 'vat' => 0, 'amount' => 0];
+                    }
+                    $vatBreakdown[$key]['net'] += $net;
+                    $vatBreakdown[$key]['vat'] += $vatAmount;
+                    $vatBreakdown[$key]['amount'] += $net + $vatAmount;
+                }
+                $vatBreakdown = array_values($vatBreakdown);
+                $bankAccounts = BankAccount::where('created_by', $user->creatorId())
+                    ->select('id', 'holder_name', 'bank_name', 'account_number')->get();
                 $productServices = ProductService::where('created_by', $user->creatorId())->get();
                 $barcode = ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()];
-                return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments'));
+                return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts'));
             }
         }
 

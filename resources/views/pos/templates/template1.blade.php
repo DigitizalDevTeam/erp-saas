@@ -279,18 +279,12 @@
             <tr>
                 <td>
                     <strong style="margin-bottom: 10px; display:block;">{{__('Bill To')}}:</strong>
-                    @if(!empty($customer->billing_name))
-                        <p>
-                            {{!empty($customer->billing_name)?$customer->billing_name:''}}<br>
-                            {{!empty($customer->billing_address)?$customer->billing_address:''}}<br>
-                            {{!empty($customer->billing_city)?$customer->billing_city:'' .', '}}<br>
-                            {{!empty($customer->billing_state)?$customer->billing_state:''.', '}},
-                            {{!empty($customer->billing_zip)?$customer->billing_zip:''}}<br>
-                            {{!empty($customer->billing_country)?$customer->billing_country:''}}<br>
-                            {{!empty($customer->billing_phone)?$customer->billing_phone:''}}<br>
-                        </p>
+                    @if(!empty($customer->billing_name) || !empty($customer->name))
+                        <p>{{ !empty($customer->billing_name) ? $customer->billing_name : ($customer->name ?? __('pos.walkin_customer')) }}</p>
+                    @elseif(!empty($pos->guest_name))
+                        <p>{{ $pos->guest_name }}</p>
                     @else
-                        -
+                        <p>{{ __('pos.walkin_customer') }}</p>
                     @endif
                 </td>
                 @if($settings['shipping_display']=='on')
@@ -329,7 +323,7 @@
                 @if(isset($pos->itemData) && count($pos->itemData) > 0)
                     @foreach($pos->itemData as $key => $item)
                         <tr>
-                            <td>{{$item->name}}</td>
+                            <td>{{ $item->name }}@if(!empty($item->description))<br><strong>{{ $item->description }}</strong>@endif</td>
                             <td>{{$item->quantity}}</td>
                             <td>{{Utility::priceFormat($settings,$item->price)}}</td>
                             <td>
@@ -374,6 +368,15 @@
                             <td>{{__('Discount')}}:</td>
                             @if(!empty($posPayment->discount))
                                 <td>{{Utility::priceFormat($settings,$posPayment->discount)}}</td>
+                            @else
+                                <td>-</td>
+                            @endif
+                        </tr>
+
+                        <tr>
+                            <td>{{__('Tip')}}:</td>
+                            @if(!empty($posPayment->tip) && (float)$posPayment->tip > 0)
+                                <td>{{ Utility::priceFormat($settings, $posPayment->tip) }}</td>
                             @else
                                 <td>-</td>
                             @endif

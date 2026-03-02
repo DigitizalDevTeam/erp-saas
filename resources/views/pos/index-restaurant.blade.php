@@ -1491,14 +1491,16 @@
                 function printSlip(title, slipRows) {
                     if (slipRows.length === 0) return;
                     var w = window.open('', '_blank', 'width=380,height=400');
-                    w.document.write('<html><head><title>' + title + '</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note{font-size:12px;color:#555;font-style:italic;}</style></head><body>');
+                    w.document.write('<html><head><title>' + title + '</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note-bold{font-weight:bold;font-size:13px;margin-top:2px;}</style></head><body>');
                     w.document.write('<h3>' + title + '</h3>');
                     w.document.write('<p><strong>{{ __("pos.table") }}:</strong> ' + (tableName || '—') + '</p>');
-                    w.document.write('<p><small>' + new Date().toLocaleString() + '</small></p>');
-                    w.document.write('<table><thead><tr><th>{{ __("pos.name") }}</th><th>{{ __("pos.qty") }}</th><th>{{ __("Note") }}</th></tr></thead><tbody>');
+                    w.document.write('<p><strong>{{ __("pos.time_sent") }}:</strong> ' + new Date().toLocaleString() + '</p>');
+                    w.document.write('<table><thead><tr><th>{{ __("pos.name") }}</th><th>{{ __("pos.qty") }}</th></tr></thead><tbody>');
                     slipRows.forEach(function(r) {
+                        var name = (r.name || '').replace(/</g, '&lt;');
                         var note = (r.note || '').replace(/</g, '&lt;');
-                        w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + '</td><td>' + r.qty + '</td><td class="note">' + note + '</td></tr>');
+                        var noteHtml = note ? '<br><span class="note-bold">' + note + '</span>' : '';
+                        w.document.write('<tr><td>' + name + noteHtml + '</td><td>' + r.qty + '</td></tr>');
                     });
                     w.document.write('</tbody></table></body></html>');
                     w.document.close();
