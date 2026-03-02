@@ -335,7 +335,7 @@
                                             <tr>
                                                 <td colspan="6"></td>
                                                 <td class="text-end"><b>{{__('Paid')}}</b></td>
-                                                <td class="text-end">{{$user->priceFormat(($purchase->getTotal()-$purchase->getDue()))}}</td>
+                                                <td class="text-end">{{$user->priceFormat($purchase->getPaid())}}</td>
                                             </tr>
 
                                             <tr>

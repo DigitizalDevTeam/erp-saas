@@ -100,15 +100,34 @@ class Purchase extends Model
 
         return $totalDiscount;
     }
+    /** Payment method: cash (or other actual payment) - counts towards paid */
+    const PAYMENT_METHOD_CASH = 0;
+    /** Payment method: credit - does NOT count towards paid; purchase stays unpaid */
+    const PAYMENT_METHOD_CREDIT = 1;
+
     public function getDue()
     {
-        $due = 0;
-        foreach($this->payments as $payment)
-        {
-            $due += $payment->amount;
+        $paidTotal = 0;
+        foreach ($this->payments as $payment) {
+            // Credit payments do not count as paid; only actual payments reduce due
+            if ((int) ($payment->payment_method ?? 0) !== self::PAYMENT_METHOD_CREDIT) {
+                $paidTotal += $payment->amount;
+            }
         }
 
-        return ($this->getTotal() - $due);
+        return ($this->getTotal() - $paidTotal);
+    }
+
+    /** Total amount paid (excluding credit payments) */
+    public function getPaid()
+    {
+        $paid = 0;
+        foreach ($this->payments as $payment) {
+            if ((int) ($payment->payment_method ?? 0) !== self::PAYMENT_METHOD_CREDIT) {
+                $paid += $payment->amount;
+            }
+        }
+        return $paid;
     }
     public function lastPayments()
     {

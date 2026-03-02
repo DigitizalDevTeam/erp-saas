@@ -10,6 +10,13 @@
             {{ Form::number('amount',$purchase->getDue(), array('class' => 'form-control','required'=>'required','step'=>'0.01', 'placeholder' => __('Enter Amount'))) }}
         </div>
         <div class="form-group  col-md-6">
+            {{ Form::label('payment_method', __('Payment Type'),['class'=>'form-label']) }}<x-required></x-required>
+            {{ Form::select('payment_method', [0 => __('Cash'), 1 => __('Credit')], 0, array('class' => 'form-control select','required'=>'required')) }}
+            <div class="text-xs mt-1 text-muted">
+                {{ __('Credit: purchase will show as Unpaid; Paid=0, Due=full amount.') }}
+            </div>
+        </div>
+        <div class="form-group  col-md-6">
             {{ Form::label('account_id', __('Account'),['class'=>'form-label']) }}<x-required></x-required>
             {{ Form::select('account_id',$accounts,null, array('class' => 'form-control select','required'=>'required')) }}
             <div class="text-xs mt-1">

@@ -409,7 +409,7 @@
                                 </tr>
                                 <tr style="border-bottom:1px solid {{ $color }};">
                                     <td>{{ __('Paid') }}:</td>
-                                    <td>{{ Utility::priceFormat($settings, $purchase->getTotal() - $purchase->getDue()) }}
+                                    <td>{{ Utility::priceFormat($settings, $purchase->getPaid()) }}
                                     </td>
                                 </tr>
 

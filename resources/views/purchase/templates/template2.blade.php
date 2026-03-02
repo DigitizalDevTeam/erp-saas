@@ -370,7 +370,7 @@
                         </tr>
                         <tr>
                             <td>{{__('Paid')}}:</td>
-                            <td>{{Utility::priceFormat($settings,($purchase->getTotal()-$purchase->getDue()))}}</td>
+                            <td>{{Utility::priceFormat($settings, $purchase->getPaid())}}</td>
                         </tr>
 
                         <tr>

@@ -790,7 +790,7 @@ class PurchaseController extends Controller
             $purchasePayment->date           = $request->date;
             $purchasePayment->amount         = $request->amount;
             $purchasePayment->account_id     = $request->account_id;
-            $purchasePayment->payment_method = 0;
+            $purchasePayment->payment_method = (int) ($request->input('payment_method', 0));
             $purchasePayment->reference      = $request->reference;
             $purchasePayment->description    = $request->description;
             if(!empty($request->add_receipt))
@@ -811,14 +811,15 @@ class PurchaseController extends Controller
                 $purchase->save();
             }
 
-            if($due <= 0)
-            {
-                $purchase->status = 4;
+            $paid = $purchase->getPaid();
+            if ($paid <= 0) {
+                $purchase->status = 2; // Unpaid (e.g. only credit payments)
                 $purchase->save();
-            }
-            else
-            {
-                $purchase->status = 3;
+            } elseif ($due <= 0) {
+                $purchase->status = 4; // Paid
+                $purchase->save();
+            } else {
+                $purchase->status = 3; // Partially Paid
                 $purchase->save();
             }
             $purchasePayment->user_id    = $purchase->vender_id;
@@ -884,16 +885,14 @@ class PurchaseController extends Controller
             $purchase = Purchase::where('id', $purchase_id)->first();
 
             $due   = $purchase->getDue();
-            $total = $purchase->getTotal();
+            $paid  = $purchase->getPaid();
 
-            if($due > 0 && $total != $due)
-            {
-                $purchase->status = 3;
-
-            }
-            else
-            {
-                $purchase->status = 2;
+            if ($due <= 0) {
+                $purchase->status = 4; // Paid
+            } elseif ($paid > 0) {
+                $purchase->status = 3; // Partially Paid
+            } else {
+                $purchase->status = 2; // Unpaid
             }
 
             Utility::userBalance('vendor', $purchase->vender_id, $payment->amount, 'credit');
