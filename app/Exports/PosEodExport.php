@@ -26,7 +26,12 @@ class PosEodExport implements FromArray, WithColumnWidths, WithStyles
         public array $categorySummary,
         public array $taxSummary,
         public array $itemsSold,
-        public $poses
+        public $poses,
+        // new fields
+        public float $creditTotal = 0,
+        public array $accountsReceivableRows = [],
+        public float $accountsReceivableTotal = 0,
+        public array $receivedCreditPayments = []
     ) {}
 
     public function columnWidths(): array
@@ -57,12 +62,26 @@ class PosEodExport implements FromArray, WithColumnWidths, WithStyles
         $rows[] = ['Receipts Issued: ' . $this->receiptsCount];
         $rows[] = ['Date: ' . $this->date . '  Time: ' . date('H:i:s')];
         $rows[] = [];
-        $rows[] = ['SALES BY PAYMENT METHOD'];
+        $rows[] = [__('pos.sales_by_payment_method') ?: 'SALES BY PAYMENT METHOD'];
         $rows[] = ['PAYMENT METHOD', 'AMOUNT', 'NO.'];
         foreach ($this->paymentMethodRows as $r) {
             $rows[] = [$r['name'], $fmt($r['amount']), $r['count']];
         }
+        // show credit total as separate line if available
+        if ($this->creditTotal > 0) {
+            $rows[] = [__('pos.credit_sales_ar') ?: 'Credit sales (AR)', $fmt($this->creditTotal)];
+        }
         $rows[] = [];
+        // Accounts receivable details
+        if (!empty($this->accountsReceivableRows)) {
+            $rows[] = [__('pos.accounts_receivable') ?: 'ACCOUNTS RECEIVABLE'];
+            $rows[] = [__('Invoice'), __('Total'), __('Paid'), __('Outstanding')];
+            foreach ($this->accountsReceivableRows as $a) {
+                $rows[] = [$a['invoice_id'], $fmt($a['total']), $fmt($a['paid']), $fmt($a['outstanding'])];
+            }
+            $rows[] = [__('pos.total_outstanding') ?: 'Total outstanding', $fmt($this->accountsReceivableTotal)];
+            $rows[] = [];
+        }
         $rows[] = ['STATEMENT BY PAYMENT METHOD'];
         $rows[] = ['N.', 'TICKET', 'COUNT', 'TIME', 'Employee', 'AMOUNT'];
         $n = 1;
@@ -95,6 +114,15 @@ class PosEodExport implements FromArray, WithColumnWidths, WithStyles
         $rows[] = ['ITEM', 'QTY', 'AMOUNT'];
         foreach ($this->itemsSold as $name => $r) {
             $rows[] = [$name, $r['qty'], $fmt($r['amount'])];
+        }
+        // provide received credit payments in case needed
+        if (!empty($this->receivedCreditPayments)) {
+            $rows[] = [];
+            $rows[] = [__('pos.credit_received_label') ?: 'CREDIT RECEIVED'];
+            $rows[] = [__('Invoice'), __('Amount'), __('Payment Method')];
+            foreach ($this->receivedCreditPayments as $rp) {
+                $rows[] = [$rp['invoice_id'], $fmt($rp['amount']), $rp['payment_method']];
+            }
         }
         return $rows;
     }

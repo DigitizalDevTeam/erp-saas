@@ -3008,14 +3008,62 @@ class ReportController extends Controller
         $creditTotal = 0;
         foreach ($poses as $p) {
             foreach ($p->posPayments ?? [] as $pm) {
-                $m = $pm->payment_method ?? 'cash';
+                $m = strtolower($pm->payment_method ?? 'cash');
                 if ($m === 'cash') {
                     $cashTotal += $pm->amount;
-                } elseif ($m === 'card') {
+                } elseif ($m === 'card' || in_array($m, ['mpesa', 'bank_transfer', 'visa', 'cheque'])) {
+                    // card-like methods are still count as card here
                     $cardTotal += $pm->amount;
-                } else {
+                } elseif ($m === 'credit') {
+                    // credit sales are counted in totalSales but not in cash
                     $creditTotal += $pm->amount;
+                } else {
+                    // fallback treat as cash
+                    $cashTotal += $pm->amount;
                 }
+            }
+        }
+
+        // calculate accounts receivable for credit sales and credit payments received
+        $accountsReceivableRows = [];
+        $accountsReceivableTotal = 0;
+        if ($posIds->isNotEmpty()) {
+            $creditInvoices = \App\Models\Invoice::whereIn('pos_id', $posIds)
+                ->whereIn('status', [2, 3]) // unpaid or partially paid
+                ->get();
+            foreach ($creditInvoices as $inv) {
+                $paid = $inv->getTotal() - $inv->getDue();
+                $outstanding = $inv->getDue();
+                $accountsReceivableRows[] = [
+                    'invoice_id' => $inv->invoice_id,
+                    'total' => $inv->getTotal(),
+                    'paid' => $paid,
+                    'outstanding' => $outstanding,
+                ];
+                $accountsReceivableTotal += $outstanding;
+            }
+        }
+
+        $receivedCreditPayments = [];
+        if (!empty($shiftIdsForDay) && $shiftIdsForDay->isNotEmpty()) {
+            $invoicePayments = \App\Models\InvoicePayment::whereIn('pos_shift_id', $shiftIdsForDay)
+                ->whereDate('date', $date)
+                ->with(['invoice'])
+                ->get();
+            foreach ($invoicePayments as $ip) {
+                // payment_method: 0=cash, 1=card, 2=cheque, 3=bank_transfer, etc.
+                $methodLabel = match((int)($ip->payment_method ?? 0)) {
+                    0 => __('Cash'),
+                    1 => __('Card'),
+                    2 => __('Cheque'),
+                    3 => __('Bank Transfer'),
+                    default => __('Other'),
+                };
+                $receivedCreditPayments[] = [
+                    'invoice_id' => $ip->invoice?->invoice_id ?? '',
+                    'amount' => $ip->amount,
+                    'payment_method' => $methodLabel,
+                ];
             }
         }
 
@@ -3039,6 +3087,7 @@ class ReportController extends Controller
             'paymentMethodRows' => $paymentMethodRows,
             'cashFromBalance' => $cashFromBalance ?? 0,
             'cashTotal' => $cashTotal,
+            'creditTotal' => $creditTotal,
             'statementRows' => $statementRows,
             'salesPerEmployee' => array_values($salesPerEmployee),
             'customersCount' => $customersCount,
@@ -3047,6 +3096,9 @@ class ReportController extends Controller
             'categorySummary' => $categorySummary,
             'taxSummary' => $taxSummary,
             'itemsSold' => $itemsSold,
+            'accountsReceivableRows' => $accountsReceivableRows,
+            'accountsReceivableTotal' => $accountsReceivableTotal,
+            'receivedCreditPayments' => $receivedCreditPayments,
             'openShiftsForDate' => $openShiftsForDate,
             'isDayClosed' => $isDayClosed,
             'canCloseDay' => \Auth::user()->creatorId() === \Auth::user()->id,
@@ -3086,6 +3138,22 @@ class ReportController extends Controller
         $ticketFrom = $poses->min('pos_id');
         $ticketTo = $poses->max('pos_id');
 
+        // compute credit/cash/card totals for export in case needed
+        $creditTotal = 0;
+        foreach ($poses as $p) {
+            foreach ($p->posPayments ?? [] as $pm) {
+                $m = strtolower($pm->payment_method ?? 'cash');
+                if ($m === 'credit') {
+                    $creditTotal += $pm->amount;
+                }
+            }
+        }
+
+        // shifts opened on this date (for invoice payments)
+        $shiftIdsForDay = \App\Models\PosShift::where('created_by', $creatorId)
+            ->whereDate('opened_at', $date)
+            ->pluck('id');
+
         $posIds = $poses->pluck('id');
         $paymentMethodRows = [];
         if ($posIds->isNotEmpty()) {
@@ -3100,6 +3168,49 @@ class ReportController extends Controller
         }
         if (empty($paymentMethodRows)) {
             $paymentMethodRows[] = ['name' => 'POS', 'amount' => $totalSales, 'count' => $receiptsCount];
+        }
+
+        // accounts receivable rows
+        $accountsReceivableRows = [];
+        $accountsReceivableTotal = 0;
+        if ($posIds->isNotEmpty()) {
+            $creditInvoices = \App\Models\Invoice::whereIn('pos_id', $posIds)
+                ->whereIn('status', [2, 3])
+                ->get();
+            foreach ($creditInvoices as $inv) {
+                $paid = $inv->getTotal() - $inv->getDue();
+                $outstanding = $inv->getDue();
+                $accountsReceivableRows[] = [
+                    'invoice_id' => $inv->invoice_id,
+                    'total' => $inv->getTotal(),
+                    'paid' => $paid,
+                    'outstanding' => $outstanding,
+                ];
+                $accountsReceivableTotal += $outstanding;
+            }
+        }
+
+        $receivedCreditPayments = [];
+        if ($shiftIdsForDay->isNotEmpty()) {
+            $invoicePayments = \App\Models\InvoicePayment::whereIn('pos_shift_id', $shiftIdsForDay)
+                ->whereDate('date', $date)
+                ->with(['invoice'])
+                ->get();
+            foreach ($invoicePayments as $ip) {
+                // payment_method: 0=cash, 1=card, 2=cheque, 3=bank_transfer, etc.
+                $methodLabel = match((int)($ip->payment_method ?? 0)) {
+                    0 => __('Cash'),
+                    1 => __('Card'),
+                    2 => __('Cheque'),
+                    3 => __('Bank Transfer'),
+                    default => __('Other'),
+                };
+                $receivedCreditPayments[] = [
+                    'invoice_id' => $ip->invoice?->invoice_id ?? '',
+                    'amount' => $ip->amount,
+                    'payment_method' => $methodLabel,
+                ];
+            }
         }
 
         $statementRows = [];
@@ -3182,7 +3293,11 @@ class ReportController extends Controller
                 $categorySummary,
                 $taxSummary,
                 $itemsSold,
-                $poses
+                $poses,
+                $creditTotal,
+                $accountsReceivableRows,
+                $accountsReceivableTotal,
+                $receivedCreditPayments
             ),
             $filename
         );

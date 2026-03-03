@@ -79,6 +79,7 @@
         <select id="eod-print-width" class="form-select form-select-sm d-inline-block" style="width: auto;">
             <option value="full">{{ __('Full page') }}</option>
             <option value="80">{{ __('80mm receipt') }}</option>
+            <option value="83">{{ __('83mm receipt') }}</option>
             <option value="58">{{ __('58mm receipt') }}</option>
         </select>
     </div>
@@ -125,12 +126,30 @@
             </table>
         </div>
 
-        @if(isset($cashFromBalance) && $cashFromBalance > 0)
         <div class="mb-2">
             <strong>{{ __('CASH RECEIVED') }}</strong><br>
             {{ __('Cash from sales') }} &nbsp; {{ \Auth::user()->priceFormat($cashTotal ?? 0) }}<br>
-            {{ __('Cash from balance payments') }} &nbsp; {{ \Auth::user()->priceFormat($cashFromBalance) }}<br>
-            {{ __('Total cash received') }} &nbsp; {{ \Auth::user()->priceFormat(($cashTotal ?? 0) + $cashFromBalance) }}<br>
+            @if(isset($cashFromBalance) && $cashFromBalance > 0)
+                {{ __('Cash from balance payments') }} &nbsp; {{ \Auth::user()->priceFormat($cashFromBalance) }}<br>
+            @endif
+            @if(!empty($receivedCreditPayments) && count($receivedCreditPayments) > 0)
+                {{ __('pos.credit_received_label') ?: 'Credit Received' }}:<br>
+                @foreach($receivedCreditPayments as $rp)
+                    {{ __('Invoice') }}: {{ $rp['invoice_id'] }} &nbsp; {{ $rp['payment_method'] }} &nbsp; {{ \Auth::user()->priceFormat($rp['amount']) }}<br>
+                @endforeach
+            @endif
+            {{ __('Total cash received') }} &nbsp; {{ \Auth::user()->priceFormat(($cashTotal ?? 0) + ($cashFromBalance ?? 0)) }}<br>
+            ----------------------------------------
+        </div>
+        @if(!empty($accountsReceivableRows) && count($accountsReceivableRows) > 0)
+        <div class="mb-3">
+            <strong>{{ __('pos.accounts_receivable') }}</strong><br>
+            @foreach($accountsReceivableRows as $ar)
+                {{ __('Invoice') }}: {{ $ar['invoice_id'] }} &nbsp;
+                {{ __('Total') }}: {{ \Auth::user()->priceFormat($ar['total']) }} &nbsp;
+                {{ __('Outstanding') }}: {{ \Auth::user()->priceFormat($ar['outstanding']) }}<br>
+            @endforeach
+            <strong>{{ __('pos.total_outstanding') }}:</strong> {{ \Auth::user()->priceFormat($accountsReceivableTotal) }}<br>
             ----------------------------------------
         </div>
         @endif
@@ -251,8 +270,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var el = document.getElementById('eod-printable');
     if (sel && el) {
         sel.addEventListener('change', function() {
-            el.classList.remove('eod-print-80', 'eod-print-58');
+            el.classList.remove('eod-print-80', 'eod-print-83', 'eod-print-58');
             if (this.value === '80') el.classList.add('eod-print-80');
+            else if (this.value === '83') el.classList.add('eod-print-83');
             else if (this.value === '58') el.classList.add('eod-print-58');
         });
     }
@@ -262,21 +282,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
 @push('css-page')
 <style>
-/* EOD printable: align for thermal receipt 80mm (302px) or 58mm (219px) */
+/* EOD printable: align for thermal receipt 80mm (302px), 83mm (314px) or 58mm (219px) */
 #eod-printable.eod-print-80 { max-width: 302px; margin: 0 auto; }
+#eod-printable.eod-print-83 { max-width: 314px; margin: 0 auto; }
 #eod-printable.eod-print-58 { max-width: 219px; margin: 0 auto; font-size: 10px !important; }
 #eod-printable.eod-print-80 .table { font-size: 10px; }
+#eod-printable.eod-print-83 .table { font-size: 10px; }
 #eod-printable.eod-print-58 .table { font-size: 9px; }
 @media print {
     .no-print, .card .btn, .breadcrumb, nav, .dash-hasmenu, .dash-submenu, .sidebar, header { display: none !important; }
     #eod-printable { font-size: 11px; }
     body { background: #fff; }
     .content-wrapper { padding: 0 !important; }
-    /* Receipt width: use 80mm (302px) or 58mm (219px) via class on #eod-printable */
+    /* Receipt width: use 80mm (302px), 83mm (314px) or 58mm (219px) via class on #eod-printable */
     #eod-printable.eod-print-80 { max-width: 302px; margin: 0 auto; width: 302px; font-size: 10px; }
+    #eod-printable.eod-print-83 { max-width: 314px; margin: 0 auto; width: 314px; font-size: 10px; }
     #eod-printable.eod-print-58 { max-width: 219px; margin: 0 auto; width: 219px; font-size: 9px; }
     #eod-printable.eod-print-80 .table, #eod-printable.eod-print-80 table { font-size: 9px; }
+    #eod-printable.eod-print-83 .table, #eod-printable.eod-print-83 table { font-size: 9px; }
     #eod-printable.eod-print-58 .table, #eod-printable.eod-print-58 table { font-size: 8px; }
+    /* default page size; use printer dialog to choose A3 if needed */
+    @page { size: auto; }
 }
+
 </style>
 @endpush

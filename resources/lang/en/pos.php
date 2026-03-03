@@ -118,6 +118,13 @@ return [
     'create_product_here' => 'Create product here.',
     'create_product' => 'Create product',
     'back' => 'Back',
+    // EOD report additions
+    'credit_received_label' => 'Credit Received',
+    'accounts_receivable' => 'Accounts Receivable',
+    'total_outstanding' => 'Total outstanding',
+    'credit_sales_ar' => 'Credit sales (AR)',
+    'sales_by_payment_method' => 'SALES BY PAYMENT METHOD',
+
     'offline_banner' => 'You are offline. Sales will be queued and synced when back online.',
     'saved_for_sync' => 'Sale saved for sync. Will upload when back online.',
     'synced_count' => ':count sale(s) synced.',
