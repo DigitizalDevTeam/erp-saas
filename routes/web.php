@@ -364,6 +364,7 @@ Route::get('/customer/invoice/{id}/', [InvoiceController::class, 'invoiceLink'])
 Route::get('/vender/bill/{id}/', [BillController::class, 'invoiceLink'])->name('bill.link.copy');
 Route::get('/vendor/purchase/{id}/', [PurchaseController::class, 'purchaseLink'])->name('purchase.link.copy');
 Route::get('/customer/proposal/{id}/', [ProposalController::class, 'invoiceLink'])->name('proposal.link.copy');
+Route::get('/customer/pos-receipt/{id}/', [PosController::class, 'receiptLink'])->name('pos.receipt.link');
 Route::get('proposal/pdf/{id}', [ProposalController::class, 'proposal'])->name('proposal.pdf')->middleware(['XSS', 'revalidate']);
 
 //================================= Invoice Payment Gateways  ====================================//
@@ -1862,6 +1863,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('printview/pos', [PosController::class, 'printView'])->name('pos.printview')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::get('report/pos', [PosController::class, 'report'])->name('pos.report')->middleware(['auth', 'XSS']);
+    Route::get('pos/search-pay-receipts', [PosController::class, 'searchPayReceipts'])->name('pos.search.pay.receipts')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('pos-area/areas-by-branch', [PosAreaController::class, 'getByBranch'])->name('pos-area.by.branch')->middleware(['auth', 'XSS']);
     Route::get('pos-table/tables-by-area', [PosTableController::class, 'getTablesByArea'])->name('pos-table.by.area')->middleware(['auth', 'XSS']);
     Route::get('pos-table/tables-by-branch', [PosTableController::class, 'getTablesByBranch'])->name('pos-table.by.branch')->middleware(['auth', 'XSS']);

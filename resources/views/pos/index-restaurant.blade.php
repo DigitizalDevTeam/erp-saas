@@ -171,6 +171,7 @@
                                 <li><a class="dropdown-item" href="{{ route('report.pos.day-summary', ['date' => date('Y-m-d')]) }}" target="_blank"><i class="ti ti-calendar-event me-2"></i>{{ __('Day Summary') }}</a></li>
                                 <li><a class="dropdown-item pos-eod-link" href="#" data-date="{{ date('Y-m-d') }}" data-bs-toggle="modal" data-bs-target="#posEodWarningModal"><i class="ti ti-calendar-off me-2"></i>{{ __('pos.day_closed') }} / {{ __('EOD Report') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('report.pos.low-stock') }}" target="_blank"><i class="ti ti-box me-2"></i>{{ __('Low Stock') }}</a></li>
+                                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#payReceiptsModal"><i class="ti ti-receipt me-2"></i>{{ __('pos.pay_receipts') }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">{{ __('Other') }}</h6></li>
                                 <li><a class="dropdown-item" href="{{ route('pos.barcode') }}" target="_blank"><i class="ti ti-barcode me-2"></i>{{ __('pos.pos_product_barcode') }}</a></li>
@@ -498,6 +499,53 @@
         </div>
     </div>
 
+    {{-- Pay Receipts: search by amount, customer, POS number; show results and print --}}
+    <div class="modal fade" id="payReceiptsModal" tabindex="-1" aria-labelledby="payReceiptsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="payReceiptsModalLabel">{{ __('pos.pay_receipts') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label small mb-0">{{ __('pos.pos_number') }}</label>
+                            <input type="text" class="form-control form-control-sm" id="pay-receipts-pos-number" placeholder="#POS00071">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small mb-0">{{ __('Customer Name') }}</label>
+                            <input type="text" class="form-control form-control-sm" id="pay-receipts-customer" placeholder="">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small mb-0">{{ __('Amount') }}</label>
+                            <input type="number" step="0.01" class="form-control form-control-sm" id="pay-receipts-amount" placeholder="">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="button" class="btn btn-primary btn-sm w-100" id="pay-receipts-search">{{ __('Search') }}</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{{ __('pos.pos_number') }}</th>
+                                    <th>{{ __('Date') }}</th>
+                                    <th>{{ __('Customer') }}</th>
+                                    <th>{{ __('Total') }}</th>
+                                    <th width="80">{{ __('Print') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pay-receipts-tbody">
+                                <tr><td colspan="5" class="text-center text-muted py-3">{{ __('pos.search_receipts_hint') }}</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="posOpenShiftModal" tabindex="-1" aria-labelledby="posOpenShiftModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-sm">
             <div class="modal-content">
@@ -551,6 +599,33 @@
         </div>
     </div>
     <script src="{{ asset('js/jquery.min.js') }}"></script>
+    <script>
+        (function($) {
+            var searchUrl = '{{ route("pos.search.pay.receipts") }}';
+            var printBaseUrl = '{{ url("printview/pos") }}';
+            var posPrintSource = 'restaurant';
+            $(document).on('click', '#pay-receipts-search', function() {
+                var btn = $(this).prop('disabled', true);
+                var tbody = $('#pay-receipts-tbody');
+                $.get(searchUrl, {
+                    pos_number: $('#pay-receipts-pos-number').val(),
+                    customer_name: $('#pay-receipts-customer').val(),
+                    amount: $('#pay-receipts-amount').val()
+                }).done(function(res) {
+                    if (res.success && res.data && res.data.length) {
+                        var rows = res.data.map(function(r) {
+                            return '<tr><td>' + (r.pos_number || '') + '</td><td>' + (r.date || '') + '</td><td>' + (r.customer_name || '') + '</td><td>' + (r.total || '') + '</td><td><a href="' + printBaseUrl + '?pos_id=' + r.id + '&source=' + posPrintSource + '" target="_blank" class="btn btn-sm btn-outline-primary pay-receipt-print"><i class="ti ti-printer"></i></a></td></tr>';
+                        });
+                        tbody.html(rows.join(''));
+                    } else {
+                        tbody.html('<tr><td colspan="5" class="text-center text-muted py-3">{{ __("pos.no_data_found_short") }}</td></tr>');
+                    }
+                }).fail(function() {
+                    tbody.html('<tr><td colspan="5" class="text-center text-danger py-3">{{ __("Error") }}</td></tr>');
+                }).always(function() { btn.prop('disabled', false); });
+            });
+        })(jQuery);
+    </script>
     <script src="{{ asset('assets/js/plugins/popper.min.js') }}"></script>
     <script src="{{ asset('assets/js/plugins/perfect-scrollbar.min.js') }}"></script>
     <script src="{{ asset('assets/js/plugins/bootstrap.min.js') }}"></script>
@@ -2514,7 +2589,7 @@
                         $('#pos-selected-table').text('—');
                         $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
                         if (data && data.pos_id) {
-                            var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id;
+                            var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id + '&source=restaurant';
                             $.get(receiptUrl, function (html) {
                                 $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
                                 $('#commonModal .modal-dialog').removeClass('modal-xl').addClass('modal-lg');

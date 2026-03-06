@@ -1361,6 +1361,60 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
 
     }
 
+    /**
+     * Search paid POS receipts for Pay Receipts modal (by amount, customer name, POS number).
+     */
+    public function searchPayReceipts(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return response()->json(['success' => false, 'message' => __('Permission denied.')], 403);
+        }
+        $creatorId = Auth::user()->creatorId();
+        $user = Auth::user();
+
+        $query = Pos::where('created_by', $creatorId)
+            ->whereHas('posPayments')
+            ->with(['customer', 'posPayments']);
+
+        if ($request->filled('pos_number')) {
+            $raw = preg_replace('/\D/', '', $request->pos_number);
+            if ($raw !== '') {
+                $query->where('pos_id', (int) $raw);
+            }
+        }
+        if ($request->filled('customer_name')) {
+            $name = trim($request->customer_name);
+            $query->where(function ($q) use ($name) {
+                $q->whereHas('customer', function ($cq) use ($name) {
+                    $cq->where('name', 'like', '%' . $name . '%');
+                })->orWhere('guest_name', 'like', '%' . $name . '%');
+            });
+        }
+        $list = $query->orderBy('id', 'desc')->limit(200)->get();
+
+        if ($request->filled('amount') && is_numeric($request->amount)) {
+            $amount = (float) $request->amount;
+            $list = $list->filter(function ($pos) use ($amount) {
+                return abs((float) $pos->posPayments->sum('amount') - $amount) < 0.01;
+            })->values();
+        }
+
+        $data = $list->map(function ($pos) use ($user) {
+            $total = (float) $pos->posPayments->sum('amount');
+            $customerName = !empty($pos->guest_name) ? $pos->guest_name : ($pos->customer ? $pos->customer->name : __('pos.walkin_customer'));
+            return [
+                'id' => $pos->id,
+                'pos_number' => $user->posNumberFormat($pos->pos_id),
+                'date' => $user->dateFormat($pos->pos_date ?? $pos->created_at),
+                'customer_name' => $customerName,
+                'total' => $user->priceFormat($total),
+                'total_raw' => $total,
+            ];
+        });
+
+        return response()->json(['success' => true, 'data' => $data]);
+    }
+
     public function barcode()
     {
         if (\Auth::user()->canManagePos()) {
@@ -2297,10 +2351,16 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     ->select('id', 'holder_name', 'bank_name', 'account_number')->get();
                 $productServices = ProductService::where('created_by', $user->creatorId())->get();
                 $barcode = ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()];
-                return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts'));
+                $segundaVia = $request->boolean('segunda_via');
+                $posIdRaw = $pos->id;
+                $receiptLinkUrl = url(route('pos.receipt.link', Crypt::encrypt($pos->id)));
+                $printSource = in_array($request->get('source'), ['restaurant'], true) ? 'restaurant' : 'retail';
+                return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'printSource'));
             }
         }
 
+        $segundaVia = $request->boolean('segunda_via');
+        $printSource = in_array($request->get('source'), ['restaurant'], true) ? 'restaurant' : 'retail';
         $sess = session()->get('pos');
         $customer = Customer::where('name', '=', $request->vc_name)->where('created_by', $user->creatorId())->first();
         $warehouse = warehouse::where('id', '=', $request->warehouse_name)->where('created_by', $user->creatorId())->first();
@@ -2373,10 +2433,106 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'barcodeFormat' => Auth::user()->barcodeFormat(),
         ];
 
-        return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments'));
+        return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource'));
 
     }
-    
+
+    /**
+     * Public receipt link (no auth). Scan QR on receipt to open this page.
+     */
+    public function receiptLink($encryptedId)
+    {
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            abort(404, __('Receipt not found.'));
+        }
+        $pos = Pos::with(['items', 'customer', 'warehouse', 'posPayments', 'table'])->find($id);
+        if (!$pos) {
+            abort(404, __('Receipt not found.'));
+        }
+        $user = User::find($pos->created_by);
+        if (!$user) {
+            abort(404, __('Receipt not found.'));
+        }
+        $settings = Utility::settingsById($pos->created_by);
+        $posPayments = $pos->posPayments;
+        $customer = $pos->customer_id ? $pos->customer : null;
+        $warehouse = $pos->warehouse;
+        $clientName = !empty($pos->guest_name) ? $pos->guest_name : (!empty($customer->name) ? $customer->name : __('pos.walkin_customer'));
+        $details = [
+            'pos_id' => $user->posNumberFormat($pos->pos_id),
+            'customer' => $customer ? $customer->toArray() : [],
+            'warehouse' => $warehouse ? $warehouse->toArray() : [],
+            'user' => $user->toArray(),
+            'date' => $pos->pos_date ?? date('Y-m-d'),
+            'client_name' => $clientName,
+            'table_name' => $pos->table ? $pos->table->name : null,
+        ];
+        $warehouseName = $details['warehouse']['name'] ?? ($warehouse ? $warehouse->name : '-');
+        $details['warehouse']['details'] = '<h7 class="text-dark">' . ucfirst($warehouseName) . '</p></h7>';
+        if (!empty($details['customer']['name'])) {
+            $details['customer']['details'] = '<h6 class="text-dark">' . ucfirst($details['customer']['name']) . '</h6>';
+        } else {
+            $details['customer']['details'] = '<h2 class="h6"><b>' . __('pos.walkin_customer') . '</b></h2>';
+        }
+        $details['customer']['shippdetails'] = '-';
+        $details['user']['details'] = '<h6 class="text-dark"><b>' . ucfirst($user->name) . '</b></h6>';
+        $sales = ['data' => [], 'discount' => '0', 'sub_total' => '0', 'total' => '0', 'tip' => '0'];
+        $mainsubtotal = 0;
+        $discount = 0;
+        $totalTip = (float) $posPayments->sum('tip');
+        foreach ($pos->items as $item) {
+            $product = ProductService::find($item->product_id);
+            $price = (float) $item->price;
+            $qty = (int) $item->quantity;
+            $taxRate = (float) Utility::totalTaxRate($item->tax);
+            $subtotal = $price * $qty;
+            $tax = ($subtotal * $taxRate) / 100;
+            $lineTotal = $subtotal + $tax;
+            $mainsubtotal += $lineTotal;
+            $sales['data'][] = [
+                'name' => $product ? $product->name : __('Product'),
+                'quantity' => $qty,
+                'price' => $user->priceFormat($price),
+                'tax' => $taxRate . '%',
+                'product_tax' => $taxRate . '%',
+                'tax_amount' => $user->priceFormat($tax),
+                'subtotal' => $user->priceFormat($lineTotal),
+                'description' => $item->description ?? '',
+            ];
+        }
+        $sales['discount'] = $user->priceFormat($discount);
+        $sales['sub_total'] = $user->priceFormat($mainsubtotal);
+        $sales['tip'] = $user->priceFormat($totalTip);
+        $sales['total'] = $user->priceFormat($mainsubtotal - $discount);
+        $vatBreakdown = [];
+        foreach ($pos->items as $item) {
+            $price = (float) $item->price;
+            $qty = (int) $item->quantity;
+            $taxRate = (float) Utility::totalTaxRate($item->tax);
+            $net = $price * $qty;
+            $vatAmount = ($net * $taxRate) / 100;
+            $key = (string) $taxRate;
+            if (!isset($vatBreakdown[$key])) {
+                $vatBreakdown[$key] = ['rate' => $taxRate, 'net' => 0, 'vat' => 0, 'amount' => 0];
+            }
+            $vatBreakdown[$key]['net'] += $net;
+            $vatBreakdown[$key]['vat'] += $vatAmount;
+            $vatBreakdown[$key]['amount'] += $net + $vatAmount;
+        }
+        $vatBreakdown = array_values($vatBreakdown);
+        $bankAccounts = BankAccount::where('created_by', $pos->created_by)
+            ->select('id', 'holder_name', 'bank_name', 'account_number')->get();
+        $productServices = ProductService::where('created_by', $pos->created_by)->get();
+        $barcode = ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()];
+        $segundaVia = false;
+        $posIdRaw = $pos->id;
+        $receiptLinkUrl = url(route('pos.receipt.link', Crypt::encrypt($pos->id)));
+        $printSource = 'retail';
+        return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'settings', 'printSource'))->with('standalone', true);
+    }
+
     public function add_opening_balance()
     {
         // Opening balance is set when a shift is started (POS Shifts). Redirect to shifts.
