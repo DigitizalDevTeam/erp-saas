@@ -264,10 +264,10 @@
         </div>
 
         {{-- Licensing / Certification + Scan-to-view receipt QR (SVG so it prints) --}}
-        <div class="pos-print-footer mt-2 d-flex align-items-start gap-3">
+        <div class="pos-print-footer mt-2 d-flex align-items-center gap-3">
             <div class="border rounded p-2 text-center d-flex flex-column align-items-center justify-content-center view-qrcode-box" style="min-width:110px;min-height:110px;line-height:1.2;font-size:0.7rem;overflow:visible;">
                 @if($receiptLinkUrl)
-                <div class="view-qrcode-receipt view-qrcode-receipt-svg" style="width:115px;height:130px;flex-shrink:0;">
+                <div class="view-qrcode-receipt view-qrcode-receipt-svg" style="width:115px;height:115px;flex-shrink:0;">
                     @php
                         $qrSvg = null;
                         try {
@@ -282,7 +282,7 @@
                         {!! DNS2D::getBarcodeHTML($receiptLinkUrl, 'QRCODE', 2, 2) !!}
                     @endif
                 </div>
-                <span class="mt-1">{{ __('pos.scan_to_view_receipt') }}</span>
+                <!-- <span class="mt-1">{{ __('pos.scan_to_view_receipt') }}</span> -->
                 @else
                 DOC QR code
                 @endif
