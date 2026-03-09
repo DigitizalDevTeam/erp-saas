@@ -11,7 +11,7 @@
     $company_logo = \App\Models\Utility::getValByName('company_logo_dark');
     $pos_logo = \App\Models\Utility::getValByName('pos_logo');
     $headerLogo = (isset($pos_logo) && $pos_logo) ? \App\Models\Utility::get_file('pos_logo/') . $pos_logo : $logoPath . '/' . ($company_logo ?? 'logo-dark.png');
-    $docTitle = $hasCreditPayment ? __('Credit Receipt') : __('Tax Invoice');
+    $docTitle = $hasCreditPayment ? __('Credit Receipt') : ($printSource === 'restaurant' ? __('Bill') : __('Tax Invoice'));
     $clientName = isset($details['client_name']) ? $details['client_name'] : (isset($details['customer']['name']) ? $details['customer']['name'] : __('pos.walkin_customer'));
     $cust = $details['customer'] ?? [];
     $vatBreakdown = $vatBreakdown ?? [];
@@ -99,7 +99,7 @@
                 <div class="mt-1">{{ __('pos.warehouse_name') }}:<br>{{ $details['warehouse']['name'] ?? '-' }}</div>
             </div>
             <div class="right">
-                <div>{{ $segundaVia ? 'SEGUNDA VIA' : 'Original/Copy' }}</div>
+                <div>{{ $segundaVia ? __('Copy') : __('Original') }}</div>
                 <div class="mt-1">DOC NR<br><strong>{{ $details['pos_id'] }}</strong></div>
             </div>
         </div>
@@ -173,11 +173,16 @@
                 <div class="text-end ms-auto"> {{ $value['subtotal'] }}</div>
             </div>
         @endforeach
+        {{-- Sub total first, then Discount (before tax/total), then Tip, then Total --}}
         <div class="d-flex product-border mb-2 mt-4">
+            <div><b>{{ __('pos.sub_total_colon') }}</b></div>
+            <div class="text-end ms-auto"> {{ $sales['sub_total'] ?? $sales['total'] }}</div>
+        </div>
+        <div class="d-flex product-border mb-2">
             <div><b>{{ __('pos.discount_colon') }}</b></div>
             <div class="text-end ms-auto"> {{ $sales['discount'] }}</div>
         </div>
-        @if(isset($sales['tip']) && $sales['tip'] !== '' && $sales['tip'] != '0' && $sales['tip'] != '0.00')
+        @if($printSource === 'restaurant' && isset($sales['tip']) && $sales['tip'] !== '' && $sales['tip'] != '0' && $sales['tip'] != '0.00')
         <div class="d-flex product-border mb-2">
             <div><b>{{ __('pos.tip') }}:</b></div>
             <div class="text-end ms-auto"> {{ $sales['tip'] }}</div>
@@ -295,12 +300,13 @@
         </div>
 
         <div class="text-end mt-2 small text-muted">
-            ERP_SaaS - POS {{ $printSource === 'restaurant' ? __('Restaurant') : __('Retail') }}<br>
+            ERP_SaaS - POS {{ $printSource === 'restaurant' ? __('Restaurant') : __('Retail') }} - {{ __('pos.slip') }}<br>
             {{ date('H:i') }}
         </div>
 
         @if($hasCreditPayment)
         <div class="pos-print-footer mt-3 p-2 product-border">
+            <div class="small fw-bold mb-1">{{ __('pos.client_signature_for_credit') }}</div>
             <div class="small mb-2">{{ __('pos.credit_signature_line') }}</div>
             <div class="border-bottom pb-1 mb-1" style="min-height: 28px;"></div>
             <div class="small text-muted">{{ __('Name') }}:</div>
