@@ -10,11 +10,15 @@ use App\Models\WarehouseProduct;
 
 /**
  * Phase 5: Deduct stock by recipe (BOM) when product is sold, or by product quantity if no recipe.
+ * Products with "does not affect stock" (e.g. composite dishes): only BOM ingredients are deducted.
  */
 class PosRecipeDeductionService
 {
     /**
-     * Deduct stock for a POS line: by recipe ingredients if product has recipe, else by product quantity.
+     * Deduct stock for a POS line:
+     * - If product has recipe (BOM): deduct only ingredients (product's own quantity is not touched).
+     * - Else if product affects stock: deduct product quantity.
+     * - Else (does not affect stock, no recipe): deduct nothing.
      */
     public static function deductForSale(int $productId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId): void
     {
@@ -25,6 +29,7 @@ class PosRecipeDeductionService
 
         $recipes = ProductRecipe::where('product_id', $productId)->where('created_by', $creatorId)->with('ingredientProduct')->get();
         if ($recipes->isNotEmpty()) {
+            // Composite dish: deduct only ingredients; product's own stock is not affected
             foreach ($recipes as $recipe) {
                 $ingredientQty = $recipe->quantity * $quantity;
                 if ($ingredientQty <= 0) {
@@ -36,9 +41,11 @@ class PosRecipeDeductionService
                 }
                 self::deductProductQuantity($ingredient->id, $ingredientQty, $warehouseId, $creatorId, $posIdFormatted, $posId);
             }
-        } else {
+        } elseif ($product->affect_stock ?? true) {
+            // Normal product: deduct its own quantity
             self::deductProductQuantity($productId, $quantity, $warehouseId, $creatorId, $posIdFormatted, $posId);
         }
+        // Else: does not affect stock and no recipe → nothing to deduct
     }
 
     protected static function deductProductQuantity(int $productId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId): void

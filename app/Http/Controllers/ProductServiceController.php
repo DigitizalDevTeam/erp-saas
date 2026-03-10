@@ -154,6 +154,7 @@ class ProductServiceController extends Controller
             $productService->print_zone                 = $request->print_zone ?: null;
             $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
             $productService->low_stock_threshold         = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
+            $productService->affect_stock                = ! $request->boolean('does_not_affect_stock');
             $productService->sale_chartaccount_id       = $request->sale_chartaccount_id;
             $productService->expense_chartaccount_id    = $request->expense_chartaccount_id;
             $productService->category_id                = $request->category_id;
@@ -296,6 +297,7 @@ class ProductServiceController extends Controller
                 $productService->print_zone                 = $request->print_zone ?: null;
                 $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
                 $productService->low_stock_threshold        = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
+                $productService->affect_stock                = ! $request->boolean('does_not_affect_stock');
                 $productService->sale_chartaccount_id       = $request->sale_chartaccount_id;
                 $productService->expense_chartaccount_id    = $request->expense_chartaccount_id;
                 $productService->category_id                = $request->category_id;
@@ -604,7 +606,13 @@ class ProductServiceController extends Controller
             $productquantity = 0;
 
             if ($product) {
-                $productquantity = $isPosSession ? (int) $product->quantity : $product->getTotalProductQuantity();
+                if ($isPosSession) {
+                    // Products that do not affect stock (e.g. composite dishes with BOM): allow sale without product-level quantity check
+                    $affectStock = $product->affect_stock ?? true;
+                    $productquantity = $affectStock ? (int) $product->quantity : 999999;
+                } else {
+                    $productquantity = $product->getTotalProductQuantity();
+                }
             }
 
             if (!$product || ($isPosSession && $productquantity == 0)) {
@@ -966,10 +974,11 @@ class ProductServiceController extends Controller
                 }
             }
 
-            // POS: validate against product's quantity (stock)
+            // POS: validate against product's quantity (stock); skip for products that do not affect stock (e.g. BOM dishes)
             if (isset($cart[$id]) && $isPosSession) {
                 $product = ProductService::find($id);
-                $maxQty = $product ? (int) $product->quantity : 0;
+                $affectStock = $product ? ($product->affect_stock ?? true) : true;
+                $maxQty = $product ? ($affectStock ? (int) $product->quantity : 999999) : 0;
                 if ($cart[$id]['quantity'] > $maxQty) {
                     return response()->json(
                         [

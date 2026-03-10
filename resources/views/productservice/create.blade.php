@@ -181,6 +181,13 @@
             {{ Form::number('low_stock_threshold', null, array('class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Default'))) }}
             <small class="text-muted">{{ __('Leave empty to use system default. Alert when quantity is below this.') }}</small>
         </div>
+        <div class="form-group col-md-12 quantity">
+            <div class="form-check">
+                {{ Form::checkbox('does_not_affect_stock', '1', false, ['class' => 'form-check-input', 'id' => 'does_not_affect_stock_create']) }}
+                {{ Form::label('does_not_affect_stock', __('Does not affect stock (e.g. composite dish – add ingredients in BOM)'), ['class' => 'form-check-label', 'for' => 'does_not_affect_stock_create']) }}
+            </div>
+            <small class="text-muted">{{ __('When checked: on POS sale only recipe ingredients are deducted; this product’s quantity is not used. Use Product Recipe to define ingredients (chicken, rice, etc.).') }}</small>
+        </div>
 
         <div class="form-group col-md-12">
             {{ Form::label('description', __('Description'),['class'=>'form-label']) }}

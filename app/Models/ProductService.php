@@ -23,9 +23,14 @@ class ProductService extends Model
         'print_zone',
         'pos_printer_id',
         'low_stock_threshold',
+        'affect_stock',
         'sale_chartaccount_id',
         'expense_chartaccount_id',
         'created_by',
+    ];
+
+    protected $casts = [
+        'affect_stock' => 'boolean',
     ];
 
     public function taxes()
