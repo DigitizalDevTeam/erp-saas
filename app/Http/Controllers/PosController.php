@@ -542,8 +542,15 @@ class PosController extends Controller
             $sales = [];
 
             foreach ($sess as $key => $value) {
-                $subtotal = $value['price'] * $value['quantity'];
-                $tax = ($subtotal * ($value['tax'] ?? 0)) / 100;
+                $priceType = $value['price_type'] ?? 'exclusive';
+                $lineSubtotal = (float) ($value['subtotal'] ?? 0);
+                $taxRate = (float) ($value['tax'] ?? 0);
+                if ($priceType === 'inclusive' && $taxRate > 0) {
+                    $tax = $lineSubtotal - ($lineSubtotal / (1 + $taxRate / 100));
+                } else {
+                    $subtotal = ($value['price'] ?? 0) * ($value['quantity'] ?? 0);
+                    $tax = ($subtotal * $taxRate) / 100;
+                }
                 $taxTotal += $tax;
                 $sales['data'][$key]['name'] = $value['name'] ?? __('Product');
                 $sales['data'][$key]['quantity'] = $value['quantity'];
@@ -795,10 +802,16 @@ class PosController extends Controller
             $product_id = $value['id'];
             $product = ProductService::whereId($product_id)->where('created_by', $user_id)->first();
             $tax_id = $product ? ProductService::tax_id($product_id) : '0';
+            $priceType = $value['price_type'] ?? 'exclusive';
+            $taxRate = (float) ($value['tax'] ?? 0);
+            $unitPrice = (float) ($value['price'] ?? 0);
+            if ($priceType === 'inclusive' && $taxRate > 0) {
+                $unitPrice = $unitPrice / (1 + $taxRate / 100);
+            }
             $positems = new PosProduct();
             $positems->pos_id = $pos->id;
             $positems->product_id = $product_id;
-            $positems->price = $value['price'];
+            $positems->price = $unitPrice;
             $positems->quantity = $value['quantity'];
             $positems->tax = $tax_id;
             $positems->discount = $discount;
@@ -1206,10 +1219,16 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $product_id = $value['id'];
                         $product = ProductService::whereId($product_id)->where('created_by', $user_id)->first();
                         $tax_id = $product ? ProductService::tax_id($product_id) : '0';
+                        $priceType = $value['price_type'] ?? 'exclusive';
+                        $taxRate = (float) ($value['tax'] ?? 0);
+                        $unitPrice = (float) ($value['price'] ?? 0);
+                        if ($priceType === 'inclusive' && $taxRate > 0) {
+                            $unitPrice = $unitPrice / (1 + $taxRate / 100);
+                        }
                         $positems = new PosProduct();
                         $positems->pos_id = $pos->id;
                         $positems->product_id = $product_id;
-                        $positems->price = $value['price'];
+                        $positems->price = $unitPrice;
                         $positems->quantity = $value['quantity'];
                         $positems->tax = $tax_id;
                         $positems->discount = $discount;
@@ -1228,8 +1247,15 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $sales = [];
                     $sess = session()->get('pos');
                     foreach ($sess as $key => $value) {
-                        $subtotal = $value['price'] * $value['quantity'];
-                        $tax = ($subtotal * $value['tax']) / 100;
+                        $priceType = $value['price_type'] ?? 'exclusive';
+                        $lineSubtotal = (float) ($value['subtotal'] ?? 0);
+                        $taxRate = (float) ($value['tax'] ?? 0);
+                        if ($priceType === 'inclusive' && $taxRate > 0) {
+                            $tax = $lineSubtotal - ($lineSubtotal / (1 + $taxRate / 100));
+                        } else {
+                            $subtotal = ($value['price'] ?? 0) * ($value['quantity'] ?? 0);
+                            $tax = ($subtotal * $taxRate) / 100;
+                        }
                         $sales['data'][$key]['price'] = Auth::user()->priceFormat($value['price']);
                         $sales['data'][$key]['tax'] = $value['tax'] . '%';
                         $sales['data'][$key]['tax_amount'] = Auth::user()->priceFormat($tax);
@@ -2373,6 +2399,13 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'date' => date('Y-m-d'),
             'pay' => 'show',
         ];
+        if ($request->get('table_name')) {
+            $details['client_name'] = __('pos.table') . ' ' . $request->get('table_name');
+        } elseif ($customer) {
+            $details['client_name'] = $customer->name;
+        } else {
+            $details['client_name'] = __('pos.walkin_customer');
+        }
 
         $warehouseName = $details['warehouse']['name'] ?? ($warehouse ? $warehouse->name : '-');
         $warehousedetails = '<h7 class="text-dark">' . ucfirst($warehouseName) . '</p></h7>';
@@ -2407,8 +2440,15 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
 
         foreach ($sess as $key => $value) {
 
-            $subtotal = $value['price'] * $value['quantity'];
-            $tax = ($subtotal * $value['tax']) / 100;
+            $priceType = $value['price_type'] ?? 'exclusive';
+            $lineSubtotal = (float) ($value['subtotal'] ?? 0);
+            $taxRate = (float) ($value['tax'] ?? 0);
+            if ($priceType === 'inclusive' && $taxRate > 0) {
+                $tax = $lineSubtotal - ($lineSubtotal / (1 + $taxRate / 100));
+            } else {
+                $subtotal = ($value['price'] ?? 0) * ($value['quantity'] ?? 0);
+                $tax = ($subtotal * $taxRate) / 100;
+            }
             $sales['data'][$key]['name'] = $value['name'];
             $sales['data'][$key]['quantity'] = $value['quantity'];
             $sales['data'][$key]['price'] = Auth::user()->priceFormat($value['price']);
@@ -2435,6 +2475,267 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
 
         return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource'));
 
+    }
+
+    /**
+     * Restaurant: show Bill before payment. Loads current cart (table or delivery/takeaway) and redirects to printview.
+     */
+    public function billView(Request $request)
+    {
+        if (!Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $sess = session()->get('pos');
+        $tableId = (int) $request->get('pos_table_id');
+        $shiftId = (int) $request->get('pos_shift_id');
+        $orderType = $request->get('pos_order_type');
+        $posId = (int) $request->get('pos_id');
+        $creatorId = Auth::user()->creatorId();
+
+        if ($tableId && $shiftId && (empty($sess) || !is_array($sess) || count($sess) === 0)) {
+            $pos = Pos::where('table_id', $tableId)
+                ->where('shift_id', $shiftId)
+                ->where('created_by', $creatorId)
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->with(['items.product'])
+                ->first();
+            if ($pos && $pos->items->isNotEmpty()) {
+                $sess = [];
+                foreach ($pos->items as $line) {
+                    $product = $line->product;
+                    $price = (float) $line->price;
+                    $qty = (int) $line->quantity;
+                    $taxRate = 0;
+                    if ($product && !empty($product->tax_id)) {
+                        $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
+                        $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
+                        foreach ($taxModels as $t) {
+                            $taxRate += $t->rate ?? 0;
+                        }
+                    }
+                    $subtotal = $price * $qty;
+                    $taxAmount = ($subtotal * $taxRate) / 100;
+                    $sess[$line->product_id] = [
+                        'id' => $line->product_id,
+                        'name' => $product ? $product->name : __('Product'),
+                        'quantity' => $qty,
+                        'price' => $price,
+                        'tax' => $taxRate,
+                        'subtotal' => $subtotal + $taxAmount,
+                        'product_tax' => $taxRate ? $taxRate . '%' : '-',
+                    ];
+                }
+                $cartKey = 'pos_restaurant_cart';
+                $tableKey = $tableId . '_' . $shiftId;
+                $allCarts = $request->session()->get($cartKey, []);
+                if (!empty($allCarts[$tableKey])) {
+                    foreach ($allCarts[$tableKey] as $pid => $v) {
+                        $pid = is_numeric($pid) ? (int) $pid : $pid;
+                        if (isset($sess[$pid])) {
+                            $sess[$pid]['quantity'] += (int) ($v['quantity'] ?? 0);
+                            $sub = ($sess[$pid]['price'] * $sess[$pid]['quantity']) * (1 + ($sess[$pid]['tax'] ?? 0) / 100);
+                            $sess[$pid]['subtotal'] = $sub;
+                        } else {
+                            $sess[$pid] = [
+                                'id' => $pid,
+                                'name' => $v['name'] ?? __('Product'),
+                                'quantity' => (int) ($v['quantity'] ?? 1),
+                                'price' => (float) ($v['price'] ?? 0),
+                                'tax' => (float) ($v['tax'] ?? 0),
+                                'subtotal' => (float) ($v['subtotal'] ?? 0),
+                                'product_tax' => $v['product_tax'] ?? '-',
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        $sessEmpty = empty($sess) || !is_array($sess) || count($sess) === 0;
+        if ($sessEmpty && $shiftId && in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
+            $cartKey = 'pos_restaurant_cart';
+            $allCarts = $request->session()->get($cartKey, []);
+            if ($posId > 0) {
+                $pos = Pos::where('id', $posId)
+                    ->whereNull('table_id')
+                    ->where('order_type', $orderType)
+                    ->where('shift_id', $shiftId)
+                    ->where('created_by', $creatorId)
+                    ->whereNull('cancelled_at')
+                    ->whereDoesntHave('posPayments')
+                    ->with(['items.product'])
+                    ->first();
+                if ($pos && $pos->items->isNotEmpty()) {
+                    $sess = [];
+                    foreach ($pos->items as $line) {
+                        $product = $line->product;
+                        $price = (float) $line->price;
+                        $qty = (int) $line->quantity;
+                        $taxRate = 0;
+                        if ($product && !empty($product->tax_id)) {
+                            $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
+                            $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
+                            foreach ($taxModels as $t) {
+                                $taxRate += $t->rate ?? 0;
+                            }
+                        }
+                        $subtotal = $price * $qty;
+                        $taxAmount = ($subtotal * $taxRate) / 100;
+                        $sess[$line->product_id] = [
+                            'id' => $line->product_id,
+                            'name' => $product ? $product->name : __('Product'),
+                            'quantity' => $qty,
+                            'price' => $price,
+                            'tax' => $taxRate,
+                            'subtotal' => $subtotal + $taxAmount,
+                            'product_tax' => $taxRate ? $taxRate . '%' : '-',
+                        ];
+                    }
+                    $sessionCartKey = 'pos_' . $pos->id;
+                    if (!empty($allCarts[$sessionCartKey])) {
+                        foreach ($allCarts[$sessionCartKey] as $pid => $v) {
+                            $pid = is_numeric($pid) ? (int) $pid : $pid;
+                            if (isset($sess[$pid])) {
+                                $sess[$pid]['quantity'] += (int) ($v['quantity'] ?? 0);
+                                $sess[$pid]['subtotal'] = ($sess[$pid]['price'] * $sess[$pid]['quantity']) * (1 + ($sess[$pid]['tax'] ?? 0) / 100);
+                            } else {
+                                $sess[$pid] = [
+                                    'id' => $pid,
+                                    'name' => $v['name'] ?? __('Product'),
+                                    'quantity' => (int) ($v['quantity'] ?? 1),
+                                    'price' => (float) ($v['price'] ?? 0),
+                                    'tax' => (float) ($v['tax'] ?? 0),
+                                    'subtotal' => (float) ($v['subtotal'] ?? 0),
+                                    'product_tax' => $v['product_tax'] ?? '-',
+                                ];
+                            }
+                        }
+                    }
+                }
+            } else {
+                $sessionCartKey = $orderType . '_' . $shiftId;
+                if (!empty($allCarts[$sessionCartKey])) {
+                    $sess = [];
+                    foreach ($allCarts[$sessionCartKey] as $pid => $v) {
+                        $pid = is_numeric($pid) ? (int) $pid : $pid;
+                        $sess[$pid] = [
+                            'id' => $pid,
+                            'name' => $v['name'] ?? __('Product'),
+                            'quantity' => (int) ($v['quantity'] ?? 1),
+                            'price' => (float) ($v['price'] ?? 0),
+                            'tax' => (float) ($v['tax'] ?? 0),
+                            'subtotal' => (float) ($v['subtotal'] ?? 0),
+                            'product_tax' => $v['product_tax'] ?? '-',
+                        ];
+                    }
+                }
+            }
+        }
+
+        if (empty($sess) || !is_array($sess) || count($sess) === 0) {
+            if ($request->ajax()) {
+                return response()->json(['error' => __('Cart is empty. Add items before viewing the bill.')], 404);
+            }
+            return redirect()->back()->with('error', __('Cart is empty. Add items before viewing the bill.'));
+        }
+
+        if ($request->ajax()) {
+            return $this->billModalContent($request, $sess, $tableId, $shiftId);
+        }
+
+        session()->put('pos', $sess);
+        $params = array_merge($request->only(['warehouse_name', 'discount', 'vc_name', 'pos_table_id', 'pos_shift_id', 'pos_order_type', 'pos_id']), ['source' => 'restaurant']);
+        if ($tableId && $shiftId) {
+            $table = PosTable::find($tableId);
+            if ($table) {
+                $params['table_name'] = $table->name;
+            }
+        }
+        return redirect()->route('pos.printview', $params);
+    }
+
+    /**
+     * Build and return bill/receipt HTML for modal (same content as printview, no payment section).
+     */
+    protected function billModalContent(Request $request, array $sess, $tableId, $shiftId)
+    {
+        $user = Auth::user();
+        $settings = Utility::settings();
+        $customer = Customer::where('name', '=', $request->vc_name)->where('created_by', $user->creatorId())->first();
+        $warehouse = warehouse::where('id', '=', $request->warehouse_name)->where('created_by', $user->creatorId())->first();
+
+        $details = [
+            'pos_id' => $user->posNumberFormat($this->invoicePosNumber()),
+            'customer' => $customer != null ? $customer->toArray() : [],
+            'warehouse' => $warehouse != null ? $warehouse->toArray() : [],
+            'user' => $user != null ? $user->toArray() : [],
+            'date' => date('Y-m-d'),
+            'pay' => 'show',
+        ];
+        if ($tableId && $shiftId) {
+            $table = PosTable::find($tableId);
+            $details['client_name'] = $table ? __('pos.table') . ' ' . $table->name : __('pos.walkin_customer');
+        } elseif ($customer) {
+            $details['client_name'] = $customer->name;
+        } else {
+            $details['client_name'] = __('pos.walkin_customer');
+        }
+
+        $warehouseName = $details['warehouse']['name'] ?? ($warehouse ? $warehouse->name : '-');
+        $warehousedetails = '<h7 class="text-dark">' . ucfirst($warehouseName) . '</p></h7>';
+        if (!empty($details['customer']['name'])) {
+            $details['customer']['billing_state'] = ($details['customer']['billing_state'] ?? '') != '' ? ', ' . ($details['customer']['billing_state']) : '';
+            $details['customer']['shipping_state'] = ($details['customer']['shipping_state'] ?? '') != '' ? ', ' . ($details['customer']['shipping_state']) : '';
+            $customerdetails = '<h6 class="text-dark">' . ucfirst($details['customer']['name']) . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_phone'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_address'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_city'] ?? '') . ($details['customer']['billing_state'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_country'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['billing_zip'] ?? '') . '</p></h6>';
+            $shippdetails = '<h6 class="text-dark"><b>' . ucfirst($details['customer']['name']) . '</b>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_phone'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_address'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_city'] ?? '') . ($details['customer']['shipping_state'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_country'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($details['customer']['shipping_zip'] ?? '') . '</p></h6>';
+        } else {
+            $customerdetails = '<h2 class="h6"><b>' . __('Walk-in Customer') . '</b></h2>';
+            $shippdetails = '-';
+        }
+        $settings['company_telephone'] = ($settings['company_telephone'] ?? '') != '' ? ', ' . ($settings['company_telephone']) : '';
+        $settings['company_state'] = ($settings['company_state'] ?? '') != '' ? ', ' . ($settings['company_state']) : '';
+        $userName = $details['user']['name'] ?? ($user ? $user->name : '-');
+        $userdetails = '<h6 class="text-dark"><b>' . ucfirst($userName) . ' </b> <h2  class="font-weight-normal">' . '<p class="m-0 font-weight-normal">' . ($settings['company_name'] ?? '') . ($settings['company_telephone'] ?? '') . '</p>' . '<p class="m-0 font-weight-normal">' . ($settings['company_address'] ?? '') . '</p>' . '<p class="m-0 h6 font-weight-normal">' . ($settings['company_city'] ?? '') . ($settings['company_state'] ?? '') . '</p>' . '<p class="m-0 font-weight-normal">' . ($settings['company_country'] ?? '') . '</p>' . '<p class="m-0 font-weight-normal">' . ($settings['company_zipcode'] ?? '') . '</p></h2>';
+        $details['customer']['details'] = $customerdetails;
+        $details['warehouse']['details'] = $warehousedetails;
+        $details['customer']['shippdetails'] = $shippdetails;
+        $details['user']['details'] = $userdetails;
+
+        $mainsubtotal = 0;
+        $sales = ['data' => []];
+        foreach ($sess as $key => $value) {
+            $priceType = $value['price_type'] ?? 'exclusive';
+            $lineSubtotal = (float) ($value['subtotal'] ?? 0);
+            $taxRate = (float) ($value['tax'] ?? 0);
+            if ($priceType === 'inclusive' && $taxRate > 0) {
+                $tax = $lineSubtotal - ($lineSubtotal / (1 + $taxRate / 100));
+            } else {
+                $subtotal = ($value['price'] ?? 0) * ($value['quantity'] ?? 0);
+                $tax = ($subtotal * $taxRate) / 100;
+            }
+            $sales['data'][$key]['name'] = $value['name'];
+            $sales['data'][$key]['quantity'] = $value['quantity'];
+            $sales['data'][$key]['price'] = $user->priceFormat($value['price']);
+            $sales['data'][$key]['tax'] = $value['tax'] . '%';
+            $sales['data'][$key]['product_tax'] = $value['product_tax'];
+            $sales['data'][$key]['tax_amount'] = $user->priceFormat($tax);
+            $sales['data'][$key]['subtotal'] = $user->priceFormat($value['subtotal']);
+            $mainsubtotal += $value['subtotal'];
+        }
+        $discount = !empty($request->discount) ? $request->discount : 0;
+        $sales['discount'] = $user->priceFormat($discount);
+        $sales['sub_total'] = $user->priceFormat($mainsubtotal);
+        $sales['total'] = $user->priceFormat($mainsubtotal - $discount);
+        $sales['tip'] = $user->priceFormat(0);
+
+        $posPayments = collect();
+        $segundaVia = false;
+        $printSource = 'restaurant';
+        $productServices = ProductService::where('created_by', $user->creatorId())->get();
+        $barcode = ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()];
+
+        return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource'));
     }
 
     /**

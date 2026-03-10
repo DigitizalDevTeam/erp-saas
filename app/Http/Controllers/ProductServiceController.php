@@ -140,6 +140,7 @@ class ProductServiceController extends Controller
             $productService->description         = $request->description;
             $productService->sku                 = $request->sku;
             $productService->sale_price          = $request->sale_price;
+            $productService->sale_price_type      = in_array($request->sale_price_type, ['inclusive', 'exclusive'], true) ? $request->sale_price_type : 'exclusive';
             $productService->purchase_price      = $request->purchase_price;
             $productService->tax_id              = !empty($request->tax_id) ? implode(',', $request->tax_id) : '';
             $productService->unit_id             = $request->unit_id;
@@ -281,6 +282,7 @@ class ProductServiceController extends Controller
                 $productService->description    = $request->description;
                 $productService->sku            = $request->sku;
                 $productService->sale_price     = $request->sale_price;
+                $productService->sale_price_type = in_array($request->sale_price_type, ['inclusive', 'exclusive'], true) ? $request->sale_price_type : 'exclusive';
                 $productService->purchase_price = $request->purchase_price;
                 $productService->tax_id         = !empty($request->tax_id) ? implode(',', $request->tax_id) : '';
                 $productService->unit_id        = $request->unit_id;
@@ -658,10 +660,15 @@ class ProductServiceController extends Controller
             }
             $producttax = $totalTaxRate;
 
+            $priceType = in_array($product->sale_price_type ?? 'exclusive', ['inclusive', 'exclusive'], true) ? $product->sale_price_type : 'exclusive';
+            if ($priceType === 'inclusive' && $producttax > 0) {
+                $subtotal = $productprice;
+                $tax = $productprice - ($productprice / (1 + $producttax / 100));
+            } else {
+                $tax = ($productprice * $producttax) / 100;
+                $subtotal = $productprice + $tax;
+            }
 
-            $tax = ($productprice * $producttax) / 100;
-
-            $subtotal        = $productprice + $tax;
             if ($tableKey !== null) {
                 $all = session()->get($cartKey, []);
                 $cart = $all[$tableKey] ?? null;
@@ -756,6 +763,7 @@ class ProductServiceController extends Controller
                         "originalquantity" => $originalquantity,
                         "product_tax" => $product_tax,
                         "product_tax_id" => !empty($product_tax_id) ? implode(',', $product_tax_id) : 0,
+                        "price_type" => $priceType,
                     ],
                 ];
 
@@ -795,11 +803,19 @@ class ProductServiceController extends Controller
 
                 $cart[$id]['quantity']++;
                 $cart[$id]['id'] = $id;
-
-                $subtotal = $cart[$id]["price"] * $cart[$id]["quantity"];
-                $tax      = ($subtotal * $cart[$id]["tax"]) / 100;
-
-                $cart[$id]["subtotal"]         = $subtotal + $tax;
+                if (!isset($cart[$id]['price_type'])) {
+                    $cart[$id]['price_type'] = $priceType;
+                }
+                $pt = $cart[$id]['price_type'] ?? 'exclusive';
+                $qty = $cart[$id]['quantity'];
+                $pr = $cart[$id]['price'];
+                $tx = $cart[$id]['tax'] ?? 0;
+                if ($pt === 'inclusive' && $tx > 0) {
+                    $cart[$id]["subtotal"] = $pr * $qty;
+                } else {
+                    $subtotal = $pr * $qty;
+                    $cart[$id]["subtotal"] = $subtotal * (1 + $tx / 100);
+                }
                 $cart[$id]["originalquantity"] = $originalquantity;
 
                 if ($originalquantity < $cart[$id]['quantity'] && $isPosSession) {
@@ -842,6 +858,7 @@ class ProductServiceController extends Controller
                 "id" => $id,
                 "originalquantity" => $originalquantity,
                 "product_tax" => $product_tax,
+                "price_type" => $priceType,
             ];
 
             if ($originalquantity < $cart[$id]['quantity'] && $isPosSession) {
@@ -936,13 +953,17 @@ class ProductServiceController extends Controller
 
                 $cart[$id]["quantity"] = $quantity;
 
-                $producttax            = isset($cart[$id]) ? $cart[$id]["tax"] : 0;
-                $productprice          = $cart[$id]["price"];
+                $producttax   = isset($cart[$id]) ? $cart[$id]["tax"] : 0;
+                $productprice = $cart[$id]["price"];
+                $priceType    = $cart[$id]["price_type"] ?? 'exclusive';
 
-                $subtotal = $productprice * $quantity;
-                $tax      = ($subtotal * $producttax) / 100;
-
-                $cart[$id]["subtotal"] = $subtotal + $tax;
+                if ($priceType === 'inclusive' && $producttax > 0) {
+                    $cart[$id]["subtotal"] = $productprice * $quantity;
+                } else {
+                    $subtotal = $productprice * $quantity;
+                    $tax = ($subtotal * $producttax) / 100;
+                    $cart[$id]["subtotal"] = $subtotal + $tax;
+                }
             }
 
             // POS: validate against product's quantity (stock)

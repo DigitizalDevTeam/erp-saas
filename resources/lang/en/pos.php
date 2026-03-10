@@ -116,6 +116,7 @@ return [
     'document_processed_by_computer' => 'Document Processed by Computer',
     'credit_signature_line' => 'Space for client signature (name in capitals) accepting and I authorized to sign this credit.',
     'client_signature_for_credit' => 'Client signature for credit',
+    'view_bill' => 'View Bill',
     'number_of_copies' => 'Number of copies',
     'segunda_via' => 'Segunda Via',
     'slip' => 'Slip',

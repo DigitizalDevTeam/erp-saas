@@ -94,6 +94,7 @@
                             <button type="button" class="btn btn-sm btn-outline-info" id="pos-join-table-restaurant" title="{{ __('pos.join_table') }}"><i class="ti ti-table-plus"></i> {{ __('pos.join_table') }}</button>
                             <button type="button" class="btn btn-sm btn-outline-warning" id="pos-split-bill-restaurant" title="{{ __('pos.split_bill') }}"><i class="ti ti-separator-horizontal"></i></button>
                             <button type="button" class="btn btn-sm btn-outline-danger" id="pos-empty-cart-restaurant" title="{{ __('pos.empty_cart') }}"><i class="ti ti-trash"></i></button>
+                            <button type="button" id="pos-view-bill-restaurant" class="btn btn-sm btn-outline-secondary" title="{{ __('pos.view_bill') }}"><i class="ti ti-file-invoice me-1"></i>{{ __('pos.view_bill') }}</button>
                             @if($canShowPayButton ?? true)
                             <button type="button" id="pos-pay-btn-restaurant" class="btn btn-sm btn-primary" data-size="xl" data-url="{{ route('pos.create') }}" data-title="{{ __('pos.pos_invoice') }}" disabled>{{ __('pos.pay') }}</button>
                             @endif

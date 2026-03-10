@@ -1514,6 +1514,44 @@
                 });
             });
 
+            $(document).on('click', '#pos-view-bill-restaurant', function (e) {
+                e.preventDefault();
+                var orderType = $('#pos-restaurant-order-type').val() || 'dine_in';
+                var tableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                if (orderType === 'dine_in' && !tableId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_table_required") }}', 'error');
+                    return;
+                }
+                var warehouseId = $('#pos-restaurant-warehouse').val();
+                if (!warehouseId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_warehouse") }}', 'error');
+                    return;
+                }
+                var data = {
+                    warehouse_name: warehouseId,
+                    discount: $('#discount_hidden').length ? $('#discount_hidden').val() || '0' : '0',
+                    vc_name: $('#vc_name_hidden').length ? $('#vc_name_hidden').val() || '' : '',
+                    pos_table_id: tableId || '',
+                    pos_shift_id: $('#pos_shift_id_hidden').length ? $('#pos_shift_id_hidden').val() || '' : '',
+                    pos_order_type: orderType,
+                    pos_id: (orderType === 'delivery' || orderType === 'takeaway') && $('#pos_restaurant_pos_id').length ? ($('#pos_restaurant_pos_id').val() || '') : ''
+                };
+                $('#commonModal .modal-title').html('{{ __("pos.view_bill") }}');
+                $('.modal-dialog').removeClass('modal-xl modal-lg modal-md modal-sm').addClass('modal-xl');
+                $.ajax({
+                    url: '{{ route("pos.bill.view") }}',
+                    data: data,
+                    success: function (html) {
+                        $('#commonModal .body').html(html);
+                        $('#commonModal').modal('show');
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("pos.error") }}';
+                        show_toastr('{{ __("Error") }}', msg, 'error');
+                    }
+                });
+            });
+
             $(document).on('click', '#pos-empty-cart-restaurant', function () {
                 if (!confirm('{{ __("pos.remove_all_items") }}')) return;
                 var sk = $( "#empty_cart" ).val() || sessionKey;

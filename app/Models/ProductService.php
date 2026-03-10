@@ -13,6 +13,7 @@ class ProductService extends Model
         'name',
         'sku',
         'sale_price',
+        'sale_price_type',
         'purchase_price',
         'tax_id',
         'price_level_id',

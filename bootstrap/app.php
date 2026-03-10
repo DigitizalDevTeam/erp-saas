@@ -61,9 +61,17 @@ return Application::configure(basePath: dirname(__DIR__))
 
     })
     ->withExceptions(function (Exceptions $exceptions) {
-         $exceptions->renderable(function (\Exception $e) {
+        $exceptions->renderable(function (\Exception $e) {
             if ($e->getPrevious() instanceof \Illuminate\Session\TokenMismatchException) {
                 return redirect()->back()->with('error', 'Your session expired. Please refresh and try again.');
             };
+        });
+
+        // Show friendly maintenance page instead of technical errors when debug is off
+        $exceptions->renderable(function (\Throwable $e) {
+            if (! config('app.debug') && ! request()->expectsJson()) {
+                return response()->view('errors.maintenance', [], 500);
+            }
+            return null;
         });
     })->create();

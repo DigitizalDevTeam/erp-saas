@@ -40,25 +40,34 @@ class BranchSalesTarget extends Model
     /**
      * Get [start, end] date range for the period (inclusive).
      */
-    public static function periodToDateRange(string $periodType, string $periodValue): array
+    public static function periodToDateRange(string $periodType, $periodValuea): array
     {
+        // $periodValue = $periodValue !== null ? trim((string) $periodValue) : '';
+
         switch ($periodType) {
             case self::PERIOD_DAY:
-                $d = Carbon::parse($periodValue)->startOfDay();
+                $d = $periodValue !== '' ? Carbon::parse($periodValue)->startOfDay() : Carbon::today()->startOfDay();
                 return [$d->format('Y-m-d'), $d->format('Y-m-d')];
             case self::PERIOD_WEEK:
-                $d = Carbon::parse($periodValue)->startOfWeek(); // Monday
+                $d = $periodValue !== '' ? Carbon::parse($periodValue)->startOfWeek() : Carbon::today()->startOfWeek();
                 $end = $d->copy()->endOfWeek();
                 return [$d->format('Y-m-d'), $end->format('Y-m-d')];
             case self::PERIOD_MONTH:
+                if ($periodValue === '' || preg_match('/^\d{4}-\d{2}$/', $periodValue) !== 1) {
+                    $periodValue = Carbon::now()->format('Y-m');
+                }
                 $d = Carbon::createFromFormat('Y-m', $periodValue)->startOfMonth();
                 $end = $d->copy()->endOfMonth();
                 return [$d->format('Y-m-d'), $end->format('Y-m-d')];
             case self::PERIOD_YEAR:
-                $d = Carbon::createFromFormat('Y', $periodValue)->startOfYear();
+                $year = $periodValue !== '' && preg_match('/^\d{4}$/', (string) $periodValue) ? (string) $periodValue : Carbon::now()->format('Y');
+                $d = Carbon::createFromFormat('Y', $year)->startOfYear();
                 $end = $d->copy()->endOfYear();
                 return [$d->format('Y-m-d'), $end->format('Y-m-d')];
             default:
+                if ($periodValue === '' || preg_match('/^\d{4}-\d{2}$/', $periodValue) !== 1) {
+                    $periodValue = Carbon::now()->format('Y-m');
+                }
                 $d = Carbon::createFromFormat('Y-m', $periodValue)->startOfMonth();
                 $end = $d->copy()->endOfMonth();
                 return [$d->format('Y-m-d'), $end->format('Y-m-d')];
@@ -68,7 +77,7 @@ class BranchSalesTarget extends Model
     /**
      * Get actual sales amount for a branch/period/creator.
      */
-    public static function actualSalesFor(int $branchId, string $periodType, string $periodValue, int $createdBy): float
+    public static function actualSalesFor(int $branchId, string $periodType, $periodValue, int $createdBy): float
     {
         [$start, $end] = self::periodToDateRange($periodType, $periodValue);
         $list = Pos::where('branch_id', $branchId)
@@ -100,18 +109,23 @@ class BranchSalesTarget extends Model
      */
     public function getPeriodLabelAttribute(): string
     {
+        $value = $this->period_value !== null ? trim((string) $this->period_value) : '';
         switch ($this->period_type) {
             case self::PERIOD_DAY:
-                return Carbon::parse($this->period_value)->format('M j, Y');
+                $d = $value !== '' ? Carbon::parse($value) : Carbon::today();
+                return $d->format('M j, Y');
             case self::PERIOD_WEEK:
-                $d = Carbon::parse($this->period_value)->startOfWeek();
+                $d = $value !== '' ? Carbon::parse($value)->startOfWeek() : Carbon::today()->startOfWeek();
                 return $d->format('M j') . ' – ' . $d->copy()->endOfWeek()->format('M j, Y');
             case self::PERIOD_MONTH:
-                return Carbon::createFromFormat('Y-m', $this->period_value)->format('F Y');
+                if ($value === '' || preg_match('/^\d{4}-\d{2}$/', $value) !== 1) {
+                    $value = Carbon::now()->format('Y-m');
+                }
+                return Carbon::createFromFormat('Y-m', $value)->format('F Y');
             case self::PERIOD_YEAR:
-                return $this->period_value;
+                return $value !== '' && preg_match('/^\d{4}$/', $value) ? $value : Carbon::now()->format('Y');
             default:
-                return $this->period_value;
+                return $value !== '' ? $value : '—';
         }
     }
 }

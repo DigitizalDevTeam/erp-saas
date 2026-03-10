@@ -1861,6 +1861,7 @@ Route::group(['middleware' => ['verified']], function () {
 
     //for pos print
     Route::get('printview/pos', [PosController::class, 'printView'])->name('pos.printview')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('printview/pos/bill', [PosController::class, 'billView'])->name('pos.bill.view')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::get('report/pos', [PosController::class, 'report'])->name('pos.report')->middleware(['auth', 'XSS']);
     Route::get('pos/search-pay-receipts', [PosController::class, 'searchPayReceipts'])->name('pos.search.pay.receipts')->middleware(['auth', 'XSS', 'revalidate']);

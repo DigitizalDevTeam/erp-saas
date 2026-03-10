@@ -33,6 +33,15 @@
                 {{ Form::number('sale_price', '', array('class' => 'form-control','required'=>'required','step'=>'0.01', 'placeholder' => __('Enter Sale Price'))) }}
             </div>
         </div>
+        <div class="col-md-6">
+            <div class="form-group">
+                {{ Form::label('sale_price_type', __('Price includes VAT?'),['class'=>'form-label']) }}
+                <select name="sale_price_type" class="form-control select">
+                    <option value="exclusive">{{ __('Exclusive VAT') }} ({{ __('VAT will be added on top') }})</option>
+                    <option value="inclusive">{{ __('Inclusive VAT') }} ({{ __('VAT is included in price') }})</option>
+                </select>
+            </div>
+        </div>
         <div class="form-group col-md-6">
             {{ Form::label('sale_chartaccount_id', __('Income Account'),['class'=>'form-label']) }}<x-required></x-required>
             <select name="sale_chartaccount_id" class="form-control" required="required">
