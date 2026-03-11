@@ -20,6 +20,8 @@
     $posIdRaw = $posIdRaw ?? null;
     $receiptLinkUrl = $receiptLinkUrl ?? null;
     $printSource = $printSource ?? 'retail';
+    $isBalancePayment = $isBalancePayment ?? false;
+    $qrCodeContent = $receiptLinkUrl ?: (isset($details['pos_id']) ? (($settings['company_name'] ?? config('app.name')) . ' - ' . $details['pos_id'] . ' - ' . ($details['date'] ?? date('Y-m-d'))) : url('/'));
 @endphp
 <style>
     .pos-print-header .header-sep { border-bottom: 1px dotted #333; margin: 10px 0; }
@@ -89,6 +91,9 @@
             <div>Phone: {{ $settings['company_telephone'] ?? '' }}</div>
             <div>E-mail: {{ $settings['mail_from_address'] ?? '' }}</div>
         </div>
+        
+        <div class="mt-1" style="font-size: 1.3rem;text-align: center;"><b>{{ $printSource === 'restaurant' ? __('Restaurant') : __('Retail') }} - {{ __('pos.slip') }}</b></div>
+
 
         <div class="header-sep"></div>
 
@@ -126,7 +131,9 @@
         <div class="header-sep"></div>
     </div>
 
-    @if($hasCreditPayment)
+    @if($isBalancePayment)
+        {{-- Balance payment: only payment block, no items --}}
+    @elseif($hasCreditPayment)
         <div class="product-border mt-3 p-3">
             <div class="text-black fw-bold mb-2">{{ __('Credit Receipt') }}</div>
             <div class="d-flex product-border mb-2">
@@ -231,6 +238,22 @@
                         </div>
                     @endif
                 @endforeach
+                @if($isBalancePayment && !empty($balancePaymentExtra))
+                    <div class="product-border mb-1 mt-2">
+                        <div><b>{{ __('Applied to invoices') }}:</b></div>
+                        @if(!empty($balancePaymentExtra['invoices_paid']))
+                        <ul class="mb-0 ps-3 small">
+                            @foreach($balancePaymentExtra['invoices_paid'] as $inv)
+                            <li>{{ $inv['ref_number'] ?? '' }}: {{ Auth::user()->priceFormat($inv['amount'] ?? 0) }}</li>
+                            @endforeach
+                        </ul>
+                        @endif
+                    </div>
+                    <div class="d-flex product-border mb-1">
+                        <div><b>{{ __('Remaining balance') }}:</b></div>
+                        <div class="text-end ms-auto">{{ $balancePaymentExtra['new_balance_formatted'] ?? '0' }}</div>
+                    </div>
+                @endif
             </div>
         @endif
 
@@ -271,25 +294,32 @@
         {{-- Licensing / Certification + Scan-to-view receipt QR (SVG so it prints) --}}
         <div class="pos-print-footer mt-2 d-flex align-items-center gap-3">
             <div class="border rounded p-2 text-center d-flex flex-column align-items-center justify-content-center view-qrcode-box" style="min-width:110px;min-height:110px;line-height:1.2;font-size:0.7rem;overflow:visible;">
-                @if($receiptLinkUrl)
-                <div class="view-qrcode-receipt view-qrcode-receipt-svg" style="width:115px;height:115px;flex-shrink:0;">
-                    @php
+                @php
+                    $qrSvg = null;
+                    $qrHtml = '';
+                    try {
+                        $qrSvg = \DNS2D::getBarcodeSVG($qrCodeContent, 'QRCODE', 2, 2);
+                    } catch (\Throwable $e) {
                         $qrSvg = null;
+                    }
+                    if (empty($qrSvg)) {
                         try {
-                            $qrSvg = \DNS2D::getBarcodeSVG($receiptLinkUrl, 'QRCODE', 2, 2);
+                            $qrHtml = \DNS2D::getBarcodeHTML($qrCodeContent, 'QRCODE', 2, 2);
                         } catch (\Throwable $e) {
-                            $qrSvg = null;
+                            $qrHtml = '';
                         }
-                    @endphp
-                    @if(!empty($qrSvg))
-                        {!! $qrSvg !!}
-                    @else
-                        {!! DNS2D::getBarcodeHTML($receiptLinkUrl, 'QRCODE', 2, 2) !!}
-                    @endif
+                    }
+                @endphp
+                @if(!empty($qrSvg))
+                <div class="view-qrcode-receipt view-qrcode-receipt-svg" style="width:115px;height:115px;flex-shrink:0;">
+                    {!! $qrSvg !!}
                 </div>
-                <!-- <span class="mt-1">{{ __('pos.scan_to_view_receipt') }}</span> -->
+                @elseif(!empty($qrHtml))
+                <div class="view-qrcode-receipt" style="width:115px;height:115px;flex-shrink:0;">
+                    {!! $qrHtml !!}
+                </div>
                 @else
-                DOC QR code
+                <span class="small text-muted">{{ __('pos.scan_to_view_receipt') }}</span>
                 @endif
             </div>
             <div class="small">

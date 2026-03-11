@@ -3289,21 +3289,60 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         }
 
         $newBalance = Customer::totalOutstanding($customerId);
+        $receiptData = [
+            'customer_name' => $customer ? $customer->name : $vcName,
+            'date' => $date,
+            'amount' => $amount,
+            'amount_formatted' => $user->priceFormat($amount),
+            'payment_method' => ucfirst($paymentMethod),
+            'invoices_paid' => $paidInvoices,
+            'new_balance' => $newBalance,
+            'new_balance_formatted' => $user->priceFormat($newBalance),
+        ];
+
+        $settings = Utility::settings();
+        $details = [
+            'pos_id' => __('Balance payment'),
+            'client_name' => $receiptData['customer_name'],
+            'customer' => $customer ? $customer->toArray() : [],
+            'warehouse' => ['name' => '-'],
+            'user' => $user->toArray(),
+            'date' => $date,
+        ];
+        $posPayments = collect([
+            (object)['payment_method' => $paymentMethod, 'amount' => $amount],
+        ]);
+        $bankAccounts = BankAccount::where('created_by', $user->creatorId())
+            ->select('id', 'holder_name', 'bank_name', 'account_number')->get();
+        $balancePaymentExtra = [
+            'invoices_paid' => $paidInvoices,
+            'new_balance_formatted' => $user->priceFormat($newBalance),
+        ];
+        $receiptHtml = view('pos.printview', [
+            'details' => $details,
+            'sales' => ['data' => [], 'discount' => '0', 'sub_total' => $user->priceFormat($amount), 'total' => $user->priceFormat($amount), 'tip' => '0'],
+            'customer' => $customer,
+            'productServices' => collect([]),
+            'barcode' => ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()],
+            'posPayments' => $posPayments,
+            'vatBreakdown' => [],
+            'bankAccounts' => $bankAccounts,
+            'segundaVia' => false,
+            'posIdRaw' => null,
+            'receiptLinkUrl' => null,
+            'printSource' => 'retail',
+            'isBalancePayment' => true,
+            'balancePaymentExtra' => $balancePaymentExtra,
+            'settings' => $settings,
+        ])->render();
+
         return response()->json([
             'success' => true,
             'message' => __('Payment successfully added.'),
             'balance' => $newBalance,
             'formatted' => $user->priceFormat($newBalance),
-            'receipt' => [
-                'customer_name' => $customer ? $customer->name : $vcName,
-                'date' => $date,
-                'amount' => $amount,
-                'amount_formatted' => $user->priceFormat($amount),
-                'payment_method' => ucfirst($paymentMethod),
-                'invoices_paid' => $paidInvoices,
-                'new_balance' => $newBalance,
-                'new_balance_formatted' => $user->priceFormat($newBalance),
-            ],
+            'receipt' => $receiptData,
+            'receipt_html' => $receiptHtml,
         ]);
     }
 

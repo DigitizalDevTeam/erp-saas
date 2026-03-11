@@ -6143,7 +6143,7 @@ textarea.is-invalid.dataTable-input {
     }
 
     .modal-sm {
-        --bs-modal-width: 300px;
+        --bs-modal-width: 360px;
     }
 }
 

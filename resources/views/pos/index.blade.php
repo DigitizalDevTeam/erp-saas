@@ -1816,24 +1816,11 @@
                                 $('#liveToast .toast-body').text(res.message || '{{ __("Payment successfully added.") }}');
                                 t.show();
                             }
-                            if (res.receipt) {
-                                var r = res.receipt;
-                                var win = window.open('', '_blank', 'width=400,height=500');
-                                win.document.write('<html><head><title>{{ __("Payment Receipt") }}</title><style>body{font-family:system-ui;padding:16px;} table{width:100%;} th{text-align:left;} .text-end{text-align:right;}</style></head><body>');
-                                win.document.write('<h4>{{ __("Payment Receipt") }}</h4>');
-                                win.document.write('<p><strong>{{ __("Customer") }}:</strong> ' + (r.customer_name || '') + '</p>');
-                                win.document.write('<p><strong>{{ __("Date") }}:</strong> ' + (r.date || '') + '</p>');
-                                win.document.write('<p><strong>{{ __("Payment method") }}:</strong> ' + (r.payment_method || '') + '</p>');
-                                win.document.write('<p><strong>{{ __("Amount paid") }}:</strong> ' + (r.amount_formatted || '') + '</p>');
-                                if (r.invoices_paid && r.invoices_paid.length) {
-                                    win.document.write('<p><strong>{{ __("Applied to invoices") }}:</strong></p><ul>');
-                                    r.invoices_paid.forEach(function(i) { win.document.write('<li>' + (i.ref_number || '') + ': ' + (i.amount || 0) + '</li>'); });
-                                    win.document.write('</ul>');
-                                }
-                                win.document.write('<p><strong>{{ __("Remaining balance") }}:</strong> ' + (r.new_balance_formatted || '') + '</p>');
-                                win.document.write('<p class="mt-4"><button onclick="window.print()">{{ __("Print") }}</button></p>');
-                                win.document.write('</body></html>');
-                                win.document.close();
+                            if (res.receipt_html) {
+                                $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
+                                $('#commonModal .modal-dialog').removeClass('modal-xl modal-lg modal-md').addClass('modal-sm');
+                                $('#commonModal .body').html(res.receipt_html);
+                                $('#commonModal').modal('show');
                             }
                         } else {
                             $err.text(res.message || '{{ __("Error.") }}').removeClass('d-none');
