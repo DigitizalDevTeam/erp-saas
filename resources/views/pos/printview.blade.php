@@ -91,9 +91,11 @@
             <div>Phone: {{ $settings['company_telephone'] ?? '' }}</div>
             <div>E-mail: {{ $settings['mail_from_address'] ?? '' }}</div>
         </div>
-        
+        @if($isBalancePayment && !empty($balancePaymentExtra))
+        <div class="mt-1" style="font-size: 1.3rem;text-align: center;"><b>{{ __('POS') .' '. __('Invoice') }}</b></div>
+        @else
         <div class="mt-1" style="font-size: 1.3rem;text-align: center;"><b>{{ $printSource === 'restaurant' ? __('Restaurant') : __('Retail') }} - {{ __('pos.slip') }}</b></div>
-
+        @endif
 
         <div class="header-sep"></div>
 
@@ -361,7 +363,7 @@
         </label>
         <a href="#" id="print" class="btn btn-primary btn-sm">{{ __('pos.print') }}</a>
         @if(!$segundaVia && $posIdRaw)
-        <a href="{{ url('printview/pos?pos_id=' . (int)$posIdRaw . '&segunda_via=1&source=' . $printSource) }}" id="segunda-via-link" target="_blank" class="btn btn-outline-secondary btn-sm" title="{{ __('pos.segunda_via') }}">{{ __('pos.segunda_via') }}</a>
+        <button id="segunda-via-link" class="btn btn-outline-secondary btn-sm" title="{{ __('pos.segunda_via') }}">{{ __('pos.segunda_via') }}</button>
         @endif
     </div>
     @endif
@@ -392,6 +394,21 @@
         e.preventDefault();
         var copies = document.getElementById("print-copies") ? document.getElementById("print-copies").value : 1;
         doPrint(copies);
+    });
+    $(document).on('click','#segunda-via-link',function(){
+        var pos_id = '{{ (int)$posIdRaw }}';
+        $('#commonModal .modal-dialog').addClass('modal-sm');
+        $.get('{{url("/")}}/printview/pos', {
+            pos_id: pos_id,
+            source: 'retail',
+            modal: 1,
+            segunda_via: 1,
+            source: '{{ $printSource }}'
+        }, function(html){
+            $('#commonModal .modal-title').text('POS Receipt');
+            $('#commonModal .body').html(html);
+            $('#commonModal').modal('show');
+        });
     });
 })();
 </script>

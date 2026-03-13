@@ -2391,6 +2391,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $customer = Customer::where('name', '=', $request->vc_name)->where('created_by', $user->creatorId())->first();
         $warehouse = warehouse::where('id', '=', $request->warehouse_name)->where('created_by', $user->creatorId())->first();
 
+        if($sess === null){
+            return ;
+        }
         $details = [
             'pos_id' => $user->posNumberFormat($this->invoicePosNumber()),
             'customer' => $customer != null ? $customer->toArray() : [],
