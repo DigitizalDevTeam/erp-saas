@@ -2838,7 +2838,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $posIdRaw = $pos->id;
         $receiptLinkUrl = url(route('pos.receipt.link', Crypt::encrypt($pos->id)));
         $printSource = 'retail';
-        return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'settings', 'printSource'))->with('standalone', true);
+        $receiptUser = $user;
+        return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'settings', 'printSource', 'receiptUser'))->with('standalone', true);
     }
 
     public function add_opening_balance()
@@ -3340,7 +3341,6 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'printSource' => 'retail',
             'isBalancePayment' => true,
             'balancePaymentExtra' => $balancePaymentExtra,
-            'receiptLinkUrl' => url('/'),
             'settings' => $settings,
         ])->render();
 

@@ -22,7 +22,8 @@
     $printSource = $printSource ?? 'retail';
     $isBalancePayment = $isBalancePayment ?? false;
     $qrCodeContent = $receiptLinkUrl ?: (isset($details['pos_id']) ? (($settings['company_name'] ?? config('app.name')) . ' - ' . $details['pos_id'] . ' - ' . ($details['date'] ?? date('Y-m-d'))) : url('/'));
-    \Log::info('QR Code content: ' . $qrCodeContent);
+    $receiptUser = $receiptUser ?? null;
+    $priceUser = $receiptUser ?? Auth::user();
 @endphp
 <style>
     .pos-print-header .header-sep { border-bottom: 1px dotted #333; margin: 10px 0; }
@@ -43,11 +44,18 @@
     .view-qrcode-receipt-svg { display: inline-block; }
     .view-qrcode-receipt-svg { line-height: 0; }
     .view-qrcode-receipt-svg svg { display: block !important; width: 100% !important; height: 100% !important; max-width: 100%; max-height: 100%; }
+    .vat-summary-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+    .vat-summary-wrap table { min-width: 420px; width: 100%; table-layout: fixed; }
+    .vat-summary-wrap th, .vat-summary-wrap td { padding: 6px 8px !important; white-space: nowrap; box-sizing: border-box; }
     @media print {
         .segunda-via-watermark { opacity: 0.15; font-size: 3.5rem; }
         .no-print-copies { display: none !important; }
+        .vat-summary-wrap { overflow: visible !important; max-width: 100%; page-break-inside: avoid; }
+        .vat-summary-wrap table { width: 100% !important; font-size: 0.7rem; }
+        .vat-summary-wrap th { white-space: normal !important; word-break: break-word; line-height: 1.2; }
+        .vat-summary-wrap th, .vat-summary-wrap td { padding: 4px 6px !important; }
         /* Prevent bottom cut-off in print preview and on paper */
-        #printarea { padding-bottom: 0.6in !important; }
+        #printarea { padding-bottom: 0.6in !important; overflow: visible !important; }
         .receipt-copy { padding-bottom: 0.2in; }
         /* Ensure QR code prints (visible in print preview and on paper) */
         .view-qrcode-receipt, .view-qrcode-receipt * { visibility: visible !important; }
@@ -60,12 +68,20 @@
 </style>
 @if($standalone)
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('Receipt') }} - {{ $details['pos_id'] ?? '' }}</title>
-    <style>body{font-family:system-ui,sans-serif;}.btn-primary{background:#0d6efd;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px;}.btn-primary:hover{background:#0b5ed7;}</style>
+    <link rel="stylesheet" href="{{ asset('assets/css/plugins/main.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/plugins/style.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/fonts/tabler-icons.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/fonts/feather.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/fonts/fontawesome.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/fonts/material.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/custom.css') }}">
+    <script src="{{ asset('js/jquery.min.js') }}"></script>
 </head>
 <body style="padding:1rem; background:#f5f5f5;">
 @endif
@@ -145,7 +161,7 @@
             </div>
             <div class="d-flex product-border mb-2">
                 <div><b>{{ __('Amount received') }}:</b></div>
-                <div class="text-end ms-auto">{{ Auth::user()->priceFormat($amountReceived) }} <span class="text-muted">({{ __('pos.by_writing') }}: {{ \App\Models\Utility::amountInWords($amountReceived) }})</span></div>
+                <div class="text-end ms-auto">{{ $priceUser ? $priceUser->priceFormat($amountReceived) : number_format($amountReceived, 2) }} <span class="text-muted">({{ __('pos.by_writing') }}: {{ \App\Models\Utility::amountInWords($amountReceived) }})</span></div>
             </div>
             <div class="d-flex product-border mb-2">
                 <div><b>{{ __('Balance') }}:</b></div>
@@ -158,15 +174,6 @@
         </div>
     @else
     <div class=" text-black text-left fs-5 mt-0 mb-0">{{__('Items')}}</div>
-        @php
-            $totalDiscount = floatval(str_replace([',', Auth::user()->currencySymbol()], '', $sales['discount'] ?? '0'));
-            $itemCount = count($sales['data'] ?? []);
-            $discountPerItem = $itemCount > 0 ? $totalDiscount / $itemCount : 0;
-            $totalTax = 0;
-            foreach ($sales['data'] ?? [] as $item) {
-                $totalTax += floatval(str_replace([',', Auth::user()->currencySymbol()], '', $item['tax_amount'] ?? '0'));
-            }
-        @endphp
         @foreach ($sales['data'] ?? [] as $key => $value)
             <div class="mt-2">
                 <div class="p-0"> <b>{{ $value['name'] }}</b>@if(!empty($value['description']))<br><strong>{{ $value['description'] }}</strong>@endif</div>
@@ -174,33 +181,33 @@
                     <div>{{ __('pos.quantity_colon') }}</div>
                     <div class="text-end ms-auto">{{ $value['quantity'] }}</div>
                 </div>
-                <div class="d-flex product-border">
-                    <div>{{ __('pos.price_colon') }}</div>
-                    <div class="text-end ms-auto">{{ $value['price'] }}</div>
-                </div>
-                {{-- @if($discountPerItem > 0) --}}
-                <div class="d-flex product-border">
-                    <div>{{ __('pos.discount_colon') }}</div>
-                    <div class="text-end ms-auto">{{ Auth::user()->priceFormat($discountPerItem ?? 0) }}</div>
-                </div>
-                {{-- @endif --}}
-                <div class="d-flex product-border mb-2">
-                    <div>{{ __('pos.sub_total_colon') }}</div>
-                    <div class="text-end ms-auto">{{ $value['subtotal'] }}</div>
-                </div>
+            </div>
+            <div class="d-flex product-border">
+                <div>{{ __('pos.price_colon') }}</div>
+                <div class="text-end ms-auto">{{ $value['price'] }}</div>
+            </div>
+            <div class="d-flex product-border">
+                <div>{{ __('pos.tax_colon') }}</div>
+                <div class="text-end ms-auto"> {{ $value['tax'] }}</div>
+            </div>
+            <div class="d-flex product-border mb-2">
+                <div>{{ __('pos.tax_amount_colon') }}</div>
+                <div class="text-end ms-auto">{{ $value['tax_amount'] }}</div>
+            </div>
+            <div class="d-flex product-border mb-2">
+                <div>{{ __('pos.sub_total_colon') }}</div>
+                <div class="text-end ms-auto"> {{ $value['subtotal'] }}</div>
             </div>
         @endforeach
-        {{-- Sub total first, then Tax, then Total --}}
+        {{-- Sub total first, then Discount (before tax/total), then Tip, then Total --}}
         <div class="d-flex product-border mb-2 mt-4">
             <div><b>{{ __('pos.sub_total_colon') }}</b></div>
             <div class="text-end ms-auto"> {{ $sales['sub_total'] ?? $sales['total'] }}</div>
         </div>
-        @if($totalTax > 0)
         <div class="d-flex product-border mb-2">
-            <div><b>{{ __('pos.tax_colon') }}</b></div>
-            <div class="text-end ms-auto">{{ Auth::user()->priceFormat($totalTax) }}</div>
+            <div><b>{{ __('pos.discount_colon') }}</b></div>
+            <div class="text-end ms-auto"> {{ $sales['discount'] }}</div>
         </div>
-        @endif
         @if($printSource === 'restaurant' && isset($sales['tip']) && $sales['tip'] !== '' && $sales['tip'] != '0' && $sales['tip'] != '0.00')
         <div class="d-flex product-border mb-2">
             <div><b>{{ __('pos.tip') }}:</b></div>
@@ -223,12 +230,12 @@
                     </div>
                     <div class="d-flex product-border mb-1">
                         <div>{{ __('Amount') }}:</div>
-                        <div class="text-end ms-auto">{{ Auth::user()->priceFormat($pmt->amount ?? 0) }}</div>
+                        <div class="text-end ms-auto">{{ $priceUser ? $priceUser->priceFormat($pmt->amount ?? 0) : number_format($pmt->amount ?? 0, 2) }}</div>
                     </div>
                     @if(isset($pmt->change_amount) && $pmt->change_amount > 0)
                         <div class="d-flex product-border mb-1">
                             <div><b>{{ __('Change') }}</b>:</div>
-                            <div class="text-end ms-auto"><b>{{ Auth::user()->priceFormat($pmt->change_amount) }}</b></div>
+                            <div class="text-end ms-auto"><b>{{ $priceUser ? $priceUser->priceFormat($pmt->change_amount) : number_format($pmt->change_amount, 2) }}</b></div>
                         </div>
                     @endif
                     @if(!empty($pmt->transaction_id))
@@ -256,7 +263,7 @@
                         @if(!empty($balancePaymentExtra['invoices_paid']))
                         <ul class="mb-0 ps-3 small">
                             @foreach($balancePaymentExtra['invoices_paid'] as $inv)
-                            <li>{{ $inv['ref_number'] ?? '' }}: {{ Auth::user()->priceFormat($inv['amount'] ?? 0) }}</li>
+                            <li>{{ $inv['ref_number'] ?? '' }}: {{ $priceUser ? $priceUser->priceFormat($inv['amount'] ?? 0) : number_format($inv['amount'] ?? 0, 2) }}</li>
                             @endforeach
                         </ul>
                         @endif
@@ -281,16 +288,17 @@
 
         {{-- VAT summary (incidence) - for MOZ etc. --}}
         @if(count($vatBreakdown) > 0)
-        <div class="pos-print-footer mt-2">
+        <div class="pos-print-footer mt-2 vat-summary-wrap">
             <table class="table table-sm table-bordered mb-0" style="font-size: 0.85rem;">
+                <colgroup><col style="width:12%"><col style="width:35%"><col style="width:23%"><col style="width:30%"></colgroup>
                 <thead><tr><th>VAT %</th><th>{{ __('Net Amount') }}</th><th>VAT</th><th>{{ __('Amount') }}</th></tr></thead>
                 <tbody>
                 @foreach($vatBreakdown as $row)
                 <tr>
                     <td>{{ number_format($row['rate'], 0) }}</td>
-                    <td>{{ Auth::user()->priceFormat($row['net']) }}</td>
-                    <td>{{ Auth::user()->priceFormat($row['vat']) }}</td>
-                    <td>{{ Auth::user()->priceFormat($row['amount']) }}</td>
+                    <td>{{ $priceUser ? $priceUser->priceFormat($row['net']) : number_format($row['net'], 2) }}</td>
+                    <td>{{ $priceUser ? $priceUser->priceFormat($row['vat']) : number_format($row['vat'], 2) }}</td>
+                    <td>{{ $priceUser ? $priceUser->priceFormat($row['amount']) : number_format($row['amount'], 2) }}</td>
                 </tr>
                 @endforeach
                 </tbody>

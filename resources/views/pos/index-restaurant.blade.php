@@ -614,7 +614,7 @@
                 }).done(function(res) {
                     if (res.success && res.data && res.data.length) {
                         var rows = res.data.map(function(r) {
-                            return '<tr><td>' + (r.pos_number || '') + '</td><td>' + (r.date || '') + '</td><td>' + (r.customer_name || '') + '</td><td>' + (r.total || '') + '</td><td><button class="btn btn-sm btn-outline-primary pay-receipt-print" data-id="'+r.id+'"><i class="ti ti-printer"></i></button></td></tr>';
+                            return '<tr><td>' + (r.pos_number || '') + '</td><td>' + (r.date || '') + '</td><td>' + (r.customer_name || '') + '</td><td>' + (r.total || '') + '</td><td><a href="' + printBaseUrl + '?pos_id=' + r.id + '&source=' + posPrintSource + '" target="_blank" class="btn btn-sm btn-outline-primary pay-receipt-print"><i class="ti ti-printer"></i></a></td></tr>';
                         });
                         tbody.html(rows.join(''));
                     } else {
@@ -1780,20 +1780,6 @@
                 w.print();
                 w.onafterprint = function() { w.close(); };
             });
-            
-        $(document).on('click','.pay-receipt-print',function(){
-            var pos_id = $(this).data('id');
-            $('#commonModal .modal-dialog').addClass('modal-sm');
-            $.get('{{url("printview/pos")}}', {
-                pos_id: pos_id,
-                source: 'retail',
-                modal: 1
-            }, function(html){
-                $('#commonModal .modal-title').text('POS Receipt');
-                $('#commonModal .body').html(html);
-                $('#commonModal').modal('show');
-            });
-        });
             $(document).on('click', '.pos-eod-link', function (e) {
                 e.preventDefault();
                 var date = $(this).data('date');
