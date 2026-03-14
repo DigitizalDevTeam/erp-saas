@@ -2305,16 +2305,19 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $posPayments = collect();
 
         if ($request->pos_id && Auth::user()->canManagePos()) {
-            $pos = Pos::with(['items', 'customer', 'warehouse', 'posPayments', 'table'])->where('id', $request->pos_id)->where('created_by', $user->creatorId())->first();
+            $pos = Pos::with(['items', 'customer', 'warehouse', 'posPayments', 'table', 'branch'])->where('id', $request->pos_id)->where('created_by', $user->creatorId())->first();
             if ($pos) {
                 $posPayments = $pos->posPayments;
                 $customer = $pos->customer_id ? $pos->customer : null;
                 $warehouse = $pos->warehouse;
+                $branch = $pos->branch;
+
                 $clientName = !empty($pos->guest_name) ? $pos->guest_name : (!empty($customer->name) ? $customer->name : __('pos.walkin_customer'));
                 $details = [
                     'pos_id' => $user->posNumberFormat($pos->pos_id),
                     'customer' => $customer ? $customer->toArray() : [],
                     'warehouse' => $warehouse ? $warehouse->toArray() : [],
+                    'branch' => $branch ? $branch->toArray() : [],
                     'user' => $user->toArray(),
                     'date' => $pos->pos_date ?? date('Y-m-d'),
                     'client_name' => $clientName,
@@ -2380,6 +2383,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $segundaVia = $request->boolean('segunda_via');
                 $posIdRaw = $pos->id;
                 $receiptLinkUrl = url(route('pos.receipt.link', Crypt::encrypt($pos->id)));
+                \Log::info('Receipt link URL: ' . $receiptLinkUrl);
                 $printSource = in_array($request->get('source'), ['restaurant'], true) ? 'restaurant' : 'retail';
                 return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'printSource'));
             }
@@ -3336,6 +3340,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'printSource' => 'retail',
             'isBalancePayment' => true,
             'balancePaymentExtra' => $balancePaymentExtra,
+            'receiptLinkUrl' => url('/'),
             'settings' => $settings,
         ])->render();
 

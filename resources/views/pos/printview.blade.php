@@ -22,6 +22,7 @@
     $printSource = $printSource ?? 'retail';
     $isBalancePayment = $isBalancePayment ?? false;
     $qrCodeContent = $receiptLinkUrl ?: (isset($details['pos_id']) ? (($settings['company_name'] ?? config('app.name')) . ' - ' . $details['pos_id'] . ' - ' . ($details['date'] ?? date('Y-m-d'))) : url('/'));
+    \Log::info('QR Code content: ' . $qrCodeContent);
 @endphp
 <style>
     .pos-print-header .header-sep { border-bottom: 1px dotted #333; margin: 10px 0; }
@@ -94,7 +95,7 @@
         @if($isBalancePayment && !empty($balancePaymentExtra))
         <div class="mt-1" style="font-size: 1.3rem;text-align: center;"><b>{{ __('POS') .' '. __('Invoice') }}</b></div>
         @else
-        <div class="mt-1" style="font-size: 1.3rem;text-align: center;"><b>{{ $printSource === 'restaurant' ? __('Restaurant') : __('Retail') }} - {{ __('pos.slip') }}</b></div>
+        <div class="mt-1" style="font-size: 1.3rem;text-align: center;"><b>{{ $printSource === 'restaurant' ? __('Restaurant') : __('Retail') }} - {{ $paymentDocumentTitle }}</b></div>
         @endif
 
         <div class="header-sep"></div>
@@ -103,7 +104,7 @@
         <div class="doc-row">
             <div class="left">
                 <div>Date: {{ $details['date'] ?? date('Y-m-d') }}</div>
-                <div class="mt-1">{{ __('pos.warehouse_name') }}:<br>{{ $details['warehouse']['name'] ?? '-' }}</div>
+                <div class="mt-1">{{ __('pos.branch_name') }}:<br>{{ $details['branch']['name'] ?? '-' }}</div>
             </div>
             <div class="right">
                 <div>{{ $segundaVia ? __('Copy') : __('Original') }}</div>
@@ -115,7 +116,7 @@
 
         {{-- Customer: Walk-in Customer | Client Name --}}
         <div class="customer-row">
-            <div class="cust-type">{{ __('pos.walkin_customer') }}</div>
+            {{-- <div class="cust-type">{{ __('pos.walkin_customer') }}</div> --}}
             <div class="cust-name">{{ $clientName }}</div>
         </div>
         @if(!empty($cust['billing_address']) || !empty($cust['billing_phone']) || !empty($cust['email']))
@@ -157,6 +158,15 @@
         </div>
     @else
     <div class=" text-black text-left fs-5 mt-0 mb-0">{{__('Items')}}</div>
+        @php
+            $totalDiscount = floatval(str_replace([',', Auth::user()->currencySymbol()], '', $sales['discount'] ?? '0'));
+            $itemCount = count($sales['data'] ?? []);
+            $discountPerItem = $itemCount > 0 ? $totalDiscount / $itemCount : 0;
+            $totalTax = 0;
+            foreach ($sales['data'] ?? [] as $item) {
+                $totalTax += floatval(str_replace([',', Auth::user()->currencySymbol()], '', $item['tax_amount'] ?? '0'));
+            }
+        @endphp
         @foreach ($sales['data'] ?? [] as $key => $value)
             <div class="mt-2">
                 <div class="p-0"> <b>{{ $value['name'] }}</b>@if(!empty($value['description']))<br><strong>{{ $value['description'] }}</strong>@endif</div>
@@ -164,33 +174,33 @@
                     <div>{{ __('pos.quantity_colon') }}</div>
                     <div class="text-end ms-auto">{{ $value['quantity'] }}</div>
                 </div>
-            </div>
-            <div class="d-flex product-border">
-                <div>{{ __('pos.price_colon') }}</div>
-                <div class="text-end ms-auto">{{ $value['price'] }}</div>
-            </div>
-            <div class="d-flex product-border">
-                <div>{{ __('pos.tax_colon') }}</div>
-                <div class="text-end ms-auto"> {{ $value['tax'] }}</div>
-            </div>
-            <div class="d-flex product-border mb-2">
-                <div>{{ __('pos.tax_amount_colon') }}</div>
-                <div class="text-end ms-auto">{{ $value['tax_amount'] }}</div>
-            </div>
-            <div class="d-flex product-border mb-2">
-                <div>{{ __('pos.sub_total_colon') }}</div>
-                <div class="text-end ms-auto"> {{ $value['subtotal'] }}</div>
+                <div class="d-flex product-border">
+                    <div>{{ __('pos.price_colon') }}</div>
+                    <div class="text-end ms-auto">{{ $value['price'] }}</div>
+                </div>
+                {{-- @if($discountPerItem > 0) --}}
+                <div class="d-flex product-border">
+                    <div>{{ __('pos.discount_colon') }}</div>
+                    <div class="text-end ms-auto">{{ Auth::user()->priceFormat($discountPerItem ?? 0) }}</div>
+                </div>
+                {{-- @endif --}}
+                <div class="d-flex product-border mb-2">
+                    <div>{{ __('pos.sub_total_colon') }}</div>
+                    <div class="text-end ms-auto">{{ $value['subtotal'] }}</div>
+                </div>
             </div>
         @endforeach
-        {{-- Sub total first, then Discount (before tax/total), then Tip, then Total --}}
+        {{-- Sub total first, then Tax, then Total --}}
         <div class="d-flex product-border mb-2 mt-4">
             <div><b>{{ __('pos.sub_total_colon') }}</b></div>
             <div class="text-end ms-auto"> {{ $sales['sub_total'] ?? $sales['total'] }}</div>
         </div>
+        @if($totalTax > 0)
         <div class="d-flex product-border mb-2">
-            <div><b>{{ __('pos.discount_colon') }}</b></div>
-            <div class="text-end ms-auto"> {{ $sales['discount'] }}</div>
+            <div><b>{{ __('pos.tax_colon') }}</b></div>
+            <div class="text-end ms-auto">{{ Auth::user()->priceFormat($totalTax) }}</div>
         </div>
+        @endif
         @if($printSource === 'restaurant' && isset($sales['tip']) && $sales['tip'] !== '' && $sales['tip'] != '0' && $sales['tip'] != '0.00')
         <div class="d-flex product-border mb-2">
             <div><b>{{ __('pos.tip') }}:</b></div>
@@ -325,14 +335,14 @@
                 @endif
             </div>
             <div class="small">
-                <div>Licensed for: {{ $settings['company_name'] ?? '' }}</div>
-                <div>Certified by:</div>
-                <div>Certificate NR:</div>
+                <div>{{ __('pos.licensed_for') }}: {{ $settings['company_name'] ?? '' }}</div>
+                <div>{{ __('pos.certified_by') }}:</div>
+                <div>{{ __('pos.certificate_nr') }}:</div>
             </div>
         </div>
 
         <div class="text-end mt-2 small text-muted">
-            ERP_SaaS - POS {{ $printSource === 'restaurant' ? __('Restaurant') : __('Retail') }} - {{ __('pos.slip') }}<br>
+            ERP_SaaS - POS {{ $printSource === 'restaurant' ? __('Restaurant') : __('Retail') }} - {{ $paymentDocumentTitle }}<br>
             {{ date('H:i') }}
         </div>
 

@@ -91,6 +91,18 @@
         .carttable {
             padding: 8px;
         }
+        .pos-print-header .header-sep { border-bottom: 1px dotted #333; margin: 10px 0; }
+        .pos-print-header .logo-box { max-width: 120px; height: 70px; margin: 0 auto 8px; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #fff; }
+        .pos-print-header .logo-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .pos-print-header .doc-title { font-size: 1.25rem; font-weight: bold; text-align: center; margin: 8px 0; }
+        .pos-print-header .doc-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .pos-print-header .doc-row .left, .pos-print-header .doc-row .right { flex: 1; }
+        .pos-print-header .doc-row .right { text-align: right; }
+        .pos-print-header .customer-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+        .pos-print-header .customer-row .cust-type { font-weight: bold; }
+        .pos-print-header .customer-row .cust-name { font-weight: bold; color: #333; }
+        .pos-print-header .customer-details { font-size: 0.9rem; color: #555; margin-top: 4px; }
+        .product-border { border-bottom: 1px solid #ddd; padding: 2px 0; }
         @media(max-width: 500px)
         {
              .pl-1{
@@ -772,6 +784,12 @@
     @stack('script-page')
 
     <script src="{{ asset('js/jquery-ui.min.js') }}"></script>
+@php
+    $logoPath = asset(Storage::url('uploads/logo/'));
+    $company_logo = \App\Models\Utility::getValByName('company_logo_dark');
+    $pos_logo = \App\Models\Utility::getValByName('pos_logo');
+    $headerLogo = (isset($pos_logo) && $pos_logo) ? \App\Models\Utility::get_file('pos_logo/') . $pos_logo : $logoPath . '/' . ($company_logo ?? 'logo-dark.png');
+@endphp
 
     <script>
         var POS_PENDING_KEY = 'pos_pending_sales';
@@ -780,6 +798,7 @@
         var posSyncUrl = '{{ route("pos.sync") }}';
         var posCurrencySymbol = @json(Auth::user()->currencySymbol() ?? '');
         var posPrintSettings = @json(\App\Models\Utility::settings());
+        var posLogo = "{{ $headerLogo }}";
         var posEmptyCartUrl = '{{ route("warehouse-empty-cart") }}';
         var posSearchProductsUrl = '{{ route("search.products") }}';
         var posCategoriesUrl = '{{ route("product.categories") }}';
@@ -1158,13 +1177,15 @@
                     var companyName = (s.company_name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     var companyBlock = (companyName || s.company_address) ? ('<div class="text-left">' + companyName + '<br>' + esc(s.mail_from_address) + '<br>' + esc(s.company_address) + '<br>' + esc(s.company_city) + (s.company_city && (s.company_state || s.company_zipcode) ? ', ' : '') + esc(s.company_state) + (s.company_state && s.company_zipcode ? ', ' : '') + esc(s.company_zipcode) + '<br>' + esc(s.company_country) + '<br>' + esc(s.company_telephone) + '<br></div>') : '';
                     var itemRows = '';
+                    var totalTax = 0;
+                    var discountPerItem = receiptData.discount > 0 && receiptData.items.length > 0 ? receiptData.discount / receiptData.items.length : 0;
                     receiptData.items.forEach(function (it) {
                         var taxAmt = it.price * it.qty * it.tax / 100;
+                        totalTax += taxAmt;
                         itemRows += '<div class="mt-2"><div class="p-0"><b>' + esc(it.name) + '</b></div>' +
                             '<div class="d-flex product-border"><div>{{ __("pos.quantity_colon") }}</div><div class="text-end ms-auto">' + it.qty + '</div></div>' +
                             '<div class="d-flex product-border"><div>{{ __("pos.price_colon") }}</div><div class="text-end ms-auto">' + fmt(it.price) + '</div></div>' +
-                            '<div class="d-flex product-border"><div>{{ __("pos.tax_colon") }}</div><div class="text-end ms-auto">' + it.tax + '</div></div>' +
-                            '<div class="d-flex product-border mb-2"><div>{{ __("pos.tax_amount_colon") }}</div><div class="text-end ms-auto">' + fmt(taxAmt) + '</div></div>' +
+                            (discountPerItem > 0 ? '<div class="d-flex product-border"><div>{{ __("pos.discount_colon") }}</div><div class="text-end ms-auto">' + fmt(discountPerItem) + '</div></div>' : '') +
                             '<div class="d-flex product-border mb-2"><div>{{ __("pos.sub_total_colon") }}</div><div class="text-end ms-auto">' + fmt(it.subtotal) + '</div></div></div>';
                     });
                     var paySection = '<div class="product-border mb-2 mt-3 p-2"><div class="text-black fw-bold mb-2">{{ __("Payment") }}</div>' +
@@ -1183,22 +1204,52 @@
                         paySection += '<div class="product-border mb-1 p-1 small"><div>{{ __("Notes") }}:</div><div>' + esc(receiptData.notes) + '</div></div>';
                     }
                     paySection += '</div>';
-                    var printareaHtml = '<div class="pt-0 pb-3 modal-body pos-module" id="printarea">' +
-                        '<table class="table pos-module-tbl"><tbody>' +
-                        '<div class="text-center"><h3>' + companyName + '</h3></div><br>' +
-                        '<div class="text-left"><b>Offline</b></div>' +
-                        companyBlock +
-                        '<div class="mt-2 no-print"><span class="text-warning small"><span class="ti ti-wifi-off me-1"></span>{{ __("pos.offline_banner") }}</span></div><br>' +
-                        '<div>' + (receiptData.customer ? '{{ __("pos.name") }}:  ' + esc(receiptData.customer) : '') + '</div>' +
-                        '<div>{{ __("pos.date_of_pos") }}:  ' + esc(receiptData.date) + '</div>' +
-                        (receiptData.warehouseName ? '<div class="product-border">{{ __("pos.warehouse_name") }}:  ' + esc(receiptData.warehouseName) + '</div>' : '') +
-                        '</tbody></table>' +
+                    var printareaHtml = '<div class="pt-0 pb-3 modal-body pos-module position-relative" id="printarea">' +
+                        '<div class="receipt-copy-wrapper receipt-copy">' +
+                        '<div class="pos-print-header">' +
+                        '<div class="text-center">' +
+                        '<div class="logo-box">' +
+                        '<img src="' + (posLogo ? posLogo : '{{ asset(Storage::url("uploads/logo/")) }}/{{ \App\Models\Utility::getValByName("company_logo_dark") ?? "logo-dark.png" }}') + '" alt="Logo" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'block\';">' +
+                        '<span style="display:none; color:#22c55e; font-weight:bold;">LOGO</span>' +
+                        '</div>' +
+                        '<div>' + companyName + '</div>' +
+                        '<div>' + esc(s.company_address || s.mail_from_address) + '</div>' +
+                        '<div>' + esc(s.company_city) + (s.company_city && (s.company_state || s.company_zipcode) ? ', ' : '') + esc(s.company_state) + (s.company_state && s.company_zipcode ? ', ' : '') + esc(s.company_zipcode) + '</div>' +
+                        (s.vat_gst_number_switch == 'on' && s.vat_number ? '<div>' + (s.tax_type || 'VAT') + ' NR: ' + s.vat_number + '</div>' : '') +
+                        '<div>Phone: ' + esc(s.company_telephone) + '</div>' +
+                        '<div>E-mail: ' + esc(s.mail_from_address) + '</div>' +
+                        '</div>' +
+                        '<div class="mt-1" style="font-size: 1.3rem;text-align: center;"><b>{{ __("Retail") }} - {{ __("Cash Sale") }}</b></div>' +
+                        '<div class="header-sep"></div>' +
+                        '<div class="doc-row">' +
+                        '<div class="left">' +
+                        '<div>Date: ' + esc(receiptData.date) + '</div>' +
+                        '<div class="mt-1">{{ __("pos.branch_name") }}:<br>-</div>' +
+                        '</div>' +
+                        '<div class="right">' +
+                        '<div>{{ __("Original") }}</div>' +
+                        '<div class="mt-1">DOC NR<br><strong>OFFLINE</strong></div>' +
+                        '</div>' +
+                        '</div>' +
+                        '<div class="header-sep"></div>' +
+                        '<div class="customer-row">' +
+                        '<div class="cust-name">' + esc(receiptData.customer) + '</div>' +
+                        '</div>' +
+                        '<div class="header-sep"></div>' +
+                        '</div>' +
+                        '<div class="mt-2 no-print"><span class="text-warning small"><span class="ti ti-wifi-off me-1"></span>{{ __("pos.offline_banner") }}</span></div>' +
                         '<div class="text-black text-left fs-5 mt-0 mb-0">{{ __("Items") }}</div>' +
                         itemRows +
-                        '<div class="d-flex product-border mb-2 mt-4"><div><b>{{ __("pos.discount_colon") }}</b></div><div class="text-end ms-auto">' + fmt(receiptData.discount) + '</div></div>' +
+                        '<div class="d-flex product-border mb-2 mt-4"><div><b>{{ __("pos.sub_total_colon") }}</b></div><div class="text-end ms-auto">' + fmt(receiptData.subTotal) + '</div></div>' +
+                        (totalTax > 0 ? '<div class="d-flex product-border mb-2"><div><b>{{ __("pos.tax_colon") }}</b></div><div class="text-end ms-auto">' + fmt(totalTax) + '</div></div>' : '') +
                         '<div class="d-flex product-border mb-2"><div><b>{{ __("pos.total_colon") }}</b></div><div class="text-end ms-auto">' + fmt(receiptData.total) + '</div></div>' +
                         paySection +
-                        '<h5 class="text-center mt-3 font-label">{{ __("pos.thank_you") }}</h5></div>' +
+                        '<div class="text-center mt-3 small text-muted">' +
+                        '<div>{{ __("pos.document_processed_by_computer") }}</div>' +
+                        '<div class="mt-1">{{ __("pos.thank_you") }}</div>' +
+                        '</div>' +
+                        '</div>' +
+                        '</div>' +
                         '<div class="justify-content-center pt-2 modal-footer"><a href="#" id="print" class="btn btn-primary btn-sm text-right float-right mb-3">{{ __("pos.print") }}</a></div>';
                     $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
                     $('.modal-dialog').removeClass('modal-xl modal-lg modal-md modal-sm').addClass('modal-sm');
@@ -2490,7 +2541,7 @@
         $(document).on('click','.pay-receipt-print',function(){
             var pos_id = $(this).data('id');
             $('#commonModal .modal-dialog').addClass('modal-sm');
-            $.get('/printview/pos', {
+            $.get('{{url("printview/pos")}}', {
                 pos_id: pos_id,
                 source: 'retail',
                 modal: 1
