@@ -708,6 +708,16 @@ class PosController extends Controller
             return response()->json(['code' => 404, 'success' => __('Items not found!')], 404);
         }
 
+        // Block credit sale if customer has overdue invoice(s)
+        $isCreditPayment = (strtolower($request->payment_method ?? '') === 'credit')
+            || (is_array($request->input('payments')) && collect($request->input('payments'))->contains(fn ($p) => strtolower($p['payment_method'] ?? '') === 'credit'));
+        if ($customer_id && $isCreditPayment) {
+            $overdue = (new Customer())->customerOverdue($customer_id);
+            if ($overdue > 0) {
+                return response()->json(['code' => 403, 'error' => __('Account blocked: customer has overdue invoice(s). Please collect payment first.')], 403);
+            }
+        }
+
         // Phase 4: Discount above X% requires manager password
         $discountAmount = (float) $discount;
         if ($discountAmount > 0) {
@@ -848,7 +858,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
                 $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
                 $posPayment->amount = $amt;
-                $posPayment->discount = 0;
+                $posPayment->discount = $firstPayment ? (float) $discount : 0;
                 $posPayment->discount_amount = $amt;
                 $posPayment->tip = $firstPayment ? (float) ($request->tip ?? 0) : 0;
                 $posPayment->created_by = $user_id;
@@ -1128,7 +1138,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                             $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
                             $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
                             $posPayment->amount = $amt;
-                            $posPayment->discount = 0;
+                            $posPayment->discount = $firstPmt ? (float) $discount : 0;
                             $posPayment->discount_amount = $amt;
                             $posPayment->tip = $firstPmt ? (float) ($request->tip ?? 0) : 0;
                             $posPayment->created_by = $user_id;
@@ -1265,6 +1275,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $total = $mainsubtotal - $discount;
                     $payments = $request->input('payments');
                     if (is_array($payments) && count($payments) > 0) {
+                        $firstPayment = true;
                         foreach ($payments as $p) {
                             $amt = (float) ($p['amount'] ?? 0);
                             if ($amt <= 0) {
@@ -1278,10 +1289,12 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                             $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
                             $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
                             $posPayment->amount = $amt;
-                            $posPayment->discount = 0;
+                            $posPayment->discount = $firstPayment ? (float) $discount : 0;
                             $posPayment->discount_amount = $amt;
+                            $posPayment->tip = $firstPayment ? (float) ($request->tip ?? 0) : 0;
                             $posPayment->created_by = $user_id;
                             $posPayment->save();
+                            $firstPayment = false;
                         }
                     } else {
                         $paidAmount = (float) ($request->amount ?? $total);
@@ -1301,6 +1314,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $posPayment->change_amount = $changeAmount;
                         $posPayment->discount = $discount;
                         $posPayment->discount_amount = $total;
+                        $posPayment->tip = (float) ($request->tip ?? 0);
                         $posPayment->notes = $request->notes ?: null;
                         $posPayment->created_by = $user_id;
                         $posPayment->save();
@@ -2311,6 +2325,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $customer = $pos->customer_id ? $pos->customer : null;
                 $warehouse = $pos->warehouse;
                 $branch = $pos->branch;
+                $isBalancePayment = ($pos->order_type ?? '') === 'balance_payment';
 
                 $clientName = !empty($pos->guest_name) ? $pos->guest_name : (!empty($customer->name) ? $customer->name : __('pos.walkin_customer'));
                 $details = [
@@ -2334,8 +2349,41 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $details['user']['details'] = '<h6 class="text-dark"><b>' . ucfirst($user->name) . '</b></h6>';
                 $sales = ['data' => [], 'discount' => '0', 'sub_total' => '0', 'total' => '0', 'tip' => '0'];
                 $mainsubtotal = 0;
-                $discount = 0;
+                $discount = $posPayments->isEmpty() ? 0 : (float) $posPayments->sum('discount');
                 $totalTip = (float) $posPayments->sum('tip');
+                if ($isBalancePayment) {
+                    $totalAmount = (float) $posPayments->sum('amount');
+                    $sales['sub_total'] = $user->priceFormat($totalAmount);
+                    $sales['total'] = $user->priceFormat($totalAmount);
+                    $newBalance = $pos->customer_id ? Customer::totalOutstanding($pos->customer_id) : 0;
+                    $balancePaymentExtra = [
+                        'invoices_paid' => [],
+                        'new_balance_formatted' => $user->priceFormat($newBalance),
+                    ];
+                    $bankAccounts = BankAccount::where('created_by', $user->creatorId())
+                        ->select('id', 'holder_name', 'bank_name', 'account_number')->get();
+                    $barcode = ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()];
+                    $posIdRaw = $pos->id;
+                    $receiptLinkUrl = url(route('pos.receipt.link', Crypt::encrypt($pos->id)));
+                    $printSource = in_array($request->get('source'), ['restaurant'], true) ? 'restaurant' : 'retail';
+                    return view('pos.printview', [
+                        'details' => $details,
+                        'sales' => $sales,
+                        'customer' => $customer,
+                        'productServices' => collect([]),
+                        'barcode' => $barcode,
+                        'posPayments' => $posPayments,
+                        'vatBreakdown' => [],
+                        'bankAccounts' => $bankAccounts,
+                        'segundaVia' => $request->boolean('segunda_via'),
+                        'posIdRaw' => $posIdRaw,
+                        'receiptLinkUrl' => $receiptLinkUrl,
+                        'printSource' => $printSource,
+                        'isBalancePayment' => true,
+                        'balancePaymentExtra' => $balancePaymentExtra,
+                        'settings' => $settings,
+                    ]);
+                }
                 foreach ($pos->items as $item) {
                     $product = ProductService::find($item->product_id);
                     $price = (float) $item->price;
@@ -2471,6 +2519,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $total = $mainsubtotal - $discount;
         $sales['sub_total'] = Auth::user()->priceFormat($mainsubtotal);
         $sales['total'] = Auth::user()->priceFormat($total);
+        $sales['tip'] = Auth::user()->priceFormat(0);
 
         //for barcode
 
@@ -3308,24 +3357,59 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'new_balance_formatted' => $user->priceFormat($newBalance),
         ];
 
+        // Create a Pos record so balance payment has reference number, QR link, and appears in Pay Receipts search
+        $nextPosId = 1;
+        $latestPos = Pos::where('created_by', $user->creatorId())->orderBy('id', 'desc')->first();
+        if ($latestPos) {
+            $nextPosId = (int) $latestPos->pos_id + 1;
+        }
+        $defaultWarehouse = warehouse::where('created_by', $user->creatorId())->orderBy('id')->first();
+        $warehouseId = $defaultWarehouse ? (int) $defaultWarehouse->id : 0;
+        $defaultBranch = Branch::where('created_by', $user->creatorId())->orderBy('id')->first();
+        $branchId = $defaultBranch ? (int) $defaultBranch->id : null;
+
+        $pos = new Pos();
+        $pos->pos_id = $nextPosId;
+        $pos->customer_id = $customerId;
+        $pos->warehouse_id = $warehouseId;
+        $pos->branch_id = $branchId;
+        $pos->order_type = 'balance_payment';
+        $pos->pos_date = $date;
+        $pos->shift_id = $posShiftId;
+        $pos->payment_method = $paymentMethod;
+        $pos->created_by = $user->creatorId();
+        $pos->save();
+
+        $posPayment = new PosPayment();
+        $posPayment->pos_id = $pos->id;
+        $posPayment->branch_id = $pos->branch_id;
+        $posPayment->date = $date;
+        $posPayment->payment_method = in_array($paymentMethod, ['cash', 'card', 'visa', 'cheque'], true) ? $paymentMethod : 'cash';
+        $posPayment->amount = $amount;
+        $posPayment->discount = 0;
+        $posPayment->discount_amount = $amount;
+        $posPayment->tip = 0;
+        $posPayment->created_by = $user->id;
+        $posPayment->save();
+
         $settings = Utility::settings();
         $details = [
-            'pos_id' => __('Balance payment'),
+            'pos_id' => $user->posNumberFormat($pos->pos_id),
             'client_name' => $receiptData['customer_name'],
             'customer' => $customer ? $customer->toArray() : [],
-            'warehouse' => ['name' => '-'],
+            'warehouse' => $defaultWarehouse ? $defaultWarehouse->toArray() : ['name' => '-'],
             'user' => $user->toArray(),
             'date' => $date,
         ];
-        $posPayments = collect([
-            (object)['payment_method' => $paymentMethod, 'amount' => $amount],
-        ]);
+        $posPayments = $pos->posPayments;
         $bankAccounts = BankAccount::where('created_by', $user->creatorId())
             ->select('id', 'holder_name', 'bank_name', 'account_number')->get();
         $balancePaymentExtra = [
             'invoices_paid' => $paidInvoices,
             'new_balance_formatted' => $user->priceFormat($newBalance),
         ];
+        $posIdRaw = $pos->id;
+        $receiptLinkUrl = url(route('pos.receipt.link', Crypt::encrypt($pos->id)));
         $receiptHtml = view('pos.printview', [
             'details' => $details,
             'sales' => ['data' => [], 'discount' => '0', 'sub_total' => $user->priceFormat($amount), 'total' => $user->priceFormat($amount), 'tip' => '0'],
@@ -3336,8 +3420,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'vatBreakdown' => [],
             'bankAccounts' => $bankAccounts,
             'segundaVia' => false,
-            'posIdRaw' => null,
-            'receiptLinkUrl' => null,
+            'posIdRaw' => $posIdRaw,
+            'receiptLinkUrl' => $receiptLinkUrl,
             'printSource' => 'retail',
             'isBalancePayment' => true,
             'balancePaymentExtra' => $balancePaymentExtra,
@@ -3351,6 +3435,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'formatted' => $user->priceFormat($newBalance),
             'receipt' => $receiptData,
             'receipt_html' => $receiptHtml,
+            'pos_id' => $pos->id,
         ]);
     }
 

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Receipt Print Test</title>
+
+<style>
+
+body{
+    font-family: Arial;
+    background:#f5f5f5;
+}
+
+#printarea{
+    width:320px;
+    margin:auto;
+    background:white;
+    padding:20px;
+}
+
+.receipt{
+    border-bottom:1px dashed #000;
+    padding-bottom:10px;
+}
+
+.item{
+    display:flex;
+    justify-content:space-between;
+}
+
+.controls{
+    margin:20px;
+    text-align:center;
+}
+
+@media print{
+
+body{
+    background:white;
+}
+
+.controls{
+    display:none;
+}
+
+.receipt-copy{
+    page-break-after:always;
+}
+
+.receipt-copy:last-child{
+    page-break-after:auto;
+}
+
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="printarea">
+
+<div class="receipt receipt-copy">
+
+<h3 style="text-align:center">My Shop</h3>
+
+<p>Date: 2026-03-16</p>
+<p>Invoice: #1001</p>
+
+<hr>
+
+<div class="item">
+<span>Product A</span>
+<span>$10</span>
+</div>
+
+<div class="item">
+<span>Product B</span>
+<span>$20</span>
+</div>
+
+<hr>
+
+<div class="item">
+<strong>Total</strong>
+<strong>$30</strong>
+</div>
+
+<p style="text-align:center">Thank you!</p>
+
+</div>
+
+</div>
+
+
+<div class="controls">
+
+Copies:
+<select id="copies">
+<option>1</option>
+<option>2</option>
+<option>3</option>
+<option>4</option>
+</select>
+
+<button onclick="printReceipt()">Print</button>
+
+</div>
+
+
+<script>
+
+function printReceipt(){
+
+let copies = document.getElementById("copies").value;
+
+let printarea = document.getElementById("printarea");
+let receipt = document.querySelector(".receipt");
+
+let clones = [];
+
+for(let i=1;i<copies;i++){
+
+let clone = receipt.cloneNode(true);
+clone.classList.add("receipt-copy");
+
+printarea.appendChild(clone);
+clones.push(clone);
+
+}
+
+window.print();
+
+clones.forEach(c=>c.remove());
+
+}
+
+</script>
+
+</body>
+</html>

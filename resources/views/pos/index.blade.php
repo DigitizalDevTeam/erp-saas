@@ -112,10 +112,14 @@
             #commonModal .modal-footer { display: none !important; }
             #commonModal .body { padding: 0 !important; border: none !important; }
             #commonModal #printarea { position: static !important; width: 100%; padding: 0.5in; padding-bottom: 0.6in !important; font-size: 12pt; }
+            #commonModal:has(#print-copies) #printarea { padding: 0.25in !important; padding-bottom: 0 !important; }
             #commonModal #printarea .pos-module-tbl { width: 100%; }
             #commonModal #printarea .product-border { border-bottom: 1px solid #ddd !important; padding: 2px 0; }
             #commonModal #printarea .view-qrcode-receipt, #commonModal #printarea .view-qrcode-receipt * { visibility: visible !important; }
             #commonModal #printarea .view-qrcode-receipt img { display: block !important; visibility: visible !important; }
+            /* Same as print.html: one receipt per page, no blank after last */
+            #commonModal #printarea > .receipt-copy { page-break-after: always !important; }
+            #commonModal #printarea > .receipt-copy:last-child { page-break-after: auto !important; }
         }
     </style>
 </head>
@@ -1210,6 +1214,7 @@
                 }
             });
             $(document).on('click', '#commonModal #print', function () {
+                if (document.getElementById('print-copies')) return;
                 var print_div = document.getElementById('printarea');
                 if (!print_div) return;
                 $('.row').addClass('d-none');
@@ -1817,7 +1822,7 @@
                                 t.show();
                             }
                             if (res.receipt_html) {
-                                $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
+                                $('#commonModal .modal-title').text('{{ __("Receipt") }}');
                                 $('#commonModal .modal-dialog').removeClass('modal-xl modal-lg modal-md').addClass('modal-sm');
                                 $('#commonModal .body').html(res.receipt_html);
                                 $('#commonModal').modal('show');
@@ -2382,10 +2387,19 @@
                         $('#pos_restaurant_table_name').val('');
                         $('#pos-selected-table').text('—');
                         $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
+                        // Reset customer to Walk-in after pay
+                        if ($('#customer').length) {
+                            $('#customer').val('Walk-in-customer');
+                            $('#vc_name_hidden').val('Walk-in-customer');
+                            if (typeof posUpdateCustomerCard === 'function') posUpdateCustomerCard();
+                        }
+                        // Reset discount after sale
+                        $('#discount_hidden').val(0);
+                        if ($('.discount').length) $('.discount').val(0);
                         if (data && data.pos_id) {
                             var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id + '&source=retail';
                             $.get(receiptUrl, function (html) {
-                                $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
+                                $('#commonModal .modal-title').text('{{ __("Cash Sale") }}');
                                 $('#commonModal .modal-dialog').removeClass('modal-xl').addClass('modal-sm');
                                 $('#commonModal .body').html(html);
                                 $('#commonModal').modal('show');
@@ -2495,7 +2509,8 @@
                 source: 'retail',
                 modal: 1
             }, function(html){
-                $('#commonModal .modal-title').text('POS Receipt');
+                $('#commonModal').css('z-index', '11200000');
+                $('#commonModal .modal-title').text('{{ __("Receipt") }}');
                 $('#commonModal .body').html(html);
                 $('#commonModal').modal('show');
             });

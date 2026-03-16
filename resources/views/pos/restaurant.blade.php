@@ -145,6 +145,18 @@
                             </table>
                         </div>
                         <div class="pos-totals mt-2 pt-2 border-top">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="fw-semibold">{{ __('pos.sub_total') }}</span>
+                                <span id="pos-restaurant-subtotal" class="fw-semibold">0</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1 align-items-center">
+                                <span class="fw-semibold">{{ __('pos.discount') }}</span>
+                                <div class="input-group input-group-sm" style="max-width: 120px;">
+                                    <span class="input-group-text bg-transparent">{{ \Auth::user()->currencySymbol() }}</span>
+                                    <input type="number" step="0.01" min="0" class="form-control form-control-sm" id="discount_restaurant" value="0" placeholder="0">
+                                </div>
+                            </div>
+                            {{ Form::hidden('discount_hidden_restaurant', '0', ['id' => 'discount_hidden_restaurant']) }}
                             <div class="d-flex justify-content-between">
                                 <span class="fw-semibold">{{ __('pos.total') }}</span>
                                 <span id="pos-restaurant-total" class="fw-bold text-primary">0</span>

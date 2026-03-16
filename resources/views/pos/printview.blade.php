@@ -1,17 +1,16 @@
 @php
     $standalone = $standalone ?? false;
     $settings = $settings ?? Utility::settings();
+    // All sales are "Cash Sale" (Venda a Dinheiro); payment method (Credit, Cash, Visa, etc.) is shown in the payment section.
     $hasCreditPayment = !empty($posPayments) && $posPayments->isNotEmpty() && $posPayments->contains(function ($p) { return in_array(strtolower($p->payment_method ?? ''), ['credit']); });
-    $paymentDocumentTitle = $hasCreditPayment ? __('Credit Sale') : __('Cash Sale');
+    $paymentDocumentTitle = __('Cash Sale');
     $creditPmt = $hasCreditPayment ? $posPayments->first(function ($p) { return strtolower($p->payment_method ?? '') === 'credit'; }) : null;
-    $amountReceived = $posPayments ? ($posPayments->sum('amount') - ($creditPmt ? (float)$creditPmt->amount : 0)) : 0;
-    $balance = $creditPmt ? (float)$creditPmt->amount : 0;
-    $dueDate = $creditPmt && !empty($creditPmt->credit_terms) ? \Carbon\Carbon::now()->addDays((int)$creditPmt->credit_terms)->format(isset($settings['date_format']) ? $settings['date_format'] : 'Y-m-d') : '-';
+    $dueDate = $creditPmt && !empty($creditPmt->credit_terms) ? \Carbon\Carbon::now()->addDays((int)$creditPmt->credit_terms)->format(isset($settings['date_format']) ? $settings['date_format'] : 'Y-m-d') : null;
     $logoPath = asset(Storage::url('uploads/logo/'));
     $company_logo = \App\Models\Utility::getValByName('company_logo_dark');
     $pos_logo = \App\Models\Utility::getValByName('pos_logo');
     $headerLogo = (isset($pos_logo) && $pos_logo) ? \App\Models\Utility::get_file('pos_logo/') . $pos_logo : $logoPath . '/' . ($company_logo ?? 'logo-dark.png');
-    $docTitle = $hasCreditPayment ? __('Credit Receipt') : ($printSource === 'restaurant' ? __('Bill') : __('Tax Invoice'));
+    $docTitle = $printSource === 'restaurant' ? __('Bill') : __('Cash Sale');
     $clientName = isset($details['client_name']) ? $details['client_name'] : (isset($details['customer']['name']) ? $details['customer']['name'] : __('pos.walkin_customer'));
     $cust = $details['customer'] ?? [];
     $vatBreakdown = $vatBreakdown ?? [];
@@ -25,7 +24,7 @@
     $receiptUser = $receiptUser ?? null;
     $priceUser = $receiptUser ?? Auth::user();
 @endphp
-<style>
+<style id="pos-receipt-styles">
     .pos-print-header .header-sep { border-bottom: 1px dotted #333; margin: 10px 0; }
     .pos-print-header .logo-box { max-width: 120px; height: 70px; margin: 0 auto 8px; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #fff; }
     .pos-print-header .logo-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
@@ -38,8 +37,6 @@
     .pos-print-header .customer-row .cust-name { font-weight: bold; color: #333; }
     .pos-print-header .customer-details { font-size: 0.9rem; color: #555; margin-top: 4px; }
     .segunda-via-watermark { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 10; opacity: 0.12; font-size: 4rem; font-weight: bold; color: #000; transform: rotate(-35deg); white-space: nowrap; }
-    .receipt-copy-wrapper { position: relative; }
-    .receipt-copy-clone { page-break-before: always; }
     .view-qrcode-receipt img { max-width: 70px; height: auto; display: block; }
     .view-qrcode-receipt-svg { display: inline-block; }
     .view-qrcode-receipt-svg { line-height: 0; }
@@ -48,15 +45,36 @@
     .vat-summary-wrap table { min-width: 420px; width: 100%; table-layout: fixed; }
     .vat-summary-wrap th, .vat-summary-wrap td { padding: 6px 8px !important; white-space: nowrap; box-sizing: border-box; }
     @media print {
+        body *{
+            visibility:hidden;
+        }
+
+        #printarea,
+        #printarea *{
+            visibility:visible;
+        }
+
+        #printarea{
+            position:absolute;
+            left:0;
+            top:0;
+            width:100%;
+        }
+
+        .receipt-copy{
+            page-break-after:always;
+            height: 100%;
+        }
+
+        .receipt-copy:last-child{
+            page-break-after:auto;
+        }
         .segunda-via-watermark { opacity: 0.15; font-size: 3.5rem; }
         .no-print-copies { display: none !important; }
         .vat-summary-wrap { overflow: visible !important; max-width: 100%; page-break-inside: avoid; }
         .vat-summary-wrap table { width: 100% !important; font-size: 0.7rem; }
         .vat-summary-wrap th { white-space: normal !important; word-break: break-word; line-height: 1.2; }
         .vat-summary-wrap th, .vat-summary-wrap td { padding: 4px 6px !important; }
-        /* Prevent bottom cut-off in print preview and on paper */
-        #printarea { padding-bottom: 0.6in !important; overflow: visible !important; }
-        .receipt-copy { padding-bottom: 0.2in; }
         /* Ensure QR code prints (visible in print preview and on paper) */
         .view-qrcode-receipt, .view-qrcode-receipt * { visibility: visible !important; }
         .view-qrcode-receipt { display: block !important; overflow: visible !important; min-width: 90px; min-height: 90px; }
@@ -86,10 +104,10 @@
 <body style="padding:1rem; background:#f5f5f5;">
 @endif
 <div class="pt-0 pb-3 {{ $standalone ? 'bg-white rounded p-3' : 'modal-body' }} pos-module position-relative" id="printarea" {{ $standalone ? 'style="box-shadow:0 1px 3px rgba(0,0,0,.1);"' : '' }}>
+    <div class="receipt-copy-wrapper receipt-copy">
     @if($segundaVia)
     <div class="segunda-via-watermark" aria-hidden="true">SEGUNDA VIA</div>
     @endif
-    <div class="receipt-copy-wrapper receipt-copy">
     <div class="pos-print-header">
         {{-- Company: Logo --}}
         <div class="text-center">
@@ -109,7 +127,7 @@
             <div>E-mail: {{ $settings['mail_from_address'] ?? '' }}</div>
         </div>
         @if($isBalancePayment && !empty($balancePaymentExtra))
-        <div class="mt-1" style="font-size: 1.3rem;text-align: center;"><b>{{ __('POS') .' '. __('Invoice') }}</b></div>
+        <div class="mt-1" style="font-size: 1.3rem;text-align: center;"><b>{{ __('Receipt') }}</b></div>
         @else
         <div class="mt-1" style="font-size: 1.3rem;text-align: center;"><b>{{ $printSource === 'restaurant' ? __('Restaurant') : __('Retail') }} - {{ $paymentDocumentTitle }}</b></div>
         @endif
@@ -151,28 +169,9 @@
     </div>
 
     @if($isBalancePayment)
-        {{-- Balance payment: only payment block, no items --}}
-    @elseif($hasCreditPayment)
-        <div class="product-border mt-3 p-3">
-            <div class="text-black fw-bold mb-2">{{ __('Credit Receipt') }}</div>
-            <div class="d-flex product-border mb-2">
-                <div><b>{{ __('Receipt reference') }}:</b></div>
-                <div class="text-end ms-auto">{{ $details['pos_id'] }}</div>
-            </div>
-            <div class="d-flex product-border mb-2">
-                <div><b>{{ __('Amount received') }}:</b></div>
-                <div class="text-end ms-auto">{{ $priceUser ? $priceUser->priceFormat($amountReceived) : number_format($amountReceived, 2) }} <span class="text-muted">({{ __('pos.by_writing') }}: {{ \App\Models\Utility::amountInWords($amountReceived) }})</span></div>
-            </div>
-            <div class="d-flex product-border mb-2">
-                <div><b>{{ __('Balance') }}:</b></div>
-                <div class="text-end ms-auto">{{ Auth::user()->priceFormat($balance) }}</div>
-            </div>
-            <div class="d-flex product-border mb-2">
-                <div><b>{{ __('Due date') }}:</b></div>
-                <div class="text-end ms-auto">{{ $dueDate }}</div>
-            </div>
-        </div>
+        {{-- Balance payment: only payment block, no items; document is "Receipt" with its own reference --}}
     @else
+    {{-- Sales document is always Cash Sale; payment method (Credit, Cash, Visa, etc.) shown in payment section below --}}
     <div class=" text-black text-left fs-5 mt-0 mb-0">{{__('Items')}}</div>
         @foreach ($sales['data'] ?? [] as $key => $value)
             <div class="mt-2">
@@ -206,9 +205,9 @@
         </div>
         <div class="d-flex product-border mb-2">
             <div><b>{{ __('pos.discount_colon') }}</b></div>
-            <div class="text-end ms-auto"> {{ $sales['discount'] }}</div>
+            <div class="text-end ms-auto"> {{ $sales['discount'] ?? '0' }}</div>
         </div>
-        @if($printSource === 'restaurant' && isset($sales['tip']) && $sales['tip'] !== '' && $sales['tip'] != '0' && $sales['tip'] != '0.00')
+        @if(isset($sales['tip']) && $sales['tip'] !== '' && $sales['tip'] != '0' && $sales['tip'] != '0.00')
         <div class="d-flex product-border mb-2">
             <div><b>{{ __('pos.tip') }}:</b></div>
             <div class="text-end ms-auto"> {{ $sales['tip'] }}</div>
@@ -222,7 +221,7 @@
 
         @if(!empty($posPayments) && $posPayments->isNotEmpty())
             <div class="product-border mb-2 mt-3 p-2">
-                <div class="text-black fw-bold mb-2">{{ $paymentDocumentTitle }}</div>
+                <div class="text-black fw-bold mb-2">{{ __('Payment Method') }}</div>
                 @foreach($posPayments as $pmt)
                     <div class="d-flex product-border mb-1">
                         <div>{{ __('Payment Method') }}:</div>
@@ -248,6 +247,10 @@
                         <div class="d-flex product-border mb-1">
                             <div>{{ __('Credit Days') }}:</div>
                             <div class="text-end ms-auto">{{ $pmt->credit_terms }}</div>
+                        </div>
+                        <div class="d-flex product-border mb-1">
+                            <div>{{ __('Due date') }}:</div>
+                            <div class="text-end ms-auto">{{ \Carbon\Carbon::now()->addDays((int)$pmt->credit_terms)->format($settings['date_format'] ?? 'Y-m-d') }}</div>
                         </div>
                     @endif
                     @if(!empty($pmt->notes))
@@ -389,27 +392,71 @@
 (function() {
     function doPrint(copies) {
         var printarea = document.getElementById("printarea");
-        var receiptCopy = printarea.querySelector(".receipt-copy");
-        if (!receiptCopy) { window.print(); return; }
+        var receipt = printarea ? printarea.querySelector(".receipt-copy") : null;
+        if (!receipt) {
+            window.print();
+            return;
+        }
         copies = Math.max(1, parseInt(copies, 10) || 1);
         var clones = [];
         for (var i = 1; i < copies; i++) {
-            var clone = receiptCopy.cloneNode(true);
-            clone.classList.add("receipt-copy-clone");
-            receiptCopy.parentNode.appendChild(clone);
+            var clone = receipt.cloneNode(true);
+            var label = clone.querySelector('.doc-row .right div:first-child');
+            if (label) {
+                label.textContent = (i === 1) ? '{{ __("Copy") }}' : ('{{ __("Copy") }} ' + i);
+            }
+            printarea.appendChild(clone);
             clones.push(clone);
         }
-        $('.row').addClass('d-none');
-        $('.toast').addClass('d-none');
-        $('.no-print-copies').addClass('d-none');
-        window.print();
-        clones.forEach(function(el) { el.remove(); });
-        $('.row').removeClass('d-none');
-        $('.no-print-copies').removeClass('d-none');
-        $('.toast').removeClass('d-none');
+        var html = printarea.innerHTML;
+        clones.forEach(function(c) { c.remove(); });
+        var receiptStyles = '';
+        var styleEl = document.getElementById('pos-receipt-styles') || document.querySelector('#commonModal .body style') || document.querySelector('#commonModal style');
+        if (styleEl && styleEl.innerHTML) receiptStyles = styleEl.innerHTML;
+        if (!receiptStyles) {
+            receiptStyles = '.pos-print-header .header-sep{border-bottom:1px dotted #333;margin:10px 0}.pos-print-header .logo-box{max-width:120px;height:70px;margin:0 auto 8px;border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}.pos-print-header .logo-box img{max-width:100%;max-height:100%;object-fit:contain}.pos-print-header .doc-row{display:flex;justify-content:space-between;margin-bottom:6px}.pos-print-header .doc-row .left,.pos-print-header .doc-row .right{flex:1}.pos-print-header .doc-row .right{text-align:right}.pos-print-header .customer-row{display:flex;justify-content:space-between}.pos-print-header .customer-row .cust-name{font-weight:bold;color:#333}.product-border{border-bottom:1px solid #ddd;padding:2px 0}.d-flex{display:flex}.text-end{text-align:right}.ms-auto{margin-left:auto}.view-qrcode-receipt img{max-width:70px;height:auto}.vat-summary-wrap table{width:100%;font-size:0.85rem}.vat-summary-wrap th,.vat-summary-wrap td{padding:6px 8px}.receipt-copy-wrapper{position:relative}';
+        }
+        var printWin = window.open('', '_blank', 'width=800,height=600');
+        if (!printWin) {
+            $('.row').addClass('d-none');
+            $('.toast').addClass('d-none');
+            $('.no-print-copies').addClass('d-none');
+            window.print();
+            $('.row').removeClass('d-none');
+            $('.toast').removeClass('d-none');
+            $('.no-print-copies').removeClass('d-none');
+            return;
+        }
+        var doc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{{ __("Receipt") }}</title>';
+        doc += '<link rel="stylesheet" href="{{ asset("assets/css/plugins/main.css") }}">';
+        doc += '<link rel="stylesheet" href="{{ asset("assets/css/plugins/style.css") }}">';
+        doc += '<link rel="stylesheet" href="{{ asset("assets/css/style.css") }}">';
+        doc += '<link rel="stylesheet" href="{{ asset("css/custom.css") }}">';
+        doc += '<style>';
+        doc += 'body{background:#fff;margin:0;padding:15px;font-family:Arial,sans-serif;box-sizing:border-box}';
+        doc += '.print-center-wrap{width:100%;display:flex;justify-content:center;align-items:flex-start;min-height:100vh}';
+        doc += '#printarea{width:400px;max-width:100%;flex-shrink:0}';
+        doc += receiptStyles;
+        doc += ' @media print{';
+        doc += 'body{background:#fff !important;margin:0 !important;padding:0 !important}';
+        doc += '.print-center-wrap{width:100% !important;display:flex !important;justify-content:center !important;align-items:flex-start !important;margin:0 !important;padding:0 !important}';
+        doc += '#printarea{width:400px !important;max-width:85% !important;margin:0 !important}';
+        doc += '.receipt-copy{page-break-after:always}';
+        doc += '.receipt-copy:last-child{page-break-after:auto}';
+        doc += '}</style></head><body><div class="print-center-wrap"><div id="printarea" class="pt-0 pb-3 pos-module">' + html + '</div></div></body></html>';
+        printWin.document.write(doc);
+        printWin.document.close();
+        printWin.focus();
+        setTimeout(function() {
+            printWin.print();
+            try { printWin.onafterprint = function() { printWin.close(); }; } catch (err) {}
+            setTimeout(function() { try { printWin.close(); } catch (e) {} }, 1500);
+        }, 300);
     }
-    $(document).off("click", "#print").on("click", "#print", function(e) {
+
+    $(document).off("click","#print").on("click","#print",function(e){
         e.preventDefault();
+        e.stopImmediatePropagation();
         var copies = document.getElementById("print-copies") ? document.getElementById("print-copies").value : 1;
         doPrint(copies);
     });

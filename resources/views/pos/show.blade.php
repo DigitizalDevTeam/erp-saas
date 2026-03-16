@@ -4,6 +4,7 @@
     $itemsCount = $orderSummary['items_count'] ?? 0;
     $subtotalFmt = $orderSummary['subtotal'] ?? '0';
     $taxFmt = $orderSummary['tax'] ?? '0';
+    $discountFmt = $orderSummary['discount'] ?? '0';
     $totalFmt = $orderSummary['total'] ?? '0';
 @endphp
 
@@ -29,8 +30,16 @@
                         <span>{{ $taxFmt }}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-1">
+                        <span>{{ __('pos.discount') }}:</span>
+                        <span>{{ $discountFmt }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
                         <span>{{ __('pos.total') }}:</span>
                         <strong>{{ $totalFmt }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1" id="order-summary-tip-row">
+                        <span>{{ __('Tip') }}:</span>
+                        <span id="order-summary-tip-display">{{ Auth::user()->priceFormat(0) }}</span>
                     </div>
                 </div>
             </div>
@@ -185,6 +194,10 @@
     $('#payment_method').on('change', togglePaymentFields);
     $('#payment_amount').on('input change', updateChange);
     $('#mixed_add_row').on('click', addMixedRow);
+    $('#payment_tip').on('input change', function () {
+        var tip = parseFloat($(this).val()) || 0;
+        $('#order-summary-tip-display').text(formatNum(tip));
+    });
     togglePaymentFields();
     updateChange();
 
@@ -210,7 +223,7 @@
             var data = {
                 vc_name: $('#vc_name_hidden').val(),
                 warehouse_name: $('#warehouse_name_hidden').val(),
-                discount: $('#discount_hidden').val(),
+                discount: ($('#discount_hidden_restaurant').length ? $('#discount_hidden_restaurant').val() : $('#discount_hidden').val()) || '0',
                 quotation_id: $('#quotation_id').val(),
                 payment_method: 'mixed',
                 notes: $('#payment_notes').val() || '',
@@ -255,7 +268,7 @@
                 var d = {
                     vc_name: $('#vc_name_hidden').val(),
                     warehouse_name: $('#warehouse_name_hidden').val(),
-                    discount: $('#discount_hidden').val(),
+                    discount: ($('#discount_hidden_restaurant').length ? $('#discount_hidden_restaurant').val() : $('#discount_hidden').val()) || '0',
                     quotation_id: $('#quotation_id').val(),
                     payment_method: method,
                     amount: amount.toFixed(2),
