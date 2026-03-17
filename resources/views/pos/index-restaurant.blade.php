@@ -1084,18 +1084,41 @@
                 });
             });
 
+            function getRestaurantSubtotalStandalone() {
+                var fromData = parseFloat($('#pos-restaurant-total').data('subtotal'));
+                if (!isNaN(fromData) && fromData >= 0) return fromData;
+                var raw = $('#pos-restaurant-subtotal').text().replace(/,/g, '').replace(/[^\d.-]/g, '');
+                var fromDisplay = parseFloat(raw);
+                if (!isNaN(fromDisplay) && fromDisplay >= 0) return fromDisplay;
+                var sum = 0;
+                $('#tbody-restaurant [data-product-id]').each(function() { sum += parseFloat($(this).attr('data-subtotal')) || 0; });
+                return sum;
+            }
             function updateRestaurantCartTotals(subtotal) {
                 if (!$('#pos-restaurant-subtotal').length) return;
-                var d = parseFloat($('#discount_restaurant').val()) || 0;
+                var type = ($('#pos_discount_type_restaurant').val() || 'fixed');
+                var val = parseFloat($('#discount_restaurant').val() || 0) || 0;
+                var amount = type === 'percentage' ? (Math.min(100, Math.max(0, val)) / 100 * subtotal) : Math.max(0, val);
                 $('#pos-restaurant-subtotal').text(typeof addCommas === 'function' ? addCommas(subtotal) : subtotal);
                 $('#pos-restaurant-total').data('subtotal', subtotal);
-                var totalVal = subtotal <= 0 ? 0 : Math.max(0, subtotal - d);
+                $('#discount_hidden_restaurant').val(amount.toFixed(2));
+                var totalVal = subtotal <= 0 ? 0 : Math.max(0, subtotal - amount);
                 $('#pos-restaurant-total').text(typeof addCommas === 'function' ? addCommas(totalVal) : totalVal);
-                $('#discount_hidden_restaurant').val(d);
             }
             $(document).on('keyup input', '#discount_restaurant', function () {
-                var sub = parseFloat($('#pos-restaurant-total').data('subtotal')) || 0;
-                $('#discount_hidden_restaurant').val($(this).val() || '0');
+                var type = ($('#pos_discount_type_restaurant').val() || 'fixed');
+                if (type === 'percentage') { var v = parseFloat($(this).val()) || 0; if (v > 100) $(this).val(100); }
+                var sub = parseFloat($('#pos-restaurant-total').data('subtotal')) || getRestaurantSubtotalStandalone();
+                updateRestaurantCartTotals(sub);
+            });
+            $(document).on('change', '#pos_discount_type_restaurant', function () {
+                var type = $(this).val();
+                var $wrap = $('.discount-wrap-restaurant').first();
+                var sym = $wrap.data('currency-symbol') || ($wrap.find('.pos-discount-prefix-restaurant').text() || '').trim();
+                if (sym === '%') sym = $wrap.data('currency-symbol') || '';
+                $wrap.find('.pos-discount-prefix-restaurant').text(type === 'percentage' ? '%' : sym);
+                $wrap.find('.pos-discount-value-restaurant').attr('max', type === 'percentage' ? '100' : '');
+                var sub = getRestaurantSubtotalStandalone();
                 updateRestaurantCartTotals(sub);
             });
 

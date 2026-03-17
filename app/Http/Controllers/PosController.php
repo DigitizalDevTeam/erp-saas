@@ -857,6 +857,7 @@ class PosController extends Controller
 $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMethods, true) ? $p['payment_method'] : PosPayment::METHOD_CASH;
                 $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
                 $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
+                $posPayment->transaction_id = !empty($p['transaction_id']) ? trim($p['transaction_id']) : null;
                 $posPayment->amount = $amt;
                 $posPayment->discount = $firstPayment ? (float) $discount : 0;
                 $posPayment->discount_amount = $amt;
@@ -1137,6 +1138,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                             $posPayment->payment_method = !empty($p['payment_method']) ? $p['payment_method'] : PosPayment::METHOD_CASH;
                             $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
                             $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
+                            $posPayment->transaction_id = !empty($p['transaction_id']) ? trim($p['transaction_id']) : null;
                             $posPayment->amount = $amt;
                             $posPayment->discount = $firstPmt ? (float) $discount : 0;
                             $posPayment->discount_amount = $amt;
@@ -1288,6 +1290,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                             $posPayment->payment_method = !empty($p['payment_method']) ? $p['payment_method'] : PosPayment::METHOD_CASH;
                             $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
                             $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
+                            $posPayment->transaction_id = !empty($p['transaction_id']) ? trim($p['transaction_id']) : null;
                             $posPayment->amount = $amt;
                             $posPayment->discount = $firstPayment ? (float) $discount : 0;
                             $posPayment->discount_amount = $amt;
@@ -3389,6 +3392,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $posPayment->discount = 0;
         $posPayment->discount_amount = $amount;
         $posPayment->tip = 0;
+        $posPayment->transaction_id = $request->filled('transaction_id') ? trim($request->transaction_id) : null;
         $posPayment->created_by = $user->id;
         $posPayment->save();
 

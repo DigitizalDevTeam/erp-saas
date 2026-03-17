@@ -149,11 +149,17 @@
                                 <span class="fw-semibold">{{ __('pos.sub_total') }}</span>
                                 <span id="pos-restaurant-subtotal" class="fw-semibold">0</span>
                             </div>
-                            <div class="d-flex justify-content-between mb-1 align-items-center">
+                            <div class="d-flex justify-content-between mb-1 align-items-center flex-wrap gap-1 discount-wrap-restaurant" data-currency-symbol="{{ \Auth::user()->currencySymbol() }}">
                                 <span class="fw-semibold">{{ __('pos.discount') }}</span>
-                                <div class="input-group input-group-sm" style="max-width: 120px;">
-                                    <span class="input-group-text bg-transparent">{{ \Auth::user()->currencySymbol() }}</span>
-                                    <input type="number" step="0.01" min="0" class="form-control form-control-sm" id="discount_restaurant" value="0" placeholder="0">
+                                <div class="d-flex align-items-center gap-1 flex-nowrap">
+                                    <select class="form-select form-select-sm pos-discount-type-restaurant" id="pos_discount_type_restaurant" style="width: auto; min-width: 95px;">
+                                        <option value="fixed">{{ __('Fixed') }}</option>
+                                        <option value="percentage">{{ __('Percentage') }}</option>
+                                    </select>
+                                    <div class="input-group input-group-sm" style="max-width: 100px;">
+                                        <span class="input-group-text bg-transparent pos-discount-prefix-restaurant">{{ \Auth::user()->currencySymbol() }}</span>
+                                        <input type="number" step="0.01" min="0" class="form-control form-control-sm pos-discount-value-restaurant" id="discount_restaurant" value="0" placeholder="0">
+                                    </div>
                                 </div>
                             </div>
                             {{ Form::hidden('discount_hidden_restaurant', '0', ['id' => 'discount_hidden_restaurant']) }}

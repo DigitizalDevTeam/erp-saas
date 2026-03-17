@@ -170,10 +170,18 @@
         }
     }
 
+    function mixedRowNeedsTxnId(method) {
+        return method && method !== 'cash' && method !== 'credit';
+    }
     function addMixedRow() {
-        var row = '<div class="mixed-row input-group input-group-sm mb-1"><select class="form-select form-select-sm mixed-method">' + payMethodOpts + '</select><input type="number" step="0.01" min="0" class="form-control form-control-sm mixed-amount" placeholder="{{ __("pos.enter_amount") }}"><button type="button" class="btn btn-outline-danger btn-sm mixed-remove">&times;</button></div>';
+        var row = '<div class="mixed-row mb-2"><div class="input-group input-group-sm mb-1"><select class="form-select form-select-sm mixed-method">' + payMethodOpts + '</select><input type="number" step="0.01" min="0" class="form-control form-control-sm mixed-amount" placeholder="{{ __("pos.enter_amount") }}"><button type="button" class="btn btn-outline-danger btn-sm mixed-remove">&times;</button></div><div class="mixed-txn-wrap d-none mt-1"><input type="text" class="form-control form-control-sm mixed-transaction-id" placeholder="{{ __("Transaction ID") }}"></div></div>';
         $('#mixed_payment_rows').append(row);
         $(document).off('input change', '.mixed-amount').on('input change', '.mixed-amount', updateMixedTotals);
+        $(document).off('change', '.mixed-method').on('change', '.mixed-method', function() {
+            var $row = $(this).closest('.mixed-row');
+            var need = mixedRowNeedsTxnId($(this).val());
+            $row.find('.mixed-txn-wrap').toggleClass('d-none', !need);
+        });
         $(document).off('click', '.mixed-remove').on('click', '.mixed-remove', function() {
             $(this).closest('.mixed-row').remove();
             updateMixedTotals();
@@ -210,9 +218,11 @@
             $('.mixed-row').each(function() {
                 var amt = parseFloat($(this).find('.mixed-amount').val()) || 0;
                 if (amt <= 0) return;
+                var txnId = $(this).find('.mixed-transaction-id').val();
                 payments.push({
                     payment_method: $(this).find('.mixed-method').val(),
-                    amount: amt.toFixed(2)
+                    amount: amt.toFixed(2),
+                    transaction_id: (txnId && txnId.trim()) ? txnId.trim() : ''
                 });
             });
             var totalPaid = payments.reduce(function(s, p) { return s + parseFloat(p.amount); }, 0);
@@ -236,6 +246,7 @@
             payments.forEach(function(p, i) {
                 data['payments[' + i + '][payment_method]'] = p.payment_method;
                 data['payments[' + i + '][amount]'] = p.amount;
+                if (p.transaction_id) data['payments[' + i + '][transaction_id]'] = p.transaction_id;
             });
             $.ajax({
                 url: "{{ route('pos.data.store') }}",

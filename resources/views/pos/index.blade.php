@@ -91,6 +91,18 @@
         .carttable {
             padding: 8px;
         }
+        .pos-print-header .header-sep { border-bottom: 1px dotted #333; margin: 10px 0; }
+        .pos-print-header .logo-box { max-width: 120px; height: 70px; margin: 0 auto 8px; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #fff; }
+        .pos-print-header .logo-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .pos-print-header .doc-title { font-size: 1.25rem; font-weight: bold; text-align: center; margin: 8px 0; }
+        .pos-print-header .doc-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .pos-print-header .doc-row .left, .pos-print-header .doc-row .right { flex: 1; }
+        .pos-print-header .doc-row .right { text-align: right; }
+        .pos-print-header .customer-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+        .pos-print-header .customer-row .cust-type { font-weight: bold; }
+        .pos-print-header .customer-row .cust-name { font-weight: bold; color: #333; }
+        .pos-print-header .customer-details { font-size: 0.9rem; color: #555; margin-top: 4px; }
+        .product-border { border-bottom: 1px solid #ddd; padding: 2px 0; }
         @media(max-width: 500px)
         {
              .pl-1{
@@ -112,14 +124,10 @@
             #commonModal .modal-footer { display: none !important; }
             #commonModal .body { padding: 0 !important; border: none !important; }
             #commonModal #printarea { position: static !important; width: 100%; padding: 0.5in; padding-bottom: 0.6in !important; font-size: 12pt; }
-            #commonModal:has(#print-copies) #printarea { padding: 0.25in !important; padding-bottom: 0 !important; }
             #commonModal #printarea .pos-module-tbl { width: 100%; }
             #commonModal #printarea .product-border { border-bottom: 1px solid #ddd !important; padding: 2px 0; }
             #commonModal #printarea .view-qrcode-receipt, #commonModal #printarea .view-qrcode-receipt * { visibility: visible !important; }
             #commonModal #printarea .view-qrcode-receipt img { display: block !important; visibility: visible !important; }
-            /* Same as print.html: one receipt per page, no blank after last */
-            #commonModal #printarea > .receipt-copy { page-break-after: always !important; }
-            #commonModal #printarea > .receipt-copy:last-child { page-break-after: auto !important; }
         }
     </style>
 </head>
@@ -443,11 +451,17 @@
                                             <p class="mb-0 text-dark subtotal_price" id="displaytotal">
                                                 {{ Auth::user()->priceFormat($total) }}</p>
                                         </div>
-                                        <div class="d-flex align-items-center justify-content-between align-items-center gap-2 mb-2 discount-wrap">
+                                        <div class="d-flex align-items-center justify-content-between align-items-center gap-2 mb-2 discount-wrap flex-wrap" data-currency-symbol="{{ \Auth::user()->currencySymbol() }}">
                                             <p class="mb-0 text-dark">{{ __('pos.discount') }} :</p>
-                                            <div class="d-flex align-items-center input-group input-group-sm" style="max-width: 120px;">
-                                                <span class="input-group-text bg-transparent" style="padding: 0.50rem 0.75rem !important;">{{ \Auth::user()->currencySymbol() }}</span>
-                                                {{ Form::number('discount', $discount, ['class' => 'form-control form-control-sm discount', 'required' => 'required', 'placeholder' => '0']) }}
+                                            <div class="d-flex align-items-center gap-1 flex-nowrap">
+                                                <select class="form-select form-select-sm pos-discount-type" id="pos_discount_type" style="width: auto; min-width: 95px;">
+                                                    <option value="fixed">{{ __('Fixed') }}</option>
+                                                    <option value="percentage">{{ __('Percentage') }}</option>
+                                                </select>
+                                                <div class="input-group input-group-sm pos-discount-input-wrap" style="max-width: 100px;">
+                                                    <span class="input-group-text bg-transparent pos-discount-prefix" style="padding: 0.50rem 0.75rem !important;">{{ \Auth::user()->currencySymbol() }}</span>
+                                                    <input type="number" name="discount" class="form-control form-control-sm discount pos-discount-value" id="pos_discount_value" value="{{ $discount }}" min="0" step="0.01" placeholder="0" data-max-percent="100">
+                                                </div>
                                             </div>
                                             {{ Form::hidden('discount_hidden', $discount, ['id' => 'discount_hidden']) }}
                                         </div>
@@ -687,6 +701,10 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="mb-3 d-none" id="pos-pay-balance-transaction-wrap">
+                            <label class="form-label">{{ __('Transaction ID') }}</label>
+                            <input type="text" name="transaction_id" id="pos-pay-balance-transaction-id" class="form-control" placeholder="{{ __('Transaction ID') }}">
+                        </div>
                         <div class="mb-3">
                             <label class="form-label">{{ __('Bank account') }} <span class="text-danger">*</span></label>
                             <select name="account_id" id="pos-pay-balance-account" class="form-select" required>
@@ -776,6 +794,12 @@
     @stack('script-page')
 
     <script src="{{ asset('js/jquery-ui.min.js') }}"></script>
+@php
+    $logoPath = asset(Storage::url('uploads/logo/'));
+    $company_logo = \App\Models\Utility::getValByName('company_logo_dark');
+    $pos_logo = \App\Models\Utility::getValByName('pos_logo');
+    $headerLogo = (isset($pos_logo) && $pos_logo) ? \App\Models\Utility::get_file('pos_logo/') . $pos_logo : $logoPath . '/' . ($company_logo ?? 'logo-dark.png');
+@endphp
 
     <script>
         var POS_PENDING_KEY = 'pos_pending_sales';
@@ -784,6 +808,7 @@
         var posSyncUrl = '{{ route("pos.sync") }}';
         var posCurrencySymbol = @json(Auth::user()->currencySymbol() ?? '');
         var posPrintSettings = @json(\App\Models\Utility::settings());
+        var posLogo = "{{ $headerLogo }}";
         var posEmptyCartUrl = '{{ route("warehouse-empty-cart") }}';
         var posSearchProductsUrl = '{{ route("search.products") }}';
         var posCategoriesUrl = '{{ route("product.categories") }}';
@@ -915,7 +940,8 @@
                 $('.mixed-row').each(function() {
                     var amt = parseFloat($(this).find('.mixed-amount').val()) || 0;
                     if (amt > 0) {
-                        payments.push({ payment_method: $(this).find('.mixed-method').val(), amount: amt });
+                        var txn = ($(this).find('.mixed-transaction-id').val() || '').trim();
+                        payments.push({ payment_method: $(this).find('.mixed-method').val(), amount: amt, transaction_id: txn || null });
                         totalPaid += amt;
                     }
                 });
@@ -1079,10 +1105,12 @@
                                     $('#payment_change').val('0');
                                 }
                             }
+                            function mixedNeedsTxn(m) { return m && m !== 'cash' && m !== 'credit'; }
                             function addMixedRow() {
-                                var row = '<div class="mixed-row input-group input-group-sm mb-1"><select class="form-select form-select-sm mixed-method">' + payOptsRow + '</select><input type="number" step="0.01" min="0" class="form-control form-control-sm mixed-amount" placeholder="{{ __("pos.enter_amount") }}"><button type="button" class="btn btn-outline-danger btn-sm mixed-remove">&times;</button></div>';
+                                var row = '<div class="mixed-row mb-2"><div class="input-group input-group-sm mb-1"><select class="form-select form-select-sm mixed-method">' + payOptsRow + '</select><input type="number" step="0.01" min="0" class="form-control form-control-sm mixed-amount" placeholder="{{ __("pos.enter_amount") }}"><button type="button" class="btn btn-outline-danger btn-sm mixed-remove">&times;</button></div><div class="mixed-txn-wrap d-none mt-1"><input type="text" class="form-control form-control-sm mixed-transaction-id" placeholder="{{ __("Transaction ID") }}"></div></div>';
                                 $('#mixed_payment_rows').append(row);
                                 $(document).off('input.posoffline change.posoffline', '.mixed-amount').on('input.posoffline change.posoffline', '.mixed-amount', updateMixedTotals);
+                                $(document).off('change.posoffline', '.mixed-method').on('change.posoffline', '.mixed-method', function() { var $r = $(this).closest('.mixed-row'); $r.find('.mixed-txn-wrap').toggleClass('d-none', !mixedNeedsTxn($(this).val())); });
                                 $(document).off('click.posoffline', '.mixed-remove').on('click.posoffline', '.mixed-remove', function() { $(this).closest('.mixed-row').remove(); updateMixedTotals(); });
                                 updateMixedTotals();
                             }
@@ -1162,13 +1190,15 @@
                     var companyName = (s.company_name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     var companyBlock = (companyName || s.company_address) ? ('<div class="text-left">' + companyName + '<br>' + esc(s.mail_from_address) + '<br>' + esc(s.company_address) + '<br>' + esc(s.company_city) + (s.company_city && (s.company_state || s.company_zipcode) ? ', ' : '') + esc(s.company_state) + (s.company_state && s.company_zipcode ? ', ' : '') + esc(s.company_zipcode) + '<br>' + esc(s.company_country) + '<br>' + esc(s.company_telephone) + '<br></div>') : '';
                     var itemRows = '';
+                    var totalTax = 0;
+                    var discountPerItem = receiptData.discount > 0 && receiptData.items.length > 0 ? receiptData.discount / receiptData.items.length : 0;
                     receiptData.items.forEach(function (it) {
                         var taxAmt = it.price * it.qty * it.tax / 100;
+                        totalTax += taxAmt;
                         itemRows += '<div class="mt-2"><div class="p-0"><b>' + esc(it.name) + '</b></div>' +
                             '<div class="d-flex product-border"><div>{{ __("pos.quantity_colon") }}</div><div class="text-end ms-auto">' + it.qty + '</div></div>' +
                             '<div class="d-flex product-border"><div>{{ __("pos.price_colon") }}</div><div class="text-end ms-auto">' + fmt(it.price) + '</div></div>' +
-                            '<div class="d-flex product-border"><div>{{ __("pos.tax_colon") }}</div><div class="text-end ms-auto">' + it.tax + '</div></div>' +
-                            '<div class="d-flex product-border mb-2"><div>{{ __("pos.tax_amount_colon") }}</div><div class="text-end ms-auto">' + fmt(taxAmt) + '</div></div>' +
+                            (discountPerItem > 0 ? '<div class="d-flex product-border"><div>{{ __("pos.discount_colon") }}</div><div class="text-end ms-auto">' + fmt(discountPerItem) + '</div></div>' : '') +
                             '<div class="d-flex product-border mb-2"><div>{{ __("pos.sub_total_colon") }}</div><div class="text-end ms-auto">' + fmt(it.subtotal) + '</div></div></div>';
                     });
                     var paySection = '<div class="product-border mb-2 mt-3 p-2"><div class="text-black fw-bold mb-2">{{ __("Payment") }}</div>' +
@@ -1187,22 +1217,52 @@
                         paySection += '<div class="product-border mb-1 p-1 small"><div>{{ __("Notes") }}:</div><div>' + esc(receiptData.notes) + '</div></div>';
                     }
                     paySection += '</div>';
-                    var printareaHtml = '<div class="pt-0 pb-3 modal-body pos-module" id="printarea">' +
-                        '<table class="table pos-module-tbl"><tbody>' +
-                        '<div class="text-center"><h3>' + companyName + '</h3></div><br>' +
-                        '<div class="text-left"><b>Offline</b></div>' +
-                        companyBlock +
-                        '<div class="mt-2 no-print"><span class="text-warning small"><span class="ti ti-wifi-off me-1"></span>{{ __("pos.offline_banner") }}</span></div><br>' +
-                        '<div>' + (receiptData.customer ? '{{ __("pos.name") }}:  ' + esc(receiptData.customer) : '') + '</div>' +
-                        '<div>{{ __("pos.date_of_pos") }}:  ' + esc(receiptData.date) + '</div>' +
-                        (receiptData.warehouseName ? '<div class="product-border">{{ __("pos.warehouse_name") }}:  ' + esc(receiptData.warehouseName) + '</div>' : '') +
-                        '</tbody></table>' +
+                    var printareaHtml = '<div class="pt-0 pb-3 modal-body pos-module position-relative" id="printarea">' +
+                        '<div class="receipt-copy-wrapper receipt-copy">' +
+                        '<div class="pos-print-header">' +
+                        '<div class="text-center">' +
+                        '<div class="logo-box">' +
+                        '<img src="' + (posLogo ? posLogo : '{{ asset(Storage::url("uploads/logo/")) }}/{{ \App\Models\Utility::getValByName("company_logo_dark") ?? "logo-dark.png" }}') + '" alt="Logo" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'block\';">' +
+                        '<span style="display:none; color:#22c55e; font-weight:bold;">LOGO</span>' +
+                        '</div>' +
+                        '<div>' + companyName + '</div>' +
+                        '<div>' + esc(s.company_address || s.mail_from_address) + '</div>' +
+                        '<div>' + esc(s.company_city) + (s.company_city && (s.company_state || s.company_zipcode) ? ', ' : '') + esc(s.company_state) + (s.company_state && s.company_zipcode ? ', ' : '') + esc(s.company_zipcode) + '</div>' +
+                        (s.vat_gst_number_switch == 'on' && s.vat_number ? '<div>' + (s.tax_type || 'VAT') + ' NR: ' + s.vat_number + '</div>' : '') +
+                        '<div>Phone: ' + esc(s.company_telephone) + '</div>' +
+                        '<div>E-mail: ' + esc(s.mail_from_address) + '</div>' +
+                        '</div>' +
+                        '<div class="mt-1" style="font-size: 1.3rem;text-align: center;"><b>{{ __("Retail") }} - {{ __("Cash Sale") }}</b></div>' +
+                        '<div class="header-sep"></div>' +
+                        '<div class="doc-row">' +
+                        '<div class="left">' +
+                        '<div>Date: ' + esc(receiptData.date) + '</div>' +
+                        '<div class="mt-1">{{ __("pos.branch_name") }}:<br>-</div>' +
+                        '</div>' +
+                        '<div class="right">' +
+                        '<div>{{ __("Original") }}</div>' +
+                        '<div class="mt-1">DOC NR<br><strong>OFFLINE</strong></div>' +
+                        '</div>' +
+                        '</div>' +
+                        '<div class="header-sep"></div>' +
+                        '<div class="customer-row">' +
+                        '<div class="cust-name">' + esc(receiptData.customer) + '</div>' +
+                        '</div>' +
+                        '<div class="header-sep"></div>' +
+                        '</div>' +
+                        '<div class="mt-2 no-print"><span class="text-warning small"><span class="ti ti-wifi-off me-1"></span>{{ __("pos.offline_banner") }}</span></div>' +
                         '<div class="text-black text-left fs-5 mt-0 mb-0">{{ __("Items") }}</div>' +
                         itemRows +
-                        '<div class="d-flex product-border mb-2 mt-4"><div><b>{{ __("pos.discount_colon") }}</b></div><div class="text-end ms-auto">' + fmt(receiptData.discount) + '</div></div>' +
+                        '<div class="d-flex product-border mb-2 mt-4"><div><b>{{ __("pos.sub_total_colon") }}</b></div><div class="text-end ms-auto">' + fmt(receiptData.subTotal) + '</div></div>' +
+                        (totalTax > 0 ? '<div class="d-flex product-border mb-2"><div><b>{{ __("pos.tax_colon") }}</b></div><div class="text-end ms-auto">' + fmt(totalTax) + '</div></div>' : '') +
                         '<div class="d-flex product-border mb-2"><div><b>{{ __("pos.total_colon") }}</b></div><div class="text-end ms-auto">' + fmt(receiptData.total) + '</div></div>' +
                         paySection +
-                        '<h5 class="text-center mt-3 font-label">{{ __("pos.thank_you") }}</h5></div>' +
+                        '<div class="text-center mt-3 small text-muted">' +
+                        '<div>{{ __("pos.document_processed_by_computer") }}</div>' +
+                        '<div class="mt-1">{{ __("pos.thank_you") }}</div>' +
+                        '</div>' +
+                        '</div>' +
+                        '</div>' +
                         '<div class="justify-content-center pt-2 modal-footer"><a href="#" id="print" class="btn btn-primary btn-sm text-right float-right mb-3">{{ __("pos.print") }}</a></div>';
                     $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
                     $('.modal-dialog').removeClass('modal-xl modal-lg modal-md modal-sm').addClass('modal-sm');
@@ -1214,7 +1274,6 @@
                 }
             });
             $(document).on('click', '#commonModal #print', function () {
-                if (document.getElementById('print-copies')) return;
                 var print_div = document.getElementById('printarea');
                 if (!print_div) return;
                 $('.row').addClass('d-none');
@@ -1365,7 +1424,13 @@
                                 }
                             });
                             $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
-                            $('#pos-restaurant-total').text('0');
+                            $('#pos-restaurant-subtotal').text('0');
+                            $('#pos-restaurant-total').data('subtotal', 0);
+                            $('#discount_restaurant').val('0');
+                            if ($('#pos_discount_type_restaurant').length) $('#pos_discount_type_restaurant').val('fixed');
+                            $('#discount_hidden_restaurant').val('0');
+                            if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
+                            else $('#pos-restaurant-total').text('0');
                             $('#pos-pay-btn-restaurant').prop('disabled', false);
                         }
                     });
@@ -1479,7 +1544,13 @@
                     data: { session_key: sk },
                     success: function () {
                         $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
-                        $('#pos-restaurant-total').text('0');
+                        $('#pos-restaurant-subtotal').text('0');
+                        $('#pos-restaurant-total').data('subtotal', 0);
+                        $('#discount_restaurant').val('0');
+                        if ($('#pos_discount_type_restaurant').length) $('#pos_discount_type_restaurant').val('fixed');
+                        $('#discount_hidden_restaurant').val('0');
+                        if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
+                        else $('#pos-restaurant-total').text('0');
                         $('#pos-pay-btn-restaurant').prop('disabled', true);
                         show_toastr('success', '{{ __("Cart is empty!") }}', 'success');
                     }
@@ -1535,7 +1606,13 @@
                             if (res.success) {
                                 doPrint();
                                 $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="8">{{ __("pos.no_data_found") }}</td></tr>');
-                                $('#pos-restaurant-total').text('0');
+                                $('#pos-restaurant-subtotal').text('0');
+                                $('#pos-restaurant-total').data('subtotal', 0);
+                                $('#discount_restaurant').val('0');
+                                if ($('#pos_discount_type_restaurant').length) $('#pos_discount_type_restaurant').val('fixed');
+                                $('#discount_hidden_restaurant').val('0');
+                                if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
+                                else $('#pos-restaurant-total').text('0');
                                 $('#pos-pay-btn-restaurant').prop('disabled', true);
                             }
                         },
@@ -1792,6 +1869,12 @@
                     }
                 });
                 $('#posPayBalanceModal').modal('show');
+                var pm = $('#pos-pay-balance-payment-method').val();
+                $('#pos-pay-balance-transaction-wrap').toggleClass('d-none', !pm || pm === 'cash');
+            });
+            $(document).on('change', '#pos-pay-balance-payment-method', function() {
+                var pm = $(this).val();
+                $('#pos-pay-balance-transaction-wrap').toggleClass('d-none', !pm || pm === 'cash');
             });
             $(document).on('submit', '#pos-pay-balance-form', function(e) {
                 e.preventDefault();
@@ -1822,7 +1905,7 @@
                                 t.show();
                             }
                             if (res.receipt_html) {
-                                $('#commonModal .modal-title').text('{{ __("Receipt") }}');
+                                $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
                                 $('#commonModal .modal-dialog').removeClass('modal-xl modal-lg modal-md').addClass('modal-sm');
                                 $('#commonModal .body').html(res.receipt_html);
                                 $('#commonModal').modal('show');
@@ -2106,7 +2189,10 @@
                                 }
                                 sum = 0;
                                 $(posCartItemSelector(tbodySel)).each(function() { sum += parseFloat($(this).attr('data-subtotal')) || 0; });
-                                $('#pos-restaurant-total').text(addCommas(sum));
+                                $('#pos-restaurant-subtotal').text(addCommas(sum));
+                                $('#pos-restaurant-total').data('subtotal', sum);
+                                if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
+                                else $('#pos-restaurant-total').text(addCommas(sum));
                             } else {
                                 if ('carttotal' in data) {
                                     if (data.carthtml) {
@@ -2126,6 +2212,10 @@
                                     $('.totalamount').text(addCommas(sum));
                                     $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                                     $('.discount').val('');
+                                    $('#pos_discount_type').val('fixed');
+                                    $('#pos_discount_value').val('0');
+                                    $('#discount_hidden').val('0');
+                                    $('#pos-retail-panel .discount-wrap').find('.pos-discount-prefix').text($('#pos-retail-panel .discount-wrap').data('currency-symbol') || '');
                                 } else if (data.carthtml) {
                                     $('#tbody').append(data.carthtml);
                                     $('.no-found').addClass('d-none');
@@ -2172,7 +2262,14 @@
                 } else if (!inRestaurant) $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                 var total = 0;
                 $(posCartItemSelector(tbodySel)).each(function() { total += parseFloat($(this).attr('data-subtotal')) || 0; });
-                $(totalSel).text(addCommas(total));
+                if (inRestaurant) {
+                    $('#pos-restaurant-subtotal').text(addCommas(total));
+                    $('#pos-restaurant-total').data('subtotal', total);
+                    if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
+                    else $(totalSel).text(addCommas(total));
+                } else {
+                    $(totalSel).text(addCommas(total));
+                }
             });
 
             $(document).on('change keyup', '#carthtml input[name="quantity"], #carthtml-restaurant input[name="quantity"]', function (e) {
@@ -2193,8 +2290,17 @@
                         $row.find('.subtotal').text(addCommas(subtotal));
                         var total = 0;
                         $(posCartItemSelector(tbodySel)).each(function() { total += parseFloat($(this).attr('data-subtotal')) || 0; });
-                        if (inRestaurant) $('#pos-restaurant-total').text(addCommas(total));
-                        else { $('#displaytotal').text(addCommas(total)); $('.totalamount').text(addCommas(total)); $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')'); }
+                        if (inRestaurant) {
+                            $('#pos-restaurant-subtotal').text(addCommas(total));
+                            $('#pos-restaurant-total').data('subtotal', total);
+                            if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
+                            else $('#pos-restaurant-total').text(addCommas(total));
+                        } else {
+                            $('#displaytotal').text(addCommas(total));
+                            $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
+                            if (typeof posApplyDiscount === 'function') posApplyDiscount();
+                            else $('.totalamount').text(addCommas(total));
+                        }
                     } else if (quantity === 0) {
                         ele.closest('[data-product-id]').remove();
                         if ($(posCartItemSelector(tbodySel)).length === 0) {
@@ -2206,7 +2312,7 @@
                     return;
                 }
                 var sum = 0;
-                var discount = $('.discount').val();
+                var discount = inRestaurant ? ($('#discount_hidden_restaurant').val() || '0') : ($('#discount_hidden').val() || '0');
                 if (quantity != null && quantity != 0) {
                     $.ajax({
                         url: ele.data('url'),
@@ -2232,8 +2338,16 @@
                                     sum += value.subtotal;
                                     $('#' + rowIdPrefix + value.id + ' .subtotal').text(addCommas(value.subtotal));
                                 });
-                                if (inRestaurant) $('#pos-restaurant-total').text(addCommas(sum));
-                                else { $('#displaytotal').text(addCommas(sum)); $('.totalamount').text(data.discount); }
+                                if (inRestaurant) {
+                                    $('#pos-restaurant-subtotal').text(addCommas(sum));
+                                    $('#pos-restaurant-total').data('subtotal', sum);
+                                    if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
+                                    else $('#pos-restaurant-total').text(addCommas(sum));
+                                } else {
+                                    $('#displaytotal').text(addCommas(sum));
+                                    $('.totalamount').text(data.discount);
+                                    if (typeof posApplyDiscount === 'function') posApplyDiscount();
+                                }
                             }
                         },
                         error: function (data) {
@@ -2359,8 +2473,6 @@
             });
 
             $(document).on('pos-payment-completed', function (e, data) {
-                // Close modal immediately so user does not see payment form then receipt update
-                $('#commonModal').modal('hide');
                 var sk = $('#empty_cart').val() || sessionKey;
                 var emptyData = { session_key: sk };
                 var tid = $('#pos_table_id_hidden').val();
@@ -2378,7 +2490,13 @@
                         $('#pos-cart-count').text('(0)');
                         $('#tbody-restaurant').html(posEmptyCartHtmlRestaurant);
                         $('#displaytotal, .totalamount').text('0');
-                        $('#pos-restaurant-total').text('0');
+                        $('#pos-restaurant-subtotal').text('0');
+                        $('#pos-restaurant-total').data('subtotal', 0);
+                        $('#discount_restaurant').val('0');
+                        if ($('#pos_discount_type_restaurant').length) $('#pos_discount_type_restaurant').val('fixed');
+                        $('#discount_hidden_restaurant').val('0');
+                        if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
+                        else $('#pos-restaurant-total').text('0');
                         $('#pos-pay-btn').prop('disabled', true);
                         $('.btn-empty button').removeClass('btn-clear-cart');
                         $('#pos-pay-btn-restaurant').prop('disabled', true);
@@ -2389,23 +2507,16 @@
                         $('#pos_restaurant_table_name').val('');
                         $('#pos-selected-table').text('—');
                         $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
-                        // Reset customer to Walk-in after pay
-                        if ($('#customer').length) {
-                            $('#customer').val('Walk-in-customer');
-                            $('#vc_name_hidden').val('Walk-in-customer');
-                            if (typeof posUpdateCustomerCard === 'function') posUpdateCustomerCard();
-                        }
-                        // Reset discount after sale
-                        $('#discount_hidden').val(0);
-                        if ($('.discount').length) $('.discount').val(0);
                         if (data && data.pos_id) {
                             var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id + '&source=retail';
                             $.get(receiptUrl, function (html) {
-                                $('#commonModal .modal-title').text('{{ __("Cash Sale") }}');
+                                $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
                                 $('#commonModal .modal-dialog').removeClass('modal-xl').addClass('modal-sm');
                                 $('#commonModal .body').html(html);
                                 $('#commonModal').modal('show');
                             });
+                        } else {
+                            if ($('#commonModal').length) $('#commonModal').modal('hide');
                         }
                     }
                 });
@@ -2423,34 +2534,96 @@
                 var warehouse_id = $('#warehouse').val();
                 searchProducts(posSearchProductsUrl, '', cat, warehouse_id, 'name');
             });
-            $(document).on('keyup', '.discount', function () {
-                var discount = parseFloat($('.discount').val()) || 0;
-                $( "#discount_hidden" ).val(discount);
+            function getRetailSubtotal() {
+                var raw = $('#displaytotal').text().replace(/,/g, '').replace(/[^\d.-]/g, '');
+                var fromDisplay = parseFloat(raw);
+                if (!isNaN(fromDisplay) && fromDisplay > 0) return fromDisplay;
+                var subtotal = 0;
+                $('#tbody [data-product-id]').each(function() {
+                    var p = parseFloat($(this).attr('data-price')) || 0;
+                    var t = parseFloat($(this).attr('data-tax')) || 0;
+                    var q = parseInt($(this).find('input.input-number').val() || 1, 10);
+                    subtotal += (p + p * t / 100) * q;
+                });
+                return subtotal;
+            }
+            function posApplyDiscount() {
+                if ($('#pos-retail-panel').hasClass('d-none') || !$('#discount_hidden').length) return;
+                var type = ($('#pos_discount_type').val() || 'fixed');
+                var val = parseFloat($('.pos-discount-value').val() || $('.discount').val() || 0) || 0;
+                var subtotal = getRetailSubtotal();
+                var amount = type === 'percentage' ? (Math.min(100, Math.max(0, val)) / 100 * subtotal) : Math.max(0, val);
+                $('#discount_hidden').val(amount.toFixed(2));
                 if (!navigator.onLine) {
-                    var subtotal = 0;
-                    $('#tbody [data-product-id]').each(function() {
-                        var p = parseFloat($(this).attr('data-price')) || 0;
-                        var t = parseFloat($(this).attr('data-tax')) || 0;
-                        var q = parseInt($(this).find('input.input-number').val() || 1, 10);
-                        subtotal += (p + p * t / 100) * q;
-                    });
-                    var total = Math.max(0, subtotal - discount);
-                    $('.totalamount').text(addCommas(total));
+                    $('.totalamount').text(addCommas(Math.max(0, subtotal - amount)));
                     return;
                 }
                 $.ajax({
-                    url: "{{route('cartdiscount')}}",
+                    url: "{{ route('cartdiscount') }}",
                     method: 'POST',
-                    data: {discount: discount},
+                    data: { discount: amount },
                     success: function (data) {
                         $('.totalamount').text(data.total);
                     },
-                    error: function (data) {
-                        data = data.responseJSON || {};
+                    error: function (xhr) {
+                        var data = xhr.responseJSON || {};
                         show_toastr('{{ __("Error") }}', data.error || '{{ __("pos.error") }}', 'error');
                     }
                 });
-            })
+            }
+            $(document).on('change', '#pos_discount_type', function () {
+                var type = $(this).val();
+                var $wrap = $('#pos-retail-panel .discount-wrap').first();
+                var sym = $wrap.data('currency-symbol') || $wrap.find('.pos-discount-prefix').text();
+                $wrap.find('.pos-discount-prefix').text(type === 'percentage' ? '%' : sym);
+                $wrap.find('.pos-discount-value').attr('max', type === 'percentage' ? '100' : '');
+                posApplyDiscount();
+            });
+            $(document).on('keyup input', '.discount', function () {
+                var type = ($('#pos_discount_type').val() || 'fixed');
+                if (type === 'percentage') {
+                    var v = parseFloat($(this).val()) || 0;
+                    if (v > 100) $(this).val(100);
+                }
+                posApplyDiscount();
+            });
+            $(document).on('change', '.pos-discount-value', function () {
+                posApplyDiscount();
+            });
+
+            function getRestaurantSubtotal() {
+                var fromData = parseFloat($('#pos-restaurant-total').data('subtotal'));
+                if (!isNaN(fromData) && fromData >= 0) return fromData;
+                var raw = $('#pos-restaurant-subtotal').text().replace(/,/g, '').replace(/[^\d.-]/g, '');
+                var fromDisplay = parseFloat(raw);
+                if (!isNaN(fromDisplay) && fromDisplay >= 0) return fromDisplay;
+                var sum = 0;
+                $('#tbody-restaurant [data-product-id]').each(function() { sum += parseFloat($(this).attr('data-subtotal')) || 0; });
+                return sum;
+            }
+            function posApplyRestaurantDiscount() {
+                if (!$('#discount_hidden_restaurant').length || !$('#pos-restaurant-panel').length || $('#pos-restaurant-panel').hasClass('d-none')) return;
+                var type = ($('#pos_discount_type_restaurant').val() || 'fixed');
+                var val = parseFloat($('#discount_restaurant').val() || 0) || 0;
+                var subtotal = getRestaurantSubtotal();
+                var amount = type === 'percentage' ? (Math.min(100, Math.max(0, val)) / 100 * subtotal) : Math.max(0, val);
+                $('#discount_hidden_restaurant').val(amount.toFixed(2));
+                var totalVal = Math.max(0, subtotal - amount);
+                $('#pos-restaurant-total').text(addCommas(totalVal));
+            }
+            $(document).on('change', '#pos_discount_type_restaurant', function () {
+                var type = $(this).val();
+                var $wrap = $('.discount-wrap-restaurant').first();
+                var sym = $wrap.data('currency-symbol') || $wrap.find('.pos-discount-prefix-restaurant').text();
+                $wrap.find('.pos-discount-prefix-restaurant').text(type === 'percentage' ? '%' : sym);
+                $wrap.find('.pos-discount-value-restaurant').attr('max', type === 'percentage' ? '100' : '');
+                posApplyRestaurantDiscount();
+            });
+            $(document).on('keyup input', '#discount_restaurant', function () {
+                var type = ($('#pos_discount_type_restaurant').val() || 'fixed');
+                if (type === 'percentage') { var v = parseFloat($(this).val()) || 0; if (v > 100) $(this).val(100); }
+                posApplyRestaurantDiscount();
+            });
 
         });
 
@@ -2504,13 +2677,12 @@
         $(document).on('click','.pay-receipt-print',function(){
             var pos_id = $(this).data('id');
             $('#commonModal .modal-dialog').addClass('modal-sm');
-            $.get('/printview/pos', {
+            $.get('{{url("printview/pos")}}', {
                 pos_id: pos_id,
                 source: 'retail',
                 modal: 1
             }, function(html){
-                $('#commonModal').css('z-index', '11200000');
-                $('#commonModal .modal-title').text('{{ __("Receipt") }}');
+                $('#commonModal .modal-title').text('POS Receipt');
                 $('#commonModal .body').html(html);
                 $('#commonModal').modal('show');
             });
