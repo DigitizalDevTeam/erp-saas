@@ -439,8 +439,8 @@
         doc += receiptStyles;
         doc += ' @media print{';
         doc += 'body{background:#fff !important;margin:0 !important;padding:0 !important}';
-        doc += '.print-center-wrap{width:100% !important;display:flex !important;justify-content:center !important;align-items:flex-start !important;margin:0 !important;padding:0 !important}';
-        doc += '#printarea{width:400px !important;max-width:85% !important;margin:0 !important}';
+        doc += '.print-center-wrap{width:100% !important;display:flex !important;justify-content:center !important;align-items:flex-start !important;margin:0 !important;padding:0 !important;min-height:100vh}';
+        doc += '#printarea{position:static !important;left:auto !important;width:400px !important;max-width:85% !important;margin:0 auto !important}';
         doc += '.receipt-copy{page-break-after:always}';
         doc += '.receipt-copy:last-child{page-break-after:auto}';
         doc += '}</style></head><body><div class="print-center-wrap"><div id="printarea" class="pt-0 pb-3 pos-module">' + html + '</div></div></body></html>';

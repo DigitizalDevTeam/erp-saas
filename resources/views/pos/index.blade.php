@@ -2359,6 +2359,8 @@
             });
 
             $(document).on('pos-payment-completed', function (e, data) {
+                // Close modal immediately so user does not see payment form then receipt update
+                $('#commonModal').modal('hide');
                 var sk = $('#empty_cart').val() || sessionKey;
                 var emptyData = { session_key: sk };
                 var tid = $('#pos_table_id_hidden').val();
@@ -2404,8 +2406,6 @@
                                 $('#commonModal .body').html(html);
                                 $('#commonModal').modal('show');
                             });
-                        } else {
-                            if ($('#commonModal').length) $('#commonModal').modal('hide');
                         }
                     }
                 });

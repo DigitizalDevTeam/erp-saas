@@ -2612,6 +2612,7 @@
             });
 
             $(document).on('pos-payment-completed', function (e, data) {
+                $('#commonModal').modal('hide');
                 var sk = $('#empty_cart').val() || sessionKey;
                 var emptyData = { session_key: sk };
                 if (sk === 'pos-restaurant') {
