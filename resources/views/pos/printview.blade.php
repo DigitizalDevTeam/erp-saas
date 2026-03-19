@@ -23,6 +23,8 @@
     $qrCodeContent = $receiptLinkUrl ?: (isset($details['pos_id']) ? (($settings['company_name'] ?? config('app.name')) . ' - ' . $details['pos_id'] . ' - ' . ($details['date'] ?? date('Y-m-d'))) : url('/'));
     $receiptUser = $receiptUser ?? null;
     $priceUser = $receiptUser ?? Auth::user();
+    $printLayout = $settings['pos_print_layout'] ?? 'receipt';
+    $directPrint = (isset($settings['pos_direct_print']) && $settings['pos_direct_print'] === 'on');
 @endphp
 <style id="pos-receipt-styles">
     .pos-print-header .header-sep { border-bottom: 1px dotted #333; margin: 10px 0; }
@@ -44,7 +46,12 @@
     .vat-summary-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
     .vat-summary-wrap table { min-width: 420px; width: 100%; table-layout: fixed; }
     .vat-summary-wrap th, .vat-summary-wrap td { padding: 6px 8px !important; white-space: nowrap; box-sizing: border-box; }
+    .pos-print-layout-slip .pos-print-header .logo-box { max-width: 80px; height: 45px; }
+    .pos-print-layout-slip .pos-print-header, .pos-print-layout-slip .pos-print-header * { font-size: 0.75rem; }
+    .pos-print-layout-slip #printarea { font-size: 0.8rem; }
+    .pos-print-layout-a5 #printarea { max-width: 148mm; }
     @media print {
+        @page { size: auto; margin: 10mm; }
         body *{
             visibility:hidden;
         }
@@ -60,6 +67,12 @@
             top:0;
             width:100%;
         }
+        #printarea.pos-print-layout-slip { width: 80mm !important; max-width: 80mm !important; margin: 0 auto !important; font-size: 10px !important; }
+        .pos-print-layout-slip .pos-print-header .logo-box { max-width: 60px !important; height: 36px !important; }
+        .pos-print-layout-slip .pos-print-header, .pos-print-layout-slip .pos-print-header * { font-size: 9px !important; }
+        @page pos-a5 { size: A5; margin: 12mm; }
+        body.pos-print-layout-a5 #printarea { width: 100% !important; max-width: 100% !important; }
+        #printarea.pos-print-layout-a5 { page: pos-a5; }
 
         .receipt-copy{
             page-break-after:always;
@@ -103,7 +116,7 @@
 </head>
 <body style="padding:1rem; background:#f5f5f5;">
 @endif
-<div class="pt-0 pb-3 {{ $standalone ? 'bg-white rounded p-3' : 'modal-body' }} pos-module position-relative" id="printarea" {{ $standalone ? 'style="box-shadow:0 1px 3px rgba(0,0,0,.1);"' : '' }}>
+<div class="pt-0 pb-3 {{ $standalone ? 'bg-white rounded p-3' : 'modal-body' }} pos-module position-relative pos-print-layout-{{ $printLayout }}" id="printarea" {{ $standalone ? 'style="box-shadow:0 1px 3px rgba(0,0,0,.1);"' : '' }}>
     <div class="receipt-copy-wrapper receipt-copy">
     @if($segundaVia)
     <div class="segunda-via-watermark" aria-hidden="true">SEGUNDA VIA</div>
@@ -370,7 +383,7 @@
 
     @if($standalone)
     <div class="mt-3 no-print-copies">
-        <button type="button" class="btn-primary" onclick="window.print();">{{ __('pos.print') }}</button>
+        <button type="button" class="btn-primary" id="print">{{ __('pos.print') }}</button>
     </div>
     @else
     <div class="justify-content-center pt-2 modal-footer no-print-copies d-flex flex-wrap align-items-center gap-2">
@@ -389,6 +402,8 @@
     </div>
     @endif
 <script>
+var posPrintLayout = '{{ $printLayout }}';
+var posDirectPrint = {{ $directPrint ? 'true' : 'false' }};
 (function() {
     function doPrint(copies) {
         var printarea = document.getElementById("printarea");
@@ -407,6 +422,16 @@
             }
             printarea.appendChild(clone);
             clones.push(clone);
+        }
+        if (posDirectPrint) {
+            function removeClones() {
+                clones.forEach(function(c) { if (c && c.parentNode) c.remove(); });
+            }
+            setTimeout(function() {
+                window.print();
+                setTimeout(removeClones, 1500);
+            }, 150);
+            return;
         }
         var html = printarea.innerHTML;
         clones.forEach(function(c) { c.remove(); });
@@ -443,7 +468,7 @@
         doc += '#printarea{position:static !important;left:auto !important;width:400px !important;max-width:85% !important;margin:0 auto !important}';
         doc += '.receipt-copy{page-break-after:always}';
         doc += '.receipt-copy:last-child{page-break-after:auto}';
-        doc += '}</style></head><body><div class="print-center-wrap"><div id="printarea" class="pt-0 pb-3 pos-module">' + html + '</div></div></body></html>';
+        doc += '}</style></head><body class="pos-print-layout-' + (typeof posPrintLayout !== 'undefined' ? posPrintLayout : 'receipt') + '"><div class="print-center-wrap"><div id="printarea" class="pt-0 pb-3 pos-module pos-print-layout-' + (typeof posPrintLayout !== 'undefined' ? posPrintLayout : 'receipt') + '">' + html + '</div></div></body></html>';
         printWin.document.write(doc);
         printWin.document.close();
         printWin.focus();

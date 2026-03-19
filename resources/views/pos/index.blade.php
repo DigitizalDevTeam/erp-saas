@@ -498,7 +498,7 @@
     </div>{{-- /pos-page --}}
 
     <div class="modal fade" id="commonModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
-        aria-hidden="true">
+        aria-hidden="true" style="z-index: 9999999;">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -697,6 +697,8 @@
                                     <option value="cash">{{ __('pos.payment_cash') }}</option>
                                     <option value="card">{{ __('pos.payment_card') }}</option>
                                     <option value="visa">{{ __('pos.payment_visa') }}</option>
+                                    <option value="mpesa">{{ __('pos.payment_mpesa') }}</option>
+                                    <option value="bank_transfer">{{ __('pos.payment_bank_transfer') }}</option>
                                     <option value="cheque">{{ __('pos.payment_cheque') }}</option>
                                 </select>
                             </div>
@@ -1274,6 +1276,7 @@
                 }
             });
             $(document).on('click', '#commonModal #print', function () {
+                if (document.getElementById('print-copies')) return;
                 var print_div = document.getElementById('printarea');
                 if (!print_div) return;
                 $('.row').addClass('d-none');

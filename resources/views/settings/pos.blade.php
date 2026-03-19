@@ -250,6 +250,33 @@
                                         <form id="setting-form" method="post"
                                             action="{{ route('pos.template.setting') }}" enctype="multipart/form-data">
                                             @csrf
+                                            <div class="form-group mb-3">
+                                                <label for="pos_print_layout" class="form-label fw-semibold">{{ __('POS Print Layout') }}</label>
+                                                <select class="form-control" name="pos_print_layout" id="pos_print_layout">
+                                                    <option value="slip" {{ (isset($settings['pos_print_layout']) && $settings['pos_print_layout'] == 'slip') ? 'selected' : '' }}>{{ __('Slip (80mm thermal)') }}</option>
+                                                    <option value="a5" {{ (isset($settings['pos_print_layout']) && $settings['pos_print_layout'] == 'a5') ? 'selected' : '' }}>{{ __('A5') }}</option>
+                                                    <option value="receipt" {{ (isset($settings['pos_print_layout']) && $settings['pos_print_layout'] == 'receipt') || !isset($settings['pos_print_layout']) ? 'selected' : '' }}>{{ __('Receipt (standard)') }}</option>
+                                                </select>
+                                                <small class="text-muted">{{ __('Paper size used when printing POS receipt. Set once here so each sale uses the same layout.') }}</small>
+                                            </div>
+                                            <div class="form-group mb-3">
+                                                <label for="pos_receipt_printer" class="form-label fw-semibold">{{ __('Default receipt printer') }}</label>
+                                                <select class="form-control" name="pos_receipt_printer" id="pos_receipt_printer">
+                                                    <option value="browser" {{ (isset($settings['pos_receipt_printer']) && $settings['pos_receipt_printer'] == 'browser') || !isset($settings['pos_receipt_printer']) ? 'selected' : '' }}>{{ __('Browser (choose in print dialog)') }}</option>
+                                                    <option value="default" {{ (isset($settings['pos_receipt_printer']) && $settings['pos_receipt_printer'] == 'default') ? 'selected' : '' }}>{{ __('System default printer') }}</option>
+                                                </select>
+                                                <small class="text-muted">{{ __('Use “Browser” to pick the printer each time, or “System default” to use the device default. Layout above still applies.') }}</small>
+                                            </div>
+                                            <div class="form-group mb-3">
+                                                <label class="form-label fw-semibold">{{ __('Direct print (no dialog)') }}</label>
+                                                <div class="form-check form-switch">
+                                                    <input type="hidden" name="pos_direct_print" value="off">
+                                                    <input class="form-check-input" type="checkbox" name="pos_direct_print" id="pos_direct_print" value="on" {{ (isset($settings['pos_direct_print']) && $settings['pos_direct_print'] == 'on') ? 'checked' : '' }}>
+                                                    <label class="form-check-label" for="pos_direct_print">{{ __('Print directly without opening print dialog') }}</label>
+                                                </div>
+                                                <small class="text-muted">{{ __('Requires Chrome started with: --kiosk-printing. Then the receipt prints to the default printer without dialog.') }}</small>
+                                            </div>
+                                            <hr class="my-3">
                                             <div class="form-group">
                                                 <label for="address" class="form-label">{{ __('POS Template') }}</label>
                                                 <select class="form-control" name="pos_template">

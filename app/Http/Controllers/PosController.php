@@ -2286,6 +2286,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         if (isset($post['pos_template']) && (!isset($post['pos_color']) || empty($post['pos_color']))) {
             $post['pos_color'] = "ffffff";
         }
+        $post['pos_direct_print'] = ($request->input('pos_direct_print') === 'on') ? 'on' : 'off';
 
         if ($request->pos_logo) {
             $dir = 'pos_logo/';

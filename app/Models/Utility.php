@@ -305,6 +305,9 @@ class Utility extends Model
             "pos_color" => "ffffff",
             "pos_template" => "template1",
             "pos_prefix" => "#POS",
+            "pos_print_layout" => "receipt",
+            "pos_receipt_printer" => "browser",
+            "pos_direct_print" => "off",
 
             "storage_setting" => "local",
             "local_storage_validation" => "jpg,jpeg,png,xlsx,xls,csv,pdf",
