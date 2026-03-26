@@ -4,6 +4,7 @@
     use App\Models\Utility;
     $settings = Utility::settings();
     $languages = Utility::languages();
+    dd($languages);
 @endphp
 
 @section('page-title')

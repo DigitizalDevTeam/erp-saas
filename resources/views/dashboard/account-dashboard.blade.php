@@ -412,6 +412,43 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mt-1 mb-0">{{ __('Expiry Alerts') }}</h5>
+                        </div>
+                        <div class="card-body">
+                            @if(!empty($expiringLots) && count($expiringLots) > 0)
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>{{ __('Product') }}</th>
+                                                <th>{{ __('Expiry') }}</th>
+                                                <th class="text-end">{{ __('Qty') }}</th>
+                                                <th class="text-end">{{ __('Days left') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($expiringLots as $lot)
+                                                @php
+                                                    $daysLeft = \Carbon\Carbon::today()->diffInDays(\Carbon\Carbon::parse($lot->expiry_date), false);
+                                                @endphp
+                                                <tr>
+                                                    <td>{{ $lot->product_name }}{{ $lot->sku ? ' (' . $lot->sku . ')' : '' }}</td>
+                                                    <td>{{ \Carbon\Carbon::parse($lot->expiry_date)->format('Y-m-d') }}</td>
+                                                    <td class="text-end">{{ $lot->quantity_remaining }}</td>
+                                                    <td class="text-end">{{ max(0, (int) $daysLeft) }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @else
+                                <p class="text-muted mb-0">{{ __('No products expiring soon.') }}</p>
+                            @endif
+                        </div>
+                    </div>
                 </div>
                 <div class="col-xxl-5">
                     <div class="card income-card">

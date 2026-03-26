@@ -25,6 +25,16 @@ class warehouse extends Model
         return $this->belongsTo(Branch::class, 'branch_id');
     }
 
+    public function assignedUsers()
+    {
+        return $this->hasMany(User::class, 'warehouse_id');
+    }
+
+    public function documents()
+    {
+        return $this->hasMany(WarehouseDocument::class, 'warehouse_id');
+    }
+
     public static function warehouse_id($warehouse_name)
     {
         $warehouse = DB::table('warehouses')

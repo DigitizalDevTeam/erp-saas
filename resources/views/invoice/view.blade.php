@@ -360,6 +360,24 @@
         @if ($invoice->status != 0)
             <div class="row justify-content-between align-items-center mb-3">
                 <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
+                    @if ($invoice->status != 0)
+                        <div class="all-button-box">
+                            @if (!empty($invoice->deliveryNote))
+                                <a href="{{ route('delivery-note.show', Crypt::encrypt($invoice->deliveryNote->id)) }}"
+                                    class="btn btn-sm btn-primary">{{ __('View Delivery Note') }}</a>
+                            @else
+                                {!! Form::open([
+                                    'method' => 'post',
+                                    'route' => ['invoice.delivery-note.create', Crypt::encrypt($invoice->id)],
+                                    'style' => 'display:inline',
+                                ]) !!}
+                                <button type="submit" class="btn btn-sm btn-primary">
+                                    {{ __('Create Delivery Note') }}
+                                </button>
+                                {!! Form::close() !!}
+                            @endif
+                        </div>
+                    @endif
                     @if (!empty($creditnote))
                         <div class="all-button-box">
                             <a href="#" class="btn btn-sm btn-primary"

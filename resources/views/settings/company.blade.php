@@ -967,6 +967,65 @@
                                     @enderror
                                 </div>
                                 <div class="form-group col-md-6">
+                                    {{ Form::label('stock_deduction_timing', __('Deduct Stock On'), ['class' => 'form-label']) }}
+                                    <select name="stock_deduction_timing" class="form-control selectric">
+                                        <option value="invoice" {{ (isset($setting['stock_deduction_timing']) ? $setting['stock_deduction_timing'] : 'invoice') === 'invoice' ? 'selected' : '' }}>
+                                            {{ __('Invoice') }}
+                                        </option>
+                                        <option value="delivery_note" {{ (isset($setting['stock_deduction_timing']) ? $setting['stock_deduction_timing'] : 'invoice') === 'delivery_note' ? 'selected' : '' }}>
+                                            {{ __('Delivery Note') }}
+                                        </option>
+                                    </select>
+                                    <small class="text-muted">
+                                        {{ __('Choose when inventory should be deducted for invoice sales.') }}
+                                    </small>
+                                    @error('stock_deduction_timing')
+                                        <span class="invalid-stock_deduction_timing" role="alert">
+                                            <strong class="text-danger">{{ $message }}</strong>
+                                        </span>
+                                    @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('stock_alerts_enabled', __('Stock Alerts By Email'), ['class' => 'form-label']) }}
+                                    <div class=" form-switch form-switch-left">
+                                        <input type="hidden" name="stock_alerts_enabled" value="off">
+                                        <input type="checkbox" class="form-check-input" name="stock_alerts_enabled"
+                                            id="stock_alerts_enabled"
+                                            {{ isset($setting['stock_alerts_enabled']) && $setting['stock_alerts_enabled'] == 'on' ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="stock_alerts_enabled"></label>
+                                    </div>
+                                    <small class="text-muted">{{ __('Send daily email alerts for min/max stock thresholds.') }}</small>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('stock_alerts_recipients', __('Stock Alert Recipients'), ['class' => 'form-label']) }}
+                                    {{ Form::text('stock_alerts_recipients', $setting['stock_alerts_recipients'] ?? '', ['class' => 'form-control', 'placeholder' => __('Comma separated emails')]) }}
+                                </div>
+                                <div class="form-group col-md-3">
+                                    {{ Form::label('stock_alerts_send_min', __('Send Min Alerts'), ['class' => 'form-label']) }}
+                                    <div class=" form-switch form-switch-left">
+                                        <input type="hidden" name="stock_alerts_send_min" value="off">
+                                        <input type="checkbox" class="form-check-input" name="stock_alerts_send_min"
+                                            id="stock_alerts_send_min"
+                                            {{ ($setting['stock_alerts_send_min'] ?? 'on') == 'on' ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="stock_alerts_send_min"></label>
+                                    </div>
+                                </div>
+                                <div class="form-group col-md-3">
+                                    {{ Form::label('stock_alerts_send_max', __('Send Max Alerts'), ['class' => 'form-label']) }}
+                                    <div class=" form-switch form-switch-left">
+                                        <input type="hidden" name="stock_alerts_send_max" value="off">
+                                        <input type="checkbox" class="form-check-input" name="stock_alerts_send_max"
+                                            id="stock_alerts_send_max"
+                                            {{ ($setting['stock_alerts_send_max'] ?? 'on') == 'on' ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="stock_alerts_send_max"></label>
+                                    </div>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('max_stock_threshold_global', __('Global Max Stock Threshold'), ['class' => 'form-label']) }}
+                                    {{ Form::number('max_stock_threshold_global', $setting['max_stock_threshold_global'] ?? '', ['class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Optional')]) }}
+                                    <small class="text-muted">{{ __('Used when a product does not have a Max stock alert at value.') }}</small>
+                                </div>
+                                <div class="form-group col-md-6">
                                     {{ Form::label('footer_title', __('Proposal/Invoice/Bill/Purchase/POS Footer Title'), ['class' => 'form-label']) }}
                                     {{ Form::text('footer_title', null, ['class' => 'form-control', 'placeholder' => __('Enter Footer Title')]) }}
                                     @error('footer_title')

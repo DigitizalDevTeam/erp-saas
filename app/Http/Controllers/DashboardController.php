@@ -38,6 +38,7 @@ use App\Models\Trainer;
 use App\Models\Training;
 use App\Models\User;
 use App\Models\Utility;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -163,6 +164,27 @@ class DashboardController extends Controller
                     $data['weeklyBill'] = \Auth::user()->weeklyBill();
                     $data['monthlyBill'] = \Auth::user()->monthlyBill();
                     $data['goals'] = Goal::where('created_by', '=', \Auth::user()->creatorId())->where('is_display', 1)->get();
+
+                    // Expiry alerts (products expiring soon)
+                    $creatorId = \Auth::user()->creatorId();
+                    $data['expiringLots'] = DB::table('product_expiry_lots')
+                        ->join('product_services', 'product_services.id', '=', 'product_expiry_lots.product_id')
+                        ->where('product_expiry_lots.created_by', $creatorId)
+                        ->whereNotNull('product_expiry_lots.expiry_date')
+                        ->where('product_expiry_lots.quantity_remaining', '>', 0)
+                        ->whereNotNull('product_services.expiry_alert_days')
+                        ->whereRaw('product_expiry_lots.expiry_date >= CURDATE()')
+                        ->whereRaw('product_expiry_lots.expiry_date <= DATE_ADD(CURDATE(), INTERVAL product_services.expiry_alert_days DAY)')
+                        ->orderBy('product_expiry_lots.expiry_date')
+                        ->limit(20)
+                        ->select([
+                            'product_services.name as product_name',
+                            'product_services.sku as sku',
+                            'product_services.expiry_alert_days as alert_days',
+                            'product_expiry_lots.expiry_date',
+                            'product_expiry_lots.quantity_remaining',
+                        ])
+                        ->get();
 
                     //Storage limit
                     $data['users'] = User::find(\Auth::user()->creatorId());

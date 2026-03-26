@@ -10,9 +10,19 @@ use App\Models\WarehouseProduct;
 use App\Models\WarehouseTransfer;
 use DB;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class WarehouseTransferController extends Controller
 {
+    protected function allowedWarehouseIds()
+    {
+        $user = Auth::user();
+        if ($user->type !== 'company' && !empty($user->warehouse_id)) {
+            return [(int) $user->warehouse_id];
+        }
+
+        return warehouse::where('created_by', $user->creatorId())->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
 
     public function index()
     {
@@ -22,10 +32,17 @@ class WarehouseTransferController extends Controller
 
     public function create()
     {
-        $from_warehouses      = warehouse::where('created_by', '=', \Auth::user()->creatorId())->get();
-        $to_warehouses     = warehouse::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $allowed = $this->allowedWarehouseIds();
+        $from_warehouses = warehouse::where('created_by', '=', \Auth::user()->creatorId())
+            ->whereIn('id', $allowed)
+            ->get();
+        $to_warehouses = warehouse::where('created_by', \Auth::user()->creatorId())
+            ->whereIn('id', $allowed)
+            ->get()
+            ->pluck('name', 'id');
         $to_warehouses->prepend('Select Warehouse', '');
         $ware_pro= WarehouseProduct::join('product_services', 'warehouse_products.product_id', '=', 'product_services.id')
+                                ->whereIn('warehouse_products.warehouse_id', $allowed)
                                 ->pluck('name','product_id');
         $ware_pro->prepend('Select products', '');
 
@@ -54,22 +71,32 @@ class WarehouseTransferController extends Controller
             $fromWarehouse    = WarehouseProduct::where('warehouse_id',$request->from_warehouse)
                                 ->where('product_id',$request->product_id)->first();
 
+            if ((int) $request->from_warehouse === (int) $request->to_warehouse) {
+                return redirect()->route('warehouse-transfer.index')->with('error', __('From and To warehouse must be different.'));
+            }
+            if (empty($fromWarehouse)) {
+                return redirect()->route('warehouse-transfer.index')->with('error', __('Product is not available in source warehouse.'));
+            }
+
             if($request->quantity <= $fromWarehouse->quantity)
             {
-                $warehouse_transfer                  = new WarehouseTransfer();
-                $warehouse_transfer->from_warehouse  = $request->from_warehouse;
-                $warehouse_transfer->to_warehouse    = $request->to_warehouse;
-                $warehouse_transfer->product_id      = $request->product_id;
-                $warehouse_transfer->quantity        = $request->quantity;
-                $warehouse_transfer->date            = $request->date;
-                $warehouse_transfer->created_by      = \Auth::user()->creatorId();
-                $warehouse_transfer->save();
+                DB::transaction(function () use ($request) {
+                    $warehouse_transfer                  = new WarehouseTransfer();
+                    $warehouse_transfer->from_warehouse  = $request->from_warehouse;
+                    $warehouse_transfer->to_warehouse    = $request->to_warehouse;
+                    $warehouse_transfer->product_id      = $request->product_id;
+                    $warehouse_transfer->quantity        = $request->quantity;
+                    $warehouse_transfer->date            = $request->date;
+                    $warehouse_transfer->created_by      = \Auth::user()->creatorId();
+                    $warehouse_transfer->save();
+
+                    Utility::warehouse_transfer_qty($request->from_warehouse,$request->to_warehouse,$request->product_id,$request->quantity);
+                });
             }
             else
             {
                 return redirect()->route('warehouse-transfer.index')->with('error', __('Product out of stock!.'));
             }
-            Utility::warehouse_transfer_qty($request->from_warehouse,$request->to_warehouse,$request->product_id,$request->quantity);
 
             return redirect()->route('warehouse-transfer.index')->with('success', __('Warehouse Transfer successfully created.'));
         }
@@ -110,20 +137,23 @@ class WarehouseTransferController extends Controller
 
     public function getproduct(Request $request)
     {
+        $allowed = $this->allowedWarehouseIds();
         if($request->warehouse_id == 0)
         {
             $ware_products= WarehouseProduct::join('product_services', 'warehouse_products.product_id', '=', 'product_services.id')
+                ->whereIn('warehouse_products.warehouse_id', $allowed)
                 ->get()
                 ->pluck('name', 'product_id')->toArray();
-            $to_warehouses     = warehouse::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $to_warehouses     = warehouse::where('created_by', \Auth::user()->creatorId())->whereIn('id', $allowed)->get()->pluck('name', 'id');
         }
         else
         {
             $ware_products= WarehouseProduct::join('product_services', 'warehouse_products.product_id', '=', 'product_services.id')
                 ->where('warehouse_id', $request->warehouse_id)
+                ->whereIn('warehouse_products.warehouse_id', $allowed)
                 ->get()
                 ->pluck('name', 'product_id')->toArray();
-            $to_warehouses     = warehouse::where('id','!=',$request->warehouse_id)->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $to_warehouses     = warehouse::where('id','!=',$request->warehouse_id)->where('created_by', \Auth::user()->creatorId())->whereIn('id', $allowed)->get()->pluck('name', 'id');
         }
         $result = [];
         $result['ware_products'] = $ware_products;
@@ -133,15 +163,18 @@ class WarehouseTransferController extends Controller
 
     public function getquantity(Request $request)
     {
+        $allowed = $this->allowedWarehouseIds();
         if($request->product_id == 0)
         {
             $pro_qty = WarehouseProduct::where('created_by', '=', \Auth::user()->creatorId())
+                ->whereIn('warehouse_id', $allowed)
                 ->get()->pluck('quantity', 'product_id')->toArray();
         }
         else
         {
             $pro_qty = WarehouseProduct::where('created_by', '=', \Auth::user()->creatorId())
                         ->where('product_id', $request->product_id)
+                        ->whereIn('warehouse_id', $allowed)
                         ->get()->pluck('quantity');
     
         }

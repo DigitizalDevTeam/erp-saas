@@ -23,6 +23,11 @@
             {{ Form::text('name', '', array('class' => 'form-control','required'=>'required', 'placeholder' => __('Enter Name'))) }}
         </div>
         <div class="form-group col-md-12">
+            {{ Form::label('assigned_users', __('Allocate Users'), ['class' => 'form-label']) }}
+            {{ Form::select('assigned_users[]', $users ?? collect(), null, ['class' => 'form-control select', 'multiple' => true]) }}
+            <small class="text-muted">{{ __('Users allocated here will be limited to this warehouse in inventory actions.') }}</small>
+        </div>
+        <div class="form-group col-md-12">
             {{Form::label('address',__('Address'),array('class'=>'form-label')) }}<x-required></x-required>
             {{Form::textarea('address',null,array('class'=>'form-control','rows'=>3 ,'required'=>'required', 'placeholder' => __('Enter Address')))}}
         </div>

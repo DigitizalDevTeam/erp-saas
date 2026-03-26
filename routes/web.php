@@ -68,6 +68,9 @@ use App\Http\Controllers\ImportController;
 use App\Http\Controllers\IndicatorController;
 use App\Http\Controllers\InterviewScheduleController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\DeliveryNoteController;
+use App\Http\Controllers\RoadManifestController;
+use App\Http\Controllers\RoadTransportRecordController;
 use App\Http\Controllers\IyziPayController;
 use App\Http\Controllers\JobApplicationController;
 use App\Http\Controllers\JobCategoryController;
@@ -155,6 +158,7 @@ use App\Http\Controllers\TravelController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VenderController;
 use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\WarehouseLossController;
 use App\Http\Controllers\WarehouseTransferController;
 use App\Http\Controllers\WarningController;
 use App\Http\Controllers\ZoomMeetingController;
@@ -618,6 +622,8 @@ Route::group(['middleware' => ['verified']], function () {
     );
 
     Route::get('productservice/{id}/detail', [ProductServiceController::class, 'warehouseDetail'])->name('productservice.detail');
+    Route::post('productservice/{id}/kit-items', [ProductServiceController::class, 'kitItemStore'])->name('productservice.kit-items.store')->middleware(['auth', 'XSS']);
+    Route::delete('productservice/{id}/kit-items/{kit_item}', [ProductServiceController::class, 'kitItemDestroy'])->name('productservice.kit-items.destroy')->middleware(['auth', 'XSS']);
     Route::post('empty-cart', [ProductServiceController::class, 'emptyCart'])->middleware(['auth', 'XSS']);
     Route::post('warehouse-empty-cart', [ProductServiceController::class, 'warehouseemptyCart'])->name('warehouse-empty-cart')->middleware(['auth', 'XSS']);
     Route::resource('productservice', ProductServiceController::class)->middleware(['auth', 'XSS', 'revalidate']);
@@ -712,8 +718,20 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('invoice/{id}/payment', [InvoiceController::class, 'createPayment'])->name('invoice.payment');
             Route::post('invoice/{id}/payment/{pid}/destroy', [InvoiceController::class, 'paymentDestroy'])->name('invoice.payment.destroy');
             Route::get('invoice/items', [InvoiceController::class, 'items'])->name('invoice.items');
+            Route::post('invoice/{id}/delivery-note', [DeliveryNoteController::class, 'createFromInvoice'])->name('invoice.delivery-note.create');
             Route::resource('invoice', InvoiceController::class);
             Route::get('invoice/create/{cid}', [InvoiceController::class, 'create'])->name('invoice.create');
+
+            Route::get('delivery-note/{id}', [DeliveryNoteController::class, 'show'])->name('delivery-note.show');
+            Route::get('delivery-note/{id}/print', [DeliveryNoteController::class, 'print'])->name('delivery-note.print');
+
+            Route::post('delivery-note/{id}/convert-to-manifest', [RoadManifestController::class, 'convertFromDeliveryNote'])->name('delivery-note.convert-to-manifest');
+            Route::get('road-manifest/{id}', [RoadManifestController::class, 'show'])->name('road-manifest.show');
+            Route::get('road-manifest/{id}/print', [RoadManifestController::class, 'print'])->name('road-manifest.print');
+
+            Route::get('road-transport-record/create/{manifestId?}', [RoadTransportRecordController::class, 'create'])->name('road-transport-record.create');
+            Route::post('road-transport-record', [RoadTransportRecordController::class, 'store'])->name('road-transport-record.store');
+            Route::get('road-transport-record/{id}', [RoadTransportRecordController::class, 'show'])->name('road-transport-record.show');
 
         }
     );
@@ -1803,6 +1821,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('quotation/pdf/{id}', [QuotationController::class, 'quotation'])->name('quotation.pdf')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('warehouse', WarehouseController::class)->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('warehouse/{warehouse}/document', [WarehouseController::class, 'uploadDocument'])->name('warehouse.document.upload')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::delete('warehouse/{warehouse}/document/{documentId}', [WarehouseController::class, 'deleteDocument'])->name('warehouse.document.delete')->middleware(['auth', 'XSS', 'revalidate']);
     Route::group(
         [
             'middleware' => [
@@ -1925,6 +1945,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('warehouse-transfer', WarehouseTransferController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('warehouse-transfer/getproduct', [WarehouseTransferController::class, 'getproduct'])->name('warehouse-transfer.getproduct')->middleware(['auth', 'XSS']);
     Route::post('warehouse-transfer/getquantity', [WarehouseTransferController::class, 'getquantity'])->name('warehouse-transfer.getquantity')->middleware(['auth', 'XSS']);
+    Route::get('warehouse-loss', [WarehouseLossController::class, 'index'])->name('warehouse-loss.index')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('warehouse-loss', [WarehouseLossController::class, 'store'])->name('warehouse-loss.store')->middleware(['auth', 'XSS', 'revalidate']);
 
 
     // BiometricAttendance

@@ -35,7 +35,11 @@ class ProductServiceCategoryController extends Controller
                 ->pluck('code_name', 'id');
             $chart_accounts->prepend('Select Account', '');
 
-            return view('productServiceCategory.create', compact('types', 'chart_accounts'));
+            $allCategories = ProductServiceCategory::where('created_by', \Auth::user()->creatorId())
+                ->orderBy('name')
+                ->get(['id', 'name', 'type', 'parent_id']);
+
+            return view('productServiceCategory.create', compact('types', 'chart_accounts', 'allCategories'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
@@ -51,6 +55,7 @@ class ProductServiceCategoryController extends Controller
                     'name' => 'required|max:200',
                     'type' => 'required',
                     'color' => 'required',
+                    'parent_id' => 'nullable|integer',
                 ]
             );
             if ($validator->fails()) {
@@ -63,6 +68,7 @@ class ProductServiceCategoryController extends Controller
             $category->name = $request->name;
             $category->color = $request->color;
             $category->type = $request->type;
+            $category->parent_id = $request->filled('parent_id') ? (int) $request->parent_id : null;
             $category->chart_account_id = !empty($request->chart_account) ? $request->chart_account : 0;
             $category->created_by = \Auth::user()->creatorId();
             $category->save();
@@ -80,7 +86,12 @@ class ProductServiceCategoryController extends Controller
             $types = ProductServiceCategory::$catTypes;
             $category = ProductServiceCategory::find($id);
 
-            return view('productServiceCategory.edit', compact('category', 'types'));
+            $allCategories = ProductServiceCategory::where('created_by', \Auth::user()->creatorId())
+                ->where('id', '!=', $category->id)
+                ->orderBy('name')
+                ->get(['id', 'name', 'type', 'parent_id']);
+
+            return view('productServiceCategory.edit', compact('category', 'types', 'allCategories'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
@@ -97,6 +108,7 @@ class ProductServiceCategoryController extends Controller
                         'name' => 'required|max:200',
                         'type' => 'required',
                         'color' => 'required',
+                        'parent_id' => 'nullable|integer',
                     ]
                 );
                 if ($validator->fails()) {
@@ -108,6 +120,7 @@ class ProductServiceCategoryController extends Controller
                 $category->name = $request->name;
                 $category->color = $request->color;
                 $category->type = $request->type;
+                $category->parent_id = $request->filled('parent_id') ? (int) $request->parent_id : null;
                 $category->chart_account_id = !empty($request->chart_account) ? $request->chart_account : 0;
                 $category->save();
 

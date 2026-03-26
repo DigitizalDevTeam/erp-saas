@@ -21,6 +21,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Utility;
 use App\Models\TransactionLines;
+use App\Services\InvoiceSaleDeductionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -110,6 +111,8 @@ class InvoiceController extends Controller
         $quantity = 1;
         $taxPrice = ($taxRate / 100) * ($salePrice * $quantity);
         $data['totalAmount'] = ($salePrice * $quantity);
+        $data['identifier_tracking'] = (bool) ($product->identifier_tracking ?? false);
+        $data['identifier_type'] = $product->identifier_type ?? 'serial';
 
         return json_encode($data);
     }
@@ -147,6 +150,9 @@ class InvoiceController extends Controller
             CustomField::saveData($invoice, $request->customField);
             $products = $request->items;
 
+            // Reset stock report lines for this invoice once
+            StockReport::where('type', '=', 'invoice')->where('type_id', '=', $invoice->id)->delete();
+
             for ($i = 0; $i < count($products); $i++) {
 
                 $invoiceProduct = new InvoiceProduct();
@@ -158,10 +164,28 @@ class InvoiceController extends Controller
                 $invoiceProduct->discount = $products[$i]['discount'];
                 $invoiceProduct->price = $products[$i]['price'];
                 $invoiceProduct->description = $products[$i]['description'];
+                $invoiceProduct->identifiers = $products[$i]['identifiers'] ?? null;
                 $invoiceProduct->save();
 
-                //inventory management (Quantity)
-                Utility::total_quantity('minus', $invoiceProduct->quantity, $invoiceProduct->product_id);
+                // Apply sale deduction rules (kit / FEFO / serial-mac) depending on company setting
+                $settings = Utility::settings();
+                $timing = $settings['stock_deduction_timing'] ?? 'invoice';
+                if ($timing === 'invoice') {
+                    try {
+                        InvoiceSaleDeductionService::deductLine(
+                            (int) $invoiceProduct->product_id,
+                            (float) $invoiceProduct->quantity,
+                            (int) \Auth::user()->creatorId(),
+                            (int) $invoice->id,
+                            (int) $invoiceProduct->id,
+                            (int) $invoice->customer_id,
+                            \Auth::user()->invoiceNumberFormat($invoice->invoice_id),
+                            $invoiceProduct->identifiers
+                        );
+                    } catch (\Throwable $e) {
+                        return redirect()->back()->with('error', $e->getMessage());
+                    }
+                }
 
                 //For Notification
                 $setting = Utility::settings(\Auth::user()->creatorId());
@@ -188,12 +212,14 @@ class InvoiceController extends Controller
 
             }
 
-            //Product Stock Report
-            $type = 'invoice';
-            $type_id = $invoice->id;
-            StockReport::where('type', '=', 'invoice')->where('type_id', '=', $invoice->id)->delete();
-            $description = $invoiceProduct->quantity . '  ' . __(' quantity sold in invoice') . ' ' . \Auth::user()->invoiceNumberFormat($invoice->invoice_id);
-            Utility::addProductStock($invoiceProduct->product_id, $invoiceProduct->quantity, $type, $description, $type_id);
+            // Mark stock deduction once per invoice (only when deducted on invoice)
+            $settings = Utility::settings();
+            $timing = $settings['stock_deduction_timing'] ?? 'invoice';
+            if ($timing === 'invoice' && empty($invoice->stock_deducted_at)) {
+                $invoice->stock_deducted_at = now();
+                $invoice->stock_deducted_via = 'invoice';
+                $invoice->save();
+            }
 
             //webhook
             $module = 'New Invoice';
@@ -394,7 +420,7 @@ class InvoiceController extends Controller
                 return redirect()->back()->with('error', __('Invoice Not Found.'));
             }
             $id = Crypt::decrypt($ids);
-            $invoice = Invoice::with(['creditNote','payments.bankAccount','items.product.unit', 'shipping_address', 'billing_address', 'pos.branch', 'pos.table', 'pos.shift'])->find($id);
+            $invoice = Invoice::with(['creditNote','payments.bankAccount','items.product.unit', 'shipping_address', 'billing_address', 'pos.branch', 'pos.table', 'pos.shift', 'deliveryNote.roadManifest'])->find($id);
 
             if (!empty($invoice->created_by) == \Auth::user()->creatorId()) {
                 $invoicePayment = InvoicePayment::where('invoice_id', $invoice->id)->first();

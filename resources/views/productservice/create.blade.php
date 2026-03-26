@@ -26,6 +26,18 @@
                 {{ Form::text('sku', '', array('class' => 'form-control','required'=>'required', 'placeholder' => __('Enter Sku'))) }}
             </div>
         </div>
+        <div class="col-md-6">
+            <div class="form-group">
+                {{ Form::label('shelf_no', __('Shelf Number'),['class'=>'form-label']) }}
+                {{ Form::text('shelf_no', '', array('class' => 'form-control', 'placeholder' => __('Enter Shelf Number'))) }}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group">
+                {{ Form::label('row_no', __('Row Number'),['class'=>'form-label']) }}
+                {{ Form::text('row_no', '', array('class' => 'form-control', 'placeholder' => __('Enter Row Number'))) }}
+            </div>
+        </div>
 
         <div class="col-md-6">
             <div class="form-group">
@@ -139,16 +151,22 @@
                 <div class="btn-box">
                     <label class="d-block form-label">{{__('Type')}}</label>
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="form-check form-check-inline">
                                 <input type="radio" class="form-check-input type" id="customRadio5" name="type" value="product" checked="checked" >
                                 <label class="custom-control-label form-label" for="customRadio5">{{__('Product')}}</label>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="form-check form-check-inline">
                                 <input type="radio" class="form-check-input type" id="customRadio6" name="type" value="service" >
                                 <label class="custom-control-label form-label" for="customRadio6">{{__('Service')}}</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check form-check-inline">
+                                <input type="radio" class="form-check-input type" id="customRadio7" name="type" value="kit" >
+                                <label class="custom-control-label form-label" for="customRadio7">{{__('Kit')}}</label>
                             </div>
                         </div>
                     </div>
@@ -181,12 +199,89 @@
             {{ Form::number('low_stock_threshold', null, array('class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Default'))) }}
             <small class="text-muted">{{ __('Leave empty to use system default. Alert when quantity is below this.') }}</small>
         </div>
+        <div class="form-group col-md-6 quantity">
+            {{ Form::label('max_stock_threshold', __('Max stock alert at'),['class'=>'form-label']) }}
+            {{ Form::number('max_stock_threshold', null, array('class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Optional'))) }}
+            <small class="text-muted">{{ __('Alert when quantity is above this (optional).') }}</small>
+        </div>
         <div class="form-group col-md-12 quantity">
             <div class="form-check">
                 {{ Form::checkbox('does_not_affect_stock', '1', false, ['class' => 'form-check-input', 'id' => 'does_not_affect_stock_create']) }}
-                {{ Form::label('does_not_affect_stock', __('Does not affect stock (e.g. composite dish – add ingredients in BOM)'), ['class' => 'form-check-label', 'for' => 'does_not_affect_stock_create']) }}
+                {{ Form::label('does_not_affect_stock', __('Does not affect stock (e.g. composite dish – components are deducted separately)'), ['class' => 'form-check-label', 'for' => 'does_not_affect_stock_create']) }}
             </div>
-            <small class="text-muted">{{ __('When checked: on POS sale only recipe ingredients are deducted; this product’s quantity is not used. Use Product Recipe to define ingredients (chicken, rice, etc.).') }}</small>
+            <small class="text-muted">{{ __('When checked: on POS sale this product’s own quantity is not used. (For kits, define components after creating the kit.)') }}</small>
+        </div>
+
+        <div class="col-md-12">
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" name="identifier_tracking" id="identifier_tracking_create" value="1">
+                <label class="form-check-label" for="identifier_tracking_create">{{ __('Track Serial Number / MAC Address') }}</label>
+            </div>
+            <div class="row mt-2" id="identifier_tracking_create_fields" style="display:none;">
+                <div class="col-md-4">
+                    <label class="form-label">{{ __('Tracking type') }}</label>
+                    <select name="identifier_type" class="form-control select">
+                        <option value="serial">{{ __('Serial Number') }}</option>
+                        <option value="mac">{{ __('MAC Address') }}</option>
+                        <option value="both">{{ __('Serial + MAC') }}</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{{ __('Warranty (days)') }}</label>
+                    <input type="number" name="warranty_days" class="form-control" min="0" step="1" placeholder="{{ __('Optional') }}">
+                </div>
+            </div>
+            <small class="text-muted d-block mt-1">{{ __('If enabled: stock-in and sales will require one unique identifier per unit (no duplicates).') }}</small>
+        </div>
+
+        <div class="col-md-12 mt-2">
+            <div class="row">
+                <div class="col-md-4">
+                    <label class="form-label">{{ __('Expiry alert (days before)') }}</label>
+                    <input type="number" name="expiry_alert_days" class="form-control" min="0" step="1" placeholder="{{ __('Optional') }}">
+                    <small class="text-muted">{{ __('Show dashboard alert when expiry is within this many days.') }}</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 d-none" id="kit_components_create_section">
+            <hr class="my-3">
+            <h6 class="mb-2">{{ __('Kit Components') }}</h6>
+            <p class="text-muted small mb-2">{{ __('Add components now. When you sell 1 kit, stock will be deducted from each component by the qty per kit.') }}</p>
+
+            <div class="table-responsive mb-2">
+                <table class="table table-sm" id="kit_components_create_table">
+                    <thead>
+                        <tr>
+                            <th>{{ __('Component') }}</th>
+                            <th class="text-end">{{ __('Qty per kit') }}</th>
+                            <th width="60"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="text-muted"><td colspan="3">{{ __('No components added yet.') }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label">{{ __('Component product') }}</label>
+                    <select class="form-select" id="kit_component_create_select">
+                        <option value="">{{ __('Select component') }}</option>
+                        @foreach(($kitComponents ?? []) as $cp)
+                            <option value="{{ $cp->id }}">{{ $cp->name }}{{ $cp->sku ? ' (' . $cp->sku . ')' : '' }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{{ __('Quantity') }}</label>
+                    <input type="number" class="form-control" id="kit_component_create_qty" step="0.0001" min="0.0001" value="1">
+                </div>
+                <div class="col-md-3">
+                    <button type="button" class="btn btn-primary w-100" id="kit_component_create_add_btn">{{ __('Add Component') }}</button>
+                </div>
+            </div>
         </div>
 
         <div class="form-group col-md-12">
@@ -226,5 +321,64 @@
             $('.quantity').removeClass('d-block');
             $('input[name="quantity"]').val('').prop('required', false);
         }
+
+        if (type == 'kit') {
+            $('#kit_components_create_section').removeClass('d-none');
+        } else {
+            $('#kit_components_create_section').addClass('d-none');
+        }
+    });
+
+    (function () {
+        let kitRowIdx = 0;
+        function renderEmptyIfNeeded() {
+            const $tbody = $('#kit_components_create_table tbody');
+            if ($tbody.find('tr[data-kit-row]').length === 0) {
+                $tbody.html('<tr class="text-muted"><td colspan="3">{{ __("No components added yet.") }}</td></tr>');
+            }
+        }
+        $('#kit_component_create_add_btn').on('click', function () {
+            const componentId = $('#kit_component_create_select').val();
+            const componentText = $('#kit_component_create_select option:selected').text();
+            const qty = parseFloat($('#kit_component_create_qty').val() || '0');
+            if (!componentId || !qty || qty <= 0) return;
+
+            const $tbody = $('#kit_components_create_table tbody');
+            if ($tbody.find('tr[data-kit-row]').length === 0) {
+                $tbody.empty();
+            }
+
+            const row = `
+                <tr data-kit-row="${kitRowIdx}">
+                    <td>
+                        ${$('<div>').text(componentText).html()}
+                        <input type="hidden" name="kit_components[${kitRowIdx}][component_product_id]" value="${componentId}">
+                    </td>
+                    <td class="text-end">
+                        ${qty}
+                        <input type="hidden" name="kit_components[${kitRowIdx}][quantity]" value="${qty}">
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger kit-component-remove"><i class="ti ti-trash"></i></button>
+                    </td>
+                </tr>`;
+            $tbody.append(row);
+            kitRowIdx++;
+        });
+
+        $(document).on('click', '#kit_components_create_table .kit-component-remove', function () {
+            $(this).closest('tr').remove();
+            renderEmptyIfNeeded();
+        });
+
+        // If modal opens with Kit preselected (edge-case)
+        const initialType = $('input[name="type"]:checked').val();
+        if (initialType === 'kit') {
+            $('#kit_components_create_section').removeClass('d-none');
+        }
+    })();
+
+    $(document).on('change', '#identifier_tracking_create', function () {
+        $('#identifier_tracking_create_fields').toggle(this.checked);
     });
 </script>

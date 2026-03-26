@@ -10,6 +10,7 @@ class ProductServiceCategory extends Model
     protected $fillable = [
         'name',
         'type',
+        'parent_id',
         'created_by',
     ];
 
@@ -92,5 +93,15 @@ class ProductServiceCategory extends Model
     public function chartAccount()
     {
         return $this->hasOne('App\Models\ChartOfAccount', 'id', 'chart_account_id');
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(self::class, 'parent_id', 'id');
+    }
+
+    public function children()
+    {
+        return $this->hasMany(self::class, 'parent_id', 'id');
     }
 }

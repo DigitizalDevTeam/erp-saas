@@ -74,6 +74,8 @@
                                 <th>{{__('Category')}}</th>
                                 <th>{{__('Unit')}}</th>
                                 <th>{{__('Quantity')}}</th>
+                                <th>{{__('Location')}}</th>
+                                <th>{{__('Last Purchases')}}</th>
                                 <th>{{__('Type')}}</th>
                                 <th>{{__('Action')}}</th>
                             </tr>
@@ -117,11 +119,38 @@
                                     </td>
                                     <td>{{ !empty($productService->category)?$productService->category->name:'' }}</td>
                                     <td>{{ !empty($productService->unit)?$productService->unit->name:'' }}</td>
-                                    @if($productService->type == 'product')
+                                    @if(in_array($productService->type, ['product','kit']))
                                         <td>{{$productService->quantity}}</td>
                                     @else
                                         <td>-</td>
                                     @endif
+                                    <td>
+                                        @if(!empty($productService->shelf_no) || !empty($productService->row_no))
+                                            {{ __('Shelf') }}: {{ $productService->shelf_no ?? '-' }}<br>
+                                            {{ __('Row') }}: {{ $productService->row_no ?? '-' }}
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @php
+                                            $lp = $lastPurchasesByProduct[$productService->id] ?? [];
+                                        @endphp
+                                        @if(!empty($lp))
+                                            @foreach($lp as $row)
+                                                <div class="small text-muted">
+                                                    {{ !empty($row->purchase_date) ? \Carbon\Carbon::parse($row->purchase_date)->format('Y-m-d') : '-' }}
+                                                    —
+                                                    {{ $row->supplier_name ?? __('Unknown') }}
+                                                    —
+                                                    {{ \Auth::user()->priceFormat($row->price ?? 0) }}
+                                                    × {{ $row->quantity ?? 0 }}
+                                                </div>
+                                            @endforeach
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
                                     <td>{{ucwords($productService->type)}}</td>
 
                                     @if(Gate::check('edit product & service') || Gate::check('delete product & service'))

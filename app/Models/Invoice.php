@@ -42,6 +42,11 @@ class Invoice extends Model
         return $this->hasMany('App\Models\InvoiceProduct', 'invoice_id', 'id');
     }
 
+    public function deliveryNote()
+    {
+        return $this->hasOne(DeliveryNote::class, 'invoice_id');
+    }
+
     public function payments()
     {
         return $this->hasMany('App\Models\InvoicePayment', 'invoice_id', 'id');

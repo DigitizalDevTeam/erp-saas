@@ -13,6 +13,8 @@ use App\Models\Quotation;
 use App\Models\PosBalance;
 use App\Models\PosAuditLog;
 use App\Services\PosAuditLogService;
+use App\Services\PosKitDeductionService;
+use App\Services\PosFefoDeductionService;
 use App\Services\PosRecipeDeductionService;
 use App\Services\PosToInvoiceService;
 use App\Models\QuotationProduct;
@@ -826,14 +828,35 @@ class PosController extends Controller
             $positems->tax = $tax_id;
             $positems->discount = $discount;
             $positems->save();
-            PosRecipeDeductionService::deductForSale(
-                (int) $product_id,
-                (float) $value['quantity'],
-                $warehouse_id,
-                $user_id,
-                \Auth::user()->posNumberFormat($pos->pos_id),
-                (int) $pos->id
-            );
+            if (($product->type ?? null) === 'kit') {
+                PosKitDeductionService::deductForSale(
+                    (int) $product_id,
+                    (float) $value['quantity'],
+                    $warehouse_id,
+                    $user_id,
+                    \Auth::user()->posNumberFormat($pos->pos_id),
+                    (int) $pos->id
+                );
+            } elseif (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $warehouse_id, (int) $user_id)) {
+                // Auto FEFO when batch tracking enabled or lots exist
+                PosFefoDeductionService::deductForSale(
+                    (int) $product_id,
+                    (float) $value['quantity'],
+                    $warehouse_id,
+                    $user_id,
+                    \Auth::user()->posNumberFormat($pos->pos_id),
+                    (int) $pos->id
+                );
+            } else {
+                PosRecipeDeductionService::deductForSale(
+                    (int) $product_id,
+                    (float) $value['quantity'],
+                    $warehouse_id,
+                    $user_id,
+                    \Auth::user()->posNumberFormat($pos->pos_id),
+                    (int) $pos->id
+                );
+            }
         }
 
         $mainsubtotal = 0;
@@ -1110,14 +1133,35 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $pos->payment_method = $request->payment_method ?? $pos->payment_method;
                     $pos->save();
                     foreach ($pos->items as $line) {
-                        PosRecipeDeductionService::deductForSale(
-                            (int) $line->product_id,
-                            (float) $line->quantity,
-                            (int) $pos->warehouse_id,
-                            $user_id,
-                            \Auth::user()->posNumberFormat($pos->pos_id),
-                            (int) $pos->id
-                        );
+                        $lineProduct = ProductService::whereId($line->product_id)->where('created_by', $user_id)->first();
+                        if (($lineProduct->type ?? null) === 'kit') {
+                            PosKitDeductionService::deductForSale(
+                                (int) $line->product_id,
+                                (float) $line->quantity,
+                                (int) $pos->warehouse_id,
+                                $user_id,
+                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                (int) $pos->id
+                            );
+                        } elseif (($lineProduct->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $line->product_id, (int) $pos->warehouse_id, (int) $user_id)) {
+                            PosFefoDeductionService::deductForSale(
+                                (int) $line->product_id,
+                                (float) $line->quantity,
+                                (int) $pos->warehouse_id,
+                                $user_id,
+                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                (int) $pos->id
+                            );
+                        } else {
+                            PosRecipeDeductionService::deductForSale(
+                                (int) $line->product_id,
+                                (float) $line->quantity,
+                                (int) $pos->warehouse_id,
+                                $user_id,
+                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                (int) $pos->id
+                            );
+                        }
                     }
                     $mainsubtotal = 0;
                     $sessForTotal = $sales;
@@ -1245,14 +1289,34 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $positems->tax = $tax_id;
                         $positems->discount = $discount;
                         $positems->save();
-                        PosRecipeDeductionService::deductForSale(
-                            (int) $product_id,
-                            (float) $value['quantity'],
-                            $warehouse_id,
-                            $user_id,
-                            \Auth::user()->posNumberFormat($pos->pos_id),
-                            (int) $pos->id
-                        );
+                        if (($product->type ?? null) === 'kit') {
+                            PosKitDeductionService::deductForSale(
+                                (int) $product_id,
+                                (float) $value['quantity'],
+                                $warehouse_id,
+                                $user_id,
+                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                (int) $pos->id
+                            );
+                        } elseif (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $warehouse_id, (int) $user_id)) {
+                            PosFefoDeductionService::deductForSale(
+                                (int) $product_id,
+                                (float) $value['quantity'],
+                                $warehouse_id,
+                                $user_id,
+                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                (int) $pos->id
+                            );
+                        } else {
+                            PosRecipeDeductionService::deductForSale(
+                                (int) $product_id,
+                                (float) $value['quantity'],
+                                $warehouse_id,
+                                $user_id,
+                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                (int) $pos->id
+                            );
+                        }
                     }
 
                     $mainsubtotal = 0;

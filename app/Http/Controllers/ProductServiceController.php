@@ -18,6 +18,9 @@ use App\Models\Vender;
 use App\Models\WarehouseProduct;
 use App\Models\PriceLevel;
 use App\Models\PosPrinter;
+use App\Models\ProductKitItem;
+use App\Models\PurchaseProduct;
+use App\Services\PosFefoDeductionService;
 use Google\Service\Dataproc\Session;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -32,6 +35,16 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ProductServiceController extends Controller
 {
+    protected function buildCategoryOptions($categories, $parentId = null, string $prefix = ''): array
+    {
+        $out = [];
+        foreach ($categories->where('parent_id', $parentId)->sortBy('name') as $c) {
+            $out[$c->id] = $prefix . $c->name;
+            $out += $this->buildCategoryOptions($categories, $c->id, $prefix . '— ');
+        }
+        return $out;
+    }
+
     public function index(Request $request)
     {
 
@@ -46,7 +59,37 @@ class ProductServiceController extends Controller
                 $productServices = ProductService::where('created_by', '=', \Auth::user()->creatorId())->with(['category', 'unit'])->get();
             }
 
-            return view('productservice.index', compact('productServices', 'category'));
+            $creatorId = \Auth::user()->creatorId();
+            $productIds = $productServices->pluck('id')->filter()->unique()->values()->all();
+            $lastPurchasesByProduct = [];
+            if (!empty($productIds)) {
+                $lines = DB::table('purchase_products')
+                    ->join('purchases', 'purchases.id', '=', 'purchase_products.purchase_id')
+                    ->leftJoin('venders', 'venders.id', '=', 'purchases.vender_id')
+                    ->where('purchases.created_by', $creatorId)
+                    ->whereIn('purchase_products.product_id', $productIds)
+                    ->orderBy('purchases.purchase_date', 'desc')
+                    ->orderBy('purchases.id', 'desc')
+                    ->select([
+                        'purchase_products.product_id',
+                        'purchase_products.quantity',
+                        'purchase_products.price',
+                        'purchases.id as purchase_id',
+                        'purchases.purchase_date',
+                        'purchases.purchase_number',
+                        'venders.name as supplier_name',
+                    ])
+                    ->get();
+
+                $lastPurchasesByProduct = $lines
+                    ->groupBy('product_id')
+                    ->map(function ($rows) {
+                        return $rows->take(5)->values();
+                    })
+                    ->toArray();
+            }
+
+            return view('productservice.index', compact('productServices', 'category', 'lastPurchasesByProduct'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -57,7 +100,11 @@ class ProductServiceController extends Controller
     {
         if (\Auth::user()->can('create product & service')) {
             $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'product')->get();
-            $category     = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())->where('type', '=', 'product & service')->get()->pluck('name', 'id');
+            $rawCats = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())
+                ->where('type', '=', 'product & service')
+                ->get(['id', 'name', 'parent_id']);
+            $category = collect($this->buildCategoryOptions($rawCats));
+            $category->prepend('Select Category', '');
             $unit         = ProductServiceUnit::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $tax          = Tax::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $ulane = auth()->user()->lang ?? 'en';
@@ -102,7 +149,12 @@ class ProductServiceController extends Controller
             $priceLevels = PriceLevel::where('created_by', '=', \Auth::user()->creatorId())->get();
             $printers = PosPrinter::where('created_by', \Auth::user()->creatorId())->with('branch')->orderBy('branch_id')->orderBy('type')->get();
 
-            return view('productservice.create', compact('category', 'unit', 'tax', 'customFields', 'incomeChartAccounts', 'incomeSubAccounts', 'expenseChartAccounts', 'expenseSubAccounts', 'priceLevels', 'printers'));
+            $kitComponents = ProductService::where('created_by', \Auth::user()->creatorId())
+                ->where('type', 'product')
+                ->orderBy('name')
+                ->get();
+
+            return view('productservice.create', compact('category', 'unit', 'tax', 'customFields', 'incomeChartAccounts', 'incomeSubAccounts', 'expenseChartAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitComponents'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
@@ -124,7 +176,7 @@ class ProductServiceController extends Controller
                 'purchase_price' => 'required|numeric',
                 'category_id' => 'required',
                 'unit_id' => 'required',
-                'type' => 'required',
+                'type' => ['required', Rule::in(['product', 'service', 'kit'])],
             ];
 
             $validator = \Validator::make($request->all(), $rules);
@@ -139,6 +191,8 @@ class ProductServiceController extends Controller
             $productService->name                = $request->name;
             $productService->description         = $request->description;
             $productService->sku                 = $request->sku;
+            $productService->shelf_no            = $request->shelf_no;
+            $productService->row_no              = $request->row_no;
             $productService->sale_price          = $request->sale_price;
             $productService->sale_price_type      = in_array($request->sale_price_type, ['inclusive', 'exclusive'], true) ? $request->sale_price_type : 'exclusive';
             $productService->purchase_price      = $request->purchase_price;
@@ -154,7 +208,12 @@ class ProductServiceController extends Controller
             $productService->print_zone                 = $request->print_zone ?: null;
             $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
             $productService->low_stock_threshold         = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
-            $productService->affect_stock                = ! $request->boolean('does_not_affect_stock');
+            $productService->max_stock_threshold         = $request->filled('max_stock_threshold') ? (int) $request->max_stock_threshold : null;
+            $productService->affect_stock                = $request->type === 'kit' ? false : ! $request->boolean('does_not_affect_stock');
+            $productService->identifier_tracking          = $request->boolean('identifier_tracking');
+            $productService->identifier_type              = in_array($request->identifier_type, ['serial', 'mac', 'both'], true) ? $request->identifier_type : 'serial';
+            $productService->warranty_days                = $request->filled('warranty_days') ? (int) $request->warranty_days : null;
+            $productService->expiry_alert_days            = $request->filled('expiry_alert_days') ? (int) $request->expiry_alert_days : null;
             $productService->sale_chartaccount_id       = $request->sale_chartaccount_id;
             $productService->expense_chartaccount_id    = $request->expense_chartaccount_id;
             $productService->category_id                = $request->category_id;
@@ -178,6 +237,29 @@ class ProductServiceController extends Controller
             $productService->save();
             CustomField::saveData($productService, $request->customField);
 
+            if ($productService->type === 'kit') {
+                $components = $request->input('kit_components', []);
+                if (is_array($components)) {
+                    foreach ($components as $row) {
+                        $componentId = (int) ($row['component_product_id'] ?? 0);
+                        $qty = (float) ($row['quantity'] ?? 0);
+                        if ($componentId <= 0 || $qty <= 0) {
+                            continue;
+                        }
+                        $component = ProductService::where('id', $componentId)->where('created_by', \Auth::user()->creatorId())->first();
+                        if (!$component || $component->type !== 'product' || $componentId === (int) $productService->id) {
+                            continue;
+                        }
+                        ProductKitItem::create([
+                            'kit_product_id' => (int) $productService->id,
+                            'component_product_id' => (int) $componentId,
+                            'quantity' => $qty,
+                            'created_by' => (int) \Auth::user()->creatorId(),
+                        ]);
+                    }
+                }
+            }
+
             return redirect()->route('productservice.index')->with('success', __('Product successfully created.'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
@@ -195,7 +277,10 @@ class ProductServiceController extends Controller
 
         if (\Auth::user()->can('edit product & service')) {
             if ($productService->created_by == \Auth::user()->creatorId()) {
-                $category = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())->where('type', '=', 'product & service')->get()->pluck('name', 'id');
+                $rawCats = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())
+                    ->where('type', '=', 'product & service')
+                    ->get(['id', 'name', 'parent_id']);
+                $category = collect($this->buildCategoryOptions($rawCats));
                 $unit     = ProductServiceUnit::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $tax      = Tax::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
 
@@ -245,13 +330,77 @@ class ProductServiceController extends Controller
                 $priceLevels = PriceLevel::where('created_by', '=', \Auth::user()->creatorId())->get();
                 $printers = PosPrinter::where('created_by', \Auth::user()->creatorId())->with('branch')->orderBy('branch_id')->orderBy('type')->get();
 
-                return view('productservice.edit', compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'incomeSubAccounts', 'expenseSubAccounts', 'priceLevels', 'printers'));
+                $kitComponents = ProductService::where('created_by', \Auth::user()->creatorId())
+                    ->where('type', 'product')
+                    ->orderBy('name')
+                    ->get();
+                $kitItems = collect();
+                if ($productService->type === 'kit') {
+                    $kitItems = ProductKitItem::where('kit_product_id', $productService->id)
+                        ->where('created_by', \Auth::user()->creatorId())
+                        ->with(['component:id,name,sku,unit_id'])
+                        ->orderBy('id')
+                        ->get();
+                }
+
+                return view('productservice.edit', compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'incomeSubAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitItems', 'kitComponents'));
             } else {
                 return response()->json(['error' => __('Permission denied.')], 401);
             }
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
+    }
+
+    public function kitItemStore(Request $request, $id)
+    {
+        if (!\Auth::user()->can('edit product & service')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $creatorId = \Auth::user()->creatorId();
+        $kit = ProductService::where('id', $id)->where('created_by', $creatorId)->first();
+        if (!$kit || $kit->type !== 'kit') {
+            return redirect()->back()->with('error', __('Invalid kit product.'));
+        }
+
+        $request->validate([
+            'component_product_id' => 'required|exists:product_services,id',
+            'quantity' => 'required|numeric|min:0.0001',
+        ]);
+
+        $component = ProductService::where('id', $request->component_product_id)->where('created_by', $creatorId)->first();
+        if (!$component || $component->type !== 'product') {
+            return redirect()->back()->with('error', __('Component must be a product.'));
+        }
+        if ((int) $component->id === (int) $kit->id) {
+            return redirect()->back()->with('error', __('Kit and component cannot be the same.'));
+        }
+
+        ProductKitItem::create([
+            'kit_product_id' => (int) $kit->id,
+            'component_product_id' => (int) $component->id,
+            'quantity' => (float) $request->quantity,
+            'created_by' => (int) $creatorId,
+        ]);
+
+        return redirect()->back()->with('success', __('Kit component added.'));
+    }
+
+    public function kitItemDestroy(Request $request, $id, ProductKitItem $kit_item)
+    {
+        if (!\Auth::user()->can('edit product & service')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $creatorId = \Auth::user()->creatorId();
+        $kit = ProductService::where('id', $id)->where('created_by', $creatorId)->first();
+        if (!$kit || $kit->type !== 'kit') {
+            return redirect()->back()->with('error', __('Invalid kit product.'));
+        }
+        if ((int) $kit_item->created_by !== (int) $creatorId || (int) $kit_item->kit_product_id !== (int) $kit->id) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $kit_item->delete();
+        return redirect()->back()->with('success', __('Kit component removed.'));
     }
 
     public function update(Request $request, $id)
@@ -267,7 +416,7 @@ class ProductServiceController extends Controller
                     'purchase_price' => 'required|numeric',
                     'category_id' => 'required',
                     'unit_id' => 'required',
-                    'type' => 'required',
+                    'type' => ['required', Rule::in(['product', 'service', 'kit'])],
 
                 ];
 
@@ -282,6 +431,8 @@ class ProductServiceController extends Controller
                 $productService->name           = $request->name;
                 $productService->description    = $request->description;
                 $productService->sku            = $request->sku;
+                $productService->shelf_no       = $request->shelf_no;
+                $productService->row_no         = $request->row_no;
                 $productService->sale_price     = $request->sale_price;
                 $productService->sale_price_type = in_array($request->sale_price_type, ['inclusive', 'exclusive'], true) ? $request->sale_price_type : 'exclusive';
                 $productService->purchase_price = $request->purchase_price;
@@ -297,7 +448,12 @@ class ProductServiceController extends Controller
                 $productService->print_zone                 = $request->print_zone ?: null;
                 $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
                 $productService->low_stock_threshold        = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
-                $productService->affect_stock                = ! $request->boolean('does_not_affect_stock');
+                $productService->max_stock_threshold        = $request->filled('max_stock_threshold') ? (int) $request->max_stock_threshold : null;
+                $productService->affect_stock                = $request->type === 'kit' ? false : ! $request->boolean('does_not_affect_stock');
+                $productService->identifier_tracking          = $request->boolean('identifier_tracking');
+                $productService->identifier_type              = in_array($request->identifier_type, ['serial', 'mac', 'both'], true) ? $request->identifier_type : 'serial';
+                $productService->warranty_days                = $request->filled('warranty_days') ? (int) $request->warranty_days : null;
+                $productService->expiry_alert_days            = $request->filled('expiry_alert_days') ? (int) $request->expiry_alert_days : null;
                 $productService->sale_chartaccount_id       = $request->sale_chartaccount_id;
                 $productService->expense_chartaccount_id    = $request->expense_chartaccount_id;
                 $productService->category_id                = $request->category_id;
@@ -323,6 +479,44 @@ class ProductServiceController extends Controller
                 $productService->created_by     = \Auth::user()->creatorId();
                 $productService->save();
                 CustomField::saveData($productService, $request->customField);
+
+                // Kit components sync (no nested forms in modal)
+                $creatorId = \Auth::user()->creatorId();
+                if ($productService->type === 'kit') {
+                    $removeIds = $request->input('remove_kit_item_ids', []);
+                    if (is_array($removeIds) && count($removeIds) > 0) {
+                        ProductKitItem::where('created_by', $creatorId)
+                            ->where('kit_product_id', $productService->id)
+                            ->whereIn('id', array_map('intval', $removeIds))
+                            ->delete();
+                    }
+
+                    $components = $request->input('kit_components', []);
+                    if (is_array($components)) {
+                        foreach ($components as $row) {
+                            $componentId = (int) ($row['component_product_id'] ?? 0);
+                            $qty = (float) ($row['quantity'] ?? 0);
+                            if ($componentId <= 0 || $qty <= 0) {
+                                continue;
+                            }
+                            $component = ProductService::where('id', $componentId)->where('created_by', $creatorId)->first();
+                            if (!$component || $component->type !== 'product' || $componentId === (int) $productService->id) {
+                                continue;
+                            }
+                            ProductKitItem::create([
+                                'kit_product_id' => (int) $productService->id,
+                                'component_product_id' => (int) $componentId,
+                                'quantity' => $qty,
+                                'created_by' => (int) $creatorId,
+                            ]);
+                        }
+                    }
+                } else {
+                    // If switched away from kit, remove any existing kit lines
+                    ProductKitItem::where('created_by', $creatorId)
+                        ->where('kit_product_id', $productService->id)
+                        ->delete();
+                }
 
                 return redirect()->route('productservice.index')->with('success', __('Product successfully updated.'));
             } else {
@@ -542,7 +736,10 @@ class ProductServiceController extends Controller
                 $baseImgUrl = asset(Storage::url('uploads/pro_image/'));
                 $addToCartBase = url('add-to-cart');
                 foreach ($products as $product) {
-                    $quantity = $isPos ? (int) $product->quantity : $product->warehouseProduct($product->id, $request->war_id != 0 ? $request->war_id : 7);
+                    $isKitOrNoStock = (($product->type ?? null) === 'kit') || !($product->affect_stock ?? true);
+                    $quantity = $isPos
+                        ? ($isKitOrNoStock ? '—' : (int) $product->quantity)
+                        : $product->warehouseProduct($product->id, $request->war_id != 0 ? $request->war_id : 7);
                     $unit = (!empty($product->unit)) ? $product->unit->name : '';
                     $imgFile = !empty($product->pro_image) ? $product->pro_image : 'default.png';
                     $imgSrc = rtrim($baseImgUrl, '/') . '/' . $imgFile;
@@ -608,8 +805,12 @@ class ProductServiceController extends Controller
             if ($product) {
                 if ($isPosSession) {
                     // Products that do not affect stock (e.g. composite dishes with BOM): allow sale without product-level quantity check
-                    $affectStock = $product->affect_stock ?? true;
-                    $productquantity = $affectStock ? (int) $product->quantity : 999999;
+                    $affectStock = ($product->type === 'kit') ? false : ($product->affect_stock ?? true);
+                    if ($affectStock && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product->id, (int) ($request->war_id ?? 0), (int) Auth::user()->creatorId()))) {
+                        $productquantity = (int) floor(PosFefoDeductionService::availableQty((int) $product->id, (int) ($request->war_id ?? 0), (int) Auth::user()->creatorId()));
+                    } else {
+                        $productquantity = $affectStock ? (int) $product->quantity : 999999;
+                    }
                 } else {
                     $productquantity = $product->getTotalProductQuantity();
                 }
@@ -977,8 +1178,13 @@ class ProductServiceController extends Controller
             // POS: validate against product's quantity (stock); skip for products that do not affect stock (e.g. BOM dishes)
             if (isset($cart[$id]) && $isPosSession) {
                 $product = ProductService::find($id);
-                $affectStock = $product ? ($product->affect_stock ?? true) : true;
-                $maxQty = $product ? ($affectStock ? (int) $product->quantity : 999999) : 0;
+                $affectStock = $product ? (($product->type === 'kit') ? false : ($product->affect_stock ?? true)) : true;
+                $warehouseId = (int) ($request->war_id ?? 0);
+                if ($product && $affectStock && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product->id, $warehouseId, (int) Auth::user()->creatorId()))) {
+                    $maxQty = (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warehouseId, (int) Auth::user()->creatorId()));
+                } else {
+                    $maxQty = $product ? ($affectStock ? (int) $product->quantity : 999999) : 0;
+                }
                 if ($cart[$id]['quantity'] > $maxQty) {
                     return response()->json(
                         [

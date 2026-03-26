@@ -42,6 +42,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'last_login_at',
         'created_by',
         'pos_branch_id',
+        'warehouse_id',
         'pos_pin',
     ];
 
@@ -114,6 +115,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function posBranch()
     {
         return $this->belongsTo(Branch::class, 'pos_branch_id');
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(warehouse::class, 'warehouse_id');
     }
 
     public function ownerId()

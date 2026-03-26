@@ -12,6 +12,8 @@ class ProductService extends Model
     protected $fillable = [
         'name',
         'sku',
+        'shelf_no',
+        'row_no',
         'sale_price',
         'sale_price_type',
         'purchase_price',
@@ -23,7 +25,15 @@ class ProductService extends Model
         'print_zone',
         'pos_printer_id',
         'low_stock_threshold',
+        'max_stock_threshold',
         'affect_stock',
+        'identifier_tracking',
+        'identifier_type',
+        'warranty_days',
+        'expiry_alert_days',
+        'batch_tracking',
+        'last_min_stock_alert_at',
+        'last_max_stock_alert_at',
         'sale_chartaccount_id',
         'expense_chartaccount_id',
         'created_by',
@@ -31,6 +41,10 @@ class ProductService extends Model
 
     protected $casts = [
         'affect_stock' => 'boolean',
+        'identifier_tracking' => 'boolean',
+        'batch_tracking' => 'boolean',
+        'last_min_stock_alert_at' => 'datetime',
+        'last_max_stock_alert_at' => 'datetime',
     ];
 
     public function taxes()
@@ -112,7 +126,7 @@ class ProductService extends Model
     public static function getallproducts()
     {
         return ProductService::select('product_services.*', 'c.name as categoryname')
-            ->where('product_services.type', '=', 'product')
+            ->whereIn('product_services.type', ['product', 'kit'])
             ->leftjoin('product_service_categories as c', 'c.id', '=', 'product_services.category_id')
             ->where('product_services.created_by', '=', Auth::user()->creatorId())
             ->orderBy('product_services.id', 'DESC');
@@ -134,9 +148,11 @@ class ProductService extends Model
             'product_services.pro_image',
             'product_services.unit_id',
             'product_services.category_id',
-            'product_services.print_zone'
+            'product_services.print_zone',
+            'product_services.type',
+            'product_services.affect_stock'
         )
-            ->where('product_services.type', 'product')
+            ->whereIn('product_services.type', ['product', 'kit'])
             ->where('product_services.created_by', Auth::user()->creatorId())
             ->orderBy('product_services.id', 'DESC');
     }

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
+use App\Models\User;
 use App\Models\Utility;
 use App\Models\warehouse;
+use App\Models\WarehouseDocument;
 use App\Models\WarehouseProduct;
 use DB;
 use Illuminate\Http\Request;
@@ -18,8 +20,11 @@ class WarehouseController extends Controller
      */
     public function index()
     {
-
-        $warehouses = warehouse::with('branch')->where('created_by', '=', \Auth::user()->creatorId())->get();
+        $query = warehouse::with(['branch', 'assignedUsers'])->where('created_by', '=', \Auth::user()->creatorId());
+        if (\Auth::user()->type !== 'company' && !empty(\Auth::user()->warehouse_id)) {
+            $query->where('id', \Auth::user()->warehouse_id);
+        }
+        $warehouses = $query->get();
 
         return view('warehouse.index',compact('warehouses'));
 
@@ -33,7 +38,10 @@ class WarehouseController extends Controller
     public function create()
     {
         $branches = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->get()->pluck('name', 'id');
-        return view('warehouse.create', compact('branches'));
+        $users = User::where('created_by', \Auth::user()->creatorId())
+            ->where('type', '!=', 'company')
+            ->pluck('name', 'id');
+        return view('warehouse.create', compact('branches', 'users'));
     }
 
     /**
@@ -68,6 +76,12 @@ class WarehouseController extends Controller
             $warehouse->created_by = \Auth::user()->creatorId();
             $warehouse->save();
 
+            if (is_array($request->assigned_users ?? null)) {
+                User::where('created_by', \Auth::user()->creatorId())
+                    ->whereIn('id', $request->assigned_users)
+                    ->update(['warehouse_id' => $warehouse->id]);
+            }
+
             return redirect()->route('warehouse.index')->with('success', __('Warehouse successfully created.'));
         }
         else
@@ -84,23 +98,24 @@ class WarehouseController extends Controller
      */
     public function show(warehouse $warehouse)
     {
-
-        $id = WarehouseProduct::where('warehouse_id' , $warehouse->id)->first();
+        if (\Auth::user()->type !== 'company' && !empty(\Auth::user()->warehouse_id) && (int) \Auth::user()->warehouse_id !== (int) $warehouse->id) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
 
         if(\Auth::user()->can('show warehouse'))
         {
-
-            if(WarehouseProduct::where('warehouse_id' , $warehouse->id)->exists())
-            {
-                $warehouse = WarehouseProduct::where('warehouse_id' , $warehouse->id)->where('created_by', '=', \Auth::user()->creatorId())->with(['product'])->get();
-
-                return view('warehouse.show', compact('warehouse'));
-            }
-            else
-            {
-                $warehouse = [];
-                return view('warehouse.show', compact('warehouse'));
-            }
+            $warehouseProducts = WarehouseProduct::where('warehouse_id', $warehouse->id)
+                ->where('created_by', '=', \Auth::user()->creatorId())
+                ->with(['product'])
+                ->get();
+            $assignedUsers = User::where('warehouse_id', $warehouse->id)
+                ->where('created_by', \Auth::user()->creatorId())
+                ->get();
+            $documents = WarehouseDocument::where('warehouse_id', $warehouse->id)
+                ->where('created_by', \Auth::user()->creatorId())
+                ->latest()
+                ->get();
+            return view('warehouse.show', compact('warehouse', 'warehouseProducts', 'assignedUsers', 'documents'));
         }
         else
         {
@@ -116,11 +131,15 @@ class WarehouseController extends Controller
     public function edit(warehouse $warehouse)
     {
         $branches = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->get()->pluck('name', 'id');
+        $users = User::where('created_by', \Auth::user()->creatorId())
+            ->where('type', '!=', 'company')
+            ->pluck('name', 'id');
+        $assignedUsers = User::where('warehouse_id', $warehouse->id)->pluck('id')->all();
         if(\Auth::user()->can('edit warehouse'))
         {
             if($warehouse->created_by == \Auth::user()->creatorId())
             {
-                return view('warehouse.edit', compact('warehouse', 'branches'));
+                return view('warehouse.edit', compact('warehouse', 'branches', 'users', 'assignedUsers'));
             }
             else
             {
@@ -166,6 +185,15 @@ class WarehouseController extends Controller
                 $warehouse->city_zip   = $request->city_zip;
                 $warehouse->save();
 
+                User::where('created_by', \Auth::user()->creatorId())
+                    ->where('warehouse_id', $warehouse->id)
+                    ->update(['warehouse_id' => null]);
+                if (is_array($request->assigned_users ?? null)) {
+                    User::where('created_by', \Auth::user()->creatorId())
+                        ->whereIn('id', $request->assigned_users)
+                        ->update(['warehouse_id' => $warehouse->id]);
+                }
+
                 return redirect()->route('warehouse.index')->with('success', __('Warehouse successfully updated.'));
             }
             else
@@ -205,5 +233,47 @@ class WarehouseController extends Controller
         {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+    }
+
+    public function uploadDocument(Request $request, warehouse $warehouse)
+    {
+        if (!\Auth::user()->can('edit warehouse') || $warehouse->created_by != \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $request->validate([
+            'document_file' => 'required|file|max:20480',
+        ]);
+
+        $fileName = time() . '_' . $request->file('document_file')->getClientOriginalName();
+        $request->file('document_file')->storeAs('uploads/warehouse_documents', $fileName);
+
+        WarehouseDocument::create([
+            'warehouse_id' => $warehouse->id,
+            'title' => $request->document_title,
+            'file_path' => $fileName,
+            'created_by' => \Auth::user()->creatorId(),
+        ]);
+
+        return redirect()->back()->with('success', __('Warehouse document uploaded successfully.'));
+    }
+
+    public function deleteDocument(warehouse $warehouse, $documentId)
+    {
+        if (!\Auth::user()->can('edit warehouse') || $warehouse->created_by != \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $doc = WarehouseDocument::where('id', $documentId)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('created_by', \Auth::user()->creatorId())
+            ->first();
+        if (!$doc) {
+            return redirect()->back()->with('error', __('Document not found.'));
+        }
+
+        \Storage::delete('uploads/warehouse_documents/' . $doc->file_path);
+        $doc->delete();
+        return redirect()->back()->with('success', __('Warehouse document deleted successfully.'));
     }
 }

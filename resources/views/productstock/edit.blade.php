@@ -12,10 +12,38 @@
             {{$productService->sku}}
 
         </div>
-        <div class="form-group col-md-12">
+        <div class="form-group col-md-6">
             {{ Form::label('quantity', __('Quantity'),['class'=>'form-label']) }}<x-required></x-required>
             {{ Form::number('quantity',"", array('class' => 'form-control','required'=>'required', 'placeholder' => __('Enter Quantity'))) }}
         </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('expiry_date', __('Expiry Date'),['class'=>'form-label']) }}
+            {{ Form::date('expiry_date', null, ['class' => 'form-control']) }}
+            <small class="text-muted">{{ __('Optional. Used for expiry alerts.') }}</small>
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('batch_no', __('Batch No'),['class'=>'form-label']) }}
+            {{ Form::text('batch_no', null, ['class' => 'form-control', 'placeholder' => __('Optional')]) }}
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('mfg_date', __('MFG Date'),['class'=>'form-label']) }}
+            {{ Form::date('mfg_date', null, ['class' => 'form-control']) }}
+        </div>
+        @if(($productService->identifier_tracking ?? false))
+            <div class="form-group col-md-12">
+                <label class="form-label">
+                    @if(($productService->identifier_type ?? 'serial') === 'mac')
+                        {{ __('MAC Address List') }}
+                    @elseif(($productService->identifier_type ?? '') === 'both')
+                        {{ __('Serial/MAC List') }}
+                    @else
+                        {{ __('Serial Number List') }}
+                    @endif
+                </label>
+                {{ Form::textarea('identifiers', null, ['class' => 'form-control', 'rows' => 4, 'placeholder' => __('Enter one per line')]) }}
+                <small class="text-muted">{{ __('Required: exactly N identifiers where N = quantity. No duplicates allowed.') }}</small>
+            </div>
+        @endif
     </div>
 </div>
 <div class="modal-footer">

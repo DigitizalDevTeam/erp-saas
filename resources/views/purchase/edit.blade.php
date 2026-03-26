@@ -195,6 +195,21 @@
 
                             }
 
+                            // Identifier tracking (Serial/MAC)
+                            var $wrap = $(el).closest('[data-repeater-item]');
+                            var $idRow = $wrap.find('.identifier-row');
+                            if (item.identifier_tracking) {
+                                $idRow.removeClass('d-none');
+                                var label = item.identifier_type === 'mac' ? '{{ __("MAC Address List") }}' : '{{ __("Serial Number List") }}';
+                                if (item.identifier_type === 'both') {
+                                    label = '{{ __("Serial/MAC List") }}';
+                                }
+                                $idRow.find('.identifier-label').text(label);
+                            } else {
+                                $idRow.addClass('d-none');
+                                $idRow.find('.identifiers-textarea').val('');
+                            }
+
                             var taxes = '';
                             var tax = [];
 
@@ -614,12 +629,43 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td colspan="2">
+                                <td colspan="3">
                                     <div class="form-group">
                                         {{ Form::textarea('description', null, ['class'=>'form-control pro_description','rows'=>'2','placeholder'=>__('Description')]) }}
                                     </div>
                                 </td>
-                                <td colspan="5"></td>
+                                <td colspan="2">
+                                    <div class="form-group">
+                                        {{ Form::label('expiry_date', __('Expiry Date'), ['class' => 'form-label']) }}
+                                        {{ Form::date('expiry_date', null, ['class' => 'form-control expiry_date']) }}
+                                        <small class="text-muted">{{ __('Optional. Used for expiry alerts.') }}</small>
+                                    </div>
+                                </td>
+                                <td colspan="2"></td>
+                            </tr>
+                            <tr>
+                                <td colspan="3">
+                                    <div class="form-group">
+                                        {{ Form::label('batch_no', __('Batch No'), ['class' => 'form-label']) }}
+                                        {{ Form::text('batch_no', null, ['class' => 'form-control batch_no', 'placeholder' => __('Optional')]) }}
+                                    </div>
+                                </td>
+                                <td colspan="2">
+                                    <div class="form-group">
+                                        {{ Form::label('mfg_date', __('MFG Date'), ['class' => 'form-label']) }}
+                                        {{ Form::date('mfg_date', null, ['class' => 'form-control mfg_date']) }}
+                                    </div>
+                                </td>
+                                <td colspan="2"></td>
+                            </tr>
+                            <tr class="identifier-row d-none">
+                                <td colspan="7">
+                                    <div class="form-group">
+                                        <label class="form-label identifier-label">{{ __('Serial/MAC List') }}</label>
+                                        {{ Form::textarea('identifiers', null, ['class'=>'form-control identifiers-textarea','rows'=>'3','placeholder'=>__('Enter one Serial/MAC per line')]) }}
+                                        <small class="text-muted identifier-help">{{ __('Count must match quantity. No duplicates allowed.') }}</small>
+                                    </div>
+                                </td>
                             </tr>
                             </tbody>
                             <tfoot>

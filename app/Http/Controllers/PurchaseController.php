@@ -8,6 +8,8 @@ use App\Models\CustomField;
 use App\Models\ProductService;
 use App\Models\ProductServiceCategory;
 use App\Models\Purchase;
+use App\Models\ProductIdentifier;
+use App\Models\ProductExpiryLot;
 use App\Models\PurchaseProduct;
 use App\Models\PurchasePayment;
 use App\Models\StockReport;
@@ -113,6 +115,8 @@ class PurchaseController extends Controller
             $purchase->save();
 
             $products = $request->items;
+            $creatorId = \Auth::user()->creatorId();
+            $warehouseId = (int) $request->warehouse_id;
 
             for($i = 0; $i < count($products); $i++)
             {
@@ -124,7 +128,72 @@ class PurchaseController extends Controller
                 $purchaseProduct->discount    = $products[$i]['discount'];
                 $purchaseProduct->price       = $products[$i]['price'];
                 $purchaseProduct->description = $products[$i]['description'];
+                $purchaseProduct->expiry_date = !empty($products[$i]['expiry_date']) ? $products[$i]['expiry_date'] : null;
+                $purchaseProduct->batch_no = !empty($products[$i]['batch_no']) ? trim($products[$i]['batch_no']) : null;
+                $purchaseProduct->mfg_date = !empty($products[$i]['mfg_date']) ? $products[$i]['mfg_date'] : null;
                 $purchaseProduct->save();
+
+                // Expiry lot tracking (optional)
+                if (!empty($purchaseProduct->expiry_date) || !empty($purchaseProduct->batch_no)) {
+                    ProductExpiryLot::create([
+                        'product_id' => (int) $purchaseProduct->product_id,
+                        'warehouse_id' => (int) $warehouseId,
+                        'purchase_id' => (int) $purchase->id,
+                        'purchase_product_id' => (int) $purchaseProduct->id,
+                        'source' => 'purchase',
+                        'expiry_date' => $purchaseProduct->expiry_date,
+                        'batch_no' => $purchaseProduct->batch_no,
+                        'mfg_date' => $purchaseProduct->mfg_date,
+                        'quantity_in' => (float) $purchaseProduct->quantity,
+                        'quantity_remaining' => (float) $purchaseProduct->quantity,
+                        'created_by' => (int) $creatorId,
+                    ]);
+                }
+
+                // Serial/MAC tracking: require one unique identifier per unit on stock-in
+                $product = ProductService::where('id', $purchaseProduct->product_id)->where('created_by', $creatorId)->first();
+                if ($product && ($product->identifier_tracking ?? false)) {
+                    $raw = $products[$i]['identifiers'] ?? '';
+                    $list = preg_split("/\r\n|\n|\r|,|;|\t/", (string) $raw);
+                    $list = array_values(array_filter(array_map(function ($v) {
+                        $v = trim((string) $v);
+                        return $v === '' ? null : $v;
+                    }, $list)));
+
+                    $unique = array_values(array_unique($list));
+                    if (count($unique) !== count($list)) {
+                        return redirect()->back()->with('error', __('Duplicate Serial/MAC found in the list for one of the items.'));
+                    }
+                    if (count($unique) !== (int) $purchaseProduct->quantity) {
+                        return redirect()->back()->with('error', __('Serial/MAC count must match quantity for tracked products.'));
+                    }
+
+                    $existing = ProductIdentifier::where('created_by', $creatorId)->whereIn('identifier_value', $unique)->exists();
+                    if ($existing) {
+                        return redirect()->back()->with('error', __('One or more Serial/MAC already exists in the system.'));
+                    }
+
+                    $type = in_array($product->identifier_type ?? 'serial', ['serial', 'mac', 'both'], true) ? ($product->identifier_type ?? 'serial') : 'serial';
+                    $warrantyDays = (int) ($product->warranty_days ?? 0);
+                    $warrantyEnd = null;
+                    if ($warrantyDays > 0 && !empty($purchase->purchase_date)) {
+                        $warrantyEnd = \Carbon\Carbon::parse($purchase->purchase_date)->addDays($warrantyDays)->toDateString();
+                    }
+
+                    foreach ($unique as $val) {
+                        ProductIdentifier::create([
+                            'product_id' => (int) $purchaseProduct->product_id,
+                            'warehouse_id' => $warehouseId,
+                            'purchase_id' => (int) $purchase->id,
+                            'purchase_product_id' => (int) $purchaseProduct->id,
+                            'identifier_type' => $type,
+                            'identifier_value' => $val,
+                            'status' => 'in_stock',
+                            'warranty_end_date' => $warrantyEnd,
+                            'created_by' => (int) $creatorId,
+                        ]);
+                    }
+                }
 
                 //inventory management (Quantity)
                 Utility::total_quantity('plus',$purchaseProduct->quantity,$purchaseProduct->product_id);
@@ -927,6 +996,8 @@ class PurchaseController extends Controller
         $quantity            = 1;
         $taxPrice            = ($taxRate / 100) * ($salePrice * $quantity);
         $data['totalAmount'] = ($salePrice * $quantity);
+        $data['identifier_tracking'] = (bool) ($product->identifier_tracking ?? false);
+        $data['identifier_type'] = $product->identifier_type ?? 'serial';
 
         return json_encode($data);
     }

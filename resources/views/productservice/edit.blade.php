@@ -26,6 +26,18 @@
                 {{ Form::text('sku', null, array('class' => 'form-control','required'=>'required', 'placeholder' => __('Enter Sku'))) }}
             </div>
         </div>
+        <div class="col-md-6">
+            <div class="form-group">
+                {{ Form::label('shelf_no', __('Shelf Number'),['class'=>'form-label']) }}
+                {{ Form::text('shelf_no', $productService->shelf_no, array('class' => 'form-control', 'placeholder' => __('Enter Shelf Number'))) }}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group">
+                {{ Form::label('row_no', __('Row Number'),['class'=>'form-label']) }}
+                {{ Form::text('row_no', $productService->row_no, array('class' => 'form-control', 'placeholder' => __('Enter Row Number'))) }}
+            </div>
+        </div>
 
         <div class="col-md-6">
             <div class="form-group">
@@ -138,16 +150,22 @@
             <div class="form-group">
                 <label class="d-block form-label">{{__('Type')}}</label>
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="form-check form-check-inline">
                             <input type="radio" class="form-check-input type" id="customRadio5" name="type" value="product" @if($productService->type=='product') checked @endif >
                             <label class="custom-control-label form-label" for="customRadio5">{{__('Product')}}</label>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="form-check form-check-inline">
                             <input type="radio" class="form-check-input type" id="customRadio6" name="type" value="service" @if($productService->type=='service') checked @endif >
                             <label class="custom-control-label form-label" for="customRadio6">{{__('Service')}}</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check form-check-inline">
+                            <input type="radio" class="form-check-input type" id="customRadio7" name="type" value="kit" @if($productService->type=='kit') checked @endif >
+                            <label class="custom-control-label form-label" for="customRadio7">{{__('Kit')}}</label>
                         </div>
                     </div>
                 </div>
@@ -169,21 +187,113 @@
             <small class="text-muted">{{ __('Send this product to this printer in POS. Leave default to use zone.') }}</small>
         </div>
 
-        <div class="form-group col-md-6 quantity {{$productService->type=='service' ? 'd-none':''}}">
+        <div class="form-group col-md-6 quantity {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}">
             {{ Form::label('quantity', __('Quantity'),['class'=>'form-label']) }}<x-required></x-required>
             {{ Form::text('quantity',null, array('class' => 'form-control','required'=>'required')) }}
         </div>
-        <div class="form-group col-md-6 quantity {{$productService->type=='service' ? 'd-none':''}}">
+        <div class="form-group col-md-6 quantity {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}">
             {{ Form::label('low_stock_threshold', __('Low stock alert at'),['class'=>'form-label']) }}
             {{ Form::number('low_stock_threshold', $productService->low_stock_threshold, array('class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Default'))) }}
             <small class="text-muted">{{ __('Leave empty to use system default. Alert when quantity is below this.') }}</small>
         </div>
-        <div class="form-group col-md-12 quantity {{$productService->type=='service' ? 'd-none':''}}">
+        <div class="form-group col-md-6 quantity {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}">
+            {{ Form::label('max_stock_threshold', __('Max stock alert at'),['class'=>'form-label']) }}
+            {{ Form::number('max_stock_threshold', $productService->max_stock_threshold, array('class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Optional'))) }}
+            <small class="text-muted">{{ __('Alert when quantity is above this (optional).') }}</small>
+        </div>
+        <div class="form-group col-md-12 quantity {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}">
             <div class="form-check">
                 {{ Form::checkbox('does_not_affect_stock', '1', !($productService->affect_stock ?? true), ['class' => 'form-check-input', 'id' => 'does_not_affect_stock_edit']) }}
-                {{ Form::label('does_not_affect_stock', __('Does not affect stock (e.g. composite dish – add ingredients in BOM)'), ['class' => 'form-check-label', 'for' => 'does_not_affect_stock_edit']) }}
+                {{ Form::label('does_not_affect_stock', __('Does not affect stock (e.g. composite dish – components are deducted separately)'), ['class' => 'form-check-label', 'for' => 'does_not_affect_stock_edit']) }}
             </div>
-            <small class="text-muted">{{ __('When checked: on POS sale only recipe ingredients are deducted; this product’s quantity is not used. Use Product Recipe to define ingredients (chicken, rice, etc.).') }}</small>
+            <small class="text-muted">{{ __('When checked: on POS sale this product’s own quantity is not used. (For kits, use the Kit Components section below.)') }}</small>
+        </div>
+
+        <div class="col-md-12">
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" name="identifier_tracking" id="identifier_tracking_edit" value="1" {{ ($productService->identifier_tracking ?? false) ? 'checked' : '' }}>
+                <label class="form-check-label" for="identifier_tracking_edit">{{ __('Track Serial Number / MAC Address') }}</label>
+            </div>
+            <div class="row mt-2" id="identifier_tracking_edit_fields" style="{{ ($productService->identifier_tracking ?? false) ? '' : 'display:none;' }}">
+                <div class="col-md-4">
+                    <label class="form-label">{{ __('Tracking type') }}</label>
+                    <select name="identifier_type" class="form-control select">
+                        <option value="serial" {{ ($productService->identifier_type ?? 'serial') === 'serial' ? 'selected' : '' }}>{{ __('Serial Number') }}</option>
+                        <option value="mac" {{ ($productService->identifier_type ?? '') === 'mac' ? 'selected' : '' }}>{{ __('MAC Address') }}</option>
+                        <option value="both" {{ ($productService->identifier_type ?? '') === 'both' ? 'selected' : '' }}>{{ __('Serial + MAC') }}</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{{ __('Warranty (days)') }}</label>
+                    <input type="number" name="warranty_days" class="form-control" min="0" step="1" value="{{ $productService->warranty_days ?? '' }}" placeholder="{{ __('Optional') }}">
+                </div>
+            </div>
+            <small class="text-muted d-block mt-1">{{ __('If enabled: stock-in and sales will require one unique identifier per unit (no duplicates).') }}</small>
+        </div>
+
+        <div class="col-md-12 mt-2">
+            <div class="row">
+                <div class="col-md-4">
+                    <label class="form-label">{{ __('Expiry alert (days before)') }}</label>
+                    <input type="number" name="expiry_alert_days" class="form-control" min="0" step="1" value="{{ $productService->expiry_alert_days ?? '' }}" placeholder="{{ __('Optional') }}">
+                    <small class="text-muted">{{ __('Show dashboard alert when expiry is within this many days.') }}</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 {{ (($productService->type ?? '') === 'kit') ? '' : 'd-none' }}" id="kit_components_edit_section">
+            <hr class="my-3">
+            <h6 class="mb-2">{{ __('Kit Components') }}</h6>
+            <p class="text-muted small mb-2">{{ __('When you sell 1 kit, stock will be deducted from each component by the qty per kit.') }}</p>
+
+            <div class="table-responsive mb-2">
+                <table class="table table-sm" id="kit_components_edit_table">
+                    <thead>
+                        <tr>
+                            <th>{{ __('Component') }}</th>
+                            <th class="text-end">{{ __('Qty per kit') }}</th>
+                            <th width="120" class="text-end">{{ __('Remove') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse(($kitItems ?? []) as $ki)
+                            <tr>
+                                <td>{{ $ki->component ? $ki->component->name : '-' }}{{ $ki->component && $ki->component->sku ? ' (' . $ki->component->sku . ')' : '' }}</td>
+                                <td class="text-end">{{ $ki->quantity }}</td>
+                                <td class="text-end">
+                                    <div class="form-check d-inline-block">
+                                        <input class="form-check-input" type="checkbox" name="remove_kit_item_ids[]" value="{{ $ki->id }}" id="remove_kit_{{ $ki->id }}">
+                                        <label class="form-check-label" for="remove_kit_{{ $ki->id }}"></label>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr class="text-muted"><td colspan="3">{{ __('No components yet. Add below, then click Update.') }}</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label">{{ __('Component product') }}</label>
+                    <select class="form-select" id="kit_component_edit_select">
+                        <option value="">{{ __('Select component') }}</option>
+                        @foreach(($kitComponents ?? []) as $cp)
+                            <option value="{{ $cp->id }}">{{ $cp->name }}{{ $cp->sku ? ' (' . $cp->sku . ')' : '' }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{{ __('Quantity') }}</label>
+                    <input type="number" class="form-control" id="kit_component_edit_qty" step="0.0001" min="0.0001" value="1">
+                </div>
+                <div class="col-md-3">
+                    <button type="button" class="btn btn-primary w-100" id="kit_component_edit_add_btn">{{ __('Add Component') }}</button>
+                </div>
+            </div>
+
+            <small class="text-muted d-block mt-2">{{ __('After adding/removing components, click Update to save.') }}</small>
         </div>
         <div class="form-group  col-md-12">
             {{ Form::label('description', __('Description'),['class'=>'form-label']) }}
@@ -222,6 +332,54 @@
             $('.quantity').removeClass('d-block');
             $('input[name="quantity"]').val('').prop('required', false);
         }
+
+        if (type == 'kit') {
+            $('#kit_components_edit_section').removeClass('d-none');
+        } else {
+            $('#kit_components_edit_section').addClass('d-none');
+        }
+    });
+
+    (function () {
+        let kitRowIdx = 0;
+        $('#kit_component_edit_add_btn').on('click', function () {
+            const componentId = $('#kit_component_edit_select').val();
+            const componentText = $('#kit_component_edit_select option:selected').text();
+            const qty = parseFloat($('#kit_component_edit_qty').val() || '0');
+            if (!componentId || !qty || qty <= 0) return;
+
+            const $tbody = $('#kit_components_edit_table tbody');
+            // remove "no components" placeholder row if present
+            if ($tbody.find('tr').length === 1 && $tbody.find('tr').first().hasClass('text-muted')) {
+                $tbody.empty();
+            }
+
+            const safeText = $('<div>').text(componentText).html();
+            const row = `
+                <tr data-new-kit-row="${kitRowIdx}">
+                    <td>
+                        ${safeText}
+                        <input type="hidden" name="kit_components[${kitRowIdx}][component_product_id]" value="${componentId}">
+                    </td>
+                    <td class="text-end">
+                        ${qty}
+                        <input type="hidden" name="kit_components[${kitRowIdx}][quantity]" value="${qty}">
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger kit-component-remove"><i class="ti ti-trash"></i></button>
+                    </td>
+                </tr>`;
+            $tbody.append(row);
+            kitRowIdx++;
+        });
+
+        $(document).on('click', '#kit_components_edit_table .kit-component-remove', function () {
+            $(this).closest('tr').remove();
+        });
+    })();
+
+    $(document).on('change', '#identifier_tracking_edit', function () {
+        $('#identifier_tracking_edit_fields').toggle(this.checked);
     });
 </script>
 

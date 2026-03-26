@@ -309,6 +309,17 @@ class Utility extends Model
             "pos_receipt_printer" => "browser",
             "pos_direct_print" => "off",
 
+            // Sales stock deduction timing: 'invoice' or 'delivery_note'
+            "stock_deduction_timing" => "invoice",
+
+            // Stock alerts (email)
+            "stock_alerts_enabled" => "off",
+            "stock_alerts_recipients" => "",
+            "stock_alerts_frequency" => "daily", // daily|hourly (future)
+            "stock_alerts_send_min" => "on",
+            "stock_alerts_send_max" => "on",
+            "max_stock_threshold_global" => "",
+
             "storage_setting" => "local",
             "local_storage_validation" => "jpg,jpeg,png,xlsx,xls,csv,pdf",
             "local_storage_max_upload_size" => "2048000",
@@ -673,12 +684,11 @@ class Utility extends Model
         if (self::$languageSetting == null) {
             $languages = Utility::langList();
 
-
             if (\Schema::hasTable('languages')) {
                 $settings = Utility::settings();
                 if (!empty($settings['disable_lang'])) {
                     $disabledlang = explode(',', $settings['disable_lang']);
-                    $languages = Language::whereNotIn('code', $disabledlang)->pluck('full_name', 'code');
+                    $languages = Language::pluck('full_name', 'code');
                 } else {
                     $languages = Language::pluck('full_name', 'code');
                 }
@@ -4082,11 +4092,20 @@ class Utility extends Model
     public static function warehouse_quantity($type, $quantity, $product_id, $warehouse_id)
     {
         $product = WarehouseProduct::where('warehouse_id', $warehouse_id)->where('product_id', $product_id)->first();
+        if (!$product) {
+            if ($type === 'minus') {
+                return;
+            }
+            $product = new WarehouseProduct();
+            $product->warehouse_id = $warehouse_id;
+            $product->product_id = $product_id;
+            $product->quantity = 0;
+            $product->created_by = \Auth::user()->creatorId();
+        }
 
-        $pro_quantity = (!empty($product) && !empty($product->quantity)) ? $product->quantity : 0;
-
+        $pro_quantity = (float) ($product->quantity ?? 0);
         if ($type == 'minus') {
-            $product->quantity = $pro_quantity != 0 ? $pro_quantity - $quantity : $quantity;
+            $product->quantity = max(0, $pro_quantity - $quantity);
         } else {
             $product->quantity = $pro_quantity + $quantity;
         }

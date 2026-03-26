@@ -1265,6 +1265,24 @@
                                 <i data-feather="chevron-right"></i></span>
                         </a>
                         <ul class="dash-submenu">
+                            @can('manage warehouse')
+                                <li
+                                    class="dash-item {{ Request::route()->getName() == 'warehouse.index' || Request::route()->getName() == 'warehouse.show' ? ' active' : '' }}">
+                                    <a class="dash-link" href="{{ route('warehouse.index') }}">{{ __('Warehouse') }}</a>
+                                </li>
+                            @endcan
+                            @can('manage warehouse')
+                                <li
+                                    class="dash-item {{ Request::route()->getName() == 'warehouse-transfer.index' || Request::route()->getName() == 'warehouse-transfer.show' ? ' active' : '' }}">
+                                    <a class="dash-link"
+                                        href="{{ route('warehouse-transfer.index') }}">{{ __('Transfer') }}</a>
+                                </li>
+                            @endcan
+                            @can('manage warehouse')
+                                <li class="dash-item {{ Request::route()->getName() == 'warehouse-loss.index' ? ' active' : '' }}">
+                                    <a class="dash-link" href="{{ route('warehouse-loss.index') }}">{{ __('Warehouse Loss') }}</a>
+                                </li>
+                            @endcan
                             @if (Gate::check('manage product & service'))
                                 <li class="dash-item {{ Request::segment(1) == 'productservice' ? 'active' : '' }}">
                                     <a href="{{ route('productservice.index') }}"
@@ -1304,19 +1322,6 @@
                                         href="{{ route('branch.index') }}">{{ __('Branch') }}</a>
                                 </li>
                             @endif
-                            @can('manage warehouse')
-                                <li
-                                    class="dash-item {{ Request::route()->getName() == 'warehouse.index' || Request::route()->getName() == 'warehouse.show' ? ' active' : '' }}">
-                                    <a class="dash-link" href="{{ route('warehouse.index') }}">{{ __('Warehouse') }}</a>
-                                </li>
-                            @endcan
-                            @can('manage warehouse')
-                                <li
-                                    class="dash-item {{ Request::route()->getName() == 'warehouse-transfer.index' || Request::route()->getName() == 'warehouse-transfer.show' ? ' active' : '' }}">
-                                    <a class="dash-link"
-                                        href="{{ route('warehouse-transfer.index') }}">{{ __('Transfer') }}</a>
-                                </li>
-                            @endcan
                         </ul>
                     </li>
                 @endif

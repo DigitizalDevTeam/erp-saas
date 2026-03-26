@@ -12,6 +12,17 @@
             {{ Form::select('type',$types,null, array('class' => 'form-control select cattype','required'=>'required')) }}
         </div>
 
+        <div class="form-group col-md-12">
+            {{ Form::label('parent_id', __('Parent Category'),['class'=>'form-label']) }}
+            <select name="parent_id" id="parent_id" class="form-control select">
+                <option value="">{{ __('None (Top level)') }}</option>
+                @foreach(($allCategories ?? []) as $c)
+                    <option value="{{ $c->id }}" data-type="{{ $c->type }}" {{ (int)($category->parent_id ?? 0) === (int)$c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+                @endforeach
+            </select>
+            <small class="text-muted">{{ __('Optional. Choose a parent to create subcategories (unlimited depth).') }}</small>
+        </div>
+
 
         <div class="form-group col-md-12 account {{$category->type =='product & service'? 'd-none':''}}">
             {{Form::label('chart_account_id',__('Account'),['class'=>'form-label'])}}
@@ -55,6 +66,13 @@
 
     $(document).on('change', '#type', function () {
         var type = $(this).val();
+
+        // filter parent options by selected type
+        $('#parent_id option').each(function () {
+            var optType = $(this).data('type');
+            if (!optType) return; // placeholder
+            $(this).prop('hidden', optType != type);
+        });
 
         $.ajax({
             url: '{{route('productServiceCategory.getaccount')}}',
