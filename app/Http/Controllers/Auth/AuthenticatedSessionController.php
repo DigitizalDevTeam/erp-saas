@@ -177,6 +177,14 @@ class AuthenticatedSessionController extends Controller
             Utility::migrationEntryDelete();
         }
 
+        if ($user->two_factor_enabled && !empty($user->two_factor_secret)) {
+            $request->session()->put('2fa:user:id', $user->id);
+            $request->session()->put('2fa:remember', $request->boolean('remember'));
+            Auth::logout();
+
+            return redirect()->route('2fa.challenge');
+        }
+
         $setting = Utility::settingsById($user->creatorId());
 
         $timezone = $setting['timezone'] ? $setting['timezone'] : 'UTC';

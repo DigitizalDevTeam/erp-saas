@@ -451,17 +451,11 @@
                                             <p class="mb-0 text-dark subtotal_price" id="displaytotal">
                                                 {{ Auth::user()->priceFormat($total) }}</p>
                                         </div>
-                                        <div class="d-flex align-items-center justify-content-between align-items-center gap-2 mb-2 discount-wrap flex-wrap" data-currency-symbol="{{ \Auth::user()->currencySymbol() }}">
+                                        <div class="d-flex align-items-center justify-content-between align-items-center gap-2 mb-2 discount-wrap">
                                             <p class="mb-0 text-dark">{{ __('pos.discount') }} :</p>
-                                            <div class="d-flex align-items-center gap-1 flex-nowrap">
-                                                <select class="form-select form-select-sm pos-discount-type" id="pos_discount_type" style="width: auto; min-width: 95px;">
-                                                    <option value="fixed">{{ __('Fixed') }}</option>
-                                                    <option value="percentage">{{ __('Percentage') }}</option>
-                                                </select>
-                                                <div class="input-group input-group-sm pos-discount-input-wrap" style="max-width: 100px;">
-                                                    <span class="input-group-text bg-transparent pos-discount-prefix" style="padding: 0.50rem 0.75rem !important;">{{ \Auth::user()->currencySymbol() }}</span>
-                                                    <input type="number" name="discount" class="form-control form-control-sm discount pos-discount-value" id="pos_discount_value" value="{{ $discount }}" min="0" step="0.01" placeholder="0" data-max-percent="100">
-                                                </div>
+                                            <div class="d-flex align-items-center input-group input-group-sm" style="max-width: 120px;">
+                                                <span class="input-group-text bg-transparent" style="padding: 0.50rem 0.75rem !important;">{{ \Auth::user()->currencySymbol() }}</span>
+                                                {{ Form::number('discount', $discount, ['class' => 'form-control form-control-sm discount', 'required' => 'required', 'placeholder' => '0']) }}
                                             </div>
                                             {{ Form::hidden('discount_hidden', $discount, ['id' => 'discount_hidden']) }}
                                         </div>
@@ -498,7 +492,7 @@
     </div>{{-- /pos-page --}}
 
     <div class="modal fade" id="commonModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
-        aria-hidden="true" style="z-index: 9999999;">
+        aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -697,15 +691,9 @@
                                     <option value="cash">{{ __('pos.payment_cash') }}</option>
                                     <option value="card">{{ __('pos.payment_card') }}</option>
                                     <option value="visa">{{ __('pos.payment_visa') }}</option>
-                                    <option value="mpesa">{{ __('pos.payment_mpesa') }}</option>
-                                    <option value="bank_transfer">{{ __('pos.payment_bank_transfer') }}</option>
                                     <option value="cheque">{{ __('pos.payment_cheque') }}</option>
                                 </select>
                             </div>
-                        </div>
-                        <div class="mb-3 d-none" id="pos-pay-balance-transaction-wrap">
-                            <label class="form-label">{{ __('Transaction ID') }}</label>
-                            <input type="text" name="transaction_id" id="pos-pay-balance-transaction-id" class="form-control" placeholder="{{ __('Transaction ID') }}">
                         </div>
                         <div class="mb-3">
                             <label class="form-label">{{ __('Bank account') }} <span class="text-danger">*</span></label>
@@ -942,8 +930,7 @@
                 $('.mixed-row').each(function() {
                     var amt = parseFloat($(this).find('.mixed-amount').val()) || 0;
                     if (amt > 0) {
-                        var txn = ($(this).find('.mixed-transaction-id').val() || '').trim();
-                        payments.push({ payment_method: $(this).find('.mixed-method').val(), amount: amt, transaction_id: txn || null });
+                        payments.push({ payment_method: $(this).find('.mixed-method').val(), amount: amt });
                         totalPaid += amt;
                     }
                 });
@@ -1107,12 +1094,10 @@
                                     $('#payment_change').val('0');
                                 }
                             }
-                            function mixedNeedsTxn(m) { return m && m !== 'cash' && m !== 'credit'; }
                             function addMixedRow() {
-                                var row = '<div class="mixed-row mb-2"><div class="input-group input-group-sm mb-1"><select class="form-select form-select-sm mixed-method">' + payOptsRow + '</select><input type="number" step="0.01" min="0" class="form-control form-control-sm mixed-amount" placeholder="{{ __("pos.enter_amount") }}"><button type="button" class="btn btn-outline-danger btn-sm mixed-remove">&times;</button></div><div class="mixed-txn-wrap d-none mt-1"><input type="text" class="form-control form-control-sm mixed-transaction-id" placeholder="{{ __("Transaction ID") }}"></div></div>';
+                                var row = '<div class="mixed-row input-group input-group-sm mb-1"><select class="form-select form-select-sm mixed-method">' + payOptsRow + '</select><input type="number" step="0.01" min="0" class="form-control form-control-sm mixed-amount" placeholder="{{ __("pos.enter_amount") }}"><button type="button" class="btn btn-outline-danger btn-sm mixed-remove">&times;</button></div>';
                                 $('#mixed_payment_rows').append(row);
                                 $(document).off('input.posoffline change.posoffline', '.mixed-amount').on('input.posoffline change.posoffline', '.mixed-amount', updateMixedTotals);
-                                $(document).off('change.posoffline', '.mixed-method').on('change.posoffline', '.mixed-method', function() { var $r = $(this).closest('.mixed-row'); $r.find('.mixed-txn-wrap').toggleClass('d-none', !mixedNeedsTxn($(this).val())); });
                                 $(document).off('click.posoffline', '.mixed-remove').on('click.posoffline', '.mixed-remove', function() { $(this).closest('.mixed-row').remove(); updateMixedTotals(); });
                                 updateMixedTotals();
                             }
@@ -1276,7 +1261,6 @@
                 }
             });
             $(document).on('click', '#commonModal #print', function () {
-                if (document.getElementById('print-copies')) return;
                 var print_div = document.getElementById('printarea');
                 if (!print_div) return;
                 $('.row').addClass('d-none');
@@ -1427,13 +1411,7 @@
                                 }
                             });
                             $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
-                            $('#pos-restaurant-subtotal').text('0');
-                            $('#pos-restaurant-total').data('subtotal', 0);
-                            $('#discount_restaurant').val('0');
-                            if ($('#pos_discount_type_restaurant').length) $('#pos_discount_type_restaurant').val('fixed');
-                            $('#discount_hidden_restaurant').val('0');
-                            if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
-                            else $('#pos-restaurant-total').text('0');
+                            $('#pos-restaurant-total').text('0');
                             $('#pos-pay-btn-restaurant').prop('disabled', false);
                         }
                     });
@@ -1547,13 +1525,7 @@
                     data: { session_key: sk },
                     success: function () {
                         $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
-                        $('#pos-restaurant-subtotal').text('0');
-                        $('#pos-restaurant-total').data('subtotal', 0);
-                        $('#discount_restaurant').val('0');
-                        if ($('#pos_discount_type_restaurant').length) $('#pos_discount_type_restaurant').val('fixed');
-                        $('#discount_hidden_restaurant').val('0');
-                        if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
-                        else $('#pos-restaurant-total').text('0');
+                        $('#pos-restaurant-total').text('0');
                         $('#pos-pay-btn-restaurant').prop('disabled', true);
                         show_toastr('success', '{{ __("Cart is empty!") }}', 'success');
                     }
@@ -1609,13 +1581,7 @@
                             if (res.success) {
                                 doPrint();
                                 $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="8">{{ __("pos.no_data_found") }}</td></tr>');
-                                $('#pos-restaurant-subtotal').text('0');
-                                $('#pos-restaurant-total').data('subtotal', 0);
-                                $('#discount_restaurant').val('0');
-                                if ($('#pos_discount_type_restaurant').length) $('#pos_discount_type_restaurant').val('fixed');
-                                $('#discount_hidden_restaurant').val('0');
-                                if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
-                                else $('#pos-restaurant-total').text('0');
+                                $('#pos-restaurant-total').text('0');
                                 $('#pos-pay-btn-restaurant').prop('disabled', true);
                             }
                         },
@@ -1872,12 +1838,6 @@
                     }
                 });
                 $('#posPayBalanceModal').modal('show');
-                var pm = $('#pos-pay-balance-payment-method').val();
-                $('#pos-pay-balance-transaction-wrap').toggleClass('d-none', !pm || pm === 'cash');
-            });
-            $(document).on('change', '#pos-pay-balance-payment-method', function() {
-                var pm = $(this).val();
-                $('#pos-pay-balance-transaction-wrap').toggleClass('d-none', !pm || pm === 'cash');
             });
             $(document).on('submit', '#pos-pay-balance-form', function(e) {
                 e.preventDefault();
@@ -2192,10 +2152,7 @@
                                 }
                                 sum = 0;
                                 $(posCartItemSelector(tbodySel)).each(function() { sum += parseFloat($(this).attr('data-subtotal')) || 0; });
-                                $('#pos-restaurant-subtotal').text(addCommas(sum));
-                                $('#pos-restaurant-total').data('subtotal', sum);
-                                if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
-                                else $('#pos-restaurant-total').text(addCommas(sum));
+                                $('#pos-restaurant-total').text(addCommas(sum));
                             } else {
                                 if ('carttotal' in data) {
                                     if (data.carthtml) {
@@ -2215,10 +2172,6 @@
                                     $('.totalamount').text(addCommas(sum));
                                     $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                                     $('.discount').val('');
-                                    $('#pos_discount_type').val('fixed');
-                                    $('#pos_discount_value').val('0');
-                                    $('#discount_hidden').val('0');
-                                    $('#pos-retail-panel .discount-wrap').find('.pos-discount-prefix').text($('#pos-retail-panel .discount-wrap').data('currency-symbol') || '');
                                 } else if (data.carthtml) {
                                     $('#tbody').append(data.carthtml);
                                     $('.no-found').addClass('d-none');
@@ -2265,14 +2218,7 @@
                 } else if (!inRestaurant) $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
                 var total = 0;
                 $(posCartItemSelector(tbodySel)).each(function() { total += parseFloat($(this).attr('data-subtotal')) || 0; });
-                if (inRestaurant) {
-                    $('#pos-restaurant-subtotal').text(addCommas(total));
-                    $('#pos-restaurant-total').data('subtotal', total);
-                    if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
-                    else $(totalSel).text(addCommas(total));
-                } else {
-                    $(totalSel).text(addCommas(total));
-                }
+                $(totalSel).text(addCommas(total));
             });
 
             $(document).on('change keyup', '#carthtml input[name="quantity"], #carthtml-restaurant input[name="quantity"]', function (e) {
@@ -2293,17 +2239,8 @@
                         $row.find('.subtotal').text(addCommas(subtotal));
                         var total = 0;
                         $(posCartItemSelector(tbodySel)).each(function() { total += parseFloat($(this).attr('data-subtotal')) || 0; });
-                        if (inRestaurant) {
-                            $('#pos-restaurant-subtotal').text(addCommas(total));
-                            $('#pos-restaurant-total').data('subtotal', total);
-                            if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
-                            else $('#pos-restaurant-total').text(addCommas(total));
-                        } else {
-                            $('#displaytotal').text(addCommas(total));
-                            $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')');
-                            if (typeof posApplyDiscount === 'function') posApplyDiscount();
-                            else $('.totalamount').text(addCommas(total));
-                        }
+                        if (inRestaurant) $('#pos-restaurant-total').text(addCommas(total));
+                        else { $('#displaytotal').text(addCommas(total)); $('.totalamount').text(addCommas(total)); $('#pos-cart-count').text('(' + $('#tbody [data-product-id]').length + ')'); }
                     } else if (quantity === 0) {
                         ele.closest('[data-product-id]').remove();
                         if ($(posCartItemSelector(tbodySel)).length === 0) {
@@ -2315,7 +2252,7 @@
                     return;
                 }
                 var sum = 0;
-                var discount = inRestaurant ? ($('#discount_hidden_restaurant').val() || '0') : ($('#discount_hidden').val() || '0');
+                var discount = $('.discount').val();
                 if (quantity != null && quantity != 0) {
                     $.ajax({
                         url: ele.data('url'),
@@ -2341,16 +2278,8 @@
                                     sum += value.subtotal;
                                     $('#' + rowIdPrefix + value.id + ' .subtotal').text(addCommas(value.subtotal));
                                 });
-                                if (inRestaurant) {
-                                    $('#pos-restaurant-subtotal').text(addCommas(sum));
-                                    $('#pos-restaurant-total').data('subtotal', sum);
-                                    if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
-                                    else $('#pos-restaurant-total').text(addCommas(sum));
-                                } else {
-                                    $('#displaytotal').text(addCommas(sum));
-                                    $('.totalamount').text(data.discount);
-                                    if (typeof posApplyDiscount === 'function') posApplyDiscount();
-                                }
+                                if (inRestaurant) $('#pos-restaurant-total').text(addCommas(sum));
+                                else { $('#displaytotal').text(addCommas(sum)); $('.totalamount').text(data.discount); }
                             }
                         },
                         error: function (data) {
@@ -2493,13 +2422,7 @@
                         $('#pos-cart-count').text('(0)');
                         $('#tbody-restaurant').html(posEmptyCartHtmlRestaurant);
                         $('#displaytotal, .totalamount').text('0');
-                        $('#pos-restaurant-subtotal').text('0');
-                        $('#pos-restaurant-total').data('subtotal', 0);
-                        $('#discount_restaurant').val('0');
-                        if ($('#pos_discount_type_restaurant').length) $('#pos_discount_type_restaurant').val('fixed');
-                        $('#discount_hidden_restaurant').val('0');
-                        if (typeof posApplyRestaurantDiscount === 'function') posApplyRestaurantDiscount();
-                        else $('#pos-restaurant-total').text('0');
+                        $('#pos-restaurant-total').text('0');
                         $('#pos-pay-btn').prop('disabled', true);
                         $('.btn-empty button').removeClass('btn-clear-cart');
                         $('#pos-pay-btn-restaurant').prop('disabled', true);
@@ -2537,96 +2460,34 @@
                 var warehouse_id = $('#warehouse').val();
                 searchProducts(posSearchProductsUrl, '', cat, warehouse_id, 'name');
             });
-            function getRetailSubtotal() {
-                var raw = $('#displaytotal').text().replace(/,/g, '').replace(/[^\d.-]/g, '');
-                var fromDisplay = parseFloat(raw);
-                if (!isNaN(fromDisplay) && fromDisplay > 0) return fromDisplay;
-                var subtotal = 0;
-                $('#tbody [data-product-id]').each(function() {
-                    var p = parseFloat($(this).attr('data-price')) || 0;
-                    var t = parseFloat($(this).attr('data-tax')) || 0;
-                    var q = parseInt($(this).find('input.input-number').val() || 1, 10);
-                    subtotal += (p + p * t / 100) * q;
-                });
-                return subtotal;
-            }
-            function posApplyDiscount() {
-                if ($('#pos-retail-panel').hasClass('d-none') || !$('#discount_hidden').length) return;
-                var type = ($('#pos_discount_type').val() || 'fixed');
-                var val = parseFloat($('.pos-discount-value').val() || $('.discount').val() || 0) || 0;
-                var subtotal = getRetailSubtotal();
-                var amount = type === 'percentage' ? (Math.min(100, Math.max(0, val)) / 100 * subtotal) : Math.max(0, val);
-                $('#discount_hidden').val(amount.toFixed(2));
+            $(document).on('keyup', '.discount', function () {
+                var discount = parseFloat($('.discount').val()) || 0;
+                $( "#discount_hidden" ).val(discount);
                 if (!navigator.onLine) {
-                    $('.totalamount').text(addCommas(Math.max(0, subtotal - amount)));
+                    var subtotal = 0;
+                    $('#tbody [data-product-id]').each(function() {
+                        var p = parseFloat($(this).attr('data-price')) || 0;
+                        var t = parseFloat($(this).attr('data-tax')) || 0;
+                        var q = parseInt($(this).find('input.input-number').val() || 1, 10);
+                        subtotal += (p + p * t / 100) * q;
+                    });
+                    var total = Math.max(0, subtotal - discount);
+                    $('.totalamount').text(addCommas(total));
                     return;
                 }
                 $.ajax({
-                    url: "{{ route('cartdiscount') }}",
+                    url: "{{route('cartdiscount')}}",
                     method: 'POST',
-                    data: { discount: amount },
+                    data: {discount: discount},
                     success: function (data) {
                         $('.totalamount').text(data.total);
                     },
-                    error: function (xhr) {
-                        var data = xhr.responseJSON || {};
+                    error: function (data) {
+                        data = data.responseJSON || {};
                         show_toastr('{{ __("Error") }}', data.error || '{{ __("pos.error") }}', 'error');
                     }
                 });
-            }
-            $(document).on('change', '#pos_discount_type', function () {
-                var type = $(this).val();
-                var $wrap = $('#pos-retail-panel .discount-wrap').first();
-                var sym = $wrap.data('currency-symbol') || $wrap.find('.pos-discount-prefix').text();
-                $wrap.find('.pos-discount-prefix').text(type === 'percentage' ? '%' : sym);
-                $wrap.find('.pos-discount-value').attr('max', type === 'percentage' ? '100' : '');
-                posApplyDiscount();
-            });
-            $(document).on('keyup input', '.discount', function () {
-                var type = ($('#pos_discount_type').val() || 'fixed');
-                if (type === 'percentage') {
-                    var v = parseFloat($(this).val()) || 0;
-                    if (v > 100) $(this).val(100);
-                }
-                posApplyDiscount();
-            });
-            $(document).on('change', '.pos-discount-value', function () {
-                posApplyDiscount();
-            });
-
-            function getRestaurantSubtotal() {
-                var fromData = parseFloat($('#pos-restaurant-total').data('subtotal'));
-                if (!isNaN(fromData) && fromData >= 0) return fromData;
-                var raw = $('#pos-restaurant-subtotal').text().replace(/,/g, '').replace(/[^\d.-]/g, '');
-                var fromDisplay = parseFloat(raw);
-                if (!isNaN(fromDisplay) && fromDisplay >= 0) return fromDisplay;
-                var sum = 0;
-                $('#tbody-restaurant [data-product-id]').each(function() { sum += parseFloat($(this).attr('data-subtotal')) || 0; });
-                return sum;
-            }
-            function posApplyRestaurantDiscount() {
-                if (!$('#discount_hidden_restaurant').length || !$('#pos-restaurant-panel').length || $('#pos-restaurant-panel').hasClass('d-none')) return;
-                var type = ($('#pos_discount_type_restaurant').val() || 'fixed');
-                var val = parseFloat($('#discount_restaurant').val() || 0) || 0;
-                var subtotal = getRestaurantSubtotal();
-                var amount = type === 'percentage' ? (Math.min(100, Math.max(0, val)) / 100 * subtotal) : Math.max(0, val);
-                $('#discount_hidden_restaurant').val(amount.toFixed(2));
-                var totalVal = Math.max(0, subtotal - amount);
-                $('#pos-restaurant-total').text(addCommas(totalVal));
-            }
-            $(document).on('change', '#pos_discount_type_restaurant', function () {
-                var type = $(this).val();
-                var $wrap = $('.discount-wrap-restaurant').first();
-                var sym = $wrap.data('currency-symbol') || $wrap.find('.pos-discount-prefix-restaurant').text();
-                $wrap.find('.pos-discount-prefix-restaurant').text(type === 'percentage' ? '%' : sym);
-                $wrap.find('.pos-discount-value-restaurant').attr('max', type === 'percentage' ? '100' : '');
-                posApplyRestaurantDiscount();
-            });
-            $(document).on('keyup input', '#discount_restaurant', function () {
-                var type = ($('#pos_discount_type_restaurant').val() || 'fixed');
-                if (type === 'percentage') { var v = parseFloat($(this).val()) || 0; if (v > 100) $(this).val(100); }
-                posApplyRestaurantDiscount();
-            });
+            })
 
         });
 

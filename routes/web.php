@@ -524,6 +524,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('/project-dashboard', [DashboardController::class, 'project_dashboard_index'])->name('project.dashboard')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('/hrm-dashboard', [DashboardController::class, 'hrm_dashboard_index'])->name('hrm.dashboard')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('/crm-dashboard', [DashboardController::class, 'crm_dashboard_index'])->name('crm.dashboard')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('/sales-dashboard', [DashboardController::class, 'sales_dashboard_index'])->name('sales.dashboard')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('/pos-dashboard', [DashboardController::class, 'pos_dashboard_index'])->name('pos.dashboard')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::get('profile', [UserController::class, 'profile'])->name('profile')->middleware(['auth', 'XSS', 'revalidate']);
@@ -533,6 +534,9 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('users', UserController::class)->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::post('change-password', [UserController::class, 'updatePassword'])->name('update.password');
+    Route::post('2fa/enable', [UserController::class, 'enableTwoFactor'])->name('2fa.enable')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('2fa/disable', [UserController::class, 'disableTwoFactor'])->name('2fa.disable')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('2fa/recovery-codes', [UserController::class, 'regenerateTwoFactorRecoveryCodes'])->name('2fa.recovery.regenerate')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::any('user-reset-password/{id}', [UserController::class, 'userPassword'])->name('users.reset');
 

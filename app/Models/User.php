@@ -39,6 +39,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'commission_amount',
         'paid_amount',
         'is_enable_login',
+        'two_factor_enabled',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
         'last_login_at',
         'created_by',
         'pos_branch_id',
@@ -50,6 +53,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'remember_token',
         'pos_pin',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
     protected $casts = [

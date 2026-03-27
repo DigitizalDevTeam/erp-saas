@@ -38,6 +38,7 @@
                     <a href="#personal_info" class="list-group-item list-group-item-action border-0">{{__('Personal Info')}} <div class="float-end"><i class="ti ti-chevron-right"></i></div></a>
 
                     <a href="#change_password" class="list-group-item list-group-item-action border-0">{{__('Change Password')}}<div class="float-end"><i class="ti ti-chevron-right"></i></div></a>
+                    <a href="#two_factor_auth" class="list-group-item list-group-item-action border-0">{{__('Two-Factor Authentication')}}<div class="float-end"><i class="ti ti-chevron-right"></i></div></a>
                 </div>
             </div>
         </div>
@@ -115,6 +116,78 @@
                     </form>
                 </div>
 
+            </div>
+
+            <div id="two_factor_auth" class="card">
+                <div class="card-header">
+                    <h5>{{__('Google Authenticator (2FA)')}}</h5>
+                </div>
+                <div class="card-body">
+                    @if(session('two_factor_recovery_codes_plain'))
+                        <div class="alert alert-warning">
+                            <strong>{{ __('Save these recovery codes in a safe place. Each code can be used once.') }}</strong>
+                            <div class="mt-2">
+                                @foreach(session('two_factor_recovery_codes_plain') as $code)
+                                    <div><code>{{ $code }}</code></div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    @if(!$userDetail->two_factor_enabled)
+                        <p class="text-muted">{{ __('Scan this QR code in Google Authenticator and verify using a 6-digit code.') }}</p>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <img src="{{ $twoFactorQrUrl }}" alt="2FA QR" class="img-fluid border rounded p-2">
+                            </div>
+                            <div class="col-md-8 mb-3">
+                                <label class="form-label">{{ __('Manual setup key') }}</label>
+                                <input type="text" class="form-control" value="{{ $twoFactorSecret }}" readonly>
+                            </div>
+                        </div>
+
+                        <form method="post" action="{{ route('2fa.enable') }}">
+                            @csrf
+                            <div class="row">
+                                <div class="col-md-6 form-group">
+                                    <label class="form-label">{{ __('Authenticator Code') }}</label>
+                                    <input type="text" name="otp" maxlength="6" pattern="\d{6}" class="form-control" placeholder="{{ __('123456') }}" required>
+                                </div>
+                                <div class="col-md-12 text-end">
+                                    <button type="submit" class="btn btn-primary">{{ __('Enable 2FA') }}</button>
+                                </div>
+                            </div>
+                        </form>
+                    @else
+                        <div class="alert alert-success">{{ __('Two-factor authentication is enabled for your account.') }}</div>
+
+                        <form method="post" action="{{ route('2fa.recovery.regenerate') }}" class="mb-3">
+                            @csrf
+                            <div class="row">
+                                <div class="col-md-6 form-group">
+                                    <label class="form-label">{{ __('Current Password (for recovery code regeneration)') }}</label>
+                                    <input type="password" name="password" class="form-control" required>
+                                </div>
+                                <div class="col-md-12 text-end">
+                                    <button type="submit" class="btn btn-light-primary">{{ __('Regenerate Recovery Codes') }}</button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <form method="post" action="{{ route('2fa.disable') }}">
+                            @csrf
+                            <div class="row">
+                                <div class="col-md-6 form-group">
+                                    <label class="form-label">{{ __('Current Password (to disable 2FA)') }}</label>
+                                    <input type="password" name="password" class="form-control" required>
+                                </div>
+                                <div class="col-md-12 text-end">
+                                    <button type="submit" class="btn btn-danger">{{ __('Disable 2FA') }}</button>
+                                </div>
+                            </div>
+                        </form>
+                    @endif
+                </div>
             </div>
         </div>
 @endsection

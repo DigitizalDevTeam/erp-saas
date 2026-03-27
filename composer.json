@@ -33,6 +33,7 @@
         "obydul/laraskrill": "^1.2",
         "orhanerday/open-ai": "^5.2",
         "paymentwall/paymentwall-php": "^2.2",
+        "pragmarx/google2fa": "^9.0",
         "psr/simple-cache": "^3.0",
         "rachidlaasri/laravel-installer": "^4.1",
         "spatie/browsershot": "^4.3",

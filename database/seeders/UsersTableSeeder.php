@@ -36,6 +36,12 @@ class UsersTableSeeder extends Seeder
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
             [
+                'name' => 'show sales dashboard',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
                 'name' => 'show hrm dashboard',
                 'guard_name' => 'web',
                 'created_at' => date('Y-m-d H:i:s'),
@@ -3312,6 +3318,7 @@ class UsersTableSeeder extends Seeder
         $companyPermissions = [
             'show pos dashboard',
             'show crm dashboard',
+            'show sales dashboard',
             'show hrm dashboard',
             'show project dashboard',
             'show account dashboard',

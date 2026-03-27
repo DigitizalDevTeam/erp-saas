@@ -24,7 +24,9 @@ use Spatie\Permission\Models\Role;
 use App\Models\ReferralTransaction;
 use App\Models\ReferralSetting;
 use App\Services\PosRestaurantRoleService;
+use App\Services\TotpService;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
 
 class UserController extends Controller
 {
@@ -473,8 +475,24 @@ class UserController extends Controller
         $userDetail = \Auth::user();
         $userDetail->customField = CustomField::getData($userDetail, 'user');
         $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'user')->get();
+        $totpService = new TotpService();
 
-        return view('user.profile', compact('userDetail', 'customFields'));
+        if ($userDetail->two_factor_enabled && !empty($userDetail->two_factor_secret)) {
+            $twoFactorSecret = decrypt($userDetail->two_factor_secret);
+        } else {
+            $twoFactorSecret = session('two_factor_setup_secret');
+            if (empty($twoFactorSecret)) {
+                $twoFactorSecret = $totpService->generateSecretKey();
+                session(['two_factor_setup_secret' => $twoFactorSecret]);
+            }
+        }
+
+        $appName = config('app.name', 'ERP-SaaS');
+        $otpAuthUrl = $totpService->getQRCodeUrl($appName, $userDetail->email, $twoFactorSecret);
+        $twoFactorQrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($otpAuthUrl);
+        $plainRecoveryCodes = session('two_factor_recovery_codes_plain', []);
+
+        return view('user.profile', compact('userDetail', 'customFields', 'twoFactorSecret', 'twoFactorQrUrl', 'plainRecoveryCodes'));
     }
 
     public function editprofile(Request $request)
@@ -567,6 +585,90 @@ class UserController extends Controller
         } else {
             return redirect()->route('profile', \Auth::user()->id)->with('error', __('Something is wrong.'));
         }
+    }
+
+    public function enableTwoFactor(Request $request)
+    {
+        $request->validate([
+            'otp' => 'required|digits:6',
+        ]);
+
+        $user = Auth::user();
+        $secret = session('two_factor_setup_secret');
+        if (empty($secret)) {
+            return redirect()->route('profile')->with('error', __('Two-factor setup expired. Please try again.'));
+        }
+
+        $totpService = new TotpService();
+        if (!$totpService->verifyKey($secret, $request->otp)) {
+            return redirect()->route('profile')->with('error', __('Invalid authentication code.'));
+        }
+
+        $recoveryCodes = $this->generatePlainRecoveryCodes();
+        $user->two_factor_enabled = true;
+        $user->two_factor_secret = encrypt($secret);
+        $user->two_factor_recovery_codes = json_encode(array_map(fn ($code) => Hash::make($code), $recoveryCodes));
+        $user->save();
+
+        session()->forget('two_factor_setup_secret');
+        session()->flash('two_factor_recovery_codes_plain', $recoveryCodes);
+
+        return redirect()->route('profile')->with('success', __('Two-factor authentication enabled successfully.'));
+    }
+
+    public function disableTwoFactor(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|string',
+        ]);
+
+        $user = Auth::user();
+        if (!Hash::check($request->password, $user->password)) {
+            return redirect()->route('profile')->with('error', __('Please enter correct current password.'));
+        }
+
+        $user->two_factor_enabled = false;
+        $user->two_factor_secret = null;
+        $user->two_factor_recovery_codes = null;
+        $user->save();
+
+        session()->forget('two_factor_setup_secret');
+
+        return redirect()->route('profile')->with('success', __('Two-factor authentication disabled successfully.'));
+    }
+
+    public function regenerateTwoFactorRecoveryCodes(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|string',
+        ]);
+
+        $user = Auth::user();
+        if (!$user->two_factor_enabled || empty($user->two_factor_secret)) {
+            return redirect()->route('profile')->with('error', __('Two-factor authentication is not enabled.'));
+        }
+
+        if (!Hash::check($request->password, $user->password)) {
+            return redirect()->route('profile')->with('error', __('Please enter correct current password.'));
+        }
+
+        $recoveryCodes = $this->generatePlainRecoveryCodes();
+        $user->two_factor_recovery_codes = json_encode(array_map(fn ($code) => Hash::make($code), $recoveryCodes));
+        $user->save();
+
+        session()->flash('two_factor_recovery_codes_plain', $recoveryCodes);
+
+        return redirect()->route('profile')->with('success', __('Recovery codes regenerated successfully.'));
+    }
+
+    private function generatePlainRecoveryCodes(): array
+    {
+        $codes = [];
+        for ($i = 0; $i < 8; $i++) {
+            $codes[] = Str::upper(Str::random(4) . '-' . Str::random(4));
+        }
+
+        return $codes;
     }
     // User To do module
     public function todo_store(Request $request)

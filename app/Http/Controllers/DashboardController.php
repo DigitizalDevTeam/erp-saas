@@ -490,8 +490,77 @@ class DashboardController extends Controller
                 return view('dashboard.crm-dashboard', compact('crm_data'));
             }
         } else {
+            return $this->sales_dashboard_index();
+        }
+    }
+
+    public function sales_dashboard_index()
+    {
+        if (!Auth::check()) {
+            return redirect('login');
+        }
+
+        $user = Auth::user();
+        if ($user->type !== 'company' && !$user->can('show sales dashboard')) {
             return $this->pos_dashboard_index();
         }
+
+        $creatorId = $user->creatorId();
+        $company = User::find($creatorId);
+
+        $salesUsersQuery = User::where('created_by', $creatorId)
+            ->where('type', '!=', 'client')
+            ->where('type', '!=', 'super admin');
+
+        $clientsQuery = User::where('created_by', $creatorId)
+            ->where('type', 'client');
+
+        $salesData = [];
+        $salesData['totalSalesUsers'] = (clone $salesUsersQuery)->count();
+        $salesData['activeSalesUsers'] = (clone $salesUsersQuery)->where('is_enable_login', 1)->count();
+        $salesData['totalClients'] = (clone $clientsQuery)->count();
+        $salesData['activeClients'] = (clone $clientsQuery)->where('is_enable_login', 1)->count();
+        $salesData['recentlyActiveUsers'] = User::where('created_by', $creatorId)
+            ->whereNotNull('last_login_at')
+            ->where('last_login_at', '>=', now()->subDays(7))
+            ->count();
+
+        $salesData['licenseEndsAt'] = !empty($company) ? $company->plan_expire_date : null;
+        if (!empty($salesData['licenseEndsAt'])) {
+            $salesData['licenseDaysRemaining'] = now()->startOfDay()->diffInDays(\Carbon\Carbon::parse($salesData['licenseEndsAt'])->startOfDay(), false);
+        } else {
+            $salesData['licenseDaysRemaining'] = null;
+        }
+
+        $salesData['salesUsers'] = User::where('created_by', $creatorId)
+            ->where('type', '!=', 'client')
+            ->where('type', '!=', 'super admin')
+            ->with('roles:id,name')
+            ->orderByRaw('COALESCE(last_login_at, created_at) DESC')
+            ->limit(10)
+            ->get(['id', 'name', 'email', 'type', 'is_enable_login', 'last_login_at']);
+
+        $salesData['clients'] = User::where('created_by', $creatorId)
+            ->where('type', 'client')
+            ->orderByRaw('COALESCE(last_login_at, created_at) DESC')
+            ->limit(10)
+            ->get(['id', 'name', 'email', 'is_enable_login', 'last_login_at']);
+
+        $salesData['loginLogs'] = DB::table('login_details')
+            ->join('users', 'login_details.user_id', '=', 'users.id')
+            ->where('users.created_by', $creatorId)
+            ->orderByDesc('login_details.date')
+            ->limit(10)
+            ->select([
+                'users.name as user_name',
+                'users.type as user_type',
+                'login_details.ip',
+                'login_details.date',
+                'login_details.Details as details',
+            ])
+            ->get();
+
+        return view('dashboard.sales-dashboard', compact('salesData'));
     }
 
     public function pos_dashboard_index()

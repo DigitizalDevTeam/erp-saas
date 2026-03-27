@@ -40,6 +40,7 @@
                         Gate::check('show project dashboard') ||
                         Gate::check('show account dashboard') ||
                         Gate::check('show crm dashboard') ||
+                        Gate::check('show sales dashboard') ||
                         Gate::check('show pos dashboard'))
                     <li
                         class="dash-item dash-hasmenu
@@ -69,6 +70,7 @@
                                 Request::segment(1) == 'reports-monthly-attendance' ||
                                 Request::segment(1) == 'reports-lead' ||
                                 Request::segment(1) == 'reports-deal' ||
+                                Request::segment(1) == 'sales-dashboard' ||
                                 Request::segment(1) == 'pos-dashboard' ||
                                 Request::segment(1) == 'reports-warehouse' ||
                                 Request::segment(1) == 'reports-daily-purchase' ||
@@ -288,6 +290,12 @@
                                     </li>
                                 @endcan
                             @endif
+
+                            @can('show sales dashboard')
+                                <li class="dash-item {{ \Request::route()->getName() == 'sales.dashboard' ? ' active' : '' }}">
+                                    <a class="dash-link" href="{{ route('sales.dashboard') }}">{{ __('Sales Users & Clients') }}</a>
+                                </li>
+                            @endcan
 
                             @if ($userPlan->project == 1)
                                 @can('show project dashboard')

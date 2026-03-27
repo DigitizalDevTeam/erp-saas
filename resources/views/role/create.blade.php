@@ -268,7 +268,7 @@
                 </div>
                 <div class="tab-pane fade" id="crm" role="tabpanel" aria-labelledby="pills-profile-tab">
                     @php
-                        $modules=['crm dashboard','lead','pipeline','lead stage','source','label','lead email','lead call','deal','stage','task','form builder','form response', 'form field', 'contract','contract type'];
+                        $modules=['crm dashboard','sales dashboard','lead','pipeline','lead stage','source','label','lead email','lead call','deal','stage','task','form builder','form response', 'form field', 'contract','contract type'];
                     @endphp
                     <div class="col-md-12">
                         <div class="form-group">
