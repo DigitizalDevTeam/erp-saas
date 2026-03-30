@@ -111,6 +111,15 @@ class CustomerController extends Controller
                 $customer->name            = $request->name;
                 $customer->contact         = $request->contact;
                 $customer->email           = $request->email;
+                $customer->notification_email = $request->filled('notification_email') ? $request->notification_email : null;
+                $customer->notification_phone = $request->filled('notification_phone') ? $request->notification_phone : null;
+                foreach ([
+                    'notify_account_email', 'notify_account_sms', 'notify_account_whatsapp',
+                    'notify_payment_email', 'notify_payment_sms', 'notify_payment_whatsapp',
+                    'notify_invoice_email', 'notify_invoice_sms', 'notify_invoice_whatsapp',
+                ] as $nf) {
+                    $customer->{$nf} = $request->has($nf);
+                }
                 $customer->tax_number      =$request->tax_number;
                 $customer->price_level_id      =$request->price_level_id ?? null;
                 $customer->payment_type      =$request->payment_type;
@@ -373,6 +382,15 @@ class CustomerController extends Controller
             $customer->name             = $request->name;
             $customer->contact          = $request->contact;
             $customer->email           = $request->email;
+            $customer->notification_email = $request->filled('notification_email') ? $request->notification_email : null;
+            $customer->notification_phone = $request->filled('notification_phone') ? $request->notification_phone : null;
+            foreach ([
+                'notify_account_email', 'notify_account_sms', 'notify_account_whatsapp',
+                'notify_payment_email', 'notify_payment_sms', 'notify_payment_whatsapp',
+                'notify_invoice_email', 'notify_invoice_sms', 'notify_invoice_whatsapp',
+            ] as $nf) {
+                $customer->{$nf} = $request->has($nf);
+            }
             $customer->tax_number      =$request->tax_number;
             $customer->price_level_id      =$request->price_level_id ?? null;
             $customer->payment_type      =$request->payment_type;

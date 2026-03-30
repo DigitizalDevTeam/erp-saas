@@ -31,6 +31,7 @@
             </div>
         </div>
 
+        @include('partials.contact_notification_preferences_vendor', ['vender' => null])
 
         <div class="col-lg-6 col-md-6 col-sm-6">
             <div class="form-group">

@@ -108,6 +108,15 @@ class VenderController extends Controller
                     $vender->name             = $request->name;
                     $vender->contact          = $request->contact;
                     $vender->email            = $request->email;
+                    $vender->notification_email = $request->filled('notification_email') ? $request->notification_email : null;
+                    $vender->notification_phone = $request->filled('notification_phone') ? $request->notification_phone : null;
+                    foreach ([
+                        'notify_account_email', 'notify_account_sms', 'notify_account_whatsapp',
+                        'notify_payment_email', 'notify_payment_sms', 'notify_payment_whatsapp',
+                        'notify_bill_email', 'notify_bill_sms', 'notify_bill_whatsapp',
+                    ] as $nf) {
+                        $vender->{$nf} = $request->has($nf);
+                    }
                     $vender->tax_number       = $request->tax_number;
                     $vender->price_level_id      =$request->price_level_id ?? null;
                     $vender->payment_type      =$request->payment_type;
@@ -262,6 +271,15 @@ class VenderController extends Controller
 
             $vender->name             = $request->name;
             $vender->contact          = $request->contact;
+            $vender->notification_email = $request->filled('notification_email') ? $request->notification_email : null;
+            $vender->notification_phone = $request->filled('notification_phone') ? $request->notification_phone : null;
+            foreach ([
+                'notify_account_email', 'notify_account_sms', 'notify_account_whatsapp',
+                'notify_payment_email', 'notify_payment_sms', 'notify_payment_whatsapp',
+                'notify_bill_email', 'notify_bill_sms', 'notify_bill_whatsapp',
+            ] as $nf) {
+                $vender->{$nf} = $request->has($nf);
+            }
             $vender->tax_number      = $request->tax_number;
             $vender->price_level_id      =$request->price_level_id ?? null;
             $vender->payment_type      =$request->payment_type;

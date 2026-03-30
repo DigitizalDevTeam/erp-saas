@@ -17,7 +17,6 @@
     $currantLang = Utility::languages();
     $lang = \App\Models\Utility::getValByName('default_language');
     $webhookSetting = WebhookSetting::where('created_by', '=', \Auth::user()->creatorId())->get();
-
 @endphp
 
 @section('breadcrumb')
@@ -986,7 +985,7 @@
                                     @enderror
                                 </div>
                                 <div class="form-group col-md-6">
-                                    {{ Form::label('stock_alerts_enabled', __('Stock Alerts By Email'), ['class' => 'form-label']) }}
+                                    {{ Form::label('stock_alerts_enabled', __('Stock Alerts (min / max)'), ['class' => 'form-label']) }}
                                     <div class=" form-switch form-switch-left">
                                         <input type="hidden" name="stock_alerts_enabled" value="off">
                                         <input type="checkbox" class="form-check-input" name="stock_alerts_enabled"
@@ -994,12 +993,105 @@
                                             {{ isset($setting['stock_alerts_enabled']) && $setting['stock_alerts_enabled'] == 'on' ? 'checked' : '' }}>
                                         <label class="form-check-label" for="stock_alerts_enabled"></label>
                                     </div>
-                                    <small class="text-muted">{{ __('Send daily email alerts for min/max stock thresholds.') }}</small>
+                                    <small class="text-muted">{{ __('Daily alerts when stock is below minimum or above maximum.') }}</small>
                                 </div>
                                 <div class="form-group col-md-6">
-                                    {{ Form::label('stock_alerts_recipients', __('Stock Alert Recipients'), ['class' => 'form-label']) }}
+                                    {{ Form::label('stock_alerts_recipients', __('Stock alert emails'), ['class' => 'form-label']) }}
                                     {{ Form::text('stock_alerts_recipients', $setting['stock_alerts_recipients'] ?? '', ['class' => 'form-control', 'placeholder' => __('Comma separated emails')]) }}
                                 </div>
+                                <div class="form-group col-md-4">
+                                    {{ Form::label('stock_alerts_send_email', __('Stock: send email'), ['class' => 'form-label']) }}
+                                    <div class="form-switch form-switch-left">
+                                        <input type="hidden" name="stock_alerts_send_email" value="off">
+                                        <input type="checkbox" class="form-check-input" name="stock_alerts_send_email" id="stock_alerts_send_email" value="on"
+                                            {{ ($setting['stock_alerts_send_email'] ?? 'on') == 'on' ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="stock_alerts_send_email"></label>
+                                    </div>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    {{ Form::label('stock_alerts_send_sms', __('Stock: send SMS'), ['class' => 'form-label']) }}
+                                    <div class="form-switch form-switch-left">
+                                        <input type="hidden" name="stock_alerts_send_sms" value="off">
+                                        <input type="checkbox" class="form-check-input" name="stock_alerts_send_sms" id="stock_alerts_send_sms" value="on"
+                                            {{ ($setting['stock_alerts_send_sms'] ?? 'off') == 'on' ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="stock_alerts_send_sms"></label>
+                                    </div>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    {{ Form::label('stock_alerts_send_whatsapp', __('Stock: send WhatsApp'), ['class' => 'form-label']) }}
+                                    <div class="form-switch form-switch-left">
+                                        <input type="hidden" name="stock_alerts_send_whatsapp" value="off">
+                                        <input type="checkbox" class="form-check-input" name="stock_alerts_send_whatsapp" id="stock_alerts_send_whatsapp" value="on"
+                                            {{ ($setting['stock_alerts_send_whatsapp'] ?? 'off') == 'on' ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="stock_alerts_send_whatsapp"></label>
+                                    </div>
+                                </div>
+                                <div class="form-group col-md-12">
+                                    {{ Form::label('stock_alerts_sms_recipients', __('Stock alert phone numbers (SMS / WhatsApp)'), ['class' => 'form-label']) }}
+                                    {{ Form::text('stock_alerts_sms_recipients', $setting['stock_alerts_sms_recipients'] ?? '', ['class' => 'form-control', 'placeholder' => __('Comma separated, E.164 e.g. +351910000000')]) }}
+                                    <small class="text-muted">{{ __('Requires Twilio (System Settings → Twilio). Use whatsapp:+… in Twilio From for WhatsApp.') }}</small>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('operational_sms_enabled', __('SMS to customers / suppliers (operational)'), ['class' => 'form-label']) }}
+                                    <div class="form-switch form-switch-left">
+                                        <input type="hidden" name="operational_sms_enabled" value="off">
+                                        <input type="checkbox" class="form-check-input" name="operational_sms_enabled" id="operational_sms_enabled" value="on"
+                                            {{ ($setting['operational_sms_enabled'] ?? 'off') == 'on' ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="operational_sms_enabled"></label>
+                                    </div>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('operational_whatsapp_enabled', __('WhatsApp to customers / suppliers'), ['class' => 'form-label']) }}
+                                    <div class="form-switch form-switch-left">
+                                        <input type="hidden" name="operational_whatsapp_enabled" value="off">
+                                        <input type="checkbox" class="form-check-input" name="operational_whatsapp_enabled" id="operational_whatsapp_enabled" value="on"
+                                            {{ ($setting['operational_whatsapp_enabled'] ?? 'off') == 'on' ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="operational_whatsapp_enabled"></label>
+                                    </div>
+                                </div>
+                                <div class="form-group col-md-12">
+                                    <h6 class="mb-2">{{ __('Internal staff — who receives copy alerts') }}</h6>
+                                    <p class="small text-muted">{{ __('Turn on a channel and list emails or phone numbers. Phones use the same Twilio setup.') }}</p>
+                                </div>
+                                @php
+                                    $internalEvents = [
+                                        ['key' => 'internal_ops_invoice', 'label' => __('Invoice sent (sales)')],
+                                        ['key' => 'internal_ops_invoice_payment', 'label' => __('Invoice payment')],
+                                        ['key' => 'internal_ops_bill', 'label' => __('Vendor bill / purchase sent')],
+                                        ['key' => 'internal_ops_bill_payment', 'label' => __('Bill payment')],
+                                    ];
+                                @endphp
+                                @foreach ($internalEvents as $ev)
+                                    <div class="form-group col-md-12 border rounded p-2 mb-2">
+                                        <strong>{{ $ev['label'] }}</strong>
+                                        <div class="row mt-2">
+                                            <div class="col-md-4">
+                                                <div class="form-switch form-switch-left mb-1">
+                                                    <input type="hidden" name="{{ $ev['key'] }}_email_enabled" value="off">
+                                                    <input type="checkbox" class="form-check-input" name="{{ $ev['key'] }}_email_enabled" id="{{ $ev['key'] }}_email_enabled" value="on"
+                                                        {{ ($setting[$ev['key'] . '_email_enabled'] ?? 'off') == 'on' ? 'checked' : '' }}>
+                                                    <label class="form-check-label" for="{{ $ev['key'] }}_email_enabled">{{ __('Email') }}</label>
+                                                </div>
+                                                {{ Form::text($ev['key'] . '_email_recipients', $setting[$ev['key'] . '_email_recipients'] ?? '', ['class' => 'form-control form-control-sm', 'placeholder' => __('Emails comma-separated')]) }}
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-switch form-switch-left mb-1">
+                                                    <input type="hidden" name="{{ $ev['key'] }}_sms_enabled" value="off">
+                                                    <input type="checkbox" class="form-check-input" name="{{ $ev['key'] }}_sms_enabled" id="{{ $ev['key'] }}_sms_enabled" value="on"
+                                                        {{ ($setting[$ev['key'] . '_sms_enabled'] ?? 'off') == 'on' ? 'checked' : '' }}>
+                                                    <label class="form-check-label" for="{{ $ev['key'] }}_sms_enabled">{{ __('SMS') }}</label>
+                                                </div>
+                                                <div class="form-switch form-switch-left mb-1">
+                                                    <input type="hidden" name="{{ $ev['key'] }}_whatsapp_enabled" value="off">
+                                                    <input type="checkbox" class="form-check-input" name="{{ $ev['key'] }}_whatsapp_enabled" id="{{ $ev['key'] }}_whatsapp_enabled" value="on"
+                                                        {{ ($setting[$ev['key'] . '_whatsapp_enabled'] ?? 'off') == 'on' ? 'checked' : '' }}>
+                                                    <label class="form-check-label" for="{{ $ev['key'] }}_whatsapp_enabled">{{ __('WhatsApp') }}</label>
+                                                </div>
+                                                {{ Form::text($ev['key'] . '_sms_recipients', $setting[$ev['key'] . '_sms_recipients'] ?? '', ['class' => 'form-control form-control-sm', 'placeholder' => __('Phones comma-separated')]) }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
                                 <div class="form-group col-md-3">
                                     {{ Form::label('stock_alerts_send_min', __('Send Min Alerts'), ['class' => 'form-label']) }}
                                     <div class=" form-switch form-switch-left">

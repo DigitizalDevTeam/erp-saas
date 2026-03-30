@@ -47,6 +47,29 @@ class Customer extends Authenticatable
         'bank_account' => 'array',
         'additional_emails' => 'array',
         'kyc' => 'array',
+        'notification_email',
+        'notification_phone',
+        'notify_account_email',
+        'notify_account_sms',
+        'notify_account_whatsapp',
+        'notify_payment_email',
+        'notify_payment_sms',
+        'notify_payment_whatsapp',
+        'notify_invoice_email',
+        'notify_invoice_sms',
+        'notify_invoice_whatsapp',
+    ];
+
+    protected $casts = [
+        'notify_account_email' => 'boolean',
+        'notify_account_sms' => 'boolean',
+        'notify_account_whatsapp' => 'boolean',
+        'notify_payment_email' => 'boolean',
+        'notify_payment_sms' => 'boolean',
+        'notify_payment_whatsapp' => 'boolean',
+        'notify_invoice_email' => 'boolean',
+        'notify_invoice_sms' => 'boolean',
+        'notify_invoice_whatsapp' => 'boolean',
     ];
 
     protected $hidden = [
@@ -57,6 +80,44 @@ class Customer extends Authenticatable
 
     public $settings;
 
+    public function operationalEmail(): ?string
+    {
+        $n = trim((string) ($this->notification_email ?? ''));
+        if ($n !== '') {
+            return $n;
+        }
+        $e = trim((string) ($this->email ?? ''));
+
+        return $e !== '' ? $e : null;
+    }
+
+    public function operationalPhone(): string
+    {
+        $p = trim((string) ($this->notification_phone ?? ''));
+
+        return $p !== '' ? $p : (string) ($this->contact ?? '');
+    }
+
+    /**
+     * @param  'account'|'payment'|'invoice'  $category
+     * @param  'email'|'sms'|'whatsapp'  $channel
+     */
+    public function wantsNotification(string $category, string $channel): bool
+    {
+        $suffix = match ($channel) {
+            'sms' => '_sms',
+            'whatsapp' => '_whatsapp',
+            default => '_email',
+        };
+        $attr = match ($category) {
+            'account' => 'notify_account' . $suffix,
+            'payment' => 'notify_payment' . $suffix,
+            'invoice' => 'notify_invoice' . $suffix,
+            default => 'notify_invoice_email',
+        };
+
+        return (bool) $this->getAttribute($attr);
+    }
 
     public function authId()
     {

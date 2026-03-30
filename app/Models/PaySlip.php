@@ -9,6 +9,9 @@ class PaySlip extends Model
     protected $fillable = [
         'employee_id',
         'net_payble',
+        'inss_employee_amount',
+        'inss_employer_amount',
+        'irps_amount',
         'basic_salary',
         'salary_month',
         'status',

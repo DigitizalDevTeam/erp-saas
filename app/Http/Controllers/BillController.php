@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Models\Utility;
 use App\Models\Vender;
 use App\Models\TransactionLines;
+use App\Support\SalesPurchaseNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -774,10 +775,9 @@ class BillController extends Controller
                 Utility::addTransactionLines($data , 'create');
             }
 
-            $resp = Utility::sendEmailTemplate('vender_bill_sent', [$vender->id => $vender->email], $vendorArr);
+            $resp = SalesPurchaseNotifier::vendorBillSent($vender, $vendorArr);
 
-
-            return redirect()->back()->with('success', __('Bill successfully sent.') . (($resp['is_success'] == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
+            return redirect()->back()->with('success', __('Bill successfully sent.') . (($resp !== null && ($resp['is_success'] ?? true) == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
         }
         else
         {
@@ -958,32 +958,19 @@ class BillController extends Controller
                 Utility::addTransactionLines($data , 'create');
             }
 
-            // Send Email
-            $setings = Utility::settings();
-            if($setings['new_bill_payment'] == 1)
-            {
+            $billPaymentArr = [
+                'vender_name' => $vender->name,
+                'vender_email' => $vender->email,
+                'payment_name' => $payment->name,
+                'payment_amount' => $payment->amount,
+                'payment_bill' => $payment->bill,
+                'payment_date' => $payment->date,
+                'payment_method' => $payment->method,
+                'company_name' => $payment->method,
+            ];
+            $resp = SalesPurchaseNotifier::vendorBillPayment($vender, $billPaymentArr);
 
-                $vender = Vender::where('id', $bill->vender_id)->first();
-                $billPaymentArr = [
-                    'vender_name'   => $vender->name,
-                    'vender_email'  => $vender->email,
-                    'payment_name'  =>$payment->name,
-                    'payment_amount'=>$payment->amount,
-                    'payment_bill'  =>$payment->bill,
-                    'payment_date'  =>$payment->date,
-                    'payment_method'=>$payment->method,
-                    'company_name'=>$payment->method,
-
-                ];
-
-
-                $resp = Utility::sendEmailTemplate('new_bill_payment', [$vender->id => $vender->email], $billPaymentArr);
-
-                return redirect()->back()->with('success', __('Payment successfully added.') .((isset($result) && $result!=1) ? '<br> <span class="text-danger">' . $result . '</span>' : '').(($resp['is_success'] == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : '') );
-
-            }
-
-            return redirect()->back()->with('success', __('Payment successfully added.'). ((isset($result) && $result!=1) ? '<br> <span class="text-danger">' . $result . '</span>' : ''));
+            return redirect()->back()->with('success', __('Payment successfully added.') . ((isset($result) && $result != 1) ? '<br> <span class="text-danger">' . $result . '</span>' : '') . (($resp !== null && ($resp['is_success'] ?? true) == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
 
 
         }

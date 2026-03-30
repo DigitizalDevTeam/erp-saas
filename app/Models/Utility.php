@@ -258,6 +258,9 @@ class Utility extends Model
             "pos_purchase_qr_display" => 'on',
             "registration_number" => "",
             "vat_number" => "",
+            // VAT report configuration (Monthly Reports - Modelo A IVA)
+            // This should match your Tax name in Setup → Taxes (example: "IVA")
+            "vat_tax_name" => "IVA",
             // "default_language" => "en",
             "default_language" => "pt",
             "enable_stripe" => "",
@@ -319,6 +322,37 @@ class Utility extends Model
             "stock_alerts_send_min" => "on",
             "stock_alerts_send_max" => "on",
             "max_stock_threshold_global" => "",
+            "stock_alerts_sms_recipients" => "",
+            "stock_alerts_send_email" => "on",
+            "stock_alerts_send_sms" => "off",
+            "stock_alerts_send_whatsapp" => "off",
+
+            "operational_sms_enabled" => "off",
+            "operational_whatsapp_enabled" => "off",
+
+            "internal_ops_invoice_email_enabled" => "off",
+            "internal_ops_invoice_email_recipients" => "",
+            "internal_ops_invoice_sms_enabled" => "off",
+            "internal_ops_invoice_sms_recipients" => "",
+            "internal_ops_invoice_whatsapp_enabled" => "off",
+
+            "internal_ops_invoice_payment_email_enabled" => "off",
+            "internal_ops_invoice_payment_email_recipients" => "",
+            "internal_ops_invoice_payment_sms_enabled" => "off",
+            "internal_ops_invoice_payment_sms_recipients" => "",
+            "internal_ops_invoice_payment_whatsapp_enabled" => "off",
+
+            "internal_ops_bill_email_enabled" => "off",
+            "internal_ops_bill_email_recipients" => "",
+            "internal_ops_bill_sms_enabled" => "off",
+            "internal_ops_bill_sms_recipients" => "",
+            "internal_ops_bill_whatsapp_enabled" => "off",
+
+            "internal_ops_bill_payment_email_enabled" => "off",
+            "internal_ops_bill_payment_email_recipients" => "",
+            "internal_ops_bill_payment_sms_enabled" => "off",
+            "internal_ops_bill_payment_sms_recipients" => "",
+            "internal_ops_bill_payment_whatsapp_enabled" => "off",
 
             "storage_setting" => "local",
             "local_storage_validation" => "jpg,jpeg,png,xlsx,xls,csv,pdf",
@@ -544,6 +578,45 @@ class Utility extends Model
             "pos_color" => "ffffff",
             "quotation_template" => "template1",
             "pos_template" => "template1",
+
+            "stock_deduction_timing" => "invoice",
+            "stock_alerts_enabled" => "off",
+            "stock_alerts_recipients" => "",
+            "stock_alerts_frequency" => "daily",
+            "stock_alerts_send_min" => "on",
+            "stock_alerts_send_max" => "on",
+            "max_stock_threshold_global" => "",
+            "stock_alerts_sms_recipients" => "",
+            "stock_alerts_send_email" => "on",
+            "stock_alerts_send_sms" => "off",
+            "stock_alerts_send_whatsapp" => "off",
+
+            "operational_sms_enabled" => "off",
+            "operational_whatsapp_enabled" => "off",
+
+            "internal_ops_invoice_email_enabled" => "off",
+            "internal_ops_invoice_email_recipients" => "",
+            "internal_ops_invoice_sms_enabled" => "off",
+            "internal_ops_invoice_sms_recipients" => "",
+            "internal_ops_invoice_whatsapp_enabled" => "off",
+
+            "internal_ops_invoice_payment_email_enabled" => "off",
+            "internal_ops_invoice_payment_email_recipients" => "",
+            "internal_ops_invoice_payment_sms_enabled" => "off",
+            "internal_ops_invoice_payment_sms_recipients" => "",
+            "internal_ops_invoice_payment_whatsapp_enabled" => "off",
+
+            "internal_ops_bill_email_enabled" => "off",
+            "internal_ops_bill_email_recipients" => "",
+            "internal_ops_bill_sms_enabled" => "off",
+            "internal_ops_bill_sms_recipients" => "",
+            "internal_ops_bill_whatsapp_enabled" => "off",
+
+            "internal_ops_bill_payment_email_enabled" => "off",
+            "internal_ops_bill_payment_email_recipients" => "",
+            "internal_ops_bill_payment_sms_enabled" => "off",
+            "internal_ops_bill_payment_sms_recipients" => "",
+            "internal_ops_bill_payment_whatsapp_enabled" => "off",
 
             "storage_setting" => "local",
             "local_storage_validation" => "jpg,jpeg,png,xlsx,xls,csv,pdf",
@@ -3615,7 +3688,14 @@ class Utility extends Model
         $payslip['earning'] = $earning;
         $payslip['totalEarning'] = $totalAllowance + $totalCommission + $totalotherpayment + $ot;
         $payslip['deduction'] = $deduction;
-        $payslip['totalDeduction'] = $totalloan + $totaldeduction;
+        $statutory = PaySlip::where('employee_id', $employeeId)
+            ->where('salary_month', $month)
+            ->first();
+
+        $inssEmployee = (float) ($statutory?->inss_employee_amount ?? 0);
+        $irps = (float) ($statutory?->irps_amount ?? 0);
+
+        $payslip['totalDeduction'] = $totalloan + $totaldeduction + $inssEmployee + $irps;
 
         return $payslip;
     }

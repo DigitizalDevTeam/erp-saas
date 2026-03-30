@@ -24,6 +24,9 @@
 
             </div>
         </div>
+
+        @include('partials.contact_notification_preferences_customer', ['customer' => $customer])
+
         <div class="col-lg-6 col-md-6 col-sm-6">
             <div class="form-group">
                 {{Form::label('tax_number',__('Tax Number'),['class'=>'form-label'])}}

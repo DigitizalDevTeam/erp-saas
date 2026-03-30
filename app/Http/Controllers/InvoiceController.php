@@ -22,6 +22,7 @@ use App\Models\User;
 use App\Models\Utility;
 use App\Models\TransactionLines;
 use App\Services\InvoiceSaleDeductionService;
+use App\Support\SalesPurchaseNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -608,9 +609,9 @@ class InvoiceController extends Controller
                     'invoice_url' => $invoice->url,
 
                 ];
-                $resp = Utility::sendEmailTemplate('customer_invoice_sent', [$customer->id => $customer->email], $customerArr);
+                $resp = SalesPurchaseNotifier::customerInvoiceSent($customer, $customerArr);
 
-                return redirect()->back()->with('success', __('Invoice successfully sent.') . (($resp['is_success'] == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
+                return redirect()->back()->with('success', __('Invoice successfully sent.') . (($resp !== null && ($resp['is_success'] ?? true) == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
 
             } else {
                 return redirect()->back()->with('error', 'Invoice not found');
@@ -641,9 +642,9 @@ class InvoiceController extends Controller
                 'invoice_url' => $invoice->url,
 
             ];
-            $resp = Utility::sendEmailTemplate('customer_invoice_sent', [$customer->id => $customer->email], $customerArr);
+            $resp = SalesPurchaseNotifier::customerInvoiceSent($customer, $customerArr);
 
-            return redirect()->back()->with('success', __('Invoice successfully sent.') . (($resp['is_success'] == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
+            return redirect()->back()->with('success', __('Invoice successfully sent.') . (($resp !== null && ($resp['is_success'] ?? true) == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
 
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
@@ -762,22 +763,16 @@ class InvoiceController extends Controller
                 Utility::addTransactionLines($data , 'create');
             }
 
-            // Send Email
-            $setings = Utility::settings();
-            if ($setings['new_invoice_payment'] == 1) {
-                $customer = Customer::where('id', $invoice->customer_id)->first();
-                $invoice_payment_method = InvoicePayment::where('invoice_id', $invoice->id)->orderBy('id', 'desc')->first();
-                $invoicePaymentArr = [
-                    'invoice_payment_name' => $customer->name,
-                    'invoice_payment_amount' => $payment->amount,
-                    'invoice_payment_date' => $payment->date,
-                    'payment_dueAmount' => $payment->dueAmount,
-                    'invoice_number' => \Auth::user()->priceFormat($invoice->getDue()),
-                    'invoice_payment_method' => $invoice_payment_method->payment_type,
-                ];
-
-                $resp = Utility::sendEmailTemplate('new_invoice_payment', [$customer->id => $customer->email], $invoicePaymentArr);
-            }
+            $invoice_payment_method = InvoicePayment::where('invoice_id', $invoice->id)->orderBy('id', 'desc')->first();
+            $invoicePaymentArr = [
+                'invoice_payment_name' => $customer->name,
+                'invoice_payment_amount' => $payment->amount,
+                'invoice_payment_date' => $payment->date,
+                'payment_dueAmount' => $payment->dueAmount,
+                'invoice_number' => \Auth::user()->priceFormat($invoice->getDue()),
+                'invoice_payment_method' => $invoice_payment_method->payment_type,
+            ];
+            $resp = SalesPurchaseNotifier::customerInvoicePayment($customer, $invoicePaymentArr);
 
             //webhook
             $module = 'New Invoice Payment';
@@ -786,13 +781,13 @@ class InvoiceController extends Controller
                 $parameter = json_encode($invoice);
                 $status = Utility::WebhookCall($webhook['url'], $parameter, $webhook['method']);
                 if ($status == true) {
-                    return redirect()->back()->with('success', __('Payment successfully added.') . ((isset($result) && $result != 1) ? '<br> <span class="text-danger">' . $result . '</span>' : '') . (($resp['is_success'] == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
+                    return redirect()->back()->with('success', __('Payment successfully added.') . ((isset($result) && $result != 1) ? '<br> <span class="text-danger">' . $result . '</span>' : '') . (($resp !== null && ($resp['is_success'] ?? true) == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
 
                 } else {
                     return redirect()->back()->with('error', __('Payment successfully, Webhook call failed.'));
                 }
             }
-            return redirect()->back()->with('success', __('Payment successfully added.') . ((isset($result) && $result != 1) ? '<br> <span class="text-danger">' . $result . '</span>' : '') . (($resp['is_success'] == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
+            return redirect()->back()->with('success', __('Payment successfully added.') . ((isset($result) && $result != 1) ? '<br> <span class="text-danger">' . $result . '</span>' : '') . (($resp !== null && ($resp['is_success'] ?? true) == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
 
         }
 
@@ -845,52 +840,29 @@ class InvoiceController extends Controller
 
     public function paymentReminder($invoice_id)
     {
-
         $invoice = Invoice::find($invoice_id);
-        $customer = Customer::where('id', $invoice->customer_id)->first();
+        $customer = Customer::find($invoice->customer_id);
         $invoice->dueAmount = \Auth::user()->priceFormat($invoice->getDue());
-        $invoice->name = $customer['name'];
+        $invoice->name = $customer->name;
         $invoice->date = \Auth::user()->dateFormat($invoice->send_date);
         $invoice->invoice = \Auth::user()->invoiceNumberFormat($invoice->invoice_id);
 
-        //For Notification
-        $setting = Utility::settings(\Auth::user()->creatorId());
-        $customer = Customer::find($invoice->customer_id);
         $reminderNotificationArr = [
-            'invoice_number' => \Auth::user()->invoiceNumberFormat($invoice->invoice_id),
+            'invoice_number' => $invoice->invoice,
             'customer_name' => $customer->name,
             'user_name' => \Auth::user()->name,
         ];
 
-        //Twilio Notification
-        if (isset($setting['twilio_reminder_notification']) && $setting['twilio_reminder_notification'] == 1) {
-            Utility::send_twilio_msg($customer->contact, 'invoice_payment_reminder', $reminderNotificationArr);
-        }
+        $reminderArr = [
+            'payment_reminder_name' => $invoice->name,
+            'invoice_payment_number' => $invoice->invoice,
+            'invoice_payment_dueAmount' => $invoice->dueAmount,
+            'payment_reminder_date' => $invoice->date,
+        ];
 
-        // Send Email
-        $setings = Utility::settings();
-        if ($setings['new_payment_reminder'] == 1) {
-            $invoice = Invoice::find($invoice_id);
-            $customer = Customer::where('id', $invoice->customer_id)->first();
-            $invoice->dueAmount = \Auth::user()->priceFormat($invoice->getDue());
-            $invoice->name = $customer['name'];
-            $invoice->date = \Auth::user()->dateFormat($invoice->send_date);
-            $invoice->invoice = \Auth::user()->invoiceNumberFormat($invoice->invoice_id);
+        $resp = SalesPurchaseNotifier::customerPaymentReminder($customer, $reminderArr, $reminderNotificationArr);
 
-            $reminderArr = [
-
-                'payment_reminder_name' => $invoice->name,
-                'invoice_payment_number' => $invoice->invoice,
-                'invoice_payment_dueAmount' => $invoice->dueAmount,
-                'payment_reminder_date' => $invoice->date,
-
-            ];
-
-            $resp = Utility::sendEmailTemplate('new_payment_reminder', [$customer->id => $customer->email], $reminderArr);
-
-        }
-
-        return redirect()->back()->with('success', __('Payment reminder successfully send.') . (($resp['is_success'] == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
+        return redirect()->back()->with('success', __('Payment reminder successfully send.') . (($resp !== null && ($resp['is_success'] ?? true) == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
     }
 
     public function customerInvoiceSend($invoice_id)

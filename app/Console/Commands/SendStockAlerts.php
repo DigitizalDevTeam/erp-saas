@@ -6,13 +6,14 @@ use App\Mail\StockAlertsMail;
 use App\Models\ProductService;
 use App\Models\User;
 use App\Models\Utility;
+use App\Services\OperationalMessagingService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
 
 class SendStockAlerts extends Command
 {
     protected $signature = 'stock:alerts {--company_id=} {--force : Send even if already alerted today}';
-    protected $description = 'Send min/max stock alerts by email';
+    protected $description = 'Send min/max stock alerts (email / SMS / WhatsApp via Twilio when configured)';
 
     public function handle(): int
     {
@@ -32,7 +33,17 @@ class SendStockAlerts extends Command
 
             $recipientsRaw = (string) ($settings['stock_alerts_recipients'] ?? '');
             $recipients = array_values(array_filter(array_map('trim', preg_split('/[,\s;]+/', $recipientsRaw))));
-            if (count($recipients) === 0) {
+
+            $phonesRaw = (string) ($settings['stock_alerts_sms_recipients'] ?? '');
+            $phones = array_values(array_filter(array_map('trim', preg_split('/[,\s;]+/', $phonesRaw))));
+
+            $sendEmail = ($settings['stock_alerts_send_email'] ?? 'on') === 'on';
+            $sendSms = ($settings['stock_alerts_send_sms'] ?? 'off') === 'on';
+            $sendWa = ($settings['stock_alerts_send_whatsapp'] ?? 'off') === 'on';
+
+            $canEmail = $sendEmail && count($recipients) > 0;
+            $canMobile = ($sendSms || $sendWa) && count($phones) > 0;
+            if (!$canEmail && !$canMobile) {
                 continue;
             }
 
@@ -92,7 +103,36 @@ class SendStockAlerts extends Command
                 continue;
             }
 
-            Mail::to($recipients)->send(new StockAlertsMail(['min' => $minRows, 'max' => $maxRows], $settings));
+            $payload = ['min' => $minRows, 'max' => $maxRows];
+
+            if ($sendEmail && count($recipients) > 0) {
+                Mail::to($recipients)->send(new StockAlertsMail($payload, $settings));
+            }
+
+            $companyName = (string) ($settings['company_name'] ?? '');
+            $lines = [trim($companyName) !== '' ? $companyName : 'ERP', __('Stock alert')];
+            if (count($minRows) > 0) {
+                $lines[] = __('Below minimum') . ':';
+                foreach ($minRows as $r) {
+                    $lines[] = $r['name'] . ' (' . $r['sku'] . ') ' . __('Qty') . ' ' . $r['qty'] . ' / ' . __('Min') . ' ' . $r['min'];
+                }
+            }
+            if (count($maxRows) > 0) {
+                $lines[] = __('Above maximum') . ':';
+                foreach ($maxRows as $r) {
+                    $lines[] = $r['name'] . ' (' . $r['sku'] . ') ' . __('Qty') . ' ' . $r['qty'] . ' / ' . __('Max') . ' ' . $r['max'];
+                }
+            }
+            $plain = implode("\n", $lines);
+
+            foreach ($phones as $phone) {
+                if ($sendSms) {
+                    OperationalMessagingService::send((int) $company->id, $phone, $plain, 'sms');
+                }
+                if ($sendWa) {
+                    OperationalMessagingService::send((int) $company->id, $phone, $plain, 'whatsapp');
+                }
+            }
 
             // Mark alerted today for included products
             if (!$force) {

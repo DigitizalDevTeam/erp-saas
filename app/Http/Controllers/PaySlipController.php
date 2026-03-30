@@ -15,6 +15,7 @@ use App\Models\SaturationDeduction;
 use App\Models\Utility;
 use App\Models\Termination;
 use App\Models\User;
+use App\Services\PayrollTaxService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -115,7 +116,19 @@ class PaySlipController extends Controller
                 if (!$chek && $chek == null) {
                     $payslipEmployee                       = new PaySlip();
                     $payslipEmployee->employee_id          = $employee->id;
-                    $payslipEmployee->net_payble           = $employee->get_net_salary();
+                    $grossMonthly = (float) $employee->get_net_salary();
+
+                    $inss = PayrollTaxService::calculateInss($employee, $grossMonthly);
+                    $irps = PayrollTaxService::calculateIrps($employee, $grossMonthly);
+
+                    $payslipEmployee->inss_employee_amount = $inss['employee'];
+                    $payslipEmployee->inss_employer_amount = $inss['employer'];
+                    $payslipEmployee->irps_amount          = $irps;
+
+                    // Net payable rules:
+                    // - IRPS is withheld from employee salary (deduction)
+                    // - INSS employee portion is deducted only if employee pays it (when employer_pays_all is OFF)
+                    $payslipEmployee->net_payble           = max(0, $grossMonthly - (float) $payslipEmployee->inss_employee_amount - (float) $payslipEmployee->irps_amount);
                     $payslipEmployee->salary_month         = $formate_month_year;
                     $payslipEmployee->status               = 0;
                     $payslipEmployee->basic_salary         = !empty($employee->salary) ? $employee->salary : 0;

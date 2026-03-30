@@ -27,6 +27,8 @@ class Employee extends Model
         'bank_identifier_code',
         'branch_location',
         'tax_payer_id',
+        'dependents',
+        'inss_employer_pays_all',
         'salary_type',
         'biometric_emp_id',
         'account',

@@ -116,92 +116,120 @@
                                                         class="dash-arrow"><i
                                                             data-feather="chevron-right"></i></span></a>
                                                 <ul class="dash-submenu">
-                                                    @can('statement report')
-                                                        <li
-                                                            class="dash-item {{ Request::route()->getName() == 'report.account.statement' ? ' active' : '' }}">
-                                                            <a class="dash-link"
-                                                                href="{{ route('report.account.statement') }}">{{ __('Account Statement') }}</a>
-                                                        </li>
-                                                    @endcan
-                                                    @can('invoice report')
-                                                        <li
-                                                            class="dash-item {{ Request::route()->getName() == 'report.invoice.summary' ? ' active' : '' }}">
-                                                            <a class="dash-link"
-                                                                href="{{ route('report.invoice.summary') }}">{{ __('Invoice Summary') }}</a>
-                                                        </li>
-                                                    @endcan
-                                                    <li
-                                                        class="dash-item {{ Request::route()->getName() == 'report.sales' ? ' active' : '' }}">
-                                                        <a class="dash-link"
-                                                            href="{{ route('report.sales') }}">{{ __('Sales Report') }}</a>
+                                                    {{-- Section landing pages --}}
+                                                    <li class="dash-item {{ Request::route()->getName() == 'reports.sections.monthly' ? ' active' : '' }}">
+                                                        <a class="dash-link" href="{{ route('reports.sections.monthly') }}">{{ __('Monthly Reports') }}</a>
                                                     </li>
-                                                    <li
-                                                        class="dash-item {{ Request::route()->getName() == 'report.receivables' ? ' active' : '' }}">
-                                                        <a class="dash-link"
-                                                            href="{{ route('report.receivables') }}">{{ __('Receivables') }}</a>
+                                                    <li class="dash-item {{ Request::route()->getName() == 'reports.sections.management' ? ' active' : '' }}">
+                                                        <a class="dash-link" href="{{ route('reports.sections.management') }}">{{ __('Management Reports') }}</a>
                                                     </li>
-                                                    <li
-                                                        class="dash-item {{ Request::route()->getName() == 'report.payables' ? ' active' : '' }}">
-                                                        <a class="dash-link"
-                                                            href="{{ route('report.payables') }}">{{ __('Payables') }}</a>
+                                                    <li class="dash-item {{ Request::route()->getName() == 'reports.sections.analytical' ? ' active' : '' }}">
+                                                        <a class="dash-link" href="{{ route('reports.sections.analytical') }}">{{ __('Analytical Reports') }}</a>
                                                     </li>
-                                                    @can('bill report')
-                                                        <li
-                                                            class="dash-item {{ Request::route()->getName() == 'report.bill.summary' ? ' active' : '' }}">
-                                                            <a class="dash-link"
-                                                                href="{{ route('report.bill.summary') }}">{{ __('Bill Summary') }}</a>
-                                                        </li>
-                                                    @endcan
-                                                    @can('stock report')
-                                                        <li
-                                                            class="dash-item {{ Request::route()->getName() == 'report.product.stock.report' ? ' active' : '' }}">
-                                                            <a href="{{ route('report.product.stock.report') }}"
-                                                                class="dash-link">{{ __('Product Stock') }}</a>
-                                                        </li>
-                                                    @endcan
 
-                                                    @can('loss & profit report')
-                                                        <li
-                                                            class="dash-item {{ request()->is('reports-monthly-cashflow') || request()->is('reports-quarterly-cashflow') ? 'active' : '' }}">
-                                                            <a class="dash-link"
-                                                                href="{{ route('report.monthly.cashflow') }}">{{ __('Cash Flow') }}</a>
-                                                        </li>
-                                                    @endcan
-                                                    @can('manage transaction')
-                                                        <li
-                                                            class="dash-item {{ Request::route()->getName() == 'transaction.index' || Request::route()->getName() == 'transfer.create' || Request::route()->getName() == 'transaction.edit' ? ' active' : '' }}">
-                                                            <a class="dash-link"
-                                                                href="{{ route('transaction.index') }}">{{ __('Transaction') }}</a>
-                                                        </li>
-                                                    @endcan
-                                                    @can('income report')
-                                                        <li
-                                                            class="dash-item {{ Request::route()->getName() == 'report.income.summary' ? ' active' : '' }}">
-                                                            <a class="dash-link"
-                                                                href="{{ route('report.income.summary') }}">{{ __('Income Summary') }}</a>
-                                                        </li>
-                                                    @endcan
-                                                    @can('expense report')
-                                                        <li
-                                                            class="dash-item {{ Request::route()->getName() == 'report.expense.summary' ? ' active' : '' }}">
-                                                            <a class="dash-link"
-                                                                href="{{ route('report.expense.summary') }}">{{ __('Expense Summary') }}</a>
-                                                        </li>
-                                                    @endcan
-                                                    @can('income vs expense report')
-                                                        <li
-                                                            class="dash-item {{ Request::route()->getName() == 'report.income.vs.expense.summary' ? ' active' : '' }}">
-                                                            <a class="dash-link"
-                                                                href="{{ route('report.income.vs.expense.summary') }}">{{ __('Income VS Expense') }}</a>
-                                                        </li>
-                                                    @endcan
-                                                    @can('tax report')
-                                                        <li
-                                                            class="dash-item {{ Request::route()->getName() == 'report.tax.summary' ? ' active' : '' }}">
-                                                            <a class="dash-link"
-                                                                href="{{ route('report.tax.summary') }}">{{ __('Tax Summary') }}</a>
-                                                        </li>
-                                                    @endcan
+                                                    {{-- Monthly (government) --}}
+                                                    <li class="dash-item dash-hasmenu">
+                                                        <a class="dash-link" href="#">{{ __('Monthly Reports') }}
+                                                            <span class="dash-arrow"><i data-feather="chevron-right"></i></span>
+                                                        </a>
+                                                        <ul class="dash-submenu">
+                                                            @can('tax report')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'monthly.reports.vat-modelo-a' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('monthly.reports.vat-modelo-a') }}">{{ __('VAT (Modelo A IVA)') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                            @can('trial balance report')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'monthly.reports.trial-balance' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('monthly.reports.trial-balance') }}">{{ __('Trial Balance (Balancete)') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                            @can('manage report')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'monthly.reports.irps-modelo-19' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('monthly.reports.irps-modelo-19') }}">{{ __('IRPS (Modelo 19)') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                        </ul>
+                                                    </li>
+
+                                                    {{-- Management (existing/current) --}}
+                                                    <li class="dash-item dash-hasmenu">
+                                                        <a class="dash-link" href="#">{{ __('Management Reports') }}
+                                                            <span class="dash-arrow"><i data-feather="chevron-right"></i></span>
+                                                        </a>
+                                                        <ul class="dash-submenu">
+                                                            @can('statement report')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'report.account.statement' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('report.account.statement') }}">{{ __('Account Statement') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                            @can('invoice report')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'report.invoice.summary' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('report.invoice.summary') }}">{{ __('Invoice Summary') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                            <li class="dash-item {{ Request::route()->getName() == 'report.sales' ? ' active' : '' }}">
+                                                                <a class="dash-link" href="{{ route('report.sales') }}">{{ __('Sales Report') }}</a>
+                                                            </li>
+                                                            <li class="dash-item {{ Request::route()->getName() == 'report.receivables' ? ' active' : '' }}">
+                                                                <a class="dash-link" href="{{ route('report.receivables') }}">{{ __('Receivables') }}</a>
+                                                            </li>
+                                                            <li class="dash-item {{ Request::route()->getName() == 'report.payables' ? ' active' : '' }}">
+                                                                <a class="dash-link" href="{{ route('report.payables') }}">{{ __('Payables') }}</a>
+                                                            </li>
+                                                            @can('bill report')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'report.bill.summary' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('report.bill.summary') }}">{{ __('Bill Summary') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                            @can('stock report')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'report.product.stock.report' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('report.product.stock.report') }}">{{ __('Product Stock') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                            @can('loss & profit report')
+                                                                <li class="dash-item {{ request()->is('reports-monthly-cashflow') || request()->is('reports-quarterly-cashflow') ? 'active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('report.monthly.cashflow') }}">{{ __('Cash Flow') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                            @can('manage transaction')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'transaction.index' || Request::route()->getName() == 'transfer.create' || Request::route()->getName() == 'transaction.edit' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('transaction.index') }}">{{ __('Transaction') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                            @can('income report')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'report.income.summary' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('report.income.summary') }}">{{ __('Income Summary') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                            @can('expense report')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'report.expense.summary' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('report.expense.summary') }}">{{ __('Expense Summary') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                            @can('income vs expense report')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'report.income.vs.expense.summary' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('report.income.vs.expense.summary') }}">{{ __('Income VS Expense') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                            @can('tax report')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'report.tax.summary' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('report.tax.summary') }}">{{ __('Tax Summary') }}</a>
+                                                                </li>
+                                                            @endcan
+                                                        </ul>
+                                                    </li>
+
+                                                    {{-- Analytical (Excel-based) --}}
+                                                    <li class="dash-item dash-hasmenu">
+                                                        <a class="dash-link" href="#">{{ __('Analytical Reports') }}
+                                                            <span class="dash-arrow"><i data-feather="chevron-right"></i></span>
+                                                        </a>
+                                                        <ul class="dash-submenu">
+                                                            <li class="dash-item {{ Request::route()->getName() == 'reports.analytical.powerblox' ? ' active' : '' }}">
+                                                                <a class="dash-link" href="{{ route('reports.analytical.powerblox') }}">{{ __('PowerBlox - Management Pack') }}</a>
+                                                            </li>
+                                                        </ul>
+                                                    </li>
                                                 </ul>
                                             </li>
                                         @endif
@@ -1021,6 +1049,8 @@
                                                         href="{{ route('trial.balance') }}">{{ __('Trial Balance') }}</a>
                                                 </li>
                                             @endcan
+
+                                            {{-- Monthly reports moved under Accounting -> Reports -> Monthly Reports --}}
                                         </ul>
                                     </li>
                                 @endif

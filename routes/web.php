@@ -130,6 +130,11 @@ use App\Http\Controllers\ProposalController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\RazorpayPaymentController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\MonthlyReportController;
+use App\Http\Controllers\MonthlyVatReportController;
+use App\Http\Controllers\MonthlyIrpsReportController;
+use App\Http\Controllers\ReportSectionsController;
+use App\Http\Controllers\AnalyticalReportController;
 use App\Http\Controllers\ResignationController;
 use App\Http\Controllers\RevenueController;
 use App\Http\Controllers\RoleController;
@@ -891,6 +896,22 @@ Route::group(['middleware' => ['verified']], function () {
 
             Route::get('ledger-report/{account?}', [ReportController::class, 'ledgerSummary'])->name('report.ledger');
             Route::get('trial-balance-report/{view?}', [ReportController::class, 'trialBalanceSummary'])->name('trial.balance');
+
+            // Report sections (navigation / grouping)
+            Route::get('reports/monthly', [ReportSectionsController::class, 'monthly'])->name('reports.sections.monthly');
+            Route::get('reports/management', [ReportSectionsController::class, 'management'])->name('reports.sections.management');
+            Route::get('reports/analytical', [ReportSectionsController::class, 'analytical'])->name('reports.sections.analytical');
+            Route::get('reports/analytical/powerblox', [AnalyticalReportController::class, 'powerblox'])->name('reports.analytical.powerblox');
+
+            // Government/statutory format (editable Blade template)
+            Route::get('monthly-reports/trial-balance/{view?}', [MonthlyReportController::class, 'trialBalance'])
+                ->name('monthly.reports.trial-balance');
+
+            Route::get('monthly-reports/vat-modelo-a', [MonthlyVatReportController::class, 'modeloA'])
+                ->name('monthly.reports.vat-modelo-a');
+
+            Route::get('monthly-reports/irps-modelo-19', [MonthlyIrpsReportController::class, 'modelo19'])
+                ->name('monthly.reports.irps-modelo-19');
 
             Route::get('reports-monthly-cashflow', [ReportController::class, 'monthlyCashflow'])->name('report.monthly.cashflow')->middleware(['auth', 'XSS']);
             Route::get('reports-quarterly-cashflow', [ReportController::class, 'quarterlyCashflow'])->name('report.quarterly.cashflow')->middleware(['auth', 'XSS']);
