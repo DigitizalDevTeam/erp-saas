@@ -10,23 +10,12 @@
     <li class="breadcrumb-item">{{ __('Trial Balance') }}</li>
 @endsection
 
-@push('script-page')
-    <script>
-        function printMonthlyReport() {
-            const printContents = document.getElementById('printableArea').innerHTML;
-            const originalContents = document.body.innerHTML;
-            document.body.innerHTML = printContents;
-            window.print();
-            document.body.innerHTML = originalContents;
-            window.location.reload();
-        }
-    </script>
-@endpush
-
 @section('action-btn')
     <div class="float-end">
-        <a href="#" onclick="printMonthlyReport()" class="btn btn-sm btn-primary-subtle me-1" data-bs-toggle="tooltip"
-            title="{{ __('Print / Save PDF') }}"><i class="ti ti-printer"></i></a>
+        <a href="{{ route('monthly.reports.trial-balance', array_merge(request()->query(), ['download' => 'pdf'])) }}"
+            class="btn btn-sm btn-primary-subtle me-1" data-bs-toggle="tooltip" title="{{ __('Download PDF') }}">
+            <i class="ti ti-download"></i>
+        </a>
     </div>
 
     <div class="float-end me-2">

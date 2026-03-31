@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\PaySlip;
 use Illuminate\Http\Request;
+use Spatie\Browsershot\Browsershot;
 
 class MonthlyIrpsReportController extends Controller
 {
@@ -58,6 +59,33 @@ class MonthlyIrpsReportController extends Controller
         $filter = [
             'month' => $month,
         ];
+
+        if ($request->query('download') === 'pdf') {
+            $fileName = sprintf('irps-modelo-19_%s.pdf', $month);
+            $paperWidthMm = 267;
+            $paperHeightMm = 330;
+            $mmToPt = 72 / 25.4;
+            $paperWidthPt = $paperWidthMm * $mmToPt;
+            $paperHeightPt = $paperHeightMm * $mmToPt;
+
+            if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
+                return \Barryvdh\DomPDF\Facade\Pdf::loadView(
+                    'reports.monthly.irps_modelo_19_pdf',
+                    compact('filter', 'rows', 'totals')
+                )->setPaper([0, 0, $paperWidthPt, $paperHeightPt], 'portrait')->download($fileName);
+            }
+
+            $html = view('reports.monthly.irps_modelo_19_pdf', compact('filter', 'rows', 'totals'))->render();
+            $pdfBinary = Browsershot::html($html)
+                ->showBackground()
+                ->paperSize($paperWidthMm, $paperHeightMm, 'mm')
+                ->margins(8, 8, 8, 8)
+                ->pdf();
+
+            return response()->streamDownload(static function () use ($pdfBinary): void {
+                echo $pdfBinary;
+            }, $fileName, ['Content-Type' => 'application/pdf']);
+        }
 
         return view('reports.monthly.irps_modelo_19', compact('filter', 'rows', 'totals'));
     }

@@ -55,6 +55,13 @@
                         </div>
                     </li>
                 </ul>
+                @can('manage report')
+                    <a href="{{ route('monthly.reports.irps-modelo-19', ['month' => now()->format('Y-m'), 'download' => 'pdf']) }}"
+                        data-bs-toggle="tooltip" title="{{ __('IRPS Modelo 19 (PDF)') }}" class="btn btn-sm btn-primary"
+                        target="_blank">
+                        <i class="ti ti-report-money"></i>
+                    </a>
+                @endcan
                 @can('edit employee')
                 <a href="{{route('employee.edit',\Illuminate\Support\Facades\Crypt::encrypt($employee->id))}}" data-bs-toggle="tooltip" title="{{__('Edit')}}"class="btn btn-sm btn-info">
                     <i class="ti ti-pencil"></i>

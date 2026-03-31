@@ -97,16 +97,31 @@ class PaySlipController extends Controller
 
 
         $formate_month_year = $year . '-' . $month;
-        $validatePaysilp    = PaySlip::where('salary_month', '=', $formate_month_year)->where('created_by', \Auth::user()->creatorId())->pluck('employee_id');
+        $existingPayslipEmployeeIds = PaySlip::where('salary_month', '=', $formate_month_year)
+            ->where('created_by', \Auth::user()->creatorId())
+            ->pluck('employee_id')
+            ->toArray();
         $payslip_employee   = Employee::where('created_by', \Auth::user()->creatorId())->where('company_doj', '<=', date($year . '-' . $month . '-t'))->count();
 
         $resignation = Resignation::where('created_by' , \Auth::user()->creatorId())->where('resignation_date', '<=' , date('Y-m-d'))->pluck('employee_id')->toArray();
 
         $termination = Termination::where('created_by' , \Auth::user()->creatorId())->where('termination_date', '<=' , date('Y-m-d'))->pluck('employee_id')->toArray();
 
-        if($payslip_employee > count($validatePaysilp))
+        if($payslip_employee > count($existingPayslipEmployeeIds))
         {
-            $employees = Employee::where('created_by', \Auth::user()->creatorId())->where('company_doj', '<=', date($year . '-' . $month . '-t'))->whereNotIn('employee_id', $validatePaysilp)->whereNotIn('id', $resignation)->whereNotIn('id', $termination)->whereNot('salary', '<=', 0)->get();
+            $employees = Employee::where('created_by', \Auth::user()->creatorId())
+                ->where('company_doj', '<=', date($year . '-' . $month . '-t'))
+                ->whereNotIn('id', $existingPayslipEmployeeIds)
+                ->whereNotIn('id', $resignation)
+                ->whereNotIn('id', $termination)
+                ->where('salary', '>', 0)
+                ->get();
+
+            if ($employees->isEmpty()) {
+                return redirect()->route('payslip.index')->with('error', __('No eligible employees found for the selected month.'));
+            }
+
+            $createdCount = 0;
 
 
             foreach($employees as $employee)
@@ -140,6 +155,7 @@ class PaySlipController extends Controller
                     $payslipEmployee->overtime             = Employee::overtime($employee->id);
                     $payslipEmployee->created_by           = \Auth::user()->creatorId();
                     $payslipEmployee->save();
+                    $createdCount++;
 
                     //For Notification
                     $setting  = Utility::settings(\Auth::user()->creatorId());
@@ -179,7 +195,11 @@ class PaySlipController extends Controller
 
             }
 
-            return redirect()->route('payslip.index')->with('success', __('Payslip successfully created.'));
+            if ($createdCount > 0) {
+                return redirect()->route('payslip.index')->with('success', __('Payslip successfully created.'));
+            }
+
+            return redirect()->route('payslip.index')->with('error', __('No new payslip was created for the selected month.'));
         }
         else
         {

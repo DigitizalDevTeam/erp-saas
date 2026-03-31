@@ -179,6 +179,34 @@ class User extends Authenticatable implements MustVerifyEmail
 
         return (($settings['site_currency_symbol_position'] == "pre") ? $currency : '') . ($currency_space == 'withspace' ? ' ' : '') . $price . ($currency_space == 'withspace' ? ' ' : '') . (($settings['site_currency_symbol_position'] == "post") ? $currency : '');
     }
+    public function priceFormatWithoutCurrency($price)
+    {
+        $number = explode('.', $price);
+        $length = strlen(trim($number[0]));
+        $float_number = Utility::getValByName('float_number') == 'dot' ? '.' : ',';
+
+        if ($length > 3) {
+            $decimal_separator = Utility::getValByName('decimal_separator') == 'dot' ? ',' : ',';
+            $thousand_separator = Utility::getValByName('thousand_separator') == 'dot' ? '.' : ',';
+        } else {
+            $decimal_separator = Utility::getValByName('decimal_separator') == 'dot' ? '.' : ',';
+            $thousand_separator = Utility::getValByName('thousand_separator') == 'dot' ? '.' : ',';
+        }
+
+        $currency = Utility::getValByName('currency_symbol') == 'withcurrencysymbol' ? Utility::getValByName('site_currency_symbol') : Utility::getValByName('site_currency');
+        $settings = Utility::settings();
+        $decimal_number = Utility::getValByName('decimal_number') ? Utility::getValByName('decimal_number') : 0;
+        $currency_space = Utility::getValByName('currency_space');
+        $price = number_format($price, $decimal_number, $decimal_separator, $thousand_separator);
+
+        if ($float_number == 'dot') {
+            $price = preg_replace('/' . preg_quote($thousand_separator, '/') . '([^' . preg_quote($thousand_separator, '/') . ']*)$/', $float_number . '$1', $price);
+        } else {
+            $price = preg_replace('/' . preg_quote($decimal_separator, '/') . '([^' . preg_quote($decimal_separator, '/') . ']*)$/', $float_number . '$1', $price);
+        }
+
+        return $price;
+    }
 
 
     public function currencySymbol()

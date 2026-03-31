@@ -90,6 +90,7 @@
                                     <th class="text-end">{{ __('INSS (Employer)') }}</th>
                                     <th class="text-end">{{ __('IRPS') }}</th>
                                     <th class="text-end">{{ __('Net') }}</th>
+                                    <th class="text-end">{{ __('Action') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -104,6 +105,12 @@
                                         <td class="text-end">{{ \Auth::user()->priceFormat($r['inss_employer']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($r['irps']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($r['net']) }}</td>
+                                        <td class="text-end">
+                                            <a href="{{ route('monthly.reports.irps-modelo-19', array_merge(request()->query(), ['download' => 'pdf'])) }}"
+                                                class="btn btn-sm btn-primary me-1" data-bs-toggle="tooltip" title="{{ __('Download PDF') }}">
+                                                <i class="ti ti-download"></i>
+                                            </a>
+                                        </td>
                                     </tr>
                                 @endforeach
                             </tbody>

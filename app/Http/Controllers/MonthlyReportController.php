@@ -6,6 +6,7 @@ use App\Models\ChartOfAccountParent;
 use App\Models\ChartOfAccountType;
 use App\Models\TransactionLines;
 use Illuminate\Http\Request;
+use Spatie\Browsershot\Browsershot;
 
 class MonthlyReportController extends Controller
 {
@@ -15,6 +16,16 @@ class MonthlyReportController extends Controller
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 
+        $ulane = auth()->user()->lang ?? 'en';
+        $nameColumn = match ($ulane) {
+            'fr' => 'name_fr',
+            'zh' => 'name_zh',
+            'es' => 'name_es',
+            'pt' => 'name_pt_br',
+            default => 'name',
+        };
+        $nameExpr = "COALESCE(NULLIF(chart_of_accounts.{$nameColumn},''), chart_of_accounts.name)";
+
         if (!empty($request->start_date) && !empty($request->end_date)) {
             $start = $request->start_date;
             $end = $request->end_date;
@@ -23,6 +34,15 @@ class MonthlyReportController extends Controller
             $start = date('Y-01-01');
             $end = date('Y-m-d');
         }
+        
+        $ulane = auth()->user()->lang ?? 'en';
+        $name_column = match ($ulane) {
+            'fr' => 'name_fr',
+            'zh' => 'name_zh',
+            'es' => 'name_es',
+            'pt' => 'name_pt_br',
+            default => 'name',
+        };
 
         $types = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->get();
         $totalAccounts = [];
@@ -43,7 +63,7 @@ class MonthlyReportController extends Controller
                     $parentAccs = TransactionLines::select(
                         'chart_of_accounts.id',
                         'chart_of_accounts.code',
-                        'chart_of_accounts.name',
+                        \DB::raw("{$nameExpr} as name"),
                         \DB::raw('sum(debit) as totalDebit'),
                         \DB::raw('sum(credit) as totalCredit')
                     );
@@ -60,7 +80,7 @@ class MonthlyReportController extends Controller
                     $accounts = TransactionLines::select(
                         'chart_of_accounts.id',
                         'chart_of_accounts.code',
-                        'chart_of_accounts.name',
+                        \DB::raw("{$nameExpr} as name"),
                         \DB::raw('sum(debit) as totalDebit'),
                         \DB::raw('sum(credit) as totalCredit')
                     );
@@ -78,7 +98,7 @@ class MonthlyReportController extends Controller
                         $parentAccs = \App\Models\ChartOfAccount::select(
                             'chart_of_accounts.id',
                             'chart_of_accounts.code',
-                            'chart_of_accounts.name',
+                            \DB::raw("{$nameExpr} as name"),
                             \DB::raw('0 as totalDebit'),
                             \DB::raw('0 as totalCredit')
                         );
@@ -128,18 +148,7 @@ class MonthlyReportController extends Controller
                         }
                     }
 
-                    if (!empty($parentAccountArray)) {
-                        $dataTotal = [
-                            'account_id' => $parentAccount->account,
-                            'account_code' => '',
-                            'account' => 'parentTotal',
-                            'account_name' => 'Total ' . $parentAccount->name,
-                            'totalCredit' => $parentcreditTotal,
-                            'totalDebit' => $parenntdebitTotal,
-                        ];
-
-                        $parentAccountArrayTotal[] = $dataTotal;
-                    }
+                   
 
                     if ($parentAccountArray != []) {
                         $totalArray = array_merge($parentAccountArray, $parentAccountArrayTotal);
@@ -151,7 +160,7 @@ class MonthlyReportController extends Controller
             $accounts = TransactionLines::select(
                 'chart_of_accounts.id as account_id',
                 'chart_of_accounts.code as account_code',
-                'chart_of_accounts.name as account_name',
+                        \DB::raw("{$nameExpr} as account_name"),
                 \DB::raw('sum(debit) as totalDebit'),
                 \DB::raw('sum(credit) as totalCredit')
             );
@@ -207,6 +216,32 @@ class MonthlyReportController extends Controller
 
         // The "government" view is intentionally a separate Blade file so you can edit layout freely.
         $blade = $view === 'classic' ? 'report.trial_balance' : 'reports.monthly.trial_balance';
+
+        if ($request->query('download') === 'pdf') {
+            $fileName = sprintf(
+                'trial-balance_%s_to_%s.pdf',
+                $filter['startDateRange'],
+                $filter['endDateRange']
+            );
+
+            if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
+                return \Barryvdh\DomPDF\Facade\Pdf::loadView(
+                    'reports.monthly.trial_balance_pdf',
+                    compact('filter', 'totalAccounts', 'view')
+                )->setPaper('a4')->download($fileName);
+            }
+
+            $html = view('reports.monthly.trial_balance_pdf', compact('filter', 'totalAccounts', 'view'))->render();
+            $pdfBinary = Browsershot::html($html)
+                ->showBackground()
+                ->format('A4')
+                ->margins(12, 12, 16, 12)
+                ->pdf();
+
+            return response()->streamDownload(static function () use ($pdfBinary): void {
+                echo $pdfBinary;
+            }, $fileName, ['Content-Type' => 'application/pdf']);
+        }
 
         return view($blade, compact('filter', 'totalAccounts', 'view'));
     }
