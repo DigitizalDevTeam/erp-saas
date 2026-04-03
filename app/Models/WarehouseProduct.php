@@ -10,6 +10,8 @@ class WarehouseProduct extends Model
         'warehouse_id',
         'product_id',
         'quantity',
+        'row_no',
+        'shelf_no',
         'created_by',
     ];
 

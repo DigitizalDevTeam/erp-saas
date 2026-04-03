@@ -401,6 +401,11 @@
                             <td colspan="6">{{$item->description}}</td>
                         </tr>
                         @endif
+                    @if(!empty($item->identifiers))
+                        <tr class="border-0 itm-identifiers">
+                            <td colspan="6"><strong>{{ __('Serial / MAC') }}:</strong><br>{!! nl2br(e($item->identifiers)) !!}</td>
+                        </tr>
+                    @endif
                         </tr>
                         @endforeach
                     @else

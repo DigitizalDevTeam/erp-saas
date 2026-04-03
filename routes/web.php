@@ -129,6 +129,7 @@ use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\ProposalController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\RazorpayPaymentController;
+use App\Http\Controllers\ProductReportsController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\MonthlyVatReportController;
@@ -923,6 +924,15 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('report/receivables', [ReportController::class, 'ReceivablesReport'])->name('report.receivables');
             Route::post('export/receivables', [ReportController::class, 'ReceivablesExport'])->name('receivables.export');
             Route::get('report/payables', [ReportController::class, 'PayablesReport'])->name('report.payables');
+
+            // Product system (inventory) reports
+            Route::get('reports/product-system', [ProductReportsController::class, 'index'])->name('reports.product.index');
+            Route::get('reports/product-system/store-check', [ProductReportsController::class, 'storeCheck'])->name('reports.product.store-check');
+            Route::get('reports/product-system/warehouse-stock', [ProductReportsController::class, 'warehouseStock'])->name('reports.product.warehouse-stock');
+            Route::get('reports/product-system/transactions', [ProductReportsController::class, 'transactions'])->name('reports.product.transactions');
+            Route::get('reports/product-system/document/{docType}/{id}', [ProductReportsController::class, 'document'])->name('reports.product.document');
+            Route::get('reports/product-system/last-supplies', [ProductReportsController::class, 'lastSupplies'])->name('reports.product.last-supplies');
+            Route::get('reports/product-system/location-check', [ProductReportsController::class, 'locationCheck'])->name('reports.product.location-check');
         }
     );
 

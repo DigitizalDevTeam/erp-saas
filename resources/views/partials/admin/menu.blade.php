@@ -77,7 +77,8 @@
                                 Request::segment(1) == 'reports-monthly-purchase' ||
                                 Request::segment(1) == 'reports-daily-pos' ||
                                 Request::segment(1) == 'reports-monthly-pos' ||
-                                Request::segment(1) == 'reports-pos-vs-purchase'
+                                Request::segment(1) == 'reports-pos-vs-purchase' ||
+                                Request::is('reports/product-system*')
                                     ? 'active dash-trigger'
                                     : '' }}">
                         <a href="#!" class="dash-link ">
@@ -116,17 +117,6 @@
                                                         class="dash-arrow"><i
                                                             data-feather="chevron-right"></i></span></a>
                                                 <ul class="dash-submenu">
-                                                    {{-- Section landing pages --}}
-                                                    <li class="dash-item {{ Request::route()->getName() == 'reports.sections.monthly' ? ' active' : '' }}">
-                                                        <a class="dash-link" href="{{ route('reports.sections.monthly') }}">{{ __('Monthly Reports') }}</a>
-                                                    </li>
-                                                    <li class="dash-item {{ Request::route()->getName() == 'reports.sections.management' ? ' active' : '' }}">
-                                                        <a class="dash-link" href="{{ route('reports.sections.management') }}">{{ __('Management Reports') }}</a>
-                                                    </li>
-                                                    <li class="dash-item {{ Request::route()->getName() == 'reports.sections.analytical' ? ' active' : '' }}">
-                                                        <a class="dash-link" href="{{ route('reports.sections.analytical') }}">{{ __('Analytical Reports') }}</a>
-                                                    </li>
-
                                                     {{-- Monthly (government) --}}
                                                     <li class="dash-item dash-hasmenu">
                                                         <a class="dash-link" href="#">{{ __('Monthly Reports') }}
@@ -236,6 +226,33 @@
                                     </ul>
                                 </li>
                             @endif
+
+                            @can('stock report')
+                                <li class="dash-item dash-hasmenu {{ Request::is('reports/product-system*') ? ' active dash-trigger' : '' }}">
+                                    <a class="dash-link" href="#">{{ __('Product system') }}<span
+                                            class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
+                                    <ul class="dash-submenu">
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.index' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.index') }}">{{ __('Overview') }}</a>
+                                        </li>
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.store-check' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.store-check') }}">{{ __('Store check') }}</a>
+                                        </li>
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.warehouse-stock' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.warehouse-stock') }}">{{ __('Warehouse stock') }}</a>
+                                        </li>
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.transactions' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.transactions') }}">{{ __('Transactions') }}</a>
+                                        </li>
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.last-supplies' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.last-supplies') }}">{{ __('Last 5 supplies') }}</a>
+                                        </li>
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.location-check' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.location-check') }}">{{ __('Row & column check') }}</a>
+                                        </li>
+                                    </ul>
+                                </li>
+                            @endcan
 
                             @if ($userPlan->hrm == 1)
                                 @can('show hrm dashboard')

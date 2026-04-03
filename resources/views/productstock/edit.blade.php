@@ -16,6 +16,27 @@
             {{ Form::label('quantity', __('Quantity'),['class'=>'form-label']) }}<x-required></x-required>
             {{ Form::number('quantity',"", array('class' => 'form-control','required'=>'required', 'placeholder' => __('Enter Quantity'))) }}
         </div>
+        @if(isset($singleWarehouseId) && $singleWarehouseId)
+            <div class="form-group col-md-12">
+                {{ Form::label('warehouse_id', __('Warehouse'),['class'=>'form-label']) }}
+                @php $wname = ($warehouses[$singleWarehouseId] ?? ''); @endphp
+                <div class="form-control-plaintext">{{ $wname }}</div>
+                {{ Form::hidden('warehouse_id', $singleWarehouseId) }}
+            </div>
+        @elseif(isset($warehouses) && $warehouses->count() > 1)
+            <div class="form-group col-md-12">
+                {{ Form::label('warehouse_id', __('Warehouse'),['class'=>'form-label']) }}<x-required></x-required>
+                {{ Form::select('warehouse_id', $warehouses, null, ['class' => 'form-control select', 'required' => 'required']) }}
+            </div>
+        @endif
+        <div class="form-group col-md-6">
+            {{ Form::label('shelf_no', __('Shelf number'),['class'=>'form-label']) }}
+            {{ Form::text('shelf_no', $productService->shelf_no, ['class' => 'form-control', 'placeholder' => __('Optional')]) }}
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('row_no', __('Row'),['class'=>'form-label']) }}
+            {{ Form::text('row_no', $productService->row_no, ['class' => 'form-control', 'placeholder' => __('Optional')]) }}
+        </div>
         <div class="form-group col-md-6">
             {{ Form::label('expiry_date', __('Expiry Date'),['class'=>'form-label']) }}
             {{ Form::date('expiry_date', null, ['class' => 'form-control']) }}

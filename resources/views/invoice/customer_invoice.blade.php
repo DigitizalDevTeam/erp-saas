@@ -298,6 +298,7 @@
                                                     <th class="text-dark">{{ __('Discount') }}</th>
                                                     <th class="text-dark">{{ __('Tax') }}</th>
                                                     <th class="text-dark">{{ __('Description') }}</th>
+                                                    <th class="text-dark">{{ __('Serial / MAC') }}</th>
                                                     <th class="text-end text-dark" width="12%">
                                                         {{ __('Price') }}<br>
                                                         <small
@@ -402,6 +403,7 @@
 
                                                         <td>{{ !empty($iteam->description) ? $iteam->description : '-' }}
                                                         </td>
+                                                        <td class="font-style">{!! !empty($iteam->identifiers) ? nl2br(e($iteam->identifiers)) : '—' !!}</td>
                                                         <td class="text-end">
                                                             {{ Utility::priceFormat($settings, $iteam->price * $iteam->quantity - $iteam->discount + $totalTaxPrice) }}
                                                         </td>
@@ -419,9 +421,11 @@
                                                         <td><b>{{ Utility::priceFormat($settings, $totalTaxPrice) }}</b>
                                                         </td>
                                                         <td></td>
+                                                        <td></td>
+                                                        <td></td>
                                                     </tr>
                                                     <tr>
-                                                        <td colspan="6"></td>
+                                                        <td colspan="7"></td>
                                                         <td class="text-end"><b>{{ __('Sub Total') }}</b></td>
                                                         <td class="text-end">
                                                             {{ Utility::priceFormat($settings, $invoice->getSubTotal()) }}
@@ -429,7 +433,7 @@
                                                     </tr>
 
                                                     <tr>
-                                                        <td colspan="6"></td>
+                                                        <td colspan="7"></td>
                                                         <td class="text-end"><b>{{ __('Discount') }}</b></td>
                                                         <td class="text-end">
                                                             {{ Utility::priceFormat($settings, $invoice->getTotalDiscount()) }}
@@ -439,7 +443,7 @@
                                                     @if (!empty($taxesData))
                                                         @foreach ($taxesData as $taxName => $taxPrice)
                                                             <tr>
-                                                                <td colspan="6"></td>
+                                                                <td colspan="7"></td>
                                                                 <td class="text-end"><b>{{ $taxName }}</b></td>
                                                                 <td class="text-end">
                                                                     {{ Utility::priceFormat($settings, $taxPrice) }}
@@ -448,28 +452,28 @@
                                                         @endforeach
                                                     @endif
                                                     <tr>
-                                                        <td colspan="6"></td>
+                                                        <td colspan="7"></td>
                                                         <td class="blue-text text-end"><b>{{ __('Total') }}</b></td>
                                                         <td class="blue-text text-end">
                                                             {{ Utility::priceFormat($settings, $invoice->getTotal()) }}
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td colspan="6"></td>
+                                                        <td colspan="7"></td>
                                                         <td class="text-end"><b>{{ __('Paid') }}</b></td>
                                                         <td class="text-end">
                                                             {{ Utility::priceFormat($settings, $invoice->getTotal() - $invoice->getDue() - $invoice->invoiceTotalCreditNote()) }}
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td colspan="6"></td>
+                                                        <td colspan="7"></td>
                                                         <td class="text-end"><b>{{ __('Credit Note') }}</b></td>
                                                         <td class="text-end">
                                                             {{ Utility::priceFormat($settings, $invoice->invoiceTotalCreditNote()) }}
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td colspan="6"></td>
+                                                        <td colspan="7"></td>
                                                         <td class="text-end"><b>{{ __('Due') }}</b></td>
                                                         <td class="text-end">
                                                             {{ Utility::priceFormat($settings, $invoice->getDue()) }}

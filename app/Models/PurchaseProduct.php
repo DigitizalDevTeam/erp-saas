@@ -13,6 +13,8 @@ class PurchaseProduct extends Model
         'tax',
         'discount',
         'total',
+        'row_no',
+        'shelf_no',
     ];
 
     public function product()

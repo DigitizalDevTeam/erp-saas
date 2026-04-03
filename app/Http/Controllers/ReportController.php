@@ -2220,7 +2220,21 @@ class ReportController extends Controller
     public function productStock(Request $request)
     {
         if (\Auth::user()->can('stock report')) {
-            $stocks = StockReport::with(['product'])->where('created_by', '=', \Auth::user()->creatorId())->get();
+            $stocks = StockReport::with(['product'])->where('created_by', '=', \Auth::user()->creatorId())->orderByDesc('id')->get();
+            foreach ($stocks as $stock) {
+                $stock->stock_identifiers = null;
+                if ($stock->type === 'invoice' && ! empty($stock->type_id)) {
+                    $lines = InvoiceProduct::where('invoice_id', $stock->type_id)
+                        ->where('product_id', $stock->product_id)
+                        ->whereNotNull('identifiers')
+                        ->where('identifiers', '!=', '')
+                        ->pluck('identifiers');
+                    if ($lines->isNotEmpty()) {
+                        $stock->stock_identifiers = $lines->implode("\n");
+                    }
+                }
+            }
+
             return view('report.product_stock_report', compact('stocks'));
         } else {
             return redirect()->back()->with('error', __('Permission Denied.'));

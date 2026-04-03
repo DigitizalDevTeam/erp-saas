@@ -40,7 +40,7 @@ class BranchSalesTarget extends Model
     /**
      * Get [start, end] date range for the period (inclusive).
      */
-    public static function periodToDateRange(string $periodType, $periodValuea): array
+    public static function periodToDateRange(string $periodType, $periodValue): array
     {
         // $periodValue = $periodValue !== null ? trim((string) $periodValue) : '';
 

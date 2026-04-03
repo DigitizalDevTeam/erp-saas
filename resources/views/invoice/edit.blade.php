@@ -299,6 +299,25 @@
 
                             }
 
+                            var $wrapIds = $(el).closest('[data-repeater-item]');
+                            var $idRow = $wrapIds.find('.identifier-row');
+                            if (item.identifier_tracking) {
+                                $idRow.removeClass('d-none');
+                                var idLabel = item.identifier_type === 'mac' ? '{{ __("MAC Address List") }}' : '{{ __("Serial Number List") }}';
+                                if (item.identifier_type === 'both') {
+                                    idLabel = '{{ __("Serial/MAC List") }}';
+                                }
+                                $idRow.find('.identifier-label').text(idLabel);
+                                if (invoiceItems != null && invoiceItems.identifiers) {
+                                    $idRow.find('.identifiers-textarea').val(invoiceItems.identifiers);
+                                } else {
+                                    $idRow.find('.identifiers-textarea').val('');
+                                }
+                            } else {
+                                $idRow.addClass('d-none');
+                                $idRow.find('.identifiers-textarea').val('');
+                            }
+
                             var taxes = '';
                             var tax = [];
 
@@ -732,6 +751,15 @@
                                     </div>
                                 </td>
                                 <td colspan="5"></td>
+                            </tr>
+                            <tr class="identifier-row d-none">
+                                <td colspan="7">
+                                    <div class="form-group">
+                                        <label class="form-label identifier-label">{{ __('Serial/MAC List') }}</label>
+                                        {{ Form::textarea('identifiers', null, ['class'=>'form-control identifiers-textarea','rows'=>'3','placeholder'=>__('Enter one Serial/MAC per line')]) }}
+                                        <small class="text-muted identifier-help">{{ __('Count must match quantity. No duplicates allowed.') }}</small>
+                                    </div>
+                                </td>
                             </tr>
                             </tbody>
                             <tfoot>

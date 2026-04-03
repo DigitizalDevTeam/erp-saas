@@ -658,6 +658,20 @@
                                 </td>
                                 <td colspan="2"></td>
                             </tr>
+                            <tr>
+                                <td colspan="3">
+                                    <div class="form-group">
+                                        {{ Form::label('row_no', __('Row'), ['class' => 'form-label']) }}
+                                        {{ Form::text('row_no', null, ['class' => 'form-control', 'placeholder' => __('Bin row (optional)')]) }}
+                                    </div>
+                                </td>
+                                <td colspan="4">
+                                    <div class="form-group">
+                                        {{ Form::label('shelf_no', __('Shelf number'), ['class' => 'form-label']) }}
+                                        {{ Form::text('shelf_no', null, ['class' => 'form-control', 'placeholder' => __('Bin shelf (optional)')]) }}
+                                    </div>
+                                </td>
+                            </tr>
                             <tr class="identifier-row d-none">
                                 <td colspan="7">
                                     <div class="form-group">

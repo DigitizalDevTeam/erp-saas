@@ -582,6 +582,7 @@
                                                 <th class="text-dark">{{ __('Discount') }}</th>
                                                 <th class="text-dark">{{ __('Tax') }}</th>
                                                 <th class="text-dark">{{ __('Description') }}</th>
+                                                <th class="text-dark">{{ __('Serial / MAC') }}</th>
                                                 <th class="text-end text-dark" width="12%">{{ __('Price') }}<br>
                                                     <small
                                                         class="text-danger font-weight-bold">{{ __('after tax & discount') }}</small>
@@ -651,6 +652,7 @@
                                                     </td>
 
                                                     <td>{{ !empty($iteam->description) ? $iteam->description : '-' }}</td>
+                                                    <td class="font-style">{!! !empty($iteam->identifiers) ? nl2br(e($iteam->identifiers)) : '—' !!}</td>
                                                     <td class="text-end">
                                                         {{ \Auth::user()->priceFormat($iteam->price * $iteam->quantity - $iteam->discount + $totalTaxPrice) }}
                                                     </td>
@@ -665,16 +667,18 @@
                                                     <td><b>{{ \Auth::user()->priceFormat($totalDiscount) }}</b></td>
                                                     <td><b>{{ \Auth::user()->priceFormat($totalTaxPrice) }}</b></td>
                                                     <td></td>
+                                                    <td></td>
+                                                    <td></td>
                                                 </tr>
                                                 <tr>
-                                                    <td colspan="6"></td>
+                                                    <td colspan="7"></td>
                                                     <td class="text-end"><b>{{ __('Sub Total') }}</b></td>
                                                     <td class="text-end">
                                                         {{ \Auth::user()->priceFormat($invoice->getSubTotal()) }}</td>
                                                 </tr>
 
                                                 <tr>
-                                                    <td colspan="6"></td>
+                                                    <td colspan="7"></td>
                                                     <td class="text-end"><b>{{ __('Discount') }}</b></td>
                                                     <td class="text-end">
                                                         {{ \Auth::user()->priceFormat($invoice->getTotalDiscount()) }}
@@ -684,7 +688,7 @@
                                                 @if (!empty($taxesData))
                                                     @foreach ($taxesData as $taxName => $taxPrice)
                                                         <tr>
-                                                            <td colspan="6"></td>
+                                                            <td colspan="7"></td>
                                                             <td class="text-end"><b>{{ $taxName }}</b></td>
                                                             <td class="text-end">
                                                                 {{ \Auth::user()->priceFormat($taxPrice) }}</td>
@@ -692,34 +696,34 @@
                                                     @endforeach
                                                 @endif
                                                 <tr>
-                                                    <td colspan="6"></td>
+                                                    <td colspan="7"></td>
                                                     <td class="blue-text text-end"><b>{{ __('Total') }}</b></td>
                                                     <td class="blue-text text-end">
                                                         {{ \Auth::user()->priceFormat($invoice->getTotal()) }}</td>
                                                 </tr>
                                                 <tr>
-                                                    <td colspan="6"></td>
+                                                    <td colspan="7"></td>
                                                     <td class="text-end"><b>{{ __('Paid') }}</b></td>
                                                     <td class="text-end">
                                                         {{ \Auth::user()->priceFormat($invoice->getTotal() - $invoice->getDue() - $invoice->invoiceTotalCreditNote() + $invoice->invoiceTotalDebitNote()) }}
                                                     </td>
                                                 </tr>
                                                 <tr>
-                                                    <td colspan="6"></td>
+                                                    <td colspan="7"></td>
                                                     <td class="text-end"><b>{{ __('Credit Note') }}</b></td>
                                                     <td class="text-end">
                                                         {{ \Auth::user()->priceFormat($invoice->invoiceTotalCreditNote()) }}
                                                     </td>
                                                 </tr>
                                                 <tr>
-                                                    <td colspan="6"></td>
+                                                    <td colspan="7"></td>
                                                     <td class="text-end"><b>{{ __('Debit Note') }}</b></td>
                                                     <td class="text-end">
                                                         {{ \Auth::user()->priceFormat($invoice->invoiceTotalDebitNote()) }}
                                                     </td>
                                                 </tr>
                                                 <tr>
-                                                    <td colspan="6"></td>
+                                                    <td colspan="7"></td>
                                                     <td class="text-end"><b>{{ __('Due') }}</b></td>
                                                     <td class="text-end">
                                                         {{ \Auth::user()->priceFormat($invoice->getDue()) }}</td>

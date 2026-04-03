@@ -160,6 +160,7 @@
                             <tr>
                                 <th>{{__('Item')}}</th>
                                 <th>{{__('Description')}}</th>
+                                <th>{{__('Serial / MAC')}}</th>
                                 <th>{{__('Quantity')}}</th>
                                 <th>{{__('Rate')}}</th>
                                 <th>{{__('Discount')}}</th>
@@ -175,9 +176,8 @@
                             @php
                             $unitName = App\Models\ProductServiceUnit::find($item->unit);
                             @endphp
-                            @if(!empty($item->description))
-                                <td>{{$item->description}}</td>
-                            @endif
+                            <td>{{ $item->description ?? '—' }}</td>
+                            <td>{!! !empty($item->identifiers) ? nl2br(e($item->identifiers)) : '—' !!}</td>
                             <td>{{$item->quantity}} {{ ($unitName != null) ?  '('. $unitName->name .')' : ''}}</td>
                             <td>{{Utility::priceFormat($settings,$item->price)}}</td>
                             <td>{{($item->discount!=0)?Utility::priceFormat($settings,$item->discount):'-'}}</td>
@@ -203,6 +203,7 @@
                     @endif
                         <tr>
                             <td>{{ __('Total') }}</td>
+                            <td></td>
                             <td></td>
                             <td>{{ $invoice->totalQuantity }}</td>
                             <td>{{Utility::priceFormat($settings,$invoice->totalRate)}}</td>

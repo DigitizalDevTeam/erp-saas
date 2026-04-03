@@ -129,6 +129,9 @@ class PurchaseController extends Controller
                 $purchaseProduct->discount    = $products[$i]['discount'];
                 $purchaseProduct->price       = $products[$i]['price'];
                 $purchaseProduct->description = $products[$i]['description'];
+                [$pRow, $pShelf] = Utility::normalizeWarehouseLocation($products[$i]['row_no'] ?? '', $products[$i]['shelf_no'] ?? '');
+                $purchaseProduct->row_no = $pRow !== '' ? $pRow : null;
+                $purchaseProduct->shelf_no = $pShelf !== '' ? $pShelf : null;
                 $purchaseProduct->expiry_date = !empty($products[$i]['expiry_date']) ? $products[$i]['expiry_date'] : null;
                 $purchaseProduct->batch_no = !empty($products[$i]['batch_no']) ? trim($products[$i]['batch_no']) : null;
                 $purchaseProduct->mfg_date = !empty($products[$i]['mfg_date']) ? $products[$i]['mfg_date'] : null;
@@ -208,7 +211,7 @@ class PurchaseController extends Controller
                 //Warehouse Stock Report
                 if(isset($products[$i]['item']))
                 {
-                    Utility::addWarehouseStock( $products[$i]['item'],$products[$i]['quantity'],$request->warehouse_id);
+                    Utility::addWarehouseStock($products[$i]['item'], $products[$i]['quantity'], $warehouseId, $pRow, $pShelf);
                 }
 
             }
@@ -313,18 +316,26 @@ class PurchaseController extends Controller
 
                 for($i = 0; $i < count($products); $i++)
                 {
-                    $purchaseProduct = PurchaseProduct::find($products[$i]['id']);
+                    $existingLine = ! empty($products[$i]['id'])
+                        ? PurchaseProduct::where('id', $products[$i]['id'])->where('purchase_id', $purchase->id)->first()
+                        : null;
 
-                    if($purchaseProduct == null)
+                    if($existingLine == null)
                     {
                         $purchaseProduct             = new PurchaseProduct();
                         $purchaseProduct->purchase_id    = $purchase->id;
 
                         Utility::total_quantity('plus',$products[$i]['quantity'],$products[$i]['item']);
-                        $old_qty=0;
+                        $old_qty = 0;
+                        $old_pid = null;
+                        $prev_row = '';
+                        $prev_shelf = '';
                     }
                     else{
+                        $purchaseProduct = $existingLine;
                         $old_qty = $purchaseProduct->quantity;
+                        $old_pid = (int) $purchaseProduct->product_id;
+                        [$prev_row, $prev_shelf] = Utility::normalizeWarehouseLocation($purchaseProduct->row_no, $purchaseProduct->shelf_no);
                         Utility::total_quantity('minus',$purchaseProduct->quantity,$purchaseProduct->product_id);
                     }
 
@@ -338,6 +349,9 @@ class PurchaseController extends Controller
                     $purchaseProduct->discount    = $products[$i]['discount'];
                     $purchaseProduct->price       = $products[$i]['price'];
                     $purchaseProduct->description = $products[$i]['description'];
+                    [$lineRow, $lineShelf] = Utility::normalizeWarehouseLocation($products[$i]['row_no'] ?? '', $products[$i]['shelf_no'] ?? '');
+                    $purchaseProduct->row_no = $lineRow !== '' ? $lineRow : null;
+                    $purchaseProduct->shelf_no = $lineShelf !== '' ? $lineShelf : null;
                     $purchaseProduct->save();
 
                     if ($products[$i]['id']>0) {
@@ -355,12 +369,15 @@ class PurchaseController extends Controller
                         Utility::addProductStock( $products[$i]['item'],$products[$i]['quantity'],$type,$description,$type_id);
                     }
 
-                    //Warehouse Stock Report
-                    $new_qty = $purchaseProduct->quantity;
-                    $total_qty= $new_qty - $old_qty;
-                    if(isset($products[$i]['item'])){
-
-                        Utility::addWarehouseStock($products[$i]['item'],$total_qty,$request->warehouse_id);
+                    if(isset($products[$i]['item']) && ! empty($request->warehouse_id)){
+                        $wid = (int) $request->warehouse_id;
+                        $new_pid = (int) $purchaseProduct->product_id;
+                        $new_qty = (float) $purchaseProduct->quantity;
+                        [$new_row, $new_shelf] = Utility::normalizeWarehouseLocation($purchaseProduct->row_no, $purchaseProduct->shelf_no);
+                        if ($existingLine != null && $old_pid && $old_qty) {
+                            Utility::addWarehouseStock($old_pid, -$old_qty, $wid, $prev_row, $prev_shelf);
+                        }
+                        Utility::addWarehouseStock($new_pid, $new_qty, $wid, $new_row, $new_shelf);
                     }
 
                 }
@@ -401,7 +418,25 @@ class PurchaseController extends Controller
 
                 foreach($purchase_products as $purchase_product)
                 {
-                    $warehouse_qty = WarehouseProduct::where('warehouse_id',$purchase->warehouse_id)->where('product_id',$purchase_product->product_id)->first();
+                    [$dRow, $dShelf] = Utility::normalizeWarehouseLocation($purchase_product->row_no, $purchase_product->shelf_no);
+                    $warehouse_qty = WarehouseProduct::where('warehouse_id', $purchase->warehouse_id)
+                        ->where('product_id', $purchase_product->product_id)
+                        ->where('row_no', $dRow)
+                        ->where('shelf_no', $dShelf)
+                        ->where('created_by', \Auth::user()->creatorId())
+                        ->first();
+                    if (empty($warehouse_qty)) {
+                        $warehouse_qty = WarehouseProduct::where('warehouse_id', $purchase->warehouse_id)
+                            ->where('product_id', $purchase_product->product_id)
+                            ->where('row_no', $dRow)
+                            ->where('shelf_no', $dShelf)
+                            ->first();
+                    }
+                    if (empty($warehouse_qty)) {
+                        $warehouse_qty = WarehouseProduct::where('warehouse_id', $purchase->warehouse_id)
+                            ->where('product_id', $purchase_product->product_id)
+                            ->first();
+                    }
 
                     $warehouse_transfers = WarehouseTransfer::where('product_id',$purchase_product->product_id)->where('from_warehouse',$purchase->warehouse_id)->get();
                     foreach ($warehouse_transfers as $warehouse_transfer)

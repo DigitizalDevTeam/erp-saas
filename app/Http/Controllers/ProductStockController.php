@@ -6,7 +6,9 @@ use App\Models\ProductService;
 use App\Models\ProductStock;
 use App\Models\ProductIdentifier;
 use App\Models\Utility;
+use App\Models\warehouse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ProductStockController extends Controller
 {
@@ -82,7 +84,12 @@ class ProductStockController extends Controller
         {
             if($productService->created_by == \Auth::user()->creatorId())
             {
-                return view('productstock.edit', compact('productService'));
+                $warehouseModels = warehouse::where('created_by', \Auth::user()->creatorId())->orderBy('name')->get();
+                $warehouses = $warehouseModels->pluck('name', 'id');
+                $warehouses->prepend(__('Select Warehouse'), '');
+                $singleWarehouseId = $warehouseModels->count() === 1 ? $warehouseModels->first()->id : null;
+
+                return view('productstock.edit', compact('productService', 'warehouses', 'singleWarehouseId'));
             }
             else
             {
@@ -109,10 +116,29 @@ class ProductStockController extends Controller
         if(\Auth::user()->can('edit product & service'))
         {
             $productService = ProductService::find($id);
-            $request->validate([
+            $hasWarehouse = warehouse::where('created_by', \Auth::user()->creatorId())->exists();
+            $rules = [
                 'quantity' => 'required|numeric|min:1',
-            ]);
+                'row_no' => 'nullable|string|max:64',
+                'shelf_no' => 'nullable|string|max:64',
+            ];
+            if ($hasWarehouse) {
+                $rules['warehouse_id'] = [
+                    'required',
+                    'integer',
+                    Rule::exists('warehouses', 'id')->where(function ($q) {
+                        $q->where('created_by', \Auth::user()->creatorId());
+                    }),
+                ];
+            } else {
+                $rules['warehouse_id'] = 'nullable';
+            }
+            $request->validate($rules);
+
             $qtyToAdd = (int) $request->quantity;
+            $warehouseId = $hasWarehouse ? (int) $request->warehouse_id : null;
+            $rowNo = $request->input('row_no');
+            $shelfNo = $request->input('shelf_no');
             $total = $productService->quantity + $qtyToAdd;
 
             if($productService->created_by == \Auth::user()->creatorId())
@@ -150,7 +176,7 @@ class ProductStockController extends Controller
                     foreach ($unique as $val) {
                         ProductIdentifier::create([
                             'product_id' => (int) $productService->id,
-                            'warehouse_id' => null,
+                            'warehouse_id' => $warehouseId,
                             'purchase_id' => null,
                             'purchase_product_id' => null,
                             'identifier_type' => $type,
@@ -170,7 +196,7 @@ class ProductStockController extends Controller
                 if ($request->filled('expiry_date') || $request->filled('batch_no')) {
                     \App\Models\ProductExpiryLot::create([
                         'product_id' => (int) $productService->id,
-                        'warehouse_id' => null,
+                        'warehouse_id' => $warehouseId,
                         'purchase_id' => null,
                         'purchase_product_id' => null,
                         'source' => 'manual',
@@ -189,6 +215,19 @@ class ProductStockController extends Controller
                 $description = $qtyToAdd . '  ' . __('quantity added by manually');
                 Utility::addProductStock($productService->id, $qtyToAdd, $type, $description, $type_id);
 
+                if ($warehouseId) {
+                    Utility::addWarehouseStock((int) $productService->id, $qtyToAdd, $warehouseId, $rowNo, $shelfNo);
+                }
+
+                if ($request->filled('row_no') || $request->filled('shelf_no')) {
+                    if ($request->filled('row_no')) {
+                        $productService->row_no = trim((string) $request->row_no);
+                    }
+                    if ($request->filled('shelf_no')) {
+                        $productService->shelf_no = trim((string) $request->shelf_no);
+                    }
+                    $productService->save();
+                }
 
                 return redirect()->route('productstock.index')->with('success', __('Product quantity updated manually.'));
             }

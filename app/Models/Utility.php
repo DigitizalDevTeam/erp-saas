@@ -4368,24 +4368,59 @@ class Utility extends Model
         return $setting[$key];
     }
 
-    //add quantity in warehouse stock
-    public static function addWarehouseStock($product_id, $quantity, $warehouse_id)
+    /**
+     * Normalize row/shelf for warehouse bin keys (empty string = default bin).
+     *
+     * @return array{0: string, 1: string}
+     */
+    public static function normalizeWarehouseLocation($row_no = null, $shelf_no = null): array
     {
+        $r = ($row_no !== null && (string) $row_no !== '') ? trim((string) $row_no) : '';
+        $s = ($shelf_no !== null && (string) $shelf_no !== '') ? trim((string) $shelf_no) : '';
 
-        $product = WarehouseProduct::where('product_id', $product_id)->where('warehouse_id', $warehouse_id)->first();
+        return [$r, $s];
+    }
+
+    // Add quantity in warehouse stock (supports per-bin row/shelf; negative qty reduces or removes the bin row).
+    public static function addWarehouseStock($product_id, $quantity, $warehouse_id, $row_no = null, $shelf_no = null)
+    {
+        [$row_no, $shelf_no] = self::normalizeWarehouseLocation($row_no, $shelf_no);
+
+        $creatorId = (int) \Auth::user()->creatorId();
+
+        $product = WarehouseProduct::where('product_id', $product_id)
+            ->where('warehouse_id', $warehouse_id)
+            ->where('row_no', $row_no)
+            ->where('shelf_no', $shelf_no)
+            ->where('created_by', $creatorId)
+            ->first();
 
         if ($product) {
-            $pro_quantity = $product->quantity;
-            $product_quantity = $pro_quantity + $quantity;
+            $product_quantity = (float) $product->quantity + (float) $quantity;
         } else {
-            $product_quantity = $quantity;
+            $product_quantity = (float) $quantity;
         }
 
-        $data = WarehouseProduct::updateOrCreate(
-            ['warehouse_id' => $warehouse_id, 'product_id' => $product_id, 'created_by' => \Auth::user()->id],
-            ['warehouse_id' => $warehouse_id, 'product_id' => $product_id, 'quantity' => $product_quantity, 'created_by' => \Auth::user()->id])
-        ;
+        if ($product_quantity <= 0) {
+            if ($product) {
+                $product->delete();
+            }
 
+            return;
+        }
+
+        WarehouseProduct::updateOrCreate(
+            [
+                'warehouse_id' => $warehouse_id,
+                'product_id' => $product_id,
+                'created_by' => $creatorId,
+                'row_no' => $row_no,
+                'shelf_no' => $shelf_no,
+            ],
+            [
+                'quantity' => $product_quantity,
+            ]
+        );
     }
 
     public static function starting_number($id, $type)

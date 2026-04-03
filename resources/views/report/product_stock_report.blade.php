@@ -30,6 +30,7 @@
                                 <th>{{__('Product Name')}}</th>
                                 <th>{{__('Quantity')}}</th>
                                 <th>{{__('Type')}}</th>
+                                <th>{{__('Serial / MAC')}}</th>
                                 <th>{{__('Description')}}</th>
                             </tr>
                             </thead>
@@ -52,6 +53,7 @@
                                             <span class="status_badge badge bg-info p-2 px-3 rounded">{{ ucfirst($stock->type) }}</span>
                                         @endif
                                     </td>
+                                    <td class="font-style">{{ !empty($stock->stock_identifiers) ? $stock->stock_identifiers : '—' }}</td>
                                     <td class="font-style">{{$stock->description}}</td>
 
                                 </tr>

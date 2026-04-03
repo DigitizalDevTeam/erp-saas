@@ -58,6 +58,16 @@ class InvoiceController extends Controller
             if ($request->status != null) {
                 $query->where('status', '=', $request->status);
             }
+            if ($request->filled('search')) {
+                $term = trim((string) $request->search);
+                $query->where(function ($q) use ($term) {
+                    $q->where('invoice_id', 'like', '%' . $term . '%')
+                        ->orWhere('ref_number', 'like', '%' . $term . '%')
+                        ->orWhereHas('items', function ($iq) use ($term) {
+                            $iq->where('identifiers', 'like', '%' . $term . '%');
+                        });
+                });
+            }
             $invoices = $query->get();
 
             return view('invoice.index', compact('invoices', 'customer', 'status'));
@@ -134,63 +144,83 @@ class InvoiceController extends Controller
                 $messages = $validator->getMessageBag();
                 return redirect()->back()->with('error', $messages->first());
             }
-            $status = Invoice::$statues;
-            $invoice = new Invoice();
-            $invoice->invoice_id = $this->invoiceNumber();
-            $invoice->customer_id = $request->customer_id;
-            $invoice->status = 0;
-            $invoice->issue_date = $request->issue_date;
-            $invoice->due_date = $request->due_date;
-            $invoice->category_id = $request->category_id;
-            $invoice->ref_number = $request->ref_number;
-            $invoice->billing_address_id = $request->billing_address ?? null;
-            $invoice->shipping_address_id = $request->shipping_address ?? null;
-//            $invoice->discount_apply = isset($request->discount_apply) ? 1 : 0;
-            $invoice->created_by = \Auth::user()->creatorId();
-            $invoice->save();
-            CustomField::saveData($invoice, $request->customField);
+
             $products = $request->items;
-
-            // Reset stock report lines for this invoice once
-            StockReport::where('type', '=', 'invoice')->where('type_id', '=', $invoice->id)->delete();
-
-            for ($i = 0; $i < count($products); $i++) {
-
-                $invoiceProduct = new InvoiceProduct();
-                $invoiceProduct->invoice_id = $invoice->id;
-                $invoiceProduct->product_id = $products[$i]['item'];
-                $invoiceProduct->quantity = $products[$i]['quantity'];
-                $invoiceProduct->tax = $products[$i]['tax'];
-//                $invoiceProduct->discount    = isset($products[$i]['discount']) ? $products[$i]['discount'] : 0;
-                $invoiceProduct->discount = $products[$i]['discount'];
-                $invoiceProduct->price = $products[$i]['price'];
-                $invoiceProduct->description = $products[$i]['description'];
-                $invoiceProduct->identifiers = $products[$i]['identifiers'] ?? null;
-                $invoiceProduct->save();
-
-                // Apply sale deduction rules (kit / FEFO / serial-mac) depending on company setting
-                $settings = Utility::settings();
-                $timing = $settings['stock_deduction_timing'] ?? 'invoice';
-                if ($timing === 'invoice') {
-                    try {
-                        InvoiceSaleDeductionService::deductLine(
-                            (int) $invoiceProduct->product_id,
-                            (float) $invoiceProduct->quantity,
-                            (int) \Auth::user()->creatorId(),
-                            (int) $invoice->id,
-                            (int) $invoiceProduct->id,
-                            (int) $invoice->customer_id,
-                            \Auth::user()->invoiceNumberFormat($invoice->invoice_id),
-                            $invoiceProduct->identifiers
-                        );
-                    } catch (\Throwable $e) {
-                        return redirect()->back()->with('error', $e->getMessage());
-                    }
+            foreach ($products as $p) {
+                try {
+                    InvoiceSaleDeductionService::validateTrackedIdentifiersForLine(
+                        (int) $p['item'],
+                        (float) $p['quantity'],
+                        (int) \Auth::user()->creatorId(),
+                        $p['identifiers'] ?? null
+                    );
+                } catch (\Throwable $e) {
+                    return redirect()->back()->with('error', $e->getMessage())->withInput();
                 }
+            }
 
-                //For Notification
-                $setting = Utility::settings(\Auth::user()->creatorId());
-                $customer = Customer::find($request->customer_id);
+            try {
+                $invoice = DB::transaction(function () use ($request, $products) {
+                    $invoice = new Invoice();
+                    $invoice->invoice_id = $this->invoiceNumber();
+                    $invoice->customer_id = $request->customer_id;
+                    $invoice->status = 0;
+                    $invoice->issue_date = $request->issue_date;
+                    $invoice->due_date = $request->due_date;
+                    $invoice->category_id = $request->category_id;
+                    $invoice->ref_number = $request->ref_number;
+                    $invoice->billing_address_id = $request->billing_address ?? null;
+                    $invoice->shipping_address_id = $request->shipping_address ?? null;
+                    $invoice->created_by = \Auth::user()->creatorId();
+                    $invoice->save();
+                    CustomField::saveData($invoice, $request->customField);
+
+                    StockReport::where('type', '=', 'invoice')->where('type_id', '=', $invoice->id)->delete();
+
+                    $settings = Utility::settings();
+                    $timing = $settings['stock_deduction_timing'] ?? 'invoice';
+
+                    for ($i = 0; $i < count($products); $i++) {
+                        $invoiceProduct = new InvoiceProduct();
+                        $invoiceProduct->invoice_id = $invoice->id;
+                        $invoiceProduct->product_id = $products[$i]['item'];
+                        $invoiceProduct->quantity = $products[$i]['quantity'];
+                        $invoiceProduct->tax = $products[$i]['tax'];
+                        $invoiceProduct->discount = $products[$i]['discount'];
+                        $invoiceProduct->price = $products[$i]['price'];
+                        $invoiceProduct->description = $products[$i]['description'];
+                        $invoiceProduct->identifiers = $products[$i]['identifiers'] ?? null;
+                        $invoiceProduct->save();
+
+                        if ($timing === 'invoice') {
+                            InvoiceSaleDeductionService::deductLine(
+                                (int) $invoiceProduct->product_id,
+                                (float) $invoiceProduct->quantity,
+                                (int) \Auth::user()->creatorId(),
+                                (int) $invoice->id,
+                                (int) $invoiceProduct->id,
+                                (int) $invoice->customer_id,
+                                \Auth::user()->invoiceNumberFormat($invoice->invoice_id),
+                                $invoiceProduct->identifiers
+                            );
+                        }
+                    }
+
+                    if ($timing === 'invoice' && empty($invoice->stock_deducted_at)) {
+                        $invoice->stock_deducted_at = now();
+                        $invoice->stock_deducted_via = 'invoice';
+                        $invoice->save();
+                    }
+
+                    return $invoice->fresh();
+                });
+            } catch (\Throwable $e) {
+                return redirect()->back()->with('error', $e->getMessage())->withInput();
+            }
+
+            $setting = Utility::settings(\Auth::user()->creatorId());
+            $customer = Customer::find($request->customer_id);
+            if ($customer) {
                 $invoiceNotificationArr = [
                     'invoice_number' => \Auth::user()->invoiceNumberFormat($invoice->invoice_id),
                     'user_name' => \Auth::user()->name,
@@ -198,28 +228,15 @@ class InvoiceController extends Controller
                     'invoice_due_date' => $invoice->due_date,
                     'customer_name' => $customer->name,
                 ];
-                //Slack Notification
                 if (isset($setting['invoice_notification']) && $setting['invoice_notification'] == 1) {
                     Utility::send_slack_msg('new_invoice', $invoiceNotificationArr);
                 }
-                //Telegram Notification
                 if (isset($setting['telegram_invoice_notification']) && $setting['telegram_invoice_notification'] == 1) {
                     Utility::send_telegram_msg('new_invoice', $invoiceNotificationArr);
                 }
-                //Twilio Notification
                 if (isset($setting['twilio_invoice_notification']) && $setting['twilio_invoice_notification'] == 1) {
                     Utility::send_twilio_msg($customer->contact, 'new_invoice', $invoiceNotificationArr);
                 }
-
-            }
-
-            // Mark stock deduction once per invoice (only when deducted on invoice)
-            $settings = Utility::settings();
-            $timing = $settings['stock_deduction_timing'] ?? 'invoice';
-            if ($timing === 'invoice' && empty($invoice->stock_deducted_at)) {
-                $invoice->stock_deducted_at = now();
-                $invoice->stock_deducted_via = 'invoice';
-                $invoice->save();
             }
 
             //webhook
@@ -345,6 +362,19 @@ class InvoiceController extends Controller
                     $invoiceProduct->discount = $products[$i]['discount'];
                     $invoiceProduct->price = $products[$i]['price'];
                     $invoiceProduct->description = $products[$i]['description'];
+                    $invoiceProduct->identifiers = $products[$i]['identifiers'] ?? null;
+
+                    try {
+                        InvoiceSaleDeductionService::validateTrackedIdentifiersForLine(
+                            (int) $invoiceProduct->product_id,
+                            (float) $invoiceProduct->quantity,
+                            (int) \Auth::user()->creatorId(),
+                            $invoiceProduct->identifiers
+                        );
+                    } catch (\Throwable $e) {
+                        return redirect()->back()->with('error', $e->getMessage())->withInput();
+                    }
+
                     $invoiceProduct->save();
 
                     if ($products[$i]['id'] > 0) {
@@ -523,9 +553,21 @@ class InvoiceController extends Controller
             if (!empty($request->status)) {
                 $query->where('status', '=', $request->status);
             }
+            if ($request->filled('search')) {
+                $term = trim((string) $request->search);
+                $query->where(function ($q) use ($term) {
+                    $q->where('invoice_id', 'like', '%' . $term . '%')
+                        ->orWhere('ref_number', 'like', '%' . $term . '%')
+                        ->orWhereHas('items', function ($iq) use ($term) {
+                            $iq->where('identifiers', 'like', '%' . $term . '%');
+                        });
+                });
+            }
             $invoices = $query->get();
 
-            return view('invoice.index', compact('invoices', 'status'));
+            $customer = collect(['' => __('Select Customer')]);
+
+            return view('invoice.index', compact('invoices', 'customer', 'status'));
         } else {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
@@ -945,6 +987,8 @@ class InvoiceController extends Controller
                     $duplicateProduct->tax = $product->tax;
                     $duplicateProduct->discount = $product->discount;
                     $duplicateProduct->price = $product->price;
+                    $duplicateProduct->description = $product->description;
+                    $duplicateProduct->identifiers = $product->identifiers;
                     $duplicateProduct->save();
                 }
             }
@@ -1084,6 +1128,7 @@ class InvoiceController extends Controller
             $item->discount = $product->discount;
             $item->price = $product->price;
             $item->description = $product->description;
+            $item->identifiers = $product->identifiers;
 
             $totalQuantity += $item->quantity;
             $totalRate += $item->price;

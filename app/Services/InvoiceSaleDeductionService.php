@@ -17,6 +17,45 @@ use Illuminate\Support\Facades\DB;
  */
 class InvoiceSaleDeductionService
 {
+    /**
+     * Ensure Serial/MAC lines are valid and each identifier exists in stock for this product.
+     * Call on every invoice save for tracked products, even when stock is deducted later (e.g. delivery note).
+     */
+    public static function validateTrackedIdentifiersForLine(int $productId, float $quantity, int $creatorId, ?string $identifiersRaw): void
+    {
+        if ($quantity <= 0) {
+            return;
+        }
+
+        $product = ProductService::where('id', $productId)->where('created_by', $creatorId)->first();
+        if (!$product || !($product->identifier_tracking ?? false)) {
+            return;
+        }
+
+        $list = preg_split("/\r\n|\n|\r|,|;|\t/", (string) ($identifiersRaw ?? ''));
+        $list = array_values(array_filter(array_map(function ($v) {
+            $v = trim((string) $v);
+            return $v === '' ? null : $v;
+        }, $list)));
+
+        $unique = array_values(array_unique($list));
+        if (count($unique) !== count($list)) {
+            throw new \RuntimeException(__('Duplicate Serial/MAC found in the list.'));
+        }
+        if (count($unique) !== (int) $quantity) {
+            throw new \RuntimeException(__('Serial/MAC count must match quantity for tracked products.'));
+        }
+
+        $exists = ProductIdentifier::where('created_by', $creatorId)
+            ->where('product_id', $productId)
+            ->whereIn('identifier_value', $unique)
+            ->where('status', 'in_stock')
+            ->count();
+        if ($exists !== count($unique)) {
+            throw new \RuntimeException(__('One or more Serial/MAC is not available in stock.'));
+        }
+    }
+
     public static function deductLine(int $productId, float $quantity, int $creatorId, int $invoiceId, int $invoiceProductId, int $customerId, string $invoiceNoFormatted, ?string $identifiersRaw = null): void
     {
         if ($quantity <= 0) {
@@ -30,28 +69,14 @@ class InvoiceSaleDeductionService
 
         // Serial/MAC validation and assignment (if enabled)
         if (($product->identifier_tracking ?? false)) {
+            self::validateTrackedIdentifiersForLine($productId, $quantity, $creatorId, $identifiersRaw);
+
             $list = preg_split("/\r\n|\n|\r|,|;|\t/", (string) ($identifiersRaw ?? ''));
             $list = array_values(array_filter(array_map(function ($v) {
                 $v = trim((string) $v);
                 return $v === '' ? null : $v;
             }, $list)));
-
             $unique = array_values(array_unique($list));
-            if (count($unique) !== count($list)) {
-                throw new \RuntimeException(__('Duplicate Serial/MAC found in the list.'));
-            }
-            if (count($unique) !== (int) $quantity) {
-                throw new \RuntimeException(__('Serial/MAC count must match quantity for tracked products.'));
-            }
-
-            $exists = ProductIdentifier::where('created_by', $creatorId)
-                ->where('product_id', $productId)
-                ->whereIn('identifier_value', $unique)
-                ->where('status', 'in_stock')
-                ->count();
-            if ($exists !== count($unique)) {
-                throw new \RuntimeException(__('One or more Serial/MAC is not available in stock.'));
-            }
 
             ProductIdentifier::where('created_by', $creatorId)
                 ->where('product_id', $productId)

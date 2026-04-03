@@ -55,16 +55,24 @@
                                     {{ Form::date('issue_date', isset($_GET['issue_date'])?$_GET['issue_date']:'', array('class' => 'form-control month-btn','id'=>'pc-daterangepicker-1', 'placeholder' => __('Issue Date'))) }}
                                 </div>
                             </div>
+                            @isset($customer)
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
                                     <div class="btn-box">
                                         {{ Form::label('customer', __('Customer'),['class'=>'form-label'])}}
                                         {{ Form::select('customer', $customer, isset($_GET['customer']) ? $_GET['customer'] : '', ['class' => 'form-control select']) }}
                                     </div>
                                 </div>
+                            @endisset
                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                                 <div class="btn-box">
                                     {{ Form::label('status', __('Status'),['class'=>'form-label'])}}
                                     {{ Form::select('status', [''=>'Select Status'] + $status,isset($_GET['status'])?$_GET['status']:'', array('class' => 'form-control select')) }}
+                                </div>
+                            </div>
+                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12 mr-2">
+                                <div class="btn-box">
+                                    {{ Form::label('search', __('Invoice # / Ref / MAC'),['class'=>'form-label']) }}
+                                    {{ Form::text('search', request('search'), ['class' => 'form-control', 'placeholder' => __('Search…')]) }}
                                 </div>
                             </div>
                             <div class="col-auto float-end ms-2 mt-4">
@@ -154,16 +162,13 @@
                                                     @can('duplicate invoice')
                                                         <div class="action-btn me-2">
                                                            {!! Form::open(['method' => 'get', 'route' => ['invoice.duplicate', $invoice->id], 'id' => 'duplicate-form-' . $invoice->id]) !!}
-
                                                             <a href="#" class="mx-3 btn btn-sm align-items-center bs-pass-para bg-primary" data-toggle="tooltip"
                                                                data-original-title="{{ __('Duplicate') }}" data-bs-toggle="tooltip" title="Duplicate Invoice"
-                                                               data-original-title="{{ __('Delete') }}"
                                                                data-confirm="You want to confirm this action. Press Yes to continue or Cancel to go back"
                                                                data-confirm-yes="document.getElementById('duplicate-form-{{ $invoice->id }}').submit();">
                                                                 <i class="ti ti-copy text-white"></i>
-                                                                {!! Form::open(['method' => 'get', 'route' => ['invoice.duplicate', $invoice->id], 'id' => 'duplicate-form-' . $invoice->id]) !!}
-                                                                {!! Form::close() !!}
                                                             </a>
+                                                            {!! Form::close() !!}
                                                         </div>
                                                     @endcan
                                                     @can('show invoice')
