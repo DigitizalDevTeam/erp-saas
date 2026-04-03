@@ -252,6 +252,12 @@
                                 <span>{{ !empty($employee) ? $employee->tax_payer_id : '' }}</span>
                             </div>
                         </div>
+                        <div class="col-sm-6 col-12">
+                            <div class="info">
+                                <strong class="font-bold">{{ __('Number of Dependents') }} :</strong>
+                                <span>{{ !empty($employee) ? (int) ($employee->dependents ?? 0) : 0 }}</span>
+                            </div>
+                        </div>
 
                     </div>
                 </div>

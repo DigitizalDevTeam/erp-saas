@@ -34,7 +34,7 @@ class PosFefoDeductionService
         return $q->exists();
     }
 
-    public static function deductForSale(int $productId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId): void
+    public static function deductForSale(int $productId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId, ?string $identifiersNote = null): void
     {
         if ($quantity <= 0) {
             return;
@@ -117,7 +117,8 @@ class PosFefoDeductionService
         $newQty = max(0, $original - $quantity);
         ProductService::where('id', $productId)->update(['quantity' => $newQty]);
         Utility::warehouse_quantity('minus', $quantity, $productId, $warehouseId);
-        $description = $quantity . ' ' . __('quantity sold in pos') . ' ' . $posIdFormatted;
+        $suffix = $identifiersNote ?? '';
+        $description = $quantity . ' ' . __('quantity sold in pos') . ' ' . $posIdFormatted . $suffix;
         Utility::addProductStock($productId, $quantity, 'pos', $description, $posId);
     }
 

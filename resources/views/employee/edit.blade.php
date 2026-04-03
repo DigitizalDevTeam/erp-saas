@@ -262,6 +262,11 @@
                                     {!! Form::label('tax_payer_id', __('Tax Payer Id'), ['class' => 'form-label']) !!}
                                     {!! Form::text('tax_payer_id', null, ['class' => 'form-control', 'placeholder' => __('Enter tax payer id')]) !!}
                                 </div>
+                                <div class="form-group col-md-6">
+                                    {!! Form::label('dependents', __('Number of Dependents'), ['class' => 'form-label']) !!}
+                                    {!! Form::number('dependents', null, ['class' => 'form-control', 'min' => 0, 'step' => 1]) !!}
+                                    <small class="text-muted">{{ __('For IRPS and related payroll calculations.') }}</small>
+                                </div>
                             </div>
                         </div>
                     </div>

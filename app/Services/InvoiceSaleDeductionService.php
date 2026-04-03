@@ -87,16 +87,20 @@ class InvoiceSaleDeductionService
                     'sold_at' => now(),
                     'invoice_id' => $invoiceId,
                     'invoice_product_id' => $invoiceProductId,
+                    'pos_id' => null,
+                    'pos_product_id' => null,
                     'updated_at' => now(),
                 ]);
         }
+
+        $idNote = self::formatIdentifiersNote($identifiersRaw);
 
         if (($product->type ?? null) === 'kit') {
             $items = ProductKitItem::where('kit_product_id', $productId)->where('created_by', $creatorId)->get();
             foreach ($items as $it) {
                 $componentQty = (float) $it->quantity * $quantity;
                 if ($componentQty <= 0) continue;
-                self::deductSimpleProduct((int) $it->component_product_id, $componentQty, $creatorId, $invoiceId, $invoiceNoFormatted);
+                self::deductSimpleProduct((int) $it->component_product_id, $componentQty, $creatorId, $invoiceId, $invoiceNoFormatted, '');
             }
             return;
         }
@@ -104,17 +108,71 @@ class InvoiceSaleDeductionService
         // FEFO for batch/expiry tracked products (lots exist)
         if (($product->batch_tracking ?? false) || self::hasLots($productId, $creatorId)) {
             self::deductFefoLots($productId, $quantity, $creatorId);
-            self::deductSimpleProduct($productId, $quantity, $creatorId, $invoiceId, $invoiceNoFormatted);
+            self::deductSimpleProduct($productId, $quantity, $creatorId, $invoiceId, $invoiceNoFormatted, $idNote);
             return;
         }
 
         // Normal product
         if ($product->affect_stock ?? true) {
-            self::deductSimpleProduct($productId, $quantity, $creatorId, $invoiceId, $invoiceNoFormatted);
+            self::deductSimpleProduct($productId, $quantity, $creatorId, $invoiceId, $invoiceNoFormatted, $idNote);
         }
     }
 
-    protected static function deductSimpleProduct(int $productId, float $quantity, int $creatorId, int $invoiceId, string $invoiceNoFormatted): void
+    /**
+     * Mark Serial/MAC units sold from POS. Pass $alreadyValidated = true when the cart was validated before payment.
+     */
+    public static function assignIdentifiersForPosSale(int $productId, float $quantity, int $creatorId, int $posId, int $posProductId, ?int $customerId, ?string $identifiersRaw, bool $alreadyValidated = false): void
+    {
+        if ($quantity <= 0) {
+            return;
+        }
+
+        $product = ProductService::where('id', $productId)->where('created_by', $creatorId)->first();
+        if (!$product || !($product->identifier_tracking ?? false)) {
+            return;
+        }
+
+        if (! $alreadyValidated) {
+            self::validateTrackedIdentifiersForLine($productId, $quantity, $creatorId, $identifiersRaw);
+        }
+
+        $list = preg_split("/\r\n|\n|\r|,|;|\t/", (string) ($identifiersRaw ?? ''));
+        $list = array_values(array_filter(array_map(function ($v) {
+            $v = trim((string) $v);
+            return $v === '' ? null : $v;
+        }, $list)));
+        $unique = array_values(array_unique($list));
+
+        ProductIdentifier::where('created_by', $creatorId)
+            ->where('product_id', $productId)
+            ->whereIn('identifier_value', $unique)
+            ->update([
+                'status' => 'sold',
+                'customer_id' => $customerId ?: null,
+                'sold_at' => now(),
+                'pos_id' => $posId,
+                'pos_product_id' => $posProductId,
+                'invoice_id' => null,
+                'invoice_product_id' => null,
+                'updated_at' => now(),
+            ]);
+    }
+
+    public static function formatIdentifiersNote(?string $identifiersRaw): string
+    {
+        $list = preg_split("/\r\n|\n|\r|,|;|\t/", (string) ($identifiersRaw ?? ''));
+        $list = array_values(array_filter(array_map(function ($v) {
+            $v = trim((string) $v);
+            return $v === '' ? null : $v;
+        }, $list)));
+        if ($list === []) {
+            return '';
+        }
+
+        return ' | ' . __('Serial/MAC') . ': ' . implode(', ', $list);
+    }
+
+    protected static function deductSimpleProduct(int $productId, float $quantity, int $creatorId, int $invoiceId, string $invoiceNoFormatted, string $extraDescriptionSuffix = ''): void
     {
         $p = ProductService::where('id', $productId)->where('created_by', $creatorId)->first();
         if (!$p) return;
@@ -123,7 +181,7 @@ class InvoiceSaleDeductionService
         $newQty = max(0, $original - $quantity);
         ProductService::where('id', $productId)->update(['quantity' => $newQty]);
 
-        $description = $quantity . ' ' . __(' quantity sold in invoice') . ' ' . $invoiceNoFormatted;
+        $description = $quantity . ' ' . __(' quantity sold in invoice') . ' ' . $invoiceNoFormatted . $extraDescriptionSuffix;
         \App\Models\Utility::addProductStock($productId, $quantity, 'invoice', $description, $invoiceId);
     }
 

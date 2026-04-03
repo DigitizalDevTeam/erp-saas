@@ -121,6 +121,13 @@ class PurchaseController extends Controller
 
             for($i = 0; $i < count($products); $i++)
             {
+                $product = ProductService::where('id', $products[$i]['item'])->where('created_by', $creatorId)->first();
+                if ($product && ($product->batch_tracking ?? false) && ($product->affect_stock ?? true)) {
+                    if (trim((string) ($products[$i]['batch_no'] ?? '')) === '' || empty($products[$i]['expiry_date'] ?? null)) {
+                        return redirect()->back()->with('error', __('Batch number and expiry date are required for batch-tracked products.'))->withInput();
+                    }
+                }
+
                 $purchaseProduct              = new PurchaseProduct();
                 $purchaseProduct->purchase_id     = $purchase->id;
                 $purchaseProduct->product_id  = $products[$i]['item'];
@@ -137,8 +144,10 @@ class PurchaseController extends Controller
                 $purchaseProduct->mfg_date = !empty($products[$i]['mfg_date']) ? $products[$i]['mfg_date'] : null;
                 $purchaseProduct->save();
 
-                // Expiry lot tracking (optional)
-                if (!empty($purchaseProduct->expiry_date) || !empty($purchaseProduct->batch_no)) {
+                $createExpiryLot = ($product && ($product->batch_tracking ?? false) && ($product->affect_stock ?? true))
+                    || !empty($purchaseProduct->expiry_date)
+                    || !empty($purchaseProduct->batch_no);
+                if ($createExpiryLot) {
                     ProductExpiryLot::create([
                         'product_id' => (int) $purchaseProduct->product_id,
                         'warehouse_id' => (int) $warehouseId,
@@ -155,7 +164,6 @@ class PurchaseController extends Controller
                 }
 
                 // Serial/MAC tracking: require one unique identifier per unit on stock-in
-                $product = ProductService::where('id', $purchaseProduct->product_id)->where('created_by', $creatorId)->first();
                 if ($product && ($product->identifier_tracking ?? false)) {
                     $raw = $products[$i]['identifiers'] ?? '';
                     $list = preg_split("/\r\n|\n|\r|,|;|\t/", (string) $raw);
@@ -205,7 +213,13 @@ class PurchaseController extends Controller
                 //Product Stock Report
                 $type='purchase';
                 $type_id = $purchase->id;
-                $description=$products[$i]['quantity'].'  '.__(' quantity add in purchase').' '. \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
+                $description = $products[$i]['quantity'].'  '.__(' quantity add in purchase').' '. \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
+                if (! empty($purchaseProduct->batch_no)) {
+                    $description .= ' | '.__('Batch').': '.$purchaseProduct->batch_no;
+                }
+                if (! empty($purchaseProduct->expiry_date)) {
+                    $description .= ' | '.__('Expiry').': '.$purchaseProduct->expiry_date;
+                }
                 Utility::addProductStock( $products[$i]['item'],$products[$i]['quantity'],$type,$description,$type_id);
 
                 //Warehouse Stock Report

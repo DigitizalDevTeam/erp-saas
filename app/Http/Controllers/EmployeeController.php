@@ -167,6 +167,7 @@ class EmployeeController extends Controller
                     'bank_identifier_code' => $request['bank_identifier_code'],
                     'branch_location' => $request['branch_location'],
                     'tax_payer_id' => $request['tax_payer_id'],
+                    'dependents' => max(0, (int) ($request['dependents'] ?? 0)),
                     'created_by' => \Auth::user()->creatorId(),
                 ]
             );

@@ -16,11 +16,11 @@
             {{ Form::label('parent_id', __('Parent Category'),['class'=>'form-label']) }}
             <select name="parent_id" id="parent_id" class="form-control select">
                 <option value="">{{ __('None (Top level)') }}</option>
-                @foreach(($allCategories ?? []) as $c)
-                    <option value="{{ $c->id }}" data-type="{{ $c->type }}" {{ (int)($category->parent_id ?? 0) === (int)$c->id ? 'selected' : '' }}>{{ $c->name }}</option>
+                @foreach(($parentOptions ?? []) as $optId => $pathLabel)
+                    <option value="{{ $optId }}" {{ (int)($category->parent_id ?? 0) === (int)$optId ? 'selected' : '' }}>{{ $pathLabel }}</option>
                 @endforeach
             </select>
-            <small class="text-muted">{{ __('Optional. Choose a parent to create subcategories (unlimited depth).') }}</small>
+            <small class="text-muted">{{ __('Category → Subcategory → Sub-subcategory: pick a parent, or leave top level.') }}</small>
         </div>
 
 
@@ -34,7 +34,7 @@
 
 
         <div class="form-group col-md-12">
-            {{ Form::label('color', __('Category Color'),['class'=>'form-label']) }}<x-required></x-required>product-unit
+            {{ Form::label('color', __('Category Color'),['class'=>'form-label']) }}<x-required></x-required>
             {{ Form::text('color', null, array('class' => 'form-control jscolor','required'=>'required')) }}
             <p class="small">{{__('For chart representation')}}</p>
         </div>

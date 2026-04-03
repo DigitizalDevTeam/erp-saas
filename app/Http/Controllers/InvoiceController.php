@@ -385,7 +385,8 @@ class InvoiceController extends Controller
                     $type = 'invoice';
                     $type_id = $invoice->id;
                     StockReport::where('type', '=', 'invoice')->where('type_id', '=', $invoice->id)->delete();
-                    $description = $products[$i]['quantity'] . '  ' . __(' quantity sold in invoice') . ' ' . \Auth::user()->invoiceNumberFormat($invoice->invoice_id);
+                    $idSuffix = InvoiceSaleDeductionService::formatIdentifiersNote($products[$i]['identifiers'] ?? null);
+                    $description = $products[$i]['quantity'] . '  ' . __(' quantity sold in invoice') . ' ' . \Auth::user()->invoiceNumberFormat($invoice->invoice_id) . $idSuffix;
                     if (empty($products[$i]['id'])) {
                         Utility::addProductStock($products[$i]['item'], $products[$i]['quantity'], $type, $description, $type_id);
                     }

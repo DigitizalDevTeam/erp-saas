@@ -928,6 +928,7 @@ Route::group(['middleware' => ['verified']], function () {
             // Product system (inventory) reports
             Route::get('reports/product-system', [ProductReportsController::class, 'index'])->name('reports.product.index');
             Route::get('reports/product-system/store-check', [ProductReportsController::class, 'storeCheck'])->name('reports.product.store-check');
+            Route::post('reports/product-system/store-check', [ProductReportsController::class, 'storeStockAudit'])->name('reports.product.store-check.save');
             Route::get('reports/product-system/warehouse-stock', [ProductReportsController::class, 'warehouseStock'])->name('reports.product.warehouse-stock');
             Route::get('reports/product-system/transactions', [ProductReportsController::class, 'transactions'])->name('reports.product.transactions');
             Route::get('reports/product-system/document/{docType}/{id}', [ProductReportsController::class, 'document'])->name('reports.product.document');

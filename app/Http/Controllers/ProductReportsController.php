@@ -6,12 +6,16 @@ use App\Models\Bill;
 use App\Models\Invoice;
 use App\Models\Pos;
 use App\Models\ProductService;
+use App\Models\ProductServiceCategory;
 use App\Models\Purchase;
-use App\Models\StockReport;
 use App\Models\PurchaseProduct;
+use App\Models\StockAudit;
+use App\Models\StockAuditLine;
+use App\Models\StockReport;
 use App\Models\warehouse;
 use App\Models\WarehouseProduct;
 use App\Models\WarehouseTransfer;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -43,7 +47,52 @@ class ProductReportsController extends Controller
     {
         $this->ensureStockReport();
 
-        $q = ProductService::where('created_by', $this->creatorId())
+        $creatorId = $this->creatorId();
+        $periodType = $request->input('period_type', 'all');
+        if (! in_array($periodType, ['all', 'week', 'month', 'custom'], true)) {
+            $periodType = 'all';
+        }
+
+        $periodStart = null;
+        $periodEnd = null;
+        $periodLabel = __('All periods');
+
+        if ($periodType === 'week') {
+            $ref = $request->filled('week_ref') ? Carbon::parse($request->week_ref) : Carbon::now();
+            $periodStart = $ref->copy()->startOfWeek();
+            $periodEnd = $ref->copy()->endOfWeek();
+            $periodLabel = __('Week') . ': ' . $periodStart->format('Y-m-d') . ' — ' . $periodEnd->format('Y-m-d');
+        } elseif ($periodType === 'month') {
+            $ref = $request->filled('month_ref') && preg_match('/^\d{4}-\d{2}$/', (string) $request->month_ref)
+                ? Carbon::parse($request->month_ref . '-01')
+                : Carbon::now()->startOfMonth();
+            $periodStart = $ref->copy()->startOfMonth();
+            $periodEnd = $ref->copy()->endOfMonth();
+            $periodLabel = $ref->format('F Y');
+        } elseif ($periodType === 'custom') {
+            if ($request->filled('date_from')) {
+                $periodStart = Carbon::parse($request->date_from)->startOfDay();
+            }
+            if ($request->filled('date_to')) {
+                $periodEnd = Carbon::parse($request->date_to)->endOfDay();
+            }
+            if ($periodStart && $periodEnd) {
+                $periodLabel = $periodStart->format('Y-m-d') . ' — ' . $periodEnd->format('Y-m-d');
+            } elseif ($periodStart) {
+                $periodLabel = __('From') . ' ' . $periodStart->format('Y-m-d');
+            } elseif ($periodEnd) {
+                $periodLabel = __('To') . ' ' . $periodEnd->format('Y-m-d');
+            } else {
+                $periodLabel = __('Custom range') . ' — ' . __('set dates');
+            }
+        }
+
+        $categories = ProductServiceCategory::where('created_by', $creatorId)
+            ->where('type', 'product & service')
+            ->orderBy('name')
+            ->pluck('name', 'id');
+
+        $q = ProductService::where('created_by', $creatorId)
             ->where('type', 'product');
 
         if ($request->filled('search')) {
@@ -53,9 +102,129 @@ class ProductReportsController extends Controller
             });
         }
 
+        if ($request->filled('category_id')) {
+            $q->where('category_id', (int) $request->category_id);
+        }
+
+        if ($request->filled('row_filter')) {
+            $rf = '%' . trim((string) $request->row_filter) . '%';
+            $q->where('row_no', 'like', $rf);
+        }
+
+        if ($request->filled('column_filter')) {
+            $cf = '%' . trim((string) $request->column_filter) . '%';
+            $q->where('shelf_no', 'like', $cf);
+        }
+
         $products = $q->orderBy('name')->get();
 
-        return view('reports.product.store_check', compact('products'));
+        return view('reports.product.store_check', compact(
+            'products',
+            'categories',
+            'periodType',
+            'periodStart',
+            'periodEnd',
+            'periodLabel'
+        ));
+    }
+
+    /**
+     * Persist a stock audit snapshot (system vs physical counts).
+     */
+    public function storeStockAudit(Request $request)
+    {
+        $this->ensureStockReport();
+
+        $creatorId = $this->creatorId();
+
+        $validated = $request->validate([
+            'period_type' => 'required|in:all,week,month,custom',
+            'week_ref' => 'nullable|date',
+            'month_ref' => 'nullable|string|max:7',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date',
+            'notes' => 'nullable|string|max:2000',
+            'product_ids' => 'required|array|min:1',
+            'product_ids.*' => 'integer',
+            'physical' => 'nullable|array',
+            'physical.*' => 'nullable|numeric',
+        ]);
+
+        $periodType = $validated['period_type'];
+        $periodStart = null;
+        $periodEnd = null;
+
+        if ($periodType === 'week') {
+            $ref = $request->filled('week_ref') ? Carbon::parse($request->week_ref) : Carbon::now();
+            $periodStart = $ref->copy()->startOfWeek()->toDateString();
+            $periodEnd = $ref->copy()->endOfWeek()->toDateString();
+        } elseif ($periodType === 'month') {
+            $ref = $request->filled('month_ref') && preg_match('/^\d{4}-\d{2}$/', (string) $request->month_ref)
+                ? Carbon::parse($request->month_ref . '-01')
+                : Carbon::now()->startOfMonth();
+            $periodStart = $ref->copy()->startOfMonth()->toDateString();
+            $periodEnd = $ref->copy()->endOfMonth()->toDateString();
+        } elseif ($periodType === 'custom') {
+            $periodStart = $request->filled('date_from') ? Carbon::parse($request->date_from)->toDateString() : null;
+            $periodEnd = $request->filled('date_to') ? Carbon::parse($request->date_to)->toDateString() : null;
+        }
+
+        $productIds = array_values(array_unique(array_map('intval', $validated['product_ids'])));
+
+        $products = ProductService::where('created_by', $creatorId)
+            ->where('type', 'product')
+            ->whereIn('id', $productIds)
+            ->get()
+            ->keyBy('id');
+
+        if ($products->count() !== count($productIds)) {
+            return redirect()
+                ->route('reports.product.store-check', $request->only([
+                    'period_type', 'week_ref', 'month_ref', 'date_from', 'date_to',
+                    'search', 'category_id', 'row_filter', 'column_filter',
+                ]))
+                ->with('error', __('Invalid product selection.'));
+        }
+
+        $physicalMap = $validated['physical'] ?? [];
+
+        DB::transaction(function () use ($validated, $products, $physicalMap, $creatorId, $periodType, $periodStart, $periodEnd) {
+            $audit = StockAudit::create([
+                'created_by' => $creatorId,
+                'period_type' => $periodType,
+                'period_start' => $periodStart,
+                'period_end' => $periodEnd,
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            foreach ($products as $product) {
+                $pid = (int) $product->id;
+                $raw = $physicalMap[$pid] ?? null;
+                $physical = ($raw === '' || $raw === null) ? null : (float) $raw;
+                $system = round((float) ($product->quantity ?? 0), 4);
+                $difference = $physical === null ? null : round($physical - $system, 4);
+
+                StockAuditLine::create([
+                    'stock_audit_id' => $audit->id,
+                    'product_id' => $pid,
+                    'product_name' => $product->name,
+                    'sku' => $product->sku,
+                    'category_id' => $product->category_id,
+                    'row_no' => $product->row_no,
+                    'shelf_no' => $product->shelf_no,
+                    'system_quantity' => $system,
+                    'physical_quantity' => $physical,
+                    'difference' => $difference,
+                ]);
+            }
+        });
+
+        return redirect()
+            ->route('reports.product.store-check', $request->only([
+                'period_type', 'week_ref', 'month_ref', 'date_from', 'date_to',
+                'search', 'category_id', 'row_filter', 'column_filter',
+            ]))
+            ->with('success', __('Stock audit saved successfully.'));
     }
 
     /**

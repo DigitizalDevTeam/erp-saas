@@ -29,6 +29,7 @@
                             <thead>
                             <tr>
                                 <th> {{__('Category')}}</th>
+                                <th> {{__('Hierarchy')}}</th>
                                 <th> {{__('Type')}}</th>
                                 <th> {{__('Account')}}</th>
                                 <th width="10%"> {{__('Action')}}</th>
@@ -38,6 +39,7 @@
                             @foreach ($categories as $category)
                                 <tr>
                                     <td class="font-style">{{ $category->name }}</td>
+                                    <td class="text-muted small">{{ $category->pathLabel($byId ?? collect()) }}</td>
                                     <td class="font-style">
                                         {{ __(\App\Models\ProductServiceCategory::$catTypes[$category->type]) }}
                                     </td>

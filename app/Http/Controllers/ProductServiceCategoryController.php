@@ -14,9 +14,13 @@ class ProductServiceCategoryController extends Controller
     public function index()
     {
         if (\Auth::user()->can('manage constant category')) {
-            $categories = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())->get();
+            $raw = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())->get();
+            $byId = $raw->keyBy('id');
+            $categories = $raw->sortBy(function ($c) use ($byId) {
+                return $c->pathLabel($byId);
+            })->values();
 
-            return view('productServiceCategory.index', compact('categories'));
+            return view('productServiceCategory.index', compact('categories', 'byId'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -35,11 +39,9 @@ class ProductServiceCategoryController extends Controller
                 ->pluck('code_name', 'id');
             $chart_accounts->prepend('Select Account', '');
 
-            $allCategories = ProductServiceCategory::where('created_by', \Auth::user()->creatorId())
-                ->orderBy('name')
-                ->get(['id', 'name', 'type', 'parent_id']);
+            $parentOptions = $this->parentOptionsForUser((int) \Auth::user()->creatorId());
 
-            return view('productServiceCategory.create', compact('types', 'chart_accounts', 'allCategories'));
+            return view('productServiceCategory.create', compact('types', 'chart_accounts', 'parentOptions'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
@@ -64,6 +66,11 @@ class ProductServiceCategoryController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
 
+            $parentErr = $this->validateCategoryParent($request, null);
+            if ($parentErr !== null) {
+                return redirect()->back()->with('error', $parentErr);
+            }
+
             $category = new ProductServiceCategory();
             $category->name = $request->name;
             $category->color = $request->color;
@@ -86,12 +93,9 @@ class ProductServiceCategoryController extends Controller
             $types = ProductServiceCategory::$catTypes;
             $category = ProductServiceCategory::find($id);
 
-            $allCategories = ProductServiceCategory::where('created_by', \Auth::user()->creatorId())
-                ->where('id', '!=', $category->id)
-                ->orderBy('name')
-                ->get(['id', 'name', 'type', 'parent_id']);
+            $parentOptions = $this->parentOptionsForUser((int) \Auth::user()->creatorId(), (int) $category->id);
 
-            return view('productServiceCategory.edit', compact('category', 'types', 'allCategories'));
+            return view('productServiceCategory.edit', compact('category', 'types', 'parentOptions'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
@@ -117,6 +121,11 @@ class ProductServiceCategoryController extends Controller
                     return redirect()->back()->with('error', $messages->first());
                 }
 
+                $parentErr = $this->validateCategoryParent($request, (int) $id);
+                if ($parentErr !== null) {
+                    return redirect()->back()->with('error', $parentErr);
+                }
+
                 $category->name = $request->name;
                 $category->color = $request->color;
                 $category->type = $request->type;
@@ -138,6 +147,10 @@ class ProductServiceCategoryController extends Controller
         if (\Auth::user()->can('delete constant category')) {
             $category = ProductServiceCategory::find($id);
             if ($category->created_by == \Auth::user()->creatorId()) {
+
+                if (ProductServiceCategory::where('created_by', $category->created_by)->where('parent_id', $category->id)->exists()) {
+                    return redirect()->back()->with('error', __('Please delete or reassign subcategories first.'));
+                }
 
                 if ($category->type == 0) {
                     $categories = ProductService::where('category_id', $category->id)->first();
@@ -263,6 +276,53 @@ class ProductServiceCategoryController extends Controller
 
         return response()->json($response);
 
+    }
+
+    /**
+     * Dropdown options: id => "Parent → Child → …" for same-tenant categories.
+     */
+    protected function parentOptionsForUser(int $creatorId, ?int $excludeCategoryId = null)
+    {
+        $allFull = ProductServiceCategory::where('created_by', $creatorId)->orderBy('type')->orderBy('name')->get();
+        $byId = $allFull->keyBy('id');
+        $candidates = $allFull;
+        if ($excludeCategoryId !== null) {
+            $blocked = array_merge([(int) $excludeCategoryId], ProductServiceCategory::descendantIds((int) $excludeCategoryId, $allFull));
+            $candidates = $allFull->filter(function ($c) use ($blocked) {
+                return ! in_array((int) $c->id, $blocked, true);
+            });
+        }
+
+        return $candidates->mapWithKeys(function ($c) use ($byId) {
+            return [$c->id => $c->pathLabel($byId)];
+        });
+    }
+
+    protected function validateCategoryParent(Request $request, ?int $excludeCategoryId = null): ?string
+    {
+        if (! $request->filled('parent_id')) {
+            return null;
+        }
+
+        $creatorId = (int) \Auth::user()->creatorId();
+        $parent = ProductServiceCategory::where('created_by', $creatorId)->find((int) $request->parent_id);
+        if (! $parent) {
+            return __('Invalid parent category.');
+        }
+
+        if ($parent->type !== $request->type) {
+            return __('The parent must be the same category type as this record (e.g. Product & Service with Product & Service).');
+        }
+
+        if ($excludeCategoryId !== null) {
+            $all = ProductServiceCategory::where('created_by', $creatorId)->get();
+            $blocked = array_merge([(int) $excludeCategoryId], ProductServiceCategory::descendantIds((int) $excludeCategoryId, $all));
+            if (in_array((int) $request->parent_id, $blocked, true)) {
+                return __('You cannot set the parent to this category or one of its subcategories.');
+            }
+        }
+
+        return null;
     }
 
 }

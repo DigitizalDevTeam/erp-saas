@@ -104,4 +104,53 @@ class ProductServiceCategory extends Model
     {
         return $this->hasMany(self::class, 'parent_id', 'id');
     }
+
+    /**
+     * Full hierarchy label: Parent → Subcategory → Sub-subcategory
+     *
+     * @param  \Illuminate\Support\Collection<int, self>|\Illuminate\Database\Eloquent\Collection<int, self>  $byId
+     */
+    public function pathLabel($byId): string
+    {
+        $names = [];
+        $c = $this;
+        $guard = 0;
+        while ($c && $guard++ < 64) {
+            array_unshift($names, $c->name);
+            $pid = $c->parent_id ? (int) $c->parent_id : null;
+            $c = $pid && $byId->has($pid) ? $byId->get($pid) : null;
+        }
+
+        return implode(' → ', $names);
+    }
+
+    /**
+     * All descendant category IDs under $rootId (not including $rootId).
+     *
+     * @param  \Illuminate\Support\Collection<int, self>|\Illuminate\Database\Eloquent\Collection<int, self>  $all
+     * @return array<int, int>
+     */
+    public static function descendantIds(int $rootId, $all): array
+    {
+        $out = [];
+        $queue = [$rootId];
+        while ($queue !== []) {
+            $pid = array_shift($queue);
+            foreach ($all as $row) {
+                if ((int) ($row->parent_id ?? 0) !== $pid) {
+                    continue;
+                }
+                $cid = (int) $row->id;
+                if ($cid === $rootId) {
+                    continue;
+                }
+                if (! in_array($cid, $out, true)) {
+                    $out[] = $cid;
+                    $queue[] = $cid;
+                }
+            }
+        }
+
+        return $out;
+    }
 }

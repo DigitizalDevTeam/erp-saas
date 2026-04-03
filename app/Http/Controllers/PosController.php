@@ -13,6 +13,7 @@ use App\Models\Quotation;
 use App\Models\PosBalance;
 use App\Models\PosAuditLog;
 use App\Services\PosAuditLogService;
+use App\Services\InvoiceSaleDeductionService;
 use App\Services\PosKitDeductionService;
 use App\Services\PosFefoDeductionService;
 use App\Services\PosRecipeDeductionService;
@@ -710,6 +711,26 @@ class PosController extends Controller
             return response()->json(['code' => 404, 'success' => __('Items not found!')], 404);
         }
 
+        foreach ($sales as $v) {
+            $pid = (int) ($v['id'] ?? 0);
+            if ($pid <= 0) {
+                continue;
+            }
+            $cartProduct = ProductService::where('id', $pid)->where('created_by', $user_id)->first();
+            if ($cartProduct && ($cartProduct->identifier_tracking ?? false)) {
+                try {
+                    InvoiceSaleDeductionService::validateTrackedIdentifiersForLine(
+                        $pid,
+                        (float) ($v['quantity'] ?? 0),
+                        $user_id,
+                        $v['identifiers'] ?? null
+                    );
+                } catch (\Throwable $e) {
+                    return response()->json(['code' => 400, 'error' => $e->getMessage()], 400);
+                }
+            }
+        }
+
         // Block credit sale if customer has overdue invoice(s)
         $isCreditPayment = (strtolower($request->payment_method ?? '') === 'credit')
             || (is_array($request->input('payments')) && collect($request->input('payments'))->contains(fn ($p) => strtolower($p['payment_method'] ?? '') === 'credit'));
@@ -827,7 +848,9 @@ class PosController extends Controller
             $positems->quantity = $value['quantity'];
             $positems->tax = $tax_id;
             $positems->discount = $discount;
+            $positems->identifiers = $value['identifiers'] ?? null;
             $positems->save();
+            $idNote = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
             if (($product->type ?? null) === 'kit') {
                 PosKitDeductionService::deductForSale(
                     (int) $product_id,
@@ -845,7 +868,8 @@ class PosController extends Controller
                     $warehouse_id,
                     $user_id,
                     \Auth::user()->posNumberFormat($pos->pos_id),
-                    (int) $pos->id
+                    (int) $pos->id,
+                    $idNote
                 );
             } else {
                 PosRecipeDeductionService::deductForSale(
@@ -854,8 +878,23 @@ class PosController extends Controller
                     $warehouse_id,
                     $user_id,
                     \Auth::user()->posNumberFormat($pos->pos_id),
-                    (int) $pos->id
+                    (int) $pos->id,
+                    $idNote
                 );
+            }
+            try {
+                InvoiceSaleDeductionService::assignIdentifiersForPosSale(
+                    (int) $product_id,
+                    (float) $value['quantity'],
+                    (int) $user_id,
+                    (int) $pos->id,
+                    (int) $positems->id,
+                    (int) ($customer_id ?? 0),
+                    $value['identifiers'] ?? null,
+                    true
+                );
+            } catch (\Throwable $e) {
+                return response()->json(['code' => 400, 'error' => $e->getMessage()], 400);
             }
         }
 
@@ -1134,6 +1173,25 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $pos->save();
                     foreach ($pos->items as $line) {
                         $lineProduct = ProductService::whereId($line->product_id)->where('created_by', $user_id)->first();
+                        if ($lineProduct && ($lineProduct->identifier_tracking ?? false)) {
+                            try {
+                                InvoiceSaleDeductionService::validateTrackedIdentifiersForLine(
+                                    (int) $line->product_id,
+                                    (float) $line->quantity,
+                                    $user_id,
+                                    $line->identifiers ?? null
+                                );
+                            } catch (\Throwable $e) {
+                                return response()->json(['code' => 400, 'error' => $e->getMessage()], 400);
+                            }
+                        }
+                    }
+                    foreach ($pos->items as $line) {
+                        $lineProduct = ProductService::whereId($line->product_id)->where('created_by', $user_id)->first();
+                        if (! $lineProduct) {
+                            continue;
+                        }
+                        $lineIdNote = InvoiceSaleDeductionService::formatIdentifiersNote($line->identifiers ?? null);
                         if (($lineProduct->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
                                 (int) $line->product_id,
@@ -1150,7 +1208,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 (int) $pos->warehouse_id,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id),
-                                (int) $pos->id
+                                (int) $pos->id,
+                                $lineIdNote
                             );
                         } else {
                             PosRecipeDeductionService::deductForSale(
@@ -1159,8 +1218,23 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 (int) $pos->warehouse_id,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id),
-                                (int) $pos->id
+                                (int) $pos->id,
+                                $lineIdNote
                             );
+                        }
+                        try {
+                            InvoiceSaleDeductionService::assignIdentifiersForPosSale(
+                                (int) $line->product_id,
+                                (float) $line->quantity,
+                                (int) $user_id,
+                                (int) $pos->id,
+                                (int) $line->id,
+                                (int) ($customer_id ?? 0),
+                                $line->identifiers ?? null,
+                                true
+                            );
+                        } catch (\Throwable $e) {
+                            return response()->json(['code' => 400, 'error' => $e->getMessage()], 400);
                         }
                     }
                     $mainsubtotal = 0;
@@ -1288,7 +1362,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $positems->quantity = $value['quantity'];
                         $positems->tax = $tax_id;
                         $positems->discount = $discount;
+                        $positems->identifiers = $value['identifiers'] ?? null;
                         $positems->save();
+                        $idNote2 = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
                         if (($product->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
                                 (int) $product_id,
@@ -1305,7 +1381,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 $warehouse_id,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id),
-                                (int) $pos->id
+                                (int) $pos->id,
+                                $idNote2
                             );
                         } else {
                             PosRecipeDeductionService::deductForSale(
@@ -1314,8 +1391,23 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 $warehouse_id,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id),
-                                (int) $pos->id
+                                (int) $pos->id,
+                                $idNote2
                             );
+                        }
+                        try {
+                            InvoiceSaleDeductionService::assignIdentifiersForPosSale(
+                                (int) $product_id,
+                                (float) $value['quantity'],
+                                (int) $user_id,
+                                (int) $pos->id,
+                                (int) $positems->id,
+                                (int) ($customer_id ?? 0),
+                                $value['identifiers'] ?? null,
+                                true
+                            );
+                        } catch (\Throwable $e) {
+                            return response()->json(['code' => 400, 'error' => $e->getMessage()], 400);
                         }
                     }
 

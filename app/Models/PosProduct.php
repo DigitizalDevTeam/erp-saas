@@ -25,6 +25,7 @@ class PosProduct extends Model
         'total',
         'price',
         'description',
+        'identifiers',
         'status',
         'sent_at',
         'ready_at',

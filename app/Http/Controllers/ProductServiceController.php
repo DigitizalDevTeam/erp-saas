@@ -895,6 +895,7 @@ class ProductServiceController extends Controller
             $printZone = $product->print_zone ?? '';
             $printerId = $product->posPrinter ? $product->posPrinter->id : '';
             $printerName = $product->posPrinter ? e($product->posPrinter->name) : '';
+            $identifierTracking = (bool) ($product->identifier_tracking ?? false);
             if ($isPosSession) {
                 if ($request->get('restaurant') || $session_key === 'pos-restaurant') {
                     $statusNotSent = __('pos.status_not_sent');
@@ -927,6 +928,10 @@ class ProductServiceController extends Controller
                 $carthtml .= '<span class="quantity buttons_added d-inline-flex align-items-center border rounded"><input type="button" value="-" class="minus btn btn-sm btn-outline-secondary border-0 py-0"><input type="number" step="1" min="1" max="" name="quantity" title="' . __('Quantity') . '" class="input-number form-control form-control-sm border-0 text-center" style="width: 2.5rem;" data-url="' . url('update-cart/') . '" data-id="' . $id . '" value="1"><input type="button" value="+" class="plus btn btn-sm btn-outline-secondary border-0 py-0"></span>';
                 $carthtml .= '<div class="text-end"><div class="fw-bold text-dark subtotal">' . Auth::user()->priceFormat($subtotal) . '</div><small class="text-muted price">' . Auth::user()->priceFormat($productprice) . ' ' . __('each') . '</small></div></div>';
                 $carthtml .= '<small class="text-muted d-block mt-1 tax">' . __('Tax') . ': ' . $taxDisplay . '</small>';
+                if ($identifierTracking) {
+                    $carthtml .= '<label class="form-label small mb-0 mt-2">' . e(__('Serial / MAC')) . '</label>';
+                    $carthtml .= '<textarea class="form-control form-control-sm pos-line-identifiers" rows="2" data-product-id="' . (int) $id . '" placeholder="' . e(__('One per line or comma-separated — must match quantity')) . '"></textarea>';
+                }
                 $carthtml .= '</div></div>';
                 }
             } else {
@@ -961,7 +966,7 @@ class ProductServiceController extends Controller
 
             // if cart is empty then this the first product
             if (!$cart) {
-                $cart = [
+                    $cart = [
                     $id => [
                         "name" => $productname,
                         "quantity" => 1,
@@ -973,6 +978,8 @@ class ProductServiceController extends Controller
                         "product_tax" => $product_tax,
                         "product_tax_id" => !empty($product_tax_id) ? implode(',', $product_tax_id) : 0,
                         "price_type" => $priceType,
+                        "identifier_tracking" => $identifierTracking,
+                        "identifiers" => '',
                     ],
                 ];
 
@@ -1012,6 +1019,9 @@ class ProductServiceController extends Controller
 
                 $cart[$id]['quantity']++;
                 $cart[$id]['id'] = $id;
+                if (! empty($cart[$id]['identifier_tracking'] ?? false)) {
+                    $cart[$id]['identifiers'] = '';
+                }
                 if (!isset($cart[$id]['price_type'])) {
                     $cart[$id]['price_type'] = $priceType;
                 }
@@ -1068,6 +1078,8 @@ class ProductServiceController extends Controller
                 "originalquantity" => $originalquantity,
                 "product_tax" => $product_tax,
                 "price_type" => $priceType,
+                "identifier_tracking" => $identifierTracking,
+                "identifiers" => '',
             ];
 
             if ($originalquantity < $cart[$id]['quantity'] && $isPosSession) {
@@ -1196,6 +1208,10 @@ class ProductServiceController extends Controller
                     );
                 }
                 $cart[$id]['originalquantity'] = $maxQty;
+            }
+
+            if ($request->has('identifiers') && isset($cart[$id])) {
+                $cart[$id]['identifiers'] = (string) $request->input('identifiers', '');
             }
 
             $subtotal = array_sum(array_column($cart, 'subtotal'));
