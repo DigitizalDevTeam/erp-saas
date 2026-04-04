@@ -10,6 +10,7 @@ class WarehouseTransfer extends Model
     use HasFactory;
 
     protected $fillable = [
+        'transfer_batch_id',
         'from_warehouse',
         'to_warehouse',
         'product_id',

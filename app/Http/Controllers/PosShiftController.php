@@ -184,16 +184,19 @@ class PosShiftController extends Controller
         $cashTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
             $q->where('payment_method', \App\Models\PosPayment::METHOD_CASH)->orWhereNull('payment_method');
         })->sum('amount');
+        $balanceCash = (float) \App\Models\InvoicePayment::where('pos_shift_id', $pos_shift->id)->where('payment_method', 0)->sum('amount');
+        $cashTotal += $balanceCash;
         $cardTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', ['card', 'visa', 'mpesa', 'bank_transfer', 'cheque'])->sum('amount');
         $creditTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
         $salesTotal = $sales->sum(fn ($p) => $p->getTotal());
-        $cashDropsTotal = (float) $pos_shift->cashDrops->sum('amount');
+        $cashDropsTotal = (float) PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');
+        $expectedCash = (float) ($pos_shift->opening_balance ?? 0) + $cashTotal - $cashDropsTotal;
         $voidedLines = \App\Models\PosProduct::whereIn('pos_id', $posIds)
             ->whereNotNull('voided_at')
             ->with(['product', 'pos', 'voidedByUser'])
             ->orderBy('voided_at')
             ->get();
-        return view('pos_shift.report', compact('pos_shift', 'sales', 'paymentsByMethod', 'cashTotal', 'cardTotal', 'creditTotal', 'salesTotal', 'cashDropsTotal', 'voidedLines'));
+        return view('pos_shift.report', compact('pos_shift', 'sales', 'paymentsByMethod', 'cashTotal', 'cardTotal', 'creditTotal', 'salesTotal', 'cashDropsTotal', 'voidedLines', 'balanceCash', 'expectedCash'));
     }
 
     public function closeForm(PosShift $pos_shift)
@@ -208,6 +211,14 @@ class PosShiftController extends Controller
     public function close(Request $request, PosShift $pos_shift)
     {
         if (\Auth::user()->canManagePos() && $pos_shift->created_by == \Auth::user()->creatorId() && $pos_shift->status === PosShift::STATUS_OPEN) {
+            $request->validate([
+                'closing_balance' => 'required|numeric|min:0',
+                'tips' => 'nullable|numeric|min:0',
+                'notes' => 'nullable|string|max:5000',
+            ], [
+                'closing_balance.min' => __('Closing balance must be zero or positive (physical cash counted in the drawer).'),
+            ]);
+
             $posIds = Pos::where('shift_id', $pos_shift->id)->pluck('id');
             $salesTotal = PosPayment::whereIn('pos_id', $posIds)->sum('amount');
             $cashTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {

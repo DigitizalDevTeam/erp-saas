@@ -261,6 +261,12 @@ class Utility extends Model
             // VAT report configuration (Monthly Reports - Modelo A IVA)
             // This should match your Tax name in Setup → Taxes (example: "IVA")
             "vat_tax_name" => "IVA",
+            "modelo_a_iva_rate" => "16",
+            "modelo_a_icms_rate" => "5",
+            "modelo_a_export_tax_keywords" => "export,exportação,exportacao,exportacion",
+            "modelo_a_art9_tax_keywords" => "art. 9,art 9,artigo 9,isenção,isencao",
+            "modelo_a_fixed_asset_category_ids" => "",
+            "modelo_a_icms_tax_name" => "ICMS",
             // "default_language" => "en",
             "default_language" => "pt",
             "enable_stripe" => "",

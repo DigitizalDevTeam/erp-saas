@@ -824,6 +824,15 @@
                                             href="{{ route('company-policy.index') }}">{{ __('Company policy') }}</a>
                                     </li>
                                 @endcan
+                                @if (\Auth::user()->type == 'company' || \Auth::user()->type == 'HR')
+                                    <li
+                                        class="dash-item {{ Request::segment(1) == 'branch'
+                                            ? 'active dash-trigger'
+                                            : '' }}">
+                                        <a class="dash-link"
+                                            href="{{ route('branch.index') }}">{{ __('Branch') }}</a>
+                                    </li>
+                                @endif
 
 
                             </ul>
@@ -1352,31 +1361,6 @@
                             @endif
                             
 
-                            @if (\Auth::user()->type == 'company' || \Auth::user()->type == 'HR')
-                                <li
-                                    class="dash-item {{ Request::segment(1) == 'leavetype' ||
-                                    Request::segment(1) == 'document' ||
-                                    Request::segment(1) == 'performanceType' ||
-                                    Request::segment(1) == 'branch' ||
-                                    Request::segment(1) == 'department' ||
-                                    Request::segment(1) == 'designation' ||
-                                    Request::segment(1) == 'job-stage' ||
-                                    Request::segment(1) == 'competencies' ||
-                                    Request::segment(1) == 'job-category' ||
-                                    Request::segment(1) == 'terminationtype' ||
-                                    Request::segment(1) == 'awardtype' ||
-                                    Request::segment(1) == 'trainingtype' ||
-                                    Request::segment(1) == 'goaltype' ||
-                                    Request::segment(1) == 'paysliptype' ||
-                                    Request::segment(1) == 'allowanceoption' ||
-                                    Request::segment(1) == 'loanoption' ||
-                                    Request::segment(1) == 'deductionoption'
-                                        ? 'active dash-trigger'
-                                        : '' }}">
-                                    <a class="dash-link"
-                                        href="{{ route('branch.index') }}">{{ __('Branch') }}</a>
-                                </li>
-                            @endif
                         </ul>
                     </li>
                 @endif

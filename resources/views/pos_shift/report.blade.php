@@ -37,6 +37,44 @@
                 </div>
             </div>
 
+            <h6 class="border-bottom pb-2 mb-2">{{ __('Cash reconciliation') }}</h6>
+            <table class="table table-sm table-bordered mb-3">
+                <tbody>
+                    <tr>
+                        <td>{{ __('Opening balance') }}</td>
+                        <td class="text-end">{{ \Auth::user()->priceFormat($pos_shift->opening_balance ?? 0) }}</td>
+                    </tr>
+                    <tr>
+                        <td>{{ __('Cash in (POS sales)') }}@if(!empty($balanceCash) && $balanceCash > 0)<span class="text-muted small"> + {{ __('balance invoice payments') }}</span>@endif</td>
+                        <td class="text-end">{{ \Auth::user()->priceFormat($cashTotal ?? 0) }}</td>
+                    </tr>
+                    @if(!empty($balanceCash) && $balanceCash > 0)
+                    <tr>
+                        <td class="ps-4 small text-muted">{{ __('Of which balance / invoice payments (cash)') }}</td>
+                        <td class="text-end small text-muted">{{ \Auth::user()->priceFormat($balanceCash) }}</td>
+                    </tr>
+                    @endif
+                    <tr>
+                        <td>{{ __('Cash drops (spent / out)') }}</td>
+                        <td class="text-end text-danger">-{{ \Auth::user()->priceFormat($cashDropsTotal ?? 0) }}</td>
+                    </tr>
+                    <tr class="fw-bold">
+                        <td>{{ __('Expected cash in drawer') }}</td>
+                        <td class="text-end">{{ \Auth::user()->priceFormat($expectedCash ?? 0) }}</td>
+                    </tr>
+                    @if($pos_shift->closed_at)
+                    <tr>
+                        <td>{{ __('Closing balance (counted)') }}</td>
+                        <td class="text-end">{{ \Auth::user()->priceFormat($pos_shift->closing_balance ?? 0) }}</td>
+                    </tr>
+                    <tr>
+                        <td>{{ __('Difference (over / short)') }}</td>
+                        <td class="text-end">{{ \Auth::user()->priceFormat($pos_shift->difference ?? 0) }}</td>
+                    </tr>
+                    @endif
+                </tbody>
+            </table>
+
             <h6 class="border-bottom pb-2 mb-2">{{ __('Payment Summary') }}</h6>
             <table class="table table-sm table-bordered">
                 <thead>
@@ -57,9 +95,8 @@
                     </tr>
                 </tfoot>
             </table>
-            @if(isset($cashDropsTotal) && $cashDropsTotal > 0)
-            <h6 class="border-bottom pb-2 mb-2 mt-3">{{ __('Cash drops') }}</h6>
-            <p class="mb-1">{{ __('Total withdrawn during shift') }}: {{ \Auth::user()->priceFormat($cashDropsTotal) }}</p>
+            <h6 class="border-bottom pb-2 mb-2 mt-3">{{ __('Cash drops (detail)') }}</h6>
+            <p class="mb-1"><strong>{{ __('Total spent / withdrawn') }}:</strong> {{ \Auth::user()->priceFormat($cashDropsTotal ?? 0) }}</p>
             <table class="table table-sm table-bordered">
                 <thead>
                     <tr>
@@ -70,17 +107,20 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($pos_shift->cashDrops ?? [] as $drop)
+                    @forelse($pos_shift->cashDrops ?? [] as $drop)
                         <tr>
                             <td>{{ $drop->created_at ? $drop->created_at->format('Y-m-d H:i') : '-' }}</td>
                             <td class="text-end">{{ \Auth::user()->priceFormat($drop->amount) }}</td>
                             <td>{{ $drop->reason ?: '—' }}</td>
                             <td>{{ $drop->user ? $drop->user->name : '-' }}</td>
                         </tr>
-                    @endforeach
+                    @empty
+                        <tr>
+                            <td colspan="4" class="text-muted text-center">{{ __('No cash drops recorded for this shift.') }}</td>
+                        </tr>
+                    @endforelse
                 </tbody>
             </table>
-            @endif
 
             @if(isset($voidedLines) && $voidedLines->isNotEmpty())
             <h6 class="border-bottom pb-2 mb-2 mt-4">{{ __('pos.void_summary') }} ({{ $voidedLines->count() }})</h6>

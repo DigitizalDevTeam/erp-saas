@@ -11,6 +11,7 @@ use App\Models\WarehouseTransfer;
 use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class WarehouseTransferController extends Controller
 {
@@ -26,7 +27,10 @@ class WarehouseTransferController extends Controller
 
     public function index()
     {
-        $warehouse_transfers = WarehouseTransfer::where('created_by', '=', \Auth::user()->creatorId())->with(['product','fromWarehouse'])->get();
+        $warehouse_transfers = WarehouseTransfer::where('created_by', '=', \Auth::user()->creatorId())
+            ->with(['product', 'fromWarehouse', 'toWarehouse'])
+            ->latest()
+            ->get();
         return view('warehouse-transfer.index',compact('warehouse_transfers'));
     }
 
@@ -54,12 +58,30 @@ class WarehouseTransferController extends Controller
     {
         if(\Auth::user()->can('create warehouse'))
         {
+            $lines = [];
+            if ($request->has('items') && is_array($request->items)) {
+                foreach ($request->items as $row) {
+                    if (! is_array($row)) {
+                        continue;
+                    }
+                    $pid = isset($row['product_id']) ? (int) $row['product_id'] : 0;
+                    $qty = isset($row['quantity']) ? (float) $row['quantity'] : 0;
+                    if ($pid > 0 && $qty > 0) {
+                        $lines[] = ['product_id' => $pid, 'quantity' => $qty];
+                    }
+                }
+            } elseif ($request->filled('product_id') && $request->filled('quantity')) {
+                $lines[] = [
+                    'product_id' => (int) $request->product_id,
+                    'quantity' => (float) $request->quantity,
+                ];
+            }
+
             $validator = \Validator::make(
-                $request->all(), [
+                array_merge($request->all(), ['_lines' => $lines]), [
                     'from_warehouse' => 'required',
                     'to_warehouse' => 'required',
-                    'product_id' => 'required',
-                    'quantity' => 'required',
+                    '_lines' => 'required|array|min:1',
                 ]
             );
             if($validator->fails())
@@ -68,37 +90,61 @@ class WarehouseTransferController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
 
-            $fromWarehouse    = WarehouseProduct::where('warehouse_id',$request->from_warehouse)
-                                ->where('product_id',$request->product_id)->first();
-
             if ((int) $request->from_warehouse === (int) $request->to_warehouse) {
                 return redirect()->route('warehouse-transfer.index')->with('error', __('From and To warehouse must be different.'));
             }
-            if (empty($fromWarehouse)) {
-                return redirect()->route('warehouse-transfer.index')->with('error', __('Product is not available in source warehouse.'));
+
+            $batchId = count($lines) > 1 ? (string) Str::uuid() : null;
+
+            foreach ($lines as $line) {
+                $validatorLine = \Validator::make($line, [
+                    'product_id' => 'required|integer|min:1',
+                    'quantity' => 'required|numeric|min:0.0001',
+                ]);
+                if ($validatorLine->fails()) {
+                    return redirect()->route('warehouse-transfer.index')->with('error', $validatorLine->getMessageBag()->first());
+                }
             }
 
-            if($request->quantity <= $fromWarehouse->quantity)
-            {
-                DB::transaction(function () use ($request) {
-                    $warehouse_transfer                  = new WarehouseTransfer();
-                    $warehouse_transfer->from_warehouse  = $request->from_warehouse;
-                    $warehouse_transfer->to_warehouse    = $request->to_warehouse;
-                    $warehouse_transfer->product_id      = $request->product_id;
-                    $warehouse_transfer->quantity        = $request->quantity;
-                    $warehouse_transfer->date            = $request->date;
-                    $warehouse_transfer->created_by      = \Auth::user()->creatorId();
-                    $warehouse_transfer->save();
+            try {
+                DB::transaction(function () use ($request, $lines, $batchId) {
+                    $transferDate = $request->date ?: date('Y-m-d');
+                    foreach ($lines as $line) {
+                        $fromWarehouse = WarehouseProduct::where('warehouse_id', $request->from_warehouse)
+                            ->where('product_id', $line['product_id'])
+                            ->first();
 
-                    Utility::warehouse_transfer_qty($request->from_warehouse,$request->to_warehouse,$request->product_id,$request->quantity);
+                        if (empty($fromWarehouse) || (float) $line['quantity'] > (float) $fromWarehouse->quantity) {
+                            throw new \RuntimeException(__('Product out of stock or insufficient quantity in source warehouse for one or more lines.'));
+                        }
+
+                        $warehouse_transfer = new WarehouseTransfer();
+                        $warehouse_transfer->transfer_batch_id = $batchId;
+                        $warehouse_transfer->from_warehouse = $request->from_warehouse;
+                        $warehouse_transfer->to_warehouse = $request->to_warehouse;
+                        $warehouse_transfer->product_id = $line['product_id'];
+                        $warehouse_transfer->quantity = $line['quantity'];
+                        $warehouse_transfer->date = $transferDate;
+                        $warehouse_transfer->created_by = \Auth::user()->creatorId();
+                        $warehouse_transfer->save();
+
+                        Utility::warehouse_transfer_qty(
+                            $request->from_warehouse,
+                            $request->to_warehouse,
+                            $line['product_id'],
+                            $line['quantity']
+                        );
+                    }
                 });
-            }
-            else
-            {
-                return redirect()->route('warehouse-transfer.index')->with('error', __('Product out of stock!.'));
+            } catch (\Throwable $e) {
+                return redirect()->route('warehouse-transfer.index')->with('error', $e->getMessage());
             }
 
-            return redirect()->route('warehouse-transfer.index')->with('success', __('Warehouse Transfer successfully created.'));
+            $msg = count($lines) > 1
+                ? __('Warehouse transfer of :n items created successfully.', ['n' => count($lines)])
+                : __('Warehouse Transfer successfully created.');
+
+            return redirect()->route('warehouse-transfer.index')->with('success', $msg);
         }
         else
         {
@@ -164,20 +210,30 @@ class WarehouseTransferController extends Controller
     public function getquantity(Request $request)
     {
         $allowed = $this->allowedWarehouseIds();
-        if($request->product_id == 0)
-        {
+        $productId = (int) ($request->product_id ?? 0);
+        $warehouseId = (int) ($request->warehouse_id ?? 0);
+
+        if ($productId <= 0) {
             $pro_qty = WarehouseProduct::where('created_by', '=', \Auth::user()->creatorId())
                 ->whereIn('warehouse_id', $allowed)
                 ->get()->pluck('quantity', 'product_id')->toArray();
+
+            return response()->json($pro_qty);
         }
-        else
-        {
-            $pro_qty = WarehouseProduct::where('created_by', '=', \Auth::user()->creatorId())
-                        ->where('product_id', $request->product_id)
-                        ->whereIn('warehouse_id', $allowed)
-                        ->get()->pluck('quantity');
-    
+
+        if ($warehouseId <= 0) {
+            return response()->json(0);
         }
-        return response()->json($pro_qty);
+        if (! in_array($warehouseId, $allowed, true)) {
+            return response()->json(0);
+        }
+
+        $row = WarehouseProduct::where('created_by', \Auth::user()->creatorId())
+            ->where('product_id', $productId)
+            ->where('warehouse_id', $warehouseId)
+            ->first();
+        $max = $row ? (float) $row->quantity : 0;
+
+        return response()->json($max);
     }
 }
