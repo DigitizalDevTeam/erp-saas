@@ -2,9 +2,9 @@
 <div class="modal-body">
     <div class="row">
         <div class="form-group col-md-12">
-            {{ Form::label('invoice', __('Invoice'),['class'=>'form-label']) }}<x-required></x-required>
-                <select class="form-control select" required="required" id="invoice" name="invoice">
-                    <option value="">{{__('Select Invoice')}}</option>
+            {{ Form::label('invoice', __('Invoice (Optional)'),['class'=>'form-label']) }}
+                <select class="form-control select" id="invoice" name="invoice">
+                    <option value="">{{__('Select Invoice (Optional)')}}</option>
                     @foreach($invoices as $key=>$invoice)
                         <option value="{{$key}}">{{\Auth::user()->invoiceNumberFormat($invoice)}}</option>
                     @endforeach
@@ -12,6 +12,15 @@
                 <div class="text-xs mt-1">
                     {{ __('Create invoice here.') }} <a href="{{ route('invoice.index') }}"><b>{{ __('Create invoice') }}</b></a>
                 </div>
+        </div>
+        <div class="form-group col-md-12" id="customer_div" style="display: none;">
+            {{ Form::label('customer', __('Customer'),['class'=>'form-label']) }}<x-required></x-required>
+                <select class="form-control select" required="required" id="customer" name="customer">
+                    <option value="">{{__('Select Customer')}}</option>
+                    @foreach($customers as $key=>$customer)
+                        <option value="{{$key}}">{{$customer}}</option>
+                    @endforeach
+                </select>
         </div>
         <div class="form-group col-md-12 mt-3" id="invoice-items-container" style="display:none;">
             <label class="form-label">{{ __('Select Items to Return') }}</label>
@@ -31,7 +40,7 @@
             {{ Form::label('description', __('Description'),['class'=>'form-label']) }}
             {!! Form::textarea('description', null, ['class'=>'form-control','rows'=>'2' , 'placeholder' => __('Enter Description')]) !!}
         </div>
-        <div class="form-group col-md-12">
+        <div class="form-group col-md-12" id="return_items_div">
             <input type="checkbox" id="return_items" name="return_items" value="1">
             {{ Form::label('return_items', __('Return Items'),['class'=>'form-label']) }}
         </div>
@@ -46,9 +55,11 @@
 <script>
     $(document).ready(function () {
         $('#invoice').on('change', function () {
-            
             var invoiceId = $(this).val();
             if (invoiceId) {
+                $('#customer_div').hide();
+                $('#customer').removeAttr('required');
+                $('#return_items_div').show();
                 $.ajax({
                     url: "{{ route('invoice.get.items') }}", // route we’ll create next
                     type: "GET",
@@ -65,6 +76,9 @@
                     }
                 });
             } else {
+                $('#customer_div').show();
+                $('#customer').attr('required', 'required');
+                $('#return_items_div').hide();
                 $('#invoice-items-container').hide();
                 $('#invoice-items').empty();
             }

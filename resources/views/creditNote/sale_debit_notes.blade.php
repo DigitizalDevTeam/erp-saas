@@ -101,6 +101,38 @@
                                     @endforeach
                                 @endif
                             @endforeach
+                            @foreach ($standaloneDebitNotes as $creditNote)
+                                <tr>
+                                    <td class="Id">
+                                        <a href="{{ route('debit.note.view',\Crypt::encrypt($creditNote->id)) }}" class="btn btn-outline-primary">{{ AUth::user()->debitNoteNumberFormat($creditNote->uid) }}</a>
+                                    </td>
+                                    <td class="Id">
+                                        -
+                                    </td>
+                                    <td>{{ (!empty($creditNote->customerRelation)?$creditNote->customerRelation->name:'-') }}</td>
+                                    <td>{{ Auth::user()->dateFormat($creditNote->date) }}</td>
+                                    <td>{{ Auth::user()->priceFormat($creditNote->amount) }}</td>
+                                    <td>{{!empty($creditNote->description)?$creditNote->description:'-'}}</td>
+                                    <td>
+                                        @can('edit credit note')
+                                            <div class="action-btn me-2">
+                                                <a data-url="{{ route('invoice.edit.credit.notes',[0,$creditNote->id]) }}" data-ajax-popup="true" data-title="{{__('Edit Debit Note')}}" href="#" class="mx-3 btn btn-sm align-items-center bg-info" data-bs-toggle="tooltip" title="{{__('Edit')}}" data-original-title="{{__('Edit')}}">
+                                                    <i class="ti ti-pencil text-white"></i>
+                                                </a>
+                                            </div>
+                                        @endcan
+                                        @can('edit credit note')
+                                                <div class="action-btn ">
+                                                    {!! Form::open(['method' => 'DELETE', 'route' => array('invoice.delete.credit.note', 0,$creditNote->id),'class'=>'delete-form-btn','id'=>'delete-form-'.$creditNote->id]) !!}
+                                                        <a href="#" class="mx-3 btn btn-sm align-items-center bs-pass-para bg-danger" data-bs-toggle="tooltip" title="{{__('Delete')}}" data-original-title="{{__('Delete')}}" data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}" data-confirm-yes="document.getElementById('delete-form-{{$creditNote->id}}').submit();">
+                                                            <i class="ti ti-trash text-white"></i>
+                                                        </a>
+                                                    {!! Form::close() !!}
+                                                </div>
+                                        @endcan
+                                    </td>
+                                </tr>
+                            @endforeach
                             </tbody>
                         </table>
                     </div>

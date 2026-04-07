@@ -52,6 +52,12 @@
                         @can('tax report')
                             <a class="list-group-item list-group-item-action" href="{{ route('report.tax.summary') }}">{{ __('Tax Summary') }}</a>
                         @endcan
+                        @can('manage report')
+                            <a class="list-group-item list-group-item-action" href="{{ route('reports.credit.note') }}">{{ __('Credit Note Report') }}</a>
+                        @endcan
+                        @can('manage report')
+                            <a class="list-group-item list-group-item-action" href="{{ route('reports.debit.note') }}">{{ __('Debit Note Report') }}</a>
+                        @endcan
                     </div>
                 </div>
             </div>

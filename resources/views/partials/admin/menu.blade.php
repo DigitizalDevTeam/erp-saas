@@ -206,6 +206,12 @@
                                                                     <a class="dash-link" href="{{ route('report.tax.summary') }}">{{ __('Tax Summary') }}</a>
                                                                 </li>
                                                             @endcan
+                                                                <li class="dash-item {{ Request::route()->getName() == 'reports.credit.note' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('reports.credit.note') }}">{{ __('Credit Note Report') }}</a>
+                                                                </li>
+                                                                <li class="dash-item {{ Request::route()->getName() == 'reports.debit.note' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('reports.debit.note') }}">{{ __('Debit Note Report') }}</a>
+                                                                </li>
                                                         </ul>
                                                     </li>
 

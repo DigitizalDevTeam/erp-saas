@@ -2,9 +2,9 @@
 <div class="modal-body">
     <div class="row">
         <div class="form-group col-md-12">
-            {{ Form::label('bill', __('Bill'),['class'=>'form-label']) }}<x-required></x-required>
-                <select class="form-control select" required="required" id="bill" name="bill">
-                    <option value={{null}}>{{__('Select Bill')}}</option>
+            {{ Form::label('bill', __('Bill (Optional)'),['class'=>'form-label']) }}
+                <select class="form-control select" id="bill" name="bill">
+                    <option value={{null}}>{{__('Select Bill (Optional)')}}</option>
                     @foreach($bills as $key=>$bill)
                         <option value="{{$key}}">{{\Auth::user()->billNumberFormat($bill)}}</option>
                     @endforeach
@@ -12,6 +12,15 @@
                 <div class="text-xs mt-1">
                     {{ __('Create bill here.') }} <a href="{{ route('bill.index') }}"><b>{{ __('Create bill') }}</b></a>
                 </div>
+        </div>
+        <div class="form-group col-md-12" id="vendor_div" style="display: none;">
+            {{ Form::label('vendor', __('Vendor'),['class'=>'form-label']) }}<x-required></x-required>
+                <select class="form-control select" required="required" id="vendor" name="vendor">
+                    <option value="">{{__('Select Vendor')}}</option>
+                    @foreach($vendors as $key=>$vendor)
+                        <option value="{{$key}}">{{$vendor}}</option>
+                    @endforeach
+                </select>
         </div>
         <div class="form-group  col-md-6">
             {{ Form::label('amount', __('Amount'),['class'=>'form-label']) }}<x-required></x-required>
@@ -40,3 +49,17 @@
     <input type="submit" value="{{__('Create')}}" class="btn  btn-primary">
 </div>
 {{ Form::close() }}
+
+<script>
+$(document).ready(function() {
+    $('#bill').change(function() {
+        if ($(this).val() == '') {
+            $('#vendor_div').show();
+            $('#vendor').attr('required', 'required');
+        } else {
+            $('#vendor_div').hide();
+            $('#vendor').removeAttr('required');
+        }
+    });
+});
+</script>

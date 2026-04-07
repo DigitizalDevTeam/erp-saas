@@ -2,9 +2,9 @@
 <div class="modal-body">
     <div class="row">
         <div class="form-group col-md-12">
-            {{ Form::label('invoice', __('Invoice'),['class'=>'form-label']) }}<x-required></x-required>
-                <select class="form-control select" required="required" id="invoice" name="invoice">
-                    <option value="">{{__('Select Invoice')}}</option>
+            {{ Form::label('invoice', __('Invoice (Optional)'),['class'=>'form-label']) }}
+                <select class="form-control select" id="invoice" name="invoice">
+                    <option value="">{{__('Select Invoice (Optional)')}}</option>
                     @foreach($invoices as $key=>$invoice)
                         <option value="{{$key}}">{{\Auth::user()->invoiceNumberFormat($invoice)}}</option>
                     @endforeach
@@ -12,6 +12,15 @@
                 <div class="text-xs mt-1">
                     {{ __('Create invoice here.') }} <a href="{{ route('invoice.index') }}"><b>{{ __('Create invoice') }}</b></a>
                 </div>
+        </div>
+        <div class="form-group col-md-12" id="customer_div" style="display: none;">
+            {{ Form::label('customer', __('Customer'),['class'=>'form-label']) }}<x-required></x-required>
+                <select class="form-control select" required="required" id="customer" name="customer">
+                    <option value="">{{__('Select Customer')}}</option>
+                    @foreach($customers as $key=>$customer)
+                        <option value="{{$key}}">{{$customer}}</option>
+                    @endforeach
+                </select>
         </div>
         <div class="form-group col-md-6">
             {{ Form::label('amount', __('Amount'),['class'=>'form-label']) }}<x-required></x-required>
@@ -35,3 +44,17 @@
     <input type="submit" value="{{__('Create')}}" class="btn  btn-primary">
 </div>
 {{ Form::close() }}
+
+<script>
+$(document).ready(function() {
+    $('#invoice').change(function() {
+        if ($(this).val() == '') {
+            $('#customer_div').show();
+            $('#customer').attr('required', 'required');
+        } else {
+            $('#customer_div').hide();
+            $('#customer').removeAttr('required');
+        }
+    });
+});
+</script>

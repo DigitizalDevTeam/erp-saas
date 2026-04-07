@@ -13,11 +13,15 @@ class CreditNote extends Model
         'date',
     ];
 
-    public function customer()
-    {
-        return $this->hasOne('App\Models\Customer', 'customer_id', 'customer');
-    }
+    // public function customer()
+    // {
+    //     return $this->hasOne('App\Models\Customer', 'customer_id', 'customer');
+    // }
     
+    public function customerRelation()
+    {
+        return $this->hasOne('App\Models\Customer', 'id', 'customer');
+    }
     public function invoice_data()
     {
         return $this->hasOne('App\Models\Invoice', 'id', 'invoice');

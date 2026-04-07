@@ -97,7 +97,7 @@
                                 @endif
                                 <div class="col">
                                     <div class="float-end mt-3">
-                                        @if($settings['invoice_qr_display'] == 'on')
+                                        @if($settings['invoice_qr_display'] == 'on' && !empty($note->invoice_data))
                                         <small><strong>{{ __('Invoice') }} :</strong><br></small>
                                         <a href="{{ route('invoice.show', \Crypt::encrypt($note->invoice_data->id)) }}">
                                         {!! DNS2D::getBarcodeHTML(

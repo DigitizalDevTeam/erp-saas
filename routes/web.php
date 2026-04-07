@@ -136,6 +136,7 @@ use App\Http\Controllers\MonthlyVatReportController;
 use App\Http\Controllers\MonthlyIrpsReportController;
 use App\Http\Controllers\ReportSectionsController;
 use App\Http\Controllers\AnalyticalReportController;
+use App\Http\Controllers\CreditDebitNoteReportsController;
 use App\Http\Controllers\ResignationController;
 use App\Http\Controllers\RevenueController;
 use App\Http\Controllers\RoleController;
@@ -906,6 +907,10 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('reports/management', [ReportSectionsController::class, 'management'])->name('reports.sections.management');
             Route::get('reports/analytical', [ReportSectionsController::class, 'analytical'])->name('reports.sections.analytical');
             Route::get('reports/analytical/powerblox', [AnalyticalReportController::class, 'powerblox'])->name('reports.analytical.powerblox');
+
+            // Credit and Debit Note Reports
+            Route::get('reports/credit-note', [CreditDebitNoteReportsController::class, 'creditNoteReport'])->name('reports.credit.note');
+            Route::get('reports/debit-note', [CreditDebitNoteReportsController::class, 'debitNoteReport'])->name('reports.debit.note');
 
             // Government/statutory format (editable Blade template)
             Route::get('monthly-reports/trial-balance/{view?}', [MonthlyReportController::class, 'trialBalance'])

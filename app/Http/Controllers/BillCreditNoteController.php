@@ -20,8 +20,9 @@ class BillCreditNoteController extends Controller
         if(\Auth::user()->can('manage debit note'))
         {
             $bills = Bill::where('created_by', \Auth::user()->creatorId())->get();
+            $standaloneCreditNotes = DebitNote::where('created_by', \Auth::user()->creatorId())->where('bill', 0)->where('is_credit', 1)->with('vendor')->get();
 
-            return view('billCreditNote.index', compact('bills'));
+            return view('billCreditNote.index', compact('bills', 'standaloneCreditNotes'));
         }
         else
         {
@@ -123,25 +124,30 @@ class BillCreditNoteController extends Controller
 
                 return redirect()->back()->with('error', $messages->first());
             }
-            $billDue = Bill::where('id', $bill_id)->first();
-            if($request->amount > $billDue->getDue())
-            {
-                return redirect()->back()->with('error', 'Maximum ' . \Auth::user()->priceFormat($billDue->getDue()) . ' credit limit of this bill.');
-            }
-
-
             $debit = DebitNote::find($debitNote_id);
-//            Utility::userBalance('vendor', $billDue->vender_id, $debit->amount, 'credit');
-            Utility::updateUserBalance('vendor', $billDue->vender_id, $debit->amount, 'debit');
-
-
+            if($debit->bill > 0)
+            {
+                $billDue = Bill::where('id', $debit->bill)->first();
+                if($request->amount > $billDue->getDue())
+                {
+                    return redirect()->back()->with('error', 'Maximum ' . \Auth::user()->priceFormat($billDue->getDue()) . ' credit limit of this bill.');
+                }
+                Utility::updateUserBalance('vendor', $billDue->vender_id, $debit->amount, 'debit');
+                Utility::updateUserBalance('vendor', $billDue->vender_id, $request->amount, 'credit');
+            }
+            else
+            {
+                if($debit->vendor)
+                {
+                    Utility::updateUserBalance('vendor', $debit->vendor, $debit->amount, 'debit');
+                    Utility::updateUserBalance('vendor', $debit->vendor, $request->amount, 'credit');
+                }
+            }
 
             $debit->date        = $request->date;
             $debit->amount      = $request->amount;
             $debit->description = $request->description;
             $debit->save();
-//            Utility::userBalance('vendor', $billDue->vender_id, $request->amount, 'debit');
-            Utility::updateUserBalance('vendor', $billDue->vender_id, $request->amount, 'credit');
 
 
             return redirect()->back()->with('success', __('Debit Note successfully updated.'));
@@ -158,8 +164,11 @@ class BillCreditNoteController extends Controller
         if(\Auth::user()->can('delete debit note'))
         {
             $debitNote = DebitNote::find($debitNote_id);
+            if($debitNote->vendor)
+            {
+                Utility::updateUserBalance('vendor', $debitNote->vendor, $debitNote->amount, 'debit');
+            }
             $debitNote->delete();
-            Utility::updateUserBalance('vendor', $debitNote->vendor, $debitNote->amount, 'debit');
             return redirect()->back()->with('success', __('Debit Note successfully deleted.'));
         }
         else
@@ -185,24 +194,33 @@ class BillCreditNoteController extends Controller
         } catch (\Throwable $th) {
             return redirect()->back()->with('error', __('Note Not Found.'));
         }
-        $note = DebitNote::with('bill_data.vender_data')->find($id);
-        $customer = $note->bill_data->vender_data;
-        $rdata = [];
-        $productIds = [];
-        if($note->data)
+        $note = DebitNote::with(['bill_data.vender_data', 'vendor'])->find($id);
+        if($note->bill > 0)
         {
-            $data = json_decode($note->data);
-            $rdata = $data;
-            foreach ($data as $pid => $qty)
+            $customer = $note->bill_data->vender_data;
+            $rdata = [];
+            $productIds = [];
+            if($note->data)
             {
-                $qty = intval($qty);
-                if($qty > 0)
+                $data = json_decode($note->data);
+                $rdata = $data;
+                foreach ($data as $pid => $qty)
                 {
-                    $productIds[] = $pid; 
+                    $qty = intval($qty);
+                    if($qty > 0)
+                    {
+                        $productIds[] = $pid; 
+                    }
                 }
             }
+            $iteams = $note->bill_data->items()->whereIn('product_id',$productIds)->get();
         }
-        $iteams = $note->bill_data->items()->whereIn('product_id',$productIds)->get();
+        else
+        {
+            $customer = $note->vendor;
+            $iteams = collect();
+            $rdata = [];
+        }
         return view('billCreditNote.view', compact('note','customer','iteams','rdata'));
     }
 
@@ -211,7 +229,8 @@ class BillCreditNoteController extends Controller
         if(\Auth::user()->can('create debit note'))
         {
             $bills = Bill::where('created_by', \Auth::user()->creatorId())->where('type','Bill')->get()->pluck('bill_id', 'id');
-            return view('billCreditNote.custom_create', compact('bills'));
+            $vendors = \App\Models\Vender::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'vender_id');
+            return view('billCreditNote.custom_create', compact('bills', 'vendors'));
         }
         else
         {
