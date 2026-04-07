@@ -433,10 +433,6 @@
                                                         </div>
                                                     </div>
                                                     <small class="text-muted d-block mt-1 tax">{{ __('Tax') }}: {{ $taxStr }}</small>
-                                                    @if(($details['identifier_tracking'] ?? false) || ($product && ($product->identifier_tracking ?? false)))
-                                                        <label class="form-label small mb-0 mt-2">{{ __('Serial / MAC') }}</label>
-                                                        <textarea class="form-control form-control-sm pos-line-identifiers" rows="2" data-product-id="{{ $id }}">{{ $details['identifiers'] ?? '' }}</textarea>
-                                                    @endif
                                                 </div>
                                             </div>
                                         @endforeach
@@ -2225,27 +2221,6 @@
                 $(totalSel).text(addCommas(total));
             });
 
-            $(document).on('blur', '#carthtml .pos-line-identifiers', function () {
-                var $ta = $(this);
-                var $line = $ta.closest('[data-product-id]');
-                var pid = $line.data('product-id');
-                var $qtyInp = $line.find('input.input-number');
-                if (!pid || !$qtyInp.length || !navigator.onLine) return;
-                var quantity = parseInt($qtyInp.val(), 10) || 1;
-                $.ajax({
-                    url: $qtyInp.data('url'),
-                    method: 'patch',
-                    data: {
-                        id: String(pid),
-                        quantity: quantity,
-                        discount: $('.discount').val(),
-                        session_key: session_key,
-                        identifiers: $ta.val() || '',
-                        war_id: $('#warehouse').length ? $('#warehouse').val() : '0'
-                    }
-                });
-            });
-
             $(document).on('change keyup', '#carthtml input[name="quantity"], #carthtml-restaurant input[name="quantity"]', function (e) {
                 e.preventDefault();
                 var ele = $(this);
@@ -2279,19 +2254,14 @@
                 var sum = 0;
                 var discount = $('.discount').val();
                 if (quantity != null && quantity != 0) {
-                    var $line = ele.closest('[data-product-id]');
-                    var idMac = ele.attr("data-id");
-                    var idents = ($line.find('.pos-line-identifiers').length ? $line.find('.pos-line-identifiers').val() : '') || '';
                     $.ajax({
                         url: ele.data('url'),
                         method: "patch",
                         data: {
-                            id: idMac,
+                            id: ele.attr("data-id"),
                             quantity: quantity,
                             discount: discount,
-                            session_key: session_key,
-                            identifiers: idents,
-                            war_id: $('#warehouse').length ? $('#warehouse').val() : '0'
+                            session_key: session_key
                         },
                         success: function (data) {
                             if (data.code == '200') {

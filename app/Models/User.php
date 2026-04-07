@@ -100,18 +100,83 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Whether this user is restricted to a single branch in POS (Waiter/Cashier/Manager with assigned branch).
-     * Such users cannot change branch in retail or restaurant POS.
+     * True when the user has an assigned POS branch and is not a full POS admin.
+     * Branch lists in POS are still filtered via filterBranchIdsForPosAccess() (supports multi-branch via branch_user).
      */
     public function hasPosBranchRestriction(): bool
     {
         if ($this->can('manage pos')) {
             return false;
         }
-        if (!$this->can('pos restaurant full') && !$this->can('pos restaurant waiter') && !$this->can('pos restaurant manager')) {
+
+        return !empty($this->pos_branch_id);
+    }
+
+    /**
+     * Intersect tenant branch ids (retail or restaurant pool) with this user’s pos_branch_id and/or branch_user pivot.
+     *
+     * @param  int[]  $candidateBranchIds
+     * @return int[]
+     */
+    public function filterBranchIdsForPosAccess(array $candidateBranchIds): array
+    {
+        $candidates = array_values(array_unique(array_map('intval', $candidateBranchIds)));
+        if ($candidates === []) {
+            return [];
+        }
+        $this->loadMissing('branches');
+        $pivotAllowed = $this->allowedBranchIds();
+        $hasPivot = $pivotAllowed !== null && count($pivotAllowed) > 0;
+
+        if ($this->can('manage pos')) {
+            if ($hasPivot) {
+                return array_values(array_intersect($candidates, $pivotAllowed));
+            }
+
+            return $candidates;
+        }
+
+        if (! empty($this->pos_branch_id)) {
+            if ($hasPivot) {
+                $allowed = array_values(array_unique(array_merge([(int) $this->pos_branch_id], $pivotAllowed)));
+
+                return array_values(array_intersect($candidates, $allowed));
+            }
+
+            return array_values(array_intersect($candidates, [(int) $this->pos_branch_id]));
+        }
+        if ($hasPivot) {
+            return array_values(array_intersect($candidates, $pivotAllowed));
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Whether this user may use the given branch in POS for the given mode (retail counter or restaurant).
+     */
+    public function canAccessBranchForPos(int $branchId, string $mode): bool
+    {
+        $creatorId = $this->creatorId();
+        $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->where('is_active', true)->first();
+        if (! $branch) {
             return false;
         }
-        return !empty($this->pos_branch_id);
+        if ($mode === 'restaurant') {
+            if (! $branch->isRestaurant()) {
+                return false;
+            }
+            $pool = Branch::where('created_by', $creatorId)->where('is_active', true)
+                ->where('pos_type', Branch::POS_TYPE_RESTAURANT)->pluck('id')->toArray();
+        } else {
+            $pool = Branch::where('created_by', $creatorId)->where('is_active', true)
+                ->where(function ($q) {
+                    $q->where('pos_type', Branch::POS_TYPE_RETAIL)->orWhereNull('pos_type');
+                })->pluck('id')->toArray();
+        }
+        $allowed = $this->filterBranchIdsForPosAccess($pool);
+
+        return in_array((int) $branchId, $allowed, true);
     }
 
     /**
@@ -120,6 +185,85 @@ class User extends Authenticatable implements MustVerifyEmail
     public function posBranch()
     {
         return $this->belongsTo(Branch::class, 'pos_branch_id');
+    }
+
+    /**
+     * Branches explicitly granted to this user (staff). Empty pivot = all branches for tenant.
+     */
+    public function branches()
+    {
+        return $this->belongsToMany(Branch::class, 'branch_user')->withTimestamps();
+    }
+
+    /**
+     * Branches the user may work in for UI/lists/context switching.
+     * Company / super admin: all branches for the tenant.
+     */
+    public function branchesForSelection()
+    {
+        if ($this->type === 'company' || $this->type === 'super admin') {
+            return Branch::where('created_by', $this->creatorId())->orderBy('name')->get();
+        }
+        $allowed = $this->allowedBranchIds();
+        if ($allowed !== null && count($allowed) > 0) {
+            return Branch::where('created_by', $this->creatorId())->whereIn('id', $allowed)->orderBy('name')->get();
+        }
+
+        return Branch::where('created_by', $this->creatorId())->orderBy('name')->get();
+    }
+
+    /**
+     * @return int[]|null null = all branches under tenant (no pivot restriction)
+     */
+    public function allowedBranchIds(): ?array
+    {
+        if ($this->type === 'company' || $this->type === 'super admin') {
+            return null;
+        }
+        $this->loadMissing('branches');
+        if ($this->branches->isEmpty()) {
+            return null;
+        }
+
+        return $this->branches->pluck('id')->all();
+    }
+
+    public function canAccessBranchId(int $branchId): bool
+    {
+        $allowed = $this->allowedBranchIds();
+        if ($allowed === null) {
+            return Branch::where('created_by', $this->creatorId())->where('id', $branchId)->exists();
+        }
+
+        return in_array($branchId, $allowed, true);
+    }
+
+    /**
+     * Active branch for session context (header switcher). Falls back to first allowed branch.
+     */
+    public function activeBranchContextId(): ?int
+    {
+        $sid = session('active_branch_id');
+        if ($sid !== null && $sid !== '' && $this->canAccessBranchId((int) $sid)) {
+            return (int) $sid;
+        }
+        $first = $this->branchesForSelection()->first();
+
+        return $first ? (int) $first->id : null;
+    }
+
+    /**
+     * @param  int[]|null  $branchIds
+     */
+    public function syncBranchesFromRequest(?array $branchIds): void
+    {
+        if ($this->type === 'company' || $this->type === 'super admin') {
+            return;
+        }
+        $ids = array_values(array_unique(array_filter(array_map('intval', $branchIds ?? []))));
+        $tenantId = $this->creatorId();
+        $valid = Branch::where('created_by', $tenantId)->whereIn('id', $ids)->pluck('id')->all();
+        $this->branches()->sync($valid);
     }
 
     public function warehouse()

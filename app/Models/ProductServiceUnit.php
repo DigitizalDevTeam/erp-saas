@@ -8,6 +8,9 @@ class ProductServiceUnit extends Model
 {
     protected $fillable = [
         'name',
+        'dimension_mode',
+        'length_unit',
+        'volumetric_divisor',
         'created_by',
     ];
 

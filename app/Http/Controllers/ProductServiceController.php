@@ -19,6 +19,7 @@ use App\Models\WarehouseProduct;
 use App\Models\PriceLevel;
 use App\Models\PosPrinter;
 use App\Models\ProductKitItem;
+use App\Models\ProductVariant;
 use App\Models\PurchaseProduct;
 use App\Services\PosFefoDeductionService;
 use Google\Service\Dataproc\Session;
@@ -105,7 +106,8 @@ class ProductServiceController extends Controller
                 ->get(['id', 'name', 'parent_id']);
             $category = collect($this->buildCategoryOptions($rawCats));
             $category->prepend('Select Category', '');
-            $unit         = ProductServiceUnit::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $units = ProductServiceUnit::where('created_by', '=', \Auth::user()->creatorId())->get();
+            $unit = $units->pluck('name', 'id');
             $tax          = Tax::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $ulane = auth()->user()->lang ?? 'en';
             $name_column = match ($ulane) {
@@ -198,12 +200,9 @@ class ProductServiceController extends Controller
             $productService->purchase_price      = $request->purchase_price;
             $productService->tax_id              = !empty($request->tax_id) ? implode(',', $request->tax_id) : '';
             $productService->unit_id             = $request->unit_id;
+            $productService->unit_type           = $request->unit_type;
             $productService->price_level_id             = $request->price_level_id ?? null;
-            if (!empty($request->quantity)) {
-                $productService->quantity        = $request->quantity;
-            } else {
-                $productService->quantity   = 0;
-            }
+            $productService->quantity           = 0;
             $productService->type                       = $request->type;
             $productService->print_zone                 = $request->print_zone ?: null;
             $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
@@ -260,6 +259,10 @@ class ProductServiceController extends Controller
                 }
             }
 
+            if ($productService->type === 'product') {
+                $this->syncProductVariants($productService, $request);
+            }
+
             return redirect()->route('productservice.index')->with('success', __('Product successfully created.'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
@@ -281,7 +284,8 @@ class ProductServiceController extends Controller
                     ->where('type', '=', 'product & service')
                     ->get(['id', 'name', 'parent_id']);
                 $category = collect($this->buildCategoryOptions($rawCats));
-                $unit     = ProductServiceUnit::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+                $units = ProductServiceUnit::where('created_by', '=', \Auth::user()->creatorId())->get();
+                $unit = $units->pluck('name', 'id');
                 $tax      = Tax::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
 
                 $productService->customField = CustomField::getData($productService, 'product');
@@ -342,6 +346,8 @@ class ProductServiceController extends Controller
                         ->orderBy('id')
                         ->get();
                 }
+
+                $productService->load('variants');
 
                 return view('productservice.edit', compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'incomeSubAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitItems', 'kitComponents'));
             } else {
@@ -438,12 +444,8 @@ class ProductServiceController extends Controller
                 $productService->purchase_price = $request->purchase_price;
                 $productService->tax_id         = !empty($request->tax_id) ? implode(',', $request->tax_id) : '';
                 $productService->unit_id        = $request->unit_id;
+                $productService->unit_type      = $request->unit_type;
                 $productService->price_level_id             = $request->price_level_id ?? null;
-                if (!empty($request->quantity)) {
-                    $productService->quantity   = $request->quantity;
-                } else {
-                    $productService->quantity   = 0;
-                }
                 $productService->type                       = $request->type;
                 $productService->print_zone                 = $request->print_zone ?: null;
                 $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
@@ -516,6 +518,18 @@ class ProductServiceController extends Controller
                     ProductKitItem::where('created_by', $creatorId)
                         ->where('kit_product_id', $productService->id)
                         ->delete();
+                }
+
+                if ($productService->type === 'product') {
+                    $this->syncProductVariants($productService, $request);
+                } else {
+                    ProductVariant::where('product_service_id', $productService->id)->delete();
+                    $productService->forceFill([
+                        'variants_enabled' => false,
+                        'variant_size_label' => null,
+                        'variant_color_label' => null,
+                    ]);
+                    $productService->save();
                 }
 
                 return redirect()->route('productservice.index')->with('success', __('Product successfully updated.'));
@@ -699,6 +713,9 @@ class ProductServiceController extends Controller
             };
 
             $products = $runQuery();
+            if ($isPos && $products->isNotEmpty()) {
+                $products->load(['variants' => fn ($q) => $q->orderBy('sort_order')->orderBy('id')]);
+            }
 
             // Build tax rate map in one query (avoid N+1)
             $taxRateMap = [];
@@ -752,7 +769,17 @@ class ProductServiceController extends Controller
                     }
                     $taxRate = $taxRateMap[$product->tax_id ?? ''] ?? 0;
                     $printZone = $product->print_zone ?? '';
-                    $output .= '<div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body mt-2 p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Add to Cart') . '</button></div></div></div></div></div>';
+                    $variantsPayload = '[]';
+                    if ($isPos && ($product->variants_enabled ?? false) && $product->relationLoaded('variants') && $product->variants->isNotEmpty()) {
+                        $variantsPayload = e(json_encode($product->variants->map(function ($v) use ($product) {
+                            return [
+                                'id' => $v->id,
+                                'label' => $v->displayLabel($product),
+                                'sale_price' => $v->sale_price !== null ? (float) $v->sale_price : null,
+                            ];
+                        })->values()->all()));
+                    }
+                    $output .= '<div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\'><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body mt-2 p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Add to Cart') . '</button></div></div></div></div></div>';
                 }
                 if ($cacheKey) {
                     Cache::put($cacheKey, $output, 90);
@@ -801,13 +828,50 @@ class ProductServiceController extends Controller
             }
             $product = ProductService::with('category:id,name', 'posPrinter')->find($id);
             $productquantity = 0;
+            $variantId = $request->filled('product_variant_id') ? (int) $request->product_variant_id : null;
+            if ($variantId !== null && $variantId <= 0) {
+                $variantId = null;
+            }
+            $cartLineKey = $variantId ? $id . '_v_' . $variantId : (string) $id;
+
+            if ($product) {
+                if ($product->variants_enabled ?? false) {
+                    if ($variantId === null) {
+                        return response()->json(
+                            [
+                                'code' => 422,
+                                'status' => 'Error',
+                                'error' => __('Select size / color variant for this product.'),
+                            ],
+                            422
+                        );
+                    }
+                    $variantRow = ProductVariant::where('id', $variantId)->where('product_service_id', $product->id)->first();
+                    if (! $variantRow) {
+                        return response()->json(
+                            [
+                                'code' => 404,
+                                'status' => 'Error',
+                                'error' => __('Invalid variant.'),
+                            ],
+                            404
+                        );
+                    }
+                } elseif ($variantId !== null) {
+                    $variantId = null;
+                    $cartLineKey = (string) $id;
+                }
+            }
 
             if ($product) {
                 if ($isPosSession) {
                     // Products that do not affect stock (e.g. composite dishes with BOM): allow sale without product-level quantity check
                     $affectStock = ($product->type === 'kit') ? false : ($product->affect_stock ?? true);
-                    if ($affectStock && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product->id, (int) ($request->war_id ?? 0), (int) Auth::user()->creatorId()))) {
-                        $productquantity = (int) floor(PosFefoDeductionService::availableQty((int) $product->id, (int) ($request->war_id ?? 0), (int) Auth::user()->creatorId()));
+                    $warId = (int) ($request->war_id ?? 0);
+                    if ($affectStock && ($product->variants_enabled ?? false)) {
+                        $productquantity = (int) floor($product->variantStockInWarehouse($warId, $variantId));
+                    } elseif ($affectStock && ! ($product->variants_enabled ?? false) && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product->id, $warId, (int) Auth::user()->creatorId()))) {
+                        $productquantity = (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warId, (int) Auth::user()->creatorId()));
                     } else {
                         $productquantity = $affectStock ? (int) $product->quantity : 999999;
                     }
@@ -828,6 +892,7 @@ class ProductServiceController extends Controller
             }
 
             $productname = $product->name;
+            $displayName = $productname;
 
             if ($session_key == 'purchases') {
                 $productprice = $product->purchase_price != 0 ? $product->purchase_price : 0;
@@ -835,6 +900,18 @@ class ProductServiceController extends Controller
                 $productprice = $product->sale_price != 0 ? $product->sale_price : 0;
             } else {
                 $productprice = $product->sale_price != 0 ? $product->sale_price : $product->purchase_price;
+            }
+
+            if ($variantId !== null && $product) {
+                $vrD = ProductVariant::where('id', $variantId)->where('product_service_id', $product->id)->first();
+                if ($vrD) {
+                    if ($session_key == 'purchases' && $vrD->purchase_price !== null && (float) $vrD->purchase_price >= 0) {
+                        $productprice = (float) $vrD->purchase_price;
+                    } elseif ($isPosSession && $vrD->sale_price !== null && (float) $vrD->sale_price >= 0) {
+                        $productprice = (float) $vrD->sale_price;
+                    }
+                    $displayName = $productname . ' — ' . $vrD->displayLabel($product);
+                }
             }
 
             $originalquantity = (int) $productquantity;
@@ -886,7 +963,7 @@ class ProductServiceController extends Controller
             }
             $image_url = !empty($product->pro_image) ? 'uploads/pro_image/' . $product->pro_image : 'uploads/pro_image/default.png';
 
-            $model_delete_id = 'delete-form-' . $id;
+            $model_delete_id = 'delete-form-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $cartLineKey);
 
             $carthtml = '';
             $sku = $product->sku ?? '';
@@ -900,21 +977,21 @@ class ProductServiceController extends Controller
                 if ($request->get('restaurant') || $session_key === 'pos-restaurant') {
                     $statusNotSent = __('pos.status_not_sent');
                     $cartKeyVal = $tableKey !== null ? $tableKey : '';
-                    $carthtml .= '<tr data-product-id="' . $id . '" data-line-id="" data-is-sent="0" data-status="not_sent" data-discount="0" id="product-id-r-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '">
-                            <td class="name">' . e($productname) . '</td>
+                    $carthtml .= '<tr data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" data-line-id="" data-is-sent="0" data-status="not_sent" data-discount="0" id="product-id-r-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '">
+                            <td class="name">' . e($displayName) . '</td>
                             <td class="pos-note-cell"><textarea class="form-control form-control-sm notes pos-item-notes" placeholder="' . e(__('pos.note_placeholder')) . '" maxlength="200" rows="2" title="' . e(__('Note')) . '"></textarea></td>
-                            <td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" class="input-number" data-url="' . url('update-cart/') . '" data-id="' . $id . '" value="1"><input type="button" value="+" class="plus"></span></td>
+                            <td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" class="input-number" data-url="' . url('update-cart/') . '" data-id="' . e($cartLineKey) . '" value="1"><input type="button" value="+" class="plus"></span></td>
                             <td class="tax">' . $taxDisplay . '</td>
                             <td class="price">' . Auth::user()->priceFormat($productprice) . '</td>
                             <td class="subtotal">' . Auth::user()->priceFormat($subtotal) . '</td>
                             <td class="text-center"><span class="badge pos-line-status">' . e($statusNotSent) . '</span></td>
-                            <td class="action-btn"><a href="#" class="btn btn-sm bg-danger bs-pass-para-pos pos-remove-from-cart" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . $id . '"><i class="ti ti-trash text-white"></i></a><form method="post" action="' . url('remove-from-cart') . '" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . $id . '">' . ($tableKey !== null ? '<input type="hidden" name="cart_key" value="' . e($tableKey) . '">' : '') . '</form></td>
+                            <td class="action-btn"><a href="#" class="btn btn-sm bg-danger bs-pass-para-pos pos-remove-from-cart" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . e($cartLineKey) . '"><i class="ti ti-trash text-white"></i></a><form method="post" action="' . url('remove-from-cart') . '" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . e($cartLineKey) . '">' . ($tableKey !== null ? '<input type="hidden" name="cart_key" value="' . e($tableKey) . '">' : '') . '</form></td>
                         </tr>';
                 } else {
-                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" id="product-id-' . $id . '" data-name="' . e($productname) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '">';
+                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" id="product-id-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '">';
                 $carthtml .= '<div class="card-body p-2">';
                 $carthtml .= '<div class="d-flex justify-content-between align-items-start gap-2">';
-                $carthtml .= '<div class="flex-grow-1 min-w-0"><h6 class="mb-0 text-dark fw-bold text-truncate name">' . e($productname) . '</h6>';
+                $carthtml .= '<div class="flex-grow-1 min-w-0"><h6 class="mb-0 text-dark fw-bold text-truncate name">' . e($displayName) . '</h6>';
                 if ($sku) {
                     $carthtml .= '<small class="text-muted d-block">SKU: ' . e($sku) . '</small>';
                 }
@@ -922,10 +999,10 @@ class ProductServiceController extends Controller
                     $carthtml .= '<span class="badge bg-light text-dark border mt-1">' . e($catName) . '</span>';
                 }
                 $carthtml .= '</div>';
-                $carthtml .= '<div class="action-btn"><a href="#" class="btn btn-sm btn-danger p-1 bs-pass-para-pos" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . $id . '"><i class="ti ti-trash"></i></a>';
-                $carthtml .= '<form method="post" action="' . url('remove-from-cart') . '" accept-charset="UTF-8" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . $id . '"></form></div></div>';
+                $carthtml .= '<div class="action-btn"><a href="#" class="btn btn-sm btn-danger p-1 bs-pass-para-pos" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . e($cartLineKey) . '"><i class="ti ti-trash"></i></a>';
+                $carthtml .= '<form method="post" action="' . url('remove-from-cart') . '" accept-charset="UTF-8" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . e($cartLineKey) . '"></form></div></div>';
                 $carthtml .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">';
-                $carthtml .= '<span class="quantity buttons_added d-inline-flex align-items-center border rounded"><input type="button" value="-" class="minus btn btn-sm btn-outline-secondary border-0 py-0"><input type="number" step="1" min="1" max="" name="quantity" title="' . __('Quantity') . '" class="input-number form-control form-control-sm border-0 text-center" style="width: 2.5rem;" data-url="' . url('update-cart/') . '" data-id="' . $id . '" value="1"><input type="button" value="+" class="plus btn btn-sm btn-outline-secondary border-0 py-0"></span>';
+                $carthtml .= '<span class="quantity buttons_added d-inline-flex align-items-center border rounded"><input type="button" value="-" class="minus btn btn-sm btn-outline-secondary border-0 py-0"><input type="number" step="1" min="1" max="" name="quantity" title="' . __('Quantity') . '" class="input-number form-control form-control-sm border-0 text-center" style="width: 2.5rem;" data-url="' . url('update-cart/') . '" data-id="' . e($cartLineKey) . '" value="1"><input type="button" value="+" class="plus btn btn-sm btn-outline-secondary border-0 py-0"></span>';
                 $carthtml .= '<div class="text-end"><div class="fw-bold text-dark subtotal">' . Auth::user()->priceFormat($subtotal) . '</div><small class="text-muted price">' . Auth::user()->priceFormat($productprice) . ' ' . __('each') . '</small></div></div>';
                 $carthtml .= '<small class="text-muted d-block mt-1 tax">' . __('Tax') . ': ' . $taxDisplay . '</small>';
                 if ($identifierTracking) {
@@ -935,15 +1012,15 @@ class ProductServiceController extends Controller
                 $carthtml .= '</div></div>';
                 }
             } else {
-                $carthtml .= '<tr data-product-id="' . $id . '" id="product-id-' . $id . '">
+                $carthtml .= '<tr data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" id="product-id-' . e(str_replace('_', '-', $cartLineKey)) . '">
                             <td class="cart-images">
                                 <img alt="Image placeholder" src="' . asset(Storage::url($image_url)) . '" class="card-image avatar shadow hover-shadow-lg">
                             </td>
-                            <td class="name">' . $productname . '</td>
+                            <td class="name">' . e($displayName) . '</td>
                             <td class="">
                                    <span class="quantity buttons_added">
                                          <input type="button" value="-" class="minus">
-                                         <input type="number" step="1" min="1" max="" name="quantity" title="' . __('Quantity') . '" class="input-number" size="4" value="1" data-url="' . url('update-cart/') . '" data-id="' . $id . '">
+                                         <input type="number" step="1" min="1" max="" name="quantity" title="' . __('Quantity') . '" class="input-number" size="4" value="1" data-url="' . url('update-cart/') . '" data-id="' . e($cartLineKey) . '">
                                          <input type="button" value="+" class="plus">
                                    </span>
                             </td>
@@ -951,40 +1028,43 @@ class ProductServiceController extends Controller
                             <td class="price">' . Auth::user()->priceFormat($productprice) . '</td>
                             <td class="subtotal">' . Auth::user()->priceFormat($subtotal) . '</td>
                             <td class="action-btn mt-3">
-                                 <a href="#" class="btn btn-sm bg-danger bs-pass-para-pos" data-confirm="' . __("Are You Sure?") . '" data-text="' . __("This action can not be undone. Do you want to continue?") . '" data-confirm-yes=' . $model_delete_id . ' title="' . __('Delete') . '" data-id="' . $id . '">
+                                 <a href="#" class="btn btn-sm bg-danger bs-pass-para-pos" data-confirm="' . __("Are You Sure?") . '" data-text="' . __("This action can not be undone. Do you want to continue?") . '" data-confirm-yes=' . $model_delete_id . ' title="' . __('Delete') . '" data-id="' . e($cartLineKey) . '">
                                    <span class=""><i class="ti ti-trash text-white"></i></span>
                                  </a>
                                  <form method="post" action="' . url('remove-from-cart') . '"  accept-charset="UTF-8" id="' . $model_delete_id . '">
                                       <input name="_method" type="hidden" value="DELETE">
                                       <input name="_token" type="hidden" value="' . csrf_token() . '">
                                       <input type="hidden" name="session_key" value="' . $session_key . '">
-                                      <input type="hidden" name="id" value="' . $id . '">
+                                      <input type="hidden" name="id" value="' . e($cartLineKey) . '">
                                  </form>
                             </td>
                         </tr>';
             }
 
+            $linePayload = [
+                'name' => $displayName,
+                'quantity' => 1,
+                'price' => $productprice,
+                'id' => $id,
+                'cart_line_key' => $cartLineKey,
+                'product_variant_id' => $variantId,
+                'tax' => $producttax,
+                'subtotal' => $subtotal,
+                'originalquantity' => $originalquantity,
+                'product_tax' => $product_tax,
+                'product_tax_id' => ! empty($product_tax_id) ? implode(',', $product_tax_id) : 0,
+                'price_type' => $priceType,
+                'identifier_tracking' => $identifierTracking,
+                'identifiers' => '',
+            ];
+
             // if cart is empty then this the first product
-            if (!$cart) {
-                    $cart = [
-                    $id => [
-                        "name" => $productname,
-                        "quantity" => 1,
-                        "price" => $productprice,
-                        "id" => $id,
-                        "tax" => $producttax,
-                        "subtotal" => $subtotal,
-                        "originalquantity" => $originalquantity,
-                        "product_tax" => $product_tax,
-                        "product_tax_id" => !empty($product_tax_id) ? implode(',', $product_tax_id) : 0,
-                        "price_type" => $priceType,
-                        "identifier_tracking" => $identifierTracking,
-                        "identifiers" => '',
-                    ],
+            if (! $cart) {
+                $cart = [
+                    $cartLineKey => $linePayload,
                 ];
 
-
-                if ($originalquantity < $cart[$id]['quantity'] && $isPosSession) {
+                if ($originalquantity < $cart[$cartLineKey]['quantity'] && $isPosSession) {
                     return response()->json(
                         [
                             'code' => 404,
@@ -1007,37 +1087,37 @@ class ProductServiceController extends Controller
                     [
                         'code' => 200,
                         'status' => 'Success',
-                        'success' => $productname . __(' added to cart successfully!'),
-                        'product' => $cart[$id],
+                        'success' => $displayName . __(' added to cart successfully!'),
+                        'product' => $cart[$cartLineKey],
                         'carthtml' => $carthtml,
                     ]
                 );
             }
 
-            // if cart not empty then check if this product exist then increment quantity
-            if (isset($cart[$id])) {
-
-                $cart[$id]['quantity']++;
-                $cart[$id]['id'] = $id;
-                if (! empty($cart[$id]['identifier_tracking'] ?? false)) {
-                    $cart[$id]['identifiers'] = '';
+            // if cart not empty then check if this line exists then increment quantity
+            if (isset($cart[$cartLineKey])) {
+                $cart[$cartLineKey]['quantity']++;
+                $cart[$cartLineKey]['id'] = $id;
+                $cart[$cartLineKey]['product_variant_id'] = $variantId;
+                if (! empty($cart[$cartLineKey]['identifier_tracking'] ?? false)) {
+                    $cart[$cartLineKey]['identifiers'] = '';
                 }
-                if (!isset($cart[$id]['price_type'])) {
-                    $cart[$id]['price_type'] = $priceType;
+                if (! isset($cart[$cartLineKey]['price_type'])) {
+                    $cart[$cartLineKey]['price_type'] = $priceType;
                 }
-                $pt = $cart[$id]['price_type'] ?? 'exclusive';
-                $qty = $cart[$id]['quantity'];
-                $pr = $cart[$id]['price'];
-                $tx = $cart[$id]['tax'] ?? 0;
+                $pt = $cart[$cartLineKey]['price_type'] ?? 'exclusive';
+                $qty = $cart[$cartLineKey]['quantity'];
+                $pr = $cart[$cartLineKey]['price'];
+                $tx = $cart[$cartLineKey]['tax'] ?? 0;
                 if ($pt === 'inclusive' && $tx > 0) {
-                    $cart[$id]["subtotal"] = $pr * $qty;
+                    $cart[$cartLineKey]['subtotal'] = $pr * $qty;
                 } else {
                     $subtotal = $pr * $qty;
-                    $cart[$id]["subtotal"] = $subtotal * (1 + $tx / 100);
+                    $cart[$cartLineKey]['subtotal'] = $subtotal * (1 + $tx / 100);
                 }
-                $cart[$id]["originalquantity"] = $originalquantity;
+                $cart[$cartLineKey]['originalquantity'] = $originalquantity;
 
-                if ($originalquantity < $cart[$id]['quantity'] && $isPosSession) {
+                if ($originalquantity < $cart[$cartLineKey]['quantity'] && $isPosSession) {
                     return response()->json(
                         [
                             'code' => 404,
@@ -1060,29 +1140,17 @@ class ProductServiceController extends Controller
                     [
                         'code' => 200,
                         'status' => 'Success',
-                        'success' => $productname . __(' added to cart successfully!'),
-                        'product' => $cart[$id],
+                        'success' => $displayName . __(' added to cart successfully!'),
+                        'product' => $cart[$cartLineKey],
                         'carttotal' => $cart,
                     ]
                 );
             }
 
             // if item not exist in cart then add to cart with quantity = 1
-            $cart[$id] = [
-                "name" => $productname,
-                "quantity" => 1,
-                "price" => $productprice,
-                "tax" => $producttax,
-                "subtotal" => $subtotal,
-                "id" => $id,
-                "originalquantity" => $originalquantity,
-                "product_tax" => $product_tax,
-                "price_type" => $priceType,
-                "identifier_tracking" => $identifierTracking,
-                "identifiers" => '',
-            ];
+            $cart[$cartLineKey] = $linePayload;
 
-            if ($originalquantity < $cart[$id]['quantity'] && $isPosSession) {
+            if ($originalquantity < $cart[$cartLineKey]['quantity'] && $isPosSession) {
                 return response()->json(
                     [
                         'code' => 404,
@@ -1105,8 +1173,8 @@ class ProductServiceController extends Controller
                 [
                     'code' => 200,
                     'status' => 'Success',
-                    'success' => $productname . __(' added to cart successfully!'),
-                    'product' => $cart[$id],
+                    'success' => $displayName . __(' added to cart successfully!'),
+                    'product' => $cart[$cartLineKey],
                     'carthtml' => $carthtml,
                     'carttotal' => $cart,
                 ]
@@ -1126,14 +1194,14 @@ class ProductServiceController extends Controller
     public function updateCart(Request $request)
     {
 
-        $id          = $request->id;
+        $lineKey = (string) $request->id;
         $quantity    = $request->quantity;
         $discount    = $request->discount;
         $session_key = $request->session_key;
 
         $isPosSession = in_array($session_key, ['pos', 'pos-restaurant'], true);
             $canManage = Auth::user()->can('manage product & service') || ((Auth::user()->can('manage pos') || Auth::user()->can('pos restaurant waiter') || Auth::user()->can('pos restaurant full') || Auth::user()->can('pos restaurant manager')) && $isPosSession);
-        if ($canManage && $request->ajax() && isset($id) && !empty($id) && isset($session_key) && !empty($session_key)) {
+        if ($canManage && $request->ajax() && $lineKey !== '' && isset($session_key) && !empty($session_key)) {
             $cartKey = $session_key;
             $tableKey = null;
             if ($session_key === 'pos-restaurant') {
@@ -1166,38 +1234,47 @@ class ProductServiceController extends Controller
                 $cart = [];
             }
 
-            if (isset($cart[$id]) && $quantity == 0) {
-                unset($cart[$id]);
+            if (isset($cart[$lineKey]) && $quantity == 0) {
+                unset($cart[$lineKey]);
             }
 
             if ($quantity) {
 
-                $cart[$id]["quantity"] = $quantity;
+                $cart[$lineKey]['quantity'] = $quantity;
 
-                $producttax   = isset($cart[$id]) ? $cart[$id]["tax"] : 0;
-                $productprice = $cart[$id]["price"];
-                $priceType    = $cart[$id]["price_type"] ?? 'exclusive';
+                $producttax   = isset($cart[$lineKey]) ? $cart[$lineKey]['tax'] : 0;
+                $productprice = $cart[$lineKey]['price'];
+                $priceType    = $cart[$lineKey]['price_type'] ?? 'exclusive';
 
                 if ($priceType === 'inclusive' && $producttax > 0) {
-                    $cart[$id]["subtotal"] = $productprice * $quantity;
+                    $cart[$lineKey]['subtotal'] = $productprice * $quantity;
                 } else {
                     $subtotal = $productprice * $quantity;
                     $tax = ($subtotal * $producttax) / 100;
-                    $cart[$id]["subtotal"] = $subtotal + $tax;
+                    $cart[$lineKey]['subtotal'] = $subtotal + $tax;
                 }
             }
 
             // POS: validate against product's quantity (stock); skip for products that do not affect stock (e.g. BOM dishes)
-            if (isset($cart[$id]) && $isPosSession) {
-                $product = ProductService::find($id);
+            if (isset($cart[$lineKey]) && $isPosSession) {
+                $line = $cart[$lineKey];
+                $productId = (int) ($line['id'] ?? 0);
+                $variantLineId = isset($line['product_variant_id']) ? (int) $line['product_variant_id'] : 0;
+                $variantLineId = $variantLineId > 0 ? $variantLineId : null;
+                $product = $productId > 0 ? ProductService::find($productId) : null;
                 $affectStock = $product ? (($product->type === 'kit') ? false : ($product->affect_stock ?? true)) : true;
                 $warehouseId = (int) ($request->war_id ?? 0);
-                if ($product && $affectStock && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product->id, $warehouseId, (int) Auth::user()->creatorId()))) {
-                    $maxQty = (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warehouseId, (int) Auth::user()->creatorId()));
+                $creatorId = (int) Auth::user()->creatorId();
+                if ($product && $affectStock && ($product->variants_enabled ?? false) && $variantLineId) {
+                    $maxQty = (int) floor($product->variantStockInWarehouse($warehouseId, $variantLineId));
+                } elseif ($product && $affectStock && ($product->variants_enabled ?? false) && ! $variantLineId) {
+                    $maxQty = (int) floor($product->variantStockInWarehouse($warehouseId, null));
+                } elseif ($product && $affectStock && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product->id, $warehouseId, $creatorId))) {
+                    $maxQty = (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warehouseId, $creatorId));
                 } else {
                     $maxQty = $product ? ($affectStock ? (int) $product->quantity : 999999) : 0;
                 }
-                if ($cart[$id]['quantity'] > $maxQty) {
+                if ($cart[$lineKey]['quantity'] > $maxQty) {
                     return response()->json(
                         [
                             'code' => 404,
@@ -1207,11 +1284,11 @@ class ProductServiceController extends Controller
                         404
                     );
                 }
-                $cart[$id]['originalquantity'] = $maxQty;
+                $cart[$lineKey]['originalquantity'] = $maxQty;
             }
 
-            if ($request->has('identifiers') && isset($cart[$id])) {
-                $cart[$id]['identifiers'] = (string) $request->input('identifiers', '');
+            if ($request->has('identifiers') && isset($cart[$lineKey])) {
+                $cart[$lineKey]['identifiers'] = (string) $request->input('identifiers', '');
             }
 
             $subtotal = array_sum(array_column($cart, 'subtotal'));
@@ -1377,5 +1454,133 @@ class ProductServiceController extends Controller
         } else {
             return redirect()->back()->with('error', __('This Product is not found!'));
         }
+    }
+
+    protected function syncProductVariants(ProductService $productService, Request $request): void
+    {
+        $creatorId = (int) Auth::user()->creatorId();
+        if ($productService->type !== 'product') {
+            return;
+        }
+
+        $productService->variants_enabled = $request->boolean('variants_enabled');
+        $productService->variant_size_label = $request->filled('variant_size_label') ? mb_substr(trim((string) $request->variant_size_label), 0, 64) : null;
+        $productService->variant_color_label = $request->filled('variant_color_label') ? mb_substr(trim((string) $request->variant_color_label), 0, 64) : null;
+        $productService->unit_volume_cbm = $request->filled('unit_volume_cbm') ? $request->input('unit_volume_cbm') : null;
+        $productService->unit_area_sqm = $request->filled('unit_area_sqm') ? $request->input('unit_area_sqm') : null;
+        $productService->unit_length = $request->filled('unit_length') ? $request->input('unit_length') : null;
+        $productService->unit_width = $request->filled('unit_width') ? $request->input('unit_width') : null;
+        $productService->unit_height = $request->filled('unit_height') ? $request->input('unit_height') : null;
+        $productService->dimension_unit = $request->filled('dimension_unit') ? $request->input('dimension_unit') : null;
+        $productService->volumetric_divisor = $request->filled('volumetric_divisor') ? (int) $request->input('volumetric_divisor') : null;
+        $productService->unit_volumetric_weight = $request->filled('unit_volumetric_weight') ? $request->input('unit_volumetric_weight') : null;
+        $productService->save();
+
+        if (! $productService->variants_enabled) {
+            ProductVariant::where('product_service_id', $productService->id)->delete();
+
+            return;
+        }
+
+        $rows = $request->input('variant_rows', []);
+        if (! is_array($rows)) {
+            $rows = [];
+        }
+        $seenIds = [];
+        $sort = 0;
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $size = mb_substr(trim((string) ($row['size'] ?? '')), 0, 64);
+            $color = mb_substr(trim((string) ($row['color'] ?? '')), 0, 64);
+            $sku = mb_substr(trim((string) ($row['sku'] ?? '')), 0, 191);
+            $salePrice = array_key_exists('sale_price', $row) && $row['sale_price'] !== '' && $row['sale_price'] !== null
+                ? round((float) $row['sale_price'], 2) : null;
+            $purchasePrice = array_key_exists('purchase_price', $row) && $row['purchase_price'] !== '' && $row['purchase_price'] !== null
+                ? round((float) $row['purchase_price'], 2) : null;
+
+            if ($size === '' && $color === '') {
+                continue;
+            }
+            if ($sku === '') {
+                $sku = $productService->sku . '-v' . ($sort + 1);
+            }
+
+            $rowId = isset($row['id']) ? (int) $row['id'] : 0;
+            if ($rowId > 0) {
+                $existing = ProductVariant::where('id', $rowId)
+                    ->where('product_service_id', $productService->id)
+                    ->where('created_by', $creatorId)
+                    ->first();
+                if ($existing) {
+                    $existing->update([
+                        'size' => $size,
+                        'color' => $color,
+                        'sku' => $sku,
+                        'sale_price' => $salePrice,
+                        'purchase_price' => $purchasePrice,
+                        'sort_order' => $sort,
+                    ]);
+                    $seenIds[] = $existing->id;
+                    $sort++;
+
+                    continue;
+                }
+            }
+
+            $nv = ProductVariant::create([
+                'product_service_id' => $productService->id,
+                'size' => $size,
+                'color' => $color,
+                'sku' => $sku,
+                'sale_price' => $salePrice,
+                'purchase_price' => $purchasePrice,
+                'sort_order' => $sort,
+                'created_by' => $creatorId,
+            ]);
+            $seenIds[] = $nv->id;
+            $sort++;
+        }
+
+        if ($seenIds === []) {
+            ProductVariant::where('product_service_id', $productService->id)
+                ->where('created_by', $creatorId)
+                ->delete();
+        } else {
+            ProductVariant::where('product_service_id', $productService->id)
+                ->where('created_by', $creatorId)
+                ->whereNotIn('id', $seenIds)
+                ->delete();
+        }
+    }
+
+    public function variantsJson(ProductService $productservice)
+    {
+        if ((int) $productservice->created_by !== (int) Auth::user()->creatorId()) {
+            abort(403);
+        }
+        $productservice->load('variants');
+
+        return response()->json([
+            'variants_enabled' => (bool) $productservice->variants_enabled,
+            'labels' => [
+                'size' => $productservice->variant_size_label,
+                'color' => $productservice->variant_color_label,
+            ],
+            'unit_volume_cbm' => $productservice->unit_volume_cbm,
+            'unit_area_sqm' => $productservice->unit_area_sqm,
+            'variants' => $productservice->variants->map(function ($v) use ($productservice) {
+                return [
+                    'id' => $v->id,
+                    'size' => $v->size,
+                    'color' => $v->color,
+                    'sku' => $v->sku,
+                    'label' => $v->displayLabel($productservice),
+                    'sale_price' => $v->sale_price,
+                    'purchase_price' => $v->purchase_price,
+                ];
+            })->values(),
+        ]);
     }
 }

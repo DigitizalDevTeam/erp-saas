@@ -57,6 +57,7 @@ class UserController extends Controller
         $user = \Auth::user();
         $roles = Role::where('created_by', '=', $user->creatorId())->where('name', '!=', 'client')->get()->pluck('name', 'id');
         $branches = \App\Models\Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->orderBy('name')->get()->pluck('name', 'id');
+        $tenantBranches = \App\Models\Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->orderBy('name')->get();
         $posBranchRoleNames = [
             \App\Services\PosRestaurantRoleService::ROLE_CASHIER,
             \App\Services\PosRestaurantRoleService::ROLE_WAITER,
@@ -65,7 +66,7 @@ class UserController extends Controller
             \App\Services\PosRestaurantRoleService::ROLE_KITCHEN,
         ];
         if (\Auth::user()->can('create user')) {
-            return view('user.create', compact('roles', 'customFields', 'branches', 'posBranchRoleNames'));
+            return view('user.create', compact('roles', 'customFields', 'branches', 'posBranchRoleNames', 'tenantBranches'));
         } else {
             return redirect()->back();
         }
@@ -240,8 +241,16 @@ class UserController extends Controller
                         $request['pos_pin'] = null;
                     }
 
+                    $branchIdsSel = array_values(array_unique(array_filter(array_map('intval', $request->input('branch_ids', [])))));
+                    if (count($branchIdsSel) > 0 && in_array($role_r->name, $posBranchRoleNames, true) && $request->filled('pos_branch_id')) {
+                        if (! in_array((int) $request->pos_branch_id, $branchIdsSel, true)) {
+                            return redirect()->back()->with('error', __('POS branch must be one of the allowed branches you selected.'));
+                        }
+                    }
+
                     $user = User::create($request->all());
                     $user->assignRole($role_r);
+                    $user->syncBranchesFromRequest($request->input('branch_ids', []));
                     if ($request['type'] != 'client') {
                         \App\Models\Utility::employeeDetails($user->id, \Auth::user()->creatorId());
                     }
@@ -294,9 +303,11 @@ class UserController extends Controller
         $roles = Role::where('created_by', '=', $user->creatorId())->where('name', '!=', 'client')->get()->pluck('name', 'id');
         if (\Auth::user()->can('edit user')) {
             $user = User::findOrFail($id);
+            $user->load('branches');
             $user->customField = CustomField::getData($user, 'user');
             $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'user')->get();
             $branches = \App\Models\Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->orderBy('name')->get()->pluck('name', 'id');
+            $tenantBranches = \App\Models\Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->orderBy('name')->get();
             $posBranchRoleNames = [
                 \App\Services\PosRestaurantRoleService::ROLE_CASHIER,
                 \App\Services\PosRestaurantRoleService::ROLE_WAITER,
@@ -305,7 +316,7 @@ class UserController extends Controller
                 \App\Services\PosRestaurantRoleService::ROLE_KITCHEN,
             ];
 
-            return view('user.edit', compact('user', 'roles', 'customFields', 'branches', 'posBranchRoleNames'));
+            return view('user.edit', compact('user', 'roles', 'customFields', 'branches', 'posBranchRoleNames', 'tenantBranches'));
         } else {
             return redirect()->back();
         }
@@ -407,12 +418,21 @@ class UserController extends Controller
                 } else {
                     $input['pos_pin'] = null;
                 }
+
+                $branchIdsSel = array_values(array_unique(array_filter(array_map('intval', $request->input('branch_ids', [])))));
+                if (count($branchIdsSel) > 0 && in_array($role->name, $posBranchRoleNames, true) && $request->filled('pos_branch_id')) {
+                    if (! in_array((int) $request->pos_branch_id, $branchIdsSel, true)) {
+                        return redirect()->back()->with('error', __('POS branch must be one of the allowed branches you selected.'));
+                    }
+                }
+
                 $user->fill($input)->save();
                 Utility::employeeDetailsUpdate($user->id, \Auth::user()->creatorId());
                 CustomField::saveData($user, $request->customField);
 
                 $roles[] = $request->role;
                 $user->roles()->sync($roles);
+                $user->syncBranchesFromRequest($request->input('branch_ids', []));
 
                 return redirect()->route('users.index')->with(
                     'success', 'User successfully updated.'
@@ -716,6 +736,20 @@ class UserController extends Controller
     }
 
     // change mode 'dark or light'
+    public function setBranchContext(Request $request)
+    {
+        $request->validate([
+            'branch_id' => 'required|integer|exists:branches,id',
+        ]);
+        $user = \Auth::user();
+        if (! $user->canAccessBranchId((int) $request->branch_id)) {
+            return redirect()->back()->with('error', __('You do not have access to this branch.'));
+        }
+        session(['active_branch_id' => (int) $request->branch_id]);
+
+        return redirect()->back();
+    }
+
     public function changeMode()
     {
         $usr = \Auth::user();

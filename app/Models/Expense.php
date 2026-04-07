@@ -35,6 +35,9 @@ class Expense extends Model
         'user_id',
         'expense_category_id',
         'branch_id',
+        'pos_shift_id',
+        'payment_account_id',
+        'chart_account_id',
         'created_by',
     ];
 
@@ -51,6 +54,21 @@ class Expense extends Model
     public function branch()
     {
         return $this->belongsTo(Branch::class, 'branch_id');
+    }
+
+    public function posShift()
+    {
+        return $this->belongsTo(PosShift::class, 'pos_shift_id', 'id');
+    }
+
+    public function paymentBankAccount()
+    {
+        return $this->belongsTo(BankAccount::class, 'payment_account_id');
+    }
+
+    public function chartAccount()
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'chart_account_id');
     }
 
     public function createdByUser()

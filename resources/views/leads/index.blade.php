@@ -126,7 +126,13 @@
                     $json[] = 'task-list-' . $lead_stage->id;
                 }
             @endphp
-            <div class="row kanban-wrapper horizontal-scroll-cards" data-containers='{!! json_encode($json) !!}'
+            @php
+                $leadAvatarBase = \App\Models\Utility::get_file('uploads/avatar/');
+                if (empty($leadAvatarBase)) {
+                    $leadAvatarBase = asset(\Storage::url('uploads/avatar/'));
+                }
+            @endphp
+            <div class="row flex-nowrap kanban-wrapper horizontal-scroll-cards g-2" data-containers='{!! json_encode($json) !!}'
                 data-plugin="dragula">
                 @foreach ($lead_stages as $lead_stage)
                     @php($leads = $lead_stage->lead())
@@ -217,8 +223,10 @@
                                             </ul>
                                             <div class="user-group">
                                                 @foreach ($lead->users as $user)
-                                                    <img src="@if ($user->avatar) {{ asset('/storage/uploads/avatar/' . $user->avatar) }} @else {{ asset('storage/uploads/avatar/avatar.png') }} @endif"
-                                                        alt="image" data-bs-toggle="tooltip"
+                                                    <img src="{{ !empty($user->avatar) ? $leadAvatarBase . $user->avatar : $leadAvatarBase . 'avatar.png' }}"
+                                                        alt="{{ $user->name }}" class="rounded-circle"
+                                                        width="32" height="32"
+                                                        data-bs-toggle="tooltip"
                                                         title="{{ $user->name }}">
                                                 @endforeach
                                             </div>

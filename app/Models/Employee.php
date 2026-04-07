@@ -76,10 +76,15 @@ class Employee extends Model
         return $this->hasMany(Overtime::class);
     }
 
-    public function get_net_salary()
+    /**
+     * @param  string|null  $forPayrollMonthYm  When set, installment loans use first deduction month vs this payroll month.
+     */
+    public function get_net_salary(?string $forPayrollMonthYm = null)
 {
     // Load related data efficiently using Eloquent relationships
     // $this->load('allowances', 'commissions', 'loans', 'saturationDeductions', 'otherPayments', 'overtimes');
+
+    $monthYm = $forPayrollMonthYm ?? date('Y-m');
 
     // Calculate total allowances
     $total_allowance = $this->allowances->sum(function ($allowance) {
@@ -91,9 +96,9 @@ class Employee extends Model
         return ($commission->type === 'fixed') ? $commission->amount : ($commission->amount * $this->salary / 100);
     });
 
-    // Calculate total loans
-    $total_loan = $this->loans->sum(function ($loan) {
-        return ($loan->type === 'fixed') ? $loan->amount : ($loan->amount * $this->salary / 100);
+    // Calculate total loans (includes term-loan EMI estimates)
+    $total_loan = $this->loans->sum(function ($loan) use ($monthYm) {
+        return $loan->estimatedMonthlyPayrollImpact((float) $this->salary, $monthYm);
     });
 
     // Calculate total saturation deductions
@@ -150,18 +155,26 @@ class Employee extends Model
 
     }
 
+    /**
+     * JSON snapshot of loan rows for a payslip month (legacy % / fixed + installment EMI).
+     */
+    public static function loanJsonForPayslipMonth(int $employeeId, string $salaryMonthYm, float $basicSalary): string
+    {
+        $loans = Loan::where('employee_id', '=', $employeeId)->orderBy('id')->get();
+        $rows = [];
+        foreach ($loans as $loan) {
+            $rows[] = $loan->toPayslipSnapshotObject($salaryMonthYm, $basicSalary);
+        }
+
+        return json_encode($rows);
+    }
+
+    /**
+     * @deprecated Use loanJsonForPayslipMonth with an explicit payroll month.
+     */
     public static function loan($id)
     {
-        //Loan
-        $loans      = Loan::where('employee_id', '=', $id)->get();
-        $total_loan = 0;
-        foreach($loans as $loan)
-        {
-            $total_loan = $loan->amount + $total_loan;
-        }
-        $loan_json = json_encode($loans);
-
-        return $loan_json;
+        return self::loanJsonForPayslipMonth($id, date('Y-m'), 0);
     }
 
     public static function saturation_deduction($id)

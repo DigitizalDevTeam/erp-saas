@@ -13,8 +13,9 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
-                    @if(!empty($showBranchZoneSelection))
+                    @if(!empty($showBranchSelector) || !empty($showZoneSelector))
                     <form method="get" class="row g-3 align-items-end mb-4">
+                        @if(!empty($showBranchSelector))
                         <div class="col-auto">
                             <label class="form-label">{{ __('Branch') }}</label>
                             <select name="branch_id" class="form-select form-select-sm" style="min-width:180px;">
@@ -23,6 +24,10 @@
                                 @endforeach
                             </select>
                         </div>
+                        @else
+                            <input type="hidden" name="branch_id" value="{{ $branchId }}">
+                        @endif
+                        @if(!empty($showZoneSelector))
                         <div class="col-auto">
                             <label class="form-label">{{ __('Zone') }}</label>
                             <select name="zone" class="form-select form-select-sm" style="min-width:140px;">
@@ -30,6 +35,9 @@
                                 <option value="bar" {{ $zone === 'bar' ? 'selected' : '' }}>{{ __('Bar') }}</option>
                             </select>
                         </div>
+                        @else
+                            <input type="hidden" name="zone" value="{{ $zone }}">
+                        @endif
                         <div class="col-auto">
                             <button type="submit" class="btn btn-sm btn-primary"><i class="ti ti-refresh"></i> {{ __('Apply') }}</button>
                         </div>

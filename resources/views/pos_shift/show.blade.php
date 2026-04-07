@@ -98,6 +98,42 @@
                     @if(($pos_shift->cashDrops ?? collect())->isNotEmpty())
                     <p class="mb-0 small"><strong>{{ __('Total cash drops') }}:</strong> {{ Auth::user()->priceFormat($pos_shift->cashDrops->sum('amount')) }}</p>
                     @endif
+
+                    <hr>
+                    <h6>{{ __('Cash in') }}</h6>
+                    <p class="text-muted small mb-2">{{ __('Top-ups / float added to the register during shift.') }}</p>
+                    <button type="button" class="btn btn-sm btn-outline-success mb-2" data-bs-toggle="modal" data-bs-target="#cashInModal"><i class="ti ti-cash"></i> {{ __('Add cash in') }}</button>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>{{ __('Date') }}</th>
+                                    <th class="text-end">{{ __('Amount') }}</th>
+                                    <th>{{ __('Reason') }}</th>
+                                    <th>{{ __('By') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse(($pos_shift->cashIns ?? collect()) as $in)
+                                    <tr>
+                                        <td>{{ $in->created_at ? $in->created_at->format('Y-m-d H:i') : '-' }}</td>
+                                        <td class="text-end">{{ Auth::user()->priceFormat($in->amount) }}</td>
+                                        <td>{{ $in->reason ?: '—' }}</td>
+                                        <td>{{ $in->user ? $in->user->name : '-' }}</td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="4" class="text-muted">{{ __('No cash in.') }}</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if(Gate::check('approve expense') || Gate::check('pos restaurant manager'))
+                    <hr>
+                    <h6>{{ __('Cash out (expense)') }}</h6>
+                    <p class="text-muted small mb-2">{{ __('Record a paid expense from the register (requires authorization).') }}</p>
+                    <button type="button" class="btn btn-sm btn-outline-danger mb-2" data-bs-toggle="modal" data-bs-target="#cashOutExpenseModal"><i class="ti ti-receipt"></i> {{ __('Add cash out expense') }}</button>
+                    @endif
                     @endif
                 </div>
             </div>
@@ -132,6 +168,117 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="cashInModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">{{ __('Add cash in') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="{{ route('pos-shift.cash-in', $pos_shift) }}" method="POST">
+                    @csrf
+                    <div class="modal-body">
+                        @php
+                            $bankAccounts = \App\Models\BankAccount::where('created_by', \Auth::user()->creatorId())->orderBy('bank_name')->get();
+                        @endphp
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Amount') }} <span class="text-danger">*</span></label>
+                            <input type="number" name="amount" class="form-control" min="0.01" step="0.01" required placeholder="0.00">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Reason') }}</label>
+                            <input type="text" name="reason" class="form-control" maxlength="255" placeholder="{{ __('Optional') }}">
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">{{ __('Source account (optional)') }}</label>
+                                <select name="source_account_id" class="form-control">
+                                    <option value="0">{{ __('— none —') }}</option>
+                                    @foreach($bankAccounts as $b)
+                                        <option value="{{ $b->id }}">{{ $b->bank_name }} {{ $b->holder_name }} ({{ $b->account_number }})</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">{{ __('Target account (optional)') }}</label>
+                                <select name="target_account_id" class="form-control">
+                                    <option value="0">{{ __('— none —') }}</option>
+                                    @foreach($bankAccounts as $b)
+                                        <option value="{{ $b->id }}">{{ $b->bank_name }} {{ $b->holder_name }} ({{ $b->account_number }})</option>
+                                    @endforeach
+                                </select>
+                                <small class="text-muted">{{ __('Choose the cash drawer account to increase.') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                        <button type="submit" class="btn btn-success">{{ __('Record cash in') }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @if(Gate::check('approve expense') || Gate::check('pos restaurant manager'))
+    <div class="modal fade" id="cashOutExpenseModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">{{ __('Add cash out expense') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="{{ route('pos-shift.cash-out-expense', $pos_shift) }}" method="POST">
+                    @csrf
+                    <div class="modal-body">
+                        <div class="mb-2">
+                            <label class="form-label">{{ __('Name') }} <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required maxlength="255">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">{{ __('Amount') }} <span class="text-danger">*</span></label>
+                            <input type="number" name="amount" class="form-control" min="0.01" step="0.01" required placeholder="0.00">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">{{ __('Description') }}</label>
+                            <input type="text" name="description" class="form-control" maxlength="1000" placeholder="{{ __('Optional') }}">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">{{ __('Expense category') }} <span class="text-danger">*</span></label>
+                            <select name="expense_category_id" class="form-control" required>
+                                @foreach(\App\Models\ExpenseCategory::where('created_by', \Auth::user()->creatorId())->get() as $cat)
+                                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">{{ __('Expense account (GL)') }} <span class="text-danger">*</span></label>
+                            <select name="chart_account_id" class="form-control" required>
+                                @foreach(\App\Models\ChartOfAccount::where('created_by', \Auth::user()->creatorId())->orderByRaw('CAST(code AS UNSIGNED)')->get() as $acc)
+                                    <option value="{{ $acc->id }}">{{ $acc->code }} — {{ $acc->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">{{ __('Payment account') }} <span class="text-danger">*</span></label>
+                            <select name="payment_account_id" class="form-control" required>
+                                @foreach(\App\Models\BankAccount::where('created_by', \Auth::user()->creatorId())->orderBy('bank_name')->get() as $b)
+                                    <option value="{{ $b->id }}">{{ $b->bank_name }} {{ $b->holder_name }} ({{ $b->account_number }})</option>
+                                @endforeach
+                            </select>
+                            <small class="text-muted">{{ __('Choose the cash drawer/bank account used for payouts.') }}</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                        <button type="submit" class="btn btn-danger">{{ __('Record expense payout') }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endif
     <div class="modal fade" id="transferTablesModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">

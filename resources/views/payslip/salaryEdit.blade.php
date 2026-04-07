@@ -88,7 +88,11 @@
                                         @foreach($loans as $loan)
                                             <div class="col-md-12 form-group">
                                                 {!! Form::label('title', $loan->title,['class'=>'col-form-label']) !!}
-                                                {!! Form::text('loan[]', $loan->amount, ['class' => 'form-control', 'placeholder'=>__($loan->title)]) !!}
+                                                @if(isset($loan->schedule_mode) && $loan->schedule_mode === \App\Models\Loan::SCHEDULE_INSTALLMENT)
+                                                    {!! Form::text('loan[]', $loan->amount, ['class' => 'form-control', 'readonly' => true, 'title' => __('Scheduled EMI — adjust the loan master record if no repayments posted yet.')]) !!}
+                                                @else
+                                                    {!! Form::text('loan[]', $loan->amount, ['class' => 'form-control', 'placeholder'=>__($loan->title)]) !!}
+                                                @endif
                                                 {!! Form::hidden('loan_id[]', $loan->id, ['class' => 'form-control']) !!}
                                             </div>
                                         @endforeach

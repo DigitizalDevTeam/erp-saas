@@ -27,6 +27,11 @@ class Branch extends Model
         return $this->hasMany(\App\Models\warehouse::class, 'branch_id');
     }
 
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'branch_user')->withTimestamps();
+    }
+
     public function posSales()
     {
         return $this->hasMany(\App\Models\Pos::class, 'branch_id');

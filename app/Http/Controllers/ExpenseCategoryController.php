@@ -11,8 +11,10 @@ class ExpenseCategoryController extends Controller
     {
         if (\Auth::user()->can('manage expense category')) {
             $ExpenseCategories = ExpenseCategory::where('created_by', '=', \Auth::user()->creatorId())->get();
+
             return view('expenseCategory.index', compact('ExpenseCategories'));
         }
+
         return redirect()->back()->with('error', __('Permission denied.'));
     }
 
@@ -21,6 +23,7 @@ class ExpenseCategoryController extends Controller
         if (\Auth::user()->can('create expense category')) {
             return view('expenseCategory.create');
         }
+
         return response()->json(['error' => __('Permission denied.')], 401);
     }
 
@@ -32,6 +35,7 @@ class ExpenseCategoryController extends Controller
             ]);
             if ($validator->fails()) {
                 $messages = $validator->getMessageBag();
+
                 return redirect()->back()->with('error', $messages->first());
             }
 
@@ -43,6 +47,7 @@ class ExpenseCategoryController extends Controller
 
             return redirect()->route('expense-category.index')->with('success', __('Expense category successfully created.'));
         }
+
         return redirect()->back()->with('error', __('Permission denied.'));
     }
 
@@ -57,8 +62,10 @@ class ExpenseCategoryController extends Controller
             if ($expense_category->created_by != \Auth::user()->creatorId()) {
                 return response()->json(['error' => __('Permission denied.')], 401);
             }
+
             return view('expenseCategory.edit', compact('expense_category'));
         }
+
         return response()->json(['error' => __('Permission denied.')], 401);
     }
 
@@ -73,6 +80,7 @@ class ExpenseCategoryController extends Controller
             ]);
             if ($validator->fails()) {
                 $messages = $validator->getMessageBag();
+
                 return redirect()->back()->with('error', $messages->first());
             }
 
@@ -81,6 +89,7 @@ class ExpenseCategoryController extends Controller
 
             return redirect()->route('expense-category.index')->with('success', __('Expense category successfully updated.'));
         }
+
         return redirect()->back()->with('error', __('Permission denied.'));
     }
 
@@ -89,9 +98,11 @@ class ExpenseCategoryController extends Controller
         if (\Auth::user()->can('delete expense category')) {
             if ($expense_category->created_by == \Auth::user()->creatorId()) {
                 $expense_category->delete();
+
                 return redirect()->route('expense-category.index')->with('success', __('Expense category successfully deleted.'));
             }
         }
+
         return redirect()->back()->with('error', __('Permission denied.'));
     }
 }

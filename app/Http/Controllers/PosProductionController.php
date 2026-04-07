@@ -21,16 +21,24 @@ class PosProductionController extends Controller
 
         $user = \Auth::user();
         $creatorId = $user->creatorId();
-        $showBranchZoneSelection = $user->can('manage pos');
+        $user->loadMissing('branches');
+        $restaurantPool = Branch::where('created_by', $creatorId)
+            ->where('is_active', true)
+            ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
+            ->pluck('id')
+            ->toArray();
+        $allowedRestaurantIds = $user->filterBranchIdsForPosAccess($restaurantPool);
+        $branches = Branch::whereIn('id', $allowedRestaurantIds)
+            ->orderBy('name')
+            ->get();
 
-        $branchId = null;
-        $zone = PosProduct::PRINT_ZONE_KITCHEN;
+        $showZoneSelector = $user->can('manage pos');
+        $showBranchSelector = $showZoneSelector || $branches->count() > 1;
 
-        if ($showBranchZoneSelection) {
-            $branchId = $request->get('branch_id');
-            $zone = $request->get('zone', PosProduct::PRINT_ZONE_KITCHEN);
-        } else {
-            $branchId = $user->pos_branch_id;
+        $branchId = $request->get('branch_id');
+        $zone = $request->get('zone', PosProduct::PRINT_ZONE_KITCHEN);
+
+        if (! $showZoneSelector) {
             if ($user->can('manage pos production')) {
                 $roleNames = $user->roles->pluck('name')->toArray();
                 if (in_array(\App\Services\PosRestaurantRoleService::ROLE_BAR, $roleNames)) {
@@ -41,18 +49,18 @@ class PosProductionController extends Controller
             }
         }
 
-        $branches = Branch::where('created_by', $creatorId)
-            ->where('is_active', true)
-            ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
-            ->orderBy('name')
-            ->get();
-
-        if (!$branchId && $branches->isNotEmpty()) {
+        if (! $branchId && $branches->count() === 1) {
+            $branchId = $branches->first()->id;
+        }
+        if (! $branchId && $branches->count() > 1) {
             $branchId = $branches->first()->id;
         }
 
-        if (!$showBranchZoneSelection && !$branchId) {
+        if ($branches->isEmpty() || ! $branchId) {
             return redirect()->route('dashboard')->with('error', __('No branch assigned. Please contact admin to assign a branch.'));
+        }
+        if (! $user->canAccessBranchForPos((int) $branchId, 'restaurant')) {
+            return redirect()->route('dashboard')->with('error', __('Permission denied.'));
         }
 
         $lines = collect();
@@ -75,7 +83,7 @@ class PosProductionController extends Controller
                 ->get();
         }
 
-        return view('pos_production.index', compact('branches', 'branchId', 'zone', 'lines', 'showBranchZoneSelection'));
+        return view('pos_production.index', compact('branches', 'branchId', 'zone', 'lines', 'showBranchSelector', 'showZoneSelector'));
     }
 
     public function updateLineStatus(Request $request, PosProduct $line)

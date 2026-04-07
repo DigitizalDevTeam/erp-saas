@@ -12,6 +12,8 @@ class PosAuditLog extends Model
     const ACTION_CANCEL_ORDER = 'cancel_order';
     const ACTION_DISCOUNT = 'discount';
     const ACTION_CASH_DROP = 'cash_drop';
+    const ACTION_CASH_IN = 'cash_in';
+    const ACTION_CASH_OUT_EXPENSE = 'cash_out_expense';
     const ACTION_CLOSE_SHIFT = 'close_shift';
     const ACTION_REOPEN_TABLE = 'reopen_table';
     const ACTION_REFUND = 'refund';

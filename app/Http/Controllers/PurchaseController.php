@@ -10,6 +10,7 @@ use App\Models\ProductServiceCategory;
 use App\Models\Purchase;
 use App\Models\ProductIdentifier;
 use App\Models\ProductExpiryLot;
+use App\Models\ProductVariant;
 use App\Models\PurchaseProduct;
 use App\Models\PurchasePayment;
 use App\Models\StockReport;
@@ -28,6 +29,91 @@ use Illuminate\Support\Facades\Storage;
 
 class PurchaseController extends Controller
 {
+    /**
+     * One repeater row may expand to several purchase lines when variant_quantities[] is posted.
+     *
+     * @return array{lines?: array<int, array<string, mixed>>, error?: string}
+     */
+    protected function expandRepeaterPurchaseItem(array $row, int $creatorId): array
+    {
+        $productId = (int) ($row['item'] ?? 0);
+        if ($productId <= 0) {
+            return ['error' => __('Invalid product.')];
+        }
+        $product = ProductService::where('id', $productId)->where('created_by', $creatorId)->first();
+        if (! $product) {
+            return ['error' => __('Invalid product.')];
+        }
+
+        $variantQtys = [];
+        if (! empty($row['variant_quantities']) && is_array($row['variant_quantities'])) {
+            foreach ($row['variant_quantities'] as $vid => $q) {
+                $q = (float) $q;
+                if ($q > 0) {
+                    $variantQtys[(int) $vid] = $q;
+                }
+            }
+        }
+
+        if ($product->variants_enabled ?? false) {
+            if (count($variantQtys) > 0) {
+                if (($product->identifier_tracking ?? false) && count($variantQtys) > 1) {
+                    return ['error' => __('For products with Serial/MAC tracking, use one variant per row or a single quantity per variant.')];
+                }
+                $lines = [];
+                $baseDiscount = (float) ($row['discount'] ?? 0);
+                $totalVal = 0.0;
+                $meta = [];
+                foreach ($variantQtys as $vid => $qty) {
+                    $vr = ProductVariant::where('id', $vid)->where('product_service_id', $product->id)->where('created_by', $creatorId)->first();
+                    if (! $vr) {
+                        return ['error' => __('Invalid variant for this product.')];
+                    }
+                    $pp = $vr->purchase_price !== null && (float) $vr->purchase_price >= 0
+                        ? (float) $vr->purchase_price
+                        : (float) $product->purchase_price;
+                    $meta[] = ['vid' => $vid, 'qty' => $qty, 'price' => $pp, 'label' => $vr->displayLabel($product)];
+                    $totalVal += $qty * $pp;
+                }
+                foreach ($meta as $m) {
+                    $line = $row;
+                    $line['quantity'] = $m['qty'];
+                    $line['product_variant_id'] = $m['vid'];
+                    $line['price'] = $m['price'];
+                    $line['discount'] = $totalVal > 0
+                        ? round($baseDiscount * (($m['qty'] * $m['price']) / $totalVal), 4)
+                        : round($baseDiscount / max(1, count($meta)), 4);
+                    unset($line['variant_quantities']);
+                    $line['_variant_label'] = $m['label'];
+                    $lines[] = $line;
+                }
+
+                return ['lines' => $lines];
+            }
+
+            $variantId = isset($row['product_variant_id']) ? (int) $row['product_variant_id'] : null;
+            if ($variantId !== null && $variantId <= 0) {
+                $variantId = null;
+            }
+            if (! $variantId) {
+                return ['error' => __('Enter quantity for at least one variant, or select a variant.')];
+            }
+            if (! ProductVariant::where('id', $variantId)->where('product_service_id', $product->id)->where('created_by', $creatorId)->exists()) {
+                return ['error' => __('Invalid variant for this product.')];
+            }
+        } else {
+            $row['product_variant_id'] = null;
+        }
+
+        $one = $row;
+        unset($one['variant_quantities']);
+        if (! ($product->variants_enabled ?? false)) {
+            $one['product_variant_id'] = null;
+        }
+
+        return ['lines' => [$one]];
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -119,115 +205,129 @@ class PurchaseController extends Controller
             $creatorId = \Auth::user()->creatorId();
             $warehouseId = (int) $request->warehouse_id;
 
-            for($i = 0; $i < count($products); $i++)
-            {
-                $product = ProductService::where('id', $products[$i]['item'])->where('created_by', $creatorId)->first();
-                if ($product && ($product->batch_tracking ?? false) && ($product->affect_stock ?? true)) {
-                    if (trim((string) ($products[$i]['batch_no'] ?? '')) === '' || empty($products[$i]['expiry_date'] ?? null)) {
-                        return redirect()->back()->with('error', __('Batch number and expiry date are required for batch-tracked products.'))->withInput();
-                    }
+            for ($i = 0; $i < count($products); $i++) {
+                $expanded = $this->expandRepeaterPurchaseItem($products[$i], (int) $creatorId);
+                if (! empty($expanded['error'])) {
+                    return redirect()->back()->with('error', $expanded['error'])->withInput();
                 }
-
-                $purchaseProduct              = new PurchaseProduct();
-                $purchaseProduct->purchase_id     = $purchase->id;
-                $purchaseProduct->product_id  = $products[$i]['item'];
-                $purchaseProduct->quantity    = $products[$i]['quantity'];
-                $purchaseProduct->tax         = $products[$i]['tax'];
-                $purchaseProduct->discount    = $products[$i]['discount'];
-                $purchaseProduct->price       = $products[$i]['price'];
-                $purchaseProduct->description = $products[$i]['description'];
-                [$pRow, $pShelf] = Utility::normalizeWarehouseLocation($products[$i]['row_no'] ?? '', $products[$i]['shelf_no'] ?? '');
-                $purchaseProduct->row_no = $pRow !== '' ? $pRow : null;
-                $purchaseProduct->shelf_no = $pShelf !== '' ? $pShelf : null;
-                $purchaseProduct->expiry_date = !empty($products[$i]['expiry_date']) ? $products[$i]['expiry_date'] : null;
-                $purchaseProduct->batch_no = !empty($products[$i]['batch_no']) ? trim($products[$i]['batch_no']) : null;
-                $purchaseProduct->mfg_date = !empty($products[$i]['mfg_date']) ? $products[$i]['mfg_date'] : null;
-                $purchaseProduct->save();
-
-                $createExpiryLot = ($product && ($product->batch_tracking ?? false) && ($product->affect_stock ?? true))
-                    || !empty($purchaseProduct->expiry_date)
-                    || !empty($purchaseProduct->batch_no);
-                if ($createExpiryLot) {
-                    ProductExpiryLot::create([
-                        'product_id' => (int) $purchaseProduct->product_id,
-                        'warehouse_id' => (int) $warehouseId,
-                        'purchase_id' => (int) $purchase->id,
-                        'purchase_product_id' => (int) $purchaseProduct->id,
-                        'source' => 'purchase',
-                        'expiry_date' => $purchaseProduct->expiry_date,
-                        'batch_no' => $purchaseProduct->batch_no,
-                        'mfg_date' => $purchaseProduct->mfg_date,
-                        'quantity_in' => (float) $purchaseProduct->quantity,
-                        'quantity_remaining' => (float) $purchaseProduct->quantity,
-                        'created_by' => (int) $creatorId,
-                    ]);
-                }
-
-                // Serial/MAC tracking: require one unique identifier per unit on stock-in
-                if ($product && ($product->identifier_tracking ?? false)) {
-                    $raw = $products[$i]['identifiers'] ?? '';
-                    $list = preg_split("/\r\n|\n|\r|,|;|\t/", (string) $raw);
-                    $list = array_values(array_filter(array_map(function ($v) {
-                        $v = trim((string) $v);
-                        return $v === '' ? null : $v;
-                    }, $list)));
-
-                    $unique = array_values(array_unique($list));
-                    if (count($unique) !== count($list)) {
-                        return redirect()->back()->with('error', __('Duplicate Serial/MAC found in the list for one of the items.'));
+                foreach ($expanded['lines'] as $line) {
+                    $product = ProductService::where('id', $line['item'])->where('created_by', $creatorId)->first();
+                    if (! $product) {
+                        return redirect()->back()->with('error', __('Invalid product in line items.'))->withInput();
                     }
-                    if (count($unique) !== (int) $purchaseProduct->quantity) {
-                        return redirect()->back()->with('error', __('Serial/MAC count must match quantity for tracked products.'));
+                    $variantId = isset($line['product_variant_id']) ? (int) $line['product_variant_id'] : null;
+                    if ($variantId !== null && $variantId <= 0) {
+                        $variantId = null;
+                    }
+                    if (! ($product->variants_enabled ?? false)) {
+                        $variantId = null;
+                    }
+                    if ($product && ($product->batch_tracking ?? false) && ($product->affect_stock ?? true)) {
+                        if (trim((string) ($line['batch_no'] ?? '')) === '' || empty($line['expiry_date'] ?? null)) {
+                            return redirect()->back()->with('error', __('Batch number and expiry date are required for batch-tracked products.'))->withInput();
+                        }
                     }
 
-                    $existing = ProductIdentifier::where('created_by', $creatorId)->whereIn('identifier_value', $unique)->exists();
-                    if ($existing) {
-                        return redirect()->back()->with('error', __('One or more Serial/MAC already exists in the system.'));
-                    }
+                    $purchaseProduct = new PurchaseProduct();
+                    $purchaseProduct->purchase_id = $purchase->id;
+                    $purchaseProduct->product_id = $line['item'];
+                    $purchaseProduct->product_variant_id = $variantId;
+                    $purchaseProduct->quantity = $line['quantity'];
+                    $purchaseProduct->tax = $line['tax'];
+                    $purchaseProduct->discount = $line['discount'];
+                    $purchaseProduct->price = $line['price'];
+                    $purchaseProduct->description = $line['description'];
+                    [$pRow, $pShelf] = Utility::normalizeWarehouseLocation($line['row_no'] ?? '', $line['shelf_no'] ?? '');
+                    $purchaseProduct->row_no = $pRow !== '' ? $pRow : null;
+                    $purchaseProduct->shelf_no = $pShelf !== '' ? $pShelf : null;
+                    $purchaseProduct->expiry_date = ! empty($line['expiry_date']) ? $line['expiry_date'] : null;
+                    $purchaseProduct->batch_no = ! empty($line['batch_no']) ? trim($line['batch_no']) : null;
+                    $purchaseProduct->mfg_date = ! empty($line['mfg_date']) ? $line['mfg_date'] : null;
+                    $purchaseProduct->save();
 
-                    $type = in_array($product->identifier_type ?? 'serial', ['serial', 'mac', 'both'], true) ? ($product->identifier_type ?? 'serial') : 'serial';
-                    $warrantyDays = (int) ($product->warranty_days ?? 0);
-                    $warrantyEnd = null;
-                    if ($warrantyDays > 0 && !empty($purchase->purchase_date)) {
-                        $warrantyEnd = \Carbon\Carbon::parse($purchase->purchase_date)->addDays($warrantyDays)->toDateString();
-                    }
-
-                    foreach ($unique as $val) {
-                        ProductIdentifier::create([
+                    $createExpiryLot = ($product && ($product->batch_tracking ?? false) && ($product->affect_stock ?? true))
+                        || ! empty($purchaseProduct->expiry_date)
+                        || ! empty($purchaseProduct->batch_no);
+                    if ($createExpiryLot) {
+                        ProductExpiryLot::create([
                             'product_id' => (int) $purchaseProduct->product_id,
-                            'warehouse_id' => $warehouseId,
+                            'warehouse_id' => (int) $warehouseId,
                             'purchase_id' => (int) $purchase->id,
                             'purchase_product_id' => (int) $purchaseProduct->id,
-                            'identifier_type' => $type,
-                            'identifier_value' => $val,
-                            'status' => 'in_stock',
-                            'warranty_end_date' => $warrantyEnd,
+                            'source' => 'purchase',
+                            'expiry_date' => $purchaseProduct->expiry_date,
+                            'batch_no' => $purchaseProduct->batch_no,
+                            'mfg_date' => $purchaseProduct->mfg_date,
+                            'quantity_in' => (float) $purchaseProduct->quantity,
+                            'quantity_remaining' => (float) $purchaseProduct->quantity,
                             'created_by' => (int) $creatorId,
                         ]);
                     }
-                }
 
-                //inventory management (Quantity)
-                Utility::total_quantity('plus',$purchaseProduct->quantity,$purchaseProduct->product_id);
+                    if ($product && ($product->identifier_tracking ?? false)) {
+                        $raw = $line['identifiers'] ?? '';
+                        $list = preg_split("/\r\n|\n|\r|,|;|\t/", (string) $raw);
+                        $list = array_values(array_filter(array_map(function ($v) {
+                            $v = trim((string) $v);
 
-                //Product Stock Report
-                $type='purchase';
-                $type_id = $purchase->id;
-                $description = $products[$i]['quantity'].'  '.__(' quantity add in purchase').' '. \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
-                if (! empty($purchaseProduct->batch_no)) {
-                    $description .= ' | '.__('Batch').': '.$purchaseProduct->batch_no;
-                }
-                if (! empty($purchaseProduct->expiry_date)) {
-                    $description .= ' | '.__('Expiry').': '.$purchaseProduct->expiry_date;
-                }
-                Utility::addProductStock( $products[$i]['item'],$products[$i]['quantity'],$type,$description,$type_id);
+                            return $v === '' ? null : $v;
+                        }, $list)));
 
-                //Warehouse Stock Report
-                if(isset($products[$i]['item']))
-                {
-                    Utility::addWarehouseStock($products[$i]['item'], $products[$i]['quantity'], $warehouseId, $pRow, $pShelf);
-                }
+                        $unique = array_values(array_unique($list));
+                        if (count($unique) !== count($list)) {
+                            return redirect()->back()->with('error', __('Duplicate Serial/MAC found in the list for one of the items.'));
+                        }
+                        if (count($unique) !== (int) $purchaseProduct->quantity) {
+                            return redirect()->back()->with('error', __('Serial/MAC count must match quantity for tracked products.'));
+                        }
 
+                        $existing = ProductIdentifier::where('created_by', $creatorId)->whereIn('identifier_value', $unique)->exists();
+                        if ($existing) {
+                            return redirect()->back()->with('error', __('One or more Serial/MAC already exists in the system.'));
+                        }
+
+                        $type = in_array($product->identifier_type ?? 'serial', ['serial', 'mac', 'both'], true) ? ($product->identifier_type ?? 'serial') : 'serial';
+                        $warrantyDays = (int) ($product->warranty_days ?? 0);
+                        $warrantyEnd = null;
+                        if ($warrantyDays > 0 && ! empty($purchase->purchase_date)) {
+                            $warrantyEnd = \Carbon\Carbon::parse($purchase->purchase_date)->addDays($warrantyDays)->toDateString();
+                        }
+
+                        foreach ($unique as $val) {
+                            ProductIdentifier::create([
+                                'product_id' => (int) $purchaseProduct->product_id,
+                                'warehouse_id' => $warehouseId,
+                                'purchase_id' => (int) $purchase->id,
+                                'purchase_product_id' => (int) $purchaseProduct->id,
+                                'identifier_type' => $type,
+                                'identifier_value' => $val,
+                                'status' => 'in_stock',
+                                'warranty_end_date' => $warrantyEnd,
+                                'created_by' => (int) $creatorId,
+                            ]);
+                        }
+                    }
+
+                    Utility::total_quantity('plus', $purchaseProduct->quantity, $purchaseProduct->product_id);
+
+                    $type = 'purchase';
+                    $type_id = $purchase->id;
+                    $description = $line['quantity'] . '  ' . __(' quantity add in purchase') . ' ' . \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
+                    if (! empty($line['_variant_label'] ?? null)) {
+                        $description .= ' | ' . $line['_variant_label'];
+                    }
+                    if (! empty($purchaseProduct->batch_no)) {
+                        $description .= ' | ' . __('Batch') . ': ' . $purchaseProduct->batch_no;
+                    }
+                    if (! empty($purchaseProduct->expiry_date)) {
+                        $description .= ' | ' . __('Expiry') . ': ' . $purchaseProduct->expiry_date;
+                    }
+                    Utility::addProductStock($line['item'], $line['quantity'], $type, $description, $type_id);
+
+                    if (isset($line['item'])) {
+                        Utility::addWarehouseStock($line['item'], $line['quantity'], $warehouseId, $pRow, $pShelf, $variantId);
+                    }
+                }
             }
 
             return redirect()->route('purchase.index', $purchase->id)->with('success', __('Purchase successfully created.'));
@@ -327,6 +427,7 @@ class PurchaseController extends Controller
                 $purchase->category_id    = $request->category_id;
                 $purchase->save();
                 $products = $request->items;
+                $creatorId = (int) \Auth::user()->creatorId();
 
                 for($i = 0; $i < count($products); $i++)
                 {
@@ -342,6 +443,7 @@ class PurchaseController extends Controller
                         Utility::total_quantity('plus',$products[$i]['quantity'],$products[$i]['item']);
                         $old_qty = 0;
                         $old_pid = null;
+                        $old_vid = null;
                         $prev_row = '';
                         $prev_shelf = '';
                     }
@@ -349,6 +451,7 @@ class PurchaseController extends Controller
                         $purchaseProduct = $existingLine;
                         $old_qty = $purchaseProduct->quantity;
                         $old_pid = (int) $purchaseProduct->product_id;
+                        $old_vid = $purchaseProduct->product_variant_id ? (int) $purchaseProduct->product_variant_id : null;
                         [$prev_row, $prev_shelf] = Utility::normalizeWarehouseLocation($purchaseProduct->row_no, $purchaseProduct->shelf_no);
                         Utility::total_quantity('minus',$purchaseProduct->quantity,$purchaseProduct->product_id);
                     }
@@ -356,6 +459,22 @@ class PurchaseController extends Controller
                     if(isset($products[$i]['item']))
                     {
                         $purchaseProduct->product_id = $products[$i]['item'];
+                    }
+                    $product = ProductService::where('id', $purchaseProduct->product_id)->where('created_by', $creatorId)->first();
+                    $variantId = isset($products[$i]['product_variant_id']) ? (int) $products[$i]['product_variant_id'] : null;
+                    if ($variantId !== null && $variantId <= 0) {
+                        $variantId = null;
+                    }
+                    if ($product && ($product->variants_enabled ?? false)) {
+                        if (! $variantId) {
+                            return redirect()->back()->with('error', __('Select size / color variant for one of the items.'))->withInput();
+                        }
+                        $ok = ProductVariant::where('id', $variantId)->where('product_service_id', $product->id)->where('created_by', $creatorId)->exists();
+                        if (! $ok) {
+                            return redirect()->back()->with('error', __('Invalid size / color variant for one of the items.'))->withInput();
+                        }
+                    } else {
+                        $variantId = null;
                     }
 
                     $purchaseProduct->quantity    = $products[$i]['quantity'];
@@ -366,6 +485,7 @@ class PurchaseController extends Controller
                     [$lineRow, $lineShelf] = Utility::normalizeWarehouseLocation($products[$i]['row_no'] ?? '', $products[$i]['shelf_no'] ?? '');
                     $purchaseProduct->row_no = $lineRow !== '' ? $lineRow : null;
                     $purchaseProduct->shelf_no = $lineShelf !== '' ? $lineShelf : null;
+                    $purchaseProduct->product_variant_id = $variantId;
                     $purchaseProduct->save();
 
                     if ($products[$i]['id']>0) {
@@ -389,9 +509,9 @@ class PurchaseController extends Controller
                         $new_qty = (float) $purchaseProduct->quantity;
                         [$new_row, $new_shelf] = Utility::normalizeWarehouseLocation($purchaseProduct->row_no, $purchaseProduct->shelf_no);
                         if ($existingLine != null && $old_pid && $old_qty) {
-                            Utility::addWarehouseStock($old_pid, -$old_qty, $wid, $prev_row, $prev_shelf);
+                            Utility::addWarehouseStock($old_pid, -$old_qty, $wid, $prev_row, $prev_shelf, $old_vid);
                         }
-                        Utility::addWarehouseStock($new_pid, $new_qty, $wid, $new_row, $new_shelf);
+                        Utility::addWarehouseStock($new_pid, $new_qty, $wid, $new_row, $new_shelf, $variantId);
                     }
 
                 }
@@ -433,8 +553,10 @@ class PurchaseController extends Controller
                 foreach($purchase_products as $purchase_product)
                 {
                     [$dRow, $dShelf] = Utility::normalizeWarehouseLocation($purchase_product->row_no, $purchase_product->shelf_no);
+                    $dVid = $purchase_product->product_variant_id ? (int) $purchase_product->product_variant_id : null;
                     $warehouse_qty = WarehouseProduct::where('warehouse_id', $purchase->warehouse_id)
                         ->where('product_id', $purchase_product->product_id)
+                        ->where('product_variant_id', $dVid)
                         ->where('row_no', $dRow)
                         ->where('shelf_no', $dShelf)
                         ->where('created_by', \Auth::user()->creatorId())
@@ -442,6 +564,7 @@ class PurchaseController extends Controller
                     if (empty($warehouse_qty)) {
                         $warehouse_qty = WarehouseProduct::where('warehouse_id', $purchase->warehouse_id)
                             ->where('product_id', $purchase_product->product_id)
+                            ->where('product_variant_id', $dVid)
                             ->where('row_no', $dRow)
                             ->where('shelf_no', $dShelf)
                             ->first();
@@ -449,6 +572,7 @@ class PurchaseController extends Controller
                     if (empty($warehouse_qty)) {
                         $warehouse_qty = WarehouseProduct::where('warehouse_id', $purchase->warehouse_id)
                             ->where('product_id', $purchase_product->product_id)
+                            ->where('product_variant_id', $dVid)
                             ->first();
                     }
 
@@ -1035,6 +1159,27 @@ class PurchaseController extends Controller
         $data['totalAmount'] = ($salePrice * $quantity);
         $data['identifier_tracking'] = (bool) ($product->identifier_tracking ?? false);
         $data['identifier_type'] = $product->identifier_type ?? 'serial';
+        $data['variants_enabled'] = (bool) ($product->variants_enabled ?? false);
+        $data['variants'] = [];
+        if ($data['variants_enabled']) {
+            $product->load('variants');
+            $data['variants'] = $product->variants->map(function ($v) use ($product) {
+                return [
+                    'id' => $v->id,
+                    'label' => $v->displayLabel($product),
+                    'purchase_price' => $v->purchase_price !== null ? (float) $v->purchase_price : null,
+                ];
+            })->values()->all();
+        }
+        $ut = $product->unit_type ?? 'unit';
+        $data['unit_type'] = $ut;
+        $data['unit_type_label'] = match ($ut) {
+            'kg' => __('Kilogram (kg)'),
+            'cbm' => __('Cubic meter (CBM)'),
+            'sm' => __('Square meter (SQM)'),
+            'volume' => __('Volumetric weight'),
+            default => __('Piece / unit'),
+        };
 
         return json_encode($data);
     }
@@ -1047,10 +1192,21 @@ class PurchaseController extends Controller
 
             $res = PurchaseProduct::where('id', '=', $request->id)->first();
 
-            $purchase = Purchase::where('created_by', '=', \Auth::user()->creatorId())->first();
-            $warehouse_id= $purchase->warehouse_id;
+            $purchase = $res ? Purchase::where('id', (int) $res->purchase_id)->where('created_by', \Auth::user()->creatorId())->first() : null;
+            $warehouse_id= $purchase ? (int) $purchase->warehouse_id : 0;
+            if (! $res || ! $purchase || $warehouse_id <= 0) {
+                return response()->json(['status' => false, 'message' => __('Purchase not found.')]);
+            }
 
-            $ware_pro =WarehouseProduct::where('warehouse_id',$warehouse_id)->where('product_id',$res->product_id)->first();
+            $ware_pro = WarehouseProduct::where('warehouse_id', $warehouse_id)
+                ->where('product_id', $res->product_id)
+                ->where('product_variant_id', $res->product_variant_id)
+                ->first();
+
+            if (! $ware_pro) {
+                PurchaseProduct::where('id', '=', $request->id)->delete();
+                return response()->json(['status' => true, 'message' => __('Purchase product successfully deleted.')]);
+            }
 
             $qty = $ware_pro->quantity;
 

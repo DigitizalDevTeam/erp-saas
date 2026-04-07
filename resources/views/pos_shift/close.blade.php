@@ -29,13 +29,21 @@
                         $cardTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', [\App\Models\PosPayment::METHOD_CARD, \App\Models\PosPayment::METHOD_MPESA, \App\Models\PosPayment::METHOD_BANK_TRANSFER, 'visa', 'cheque'])->sum('amount');
                         $creditTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
                         $cashDropsTotal = (float) \App\Models\PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');
-                        $expectedCash = (float) ($pos_shift->opening_balance ?? 0) + $cashTotal - $cashDropsTotal;
+                        $cashInsTotal = (float) \App\Models\PosCashIn::where('shift_id', $pos_shift->id)->sum('amount');
+                        $cashOutExpensesTotal = (float) \App\Models\Expense::where('pos_shift_id', $pos_shift->id)->where('created_by', \Auth::user()->creatorId())->where('status', \App\Models\Expense::STATUS_APPROVED)->sum('amount');
+                        $expectedCash = (float) ($pos_shift->opening_balance ?? 0) + $cashTotal + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
                     @endphp
                     <p><strong>{{ __('Sales (this shift)') }}:</strong> {{ $shiftSalesCount }} {{ __('transactions') }}, {{ \Auth::user()->priceFormat($shiftSalesTotal) }}</p>
                     <p><strong>{{ __('Cash (in)') }}</strong>@if($balanceCash > 0)<span class="text-muted small"> ({{ __('incl. balance payments') }}: {{ \Auth::user()->priceFormat($balanceCash) }})</span>@endif: {{ \Auth::user()->priceFormat($cashTotal) }}</p>
+                    @if($cashInsTotal > 0)
+                        <p><strong>{{ __('Cash in (top-ups)') }}:</strong> {{ \Auth::user()->priceFormat($cashInsTotal) }}</p>
+                    @endif
                     <p><strong>{{ __('Card / M-Pesa / Bank transfer (in)') }}:</strong> {{ \Auth::user()->priceFormat($cardTotal) }}</p>
                     <p><strong>{{ __('Credit (in)') }}:</strong> {{ \Auth::user()->priceFormat($creditTotal) }}</p>
                     <p><strong>{{ __('Cash drops (spent / out)') }}:</strong> {{ \Auth::user()->priceFormat($cashDropsTotal) }}</p>
+                    @if($cashOutExpensesTotal > 0)
+                        <p><strong>{{ __('Cash out (expenses)') }}:</strong> {{ \Auth::user()->priceFormat($cashOutExpensesTotal) }}</p>
+                    @endif
                     <p><strong>{{ __('Expected cash (opening + cash in − cash drops)') }}:</strong> {{ \Auth::user()->priceFormat($expectedCash) }}</p>
                     @if($expectedCash < 0)
                         <p class="small text-muted mb-0">{{ __('Expected cash can be negative when cash drops exceed cash in. Enter the physical cash counted in the drawer (0 or more).') }}</p>

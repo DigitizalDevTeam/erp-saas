@@ -208,6 +208,18 @@ class Utility extends Model
         }
     }
 
+    /**
+     * POS receipt HTML layout. Drives @page size / #printarea width so it matches the receipt printer paper.
+     *
+     * @param  string|null  $layout  Raw setting: slip | a5 | a4 | receipt
+     */
+    public static function normalizePosPrintLayout(?string $layout): string
+    {
+        $layout = ($layout !== null && $layout !== '') ? $layout : 'receipt';
+
+        return in_array($layout, ['slip', 'a5', 'a4', 'receipt'], true) ? $layout : 'receipt';
+    }
+
     public static function settings()
     {
         if (\Auth::check()) {
@@ -4177,9 +4189,15 @@ class Utility extends Model
     }
 
     //quantity update in warehouse details
-    public static function warehouse_quantity($type, $quantity, $product_id, $warehouse_id)
+    public static function warehouse_quantity($type, $quantity, $product_id, $warehouse_id, $product_variant_id = null)
     {
-        $product = WarehouseProduct::where('warehouse_id', $warehouse_id)->where('product_id', $product_id)->first();
+        $q = WarehouseProduct::where('warehouse_id', $warehouse_id)->where('product_id', $product_id);
+        if ($product_variant_id !== null && $product_variant_id !== '' && (int) $product_variant_id > 0) {
+            $q->where('product_variant_id', (int) $product_variant_id);
+        } else {
+            $q->whereNull('product_variant_id');
+        }
+        $product = $q->first();
         if (!$product) {
             if ($type === 'minus') {
                 return;
@@ -4189,6 +4207,9 @@ class Utility extends Model
             $product->product_id = $product_id;
             $product->quantity = 0;
             $product->created_by = \Auth::user()->creatorId();
+            if ($product_variant_id !== null && $product_variant_id !== '' && (int) $product_variant_id > 0) {
+                $product->product_variant_id = (int) $product_variant_id;
+            }
         }
 
         $pro_quantity = (float) ($product->quantity ?? 0);
@@ -4388,18 +4409,26 @@ class Utility extends Model
     }
 
     // Add quantity in warehouse stock (supports per-bin row/shelf; negative qty reduces or removes the bin row).
-    public static function addWarehouseStock($product_id, $quantity, $warehouse_id, $row_no = null, $shelf_no = null)
+    public static function addWarehouseStock($product_id, $quantity, $warehouse_id, $row_no = null, $shelf_no = null, $product_variant_id = null)
     {
         [$row_no, $shelf_no] = self::normalizeWarehouseLocation($row_no, $shelf_no);
 
         $creatorId = (int) \Auth::user()->creatorId();
+        $variantKey = ($product_variant_id !== null && $product_variant_id !== '' && (int) $product_variant_id > 0)
+            ? (int) $product_variant_id
+            : null;
 
-        $product = WarehouseProduct::where('product_id', $product_id)
+        $base = WarehouseProduct::where('product_id', $product_id)
             ->where('warehouse_id', $warehouse_id)
             ->where('row_no', $row_no)
             ->where('shelf_no', $shelf_no)
-            ->where('created_by', $creatorId)
-            ->first();
+            ->where('created_by', $creatorId);
+        if ($variantKey !== null) {
+            $base->where('product_variant_id', $variantKey);
+        } else {
+            $base->whereNull('product_variant_id');
+        }
+        $product = $base->first();
 
         if ($product) {
             $product_quantity = (float) $product->quantity + (float) $quantity;
@@ -4415,14 +4444,17 @@ class Utility extends Model
             return;
         }
 
+        $match = [
+            'warehouse_id' => $warehouse_id,
+            'product_id' => $product_id,
+            'created_by' => $creatorId,
+            'row_no' => $row_no,
+            'shelf_no' => $shelf_no,
+            'product_variant_id' => $variantKey,
+        ];
+
         WarehouseProduct::updateOrCreate(
-            [
-                'warehouse_id' => $warehouse_id,
-                'product_id' => $product_id,
-                'created_by' => $creatorId,
-                'row_no' => $row_no,
-                'shelf_no' => $shelf_no,
-            ],
+            $match,
             [
                 'quantity' => $product_quantity,
             ]

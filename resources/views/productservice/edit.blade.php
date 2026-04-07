@@ -132,6 +132,53 @@
                 {{__('Create unit here. ')}}<a href="{{route('product-unit.index')}}"><b>{{__('Create unit')}}</b></a>
             </div>
         </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('unit_type', __('How stock is counted'),['class'=>'form-label']) }}<x-required></x-required>
+            @php
+                $unitTypeOptions = [
+                    'kg' => __('Kilogram (kg)'),
+                    'unit' => __('Piece / unit'),
+                    'cbm' => __('Cubic meter (CBM)'),
+                    'sm' => __('Square meter (SQM)'),
+                    'volume' => __('Volumetric weight'),
+                ];
+            @endphp
+            {{ Form::select('unit_type', $unitTypeOptions, $productService->unit_type, array('class' => 'form-control select','required'=>'required', 'id' => 'unit_type_edit')) }}
+            <small class="text-muted">{{ __('Used on purchase and stock screens so quantities match how you sell.') }}</small>
+        </div>
+        <div class="col-12 quantity {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}" id="product_measures_edit_section" style="display:none;">
+            <div class="border rounded p-3 mb-2 bg-light">
+                <label class="form-label fw-semibold">{{ __('Size of one unit (optional)') }}</label>
+                <p class="small text-muted mb-2" id="product_measures_edit_help"></p>
+                <div class="row g-2">
+                    <div class="col-md-3 measure-field measure-l">
+                        <label class="form-label">{{ __('Length') }} (cm)</label>
+                        <input type="number" step="0.000001" min="0" class="form-control" id="unit_length_edit" name="unit_length" value="{{ $productService->unit_length ?? '' }}" placeholder="0">
+                    </div>
+                    <div class="col-md-3 measure-field measure-w">
+                        <label class="form-label">{{ __('Width') }} (cm)</label>
+                        <input type="number" step="0.000001" min="0" class="form-control" id="unit_width_edit" name="unit_width" value="{{ $productService->unit_width ?? '' }}" placeholder="0">
+                    </div>
+                    <div class="col-md-3 measure-field measure-h">
+                        <label class="form-label">{{ __('Height') }} (cm)</label>
+                        <input type="number" step="0.000001" min="0" class="form-control" id="unit_height_edit" name="unit_height" value="{{ $productService->unit_height ?? '' }}" placeholder="0">
+                    </div>
+                    <div class="col-md-3 measure-field measure-vol-div">
+                        <label class="form-label">{{ __('Carrier divisor') }}</label>
+                        <select class="form-control select" id="volumetric_divisor_edit" name="volumetric_divisor">
+                            <option value="">{{ __('—') }}</option>
+                            <option value="4000" {{ (int) ($productService->volumetric_divisor ?? 0) === 4000 ? 'selected' : '' }}>4000</option>
+                            <option value="5000" {{ (int) ($productService->volumetric_divisor ?? 0) === 5000 ? 'selected' : '' }}>5000</option>
+                            <option value="6000" {{ (int) ($productService->volumetric_divisor ?? 0) === 6000 ? 'selected' : '' }}>6000</option>
+                        </select>
+                    </div>
+                </div>
+                <input type="hidden" id="dimension_unit_edit" name="dimension_unit" value="{{ $productService->dimension_unit ?? 'cm' }}">
+                <input type="hidden" name="unit_volume_cbm" id="unit_volume_cbm_edit" value="{{ $productService->unit_volume_cbm ?? '' }}">
+                <input type="hidden" name="unit_area_sqm" id="unit_area_sqm_edit" value="{{ $productService->unit_area_sqm ?? '' }}">
+                <input type="hidden" name="unit_volumetric_weight" id="unit_volumetric_weight_edit" value="{{ $productService->unit_volumetric_weight ?? '' }}">
+            </div>
+        </div>
 
         <div class="col-md-6 form-group">
             {{Form::label('pro_image',__('Product Image'),['class'=>'form-label'])}}
@@ -188,10 +235,6 @@
         </div>
 
         <div class="form-group col-md-6 quantity {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}">
-            {{ Form::label('quantity', __('Quantity'),['class'=>'form-label']) }}<x-required></x-required>
-            {{ Form::text('quantity',null, array('class' => 'form-control','required'=>'required')) }}
-        </div>
-        <div class="form-group col-md-6 quantity {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}">
             {{ Form::label('low_stock_threshold', __('Low stock alert at'),['class'=>'form-label']) }}
             {{ Form::number('low_stock_threshold', $productService->low_stock_threshold, array('class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Default'))) }}
             <small class="text-muted">{{ __('Leave empty to use system default. Alert when quantity is below this.') }}</small>
@@ -237,6 +280,71 @@
                     <label class="form-label">{{ __('Expiry alert (days before)') }}</label>
                     <input type="number" name="expiry_alert_days" class="form-control" min="0" step="1" value="{{ $productService->expiry_alert_days ?? '' }}" placeholder="{{ __('Optional') }}">
                     <small class="text-muted">{{ __('Show dashboard alert when expiry is within this many days.') }}</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 quantity {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}" id="product_variants_edit_section">
+            <hr class="my-3">
+            <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+                <div>
+                    <h6 class="mb-1">{{ __('Variants (e.g. color & size)') }}</h6>
+                    <p class="text-muted small mb-0">{{ __('Stock and purchases use a quantity per variant. Quantities are not edited here.') }}</p>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="variants_enabled" id="variants_enabled_edit" value="1" {{ ($productService->variants_enabled ?? false) ? 'checked' : '' }}>
+                    <label class="form-check-label" for="variants_enabled_edit">{{ __('This product has variants') }}</label>
+                </div>
+            </div>
+
+            <div id="product_variants_edit_fields" class="mt-3" style="{{ ($productService->variants_enabled ?? false) ? '' : 'display:none;' }}">
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <label class="form-label">{{ __('Column 1 label (e.g. Size)') }}</label>
+                        <input type="text" name="variant_size_label" class="form-control" maxlength="64" value="{{ $productService->variant_size_label ?? '' }}" placeholder="{{ __('Size') }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">{{ __('Column 2 label (e.g. Color)') }}</label>
+                        <input type="text" name="variant_color_label" class="form-control" maxlength="64" value="{{ $productService->variant_color_label ?? '' }}" placeholder="{{ __('Color') }}">
+                    </div>
+                </div>
+
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm align-middle" id="product_variants_edit_table">
+                        <thead>
+                            <tr>
+                                <th>{{ __('Size') }}</th>
+                                <th>{{ __('Color') }}</th>
+                                <th>{{ __('SKU') }}</th>
+                                <th class="text-end">{{ __('Sale price') }}</th>
+                                <th class="text-end">{{ __('Purchase price') }}</th>
+                                <th width="60"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @php $vIdx = 0; @endphp
+                            @forelse(($productService->variants ?? []) as $v)
+                                <tr data-variant-row="{{ $vIdx }}">
+                                    <td>
+                                        <input type="hidden" name="variant_rows[{{ $vIdx }}][id]" value="{{ $v->id }}">
+                                        <input type="text" name="variant_rows[{{ $vIdx }}][size]" class="form-control form-control-sm" maxlength="64" value="{{ $v->size }}">
+                                    </td>
+                                    <td><input type="text" name="variant_rows[{{ $vIdx }}][color]" class="form-control form-control-sm" maxlength="64" value="{{ $v->color }}"></td>
+                                    <td><input type="text" name="variant_rows[{{ $vIdx }}][sku]" class="form-control form-control-sm" maxlength="191" value="{{ $v->sku }}"></td>
+                                    <td><input type="number" step="0.01" min="0" name="variant_rows[{{ $vIdx }}][sale_price]" class="form-control form-control-sm text-end" value="{{ $v->sale_price }}"></td>
+                                    <td><input type="number" step="0.01" min="0" name="variant_rows[{{ $vIdx }}][purchase_price]" class="form-control form-control-sm text-end" value="{{ $v->purchase_price }}"></td>
+                                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger product-variant-remove"><i class="ti ti-trash"></i></button></td>
+                                </tr>
+                                @php $vIdx++; @endphp
+                            @empty
+                                <tr class="text-muted" data-empty-row><td colspan="6">{{ __('No variants added yet.') }}</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-primary" id="product_variants_edit_add_btn"><i class="ti ti-plus"></i> {{ __('Add variant') }}</button>
                 </div>
             </div>
         </div>
@@ -318,19 +426,15 @@
         document.getElementById('image').src = src
     }
 
-    //hide & show quantity
-
     $(document).on('click', '.type', function ()
     {
         var type = $(this).val();
         if (type == 'product') {
             $('.quantity').removeClass('d-none')
             $('.quantity').addClass('d-block');
-            $('input[name="quantity"]').prop('required', true);
         } else {
             $('.quantity').addClass('d-none')
             $('.quantity').removeClass('d-block');
-            $('input[name="quantity"]').val('').prop('required', false);
         }
 
         if (type == 'kit') {
@@ -381,5 +485,107 @@
     $(document).on('change', '#identifier_tracking_edit', function () {
         $('#identifier_tracking_edit_fields').toggle(this.checked);
     });
+
+    function calcMeasuresByUnitTypeEdit() {
+        var ut = ($('#unit_type_edit').val() || '').toString();
+        var $sec = $('#product_measures_edit_section');
+        var $help = $('#product_measures_edit_help');
+        $sec.hide();
+        $('.measure-field').hide();
+
+        if (ut === 'cbm' || ut === 'sm' || ut === 'volume') {
+            $sec.show();
+        } else {
+            if (!$('#unit_length_edit').val() && !$('#unit_width_edit').val() && !$('#unit_height_edit').val()) {
+                $('#unit_volume_cbm_edit').val('');
+                $('#unit_area_sqm_edit').val('');
+                $('#unit_volumetric_weight_edit').val('');
+            }
+            return;
+        }
+
+        if (ut === 'sm') {
+            $('.measure-l,.measure-w').show();
+            $help.text('{{ __("Optional: length × width in cm → stored as square meters per unit.") }}');
+        } else if (ut === 'cbm') {
+            $('.measure-l,.measure-w,.measure-h').show();
+            $help.text('{{ __("Optional: L × W × H in cm → stored as cubic meters per unit.") }}');
+        } else if (ut === 'volume') {
+            $('.measure-l,.measure-w,.measure-h').show();
+            $('.measure-vol-div').show();
+            $help.text('{{ __("L × W × H in cm and carrier divisor → volumetric weight (optional).") }}');
+        }
+
+        var L = parseFloat($('#unit_length_edit').val() || '0') || 0;
+        var W = parseFloat($('#unit_width_edit').val() || '0') || 0;
+        var H = parseFloat($('#unit_height_edit').val() || '0') || 0;
+        var divisor = parseFloat($('#volumetric_divisor_edit').val() || '0') || 0;
+        var factorToM = 0.01;
+        var Lm = L * factorToM, Wm = W * factorToM, Hm = H * factorToM;
+        if (ut === 'sm' && Lm > 0 && Wm > 0) {
+            $('#unit_area_sqm_edit').val((Lm * Wm).toFixed(6));
+        }
+        if (ut === 'cbm' && Lm > 0 && Wm > 0 && Hm > 0) {
+            $('#unit_volume_cbm_edit').val((Lm * Wm * Hm).toFixed(6));
+        }
+        if (ut === 'volume' && divisor > 0 && L > 0 && W > 0 && H > 0) {
+            if (Lm > 0 && Wm > 0 && Hm > 0) {
+                $('#unit_volume_cbm_edit').val((Lm * Wm * Hm).toFixed(6));
+            }
+            $('#unit_volumetric_weight_edit').val(((L * W * H) / divisor).toFixed(6));
+        }
+    }
+    $(document).on('change', '#unit_type_edit', calcMeasuresByUnitTypeEdit);
+    $(document).on('keyup change', '#unit_length_edit,#unit_width_edit,#unit_height_edit,#volumetric_divisor_edit', calcMeasuresByUnitTypeEdit);
+    setTimeout(calcMeasuresByUnitTypeEdit, 0);
+
+    (function () {
+        let vIdx = (function () {
+            const $rows = $('#product_variants_edit_table tbody tr[data-variant-row]');
+            return $rows.length ? ($rows.length) : 0;
+        })();
+        function renderVariantEmptyRow() {
+            const $tbody = $('#product_variants_edit_table tbody');
+            if ($tbody.find('tr[data-variant-row]').length === 0) {
+                $tbody.html('<tr class="text-muted" data-empty-row><td colspan="6">{{ __("No variants added yet.") }}</td></tr>');
+            }
+        }
+        function addVariantRow() {
+            const $tbody = $('#product_variants_edit_table tbody');
+            if ($tbody.find('tr[data-empty-row]').length) $tbody.empty();
+            const row = `
+                <tr data-variant-row="${vIdx}">
+                    <td><input type="text" name="variant_rows[${vIdx}][size]" class="form-control form-control-sm" maxlength="64"></td>
+                    <td><input type="text" name="variant_rows[${vIdx}][color]" class="form-control form-control-sm" maxlength="64"></td>
+                    <td><input type="text" name="variant_rows[${vIdx}][sku]" class="form-control form-control-sm" maxlength="191"></td>
+                    <td><input type="number" step="0.01" min="0" name="variant_rows[${vIdx}][sale_price]" class="form-control form-control-sm text-end"></td>
+                    <td><input type="number" step="0.01" min="0" name="variant_rows[${vIdx}][purchase_price]" class="form-control form-control-sm text-end"></td>
+                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger product-variant-remove"><i class="ti ti-trash"></i></button></td>
+                </tr>`;
+            $tbody.append(row);
+            vIdx++;
+        }
+        function syncVariantVisibility() {
+            const type = $('input[name="type"]:checked').val();
+            const show = (type === 'product');
+            $('#product_variants_edit_section').toggle(show);
+            const enabled = $('#variants_enabled_edit').is(':checked');
+            $('#product_variants_edit_fields').toggle(show && enabled);
+        }
+        $(document).on('change', '#variants_enabled_edit', function () {
+            syncVariantVisibility();
+        });
+        $(document).on('click', '#product_variants_edit_add_btn', function () {
+            addVariantRow();
+        });
+        $(document).on('click', '#product_variants_edit_table .product-variant-remove', function () {
+            $(this).closest('tr').remove();
+            renderVariantEmptyRow();
+        });
+        $(document).on('click', '.type', function () {
+            syncVariantVisibility();
+        });
+        syncVariantVisibility();
+    })();
 </script>
 

@@ -623,9 +623,60 @@ a.b-brand {
 .horizontal-scroll-cards p {
     width: 120px;
 }
-.horizontal-scroll-cards  img {
-    border: 2px solid #51459d;
-    padding: 3px;
+/* Kanban (Leads/Deals) - improve card styling and keep horizontal layout */
+.crm-sales-card {
+    background: #ffffff;
+    border: 1px solid #e9e9f5;
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(20, 20, 43, 0.06);
+    overflow: hidden;
+}
+
+.crm-sales-card .card-header {
+    background: #ffffff;
+    border-bottom: 1px solid #eef0f7;
+    padding: 12px 14px;
+}
+
+.sales-item-wrp {
+    padding: 12px;
+    max-height: calc(100vh - 260px);
+    overflow-y: auto;
+}
+
+.sales-item {
+    background: #ffffff;
+    border: 1px solid #eef0f7;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(20, 20, 43, 0.04);
+}
+
+.sales-item:last-child {
+    margin-bottom: 0;
+}
+
+.sales-item-top {
+    padding: 10px 12px;
+}
+
+.sales-item-bottom {
+    padding: 10px 12px;
+}
+
+/* Assignee avatars: keep theme overlap, just ensure crop */
+.kanban-wrapper.horizontal-scroll-cards .user-group img {
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #fff;
+}
+.row.kanban-wrapper.horizontal-scroll-cards {
+    flex-wrap: nowrap !important;
+}
+.row.kanban-wrapper.horizontal-scroll-cards > .col {
+    flex: 0 0 390px;
+    max-width: 390px;
+    min-width: 280px;
 }
 .full-circle {
     width: 12px;

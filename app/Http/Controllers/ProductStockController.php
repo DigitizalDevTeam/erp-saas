@@ -89,6 +89,8 @@ class ProductStockController extends Controller
                 $warehouses->prepend(__('Select Warehouse'), '');
                 $singleWarehouseId = $warehouseModels->count() === 1 ? $warehouseModels->first()->id : null;
 
+                $productService->load(['variants', 'unit']);
+
                 return view('productstock.edit', compact('productService', 'warehouses', 'singleWarehouseId'));
             }
             else
@@ -118,10 +120,17 @@ class ProductStockController extends Controller
             $productService = ProductService::find($id);
             $hasWarehouse = warehouse::where('created_by', \Auth::user()->creatorId())->exists();
             $rules = [
-                'quantity' => 'required|numeric|min:1',
                 'row_no' => 'nullable|string|max:64',
                 'shelf_no' => 'nullable|string|max:64',
             ];
+
+            if ($productService->variants_enabled && $productService->variants->count() > 0) {
+                $rules['variant_quantities'] = 'required|array';
+                $rules['variant_quantities.*'] = 'numeric|min:0';
+            } else {
+                $rules['quantity'] = 'required|numeric|min:1';
+            }
+
             if ($hasWarehouse) {
                 $rules['warehouse_id'] = [
                     'required',
@@ -135,89 +144,99 @@ class ProductStockController extends Controller
             }
             $request->validate($rules);
 
-            $qtyToAdd = (int) $request->quantity;
             $warehouseId = $hasWarehouse ? (int) $request->warehouse_id : null;
             $rowNo = $request->input('row_no');
             $shelfNo = $request->input('shelf_no');
-            $total = $productService->quantity + $qtyToAdd;
 
             if($productService->created_by == \Auth::user()->creatorId())
             {
-                // Serial/MAC tracking: require one unique identifier per unit on stock-in
-                if (($productService->identifier_tracking ?? false)) {
-                    $raw = $request->input('identifiers', '');
-                    $list = preg_split("/\r\n|\n|\r|,|;|\t/", (string) $raw);
-                    $list = array_values(array_filter(array_map(function ($v) {
-                        $v = trim((string) $v);
-                        return $v === '' ? null : $v;
-                    }, $list)));
+                $totalQtyAdded = 0;
 
-                    $unique = array_values(array_unique($list));
-                    if (count($unique) !== count($list)) {
-                        return redirect()->back()->with('error', __('Duplicate Serial/MAC found in the list.'));
+                if ($productService->variants_enabled && $productService->variants->count() > 0) {
+                    $variantQuantities = $request->input('variant_quantities', []);
+                    foreach ($variantQuantities as $variantId => $qty) {
+                        $qty = (float) $qty;
+                        if ($qty > 0) {
+                            $totalQtyAdded += $qty;
+                            if ($warehouseId) {
+                                Utility::addWarehouseStock((int) $productService->id, $qty, $warehouseId, $rowNo, $shelfNo, (int) $variantId);
+                            }
+                        }
                     }
-                    if (count($unique) !== $qtyToAdd) {
-                        return redirect()->back()->with('error', __('Serial/MAC count must match quantity for tracked products.'));
+                } else {
+                    $qtyToAdd = (float) $request->quantity;
+                    $totalQtyAdded = $qtyToAdd;
+
+                    // Handle identifiers if tracking is enabled
+                    if (($productService->identifier_tracking ?? false)) {
+                        $raw = $request->input('identifiers', '');
+                        $list = preg_split("/\r\n|\n|\r|,|;|\t/", (string) $raw);
+                        $list = array_values(array_filter(array_map(function ($v) {
+                            $v = trim((string) $v);
+                            return $v === '' ? null : $v;
+                        }, $list)));
+
+                        $unique = array_values(array_unique($list));
+                        if (count($unique) !== count($list)) {
+                            return redirect()->back()->with('error', __('Duplicate Serial/MAC found in the list.'));
+                        }
+                        if (count($unique) !== $qtyToAdd) {
+                            return redirect()->back()->with('error', __('Serial/MAC count must match quantity for tracked products.'));
+                        }
+
+                        $creatorId = \Auth::user()->creatorId();
+                        $existing = ProductIdentifier::where('created_by', $creatorId)->whereIn('identifier_value', $unique)->exists();
+                        if ($existing) {
+                            return redirect()->back()->with('error', __('One or more Serial/MAC already exists in the system.'));
+                        }
+
+                        $type = in_array($productService->identifier_type ?? 'serial', ['serial', 'mac', 'both'], true) ? ($productService->identifier_type ?? 'serial') : 'serial';
+                        $warrantyDays = (int) ($productService->warranty_days ?? 0);
+                        $warrantyEnd = null;
+                        if ($warrantyDays > 0) {
+                            $warrantyEnd = \Carbon\Carbon::now()->addDays($warrantyDays)->toDateString();
+                        }
+
+                        foreach ($unique as $val) {
+                            ProductIdentifier::create([
+                                'product_id' => (int) $productService->id,
+                                'warehouse_id' => $warehouseId,
+                                'purchase_id' => null,
+                                'purchase_product_id' => null,
+                                'identifier_type' => $type,
+                                'identifier_value' => $val,
+                                'status' => 'in_stock',
+                                'warranty_end_date' => $warrantyEnd,
+                                'created_by' => (int) $creatorId,
+                            ]);
+                        }
                     }
 
-                    $creatorId = \Auth::user()->creatorId();
-                    $existing = ProductIdentifier::where('created_by', $creatorId)->whereIn('identifier_value', $unique)->exists();
-                    if ($existing) {
-                        return redirect()->back()->with('error', __('One or more Serial/MAC already exists in the system.'));
-                    }
-
-                    $type = in_array($productService->identifier_type ?? 'serial', ['serial', 'mac', 'both'], true) ? ($productService->identifier_type ?? 'serial') : 'serial';
-                    $warrantyDays = (int) ($productService->warranty_days ?? 0);
-                    $warrantyEnd = null;
-                    if ($warrantyDays > 0) {
-                        $warrantyEnd = \Carbon\Carbon::now()->addDays($warrantyDays)->toDateString();
-                    }
-
-                    foreach ($unique as $val) {
-                        ProductIdentifier::create([
+                    // Handle expiry lot tracking
+                    if ($request->filled('expiry_date') || $request->filled('batch_no')) {
+                        \App\Models\ProductExpiryLot::create([
                             'product_id' => (int) $productService->id,
                             'warehouse_id' => $warehouseId,
                             'purchase_id' => null,
                             'purchase_product_id' => null,
-                            'identifier_type' => $type,
-                            'identifier_value' => $val,
-                            'status' => 'in_stock',
-                            'warranty_end_date' => $warrantyEnd,
-                            'created_by' => (int) $creatorId,
+                            'source' => 'manual',
+                            'expiry_date' => $request->expiry_date,
+                            'batch_no' => $request->filled('batch_no') ? trim($request->batch_no) : null,
+                            'mfg_date' => $request->filled('mfg_date') ? $request->mfg_date : null,
+                            'quantity_in' => (float) $qtyToAdd,
+                            'quantity_remaining' => (float) $qtyToAdd,
+                            'created_by' => (int) \Auth::user()->creatorId(),
                         ]);
+                    }
+
+                    if ($warehouseId) {
+                        Utility::addWarehouseStock((int) $productService->id, $qtyToAdd, $warehouseId, $rowNo, $shelfNo);
                     }
                 }
 
-                $productService->quantity   = $total;
+                // Update total product quantity
+                $productService->quantity = ($productService->quantity ?? 0) + $totalQtyAdded;
                 $productService->created_by = \Auth::user()->creatorId();
-                $productService->save();
-
-                // Expiry lot tracking (optional, manual stock-in)
-                if ($request->filled('expiry_date') || $request->filled('batch_no')) {
-                    \App\Models\ProductExpiryLot::create([
-                        'product_id' => (int) $productService->id,
-                        'warehouse_id' => $warehouseId,
-                        'purchase_id' => null,
-                        'purchase_product_id' => null,
-                        'source' => 'manual',
-                        'expiry_date' => $request->expiry_date,
-                        'batch_no' => $request->filled('batch_no') ? trim($request->batch_no) : null,
-                        'mfg_date' => $request->filled('mfg_date') ? $request->mfg_date : null,
-                        'quantity_in' => (float) $qtyToAdd,
-                        'quantity_remaining' => (float) $qtyToAdd,
-                        'created_by' => (int) \Auth::user()->creatorId(),
-                    ]);
-                }
-
-                //Product Stock Report
-                $type        = 'manually';
-                $type_id     = 0;
-                $description = $qtyToAdd . '  ' . __('quantity added by manually');
-                Utility::addProductStock($productService->id, $qtyToAdd, $type, $description, $type_id);
-
-                if ($warehouseId) {
-                    Utility::addWarehouseStock((int) $productService->id, $qtyToAdd, $warehouseId, $rowNo, $shelfNo);
-                }
 
                 if ($request->filled('row_no') || $request->filled('shelf_no')) {
                     if ($request->filled('row_no')) {
@@ -226,8 +245,14 @@ class ProductStockController extends Controller
                     if ($request->filled('shelf_no')) {
                         $productService->shelf_no = trim((string) $request->shelf_no);
                     }
-                    $productService->save();
                 }
+                $productService->save();
+
+                // Product Stock Report
+                $type        = 'manually';
+                $type_id     = 0;
+                $description = $totalQtyAdded . '  ' . __('quantity added by manually');
+                Utility::addProductStock($productService->id, $totalQtyAdded, $type, $description, $type_id);
 
                 return redirect()->route('productstock.index')->with('success', __('Product quantity updated manually.'));
             }

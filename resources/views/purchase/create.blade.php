@@ -125,11 +125,30 @@
                 success: function (data) {
                     var item = JSON.parse(data);
 
-                    $(el.parent().parent().find('.quantity')).val(1);
+                    var $wrap = $(el).closest('[data-repeater-item]');
+                    var $qtyInput = $(el.parent().parent().find('.quantity'));
                     $(el.parent().parent().find('.price')).val(item.product.purchase_price);
                     $(el.parent().parent().parent().find('.pro_description')).val(item.product.description);
+                    var $variant = $wrap.find('.variant-select');
+                    var $grid = $wrap.find('.variant-qty-grid');
+                    $variant.empty();
+                    $grid.addClass('d-none').empty();
+                    if (item.variants_enabled && item.variants && item.variants.length) {
+                        $variant.addClass('d-none').prop('disabled', true).prop('required', false);
+                        var ut = item.unit_type_label || '';
+                        var tbl = '<table class="table table-sm table-bordered mb-0"><thead><tr><th>{{ __("Variant") }}</th><th class="text-end" style="width:7rem">' + (ut ? (ut + ' — ') : '') + '{{ __("Qty") }}</th></tr></thead><tbody>';
+                        item.variants.forEach(function (v) {
+                            tbl += '<tr><td class="small">' + $('<div>').text(v.label || '').html() + '</td><td><input type="number" class="form-control form-control-sm variant-qty-input" name="variant_quantities[' + v.id + ']" min="0" step="0.01" value="" placeholder="0" data-variant-price="' + (v.purchase_price != null ? v.purchase_price : '') + '"></td></tr>';
+                        });
+                        tbl += '</tbody></table>';
+                        $grid.html(tbl).removeClass('d-none');
+                        $qtyInput.val(0).prop('readonly', true).removeAttr('required');
+                    } else {
+                        $variant.removeClass('d-none').prop('disabled', true).prop('required', false);
+                        $variant.append($('<option/>').val('').text('{{ __("—") }}'));
+                        $qtyInput.val(1).prop('readonly', false).prop('required', true);
+                    }
                     // Identifier tracking (Serial/MAC)
-                    var $wrap = $(el).closest('[data-repeater-item]');
                     var $idRow = $wrap.find('.identifier-row');
                     if (item.identifier_tracking) {
                         $idRow.removeClass('d-none');
@@ -163,7 +182,9 @@
                     $(el.parent().parent().find('.itemTaxRate')).val(totalItemTaxRate.toFixed(2));
                     $(el.parent().parent().find('.taxes')).html(taxes);
                     $(el.parent().parent().find('.tax')).val(tax);
-                    $(el.parent().parent().find('.unit')).html(item.unit);
+                    var unitBase = item.unit ? item.unit : '';
+                    var utl = item.unit_type_label || '';
+                    $(el.parent().parent().find('.unit')).html(unitBase + (utl ? (' · ' + utl) : ''));
                     $(el.parent().parent().find('.discount')).val(0);
                     $(el.parent().parent().find('.amount')).html(item.totalAmount);
 
@@ -195,14 +216,81 @@
                     $('.totalTax').html(totalItemTaxPrice.toFixed(2));
                     $('.totalAmount').html((parseFloat(subTotal) + parseFloat(totalItemTaxPrice)).toFixed(2));
 
+                    if ($wrap.find('.variant-qty-input').length) {
+                        recalcPurchaseRowFromVariants($wrap);
+                    }
+
                 },
             });
+        });
+
+        function recalcPurchaseRowFromVariants($wrap) {
+            if (!$wrap.find('.variant-qty-input').length) {
+                return;
+            }
+            var totalQty = 0;
+            var sub = 0;
+            var basePrice = parseFloat($wrap.find('.price').val()) || 0;
+            $wrap.find('.variant-qty-input').each(function () {
+                var q = parseFloat($(this).val()) || 0;
+                var dp = $(this).attr('data-variant-price');
+                var p = (dp !== undefined && dp !== '') ? parseFloat(dp) : basePrice;
+                totalQty += q;
+                sub += q * p;
+            });
+            $wrap.find('.quantity').val(totalQty);
+            var discount = parseFloat($wrap.find('.discount').val());
+            if (isNaN(discount)) {
+                discount = 0;
+            }
+            var totalItemPrice = sub - discount;
+            var totalItemTaxRate = parseFloat($wrap.find('.itemTaxRate').val()) || 0;
+            var itemTaxPrice = (totalItemTaxRate / 100) * (totalItemPrice);
+            $wrap.find('.itemTaxPrice').val(itemTaxPrice.toFixed(2));
+            $wrap.find('.amount').html((parseFloat(itemTaxPrice) + parseFloat(totalItemPrice)).toFixed(2));
+
+            var totalItemTaxPrice = 0;
+            $('.itemTaxPrice').each(function () {
+                totalItemTaxPrice += parseFloat($(this).val()) || 0;
+            });
+            var totalItemPriceAll = 0;
+            var priceInput = $('.price');
+            var inputs_quantity = $('.quantity');
+            for (var j = 0; j < priceInput.length; j++) {
+                if (!isNaN(parseFloat(priceInput[j].value))) {
+                    totalItemPriceAll += parseFloat(priceInput[j].value) * parseFloat(inputs_quantity[j].value || 0);
+                }
+            }
+            var inputs = $('.amount');
+            var subTotal = 0;
+            for (var i = 0; i < inputs.length; i++) {
+                subTotal = parseFloat(subTotal) + parseFloat($(inputs[i]).html());
+            }
+            $('.subTotal').html(totalItemPriceAll.toFixed(2));
+            $('.totalTax').html(totalItemTaxPrice.toFixed(2));
+            $('.totalAmount').html(subTotal.toFixed(2));
+        }
+
+        $(document).on('keyup change', '.variant-qty-input', function () {
+            recalcPurchaseRowFromVariants($(this).closest('[data-repeater-item]'));
+        });
+
+        $(document).on('change', '.variant-select', function () {
+            var $wrap = $(this).closest('[data-repeater-item]');
+            var price = $(this).find('option:selected').attr('data-price');
+            if (price !== undefined && price !== '') {
+                $wrap.find('.price').val(price);
+                $wrap.find('.price').trigger('keyup');
+            }
         });
 
         $(document).on('keyup', '.quantity', function () {
             var quntityTotalTaxPrice = 0;
 
             var el = $(this).parent().parent().parent().parent();
+            if ($(this).prop('readonly') && el.find('.variant-qty-input').length) {
+                return;
+            }
             var quantity = $(this).val();
             var price = $(el.find('.price')).val();
             var discount = $(el.find('.discount')).val();
@@ -255,6 +343,11 @@
 
         $(document).on('keyup change', '.price', function () {
             var el = $(this).parent().parent().parent().parent();
+            var $wrapP = $(this).closest('[data-repeater-item]');
+            if ($wrapP.find('.variant-qty-input').length) {
+                recalcPurchaseRowFromVariants($wrapP);
+                return;
+            }
             var price = $(this).val();
             var quantity = $(el.find('.quantity')).val();
 
@@ -306,6 +399,11 @@
 
         $(document).on('keyup change', '.discount', function () {
             var el = $(this).parent().parent().parent();
+            var $wrapD = $(this).closest('[data-repeater-item]');
+            if ($wrapD.find('.variant-qty-input').length) {
+                recalcPurchaseRowFromVariants($wrapD);
+                return;
+            }
             var discount = $(this).val();
             if(discount.length <= 0)
             {
@@ -486,6 +584,7 @@
                             <thead>
                             <tr>
                                 <th>{{__('Items')}}<x-required></x-required></th>
+                                <th>{{ __('Variant') }}</th>
                                 <th>{{__('Quantity')}}<x-required></x-required></th>
                                 <th>{{__('Price')}}<x-required></x-required></th>
                                 <th>{{__('Discount')}}<x-required></x-required></th>
@@ -499,9 +598,15 @@
                                 <td width="25%" class="form-group pt-1">
                                     {{ Form::select('item', $product_services,'', array('class' => 'form-control select2 item','data-url'=>route('purchase.product'),'required'=>'required')) }}
                                 </td>
+                                <td width="26%" class="form-group pt-1 variant-cell">
+                                    <select name="product_variant_id" class="form-control select2 variant-select" disabled>
+                                        <option value="">{{ __('—') }}</option>
+                                    </select>
+                                    <div class="variant-qty-grid d-none mt-1"></div>
+                                </td>
                                 <td>
                                     <div class="form-group price-input input-group search-form">
-                                        {{ Form::number('quantity','', array('class' => 'form-control quantity','required'=>'required','placeholder'=>__('Qty'),'required'=>'required')) }}
+                                        {{ Form::number('quantity','', array('class' => 'form-control quantity','required'=>'required','placeholder'=>__('Qty'),'step'=>'0.01','min'=>'0')) }}
 
                                         <span class="unit input-group-text bg-transparent"></span>
                                     </div>

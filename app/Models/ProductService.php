@@ -21,6 +21,7 @@ class ProductService extends Model
         'price_level_id',
         'category_id',
         'unit_id',
+        'unit_type',
         'type',
         'print_zone',
         'pos_printer_id',
@@ -32,6 +33,17 @@ class ProductService extends Model
         'warranty_days',
         'expiry_alert_days',
         'batch_tracking',
+        'variants_enabled',
+        'variant_size_label',
+        'variant_color_label',
+        'unit_volume_cbm',
+        'unit_area_sqm',
+        'unit_length',
+        'unit_width',
+        'unit_height',
+        'dimension_unit',
+        'volumetric_divisor',
+        'unit_volumetric_weight',
         'last_min_stock_alert_at',
         'last_max_stock_alert_at',
         'sale_chartaccount_id',
@@ -43,6 +55,7 @@ class ProductService extends Model
         'affect_stock' => 'boolean',
         'identifier_tracking' => 'boolean',
         'batch_tracking' => 'boolean',
+        'variants_enabled' => 'boolean',
         'last_min_stock_alert_at' => 'datetime',
         'last_max_stock_alert_at' => 'datetime',
     ];
@@ -76,6 +89,26 @@ class ProductService extends Model
     public function recipes()
     {
         return $this->hasMany(ProductRecipe::class, 'product_id', 'id');
+    }
+
+    public function variants()
+    {
+        return $this->hasMany(ProductVariant::class, 'product_service_id')->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function variantStockInWarehouse(?int $warehouseId, ?int $variantId): float
+    {
+        $q = WarehouseProduct::where('product_id', $this->id);
+        if ($warehouseId !== null && $warehouseId > 0) {
+            $q->where('warehouse_id', $warehouseId);
+        }
+        if ($variantId !== null && $variantId > 0) {
+            $q->where('product_variant_id', $variantId);
+        } else {
+            $q->whereNull('product_variant_id');
+        }
+
+        return (float) $q->sum('quantity');
     }
 
     public function warehouse()
@@ -150,7 +183,8 @@ class ProductService extends Model
             'product_services.category_id',
             'product_services.print_zone',
             'product_services.type',
-            'product_services.affect_stock'
+            'product_services.affect_stock',
+            'product_services.variants_enabled'
         )
             ->whereIn('product_services.type', ['product', 'kit'])
             ->where('product_services.created_by', Auth::user()->creatorId())

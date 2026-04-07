@@ -300,8 +300,12 @@
             foreach ($stages as $stage) {
                 $json[] = 'task-list-' . $stage->id;
             }
+            $dealAvatarBase = \App\Models\Utility::get_file('uploads/avatar/');
+            if (empty($dealAvatarBase)) {
+                $dealAvatarBase = asset(\Storage::url('uploads/avatar/'));
+            }
         @endphp
-        <div class="row kanban-wrapper horizontal-scroll-cards" data-containers='{!! json_encode($json) !!}'
+        <div class="row flex-nowrap kanban-wrapper horizontal-scroll-cards g-2" data-containers='{!! json_encode($json) !!}'
             data-plugin="dragula">
             @foreach ($stages as $stage)
                 @php($deals = $stage->deals())
@@ -409,8 +413,10 @@
                                         </ul>
                                         <div class="user-group">
                                             @foreach ($deal->users as $user)
-                                                <img src="@if ($user->avatar) {{ asset('/storage/uploads/avatar/' . $user->avatar) }} @else {{ asset('storage/uploads/avatar/avatar.png') }} @endif"
-                                                    alt="image" data-bs-toggle="tooltip" title="{{ $user->name }}">
+                                                <img src="{{ !empty($user->avatar) ? $dealAvatarBase . $user->avatar : $dealAvatarBase . 'avatar.png' }}"
+                                                    alt="{{ $user->name }}" class="rounded-circle"
+                                                    width="32" height="32"
+                                                    data-bs-toggle="tooltip" title="{{ $user->name }}">
                                             @endforeach
                                         </div>
                                     </div>

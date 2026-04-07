@@ -9,6 +9,7 @@ use App\Models\Pos;
 use App\Models\PosPayment;
 use App\Models\PosProduct;
 use App\Models\ProductService;
+use App\Models\ProductVariant;
 use App\Models\Quotation;
 use App\Models\PosBalance;
 use App\Models\PosAuditLog;
@@ -40,6 +41,33 @@ use Illuminate\Support\Facades\Storage;
 class PosController extends Controller
 {
     /**
+     * Restaurant PIN user when set and valid for this company; otherwise the logged-in user.
+     */
+    protected function restaurantPosActor(): User
+    {
+        $id = session('pos_pin_user_id', Auth::id());
+        $user = User::find($id);
+        if ($user && (int) $user->created_by === (int) Auth::user()->creatorId()) {
+            return $user;
+        }
+
+        return Auth::user();
+    }
+
+    protected function assertRestaurantPosActorBranch(int $branchId): ?\Illuminate\Http\JsonResponse
+    {
+        if (! $branchId) {
+            return null;
+        }
+        $actor = $this->restaurantPosActor();
+        if (! $actor->canAccessBranchForPos($branchId, 'restaurant')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        return null;
+    }
+
+    /**
      * Display a listing of the resource.
      *
      * @return \Illuminate\Http\Response
@@ -70,10 +98,8 @@ class PosController extends Controller
                     $q->where('pos_type', Branch::POS_TYPE_RETAIL)->orWhereNull('pos_type');
                 })
                 ->pluck('id')->toArray();
-            $posBranchLocked = Auth::user()->hasPosBranchRestriction();
-            if ($posBranchLocked && Auth::user()->pos_branch_id) {
-                $retailBranchIds = array_intersect($retailBranchIds, [Auth::user()->pos_branch_id]);
-            }
+            $retailBranchIds = Auth::user()->filterBranchIdsForPosAccess($retailBranchIds);
+            $posBranchLocked = count($retailBranchIds) === 1;
             $branches = Branch::whereIn('id', $retailBranchIds)->get()->pluck('name', 'id');
             $warehouses = warehouse::with('branch')->where('created_by', \Auth::user()->creatorId())
                 ->where(function ($q) use ($retailBranchIds) {
@@ -148,6 +174,9 @@ class PosController extends Controller
         $branchId = $request->branch_id;
         if (!$branchId) {
             return response()->json(['areas' => []]);
+        }
+        if ($resp = $this->assertRestaurantPosActorBranch((int) $branchId)) {
+            return $resp;
         }
         $areas = PosArea::where('created_by', Auth::user()->creatorId())
             ->where('branch_id', $branchId)
@@ -225,6 +254,9 @@ class PosController extends Controller
         if (!$branchId || !$shiftId || !in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
             return response()->json(['orders' => []]);
         }
+        if ($resp = $this->assertRestaurantPosActorBranch($branchId)) {
+            return $resp;
+        }
         $creatorId = Auth::user()->creatorId();
         $orders = Pos::whereNull('table_id')
             ->where('order_type', $orderType)
@@ -261,6 +293,9 @@ class PosController extends Controller
         if (!$branchId) {
             return response()->json(['shift' => null]);
         }
+        if ($resp = $this->assertRestaurantPosActorBranch($branchId)) {
+            return $resp;
+        }
         $posActorId = session('pos_pin_user_id', Auth::id());
         $shift = \App\Models\PosShift::where('branch_id', $branchId)
             ->where('user_id', $posActorId)
@@ -290,6 +325,9 @@ class PosController extends Controller
         $branchId = $request->has('branch_id') ? (int) $request->branch_id : null;
         if (!$branchId) {
             return response()->json(['shifts' => []]);
+        }
+        if ($resp = $this->assertRestaurantPosActorBranch($branchId)) {
+            return $resp;
         }
         $currentUserId = session('pos_pin_user_id', Auth::id());
         $shifts = \App\Models\PosShift::where('branch_id', $branchId)
@@ -717,6 +755,15 @@ class PosController extends Controller
                 continue;
             }
             $cartProduct = ProductService::where('id', $pid)->where('created_by', $user_id)->first();
+            if ($cartProduct && ($cartProduct->variants_enabled ?? false)) {
+                $vid = isset($v['product_variant_id']) ? (int) $v['product_variant_id'] : 0;
+                if ($vid <= 0) {
+                    return response()->json(['code' => 400, 'error' => __('Select size / color variant for each line of this product.')], 400);
+                }
+                if (! ProductVariant::where('id', $vid)->where('product_service_id', $cartProduct->id)->exists()) {
+                    return response()->json(['code' => 400, 'error' => __('Invalid product variant.')], 400);
+                }
+            }
             if ($cartProduct && ($cartProduct->identifier_tracking ?? false)) {
                 try {
                     InvoiceSaleDeductionService::validateTrackedIdentifiersForLine(
@@ -833,6 +880,10 @@ class PosController extends Controller
         StockReport::where('type', 'pos')->where('type_id', $pos->id)->delete();
         foreach ($sales as $key => $value) {
             $product_id = $value['id'];
+            $product_variant_id = isset($value['product_variant_id']) ? (int) $value['product_variant_id'] : null;
+            if ($product_variant_id !== null && $product_variant_id <= 0) {
+                $product_variant_id = null;
+            }
             $product = ProductService::whereId($product_id)->where('created_by', $user_id)->first();
             $tax_id = $product ? ProductService::tax_id($product_id) : '0';
             $priceType = $value['price_type'] ?? 'exclusive';
@@ -844,6 +895,7 @@ class PosController extends Controller
             $positems = new PosProduct();
             $positems->pos_id = $pos->id;
             $positems->product_id = $product_id;
+            $positems->product_variant_id = $product_variant_id;
             $positems->price = $unitPrice;
             $positems->quantity = $value['quantity'];
             $positems->tax = $tax_id;
@@ -851,6 +903,7 @@ class PosController extends Controller
             $positems->identifiers = $value['identifiers'] ?? null;
             $positems->save();
             $idNote = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
+            $deductByVariant = ($product->variants_enabled ?? false) && $product_variant_id;
             if (($product->type ?? null) === 'kit') {
                 PosKitDeductionService::deductForSale(
                     (int) $product_id,
@@ -859,6 +912,17 @@ class PosController extends Controller
                     $user_id,
                     \Auth::user()->posNumberFormat($pos->pos_id),
                     (int) $pos->id
+                );
+            } elseif ($deductByVariant) {
+                PosRecipeDeductionService::deductForSale(
+                    (int) $product_id,
+                    (float) $value['quantity'],
+                    $warehouse_id,
+                    $user_id,
+                    \Auth::user()->posNumberFormat($pos->pos_id),
+                    (int) $pos->id,
+                    $idNote,
+                    $product_variant_id
                 );
             } elseif (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $warehouse_id, (int) $user_id)) {
                 // Auto FEFO when batch tracking enabled or lots exist
@@ -879,7 +943,8 @@ class PosController extends Controller
                     $user_id,
                     \Auth::user()->posNumberFormat($pos->pos_id),
                     (int) $pos->id,
-                    $idNote
+                    $idNote,
+                    $product_variant_id
                 );
             }
             try {
@@ -1173,6 +1238,12 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $pos->save();
                     foreach ($pos->items as $line) {
                         $lineProduct = ProductService::whereId($line->product_id)->where('created_by', $user_id)->first();
+                        if ($lineProduct && ($lineProduct->variants_enabled ?? false)) {
+                            $lvid = (int) ($line->product_variant_id ?? 0);
+                            if ($lvid <= 0 || ! ProductVariant::where('id', $lvid)->where('product_service_id', $lineProduct->id)->exists()) {
+                                return response()->json(['code' => 400, 'error' => __('Invalid or missing product variant on order line.')], 400);
+                            }
+                        }
                         if ($lineProduct && ($lineProduct->identifier_tracking ?? false)) {
                             try {
                                 InvoiceSaleDeductionService::validateTrackedIdentifiersForLine(
@@ -1191,7 +1262,12 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         if (! $lineProduct) {
                             continue;
                         }
+                        $lineVariantId = $line->product_variant_id ? (int) $line->product_variant_id : null;
+                        if ($lineVariantId !== null && $lineVariantId <= 0) {
+                            $lineVariantId = null;
+                        }
                         $lineIdNote = InvoiceSaleDeductionService::formatIdentifiersNote($line->identifiers ?? null);
+                        $deductLineByVariant = ($lineProduct->variants_enabled ?? false) && $lineVariantId;
                         if (($lineProduct->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
                                 (int) $line->product_id,
@@ -1200,6 +1276,17 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id),
                                 (int) $pos->id
+                            );
+                        } elseif ($deductLineByVariant) {
+                            PosRecipeDeductionService::deductForSale(
+                                (int) $line->product_id,
+                                (float) $line->quantity,
+                                (int) $pos->warehouse_id,
+                                $user_id,
+                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                (int) $pos->id,
+                                $lineIdNote,
+                                $lineVariantId
                             );
                         } elseif (($lineProduct->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $line->product_id, (int) $pos->warehouse_id, (int) $user_id)) {
                             PosFefoDeductionService::deductForSale(
@@ -1219,7 +1306,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id),
                                 (int) $pos->id,
-                                $lineIdNote
+                                $lineIdNote,
+                                $lineVariantId
                             );
                         }
                         try {
@@ -1347,6 +1435,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     StockReport::where('type', 'pos')->where('type_id', $pos->id)->delete();
                     foreach ($sales as $key => $value) {
                         $product_id = $value['id'];
+                        $product_variant_id = isset($value['product_variant_id']) ? (int) $value['product_variant_id'] : null;
+                        if ($product_variant_id !== null && $product_variant_id <= 0) {
+                            $product_variant_id = null;
+                        }
                         $product = ProductService::whereId($product_id)->where('created_by', $user_id)->first();
                         $tax_id = $product ? ProductService::tax_id($product_id) : '0';
                         $priceType = $value['price_type'] ?? 'exclusive';
@@ -1358,6 +1450,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $positems = new PosProduct();
                         $positems->pos_id = $pos->id;
                         $positems->product_id = $product_id;
+                        $positems->product_variant_id = $product_variant_id;
                         $positems->price = $unitPrice;
                         $positems->quantity = $value['quantity'];
                         $positems->tax = $tax_id;
@@ -1365,6 +1458,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $positems->identifiers = $value['identifiers'] ?? null;
                         $positems->save();
                         $idNote2 = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
+                        $deductByVariant2 = ($product->variants_enabled ?? false) && $product_variant_id;
                         if (($product->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
                                 (int) $product_id,
@@ -1373,6 +1467,17 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id),
                                 (int) $pos->id
+                            );
+                        } elseif ($deductByVariant2) {
+                            PosRecipeDeductionService::deductForSale(
+                                (int) $product_id,
+                                (float) $value['quantity'],
+                                $warehouse_id,
+                                $user_id,
+                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                (int) $pos->id,
+                                $idNote2,
+                                $product_variant_id
                             );
                         } elseif (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $warehouse_id, (int) $user_id)) {
                             PosFefoDeductionService::deductForSale(
@@ -1392,7 +1497,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id),
                                 (int) $pos->id,
-                                $idNote2
+                                $idNote2,
+                                $product_variant_id
                             );
                         }
                         try {
@@ -1700,9 +1806,17 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
     public function getWarehousesByBranch(Request $request)
     {
         $branchId = $request->branch_id;
+        $actor = $this->restaurantPosActor();
         $warehouses = warehouse::where('created_by', \Auth::user()->creatorId());
 
         if ($branchId) {
+            $b = Branch::where('id', $branchId)->where('created_by', \Auth::user()->creatorId())->where('is_active', true)->first();
+            if ($b) {
+                $mode = $b->isRestaurant() ? 'restaurant' : 'retail';
+                if (! $actor->canAccessBranchForPos((int) $branchId, $mode)) {
+                    return response()->json([]);
+                }
+            }
             $warehouses->where('branch_id', $branchId);
         }
 
@@ -1729,6 +1843,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $creatorId = Auth::user()->creatorId();
         $pos = null;
         $sessionCartKey = null; // tableId_shiftId | delivery_shiftId / takeaway_shiftId | pos_N
+
+        if ($branchId && ($resp = $this->assertRestaurantPosActorBranch($branchId))) {
+            return $resp;
+        }
 
         if ($tableId && ($branchId || $shiftId)) {
             if ($tableId && $branchId) {
@@ -1907,6 +2025,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         if (!$branch) {
             return response()->json(['error' => __('Invalid branch.')], 422);
         }
+        $pinActor = $this->restaurantPosActor();
+        if (! $pinActor->canAccessBranchForPos($branchId, 'restaurant')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
 
         $warehouse = warehouse::where('created_by', $creatorId)->where('branch_id', $branchId)->first();
         if (!$warehouse) {
@@ -1981,9 +2103,14 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $printZone = PosProduct::PRINT_ZONE_KITCHEN;
             }
             $taxId = is_string($product->tax_id ?? null) ? $product->tax_id : ($product->tax_id ?? '0');
+            $variantId = isset($item['product_variant_id']) ? (int) $item['product_variant_id'] : null;
+            if ($variantId !== null && $variantId <= 0) {
+                $variantId = null;
+            }
             PosProduct::create([
                 'pos_id' => $pos->id,
                 'product_id' => $product->id,
+                'product_variant_id' => $variantId,
                 'quantity' => (int) $item['quantity'],
                 'price' => (float) $item['price'],
                 'tax' => $taxId,
@@ -2118,6 +2245,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->first();
         if (!$branch) {
             return response()->json(['error' => __('Invalid branch.')], 422);
+        }
+        if ($resp = $this->assertRestaurantPosActorBranch($branchId)) {
+            return $resp;
         }
         $warehouse = warehouse::where('created_by', $creatorId)->where('branch_id', $branchId)->first();
         if (!$warehouse) {
@@ -2443,6 +2573,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $post['pos_color'] = "ffffff";
         }
         $post['pos_direct_print'] = ($request->input('pos_direct_print') === 'on') ? 'on' : 'off';
+        $post['pos_print_layout'] = Utility::normalizePosPrintLayout($request->input('pos_print_layout'));
 
         if ($request->pos_logo) {
             $dir = 'pos_logo/';
@@ -3075,7 +3206,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $posIds = Pos::where('shift_id', $userOpenShift->id)->pluck('id');
         $cashFromSales = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', 'cash')->sum('amount');
         $cashFromBalance = (float) InvoicePayment::where('pos_shift_id', $userOpenShift->id)->where('payment_method', 0)->sum('amount');
-        $expectedCash = (float) ($userOpenShift->opening_balance ?? 0) + $cashFromSales + $cashFromBalance;
+        $cashInsTotal = (float) \App\Models\PosCashIn::where('shift_id', $userOpenShift->id)->sum('amount');
+        $cashDropsTotal = (float) \App\Models\PosCashDrop::where('shift_id', $userOpenShift->id)->sum('amount');
+        $cashOutExpensesTotal = (float) \App\Models\Expense::where('pos_shift_id', $userOpenShift->id)->where('created_by', \Auth::user()->creatorId())->where('status', \App\Models\Expense::STATUS_APPROVED)->sum('amount');
+        $expectedCash = (float) ($userOpenShift->opening_balance ?? 0) + $cashFromSales + $cashFromBalance + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
         return view('pos.add_closing_balance', compact('userOpenShift', 'expectedCash', 'cashFromBalance'));
     }
     
@@ -3109,7 +3243,11 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $creditTotal = PosPayment::whereIn('pos_id', $posIds)->where('payment_method', 'credit')->sum('amount');
         $opening = (float) ($shift->opening_balance ?? 0);
         $closing = (float) $request->amount;
-        $difference = $closing - ($opening + $cashTotal);
+        $cashInsTotal = (float) \App\Models\PosCashIn::where('shift_id', $shift->id)->sum('amount');
+        $cashDropsTotal = (float) \App\Models\PosCashDrop::where('shift_id', $shift->id)->sum('amount');
+        $cashOutExpensesTotal = (float) \App\Models\Expense::where('pos_shift_id', $shift->id)->where('created_by', \Auth::user()->creatorId())->where('status', \App\Models\Expense::STATUS_APPROVED)->sum('amount');
+        $expectedCash = $opening + $cashTotal + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
+        $difference = $closing - $expectedCash;
 
         $shift->closing_balance = $closing;
         $shift->sales_count = $salesCount;
@@ -3222,12 +3360,11 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         session()->forget('pos');
         $customers = Customer::where('created_by', $creatorId)->get()->pluck('name', 'name');
         $customers->prepend('Walk-in-customer', '');
+        $posPinUser->loadMissing('branches');
         $restaurantBranchIds = Branch::where('created_by', $creatorId)->where('is_active', true)
             ->where('pos_type', Branch::POS_TYPE_RESTAURANT)->pluck('id')->toArray();
-        $posBranchLocked = $posPinUser->pos_branch_id ? true : false;
-        if ($posBranchLocked && $posPinUser->pos_branch_id) {
-            $restaurantBranchIds = array_intersect($restaurantBranchIds, [$posPinUser->pos_branch_id]);
-        }
+        $restaurantBranchIds = $posPinUser->filterBranchIdsForPosAccess($restaurantBranchIds);
+        $posBranchLocked = count($restaurantBranchIds) === 1;
         $branches = Branch::whereIn('id', $restaurantBranchIds)->get()->pluck('name', 'id');
         $warehouses = warehouse::with('branch')->where('created_by', $creatorId)
             ->whereIn('branch_id', $restaurantBranchIds)->get()->pluck('name', 'id');

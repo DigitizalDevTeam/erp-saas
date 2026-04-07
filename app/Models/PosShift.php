@@ -59,8 +59,19 @@ class PosShift extends Model
         return $this->hasMany(PosCashDrop::class, 'shift_id', 'id');
     }
 
+    /** Cash in (float/top-ups) during shift */
+    public function cashIns()
+    {
+        return $this->hasMany(PosCashIn::class, 'shift_id', 'id');
+    }
+
     public function getCashDropsTotalAttribute(): float
     {
         return (float) $this->cashDrops()->sum('amount');
+    }
+
+    public function getCashInsTotalAttribute(): float
+    {
+        return (float) $this->cashIns()->sum('amount');
     }
 }

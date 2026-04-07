@@ -18,6 +18,7 @@ class PosProduct extends Model
 
     protected $fillable = [
         'product_id',
+        'product_variant_id',
         'pos_id',
         'quantity',
         'tax',
@@ -50,6 +51,11 @@ class PosProduct extends Model
     public function product()
     {
         return $this->belongsTo(ProductService::class, 'product_id', 'id');
+    }
+
+    public function variant()
+    {
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
     }
 
     public function posPrinter()

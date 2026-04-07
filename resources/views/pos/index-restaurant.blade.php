@@ -556,11 +556,12 @@
                 <form id="pos-open-shift-form">
                     <div class="modal-body">
                         @csrf
-                        @if(!empty($posBranchLocked) && Auth::user()->pos_branch_id && isset($branches) && $branches->has(Auth::user()->pos_branch_id))
-                            <input type="hidden" name="branch_id" value="{{ Auth::user()->pos_branch_id }}">
+                        @if(!empty($posBranchLocked) && isset($branches) && $branches->count() === 1)
+                            @php $onlyBranchId = $branches->keys()->first(); @endphp
+                            <input type="hidden" name="branch_id" value="{{ $onlyBranchId }}">
                             <div class="mb-3">
                                 <label class="form-label">{{ __('pos.branch') }}</label>
-                                <div class="form-control-plaintext fw-semibold">{{ $branches[Auth::user()->pos_branch_id] ?? __('Assigned branch') }}</div>
+                                <div class="form-control-plaintext fw-semibold">{{ $branches[$onlyBranchId] ?? __('Assigned branch') }}</div>
                             </div>
                         @else
                         <div class="mb-3">
@@ -588,6 +589,8 @@
             </div>
         </div>
     </div>
+
+    @include('pos.partials.variant-picker-modal')
 
     <div class="position-fixed top-0 end-0 p-3" style="z-index: 99999">
         <div id="liveToast" class="toast text-white  fade" role="alert" aria-live="assertive" aria-atomic="true">
@@ -744,16 +747,20 @@
         function posGetCartFromDom() {
             var cart = {};
             $('#tbody tr[data-product-id]').each(function () {
-                var id = $(this).attr('data-product-id');
-                var qty = parseInt($(this).find('input.input-number').val() || 1, 10);
-                var price = parseFloat($(this).attr('data-price')) || 0;
-                var tax = parseFloat($(this).attr('data-tax')) || 0;
+                var $row = $(this);
+                var id = $row.attr('data-product-id');
+                var lineKey = $row.attr('data-cart-line-key') || String(id);
+                var vId = parseInt($row.attr('data-product-variant-id'), 10);
+                var qty = parseInt($row.find('input.input-number').val() || 1, 10);
+                var price = parseFloat($row.attr('data-price')) || 0;
+                var tax = parseFloat($row.attr('data-tax')) || 0;
                 var subtotal = price * qty;
-                var discount = parseFloat($(this).attr('data-discount')) || 0;
+                var discount = parseFloat($row.attr('data-discount')) || 0;
                 var netPrice = subtotal - discount;
-                cart[id] = {
+                cart[lineKey] = {
                     id: parseInt(id, 10),
-                    name: $(this).attr('data-name') || '',
+                    product_variant_id: (!isNaN(vId) && vId > 0) ? vId : null,
+                    name: $row.attr('data-name') || '',
                     price: price,
                     quantity: qty,
                     tax: tax,
@@ -763,6 +770,10 @@
                 };
             });
             return cart;
+        }
+        function posLineDomId(product) {
+            if (!product) return '';
+            return String(product.cart_line_key || product.id || '').replace(/_/g, '-');
         }
         function posSaveOfflineSale() {
             var cart = posGetCartFromDom();
@@ -1678,12 +1689,15 @@
                 $('#tbody-restaurant tr[data-product-id]').each(function () {
                     if ($(this).attr('data-is-sent') === '1') return;
                     var id = $(this).attr('data-product-id');
+                    var vid = parseInt($(this).attr('data-product-variant-id'), 10);
                     var qty = parseInt($(this).find('input[name="quantity"]').val() || $(this).attr('data-quantity') || 1, 10);
                     var price = parseFloat($(this).attr('data-price')) || 0;
                     var discount = parseFloat($(this).attr('data-discount')) || 0;
                     var $n = $(this).find('.notes');
                     var desc = ($n.length && ($n.is('input') || $n.is('textarea'))) ? ($n.val() || '').trim() : ($n.text() || '').trim();
-                    if (id && qty > 0) items.push({ id: id, quantity: qty, price: price, discount: discount, description: desc });
+                    var line = { id: id, quantity: qty, price: price, discount: discount, description: desc };
+                    if (!isNaN(vid) && vid > 0) line.product_variant_id = vid;
+                    if (id && qty > 0) items.push(line);
                 });
                 var orderType = ($('#pos-restaurant-order-type').length ? $('#pos-restaurant-order-type').val() : '') || 'dine_in';
                 var isNonDineIn = (orderType === 'delivery' || orderType === 'takeaway');
@@ -2314,6 +2328,108 @@
                 });
             }
 
+            function posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, productVariantId, ctx) {
+                var isRestaurant = ctx.isRestaurant;
+                var tbodySel = ctx.tbodySel;
+                var rowIdPrefix = ctx.rowIdPrefix;
+                var totalSel = ctx.totalSel;
+                var sum = 0;
+                if ($btn.length && !wasDisabled) {
+                    $btn.prop('disabled', true).addClass('pos-add-cart-loading');
+                    var $iconGo = $btn.find('i');
+                    if ($iconGo.length) $iconGo.removeClass('ti-plus').addClass('ti-loader ti-spin');
+                }
+                var addUrl = $el.data('url');
+                if (isRestaurant) {
+                    addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'restaurant=1';
+                    if (typeof posRestaurantCartKey !== 'undefined' && posRestaurantCartKey) {
+                        addUrl += '&cart_key=' + encodeURIComponent(posRestaurantCartKey);
+                    } else {
+                        var tidR = $('#pos_table_id_hidden').val();
+                        var sidR = $('#pos_shift_id_hidden').val();
+                        if (tidR && sidR) {
+                            addUrl += '&table_id=' + encodeURIComponent(tidR) + '&shift_id=' + encodeURIComponent(sidR);
+                        }
+                    }
+                }
+                var taxRateGo = $el.data('product-tax');
+                if (taxRateGo !== undefined && taxRateGo !== '' && !isNaN(parseFloat(taxRateGo))) {
+                    addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'tax_rate=' + encodeURIComponent(taxRateGo);
+                }
+                if (productVariantId) {
+                    addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'product_variant_id=' + encodeURIComponent(productVariantId);
+                }
+                $.ajax({
+                    url: addUrl,
+                    success: function (data) {
+                        if (data.code == '200') {
+                            var rowDomId = posLineDomId(data.product);
+                            if (isRestaurant) {
+                                var existingR = $(tbodySel + ' tr[id="' + rowIdPrefix + rowDomId + '"]').filter('[data-is-sent="0"]').first();
+                                if (!existingR.length) {
+                                    existingR = $(tbodySel + ' tr[id="' + rowIdPrefix + rowDomId + '"]').first();
+                                }
+                                if (existingR.length && (data.carttotal && !data.carthtml)) {
+                                    existingR.find('input.input-number').val(data.product.quantity);
+                                    var sub = (data.product.price * data.product.quantity * (1 + (data.product.tax || 0) / 100));
+                                    existingR.find('.subtotal').text(typeof addCommas === 'function' ? addCommas(sub) : sub);
+                                    existingR.attr('data-subtotal', sub).attr('data-quantity', data.product.quantity);
+                                } else if (data.carthtml) {
+                                    var $rowR = $(data.carthtml).attr('data-subtotal', data.product.subtotal);
+                                    $(tbodySel + ' .no-found').addClass('d-none');
+                                    $(tbodySel).append($rowR);
+                                    $('#pos-pay-btn-restaurant').prop('disabled', false);
+                                }
+                                sum = 0;
+                                $(tbodySel + ' tr[data-product-id]').each(function() { sum += parseFloat($(this).attr('data-subtotal')) || 0; });
+                                updateRestaurantCartTotals(sum);
+                            } else {
+                                if ('carttotal' in data) {
+                                    $.each(data.carttotal, function (key, value) {
+                                        var rid = posLineDomId(value);
+                                        $('#product-id-' + rid + ' .subtotal').text(addCommas(value.subtotal));
+                                        sum += value.subtotal;
+                                    });
+                                    $('#displaytotal').text(addCommas(sum));
+                                    $('.totalamount').text(addCommas(sum));
+                                    $('.discount').val('');
+                                } else if (data.carthtml) {
+                                    $('#tbody').append(data.carthtml);
+                                    $('.no-found').addClass('d-none');
+                                    var rd = posLineDomId(data.product);
+                                    $('.carttable #product-id-' + rd + ' input[name="quantity"]').val(data.product.quantity);
+                                }
+                                $('#btn-pur button').removeAttr('disabled');
+                                $('.btn-empty button').addClass('btn-clear-cart');
+                            }
+                        }
+                    },
+                    error: function (data) {
+                        data = data.responseJSON || {};
+                        show_toastr('{{ __("Error") }}', data.error || '{{ __("pos.error") }}', 'error');
+                    },
+                    complete: function() {
+                        if ($btn.length && !wasDisabled) {
+                            setTimeout(function() {
+                                $btn.prop('disabled', false).removeClass('pos-add-cart-loading');
+                                var $ic2 = $btn.find('i');
+                                if ($ic2.length) $ic2.removeClass('ti-loader ti-spin').addClass('ti-plus');
+                            }, 800);
+                        }
+                    }
+                });
+            }
+
+            $(document).on('click', '#posVariantPickerConfirm', function () {
+                var $modal = $('#posVariantPickerModal');
+                var d = $modal.data('posVariantCtx');
+                $modal.modal('hide');
+                if (!d || !d.$el) return;
+                var vid = $('#posVariantPickerSelect').val();
+                if (!vid) return;
+                posRestaurantRunAddToCartAjax(d.$el, d.$btn, d.wasDisabled, vid, d.ctx);
+            });
+
             $(document).on('click', '.toacart', function () {
                 var $el = $(this);
                 var $btn = $el.find('.pos-add-cart-btn, button').first();
@@ -2321,8 +2437,16 @@
                 var tbodySel = isRestaurant ? '#tbody-restaurant' : '#tbody';
                 var rowIdPrefix = isRestaurant ? 'product-id-r-' : 'product-id-';
                 var totalSel = isRestaurant ? '#pos-restaurant-total' : '#displaytotal, .totalamount';
+                var ctx = { isRestaurant: isRestaurant, tbodySel: tbodySel, rowIdPrefix: rowIdPrefix, totalSel: totalSel };
 
                 if (!navigator.onLine && $el.data('product-id')) {
+                    if (String($el.data('variants-enabled')) === '1') {
+                        var rawOff = $el.attr('data-variants');
+                        if (rawOff && rawOff.length > 2) {
+                            if (typeof show_toastr === 'function') show_toastr('error', '{{ __("Variant products require online mode.") }}', 'error');
+                            return;
+                        }
+                    }
                     var id = $el.data('product-id');
                     var name = $el.data('product-name') || '';
                     var price = parseFloat($el.data('product-price')) || 0;
@@ -2356,83 +2480,23 @@
                     if (isRestaurant) updateRestaurantCartTotals(total); else $(totalSel).text(addCommas(total));
                     return;
                 }
-                var sum = 0;
-                var addUrl = $el.data('url');
-                if (isRestaurant) {
-                    addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'restaurant=1';
-                    if (typeof posRestaurantCartKey !== 'undefined' && posRestaurantCartKey) {
-                        addUrl += '&cart_key=' + encodeURIComponent(posRestaurantCartKey);
-                    } else {
-                        var tid = $('#pos_table_id_hidden').val();
-                        var sid = $('#pos_shift_id_hidden').val();
-                        if (tid && sid) {
-                            addUrl += '&table_id=' + encodeURIComponent(tid) + '&shift_id=' + encodeURIComponent(sid);
-                        }
-                    }
-                }
-                var taxRate = $el.data('product-tax');
-                if (taxRate !== undefined && taxRate !== '' && !isNaN(parseFloat(taxRate))) {
-                    addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'tax_rate=' + encodeURIComponent(taxRate);
-                }
                 var wasDisabled = $btn.length && $btn.prop('disabled');
-                if ($btn.length && !wasDisabled) {
-                    $btn.prop('disabled', true).addClass('pos-add-cart-loading');
-                    var $icon = $btn.find('i');
-                    if ($icon.length) $icon.removeClass('ti-plus').addClass('ti-loader ti-spin');
-                }
-                $.ajax({
-                    url: addUrl,
-                    success: function (data) {
-                        if (data.code == '200') {
-                            if (isRestaurant) {
-                                var existing = $(tbodySel).find('tr[data-product-id="' + data.product.id + '"][data-is-sent="0"]').first();
-                                if (existing.length && (data.carttotal && !data.carthtml)) {
-                                    existing.find('input.input-number').val(data.product.quantity);
-                                    var sub = (data.product.price * data.product.quantity * (1 + (data.product.tax || 0) / 100));
-                                    existing.find('.subtotal').text(typeof addCommas === 'function' ? addCommas(sub) : sub);
-                                    existing.attr('data-subtotal', sub).attr('data-quantity', data.product.quantity);
-                                } else if (data.carthtml) {
-                                    var $row = $(data.carthtml).attr('id', rowIdPrefix + data.product.id).attr('data-subtotal', data.product.subtotal);
-                                    $(tbodySel + ' .no-found').addClass('d-none');
-                                    $(tbodySel).append($row);
-                                    $('#pos-pay-btn-restaurant').prop('disabled', false);
-                                }
-                                sum = 0;
-                                $(tbodySel + ' tr[data-product-id]').each(function() { sum += parseFloat($(this).attr('data-subtotal')) || 0; });
-                                updateRestaurantCartTotals(sum);
-                            } else {
-                                if ('carttotal' in data) {
-                                    $.each(data.carttotal, function (key, value) {
-                                        $('#product-id-' + value.id + ' .subtotal').text(addCommas(value.subtotal));
-                                        sum += value.subtotal;
-                                    });
-                                    $('#displaytotal').text(addCommas(sum));
-                                    $('.totalamount').text(addCommas(sum));
-                                    $('.discount').val('');
-                                } else if (data.carthtml) {
-                                    $('#tbody').append(data.carthtml);
-                                    $('.no-found').addClass('d-none');
-                                    $('.carttable #product-id-' + data.product.id + ' input[name="quantity"]').val(data.product.quantity);
-                                }
-                                $('#btn-pur button').removeAttr('disabled');
-                                $('.btn-empty button').addClass('btn-clear-cart');
-                            }
-                        }
-                    },
-                    error: function (data) {
-                        data = data.responseJSON || {};
-                        show_toastr('{{ __("Error") }}', data.error || '{{ __("pos.error") }}', 'error');
-                    },
-                    complete: function() {
-                        if ($btn.length && !wasDisabled) {
-                            setTimeout(function() {
-                                $btn.prop('disabled', false).removeClass('pos-add-cart-loading');
-                                var $icon = $btn.find('i');
-                                if ($icon.length) $icon.removeClass('ti-loader ti-spin').addClass('ti-plus');
-                            }, 800);
-                        }
+                if (navigator.onLine && String($el.data('variants-enabled')) === '1') {
+                    var rawVL = $el.attr('data-variants');
+                    var vlist = [];
+                    try { vlist = rawVL ? JSON.parse(rawVL) : []; } catch (vex) { vlist = []; }
+                    if (vlist.length) {
+                        var $sel = $('#posVariantPickerSelect').empty();
+                        vlist.forEach(function (v) {
+                            var ps = (v.sale_price != null && v.sale_price !== '') ? (' — ' + v.sale_price) : '';
+                            $sel.append($('<option/>').val(v.id).text((v.label || '') + ps));
+                        });
+                        $('#posVariantPickerModal').data('posVariantCtx', { $el: $el, $btn: $btn, wasDisabled: wasDisabled, ctx: ctx });
+                        $('#posVariantPickerModal').modal('show');
+                        return;
                     }
-                });
+                }
+                posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, null, ctx);
             });
 
             $(document).on('click', '.pos-offline-remove', function(e) {

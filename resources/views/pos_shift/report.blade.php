@@ -48,6 +48,12 @@
                         <td>{{ __('Cash in (POS sales)') }}@if(!empty($balanceCash) && $balanceCash > 0)<span class="text-muted small"> + {{ __('balance invoice payments') }}</span>@endif</td>
                         <td class="text-end">{{ \Auth::user()->priceFormat($cashTotal ?? 0) }}</td>
                     </tr>
+                    @if(!empty($cashInsTotal) && $cashInsTotal > 0)
+                    <tr>
+                        <td>{{ __('Cash in (top-ups)') }}</td>
+                        <td class="text-end">{{ \Auth::user()->priceFormat($cashInsTotal) }}</td>
+                    </tr>
+                    @endif
                     @if(!empty($balanceCash) && $balanceCash > 0)
                     <tr>
                         <td class="ps-4 small text-muted">{{ __('Of which balance / invoice payments (cash)') }}</td>
@@ -58,6 +64,12 @@
                         <td>{{ __('Cash drops (spent / out)') }}</td>
                         <td class="text-end text-danger">-{{ \Auth::user()->priceFormat($cashDropsTotal ?? 0) }}</td>
                     </tr>
+                    @if(!empty($cashOutExpensesTotal) && $cashOutExpensesTotal > 0)
+                    <tr>
+                        <td>{{ __('Cash out (expenses)') }}</td>
+                        <td class="text-end text-danger">-{{ \Auth::user()->priceFormat($cashOutExpensesTotal) }}</td>
+                    </tr>
+                    @endif
                     <tr class="fw-bold">
                         <td>{{ __('Expected cash in drawer') }}</td>
                         <td class="text-end">{{ \Auth::user()->priceFormat($expectedCash ?? 0) }}</td>

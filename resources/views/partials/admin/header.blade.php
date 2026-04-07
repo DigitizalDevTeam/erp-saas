@@ -14,6 +14,11 @@
     $setting = \App\Models\Utility::settings();
 
     $unseenCounter=App\Models\ChMessage::where('to_id', Auth::user()->id)->where('seen', 0)->count();
+
+    $branchSwitcherBranches = collect();
+    if (\Auth::check() && \Auth::user()->type !== 'super admin') {
+        $branchSwitcherBranches = \Auth::user()->branchesForSelection();
+    }
 @endphp
 @if (isset($setting['cust_theme_bg']) && $setting['cust_theme_bg'] == 'on')
     <header class="dash-header transprent-bg">
@@ -62,6 +67,19 @@
         </div>
         <div class="ms-auto">
             <ul class="list-unstyled">
+                @if($branchSwitcherBranches->count() > 1)
+                    <li class="dash-h-item d-none d-md-flex align-items-center me-2">
+                        <form action="{{ route('user.branch-context') }}" method="post" class="d-flex align-items-center gap-2 mb-0">
+                            @csrf
+                            <label for="active-branch-switch" class="mb-0 small text-muted hide-mob">{{ __('Branch') }}</label>
+                            <select name="branch_id" id="active-branch-switch" class="form-select form-select-sm" style="min-width: 10rem;" onchange="this.form.submit()">
+                                @foreach ($branchSwitcherBranches as $switchBranch)
+                                    <option value="{{ $switchBranch->id }}" @selected((int) \Auth::user()->activeBranchContextId() === (int) $switchBranch->id)>{{ $switchBranch->name }}</option>
+                                @endforeach
+                            </select>
+                        </form>
+                    </li>
+                @endif
                 @if(\Auth::user()->type == 'company' )
                 @impersonating($guard = null)
                 <li class="dropdown dash-h-item drp-company">

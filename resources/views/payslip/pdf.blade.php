@@ -186,7 +186,12 @@
                                         @foreach ($loans as $emploanss)
                                             <tr>
                                                 <td>{{ __('Loan') }}</td>
-                                                <td>{{ $emploanss->title }}</td>
+                                                <td>{{ $emploanss->title }}
+                                                    @if (!empty($emploanss->schedule_mode ?? null) && ($emploanss->schedule_mode ?? '') === \App\Models\Loan::SCHEDULE_INSTALLMENT)
+                                                        <br><small class="text-muted">{{ __('Principal') }} {{ \Auth::user()->priceFormat($emploanss->principal_component ?? 0) }}
+                                                        · {{ __('Interest') }} {{ \Auth::user()->priceFormat($emploanss->interest_component ?? 0) }}</small>
+                                                    @endif
+                                                </td>
                                                 <td>{{ ucfirst($emploanss->type) }}</td>
                                                 @if ($emploanss->type != 'percentage')
                                                     <td class="text-end">

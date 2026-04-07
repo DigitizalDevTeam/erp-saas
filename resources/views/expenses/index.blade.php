@@ -29,6 +29,7 @@
                                     <th>{{ __('Name') }}</th>
                                     <th>{{ __('Date') }}</th>
                                     <th>{{ __('Category') }}</th>
+                                    <th>{{ __('Expense account (GL)') }}</th>
                                     <th>{{ __('Branch') }}</th>
                                     <th>{{ __('Amount') }}</th>
                                     <th>{{ __('Status') }}</th>
@@ -38,11 +39,22 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                @php
+                                    $ulane = auth()->user()->lang ?? 'en';
+                                    $name_column = match ($ulane) {
+                                        'fr' => 'name_fr',
+                                        'zh' => 'name_zh',
+                                        'es' => 'name_es',
+                                        'pt_br', 'pt-br' => 'name_pt_br',
+                                        default => 'name',
+                                    };
+                                @endphp
                                 @foreach ($expenses as $expense)
                                     <tr>
                                         <td>{{ $expense->name }}</td>
                                         <td>{{ $expense->date ? $expense->date->format('d M Y') : '-' }}</td>
                                         <td>{{ $expense->expenseCategory ? $expense->expenseCategory->name : '-' }}</td>
+                                        <td>{{ $expense->chartAccount ? $expense->chartAccount->code . ' — ' . $expense->chartAccount->$name_column : '—' }}</td>
                                         <td>{{ $expense->branch ? $expense->branch->name : '-' }}</td>
                                         <td>{{ \Auth::user()->priceFormat($expense->amount) }}</td>
                                         <td>

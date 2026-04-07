@@ -12,10 +12,54 @@
             {{$productService->sku}}
 
         </div>
-        <div class="form-group col-md-6">
-            {{ Form::label('quantity', __('Quantity'),['class'=>'form-label']) }}<x-required></x-required>
-            {{ Form::number('quantity',"", array('class' => 'form-control','required'=>'required', 'placeholder' => __('Enter Quantity'))) }}
+        @php
+            $utLabel = match ($productService->unit_type ?? 'unit') {
+                'kg' => __('Kilogram (kg)'),
+                'cbm' => __('Cubic meter (CBM)'),
+                'sm' => __('Square meter (SQM)'),
+                'volume' => __('Volumetric weight'),
+                default => __('Piece / unit'),
+            };
+        @endphp
+        <div class="form-group col-md-12">
+            <span class="text-muted">{{ __('Stock is counted in:') }}</span> <strong>{{ $utLabel }}</strong>
+            @if($productService->unit && $productService->unit->name)
+                <span class="text-muted">({{ $productService->unit->name }})</span>
+            @endif
         </div>
+        @if($productService->variants_enabled && $productService->variants->count() > 0)
+            <div class="col-md-12">
+                <h6>{{ __('Stock by Variant') }}</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>{{ __('Variant') }}</th>
+                                <th class="text-end">{{ __('Current Stock') }}</th>
+                                <th class="text-end">{{ __('Add') }} ({{ $utLabel }})</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($productService->variants as $variant)
+                                <tr>
+                                    <td>{{ $variant->displayLabel($productService) }}</td>
+                                    <td class="text-end">{{ $productService->variantStockInWarehouse($singleWarehouseId ?? null, $variant->id) }}</td>
+                                    <td class="text-end">
+                                        <input type="number" name="variant_quantities[{{ $variant->id }}]" class="form-control" min="0" step="0.01" placeholder="0">
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                <small class="text-muted">{{ __('Enter quantities to add to stock for each variant.') }}</small>
+            </div>
+        @else
+            <div class="form-group col-md-6">
+                {{ Form::label('quantity', __('Quantity'),['class'=>'form-label']) }}<x-required></x-required>
+                {{ Form::number('quantity',"", array('class' => 'form-control','required'=>'required', 'placeholder' => __('Enter Quantity'))) }}
+            </div>
+        @endif
         @if(isset($singleWarehouseId) && $singleWarehouseId)
             <div class="form-group col-md-12">
                 {{ Form::label('warehouse_id', __('Warehouse'),['class'=>'form-label']) }}

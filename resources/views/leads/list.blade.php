@@ -36,6 +36,12 @@
 @endsection
 
 @section('content')
+    @php
+        $leadListAvatarBase = \App\Models\Utility::get_file('uploads/avatar/');
+        if (empty($leadListAvatarBase)) {
+            $leadListAvatarBase = asset(\Storage::url('uploads/avatar/'));
+        }
+    @endphp
     @if($pipeline)
         <div class="row">
             <div class="col-xl-12">
@@ -62,7 +68,7 @@
                                             <td>
                                                 @foreach($lead->users as $user)
                                                     <a href="#" class="btn btn-sm mr-1 p-0 rounded-circle">
-                                                        <img alt="image" data-toggle="tooltip" data-original-title="{{$user->name}}" @if($user->avatar) src="{{asset('/storage/uploads/avatar/'.$user->avatar)}}" @else src="{{asset('/storage/uploads/avatar/avatar.png')}}" @endif class="rounded-circle " width="25" height="25">
+                                                        <img alt="{{ $user->name }}" data-bs-toggle="tooltip" title="{{ $user->name }}" src="{{ !empty($user->avatar) ? $leadListAvatarBase . $user->avatar : $leadListAvatarBase . 'avatar.png' }}" class="rounded-circle" width="25" height="25" style="object-fit:cover;">
                                                     </a>
                                                 @endforeach
                                             </td>

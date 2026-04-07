@@ -537,6 +537,8 @@ Route::group(['middleware' => ['verified']], function () {
 
     Route::any('edit-profile', [UserController::class, 'editprofile'])->name('update.account')->middleware(['auth', 'XSS', 'revalidate']);
 
+    Route::post('user/branch-context', [UserController::class, 'setBranchContext'])->name('user.branch-context')->middleware(['auth', 'XSS', 'revalidate']);
+
     Route::resource('users', UserController::class)->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::post('change-password', [UserController::class, 'updatePassword'])->name('update.password');
@@ -631,6 +633,7 @@ Route::group(['middleware' => ['verified']], function () {
         }
     );
 
+    Route::get('productservice/{productservice}/variants-json', [ProductServiceController::class, 'variantsJson'])->name('productservice.variants-json')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('productservice/{id}/detail', [ProductServiceController::class, 'warehouseDetail'])->name('productservice.detail');
     Route::post('productservice/{id}/kit-items', [ProductServiceController::class, 'kitItemStore'])->name('productservice.kit-items.store')->middleware(['auth', 'XSS']);
     Route::delete('productservice/{id}/kit-items/{kit_item}', [ProductServiceController::class, 'kitItemDestroy'])->name('productservice.kit-items.destroy')->middleware(['auth', 'XSS']);
@@ -1939,6 +1942,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos-shift/{pos_shift}/close', [PosShiftController::class, 'closeForm'])->name('pos-shift.close-form')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/{pos_shift}/close', [PosShiftController::class, 'close'])->name('pos-shift.close')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/{pos_shift}/cash-drop', [PosShiftController::class, 'storeCashDrop'])->name('pos-shift.cash-drop')->middleware(['auth', 'XSS']);
+    Route::post('pos-shift/{pos_shift}/cash-in', [PosShiftController::class, 'storeCashIn'])->name('pos-shift.cash-in')->middleware(['auth', 'XSS']);
+    Route::post('pos-shift/{pos_shift}/cash-out-expense', [PosShiftController::class, 'storeCashOutExpense'])->name('pos-shift.cash-out-expense')->middleware(['auth', 'XSS']);
     Route::get('pos-shift/{pos_shift}/assign-table', [PosShiftController::class, 'assignTableForm'])->name('pos-shift.assign-table')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/{pos_shift}/assign-table', [PosShiftController::class, 'assignTable'])->name('pos-shift.assign-table.store')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/transfer-tables', [PosShiftController::class, 'transferTables'])->name('pos-shift.transfer-tables')->middleware(['auth', 'XSS']);

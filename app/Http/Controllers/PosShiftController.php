@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Pos;
 use App\Models\PosArea;
 use App\Models\PosAuditLog;
+use App\Models\PosCashIn;
 use App\Models\PosCashDrop;
 use App\Models\PosPayment;
 use App\Services\PosAuditLogService;
@@ -14,6 +15,10 @@ use App\Models\PosTable;
 use App\Models\PosTableAssignment;
 use App\Models\User;
 use Illuminate\Http\Request;
+use App\Models\Expense;
+use App\Models\BankAccount;
+use App\Models\Utility;
+use Illuminate\Support\Facades\DB;
 
 class PosShiftController extends Controller
 {
@@ -41,8 +46,8 @@ class PosShiftController extends Controller
             return response()->json(['error' => __('Invalid branch.')], 422);
         }
         $actingUser = \App\Models\User::find($userId);
-        if ($actingUser && $actingUser->pos_branch_id && (int) $actingUser->pos_branch_id !== (int) $branchId) {
-            return response()->json(['error' => __('You can only open a shift for your assigned branch.')], 422);
+        if ($actingUser && ! $actingUser->canAccessBranchForPos((int) $branchId, $branch->isRestaurant() ? 'restaurant' : 'retail')) {
+            return response()->json(['error' => __('You can only open a shift for an allowed branch.')], 422);
         }
         $today = date('Y-m-d');
         $dayClosed = \App\Models\PosDayClosed::where('closed_date', $today)->where('created_by', $creatorId)->first();
@@ -108,8 +113,9 @@ class PosShiftController extends Controller
                 return redirect()->back()->with('error', $validator->getMessageBag()->first());
             }
             $assignee = \App\Models\User::find($request->user_id);
-            if ($assignee && $assignee->pos_branch_id && (int) $assignee->pos_branch_id !== (int) $request->branch_id) {
-                return redirect()->back()->with('error', __('This user is assigned to another branch. You can only create a shift for their assigned branch.'));
+            $shiftBranch = Branch::where('id', $request->branch_id)->where('created_by', \Auth::user()->creatorId())->first();
+            if ($assignee && $shiftBranch && ! $assignee->canAccessBranchForPos((int) $request->branch_id, $shiftBranch->isRestaurant() ? 'restaurant' : 'retail')) {
+                return redirect()->back()->with('error', __('This user cannot open a shift for this branch.'));
             }
             $openShift = PosShift::where('branch_id', $request->branch_id)
                 ->where('user_id', $request->user_id)
@@ -134,7 +140,7 @@ class PosShiftController extends Controller
     public function show(PosShift $pos_shift)
     {
         if (\Auth::user()->canManagePos() && $pos_shift->created_by == \Auth::user()->creatorId()) {
-            $pos_shift->load(['branch', 'user', 'tableAssignments.table', 'tableAssignments.user', 'cashDrops.user']);
+        $pos_shift->load(['branch', 'user', 'tableAssignments.table', 'tableAssignments.user', 'cashDrops.user', 'cashIns.user']);
             return view('pos_shift.show', compact('pos_shift'));
         }
         return redirect()->back()->with('error', __('Permission denied.'));
@@ -170,6 +176,175 @@ class PosShiftController extends Controller
     }
 
     /**
+     * Cash In (top-up) during an open shift.
+     * Optionally posts accounting transfer between bank accounts if accounts provided.
+     */
+    public function storeCashIn(Request $request, PosShift $pos_shift)
+    {
+        if (!\Auth::user()->canManagePos() || $pos_shift->created_by != \Auth::user()->creatorId() || $pos_shift->status !== PosShift::STATUS_OPEN) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => __('Permission denied.')], 403);
+            }
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'reason' => 'nullable|string|max:255',
+            'source_account_id' => 'nullable|integer|min:0',
+            'target_account_id' => 'nullable|integer|min:0',
+        ]);
+
+        $creatorId = \Auth::user()->creatorId();
+        $amount = (float) $request->amount;
+        $sourceId = (int) ($request->source_account_id ?? 0);
+        $targetId = (int) ($request->target_account_id ?? 0);
+
+        try {
+            DB::transaction(function () use ($pos_shift, $creatorId, $amount, $sourceId, $targetId, $request) {
+                $cashIn = new PosCashIn();
+                $cashIn->shift_id = $pos_shift->id;
+                $cashIn->amount = $amount;
+                $cashIn->reason = $request->reason ? trim($request->reason) : null;
+                $cashIn->source_account_id = $sourceId;
+                $cashIn->target_account_id = $targetId;
+                $cashIn->user_id = \Auth::id();
+                $cashIn->created_by = $creatorId;
+                $cashIn->save();
+
+                // If both accounts are set and valid, post as internal transfer (Debit target, Credit source).
+                if ($sourceId > 0 && $targetId > 0 && $sourceId !== $targetId) {
+                    $source = BankAccount::where('id', $sourceId)->where('created_by', $creatorId)->first();
+                    $target = BankAccount::where('id', $targetId)->where('created_by', $creatorId)->first();
+                    if ($source && $target && !empty($source->chart_account_id) && !empty($target->chart_account_id)) {
+                        $date = date('Y-m-d');
+                        Utility::addTransactionLines([
+                            'account_id' => (int) $target->chart_account_id,
+                            'transaction_type' => 'Debit',
+                            'transaction_amount' => $amount,
+                            'reference' => 'POS Cash In',
+                            'reference_id' => $cashIn->id,
+                            'reference_sub_id' => 1,
+                            'date' => $date,
+                        ], 'create');
+                        Utility::addTransactionLines([
+                            'account_id' => (int) $source->chart_account_id,
+                            'transaction_type' => 'Credit',
+                            'transaction_amount' => $amount,
+                            'reference' => 'POS Cash In',
+                            'reference_id' => $cashIn->id,
+                            'reference_sub_id' => 2,
+                            'date' => $date,
+                        ], 'create');
+
+                        // Update bank account balances (system convention).
+                        Utility::bankAccountBalance($target->id, $amount, 'credit');
+                        Utility::bankAccountBalance($source->id, $amount, 'debit');
+                    }
+                }
+
+                PosAuditLogService::log(PosAuditLog::ACTION_CASH_IN, 'pos_cash_in', (int) $cashIn->id, __('Cash in'), [
+                    'shift_id' => $pos_shift->id,
+                    'amount' => $amount,
+                    'source_account_id' => $sourceId,
+                    'target_account_id' => $targetId,
+                    'reason' => $cashIn->reason,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => __('Could not record cash in.')], 500);
+            }
+            return redirect()->back()->with('error', __('Could not record cash in.'));
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'message' => __('Cash in recorded.')]);
+        }
+        return redirect()->route('pos-shift.show', $pos_shift)->with('success', __('Cash in recorded.'));
+    }
+
+    /**
+     * Cash Out: create an approved expense paid from a cash/bank account, linked to the shift.
+     * Requires expense approval permission (authorization at the moment of payout).
+     */
+    public function storeCashOutExpense(Request $request, PosShift $pos_shift)
+    {
+        if (!\Auth::user()->can('approve expense') || !$pos_shift || $pos_shift->created_by != \Auth::user()->creatorId() || $pos_shift->status !== PosShift::STATUS_OPEN) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'amount' => 'required|numeric|min:0.01',
+            'expense_category_id' => 'required|exists:expense_categories,id',
+            'chart_account_id' => 'required|exists:chart_of_accounts,id',
+            'payment_account_id' => 'required|exists:bank_accounts,id',
+            'description' => 'nullable|string|max:1000',
+        ]);
+
+        $creatorId = \Auth::user()->creatorId();
+        $bank = BankAccount::where('id', (int) $request->payment_account_id)->where('created_by', $creatorId)->first();
+        if (!$bank || empty($bank->chart_account_id)) {
+            return redirect()->back()->with('error', __('Invalid payment account.'));
+        }
+
+        try {
+            DB::transaction(function () use ($request, $pos_shift, $creatorId) {
+                $expense = new Expense();
+                $expense->name = $request->name;
+                $expense->date = date('Y-m-d');
+                $expense->description = $request->description ? trim($request->description) : null;
+                $expense->amount = (float) $request->amount;
+                $expense->expense_category_id = (int) $request->expense_category_id;
+                $expense->branch_id = (int) ($pos_shift->branch_id ?? 0);
+                $expense->pos_shift_id = (int) $pos_shift->id;
+                $expense->payment_account_id = (int) $request->payment_account_id;
+                $expense->chart_account_id = (int) $request->chart_account_id;
+                $expense->status = Expense::STATUS_APPROVED;
+                $expense->user_id = \Auth::id();
+                $expense->created_by = $creatorId;
+                $expense->save();
+
+                // Post accounting using the same conventions as ExpenseRecordController.
+                $date = date('Y-m-d');
+                $amount = (float) $expense->amount;
+                Utility::addTransactionLines([
+                    'account_id' => (int) $expense->chart_account_id,
+                    'transaction_type' => 'Debit',
+                    'transaction_amount' => $amount,
+                    'reference' => 'Expense Record',
+                    'reference_id' => $expense->id,
+                    'reference_sub_id' => 1,
+                    'date' => $date,
+                ], 'create');
+                Utility::addTransactionLines([
+                    'account_id' => (int) $bank->chart_account_id,
+                    'transaction_type' => 'Debit',
+                    'transaction_amount' => $amount,
+                    'reference' => 'Expense Record Payment',
+                    'reference_id' => $expense->id,
+                    'reference_sub_id' => 1,
+                    'date' => $date,
+                ], 'create');
+                Utility::bankAccountBalance($bank->id, $amount, 'debit');
+
+                PosAuditLogService::log(PosAuditLog::ACTION_CASH_OUT_EXPENSE, 'expense', (int) $expense->id, __('Cash out (expense)'), [
+                    'shift_id' => $pos_shift->id,
+                    'amount' => $amount,
+                    'payment_account_id' => (int) $expense->payment_account_id,
+                    'chart_account_id' => (int) $expense->chart_account_id,
+                    'expense_category_id' => (int) $expense->expense_category_id,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Could not record cash out expense.'));
+        }
+
+        return redirect()->route('pos-shift.show', $pos_shift)->with('success', __('Cash out expense recorded.'));
+    }
+
+    /**
      * Proper shift report: sales list, payment summary, cash drops, opening/closing balance. Printable.
      */
     public function shiftReport(PosShift $pos_shift)
@@ -177,7 +352,7 @@ class PosShiftController extends Controller
         if (!\Auth::user()->canManagePos() || $pos_shift->created_by != \Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
-        $pos_shift->load(['branch', 'user', 'cashDrops.user']);
+        $pos_shift->load(['branch', 'user', 'cashDrops.user', 'cashIns.user']);
         $posIds = \App\Models\Pos::where('shift_id', $pos_shift->id)->pluck('id');
         $sales = \App\Models\Pos::where('shift_id', $pos_shift->id)->with(['items', 'posPayments'])->orderBy('pos_id')->get();
         $paymentsByMethod = \App\Models\PosPayment::whereIn('pos_id', $posIds)->selectRaw('payment_method, sum(amount) as total, count(*) as cnt')->groupBy('payment_method')->get()->keyBy('payment_method');
@@ -190,19 +365,21 @@ class PosShiftController extends Controller
         $creditTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
         $salesTotal = $sales->sum(fn ($p) => $p->getTotal());
         $cashDropsTotal = (float) PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');
-        $expectedCash = (float) ($pos_shift->opening_balance ?? 0) + $cashTotal - $cashDropsTotal;
+        $cashInsTotal = (float) PosCashIn::where('shift_id', $pos_shift->id)->sum('amount');
+        $cashOutExpensesTotal = (float) Expense::where('pos_shift_id', $pos_shift->id)->where('created_by', \Auth::user()->creatorId())->where('status', Expense::STATUS_APPROVED)->sum('amount');
+        $expectedCash = (float) ($pos_shift->opening_balance ?? 0) + $cashTotal + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
         $voidedLines = \App\Models\PosProduct::whereIn('pos_id', $posIds)
             ->whereNotNull('voided_at')
             ->with(['product', 'pos', 'voidedByUser'])
             ->orderBy('voided_at')
             ->get();
-        return view('pos_shift.report', compact('pos_shift', 'sales', 'paymentsByMethod', 'cashTotal', 'cardTotal', 'creditTotal', 'salesTotal', 'cashDropsTotal', 'voidedLines', 'balanceCash', 'expectedCash'));
+        return view('pos_shift.report', compact('pos_shift', 'sales', 'paymentsByMethod', 'cashTotal', 'cardTotal', 'creditTotal', 'salesTotal', 'cashDropsTotal', 'cashInsTotal', 'cashOutExpensesTotal', 'voidedLines', 'balanceCash', 'expectedCash'));
     }
 
     public function closeForm(PosShift $pos_shift)
     {
         if (\Auth::user()->canManagePos() && $pos_shift->created_by == \Auth::user()->creatorId() && $pos_shift->status === PosShift::STATUS_OPEN) {
-            $pos_shift->load('cashDrops');
+            $pos_shift->load(['cashDrops', 'cashIns']);
             return view('pos_shift.close', compact('pos_shift'));
         }
         return redirect()->back()->with('error', __('Permission denied.'));
@@ -229,8 +406,10 @@ class PosShiftController extends Controller
             $cardTotal = (float) PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', [\App\Models\PosPayment::METHOD_CARD, \App\Models\PosPayment::METHOD_MPESA, \App\Models\PosPayment::METHOD_BANK_TRANSFER, 'visa', 'cheque'])->sum('amount');
             $creditTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
             $cashDropsTotal = (float) PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');
+            $cashInsTotal = (float) PosCashIn::where('shift_id', $pos_shift->id)->sum('amount');
+            $cashOutExpensesTotal = (float) Expense::where('pos_shift_id', $pos_shift->id)->where('created_by', \Auth::user()->creatorId())->where('status', Expense::STATUS_APPROVED)->sum('amount');
             $closingBalance = (float) $request->closing_balance;
-            $expectedCash = $pos_shift->opening_balance + $cashTotal - $cashDropsTotal;
+            $expectedCash = $pos_shift->opening_balance + $cashTotal + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
             $difference = $closingBalance - $expectedCash;
 
             $pos_shift->closed_at = now();

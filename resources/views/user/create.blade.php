@@ -96,6 +96,22 @@
                     <small class="invalid-feedback d-block"><strong class="text-danger">{{ $message }}</strong></small>
                 @enderror
             </div>
+            @if(!empty($tenantBranches) && $tenantBranches->count())
+            <div class="form-group col-12">
+                <label class="form-label">{{ __('Allowed branches') }}</label>
+                <small class="text-muted d-block mb-2">{{ __('Leave all unchecked to allow every branch. Select branches to restrict this user to those locations.') }}</small>
+                <div class="row">
+                    @foreach($tenantBranches as $tb)
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="branch_ids[]" value="{{ $tb->id }}" id="cb-branch-create-{{ $tb->id }}">
+                            <label class="form-check-label" for="cb-branch-create-{{ $tb->id }}">{{ $tb->name }}</label>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
             <div class="col-md-5 mb-3 form-group mt-4">
                 <label for="password_switch">{{ __('Login is enable') }}</label>
                 <div class="form-check form-switch custom-switch-v1 float-end">

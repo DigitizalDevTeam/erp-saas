@@ -266,7 +266,8 @@
                                             <th>{{__('employee')}}</th>
                                             <th>{{__('Loan Options')}}</th>
                                             <th>{{__('Title')}}</th>
-                                            <th>{{__('Loan Amount')}}</th>
+                                            <th>{{__('Monthly / EMI')}}</th>
+                                            <th>{{__('Outstanding')}}</th>
                                             <th>{{__('Start Date')}}</th>
                                             <th>{{__('End Date')}}</th>
                                             <th width="200px">{{__('Action')}}</th>
@@ -279,6 +280,13 @@
                                                 <td>{{ $loan->loan_option()->name }}</td>
                                                 <td>{{ $loan->title }}</td>
                                                 <td>{{  \Auth::user()->priceFormat($loan->amount) }}</td>
+                                                <td>
+                                                    @if($loan->isInstallment())
+                                                        {{ \Auth::user()->priceFormat($loan->outstanding_principal ?? 0) }}
+                                                    @else
+                                                        —
+                                                    @endif
+                                                </td>
                                                 <td>{{  \Auth::user()->dateFormat($loan->start_date) }}</td>
                                                 <td>{{ \Auth::user()->dateFormat( $loan->end_date) }}</td>
 

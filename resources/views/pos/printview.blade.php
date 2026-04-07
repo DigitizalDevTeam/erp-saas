@@ -23,7 +23,7 @@
     $qrCodeContent = $receiptLinkUrl ?: (isset($details['pos_id']) ? (($settings['company_name'] ?? config('app.name')) . ' - ' . $details['pos_id'] . ' - ' . ($details['date'] ?? date('Y-m-d'))) : url('/'));
     $receiptUser = $receiptUser ?? null;
     $priceUser = $receiptUser ?? Auth::user();
-    $printLayout = $settings['pos_print_layout'] ?? 'receipt';
+    $printLayout = \App\Models\Utility::normalizePosPrintLayout($settings['pos_print_layout'] ?? 'receipt');
     $directPrint = (isset($settings['pos_direct_print']) && $settings['pos_direct_print'] === 'on');
 @endphp
 <style id="pos-receipt-styles">
@@ -46,53 +46,64 @@
     .vat-summary-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
     .vat-summary-wrap table { min-width: 420px; width: 100%; table-layout: fixed; }
     .vat-summary-wrap th, .vat-summary-wrap td { padding: 6px 8px !important; white-space: nowrap; box-sizing: border-box; }
+    .pos-print-layout-slip #printarea { max-width: 80mm; margin-left: auto; margin-right: auto; font-size: 0.875rem; }
     .pos-print-layout-slip .pos-print-header .logo-box { max-width: 80px; height: 45px; }
-    .pos-print-layout-slip .pos-print-header, .pos-print-layout-slip .pos-print-header * { font-size: 0.75rem; }
-    .pos-print-layout-slip #printarea { font-size: 0.8rem; }
-    .pos-print-layout-a5 #printarea { max-width: 148mm; }
+    .pos-print-layout-slip .pos-print-header, .pos-print-layout-slip .pos-print-header * { font-size: 0.8rem; }
+    .pos-print-layout-a5 #printarea { max-width: 148mm; margin-left: auto; margin-right: auto; }
+    .pos-print-layout-a4 #printarea { max-width: 210mm; margin-left: auto; margin-right: auto; }
+    .pos-print-layout-receipt #printarea { max-width: 210mm; margin-left: auto; margin-right: auto; }
     @media print {
-        @page { size: auto; margin: 10mm; }
-        body *{
-            visibility:hidden;
+        body * { visibility: hidden; }
+        #printarea, #printarea * { visibility: visible; }
+        #printarea {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
         }
-
-        #printarea,
-        #printarea *{
-            visibility:visible;
+        @page pos-slip { size: 80mm auto; margin: 4mm; }
+        @page pos-a5 { size: A5 portrait; margin: 12mm; }
+        @page pos-a4 { size: A4 portrait; margin: 12mm; }
+        @page pos-receipt { margin: 10mm; }
+        #printarea.pos-print-layout-slip {
+            page: pos-slip;
+            width: 72mm !important;
+            max-width: 72mm !important;
+            margin: 0 auto !important;
+            font-size: 10px !important;
         }
-
-        #printarea{
-            position:absolute;
-            left:0;
-            top:0;
-            width:100%;
+        #printarea.pos-print-layout-a5 {
+            page: pos-a5;
+            width: 100% !important;
+            max-width: 148mm !important;
+            margin: 0 auto !important;
         }
-        #printarea.pos-print-layout-slip { width: 80mm !important; max-width: 80mm !important; margin: 0 auto !important; font-size: 10px !important; }
+        #printarea.pos-print-layout-a4 {
+            page: pos-a4;
+            width: 100% !important;
+            max-width: 210mm !important;
+            margin: 0 auto !important;
+        }
+        #printarea.pos-print-layout-receipt {
+            page: pos-receipt;
+            width: 100% !important;
+            max-width: 210mm !important;
+            margin: 0 auto !important;
+        }
         .pos-print-layout-slip .pos-print-header .logo-box { max-width: 60px !important; height: 36px !important; }
         .pos-print-layout-slip .pos-print-header, .pos-print-layout-slip .pos-print-header * { font-size: 9px !important; }
-        @page pos-a5 { size: A5; margin: 12mm; }
-        body.pos-print-layout-a5 #printarea { width: 100% !important; max-width: 100% !important; }
-        #printarea.pos-print-layout-a5 { page: pos-a5; }
-
-        .receipt-copy{
-            page-break-after:always;
-            height: 100%;
-        }
-
-        .receipt-copy:last-child{
-            page-break-after:auto;
-        }
+        .receipt-copy { page-break-after: always; height: 100%; }
+        .receipt-copy:last-child { page-break-after: auto; }
         .segunda-via-watermark { opacity: 0.15; font-size: 3.5rem; }
         .no-print-copies { display: none !important; }
         .vat-summary-wrap { overflow: visible !important; max-width: 100%; page-break-inside: avoid; }
         .vat-summary-wrap table { width: 100% !important; font-size: 0.7rem; }
         .vat-summary-wrap th { white-space: normal !important; word-break: break-word; line-height: 1.2; }
         .vat-summary-wrap th, .vat-summary-wrap td { padding: 4px 6px !important; }
-        /* Ensure QR code prints (visible in print preview and on paper) */
         .view-qrcode-receipt, .view-qrcode-receipt * { visibility: visible !important; }
         .view-qrcode-receipt { display: block !important; overflow: visible !important; min-width: 90px; min-height: 90px; }
         .view-qrcode-receipt img { display: block !important; visibility: visible !important; max-width: 100px !important; object-fit: contain; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .view-qrcode-receipt svg { display: block !important; visibility: visible !important;}
+        .view-qrcode-receipt svg { display: block !important; visibility: visible !important; }
         .view-qrcode-receipt-svg svg { visibility: visible !important; }
         .view-qrcode-box { overflow: visible !important; }
     }
@@ -114,7 +125,7 @@
     <link rel="stylesheet" href="{{ asset('css/custom.css') }}">
     <script src="{{ asset('js/jquery.min.js') }}"></script>
 </head>
-<body style="padding:1rem; background:#f5f5f5;">
+<body class="pos-print-standalone pos-print-layout-{{ $printLayout }}" style="padding:1rem; background:#f5f5f5;">
 @endif
 <div class="pt-0 pb-3 {{ $standalone ? 'bg-white rounded p-3' : 'modal-body' }} pos-module position-relative pos-print-layout-{{ $printLayout }}" id="printarea" {{ $standalone ? 'style="box-shadow:0 1px 3px rgba(0,0,0,.1);"' : '' }}>
     <div class="receipt-copy-wrapper receipt-copy">
@@ -457,18 +468,19 @@ var posDirectPrint = {{ $directPrint ? 'true' : 'false' }};
         doc += '<link rel="stylesheet" href="{{ asset("assets/css/plugins/style.css") }}">';
         doc += '<link rel="stylesheet" href="{{ asset("assets/css/style.css") }}">';
         doc += '<link rel="stylesheet" href="{{ asset("css/custom.css") }}">';
+        var layout = (typeof posPrintLayout !== 'undefined' ? posPrintLayout : 'receipt');
         doc += '<style>';
         doc += 'body{background:#fff;margin:0;padding:15px;font-family:Arial,sans-serif;box-sizing:border-box}';
         doc += '.print-center-wrap{width:100%;display:flex;justify-content:center;align-items:flex-start;min-height:100vh}';
-        doc += '#printarea{width:400px;max-width:100%;flex-shrink:0}';
+        if (layout === 'slip') {
+            doc += '#printarea{width:80mm;max-width:100%;flex-shrink:0}';
+        } else if (layout === 'a5') {
+            doc += '#printarea{width:100%;max-width:148mm;flex-shrink:0}';
+        } else {
+            doc += '#printarea{width:100%;max-width:210mm;flex-shrink:0}';
+        }
         doc += receiptStyles;
-        doc += ' @media print{';
-        doc += 'body{background:#fff !important;margin:0 !important;padding:0 !important}';
-        doc += '.print-center-wrap{width:100% !important;display:flex !important;justify-content:center !important;align-items:flex-start !important;margin:0 !important;padding:0 !important;min-height:100vh}';
-        doc += '#printarea{position:static !important;left:auto !important;width:400px !important;max-width:85% !important;margin:0 auto !important}';
-        doc += '.receipt-copy{page-break-after:always}';
-        doc += '.receipt-copy:last-child{page-break-after:auto}';
-        doc += '}</style></head><body class="pos-print-layout-' + (typeof posPrintLayout !== 'undefined' ? posPrintLayout : 'receipt') + '"><div class="print-center-wrap"><div id="printarea" class="pt-0 pb-3 pos-module pos-print-layout-' + (typeof posPrintLayout !== 'undefined' ? posPrintLayout : 'receipt') + '">' + html + '</div></div></body></html>';
+        doc += '</style></head><body class="pos-print-standalone pos-print-layout-' + layout + '"><div class="print-center-wrap"><div id="printarea" class="pt-0 pb-3 pos-module pos-print-layout-' + layout + '">' + html + '</div></div></body></html>';
         printWin.document.write(doc);
         printWin.document.close();
         printWin.focus();

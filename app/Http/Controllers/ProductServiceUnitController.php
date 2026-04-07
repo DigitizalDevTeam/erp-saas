@@ -53,6 +53,10 @@ class ProductServiceUnitController extends Controller
 
             $category             = new ProductServiceUnit();
             $category->name       = $request->name;
+            $category->dimension_mode = $request->input('dimension_mode') ?: null;
+            $category->length_unit = $request->input('length_unit') ?: null;
+            $div = $request->filled('volumetric_divisor') ? (int) $request->volumetric_divisor : null;
+            $category->volumetric_divisor = ($div && $div > 0) ? $div : null;
             $category->created_by = \Auth::user()->creatorId();
             $category->save();
 
@@ -100,6 +104,10 @@ class ProductServiceUnitController extends Controller
                 }
 
                 $unit->name = $request->name;
+                $unit->dimension_mode = $request->input('dimension_mode') ?: null;
+                $unit->length_unit = $request->input('length_unit') ?: null;
+                $div = $request->filled('volumetric_divisor') ? (int) $request->volumetric_divisor : null;
+                $unit->volumetric_divisor = ($div && $div > 0) ? $div : null;
                 $unit->save();
 
                 return redirect()->route('product-unit.index')->with('success', __('Unit successfully updated.'));

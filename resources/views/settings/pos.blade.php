@@ -250,31 +250,38 @@
                                         <form id="setting-form" method="post"
                                             action="{{ route('pos.template.setting') }}" enctype="multipart/form-data">
                                             @csrf
+                                            <hr class="my-3">
+                                            <h6 class="fw-semibold mb-2">{{ __('Receipt printer & paper') }}</h6>
+                                            <p class="small text-muted mb-3">{{ __('Choose the paper size that matches your physical receipt printer. The receipt HTML uses fixed page sizes (A4 / A5 / 80mm) so you only set your OS or Chrome default printer once to the same paper—customers should not need to change margins or scale each time.') }}</p>
                                             <div class="form-group mb-3">
-                                                <label for="pos_print_layout" class="form-label fw-semibold">{{ __('POS Print Layout') }}</label>
+                                                <label for="pos_print_layout" class="form-label fw-semibold">{{ __('Receipt paper / layout') }}</label>
                                                 <select class="form-control" name="pos_print_layout" id="pos_print_layout">
-                                                    <option value="slip" {{ (isset($settings['pos_print_layout']) && $settings['pos_print_layout'] == 'slip') ? 'selected' : '' }}>{{ __('Slip (80mm thermal)') }}</option>
-                                                    <option value="a5" {{ (isset($settings['pos_print_layout']) && $settings['pos_print_layout'] == 'a5') ? 'selected' : '' }}>{{ __('A5') }}</option>
-                                                    <option value="receipt" {{ (isset($settings['pos_print_layout']) && $settings['pos_print_layout'] == 'receipt') || !isset($settings['pos_print_layout']) ? 'selected' : '' }}>{{ __('Receipt (standard)') }}</option>
+                                                    @php
+                                                        $pl = \App\Models\Utility::normalizePosPrintLayout($settings['pos_print_layout'] ?? 'receipt');
+                                                    @endphp
+                                                    <option value="slip" {{ $pl === 'slip' ? 'selected' : '' }}>{{ __('Thermal roll 80 mm') }}</option>
+                                                    <option value="a5" {{ $pl === 'a5' ? 'selected' : '' }}>{{ __('A5 (148 × 210 mm)') }}</option>
+                                                    <option value="a4" {{ $pl === 'a4' ? 'selected' : '' }}>{{ __('A4 (210 × 297 mm)') }}</option>
+                                                    <option value="receipt" {{ $pl === 'receipt' ? 'selected' : '' }}>{{ __('Standard (flexible—use system default paper)') }}</option>
                                                 </select>
-                                                <small class="text-muted">{{ __('Paper size used when printing POS receipt. Set once here so each sale uses the same layout.') }}</small>
+                                                <small class="text-muted">{{ __('Thermal: narrow ticket. A5/A4: full page with fixed print margins. Standard: safest if the printer driver handles sizing.') }}</small>
                                             </div>
                                             <div class="form-group mb-3">
-                                                <label for="pos_receipt_printer" class="form-label fw-semibold">{{ __('Default receipt printer') }}</label>
+                                                <label for="pos_receipt_printer" class="form-label fw-semibold">{{ __('Print target') }}</label>
                                                 <select class="form-control" name="pos_receipt_printer" id="pos_receipt_printer">
-                                                    <option value="browser" {{ (isset($settings['pos_receipt_printer']) && $settings['pos_receipt_printer'] == 'browser') || !isset($settings['pos_receipt_printer']) ? 'selected' : '' }}>{{ __('Browser (choose in print dialog)') }}</option>
-                                                    <option value="default" {{ (isset($settings['pos_receipt_printer']) && $settings['pos_receipt_printer'] == 'default') ? 'selected' : '' }}>{{ __('System default printer') }}</option>
+                                                    <option value="browser" {{ (isset($settings['pos_receipt_printer']) && $settings['pos_receipt_printer'] == 'browser') || !isset($settings['pos_receipt_printer']) ? 'selected' : '' }}>{{ __('Browser dialog (pick printer each time)') }}</option>
+                                                    <option value="default" {{ (isset($settings['pos_receipt_printer']) && $settings['pos_receipt_printer'] == 'default') ? 'selected' : '' }}>{{ __('Use system default printer') }}</option>
                                                 </select>
-                                                <small class="text-muted">{{ __('Use “Browser” to pick the printer each time, or “System default” to use the device default. Layout above still applies.') }}</small>
+                                                <small class="text-muted">{{ __('For checkout PCs: set Windows/macOS default printer to your receipt printer and paper size once. Prefer “System default” together with Direct print below.') }}</small>
                                             </div>
                                             <div class="form-group mb-3">
                                                 <label class="form-label fw-semibold">{{ __('Direct print (no dialog)') }}</label>
                                                 <div class="form-check form-switch">
                                                     <input type="hidden" name="pos_direct_print" value="off">
                                                     <input class="form-check-input" type="checkbox" name="pos_direct_print" id="pos_direct_print" value="on" {{ (isset($settings['pos_direct_print']) && $settings['pos_direct_print'] == 'on') ? 'checked' : '' }}>
-                                                    <label class="form-check-label" for="pos_direct_print">{{ __('Print directly without opening print dialog') }}</label>
+                                                    <label class="form-check-label" for="pos_direct_print">{{ __('Send to default printer without opening the print dialog') }}</label>
                                                 </div>
-                                                <small class="text-muted">{{ __('Requires Chrome started with: --kiosk-printing. Then the receipt prints to the default printer without dialog.') }}</small>
+                                                <small class="text-muted">{{ __('Launch Chrome (or your POS browser) with --kiosk-printing and set the machine default printer and paper to match “Receipt paper / layout” above.') }}</small>
                                             </div>
                                             <hr class="my-3">
                                             <div class="form-group">

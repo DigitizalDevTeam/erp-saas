@@ -15,6 +15,7 @@ use App\Models\SaturationDeduction;
 use App\Models\Utility;
 use App\Models\Termination;
 use App\Models\User;
+use App\Services\EmployeeLoanScheduleService;
 use App\Services\PayrollTaxService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -131,7 +132,7 @@ class PaySlipController extends Controller
                 if (!$chek && $chek == null) {
                     $payslipEmployee                       = new PaySlip();
                     $payslipEmployee->employee_id          = $employee->id;
-                    $grossMonthly = (float) $employee->get_net_salary();
+                    $grossMonthly = (float) $employee->get_net_salary($formate_month_year);
 
                     $inss = PayrollTaxService::calculateInss($employee, $grossMonthly);
                     $irps = PayrollTaxService::calculateIrps($employee, $grossMonthly);
@@ -149,12 +150,14 @@ class PaySlipController extends Controller
                     $payslipEmployee->basic_salary         = !empty($employee->salary) ? $employee->salary : 0;
                     $payslipEmployee->allowance            = Employee::allowance($employee->id);
                     $payslipEmployee->commission           = Employee::commission($employee->id);
-                    $payslipEmployee->loan                 = Employee::loan($employee->id);
+                    $payslipEmployee->loan                 = Employee::loanJsonForPayslipMonth($employee->id, $formate_month_year, (float) $payslipEmployee->basic_salary);
                     $payslipEmployee->saturation_deduction = Employee::saturation_deduction($employee->id);
                     $payslipEmployee->other_payment        = Employee::other_payment($employee->id);
                     $payslipEmployee->overtime             = Employee::overtime($employee->id);
                     $payslipEmployee->created_by           = \Auth::user()->creatorId();
                     $payslipEmployee->save();
+                    EmployeeLoanScheduleService::recordRepaymentsForPayslip($payslipEmployee);
+
                     $createdCount++;
 
                     //For Notification
@@ -211,7 +214,10 @@ class PaySlipController extends Controller
     public function destroy($id)
     {
         $payslip = PaySlip::find($id);
-        $payslip->delete();
+        if ($payslip) {
+            EmployeeLoanScheduleService::reverseRepaymentsForPayslip($payslip);
+            $payslip->delete();
+        }
 
         return true;
     }
@@ -462,9 +468,14 @@ class PaySlipController extends Controller
             $loanIds = $request->loan_id;
             foreach($loans as $k => $loan)
             {
-                $loanData         = Loan::find($loanIds[$k]);
-                $loanData->amount = $loan;
-                $loanData->save();
+                $loanData = Loan::find($loanIds[$k]);
+                if ($loanData && $loanData->isInstallment()) {
+                    continue;
+                }
+                if ($loanData) {
+                    $loanData->amount = $loan;
+                    $loanData->save();
+                }
             }
         }
 
@@ -515,12 +526,13 @@ class PaySlipController extends Controller
         $payslipEmployee                       = PaySlip::find($request->payslip_id);
         $payslipEmployee->allowance            = Employee::allowance($payslipEmployee->employee_id);
         $payslipEmployee->commission           = Employee::commission($payslipEmployee->employee_id);
-        $payslipEmployee->loan                 = Employee::loan($payslipEmployee->employee_id);
+        $payslipEmployee->loan                 = Employee::loanJsonForPayslipMonth($payslipEmployee->employee_id, $payslipEmployee->salary_month, (float) $payslipEmployee->basic_salary);
         $payslipEmployee->saturation_deduction = Employee::saturation_deduction($payslipEmployee->employee_id);
         $payslipEmployee->other_payment        = Employee::other_payment($payslipEmployee->employee_id);
         $payslipEmployee->overtime             = Employee::overtime($payslipEmployee->employee_id);
-        $payslipEmployee->net_payble           = Employee::find($payslipEmployee->employee_id)->get_net_salary();
+        $payslipEmployee->net_payble           = Employee::find($payslipEmployee->employee_id)->get_net_salary($payslipEmployee->salary_month);
         $payslipEmployee->save();
+        EmployeeLoanScheduleService::ensureRepaymentsForPayslip($payslipEmployee);
 
         return redirect()->route('payslip.index')->with('success', __('Employee payroll successfully updated.'));
     }

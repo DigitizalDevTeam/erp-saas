@@ -195,8 +195,26 @@
 
                             }
 
-                            // Identifier tracking (Serial/MAC)
+                            // Variants
                             var $wrap = $(el).closest('[data-repeater-item]');
+                            var $variant = $wrap.find('.variant-select');
+                            $variant.empty();
+                            if (item.variants_enabled && item.variants && item.variants.length) {
+                                $variant.prop('disabled', false).prop('required', true);
+                                $variant.append($('<option/>').val('').text('{{ __("Select") }}'));
+                                item.variants.forEach(function (v) {
+                                    var txt = (v.label || '') + (v.purchase_price != null ? (' — ' + v.purchase_price) : '');
+                                    $variant.append($('<option/>').val(v.id).text(txt).attr('data-price', v.purchase_price != null ? v.purchase_price : ''));
+                                });
+                                if (purchaseItems && purchaseItems.product_variant_id) {
+                                    $variant.val(String(purchaseItems.product_variant_id));
+                                }
+                            } else {
+                                $variant.prop('disabled', true).prop('required', false);
+                                $variant.append($('<option/>').val('').text('{{ __("—") }}'));
+                            }
+
+                            // Identifier tracking (Serial/MAC)
                             var $idRow = $wrap.find('.identifier-row');
                             if (item.identifier_tracking) {
                                 $idRow.removeClass('d-none');
@@ -294,6 +312,15 @@
         }
         $(document).on('change', '.item', function () {
             changeItem($(this));
+        });
+
+        $(document).on('change', '.variant-select', function () {
+            var $wrap = $(this).closest('[data-repeater-item]');
+            var price = $(this).find('option:selected').attr('data-price');
+            if (price !== undefined && price !== '') {
+                $wrap.find('.price').val(price);
+                $wrap.find('.price').trigger('keyup');
+            }
         });
 
         $(document).on('keyup', '.quantity', function () {
@@ -570,6 +597,7 @@
                             <thead>
                             <tr>
                                 <th>{{__('Items')}}<x-required></x-required></th>
+                                <th>{{ __('Variant') }}</th>
                                 <th>{{__('Quantity')}}<x-required></x-required></th>
                                 <th>{{__('Price')}}<x-required></x-required></th>
                                 <th>{{__('Discount')}}<x-required></x-required></th>
@@ -586,6 +614,11 @@
                                     <div class="form-group">
                                         {{ Form::select('item', $product_services,null, array('class' => 'form-control select item','data-url'=>route('purchase.product'), 'required' => 'required')) }}
                                     </div>
+                                </td>
+                                <td width="20%" class="form-group pt-1">
+                                    <select name="product_variant_id" class="form-control select variant-select" disabled>
+                                        <option value="">{{ __('—') }}</option>
+                                    </select>
                                 </td>
                                 <td>
                                     <div class="form-group price-input input-group search-form">
