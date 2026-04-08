@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Allowance;
 use App\Models\AllowanceOption;
 use App\Models\Employee;
+use App\Support\PayrollChartAccountOptions;
 use Illuminate\Http\Request;
 
 class AllowanceController extends Controller
@@ -16,8 +17,9 @@ class AllowanceController extends Controller
         $allowance_options = AllowanceOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
         $employee          = Employee::find($id);
         $Allowancetypes = Allowance::$Allowancetype;
+        $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
 
-        return view('allowance.create', compact('employee', 'allowance_options','Allowancetypes'));
+        return view('allowance.create', compact('employee', 'allowance_options','Allowancetypes', 'chartAccounts'));
     }
 
     public function store(Request $request)
@@ -47,6 +49,7 @@ class AllowanceController extends Controller
             $allowance->title            = $request->title;
             $allowance->type             = $request->type;
             $allowance->amount           = $request->amount;
+            $allowance->chart_account_id = $request->chart_account_id;
             $allowance->created_by       = \Auth::user()->creatorId();
             $allowance->save();
 
@@ -72,7 +75,8 @@ class AllowanceController extends Controller
             {
                 $allowance_options = AllowanceOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $Allowancetypes =Allowance::$Allowancetype;
-                return view('allowance.edit', compact('allowance', 'allowance_options','Allowancetypes'));
+                $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
+                return view('allowance.edit', compact('allowance', 'allowance_options','Allowancetypes', 'chartAccounts'));
             }
             else
             {
@@ -110,6 +114,7 @@ class AllowanceController extends Controller
                 $allowance->title            = $request->title;
                 $allowance->type             = $request->type;
                 $allowance->amount           = $request->amount;
+                $allowance->chart_account_id = $request->chart_account_id;
                 $allowance->save();
 
                 return redirect()->back()->with('success', __('Allowance successfully updated.'));

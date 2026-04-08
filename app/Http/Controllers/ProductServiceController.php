@@ -779,7 +779,9 @@ class ProductServiceController extends Controller
                             ];
                         })->values()->all()));
                     }
-                    $output .= '<div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\'><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body mt-2 p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Add to Cart') . '</button></div></div></div></div></div>';
+                    $dimUnit = $product->dimension_unit ?: ($product->unit->length_unit ?? 'cm');
+                    $volDiv = $product->volumetric_divisor ?: ($product->unit->volumetric_divisor ?? '');
+                    $output .= '<div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\' data-unit-type="' . e($product->unit_type ?? '') . '" data-dimension-unit="' . e($dimUnit) . '" data-volumetric-divisor="' . e((string) $volDiv) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body mt-2 p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Add to Cart') . '</button></div></div></div></div></div>';
                 }
                 if ($cacheKey) {
                     Cache::put($cacheKey, $output, 90);
@@ -833,6 +835,10 @@ class ProductServiceController extends Controller
                 $variantId = null;
             }
             $cartLineKey = $variantId ? $id . '_v_' . $variantId : (string) $id;
+            $lineSuffix = trim((string) $request->get('line_suffix', ''));
+            if ($lineSuffix !== '') {
+                $cartLineKey .= '_m_' . preg_replace('/[^A-Za-z0-9_-]/', '', $lineSuffix);
+            }
 
             if ($product) {
                 if ($product->variants_enabled ?? false) {
@@ -901,6 +907,11 @@ class ProductServiceController extends Controller
             } else {
                 $productprice = $product->sale_price != 0 ? $product->sale_price : $product->purchase_price;
             }
+            $measurementJson = $request->get('measurement_json');
+            $measuredPrice = $request->get('measured_price');
+            if ($isPosSession && is_numeric($measuredPrice) && (float) $measuredPrice > 0) {
+                $productprice = (float) $measuredPrice;
+            }
 
             if ($variantId !== null && $product) {
                 $vrD = ProductVariant::where('id', $variantId)->where('product_service_id', $product->id)->first();
@@ -962,6 +973,7 @@ class ProductServiceController extends Controller
                 $cart = session()->get($cartKey);
             }
             $image_url = !empty($product->pro_image) ? 'uploads/pro_image/' . $product->pro_image : 'uploads/pro_image/default.png';
+            $measurementJsonEsc = is_string($measurementJson) ? e($measurementJson) : '';
 
             $model_delete_id = 'delete-form-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $cartLineKey);
 
@@ -977,7 +989,7 @@ class ProductServiceController extends Controller
                 if ($request->get('restaurant') || $session_key === 'pos-restaurant') {
                     $statusNotSent = __('pos.status_not_sent');
                     $cartKeyVal = $tableKey !== null ? $tableKey : '';
-                    $carthtml .= '<tr data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" data-line-id="" data-is-sent="0" data-status="not_sent" data-discount="0" id="product-id-r-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '">
+                    $carthtml .= '<tr data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" data-line-id="" data-is-sent="0" data-status="not_sent" data-discount="0" id="product-id-r-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '" data-measurement-json="' . $measurementJsonEsc . '">
                             <td class="name">' . e($displayName) . '</td>
                             <td class="pos-note-cell"><textarea class="form-control form-control-sm notes pos-item-notes" placeholder="' . e(__('pos.note_placeholder')) . '" maxlength="200" rows="2" title="' . e(__('Note')) . '"></textarea></td>
                             <td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" class="input-number" data-url="' . url('update-cart/') . '" data-id="' . e($cartLineKey) . '" value="1"><input type="button" value="+" class="plus"></span></td>
@@ -988,7 +1000,7 @@ class ProductServiceController extends Controller
                             <td class="action-btn"><a href="#" class="btn btn-sm bg-danger bs-pass-para-pos pos-remove-from-cart" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . e($cartLineKey) . '"><i class="ti ti-trash text-white"></i></a><form method="post" action="' . url('remove-from-cart') . '" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . e($cartLineKey) . '">' . ($tableKey !== null ? '<input type="hidden" name="cart_key" value="' . e($tableKey) . '">' : '') . '</form></td>
                         </tr>';
                 } else {
-                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" id="product-id-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '">';
+                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" id="product-id-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '" data-measurement-json="' . $measurementJsonEsc . '">';
                 $carthtml .= '<div class="card-body p-2">';
                 $carthtml .= '<div class="d-flex justify-content-between align-items-start gap-2">';
                 $carthtml .= '<div class="flex-grow-1 min-w-0"><h6 class="mb-0 text-dark fw-bold text-truncate name">' . e($displayName) . '</h6>';
@@ -1056,6 +1068,7 @@ class ProductServiceController extends Controller
                 'price_type' => $priceType,
                 'identifier_tracking' => $identifierTracking,
                 'identifiers' => '',
+                'measurement_json' => is_string($measurementJson) ? $measurementJson : null,
             ];
 
             // if cart is empty then this the first product

@@ -27,6 +27,7 @@ class PosProduct extends Model
         'price',
         'description',
         'identifiers',
+        'measurement_json',
         'status',
         'sent_at',
         'ready_at',

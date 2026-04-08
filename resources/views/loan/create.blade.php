@@ -64,6 +64,10 @@
                 {{ Form::textarea('reason', null, ['class' => 'form-control', 'required' => 'required', 'rows' => 3, 'placeholder' => __('Enter Reason')]) }}
             </div>
         </div>
+        <div class="form-group col-md-12">
+            {{ Form::label('chart_account_id', __('Select Account'),['class'=>'form-label']) }}
+            {{ Form::select('chart_account_id',$chartAccounts,null, array('class' => 'form-control select')) }}
+        </div>
     </div>
 </div>
 <div class="modal-footer">

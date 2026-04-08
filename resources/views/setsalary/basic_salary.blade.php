@@ -19,6 +19,10 @@
                 {{ __('Create bank account here.') }} <a href="{{ route('bank-account.index') }}"><b>{{ __('Create bank account') }}</b></a>
             </div>
         </div>
+        <div class="form-group col-md-12">
+            {{ Form::label('salary_chart_account_id', __('Salary Account (Chart Of Account)'),['class'=>'form-label']) }}
+            {{ Form::select('salary_chart_account_id',$chartAccounts,null, array('class' => 'form-control select')) }}
+        </div>
     </div>
 </div>
 <div class="modal-footer">

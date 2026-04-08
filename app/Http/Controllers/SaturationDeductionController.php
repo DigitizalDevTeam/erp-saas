@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DeductionOption;
 use App\Models\Employee;
 use App\Models\SaturationDeduction;
+use App\Support\PayrollChartAccountOptions;
 use Illuminate\Http\Request;
 
 class SaturationDeductionController extends Controller
@@ -14,7 +15,8 @@ class SaturationDeductionController extends Controller
         $employee          = Employee::find($id);
         $deduction_options = DeductionOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
         $saturationdeduc = SaturationDeduction::$saturationDeductiontype;
-        return view('saturationdeduction.create', compact('employee', 'deduction_options','saturationdeduc'));
+        $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
+        return view('saturationdeduction.create', compact('employee', 'deduction_options','saturationdeduc', 'chartAccounts'));
     }
 
     public function store(Request $request)
@@ -42,6 +44,7 @@ class SaturationDeductionController extends Controller
             $saturationdeduction->title            = $request->title;
             $saturationdeduction->type            = $request->type;
             $saturationdeduction->amount           = $request->amount;
+            $saturationdeduction->chart_account_id = $request->chart_account_id;
             $saturationdeduction->created_by       = \Auth::user()->creatorId();
             $saturationdeduction->save();
 
@@ -67,7 +70,8 @@ class SaturationDeductionController extends Controller
             {
                 $deduction_options = DeductionOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $saturationdeduc = SaturationDeduction::$saturationDeductiontype;
-                return view('saturationdeduction.edit', compact('saturationdeduction', 'deduction_options','saturationdeduc'));
+                $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
+                return view('saturationdeduction.edit', compact('saturationdeduction', 'deduction_options','saturationdeduc', 'chartAccounts'));
             }
             else
             {
@@ -106,6 +110,7 @@ class SaturationDeductionController extends Controller
                 $saturationdeduction->title            = $request->title;
                 $saturationdeduction->type            = $request->type;
                 $saturationdeduction->amount           = $request->amount;
+                $saturationdeduction->chart_account_id = $request->chart_account_id;
                 $saturationdeduction->save();
 
                 return redirect()->back()->with('success', __('SaturationDeduction successfully updated.'));

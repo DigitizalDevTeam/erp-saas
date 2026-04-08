@@ -32,6 +32,7 @@ class Employee extends Model
         'salary_type',
         'biometric_emp_id',
         'account',
+        'salary_chart_account_id',
         'salary',
         'created_by',
     ];

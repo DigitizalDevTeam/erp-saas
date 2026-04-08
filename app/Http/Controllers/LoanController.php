@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\Loan;
 use App\Models\LoanOption;
+use App\Support\PayrollChartAccountOptions;
 use App\Services\EmployeeLoanScheduleService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -16,8 +17,9 @@ class LoanController extends Controller
         $employee = Employee::find($id);
         $loan_options = LoanOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
         $loan = Loan::$Loantypes;
+        $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
 
-        return view('loan.create', compact('employee', 'loan_options', 'loan'));
+        return view('loan.create', compact('employee', 'loan_options', 'loan', 'chartAccounts'));
     }
 
     public function store(Request $request)
@@ -59,6 +61,7 @@ class LoanController extends Controller
         $loan->loan_option = $request->loan_option;
         $loan->title = $request->title;
         $loan->reason = $request->reason;
+        $loan->chart_account_id = $request->chart_account_id;
         $loan->created_by = \Auth::user()->creatorId();
 
         if ($schedule === Loan::SCHEDULE_INSTALLMENT) {
@@ -115,8 +118,9 @@ class LoanController extends Controller
             if ($loan->created_by == \Auth::user()->creatorId()) {
                 $loan_options = LoanOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $loans = Loan::$Loantypes;
+                $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
 
-                return view('loan.edit', compact('loan', 'loan_options', 'loans'));
+                return view('loan.edit', compact('loan', 'loan_options', 'loans', 'chartAccounts'));
             }
 
             return response()->json(['error' => __('Permission denied.')], 401);
@@ -146,6 +150,7 @@ class LoanController extends Controller
             $loan->loan_option = $request->loan_option;
             $loan->title = $request->title;
             $loan->reason = $request->reason;
+            $loan->chart_account_id = $request->chart_account_id;
             $loan->save();
 
             return redirect()->back()->with('success', __('Loan updated. Schedule is locked after repayments begin.'));
@@ -180,6 +185,7 @@ class LoanController extends Controller
             $loan->monthly_installment = $emi;
             $loan->amount = $emi;
             $loan->first_deduction_month = $request->first_deduction_month;
+            $loan->chart_account_id = $request->chart_account_id;
             $loan->installments_paid = 0;
             $loan->loan_status = Loan::STATUS_ACTIVE;
 
@@ -209,6 +215,7 @@ class LoanController extends Controller
         $loan->type = $request->type;
         $loan->amount = $request->amount;
         $loan->reason = $request->reason;
+        $loan->chart_account_id = $request->chart_account_id;
         if ($request->filled('start_date')) {
             $loan->start_date = $request->start_date;
         }

@@ -83,6 +83,7 @@
                 $('#invoice-items').empty();
             }
         });
+        $('#invoice').trigger('change');
         $(document).on('input', '.returnQty', function () {
             let max = parseFloat($(this).attr('max'));
             let val = parseFloat($(this).val()) || 0;

@@ -11,6 +11,7 @@ class SaturationDeduction extends Model
         'deduction_option',
         'title',
         'amount',
+        'chart_account_id',
         'created_by',
     ];
 

@@ -17,6 +17,7 @@ use App\Models\Termination;
 use App\Models\User;
 use App\Services\EmployeeLoanScheduleService;
 use App\Services\PayrollTaxService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -310,21 +311,21 @@ class PaySlipController extends Controller
     public function paysalary($id, $date)
     {
         $employeePayslip = PaySlip::where('employee_id', '=', $id)->where('created_by', \Auth::user()->creatorId())->where('salary_month', '=', $date)->first();
+        if (empty($employeePayslip)) {
+            return redirect()->route('payslip.index')->with('error', __('Payslip Payment failed.'));
+        }
+        if ((int) $employeePayslip->status === 1) {
+            return redirect()->route('payslip.index')->with('error', __('Payslip is already paid.'));
+        }
 
         $account = Employee::find($id);
         Utility::bankAccountBalance($account->account, $employeePayslip->net_payble, 'debit');
+        $this->postPayslipModuleAccounting($employeePayslip, $account);
 
-        if(!empty($employeePayslip))
-        {
-            $employeePayslip->status = 1;
-            $employeePayslip->save();
+        $employeePayslip->status = 1;
+        $employeePayslip->save();
 
-            return redirect()->route('payslip.index')->with('success', __('Payslip Payment successfully.'));
-        }
-        else
-        {
-            return redirect()->route('payslip.index')->with('error', __('Payslip Payment failed.'));
-        }
+        return redirect()->route('payslip.index')->with('success', __('Payslip Payment successfully.'));
 
     }
 
@@ -542,5 +543,77 @@ class PaySlipController extends Controller
         $name = 'payslip_' . date('Y-m-d i:h:s');
         $data = Excel::download(new PayslipExport($request), $name . '.xlsx'); ob_end_clean();
         return $data;
+    }
+
+    private function postPayslipModuleAccounting(PaySlip $payslip, Employee $employee): void
+    {
+        $date = Carbon::parse($payslip->salary_month . '-01')->endOfMonth()->format('Y-m-d');
+
+        $this->postPayslipLine(
+            (int) ($employee->salary_chart_account_id ?? 0),
+            (float) $payslip->basic_salary,
+            'Debit',
+            $payslip->id,
+            0,
+            $date,
+            'Payroll Basic Salary'
+        );
+
+        $this->postJsonModuleLines($payslip->allowance, 'allowance', (float) $payslip->basic_salary, 'Debit', $payslip->id, $date, 'Payroll Allowance');
+        $this->postJsonModuleLines($payslip->commission, 'commission', (float) $payslip->basic_salary, 'Debit', $payslip->id, $date, 'Payroll Commission');
+        $this->postJsonModuleLines($payslip->other_payment, 'other_payment', (float) $payslip->basic_salary, 'Debit', $payslip->id, $date, 'Payroll Other Payment');
+        $this->postJsonModuleLines($payslip->overtime, 'overtime', (float) $payslip->basic_salary, 'Debit', $payslip->id, $date, 'Payroll Overtime');
+        $this->postJsonModuleLines($payslip->loan, 'loan', (float) $payslip->basic_salary, 'Credit', $payslip->id, $date, 'Payroll Loan Recovery');
+        $this->postJsonModuleLines($payslip->saturation_deduction, 'saturation_deduction', (float) $payslip->basic_salary, 'Credit', $payslip->id, $date, 'Payroll Deduction');
+    }
+
+    private function postJsonModuleLines(?string $json, string $module, float $basicSalary, string $type, int $payslipId, string $date, string $reference): void
+    {
+        if (empty($json)) {
+            return;
+        }
+
+        $rows = json_decode($json, true);
+        if (! is_array($rows)) {
+            return;
+        }
+
+        foreach ($rows as $row) {
+            $accountId = (int) ($row['chart_account_id'] ?? 0);
+            $subId = (int) ($row['id'] ?? 0);
+            $amount = $this->moduleAmount($row, $module, $basicSalary);
+            $this->postPayslipLine($accountId, $amount, $type, $payslipId, $subId, $date, $reference);
+        }
+    }
+
+    private function moduleAmount(array $row, string $module, float $basicSalary): float
+    {
+        if ($module === 'overtime') {
+            return round((float) ($row['number_of_days'] ?? 0) * (float) ($row['hours'] ?? 0) * (float) ($row['rate'] ?? 0), 2);
+        }
+
+        $amount = (float) ($row['amount'] ?? 0);
+        if (($row['type'] ?? 'fixed') === 'percentage') {
+            return round($amount * $basicSalary / 100, 2);
+        }
+
+        return round($amount, 2);
+    }
+
+    private function postPayslipLine(int $accountId, float $amount, string $type, int $payslipId, int $subId, string $date, string $reference): void
+    {
+        if ($accountId <= 0 || $amount <= 0) {
+            return;
+        }
+
+        Utility::addTransactionLines([
+            'account_id' => $accountId,
+            'reference' => $reference,
+            'reference_id' => $payslipId,
+            'reference_sub_id' => $subId,
+            'date' => $date,
+            'transaction_type' => $type,
+            'transaction_amount' => $amount,
+        ], 'create');
     }
 }

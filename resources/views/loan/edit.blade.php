@@ -177,6 +177,12 @@
                     {{ Form::textarea('reason', null, ['class' => 'form-control', 'required' => 'required', 'rows' => 3, 'placeholder' => __('Enter Reason')]) }}
                 </div>
             </div>
+            <div class="col-md-12">
+                <div class="form-group">
+                    {{ Form::label('chart_account_id', __('Select Account'), ['class' => 'form-label']) }}
+                    {{ Form::select('chart_account_id', $chartAccounts, null, ['class' => 'form-control select']) }}
+                </div>
+            </div>
         </div>
     </div>
 </div>

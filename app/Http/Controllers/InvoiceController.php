@@ -124,6 +124,15 @@ class InvoiceController extends Controller
         $data['totalAmount'] = ($salePrice * $quantity);
         $data['identifier_tracking'] = (bool) ($product->identifier_tracking ?? false);
         $data['identifier_type'] = $product->identifier_type ?? 'serial';
+        $data['unit_type'] = $product->unit_type;
+        $data['dimension_unit'] = $product->dimension_unit ?: ($product->unit->length_unit ?? 'cm');
+        $data['dimension_mode'] = $product->unit->dimension_mode ?? null;
+        $data['volumetric_divisor'] = $product->volumetric_divisor ?: ($product->unit->volumetric_divisor ?? null);
+        $data['unit_length'] = $product->unit_length;
+        $data['unit_width'] = $product->unit_width;
+        $data['unit_height'] = $product->unit_height;
+        $data['unit_area_sqm'] = $product->unit_area_sqm;
+        $data['unit_volume_cbm'] = $product->unit_volume_cbm;
 
         return json_encode($data);
     }
@@ -190,6 +199,7 @@ class InvoiceController extends Controller
                         $invoiceProduct->price = $products[$i]['price'];
                         $invoiceProduct->description = $products[$i]['description'];
                         $invoiceProduct->identifiers = $products[$i]['identifiers'] ?? null;
+                        $invoiceProduct->measurement_json = $products[$i]['measurement_json'] ?? null;
                         $invoiceProduct->save();
 
                         if ($timing === 'invoice') {
@@ -363,6 +373,7 @@ class InvoiceController extends Controller
                     $invoiceProduct->price = $products[$i]['price'];
                     $invoiceProduct->description = $products[$i]['description'];
                     $invoiceProduct->identifiers = $products[$i]['identifiers'] ?? null;
+                    $invoiceProduct->measurement_json = $products[$i]['measurement_json'] ?? null;
 
                     try {
                         InvoiceSaleDeductionService::validateTrackedIdentifiersForLine(

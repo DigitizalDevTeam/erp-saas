@@ -896,7 +896,8 @@
                     tax: tax,
                     subtotal: subtotal,
                     discount: discount,
-                    netPrice: netPrice
+                    netPrice: netPrice,
+                    measurement_json: decodeURIComponent($(this).attr('data-measurement-json') || '')
                 };
             });
             return cart;
@@ -2081,6 +2082,82 @@
                 if (p.url) searchProducts(p.url, p.value, p.cat_id, p.war_id, p.type, p.targetId, true);
             });
 
+            var posMeasureState = null;
+            function posMeasurementNeeded($el) {
+                var unitType = (($el.data('unit-type') || '') + '').toLowerCase();
+                return ['sm', 'cbm', 'volume'].indexOf(unitType) !== -1;
+            }
+            function posOpenMeasureModal($el, onDone) {
+                var unitType = (($el.data('unit-type') || '') + '').toLowerCase();
+                if (['sm', 'cbm', 'volume'].indexOf(unitType) === -1) {
+                    onDone(null);
+                    return;
+                }
+                var dimUnit = (($el.data('dimension-unit') || 'cm') + '');
+                posMeasureState = {$el: $el, onDone: onDone, unitType: unitType};
+                $('.pos_measure_dim_unit').text(dimUnit);
+                $('#pos_measure_divisor_wrap').toggle(unitType === 'cbm');
+                $('#pos_measure_height_wrap').toggle(unitType !== 'sm');
+                $('#pos_measure_divisor').val(parseFloat($el.data('volumetric-divisor') || 0) || '');
+                $('#pos_measure_length').val('');
+                $('#pos_measure_width').val('');
+                $('#pos_measure_height').val('');
+                $('#posMeasureModal').modal('show');
+            }
+            $(document).on('click', '#pos_measure_cancel', function () {
+                if (posMeasureState && typeof posMeasureState.onDone === 'function') {
+                    posMeasureState.onDone(false);
+                }
+                $('#posMeasureModal').modal('hide');
+                posMeasureState = null;
+            });
+            $('#posMeasureModal').on('hidden.bs.modal', function () {
+                if (posMeasureState && typeof posMeasureState.onDone === 'function') {
+                    posMeasureState.onDone(false);
+                    posMeasureState = null;
+                }
+            });
+            $(document).on('click', '#pos_measure_apply', function () {
+                if (!posMeasureState) return;
+                var $el = posMeasureState.$el;
+                var unitType = posMeasureState.unitType;
+                var dimUnit = (($el.data('dimension-unit') || 'cm') + '');
+                var divisor = parseFloat($('#pos_measure_divisor').val() || $el.data('volumetric-divisor') || 0);
+                var l = parseFloat($('#pos_measure_length').val() || 0);
+                var w = parseFloat($('#pos_measure_width').val() || 0);
+                var h = unitType === 'sm' ? 0 : parseFloat($('#pos_measure_height').val() || 0);
+                if (l <= 0 || w <= 0 || (unitType !== 'sm' && h <= 0)) {
+                    show_toastr('{{ __("Error") }}', 'Valid dimensions are required.', 'error');
+                    return;
+                }
+                var factor = 1;
+                if (unitType === 'sm') factor = l * w;
+                else if (unitType === 'cbm') {
+                    if (divisor <= 0) divisor = 5000;
+                    factor = (l * w * h) / divisor;
+                } else factor = l * w * h;
+                factor = parseFloat(factor.toFixed(4));
+                if (factor <= 0) {
+                    show_toastr('{{ __("Error") }}', 'Calculated value must be greater than zero.', 'error');
+                    return;
+                }
+                var basePrice = parseFloat($el.data('product-price') || 0);
+                var payload = {
+                    unit_type: unitType,
+                    dimension_unit: dimUnit,
+                    length: l,
+                    width: w,
+                    height: h,
+                    divisor: divisor || null,
+                    factor: factor,
+                    measured_price: parseFloat((basePrice * factor).toFixed(2)),
+                    line_suffix: (Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8))
+                };
+                posMeasureState.onDone(payload);
+                $('#posMeasureModal').modal('hide');
+                posMeasureState = null;
+            });
+
             $(document).on('click', '.toacart', function () {
                 var $el = $(this);
                 var $btn = $el.find('.pos-add-cart-btn, button').first();
@@ -2088,11 +2165,11 @@
                 var tbodySel = isRestaurant ? '#tbody-restaurant' : '#tbody';
                 var rowIdPrefix = isRestaurant ? 'product-id-r-' : 'product-id-';
                 var totalSel = isRestaurant ? '#pos-restaurant-total' : '#displaytotal, .totalamount';
-
+                var runAddToCart = function (measureData) {
                 if (!navigator.onLine && $el.data('product-id')) {
                     var id = $el.data('product-id');
                     var name = $el.data('product-name') || '';
-                    var price = parseFloat($el.data('product-price')) || 0;
+                    var price = measureData ? (parseFloat(measureData.measured_price) || 0) : (parseFloat($el.data('product-price')) || 0);
                     var taxRate = parseFloat($el.data('product-tax')) || 0;
                     var imgSrc = $el.data('product-image') || '';
                     var tax = price * taxRate / 100;
@@ -2106,7 +2183,7 @@
                         $row.attr('data-quantity', qty).attr('data-subtotal', subtotal);
                         $row.find('.subtotal').text(addCommas(subtotal));
                     } else {
-                        var row = isRestaurant ? ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>') : ('<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><div class="card-body p-2"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 min-w-0"><h6 class="mb-0 fw-bold name">' + (name.replace(/</g, '&lt;')) + '</h6></div><div class="action-btn"><a href="#" class="btn btn-sm btn-danger p-1 pos-offline-remove" data-id="' + id + '"><i class="ti ti-trash"></i></a></div></div><div class="d-flex align-items-center justify-content-between mt-2"><span class="quantity buttons_added d-inline-flex align-items-center border rounded"><input type="button" value="-" class="minus btn btn-sm btn-outline-secondary border-0 py-0"><input type="number" step="1" min="1" name="quantity" class="input-number form-control form-control-sm border-0 text-center" style="width:2.5rem;" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus btn btn-sm btn-outline-secondary border-0 py-0"></span><div class="fw-bold subtotal">' + addCommas(subtotal) + '</div></div><small class="text-muted tax">Tax: -</small></div></div>');
+                        var row = isRestaurant ? ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '" data-measurement-json="' + (measureData ? encodeURIComponent(JSON.stringify(measureData)) : '') + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>') : ('<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '" data-measurement-json="' + (measureData ? encodeURIComponent(JSON.stringify(measureData)) : '') + '"><div class="card-body p-2"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 min-w-0"><h6 class="mb-0 fw-bold name">' + (name.replace(/</g, '&lt;')) + '</h6></div><div class="action-btn"><a href="#" class="btn btn-sm btn-danger p-1 pos-offline-remove" data-id="' + id + '"><i class="ti ti-trash"></i></a></div></div><div class="d-flex align-items-center justify-content-between mt-2"><span class="quantity buttons_added d-inline-flex align-items-center border rounded"><input type="button" value="-" class="minus btn btn-sm btn-outline-secondary border-0 py-0"><input type="number" step="1" min="1" name="quantity" class="input-number form-control form-control-sm border-0 text-center" style="width:2.5rem;" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus btn btn-sm btn-outline-secondary border-0 py-0"></span><div class="fw-bold subtotal">' + addCommas(subtotal) + '</div></div><small class="text-muted tax">Tax: -</small></div></div>');
                         $(tbodySel + ' .no-found').addClass('d-none');
                         $(tbodySel).append(row);
                         if (!isRestaurant) {
@@ -2133,6 +2210,11 @@
                 var taxRate = $el.data('product-tax');
                 if (taxRate !== undefined && taxRate !== '' && !isNaN(parseFloat(taxRate))) {
                     addToCartUrl += (addToCartUrl.indexOf('?') !== -1 ? '&' : '?') + 'tax_rate=' + encodeURIComponent(taxRate);
+                }
+                if (measureData) {
+                    addToCartUrl += (addToCartUrl.indexOf('?') !== -1 ? '&' : '?') + 'measured_price=' + encodeURIComponent(measureData.measured_price);
+                    addToCartUrl += '&line_suffix=' + encodeURIComponent(measureData.line_suffix);
+                    addToCartUrl += '&measurement_json=' + encodeURIComponent(JSON.stringify(measureData));
                 }
                 $.ajax({
                     url: addToCartUrl,
@@ -2201,6 +2283,15 @@
                         }
                     }
                 });
+                };
+                if (posMeasurementNeeded($el)) {
+                    posOpenMeasureModal($el, function (measureData) {
+                        if (measureData === false) return;
+                        runAddToCart(measureData);
+                    });
+                    return;
+                }
+                runAddToCart(null);
             });
 
             $(document).on('click', '.pos-offline-remove', function(e) {
@@ -2626,5 +2717,37 @@
             });
         })();
     </script>
+<div class="modal fade" id="posMeasureModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ __('Enter Dimensions') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label">{{ __('Length') }} (<span class="pos_measure_dim_unit">cm</span>)</label>
+                    <input type="number" step="0.0001" min="0" id="pos_measure_length" class="form-control">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">{{ __('Width') }} (<span class="pos_measure_dim_unit">cm</span>)</label>
+                    <input type="number" step="0.0001" min="0" id="pos_measure_width" class="form-control">
+                </div>
+                <div class="mb-2" id="pos_measure_height_wrap">
+                    <label class="form-label">{{ __('Height') }} (<span class="pos_measure_dim_unit">cm</span>)</label>
+                    <input type="number" step="0.0001" min="0" id="pos_measure_height" class="form-control">
+                </div>
+                <div class="mb-2" id="pos_measure_divisor_wrap" style="display:none;">
+                    <label class="form-label">{{ __('Divisor') }}</label>
+                    <input type="number" step="1" min="1" id="pos_measure_divisor" class="form-control" placeholder="4000 / 5000 / 6000">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="pos_measure_cancel">{{ __('Cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="pos_measure_apply">{{ __('Apply') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html> 

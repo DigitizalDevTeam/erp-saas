@@ -22,6 +22,7 @@ class Loan extends Model
         'loan_option',
         'title',
         'amount',
+        'chart_account_id',
         'type',
         'start_date',
         'end_date',

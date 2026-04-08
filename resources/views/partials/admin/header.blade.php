@@ -2,7 +2,6 @@
     $users=\Auth::user();
     $profile=\App\Models\Utility::get_file('uploads/avatar/');
     $languages=\App\Models\Utility::languages();
-
     $lang = isset($users->lang)?$users->lang:'en';
     if ($lang == null) {
         $lang = 'en';

@@ -11,6 +11,7 @@ class Allowance extends Model
         'allowance_option',
         'title',
         'amount',
+        'chart_account_id',
         'created_by',
     ];
 

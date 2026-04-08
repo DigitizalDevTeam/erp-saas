@@ -10,6 +10,7 @@ class Commission extends Model
         'employee_id',
         'title',
         'amount',
+        'chart_account_id',
         'created_by',
     ];
 

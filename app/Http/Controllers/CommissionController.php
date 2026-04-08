@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Commission;
 use App\Models\Employee;
+use App\Support\PayrollChartAccountOptions;
 use Illuminate\Http\Request;
 
 class CommissionController extends Controller
@@ -12,7 +13,8 @@ class CommissionController extends Controller
     {
         $employee = Employee::find($id);
         $commissions =Commission::$commissiontype;
-        return view('commission.create', compact('employee','commissions'));
+        $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
+        return view('commission.create', compact('employee','commissions', 'chartAccounts'));
     }
 
     public function store(Request $request)
@@ -39,6 +41,7 @@ class CommissionController extends Controller
             $commission->title       = $request->title;
             $commission->type        = $request->type;
             $commission->amount      = $request->amount;
+            $commission->chart_account_id = $request->chart_account_id;
             $commission->created_by  = \Auth::user()->creatorId();
             $commission->save();
 
@@ -61,11 +64,12 @@ class CommissionController extends Controller
         if(\Auth::user()->can('edit commission'))
         {
             $commissions =Commission::$commissiontype;
+            $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
 
             if($commission->created_by == \Auth::user()->creatorId())
             {
 
-                return view('commission.edit', compact('commission','commissions'));
+                return view('commission.edit', compact('commission','commissions', 'chartAccounts'));
             }
             else
             {
@@ -101,6 +105,7 @@ class CommissionController extends Controller
                 $commission->title  = $request->title;
                 $commission->type  = $request->type;
                 $commission->amount = $request->amount;
+                $commission->chart_account_id = $request->chart_account_id;
                 $commission->save();
 
                 return redirect()->back()->with('success', __('Commission successfully updated.'));

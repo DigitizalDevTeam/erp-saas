@@ -23,6 +23,10 @@
             {{ Form::label('amount', __('Amount'),['class'=>'form-label amount_label']) }}<x-required></x-required>
             {{ Form::number('amount',null, array('class' => 'form-control ','required'=>'required','step'=>'0.01', 'placeholder'=>__('Enter Amount'))) }}
         </div>
+        <div class="form-group col-md-12">
+            {{ Form::label('chart_account_id', __('Select Account'),['class'=>'form-label']) }}
+            {{ Form::select('chart_account_id',$chartAccounts,null, array('class' => 'form-control select')) }}
+        </div>
 
     </div>
 </div>

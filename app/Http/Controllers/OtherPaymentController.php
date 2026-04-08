@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\OtherPayment;
+use App\Support\PayrollChartAccountOptions;
 use Illuminate\Http\Request;
 
 class OtherPaymentController extends Controller
@@ -12,8 +13,9 @@ class OtherPaymentController extends Controller
     {
         $employee = Employee::find($id);
         $otherpaytype=OtherPayment::$otherPaymenttype;
+        $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
 
-        return view('otherpayment.create', compact('employee','otherpaytype'));
+        return view('otherpayment.create', compact('employee','otherpaytype', 'chartAccounts'));
     }
 
     public function store(Request $request)
@@ -39,6 +41,7 @@ class OtherPaymentController extends Controller
             $otherpayment->title       = $request->title;
             $otherpayment->type       = $request->type;
             $otherpayment->amount      = $request->amount;
+            $otherpayment->chart_account_id = $request->chart_account_id;
             $otherpayment->created_by  = \Auth::user()->creatorId();
             $otherpayment->save();
 
@@ -63,8 +66,9 @@ class OtherPaymentController extends Controller
             if($otherpayment->created_by == \Auth::user()->creatorId())
             {
                 $otherpaytypes=OtherPayment::$otherPaymenttype;
+                $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
 
-                return view('otherpayment.edit', compact('otherpayment','otherpaytypes'));
+                return view('otherpayment.edit', compact('otherpayment','otherpaytypes', 'chartAccounts'));
             }
             else
             {
@@ -100,6 +104,7 @@ class OtherPaymentController extends Controller
                 $otherpayment->title  = $request->title;
                 $otherpayment->type  = $request->type;
                 $otherpayment->amount = $request->amount;
+                $otherpayment->chart_account_id = $request->chart_account_id;
                 $otherpayment->save();
 
                 return redirect()->back()->with('success', __('OtherPayment successfully updated.'));

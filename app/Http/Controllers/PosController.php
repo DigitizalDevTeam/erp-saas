@@ -901,6 +901,7 @@ class PosController extends Controller
             $positems->tax = $tax_id;
             $positems->discount = $discount;
             $positems->identifiers = $value['identifiers'] ?? null;
+            $positems->measurement_json = $value['measurement_json'] ?? null;
             $positems->save();
             $idNote = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
             $deductByVariant = ($product->variants_enabled ?? false) && $product_variant_id;
@@ -1456,6 +1457,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $positems->tax = $tax_id;
                         $positems->discount = $discount;
                         $positems->identifiers = $value['identifiers'] ?? null;
+                        $positems->measurement_json = $value['measurement_json'] ?? null;
                         $positems->save();
                         $idNote2 = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
                         $deductByVariant2 = ($product->variants_enabled ?? false) && $product_variant_id;

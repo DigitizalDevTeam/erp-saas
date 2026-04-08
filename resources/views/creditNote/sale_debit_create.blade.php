@@ -47,7 +47,7 @@
 
 <script>
 $(document).ready(function() {
-    $('#invoice').change(function() {
+    $('#invoice').on('change', function() {
         if ($(this).val() == '') {
             $('#customer_div').show();
             $('#customer').attr('required', 'required');
@@ -56,5 +56,6 @@ $(document).ready(function() {
             $('#customer').removeAttr('required');
         }
     });
+    $('#invoice').trigger('change');
 });
 </script>

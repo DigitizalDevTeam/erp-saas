@@ -339,7 +339,7 @@ class CreditNoteController extends Controller
             $validator = \Validator::make(
                 $request->all(), [
                                    'invoice' => 'nullable|numeric',
-                                   'customer' => 'required_if:invoice,null|numeric',
+                                   'customer' => 'nullable|required_without:invoice|numeric',
                                    'amount' => 'required|numeric',
                                    'date' => 'required',
                                ]
@@ -414,7 +414,7 @@ class CreditNoteController extends Controller
             $validator = \Validator::make(
                 $request->all(), [
                                    'invoice' => 'nullable|numeric',
-                                   'customer' => 'required_if:invoice,null|numeric',
+                                   'customer' => 'nullable|required_without:invoice|numeric',
                                    'amount' => 'required|numeric',
                                    'date' => 'required',
                                ]

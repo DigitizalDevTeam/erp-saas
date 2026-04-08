@@ -779,7 +779,7 @@ class Utility extends Model
                 $settings = Utility::settings();
                 if (!empty($settings['disable_lang'])) {
                     $disabledlang = explode(',', $settings['disable_lang']);
-                    $languages = Language::pluck('full_name', 'code');
+                    $languages = Language::whereNotIn('code', $disabledlang)->pluck('full_name', 'code');
                 } else {
                     $languages = Language::pluck('full_name', 'code');
                 }

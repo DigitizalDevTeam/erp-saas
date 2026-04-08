@@ -14,6 +14,7 @@ use App\Models\BankAccount;
 use App\Models\Overtime;
 use App\Models\PayslipType;
 use App\Models\SaturationDeduction;
+use App\Support\PayrollChartAccountOptions;
 use Illuminate\Http\Request;
 
 class SetSalaryController extends Controller
@@ -40,6 +41,7 @@ class SetSalaryController extends Controller
             $allowance_options = AllowanceOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $loan_options      = LoanOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $deduction_options = DeductionOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $chartAccounts     = PayrollChartAccountOptions::listForCurrentUser();
             if(\Auth::user()->type == 'Employee')
             {
                 $currentEmployee      = Employee::where('user_id', '=', \Auth::user()->id)->first();
@@ -50,7 +52,7 @@ class SetSalaryController extends Controller
                 $otherpayments        = OtherPayment::where('employee_id', $currentEmployee->id)->get();
                 $overtimes            = Overtime::where('employee_id', $currentEmployee->id)->get();
                 $employee             = Employee::where('user_id', '=', \Auth::user()->id)->first();
-                return view('setsalary.employee_salary', compact('employee', 'payslip_type', 'allowance_options', 'commissions', 'loan_options', 'overtimes', 'otherpayments', 'saturationdeductions', 'loans', 'deduction_options', 'allowances'));
+                return view('setsalary.employee_salary', compact('employee', 'payslip_type', 'allowance_options', 'commissions', 'loan_options', 'overtimes', 'otherpayments', 'saturationdeductions', 'loans', 'deduction_options', 'allowances', 'chartAccounts'));
             }
             else
             {
@@ -62,7 +64,7 @@ class SetSalaryController extends Controller
                 $overtimes            = Overtime::where('employee_id', $id)->get();
                 $employee             = Employee::find($id);
 
-                return view('setsalary.edit', compact('employee', 'payslip_type', 'allowance_options', 'commissions', 'loan_options', 'overtimes', 'otherpayments', 'saturationdeductions', 'loans', 'deduction_options', 'allowances'));
+                return view('setsalary.edit', compact('employee', 'payslip_type', 'allowance_options', 'commissions', 'loan_options', 'overtimes', 'otherpayments', 'saturationdeductions', 'loans', 'deduction_options', 'allowances', 'chartAccounts'));
             }
         }
         else
@@ -77,6 +79,7 @@ class SetSalaryController extends Controller
         $allowance_options = AllowanceOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
         $loan_options      = LoanOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
         $deduction_options = DeductionOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $chartAccounts     = PayrollChartAccountOptions::listForCurrentUser();
         if(\Auth::user()->type == 'Employee')
         {
             $currentEmployee      = Employee::where('user_id', '=', \Auth::user()->id)->first();
@@ -133,7 +136,7 @@ class SetSalaryController extends Controller
                 }
             }
 
-            return view('setsalary.employee_salary', compact('employee', 'payslip_type', 'allowance_options', 'commissions', 'loan_options', 'overtimes', 'otherpayments', 'saturationdeductions', 'loans', 'deduction_options', 'allowances'));
+            return view('setsalary.employee_salary', compact('employee', 'payslip_type', 'allowance_options', 'commissions', 'loan_options', 'overtimes', 'otherpayments', 'saturationdeductions', 'loans', 'deduction_options', 'allowances', 'chartAccounts'));
 
 
         }
@@ -193,7 +196,7 @@ class SetSalaryController extends Controller
                 }
             }
 
-            return view('setsalary.employee_salary', compact('employee', 'payslip_type', 'allowance_options', 'commissions', 'loan_options', 'overtimes', 'otherpayments', 'saturationdeductions', 'loans', 'deduction_options', 'allowances'));
+            return view('setsalary.employee_salary', compact('employee', 'payslip_type', 'allowance_options', 'commissions', 'loan_options', 'overtimes', 'otherpayments', 'saturationdeductions', 'loans', 'deduction_options', 'allowances', 'chartAccounts'));
         }
 
     }
@@ -232,9 +235,10 @@ class SetSalaryController extends Controller
     {
         $payslip_type = PayslipType::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
         $account = BankAccount::where('created_by', \Auth::user()->creatorId())->where('holder_name' , '!=', 'cash')->get()->pluck('bank_name', 'id');
+        $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
 
         $employee     = Employee::find($id);
-        return view('setsalary.basic_salary', compact('employee', 'payslip_type' , 'account'));
+        return view('setsalary.basic_salary', compact('employee', 'payslip_type' , 'account', 'chartAccounts'));
     }
 
 

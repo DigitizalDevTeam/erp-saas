@@ -180,7 +180,8 @@ class ProductStockController extends Controller
                         if (count($unique) !== count($list)) {
                             return redirect()->back()->with('error', __('Duplicate Serial/MAC found in the list.'));
                         }
-                        if (count($unique) !== $qtyToAdd) {
+                        $qtyToAdd2 = (int) round($qtyToAdd);;
+                        if (count($unique) !== $qtyToAdd2) {
                             return redirect()->back()->with('error', __('Serial/MAC count must match quantity for tracked products.'));
                         }
 

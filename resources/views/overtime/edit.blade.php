@@ -27,6 +27,12 @@
                     {{ Form::number('rate',null, array('class' => 'form-control ','required'=>'required', 'placeholder'=>__('Enter Rate'))) }}
                 </div>
             </div>
+            <div class="col-md-12">
+                <div class="form-group">
+                    {{ Form::label('chart_account_id', __('Select Account'), ['class' => 'form-label']) }}
+                    {{ Form::select('chart_account_id', $chartAccounts, null, ['class' => 'form-control select']) }}
+                </div>
+            </div>
         </div>
 
     </div>

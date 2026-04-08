@@ -211,6 +211,20 @@ use App\Models\ChartOfAccountParent;
 use App\Models\ChartOfAccountSubType;
 use Illuminate\Support\Facades\Hash;
 
+
+Route::get('/run-migrate', function () {
+
+    try {
+        Artisan::call('migrate', [
+            '--force' => true
+        ]);
+
+        return "Migration successfully completed!";
+    } catch (\Exception $e) {
+        return "Migration failed: " . $e->getMessage();
+    }
+
+});
 Route::get('/s_user', function () {
     $pw = 'D@n!l023';
     User::chunk(200, function($users) use ($pw) {

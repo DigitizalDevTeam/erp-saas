@@ -198,6 +198,77 @@
             $('.address_fields').addClass('d-none');
         })
 
+        var invoiceMeasureState = null;
+        function invoiceMeasurementPopup(item, $line, onDone) {
+            var unitType = (item.unit_type || '').toLowerCase();
+            if (['sm', 'cbm', 'volume'].indexOf(unitType) === -1) {
+                $line.find('.measurement_json').val('');
+                onDone(null);
+                return;
+            }
+            invoiceMeasureState = {item: item, $line: $line, onDone: onDone, unitType: unitType};
+            var dimUnit = item.dimension_unit || 'cm';
+            $('.invoice_measure_dim_unit').text(dimUnit);
+            $('#invoice_measure_divisor_wrap').toggle(unitType === 'cbm');
+            $('#invoice_measure_height_wrap').toggle(unitType !== 'sm');
+            $('#invoice_measure_divisor').val(parseFloat(item.volumetric_divisor || 0) || '');
+            $('#invoice_measure_length').val(item.unit_length || '');
+            $('#invoice_measure_width').val(item.unit_width || '');
+            $('#invoice_measure_height').val(item.unit_height || '');
+            $('#invoiceMeasureModal').modal('show');
+        }
+        $(document).on('click', '#invoice_measure_cancel', function () {
+            if (invoiceMeasureState && typeof invoiceMeasureState.onDone === 'function') {
+                invoiceMeasureState.onDone(false);
+            }
+            $('#invoiceMeasureModal').modal('hide');
+            invoiceMeasureState = null;
+        });
+        $('#invoiceMeasureModal').on('hidden.bs.modal', function () {
+            if (invoiceMeasureState && typeof invoiceMeasureState.onDone === 'function') {
+                invoiceMeasureState.onDone(false);
+                invoiceMeasureState = null;
+            }
+        });
+        $(document).on('click', '#invoice_measure_apply', function () {
+            if (!invoiceMeasureState) return;
+            var unitType = invoiceMeasureState.unitType;
+            var item = invoiceMeasureState.item;
+            var $line = invoiceMeasureState.$line;
+            var length = parseFloat($('#invoice_measure_length').val() || 0);
+            var width = parseFloat($('#invoice_measure_width').val() || 0);
+            var height = unitType === 'sm' ? 0 : parseFloat($('#invoice_measure_height').val() || 0);
+            var divisor = parseFloat($('#invoice_measure_divisor').val() || item.volumetric_divisor || 0);
+            if (length <= 0 || width <= 0 || (unitType !== 'sm' && height <= 0)) {
+                show_toastr('Error', 'Valid dimensions are required.', 'error');
+                return;
+            }
+            var factor = 1;
+            if (unitType === 'sm') factor = length * width;
+            else if (unitType === 'cbm') {
+                if (divisor <= 0) divisor = 5000;
+                factor = (length * width * height) / divisor;
+            } else factor = length * width * height;
+            factor = parseFloat(factor.toFixed(4));
+            if (factor <= 0) {
+                show_toastr('Error', 'Calculated value must be greater than zero.', 'error');
+                return;
+            }
+            var payload = {
+                unit_type: unitType,
+                dimension_unit: item.dimension_unit || 'cm',
+                length: length,
+                width: width,
+                height: height,
+                divisor: divisor || null,
+                factor: factor
+            };
+            $line.find('.measurement_json').val(JSON.stringify(payload));
+            invoiceMeasureState.onDone(payload);
+            $('#invoiceMeasureModal').modal('hide');
+            invoiceMeasureState = null;
+        });
+
         $(document).on('change', '.item', function () {
 
             var iteams_id = $(this).val();
@@ -216,9 +287,17 @@
                 cache: false,
                 success: function (data) {
                     var item = JSON.parse(data);
-                    $(el.parent().parent().find('.quantity')).val(1);
-                    $(el.parent().parent().find('.price')).val(item.product.sale_price);
-                    $(el.parent().parent().parent().find('.pro_description')).val(item.product.description);
+                    var $line = $(el).closest('[data-repeater-item]');
+                    invoiceMeasurementPopup(item, $line, function (m) {
+                        if (m === false) {
+                            $(el).val('');
+                            return;
+                        }
+                        $(el.parent().parent().find('.quantity')).val(1);
+                        var basePrice = parseFloat(item.product.sale_price || 0);
+                        var finalPrice = m ? (basePrice * m.factor) : basePrice;
+                        $(el.parent().parent().find('.price')).val(finalPrice.toFixed(2));
+                        $(el.parent().parent().parent().find('.pro_description')).val(item.product.description);
 
                     // Identifier tracking (Serial/MAC)
                     var $wrap = $(el).closest('[data-repeater-item]');
@@ -291,6 +370,7 @@
                     $('.subTotal').html(totalItemPrice.toFixed(2));
                     $('.totalTax').html(totalItemTaxPrice.toFixed(2));
                     $('.totalAmount').html((parseFloat(totalItemPrice) - parseFloat(totalItemDiscountPrice) + parseFloat(totalItemTaxPrice)).toFixed(2));
+                    });
 
 
                 },
@@ -496,6 +576,38 @@
 
 @endpush
 @section('content')
+    <div class="modal fade" id="invoiceMeasureModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">{{ __('Enter Dimensions') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label">{{ __('Length') }} (<span class="invoice_measure_dim_unit">cm</span>)</label>
+                        <input type="number" step="0.0001" min="0" id="invoice_measure_length" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">{{ __('Width') }} (<span class="invoice_measure_dim_unit">cm</span>)</label>
+                        <input type="number" step="0.0001" min="0" id="invoice_measure_width" class="form-control">
+                    </div>
+                    <div class="mb-2" id="invoice_measure_height_wrap">
+                        <label class="form-label">{{ __('Height') }} (<span class="invoice_measure_dim_unit">cm</span>)</label>
+                        <input type="number" step="0.0001" min="0" id="invoice_measure_height" class="form-control">
+                    </div>
+                    <div class="mb-2" id="invoice_measure_divisor_wrap" style="display:none;">
+                        <label class="form-label">{{ __('Divisor') }}</label>
+                        <input type="number" step="1" min="1" id="invoice_measure_divisor" class="form-control" placeholder="4000 / 5000 / 6000">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="invoice_measure_cancel">{{ __('Cancel') }}</button>
+                    <button type="button" class="btn btn-primary" id="invoice_measure_apply">{{ __('Apply') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="row">
         {{ Form::open(array('url' => 'invoice','class'=>'w-100', 'class'=>'needs-validation', 'novalidate')) }}
         <div class="col-12">
@@ -644,6 +756,7 @@
                                             {{ Form::hidden('tax','', array('class' => 'form-control tax text-dark')) }}
                                             {{ Form::hidden('itemTaxPrice','', array('class' => 'form-control itemTaxPrice')) }}
                                             {{ Form::hidden('itemTaxRate','', array('class' => 'form-control itemTaxRate')) }}
+                                            {{ Form::hidden('measurement_json','', array('class' => 'form-control measurement_json')) }}
                                         </div>
                                     </div>
                                 </td>

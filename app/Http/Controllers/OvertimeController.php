@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\Overtime;
+use App\Support\PayrollChartAccountOptions;
 use Illuminate\Http\Request;
 
 class OvertimeController extends Controller
@@ -11,8 +12,9 @@ class OvertimeController extends Controller
     public function overtimeCreate($id)
     {
         $employee = Employee::find($id);
+        $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
 
-        return view('overtime.create', compact('employee'));
+        return view('overtime.create', compact('employee', 'chartAccounts'));
     }
 
     public function store(Request $request)
@@ -41,6 +43,7 @@ class OvertimeController extends Controller
             $overtime->number_of_days = $request->number_of_days;
             $overtime->hours          = $request->hours;
             $overtime->rate           = $request->rate;
+            $overtime->chart_account_id = $request->chart_account_id;
             $overtime->created_by     = \Auth::user()->creatorId();
             $overtime->save();
 
@@ -64,7 +67,8 @@ class OvertimeController extends Controller
         {
             if($overtime->created_by == \Auth::user()->creatorId())
             {
-                return view('overtime.edit', compact('overtime'));
+                $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
+                return view('overtime.edit', compact('overtime', 'chartAccounts'));
             }
             else
             {
@@ -103,6 +107,7 @@ class OvertimeController extends Controller
                 $overtime->number_of_days = $request->number_of_days;
                 $overtime->hours          = $request->hours;
                 $overtime->rate           = $request->rate;
+                $overtime->chart_account_id = $request->chart_account_id;
                 $overtime->save();
 
                 return redirect()->back()->with('success', __('Overtime successfully updated.'));
