@@ -120,6 +120,7 @@ use App\Http\Controllers\ProductServiceCategoryController;
 use App\Http\Controllers\ProductRecipeController;
 use App\Http\Controllers\ProductServiceController;
 use App\Http\Controllers\ProductServiceUnitController;
+use App\Http\Controllers\ProductBatchMonitorController;
 use App\Http\Controllers\ProductStockController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectReportController;
@@ -657,6 +658,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('productservice', ProductServiceController::class)->middleware(['auth', 'XSS', 'revalidate']);
 
     //Product Stock
+    Route::get('product-batches', [ProductBatchMonitorController::class, 'index'])->name('product-batches.index')->middleware(['auth', 'XSS']);
     Route::resource('productstock', ProductStockController::class)->middleware(['auth', 'XSS']);
 
     //Customer
@@ -737,6 +739,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('invoice/{id}/payment/reminder', [InvoiceController::class, 'paymentReminder'])->name('invoice.payment.reminder');
             Route::post('invoice/product/destroy', [InvoiceController::class, 'productDestroy'])->name('invoice.product.destroy');
             Route::post('invoice/product', [InvoiceController::class, 'product'])->name('invoice.product');
+            Route::get('invoice/product-identifiers', [InvoiceController::class, 'productIdentifiers'])->name('invoice.product.identifiers');
             Route::post('invoice/customer', [InvoiceController::class, 'customer'])->name('invoice.customer');
             Route::post('invoice/customer/addresses', [InvoiceController::class, 'customer_addresses'])->name('invoice.customer.addresses');
             Route::post('invoice/customer/specific/address', [InvoiceController::class, 'customer_address_detail'])->name('invoice.customer.specific.address');

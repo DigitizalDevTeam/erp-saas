@@ -14,6 +14,7 @@ use App\Models\InvoiceBankTransfer;
 use App\Models\InvoicePayment;
 use App\Models\InvoiceProduct;
 use App\Models\Plan;
+use App\Models\ProductIdentifier;
 use App\Models\ProductService;
 use App\Models\ProductServiceCategory;
 use App\Models\StockReport;
@@ -135,6 +136,75 @@ class InvoiceController extends Controller
         $data['unit_volume_cbm'] = $product->unit_volume_cbm;
 
         return json_encode($data);
+    }
+
+    /**
+     * In-stock Serial/MAC identifiers for invoice lines (optional: include identifiers already on this invoice line when editing).
+     */
+    public function productIdentifiers(Request $request)
+    {
+        if (! \Auth::user()->can('create invoice') && ! \Auth::user()->can('edit invoice')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $request->validate([
+            'product_id' => 'required|integer',
+            'invoice_id' => 'nullable|integer',
+            'invoice_product_id' => 'nullable|integer',
+        ]);
+
+        $creatorId = \Auth::user()->creatorId();
+        $product = ProductService::where('id', $request->product_id)->where('created_by', $creatorId)->first();
+
+        if (! $product || ! ($product->identifier_tracking ?? false)) {
+            return response()->json(['identifiers' => []]);
+        }
+
+        $invoiceId = $request->filled('invoice_id') ? (int) $request->invoice_id : null;
+        $invoiceProductId = $request->filled('invoice_product_id') ? (int) $request->invoice_product_id : null;
+
+        if ($invoiceId) {
+            $inv = Invoice::where('id', $invoiceId)->where('created_by', $creatorId)->first();
+            if (! $inv) {
+                return response()->json(['error' => __('Permission denied.')], 403);
+            }
+        }
+
+        if ($invoiceId && $invoiceProductId) {
+            $line = InvoiceProduct::where('id', $invoiceProductId)->first();
+            if (! $line || (int) $line->invoice_id !== $invoiceId) {
+                return response()->json(['error' => __('Invalid line item.')], 422);
+            }
+            $invLine = Invoice::where('id', $invoiceId)->where('created_by', $creatorId)->first();
+            if (! $invLine) {
+                return response()->json(['error' => __('Permission denied.')], 403);
+            }
+        }
+
+        $query = ProductIdentifier::query()
+            ->where('created_by', $creatorId)
+            ->where('product_id', $product->id)
+            ->where(function ($q) use ($invoiceId, $invoiceProductId) {
+                $q->where('status', 'in_stock');
+                if ($invoiceId && $invoiceProductId) {
+                    $q->orWhere(function ($q2) use ($invoiceId, $invoiceProductId) {
+                        $q2->where('invoice_id', $invoiceId)
+                            ->where('invoice_product_id', $invoiceProductId);
+                    });
+                }
+            })
+            ->orderBy('identifier_value');
+
+        $identifiers = $query->get(['id', 'identifier_type', 'identifier_value', 'status'])->map(function ($r) {
+            return [
+                'id' => $r->id,
+                'identifier_type' => $r->identifier_type,
+                'identifier_value' => $r->identifier_value,
+                'status' => $r->status,
+            ];
+        });
+
+        return response()->json(['identifiers' => $identifiers]);
     }
 
     public function store(Request $request)

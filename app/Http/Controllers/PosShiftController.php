@@ -18,7 +18,9 @@ use Illuminate\Http\Request;
 use App\Models\Expense;
 use App\Models\BankAccount;
 use App\Models\Utility;
+use App\Mail\InternalOperationalAlertMail;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class PosShiftController extends Controller
 {
@@ -426,6 +428,7 @@ class PosShiftController extends Controller
             $pos_shift->save();
             PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
             PosTableAssignment::where('shift_id', $pos_shift->id)->whereNull('unassigned_at')->update(['unassigned_at' => now()]);
+            $this->sendShiftClosedEmailToManagers($pos_shift, (float) $expectedCash);
             return redirect()->route('pos-shift.index')->with('success', __('Shift closed successfully.'));
         }
         return redirect()->back()->with('error', __('Permission denied.'));
@@ -477,6 +480,7 @@ class PosShiftController extends Controller
             $pos_shift->save();
             PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed (EOD)'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
             PosTableAssignment::where('shift_id', $pos_shift->id)->whereNull('unassigned_at')->update(['unassigned_at' => now()]);
+            $this->sendShiftClosedEmailToManagers($pos_shift, (float) $expectedCash);
         }
 
         return redirect()->route('report.pos.eod', ['date' => $date])->with('success', __('All open shifts have been closed.'));
@@ -555,5 +559,101 @@ class PosShiftController extends Controller
             }
         }
         return response()->json(['success' => true, 'message' => __('Tables transferred successfully.')]);
+    }
+
+    /**
+     * Notify manager-level users when a shift is closed.
+     */
+    private function sendShiftClosedEmailToManagers(PosShift $shift, float $expectedCash): void
+    {
+        try {
+            $creatorId = (int) ($shift->created_by ?: \Auth::user()->creatorId());
+
+            $settings = Utility::settingsById($creatorId);
+            $fallback = Utility::settings();
+            $driver = (string) ($settings['mail_driver'] ?: ($fallback['mail_driver'] ?? 'smtp'));
+            $host = (string) ($settings['mail_host'] ?: ($fallback['mail_host'] ?? ''));
+            $port = (string) ($settings['mail_port'] ?: ($fallback['mail_port'] ?? ''));
+            $encryption = (string) ($settings['mail_encryption'] ?: ($fallback['mail_encryption'] ?? ''));
+            $username = (string) ($settings['mail_username'] ?: ($fallback['mail_username'] ?? ''));
+            $password = (string) ($settings['mail_password'] ?: ($fallback['mail_password'] ?? ''));
+            $fromAddress = (string) ($settings['mail_from_address'] ?: ($fallback['mail_from_address'] ?? ''));
+            $fromName = (string) ($settings['mail_from_name'] ?: ($fallback['mail_from_name'] ?? ''));
+            config([
+                // Keep compatibility with existing code paths.
+                'mail.driver' => $driver,
+                'mail.host' => $host,
+                'mail.port' => $port,
+                'mail.encryption' => $encryption,
+                'mail.username' => $username,
+                'mail.password' => $password,
+                'mail.from.address' => $fromAddress,
+                'mail.from.name' => $fromName,
+                // Ensure Laravel mailer resolution has a concrete default mailer.
+                'mail.default' => $driver !== '' ? $driver : (config('mail.default') ?: 'smtp'),
+                'mail.mailers.smtp.transport' => 'smtp',
+                'mail.mailers.smtp.host' => $host,
+                'mail.mailers.smtp.port' => $port !== '' ? (int) $port : 587,
+                'mail.mailers.smtp.encryption' => $encryption !== '' ? $encryption : null,
+                'mail.mailers.smtp.username' => $username,
+                'mail.mailers.smtp.password' => $password,
+                'mail.from.address' => $fromAddress !== '' ? $fromAddress : (config('mail.from.address') ?: 'no-reply@example.com'),
+                'mail.from.name' => $fromName !== '' ? $fromName : (config('mail.from.name') ?: config('app.name')),
+            ]);
+
+            $shift->loadMissing(['branch', 'user']);
+
+            $reportUrl = route('pos-shift.report', $shift);
+            $openedAt = $shift->opened_at ? $shift->opened_at->format('Y-m-d H:i') : '-';
+            $closedAt = $shift->closed_at ? $shift->closed_at->format('Y-m-d H:i') : now()->format('Y-m-d H:i');
+            $notes = trim((string) ($shift->notes ?? ''));
+
+            $subject = 'POS Shift Closed - #' . $shift->id . ' - ' . ($shift->branch->name ?? 'Branch');
+            $body = implode("\n", [
+                'A POS shift has been closed.',
+                '',
+                'Shift ID: #' . $shift->id,
+                'Branch: ' . ($shift->branch->name ?? '-'),
+                'User: ' . ($shift->user->name ?? '-'),
+                'Opened At: ' . $openedAt,
+                'Closed At: ' . $closedAt,
+                '',
+                'Opening Balance: ' . number_format((float) ($shift->opening_balance ?? 0), 2),
+                'Expected Cash: ' . number_format((float) $expectedCash, 2),
+                'Closing Balance: ' . number_format((float) ($shift->closing_balance ?? 0), 2),
+                'Difference: ' . number_format((float) ($shift->difference ?? 0), 2),
+                'Cash Total: ' . number_format((float) ($shift->cash_total ?? 0), 2),
+                'Card Total: ' . number_format((float) ($shift->card_total ?? 0), 2),
+                'Credit Total: ' . number_format((float) ($shift->credit_total ?? 0), 2),
+                'Sales Count: ' . (int) ($shift->sales_count ?? 0),
+                'Sales Total: ' . number_format((float) ($shift->sales_total ?? 0), 2),
+                'Tips: ' . number_format((float) ($shift->tips ?? 0), 2),
+                'Notes: ' . ($notes !== '' ? $notes : '-'),
+                '',
+                'Shift report: ' . $reportUrl,
+            ]);
+
+            $recipients = User::where('created_by', $creatorId)
+                ->whereNotNull('email')
+                ->where('email', '!=', '')
+                ->get()
+                ->filter(function (User $u) {
+                    return $u->can('pos restaurant manager') || $u->can('manage pos');
+                })
+                ->pluck('email')
+                ->unique()
+                ->values();
+
+            foreach ($recipients as $email) {
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    continue;
+                }
+                try {
+                    Mail::to($email)->send(new InternalOperationalAlertMail($subject, $body));
+                } catch (\Throwable $e) {
+                }
+            }
+        } catch (\Throwable $e) {
+        }
     }
 }

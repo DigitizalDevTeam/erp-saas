@@ -1364,6 +1364,11 @@
                                         class="dash-link">{{ __('Product Stock') }}
                                     </a>
                                 </li>
+                                <li class="dash-item {{ Request::segment(1) == 'product-batches' ? 'active' : '' }}">
+                                    <a href="{{ route('product-batches.index') }}"
+                                        class="dash-link">{{ __('Batch / Lot monitor') }}
+                                    </a>
+                                </li>
                             @endif
                             
 

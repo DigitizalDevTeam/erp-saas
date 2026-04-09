@@ -12,6 +12,8 @@
     <script src="{{asset('js/jquery-ui.min.js')}}"></script>
     <script src="{{asset('js/jquery.repeater.min.js')}}"></script>
     <script>
+        var INVOICE_EDIT_ID = null;
+        var INVOICE_IDENTIFIERS_URL = @json(route('invoice.product.identifiers'));
         var selector = "body";
         if ($(selector + " .repeater").length) {
             var $dragAndDrop = $("body .repeater tbody").sortable({
@@ -269,6 +271,103 @@
             invoiceMeasureState = null;
         });
 
+        function invoiceIdentifierQtyInt($wrap) {
+            var v = $wrap.find('.quantity').val();
+            var n = parseInt(String(v).split(/[.,]/)[0], 10);
+            return isNaN(n) ? 0 : n;
+        }
+
+        function invoiceSyncIdentifiersHidden($wrap) {
+            var vals = [];
+            $wrap.find('.identifiers-select option:selected').each(function () {
+                vals.push($(this).val());
+            });
+            $wrap.find('.identifiers-input').val(vals.join('\n'));
+        }
+
+        function invoiceUpdateIdentifierHint($wrap) {
+            var max = invoiceIdentifierQtyInt($wrap);
+            var n = ($wrap.find('.identifiers-select').val() || []).length;
+            $wrap.find('.identifier-pick-hint').text('{{ __("Selected") }}: ' + n + ' / ' + max);
+        }
+
+        function invoiceEnforceIdentifierPickLimit($wrap) {
+            var max = invoiceIdentifierQtyInt($wrap);
+            var $sel = $wrap.find('.identifiers-select');
+            if (!$sel.length) {
+                return;
+            }
+            if (max <= 0) {
+                $sel.val([]);
+                invoiceSyncIdentifiersHidden($wrap);
+                invoiceUpdateIdentifierHint($wrap);
+                return;
+            }
+            var sel = $sel.val() || [];
+            if (sel.length > max) {
+                sel = sel.slice(0, max);
+                $sel.val(sel);
+                show_toastr('{{ __("Warning") }}', '{{ __("You can select only as many Serial/MAC as quantity.") }}', 'warning');
+            }
+            invoiceSyncIdentifiersHidden($wrap);
+            invoiceUpdateIdentifierHint($wrap);
+        }
+
+        function invoiceLoadIdentifierPicklist($wrap, prefillRaw) {
+            var pid = $wrap.find('.item').val();
+            var $sel = $wrap.find('.identifiers-select');
+            if (!pid || !$sel.length) {
+                return;
+            }
+            var pre = (typeof prefillRaw !== 'undefined' && prefillRaw !== null) ? prefillRaw : ($wrap.find('.identifiers-input').val() || '');
+            $.ajax({
+                url: INVOICE_IDENTIFIERS_URL,
+                type: 'GET',
+                data: {
+                    product_id: pid,
+                    invoice_id: INVOICE_EDIT_ID || '',
+                    invoice_product_id: $wrap.find('input.id').val() || ''
+                },
+                success: function (res) {
+                    $sel.empty();
+                    (res.identifiers || []).forEach(function (row) {
+                        var label = row.identifier_value;
+                        if (row.identifier_type) {
+                            label += ' (' + row.identifier_type + ')';
+                        }
+                        $sel.append($('<option></option>').attr('value', row.identifier_value).text(label));
+                    });
+                    var wants = String(pre).split(/[\r\n,;]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+                    var matched = [];
+                    wants.forEach(function (w) {
+                        if ($sel.find('option').filter(function () { return $(this).val() === w; }).length) {
+                            matched.push(w);
+                        }
+                    });
+                    $sel.val(matched);
+                    invoiceEnforceIdentifierPickLimit($wrap);
+                }
+            });
+        }
+
+        $(document).on('change', '#sortable-table .identifiers-select', function () {
+            invoiceEnforceIdentifierPickLimit($(this).closest('[data-repeater-item]'));
+        });
+        $(document).on('change input', '#sortable-table .quantity', function () {
+            var $w = $(this).closest('[data-repeater-item]');
+            if ($w.find('.identifier-row').is(':visible')) {
+                invoiceEnforceIdentifierPickLimit($w);
+            }
+        });
+        $(document).on('submit', 'form', function () {
+            if (!$(this).find('#sortable-table').length) {
+                return;
+            }
+            $(this).find('#sortable-table [data-repeater-item]').each(function () {
+                invoiceSyncIdentifiersHidden($(this));
+            });
+        });
+
         $(document).on('change', '.item', function () {
 
             var iteams_id = $(this).val();
@@ -309,9 +408,12 @@
                             label = '{{ __("Serial/MAC List") }}';
                         }
                         $idRow.find('.identifier-label').text(label);
+                        $idRow.find('.identifiers-input').val('');
+                        invoiceLoadIdentifierPicklist($wrap, '');
                     } else {
                         $idRow.addClass('d-none');
-                        $idRow.find('.identifiers-textarea').val('');
+                        $idRow.find('.identifiers-input').val('');
+                        $idRow.find('.identifiers-select').empty();
                     }
 
                     var taxes = '';
@@ -780,8 +882,10 @@
                                 <td colspan="7">
                                     <div class="form-group">
                                         <label class="form-label identifier-label">{{ __('Serial/MAC List') }}</label>
-                                        {{ Form::textarea('identifiers', null, ['class'=>'form-control identifiers-textarea','rows'=>'3','placeholder'=>__('Enter one Serial/MAC per line')]) }}
-                                        <small class="text-muted identifier-help">{{ __('Count must match quantity. No duplicates allowed.') }}</small>
+                                        {{ Form::hidden('identifiers', '', ['class' => 'identifiers-input']) }}
+                                        <select class="form-control identifiers-select" multiple size="8" data-placeholder="{{ __('Hold Ctrl (Cmd on Mac) to select multiple') }}"></select>
+                                        <small class="text-muted identifier-pick-hint d-block mt-1">{{ __('Selected') }}: 0 / 0</small>
+                                        <small class="text-muted identifier-help d-block">{{ __('Select from in-stock list. Count must match quantity. No duplicates.') }}</small>
                                     </div>
                                 </td>
                             </tr>
