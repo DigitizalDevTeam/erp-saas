@@ -72,11 +72,12 @@ class JournalEntryController extends Controller
     public function store(Request $request)
     {
 
-        if (\Auth::user()->can('create invoice')) {
+        if (\Auth::user()->can('create journal entry')) {
             $validator = \Validator::make(
                 $request->all(), [
                     'date' => 'required',
                     'accounts' => 'required',
+                    'accounting_period' => 'nullable|integer|min:0|max:15',
                 ]
             );
             if ($validator->fails()) {
@@ -107,6 +108,7 @@ class JournalEntryController extends Controller
             $journal->reference = $request->reference;
             $journal->description = $request->description;
             $journal->created_by = \Auth::user()->creatorId();
+            $journal->accounting_period = $request->filled('accounting_period') ? (int) $request->accounting_period : null;
             $journal->save();
 
             for ($i = 0; $i < count($accounts); $i++) {
@@ -255,6 +257,7 @@ class JournalEntryController extends Controller
                     $request->all(), [
                         'date' => 'required',
                         'accounts' => 'required',
+                        'accounting_period' => 'nullable|integer|min:0|max:15',
                     ]
                 );
                 if ($validator->fails()) {
@@ -282,6 +285,7 @@ class JournalEntryController extends Controller
                 $journalEntry->reference = $request->reference;
                 $journalEntry->description = $request->description;
                 $journalEntry->created_by = \Auth::user()->creatorId();
+                $journalEntry->accounting_period = $request->filled('accounting_period') ? (int) $request->accounting_period : null;
                 $journalEntry->save();
 
                 for ($i = 0; $i < count($accounts); $i++) {

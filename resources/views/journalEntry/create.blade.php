@@ -174,6 +174,19 @@
                         </div>
                         <div class="col-lg-4 col-md-4">
                             <div class="form-group">
+                                {{ Form::label('accounting_period', __('Accounting period'), ['class' => 'form-label']) }}
+                                {{ Form::select('accounting_period', [
+                                    '' => __('Auto / not set'),
+                                    0 => __('0 — Opening'),
+                                    1 => __('1 — January'), 2 => __('2 — February'), 3 => __('3 — March'), 4 => __('4 — April'),
+                                    5 => __('5 — May'), 6 => __('6 — June'), 7 => __('7 — July'), 8 => __('8 — August'),
+                                    9 => __('9 — September'), 10 => __('10 — October'), 11 => __('11 — November'), 12 => __('12 — December'),
+                                    13 => __('13 — Year-end adjustments'), 14 => __('14 — Post-audit'), 15 => __('15 — Final closing'),
+                                ], '', ['class' => 'form-control']) }}
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-4">
+                            <div class="form-group">
                                 {{ Form::label('reference', __('Reference'), ['class' => 'form-label']) }}
                                 {{ Form::text('reference', '', ['class' => 'form-control' , 'placeholder'=>__('Enter Reference')]) }}
                             </div>

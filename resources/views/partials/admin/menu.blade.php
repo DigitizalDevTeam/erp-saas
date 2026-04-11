@@ -857,7 +857,8 @@
                             Gate::check('manage constant custom field') || Gate::check('manage print settings') ||
                             Gate::check('manage customer') || Gate::check('manage vender') ||
                             Gate::check('manage proposal') || Gate::check('manage bank account') ||
-                            Gate::check('manage bank transfer') || Gate::check('manage invoice') ||
+                            Gate::check('manage bank transfer') || Gate::check('manage transaction') ||
+                            Gate::check('manage invoice') ||
                             Gate::check('manage revenue') || Gate::check('manage credit note') ||
                             Gate::check('manage bill') || Gate::check('manage payment') ||
                             Gate::check('manage debit note') || Gate::check('manage chart of account') ||
@@ -868,7 +869,7 @@
                                         {{ Request::route()->getName() == 'print-setting' ||
                                         Request::segment(1) == 'customer' || Request::segment(1) == 'vender' ||
                                         Request::segment(1) == 'proposal' || Request::segment(1) == 'bank-account' ||
-                                        Request::segment(1) == 'bank-transfer' || Request::segment(1) == 'invoice' ||
+                                        Request::segment(1) == 'bank-transfer' || Request::segment(1) == 'bank-reconciliation' || Request::segment(1) == 'invoice' ||
                                         Request::segment(1) == 'revenue' || Request::segment(1) == 'credit-note' ||
                                         Request::segment(1) == 'taxes' || Request::segment(1) == 'product-category' ||
                                         Request::segment(1) == 'product-unit' || Request::segment(1) == 'payment-method' ||
@@ -877,6 +878,7 @@
                                             Request::segment(2) != 'balance-sheet-report' && Request::segment(2) != 'trial-balance') ||
                                         Request::segment(1) == 'goal' || Request::segment(1) == 'budget' ||
                                         Request::segment(1) == 'chart-of-account' || Request::segment(1) == 'journal-entry' ||
+                                        Request::segment(1) == 'fiscal-year-closing' ||
                                         Request::segment(2) == 'ledger' || Request::segment(2) == 'balance-sheet' ||
                                         Request::segment(2) == 'trial-balance' || Request::segment(2) == 'profit-loss' ||
                                         Request::segment(1) == 'bill' || Request::segment(1) == 'expense' ||
@@ -889,9 +891,9 @@
                             </a>
                             <ul class="dash-submenu">
 
-                                @if (Gate::check('manage bank account') || Gate::check('manage bank transfer'))
+                                @if (Gate::check('manage bank account') || Gate::check('manage bank transfer') || Gate::check('manage transaction'))
                                     <li
-                                        class="dash-item dash-hasmenu {{ Request::segment(1) == 'bank-account' || Request::segment(1) == 'bank-transfer' ? 'active dash-trigger' : '' }}">
+                                        class="dash-item dash-hasmenu {{ Request::segment(1) == 'bank-account' || Request::segment(1) == 'bank-transfer' || Request::segment(1) == 'bank-reconciliation' ? 'active dash-trigger' : '' }}">
                                         <a class="dash-link" href="#">{{ __('Banking') }}<span
                                                 class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                                         <ul class="dash-submenu">
@@ -905,6 +907,13 @@
                                                 <a class="dash-link"
                                                     href="{{ route('bank-transfer.index') }}">{{ __('Transfer') }}</a>
                                             </li>
+                                            @can('manage transaction')
+                                                <li
+                                                    class="dash-item {{ str_starts_with(Request::route()->getName() ?? '', 'bank-reconciliation') ? ' active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('bank-reconciliation.index') }}">{{ __('Bank reconciliation') }}</a>
+                                                </li>
+                                            @endcan
                                         </ul>
                                     </li>
                                 @endif
@@ -1025,6 +1034,7 @@
                                     <li
                                         class="dash-item dash-hasmenu {{ Request::segment(1) == 'chart-of-account' ||
                                         Request::segment(1) == 'journal-entry' ||
+                                        Request::segment(1) == 'fiscal-year-closing' ||
                                         Request::segment(2) == 'profit-loss' ||
                                         Request::segment(2) == 'ledger' ||
                                         Request::segment(2) == 'trial-balance-report' ||
@@ -1051,6 +1061,11 @@
                                                         : '' }}">
                                                     <a class="dash-link"
                                                         href="{{ route('journal-entry.index') }}">{{ __('Journal Account') }}</a>
+                                                </li>
+                                                <li
+                                                    class="dash-item {{ Request::route()->getName() == 'fiscal-year-closing.index' ? ' active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('fiscal-year-closing.index') }}">{{ __('Fiscal year closing') }}</a>
                                                 </li>
                                             @endcan
                                             @can('ledger report')

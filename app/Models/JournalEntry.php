@@ -12,6 +12,7 @@ class JournalEntry extends Model
         'description',
         'journal_id',
         'created_by',
+        'accounting_period',
     ];
 
 

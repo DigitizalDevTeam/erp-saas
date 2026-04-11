@@ -77,6 +77,8 @@ use App\Http\Controllers\JobCategoryController;
 use App\Http\Controllers\JobController;
 use App\Http\Controllers\JobStageController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\FiscalYearClosingController;
+use App\Http\Controllers\BankReconciliationController;
 use App\Http\Controllers\KhaltiController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\LanguageController;
@@ -1025,6 +1027,16 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('journal-entry/account/destroy', [JournalEntryController::class, 'accountDestroy'])->name('journal.account.destroy');
 
             Route::delete('journal-entry/journal/destroy/{item_id}', [JournalEntryController::class, 'journalDestroy'])->name('journal.destroy');
+            Route::get('fiscal-year-closing', [FiscalYearClosingController::class, 'index'])->name('fiscal-year-closing.index');
+            Route::post('fiscal-year-closing', [FiscalYearClosingController::class, 'runClosing'])->name('fiscal-year-closing.run');
+            Route::post('fiscal-year-closing/vat', [FiscalYearClosingController::class, 'runVat'])->name('fiscal-year-closing.vat');
+            Route::get('bank-reconciliation', [BankReconciliationController::class, 'index'])->name('bank-reconciliation.index');
+            Route::get('bank-reconciliation/create', [BankReconciliationController::class, 'create'])->name('bank-reconciliation.create');
+            Route::post('bank-reconciliation', [BankReconciliationController::class, 'store'])->name('bank-reconciliation.store');
+            Route::get('bank-reconciliation/{bank_reconciliation_session}', [BankReconciliationController::class, 'show'])->name('bank-reconciliation.show');
+            Route::post('bank-reconciliation/{bank_reconciliation_session}/auto-match', [BankReconciliationController::class, 'autoMatch'])->name('bank-reconciliation.auto-match');
+            Route::post('bank-reconciliation/{bank_reconciliation_session}/manual-match', [BankReconciliationController::class, 'manualMatch'])->name('bank-reconciliation.manual-match');
+            Route::post('bank-reconciliation/{bank_reconciliation_session}/unmatch', [BankReconciliationController::class, 'unmatch'])->name('bank-reconciliation.unmatch');
             Route::resource('journal-entry', JournalEntryController::class);
         }
     );

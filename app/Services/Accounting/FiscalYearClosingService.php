@@ -1,0 +1,422 @@
+<?php
+
+namespace App\Services\Accounting;
+
+use App\Models\ChartOfAccount;
+use App\Models\JournalEntry;
+use Illuminate\Support\Facades\DB;
+
+class FiscalYearClosingService
+{
+    public function __construct(
+        private ChartAccountResolver $resolver,
+        private JournalEntryPoster $poster
+    ) {}
+
+    /**
+     * Net balance in "credit-positive" form: sum(credit) - sum(debit).
+     *
+     * @param  bool  $excludeFinalClosingPeriods  If true, ignore journals with accounting_period 14 or 15.
+     */
+    public function netBalanceCreditPositive(
+        int $accountId,
+        string $fromDate,
+        string $toDate,
+        int $createdBy,
+        bool $excludeFinalClosingPeriods = true
+    ): float {
+        $q = DB::table('journal_items')
+            ->join('journal_entries', 'journal_items.journal', '=', 'journal_entries.id')
+            ->where('journal_items.account', $accountId)
+            ->where('journal_entries.created_by', $createdBy)
+            ->whereBetween('journal_entries.date', [$fromDate, $toDate]);
+
+        if ($excludeFinalClosingPeriods) {
+            $q->where(function ($w) {
+                $w->whereNull('journal_entries.accounting_period')
+                    ->orWhere('journal_entries.accounting_period', '<', 14);
+            });
+        }
+
+        $row = $q->selectRaw(
+            'COALESCE(SUM(journal_items.credit),0) - COALESCE(SUM(journal_items.debit),0) as net'
+        )->first();
+
+        return round((float) ($row->net ?? 0), 2);
+    }
+
+    /**
+     * @return array{success: bool, messages: array<int, string>, journals: array<int, int>}
+     */
+    public function run(int $createdBy, int $fiscalYear, string $closingDate, int $accountingPeriod, bool $skipIfReferenceExists = true): array
+    {
+        $messages = [];
+        $journalIds = [];
+        $fromDate = sprintf('%04d-01-01', $fiscalYear);
+        $toDate = $closingDate;
+
+        $cfg = config('fiscal_closing');
+        $classes = $cfg['classes'];
+        $codes = $cfg['accounts'];
+
+        $id81 = $this->resolver->resolveByCodeOrPrefix($createdBy, $codes['operating_results']);
+        $id82 = $this->resolver->resolveByCodeOrPrefix($createdBy, $codes['financial_results']);
+        $id83 = $this->resolver->resolveByCodeOrPrefix($createdBy, $codes['current_results']);
+        $id85 = $this->resolver->resolveByCodeOrPrefix($createdBy, $codes['current_tax']);
+        $id88 = $this->resolver->resolveByCodeOrPrefix($createdBy, $codes['net_profits']);
+        $id44101 = $this->resolver->resolveByCodeOrPrefix($createdBy, $codes['income_tax_payable']);
+
+        if (! $id81 || ! $id82 || ! $id83) {
+            return [
+                'success' => false,
+                'messages' => [__('Chart accounts for classes 81, 82 and 83 must exist (codes starting with configured prefixes in config/fiscal_closing.php).')],
+                'journals' => [],
+            ];
+        }
+
+        if ($skipIfReferenceExists) {
+            $exists = JournalEntry::where('created_by', $createdBy)
+                ->where('reference', 'like', 'FY-'.$fiscalYear.'-CLOSE%')
+                ->exists();
+            if ($exists) {
+                return [
+                    'success' => false,
+                    'messages' => [__('Fiscal closing entries for year :y already exist. Delete those journal entries first or run with duplicate check disabled.', ['y' => $fiscalYear])],
+                    'journals' => [],
+                ];
+            }
+        }
+
+        $reserved = array_filter([$id81, $id82, $id83, $id85, $id88, $id44101]);
+
+        $accounts = ChartOfAccount::where('created_by', $createdBy)->get();
+
+        // --- Close operating expenses (61–68) to 81
+        $linesOpExp = [];
+        foreach ($accounts as $acc) {
+            if (in_array($acc->id, $reserved, true)) {
+                continue;
+            }
+            $cls = $this->resolver->twoDigitClass($acc->code);
+            if ($cls === null || ! in_array($cls, $classes['operating_expense'], true)) {
+                continue;
+            }
+            $net = $this->netBalanceCreditPositive((int) $acc->id, $fromDate, $toDate, $createdBy, true);
+            if (abs($net) < 0.0001) {
+                continue;
+            }
+            $adj = -$net;
+            if ($adj > 0.0001) {
+                $linesOpExp[] = [
+                    'account' => (int) $acc->id,
+                    'debit' => 0,
+                    'credit' => $adj,
+                    'description' => __('Year-end close — operating expense'),
+                ];
+                $linesOpExp[] = [
+                    'account' => $id81,
+                    'debit' => $adj,
+                    'credit' => 0,
+                    'description' => __('Year-end close — operating expense'),
+                ];
+            } elseif ($adj < -0.0001) {
+                $linesOpExp[] = [
+                    'account' => (int) $acc->id,
+                    'debit' => -$adj,
+                    'credit' => 0,
+                    'description' => __('Year-end close — operating expense'),
+                ];
+                $linesOpExp[] = [
+                    'account' => $id81,
+                    'debit' => 0,
+                    'credit' => -$adj,
+                    'description' => __('Year-end close — operating expense'),
+                ];
+            }
+        }
+        $this->mergeSameAccountLines($linesOpExp);
+        if (count($linesOpExp) > 0) {
+            $j = $this->poster->post($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-OP-EXP', __('Fiscal year :y — close operating expenses', ['y' => $fiscalYear]), $linesOpExp, $accountingPeriod);
+            $journalIds[] = (int) $j->id;
+            $messages[] = __('Posted operating expense closing (journal #:num).', ['num' => $j->journal_id]);
+        }
+
+        // --- Close operating income (71–76) to 81
+        $linesOpInc = [];
+        foreach ($accounts as $acc) {
+            if (in_array($acc->id, $reserved, true)) {
+                continue;
+            }
+            $cls = $this->resolver->twoDigitClass($acc->code);
+            if ($cls === null || ! in_array($cls, $classes['operating_income'], true)) {
+                continue;
+            }
+            $net = $this->netBalanceCreditPositive((int) $acc->id, $fromDate, $toDate, $createdBy, true);
+            if (abs($net) < 0.0001) {
+                continue;
+            }
+            if ($net > 0.0001) {
+                $linesOpInc[] = [
+                    'account' => (int) $acc->id,
+                    'debit' => $net,
+                    'credit' => 0,
+                    'description' => __('Year-end close — operating income'),
+                ];
+                $linesOpInc[] = [
+                    'account' => $id81,
+                    'debit' => 0,
+                    'credit' => $net,
+                    'description' => __('Year-end close — operating income'),
+                ];
+            } elseif ($net < -0.0001) {
+                $linesOpInc[] = [
+                    'account' => (int) $acc->id,
+                    'debit' => 0,
+                    'credit' => -$net,
+                    'description' => __('Year-end close — operating income'),
+                ];
+                $linesOpInc[] = [
+                    'account' => $id81,
+                    'debit' => -$net,
+                    'credit' => 0,
+                    'description' => __('Year-end close — operating income'),
+                ];
+            }
+        }
+        $this->mergeSameAccountLines($linesOpInc);
+        if (count($linesOpInc) > 0) {
+            $j = $this->poster->post($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-OP-INC', __('Fiscal year :y — close operating income', ['y' => $fiscalYear]), $linesOpInc, $accountingPeriod);
+            $journalIds[] = (int) $j->id;
+            $messages[] = __('Posted operating income closing (journal #:num).', ['num' => $j->journal_id]);
+        }
+
+        // --- Financial expense 69 → 82
+        $lines69 = [];
+        foreach ($accounts as $acc) {
+            if (in_array($acc->id, $reserved, true)) {
+                continue;
+            }
+            $cls = $this->resolver->twoDigitClass($acc->code);
+            if ($cls === null || ! in_array($cls, $classes['financial_expense'], true)) {
+                continue;
+            }
+            $net = $this->netBalanceCreditPositive((int) $acc->id, $fromDate, $toDate, $createdBy, true);
+            if (abs($net) < 0.0001) {
+                continue;
+            }
+            $adj = -$net;
+            if ($adj > 0.0001) {
+                $lines69[] = [
+                    'account' => (int) $acc->id,
+                    'debit' => 0,
+                    'credit' => $adj,
+                    'description' => __('Year-end close — financial expense'),
+                ];
+                $lines69[] = [
+                    'account' => $id82,
+                    'debit' => $adj,
+                    'credit' => 0,
+                    'description' => __('Year-end close — financial expense'),
+                ];
+            } elseif ($adj < -0.0001) {
+                $lines69[] = [
+                    'account' => (int) $acc->id,
+                    'debit' => -$adj,
+                    'credit' => 0,
+                    'description' => __('Year-end close — financial expense'),
+                ];
+                $lines69[] = [
+                    'account' => $id82,
+                    'debit' => 0,
+                    'credit' => -$adj,
+                    'description' => __('Year-end close — financial expense'),
+                ];
+            }
+        }
+        $this->mergeSameAccountLines($lines69);
+        if (count($lines69) > 0) {
+            $j = $this->poster->post($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-FIN-69', __('Fiscal year :y — close class 69', ['y' => $fiscalYear]), $lines69, $accountingPeriod);
+            $journalIds[] = (int) $j->id;
+            $messages[] = __('Posted financial expense closing (journal #:num).', ['num' => $j->journal_id]);
+        }
+
+        // --- Financial income 78 → 82
+        $lines78 = [];
+        foreach ($accounts as $acc) {
+            if (in_array($acc->id, $reserved, true)) {
+                continue;
+            }
+            $cls = $this->resolver->twoDigitClass($acc->code);
+            if ($cls === null || ! in_array($cls, $classes['financial_income'], true)) {
+                continue;
+            }
+            $net = $this->netBalanceCreditPositive((int) $acc->id, $fromDate, $toDate, $createdBy, true);
+            if (abs($net) < 0.0001) {
+                continue;
+            }
+            if ($net > 0.0001) {
+                $lines78[] = [
+                    'account' => (int) $acc->id,
+                    'debit' => $net,
+                    'credit' => 0,
+                    'description' => __('Year-end close — financial income'),
+                ];
+                $lines78[] = [
+                    'account' => $id82,
+                    'debit' => 0,
+                    'credit' => $net,
+                    'description' => __('Year-end close — financial income'),
+                ];
+            } elseif ($net < -0.0001) {
+                $lines78[] = [
+                    'account' => (int) $acc->id,
+                    'debit' => 0,
+                    'credit' => -$net,
+                    'description' => __('Year-end close — financial income'),
+                ];
+                $lines78[] = [
+                    'account' => $id82,
+                    'debit' => -$net,
+                    'credit' => 0,
+                    'description' => __('Year-end close — financial income'),
+                ];
+            }
+        }
+        $this->mergeSameAccountLines($lines78);
+        if (count($lines78) > 0) {
+            $j = $this->poster->post($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-FIN-78', __('Fiscal year :y — close class 78', ['y' => $fiscalYear]), $lines78, $accountingPeriod);
+            $journalIds[] = (int) $j->id;
+            $messages[] = __('Posted financial income closing (journal #:num).', ['num' => $j->journal_id]);
+        }
+
+        $bal81 = $this->netBalanceCreditPositive($id81, $fromDate, $toDate, $createdBy, false);
+        $bal82 = $this->netBalanceCreditPositive($id82, $fromDate, $toDate, $createdBy, false);
+
+        $lines83 = [];
+        if (abs($bal81) >= 0.01) {
+            if ($bal81 > 0) {
+                $lines83[] = ['account' => $id81, 'debit' => $bal81, 'credit' => 0, 'description' => __('Transfer to current results')];
+                $lines83[] = ['account' => $id83, 'debit' => 0, 'credit' => $bal81, 'description' => __('Transfer from operating results')];
+            } else {
+                $a = -$bal81;
+                $lines83[] = ['account' => $id81, 'debit' => 0, 'credit' => $a, 'description' => __('Transfer to current results')];
+                $lines83[] = ['account' => $id83, 'debit' => $a, 'credit' => 0, 'description' => __('Transfer from operating results')];
+            }
+        }
+        if (abs($bal82) >= 0.01) {
+            if ($bal82 > 0) {
+                $lines83[] = ['account' => $id82, 'debit' => $bal82, 'credit' => 0, 'description' => __('Transfer to current results')];
+                $lines83[] = ['account' => $id83, 'debit' => 0, 'credit' => $bal82, 'description' => __('Transfer from financial results')];
+            } else {
+                $a = -$bal82;
+                $lines83[] = ['account' => $id82, 'debit' => 0, 'credit' => $a, 'description' => __('Transfer to current results')];
+                $lines83[] = ['account' => $id83, 'debit' => $a, 'credit' => 0, 'description' => __('Transfer from financial results')];
+            }
+        }
+
+        $this->mergeSameAccountLines($lines83);
+        if (count($lines83) > 0) {
+            $j = $this->poster->post($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-83', __('Fiscal year :y — transfer to account 83', ['y' => $fiscalYear]), $lines83, $accountingPeriod);
+            $journalIds[] = (int) $j->id;
+            $messages[] = __('Posted transfer to current results (journal #:num).', ['num' => $j->journal_id]);
+        }
+
+        $bal83 = $this->netBalanceCreditPositive($id83, $fromDate, $toDate, $createdBy, false);
+
+        if (abs($bal83) < 0.01) {
+            $messages[] = __('Account 83 has no balance; no tax or net profit/loss entry was posted.');
+
+            return ['success' => true, 'messages' => $messages, 'journals' => $journalIds];
+        }
+
+        if ($bal83 < 0) {
+            if (! $id88) {
+                $messages[] = __('Loss detected but account 88 (net profits / retained) was not found in the chart.');
+
+                return ['success' => false, 'messages' => $messages, 'journals' => $journalIds];
+            }
+            $loss = -$bal83;
+            $j = $this->poster->post(
+                $createdBy,
+                $closingDate,
+                'FY-'.$fiscalYear.'-CLOSE-LOSS',
+                __('Fiscal year :y — net loss', ['y' => $fiscalYear]),
+                [
+                    ['account' => $id88, 'debit' => $loss, 'credit' => 0, 'description' => __('Net loss for the year')],
+                    ['account' => $id83, 'debit' => 0, 'credit' => $loss, 'description' => __('Net loss for the year')],
+                ],
+                $accountingPeriod
+            );
+            $journalIds[] = (int) $j->id;
+            $messages[] = __('Posted net loss to account 88 (journal #:num).', ['num' => $j->journal_id]);
+
+            return ['success' => true, 'messages' => $messages, 'journals' => $journalIds];
+        }
+
+        if (! $id85 || ! $id44101 || ! $id88) {
+            $messages[] = __('Profit detected: add chart accounts for 85, 44101 and 88 to record IRPC and net profit.');
+
+            return ['success' => false, 'messages' => $messages, 'journals' => $journalIds];
+        }
+
+        $rate = (float) $cfg['irpc_rate'];
+        $tax = round($bal83 * $rate, 2);
+        $net = round($bal83 - $tax, 2);
+
+        $taxLines = [
+            ['account' => $id83, 'debit' => $tax, 'credit' => 0, 'description' => __('IRPC :pct%', ['pct' => round($rate * 100, 2)])],
+            ['account' => $id85, 'debit' => 0, 'credit' => $tax, 'description' => __('Current tax provision')],
+            ['account' => $id85, 'debit' => $tax, 'credit' => 0, 'description' => __('Settlement to payable')],
+            ['account' => $id44101, 'debit' => 0, 'credit' => $tax, 'description' => __('Income tax payable')],
+        ];
+        $j = $this->poster->post($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-TAX', __('Fiscal year :y — income tax', ['y' => $fiscalYear]), $taxLines, $accountingPeriod);
+        $journalIds[] = (int) $j->id;
+        $messages[] = __('Posted IRPC and tax payable (journal #:num).', ['num' => $j->journal_id]);
+
+        if (abs($net) >= 0.01) {
+            $j = $this->poster->post(
+                $createdBy,
+                $closingDate,
+                'FY-'.$fiscalYear.'-CLOSE-TAX-NET',
+                __('Fiscal year :y — net profit', ['y' => $fiscalYear]),
+                [
+                    ['account' => $id83, 'debit' => $net, 'credit' => 0, 'description' => __('Net profit after tax')],
+                    ['account' => $id88, 'debit' => 0, 'credit' => $net, 'description' => __('Net profit after tax')],
+                ],
+                $accountingPeriod
+            );
+            $journalIds[] = (int) $j->id;
+            $messages[] = __('Posted net profit to account 88 (journal #:num).', ['num' => $j->journal_id]);
+        }
+
+        return ['success' => true, 'messages' => $messages, 'journals' => $journalIds];
+    }
+
+    /**
+     * @param  array<int, array{account: int, debit: float, credit: float, description?: string}>  $lines
+     */
+    private function mergeSameAccountLines(array &$lines): void
+    {
+        $map = [];
+        foreach ($lines as $line) {
+            $id = (int) $line['account'];
+            if (! isset($map[$id])) {
+                $map[$id] = ['debit' => 0.0, 'credit' => 0.0, 'description' => $line['description'] ?? ''];
+            }
+            $map[$id]['debit'] += (float) ($line['debit'] ?? 0);
+            $map[$id]['credit'] += (float) ($line['credit'] ?? 0);
+        }
+        $lines = [];
+        foreach ($map as $accountId => $v) {
+            if (abs($v['debit']) < 0.0001 && abs($v['credit']) < 0.0001) {
+                continue;
+            }
+            $lines[] = [
+                'account' => $accountId,
+                'debit' => round($v['debit'], 2),
+                'credit' => round($v['credit'], 2),
+                'description' => $v['description'],
+            ];
+        }
+    }
+}
