@@ -8,21 +8,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Built-in presets (extend by adding detectors in Presets/)
+    | Optional layout suggestions (auto-detect). Core flow is always manual mapping.
+    | Add new banks by registering a Preset class implementing BankStatementPresetInterface.
     |--------------------------------------------------------------------------
     */
     'presets' => [
+        'flexible' => [
+            'label' => 'Any bank (manual column mapping)',
+            'detector' => null,
+        ],
         'bci_mozambique' => [
-            'label' => 'BCI (Mozambique — Extrato)',
+            'label' => 'Suggestion: BCI (Mozambique extrato-style)',
             'detector' => \App\Services\Accounting\BankReconciliation\Presets\BciMozambiquePreset::class,
         ],
         'standard_bank' => [
-            'label' => 'Standard Bank (Debit/Credit columns)',
+            'label' => 'Suggestion: Standard Bank-style (Date + Debit/Credit)',
             'detector' => \App\Services\Accounting\BankReconciliation\Presets\StandardBankPreset::class,
-        ],
-        'custom' => [
-            'label' => 'Custom (manual column mapping)',
-            'detector' => null,
         ],
     ],
 ];

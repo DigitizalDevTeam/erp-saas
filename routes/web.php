@@ -1033,6 +1033,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('bank-reconciliation', [BankReconciliationController::class, 'index'])->name('bank-reconciliation.index');
             Route::get('bank-reconciliation/create', [BankReconciliationController::class, 'create'])->name('bank-reconciliation.create');
             Route::post('bank-reconciliation', [BankReconciliationController::class, 'store'])->name('bank-reconciliation.store');
+            Route::get('bank-reconciliation/{bank_reconciliation_session}/map', [BankReconciliationController::class, 'map'])->name('bank-reconciliation.map');
+            Route::post('bank-reconciliation/{bank_reconciliation_session}/map', [BankReconciliationController::class, 'applyMapping'])->name('bank-reconciliation.apply-mapping');
             Route::get('bank-reconciliation/{bank_reconciliation_session}', [BankReconciliationController::class, 'show'])->name('bank-reconciliation.show');
             Route::post('bank-reconciliation/{bank_reconciliation_session}/auto-match', [BankReconciliationController::class, 'autoMatch'])->name('bank-reconciliation.auto-match');
             Route::post('bank-reconciliation/{bank_reconciliation_session}/manual-match', [BankReconciliationController::class, 'manualMatch'])->name('bank-reconciliation.manual-match');

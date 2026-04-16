@@ -25,7 +25,7 @@
                                 <tr>
                                     <th>{{ __('ID') }}</th>
                                     <th>{{ __('Bank account') }}</th>
-                                    <th>{{ __('Preset') }}</th>
+                                    <th>{{ __('Mapping') }}</th>
                                     <th>{{ __('Period') }}</th>
                                     <th>{{ __('Created') }}</th>
                                     <th></th>
@@ -37,7 +37,12 @@
                                         <td>{{ $s->id }}</td>
                                         <td>{{ $s->bankAccount ? $s->bankAccount->bank_name . ' — ' . $s->bankAccount->holder_name : '-' }}
                                         </td>
-                                        <td>{{ config('bank_reconciliation.presets.' . $s->preset_key . '.label', $s->preset_key) }}
+                                        <td>
+                                            @if ($s->statement_lines_count === 0)
+                                                <span class="badge bg-warning text-dark">{{ __('Pending') }}</span>
+                                            @else
+                                                {{ config('bank_reconciliation.presets.' . $s->preset_key . '.label') ?: ucfirst(str_replace('_', ' ', $s->preset_key)) }}
+                                            @endif
                                         </td>
                                         <td>
                                             @if ($s->period_from && $s->period_to)
@@ -48,8 +53,13 @@
                                         </td>
                                         <td>{{ $s->created_at }}</td>
                                         <td class="text-end">
-                                            <a class="btn btn-sm btn-outline-primary"
-                                                href="{{ route('bank-reconciliation.show', $s) }}">{{ __('Open') }}</a>
+                                            @if ($s->statement_lines_count === 0)
+                                                <a class="btn btn-sm btn-primary"
+                                                    href="{{ route('bank-reconciliation.map', $s) }}">{{ __('Continue mapping') }}</a>
+                                            @else
+                                                <a class="btn btn-sm btn-outline-primary"
+                                                    href="{{ route('bank-reconciliation.show', $s) }}">{{ __('Open') }}</a>
+                                            @endif
                                         </td>
                                     </tr>
                                 @empty

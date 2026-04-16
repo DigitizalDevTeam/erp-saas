@@ -15,21 +15,40 @@ class StatementImportService
     ) {}
 
     /**
-     * @param  array<string, mixed>|null  $customMapping  required when preset is custom
+     * Try to auto-detect columns using a registered preset detector (optional helper for the mapping UI).
+     *
+     * @param  array<int, array<int, mixed>>  $rows
+     * @return array<string, mixed>|null
+     */
+    public function suggestMappingForRows(array $rows, string $presetKey): ?array
+    {
+        $class = config('bank_reconciliation.presets.'.$presetKey.'.detector');
+        if (! $class || ! class_exists($class)) {
+            return null;
+        }
+
+        $preset = app($class);
+
+        return $preset->detect($rows);
+    }
+
+    /**
+     * Import using explicit column mapping (any bank / any layout).
+     *
+     * @param  array<string, mixed>  $mapping  Normalized mapping (see normalizeCustomMapping)
      * @return array{mapping: array<string, mixed>, imported: int, skipped: int}
      */
-    public function import(
+    public function importFromColumnMapping(
         BankReconciliationSession $session,
         string $absolutePath,
-        string $presetKey,
-        ?array $customMapping
+        array $mapping
     ): array {
-        $rows = $this->loader->loadRows($absolutePath);
+        $rows = $this->loadRows($absolutePath);
         if ($rows === []) {
             throw new \InvalidArgumentException(__('The uploaded file has no rows.'));
         }
 
-        $mapping = $this->resolveMapping($presetKey, $rows, $customMapping);
+        $mapping = $this->normalizeCustomMapping($mapping);
 
         DB::transaction(function () use ($session) {
             BankStatementLine::where('session_id', $session->id)->delete();
@@ -78,43 +97,20 @@ class StatementImportService
     }
 
     /**
-     * @param  array<int, array<int, mixed>>  $rows
-     * @param  array<string, mixed>|null  $customMapping
-     * @return array<string, mixed>
+     * @return array<int, array<int, mixed>>
      */
-    public function resolveMapping(string $presetKey, array $rows, ?array $customMapping): array
+    public function loadRows(string $absolutePath): array
     {
-        if ($presetKey === 'custom') {
-            if ($customMapping === null) {
-                throw new \InvalidArgumentException(__('Custom mapping is required for the custom preset.'));
-            }
-
-            return $this->normalizeCustomMapping($customMapping);
-        }
-
-        $class = config('bank_reconciliation.presets.'.$presetKey.'.detector');
-        if (! $class || ! class_exists($class)) {
-            throw new \InvalidArgumentException(__('Unknown bank preset.'));
-        }
-
-        $preset = app($class);
-        $map = $preset->detect($rows);
-        if ($map === null) {
-            throw new \InvalidArgumentException(
-                __('Could not detect column headers for this preset. Try the Custom preset and map columns manually.')
-            );
-        }
-
-        return $map;
+        return $this->loader->loadRows($absolutePath);
     }
 
     /**
      * @param  array<string, mixed>  $mapping
      * @return array<string, mixed>
      */
-    protected function normalizeCustomMapping(array $mapping): array
+    public function normalizeCustomMapping(array $mapping): array
     {
-        $dataStart = (int) ($mapping['data_start_row'] ?? 1);
+        $dataStart = (int) ($mapping['data_start_row'] ?? 0);
         $mode = $mapping['amount_mode'] ?? 'signed_column';
 
         $base = [
@@ -126,7 +122,7 @@ class StatementImportService
             'amount_col' => isset($mapping['amount_col']) ? (int) $mapping['amount_col'] : null,
             'debit_col' => isset($mapping['debit_col']) ? (int) $mapping['debit_col'] : null,
             'credit_col' => isset($mapping['credit_col']) ? (int) $mapping['credit_col'] : null,
-            'balance_col' => isset($mapping['balance_col']) && $mapping['balance_col'] !== '' ? (int) $mapping['balance_col'] : null,
+            'balance_col' => isset($mapping['balance_col']) && $mapping['balance_col'] !== '' && $mapping['balance_col'] !== null ? (int) $mapping['balance_col'] : null,
         ];
 
         if ($base['amount_mode'] === 'debit_credit') {
