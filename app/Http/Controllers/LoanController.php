@@ -17,7 +17,7 @@ class LoanController extends Controller
         $employee = Employee::find($id);
         $loan_options = LoanOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
         $loan = Loan::$Loantypes;
-        $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
+        $chartAccounts = PayrollChartAccountOptions::listLoanDeductionAccountsForCurrentUser();
 
         return view('loan.create', compact('employee', 'loan_options', 'loan', 'chartAccounts'));
     }
@@ -118,7 +118,7 @@ class LoanController extends Controller
             if ($loan->created_by == \Auth::user()->creatorId()) {
                 $loan_options = LoanOption::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $loans = Loan::$Loantypes;
-                $chartAccounts = PayrollChartAccountOptions::listForCurrentUser();
+                $chartAccounts = PayrollChartAccountOptions::listLoanDeductionAccountsForCurrentUser();
 
                 return view('loan.edit', compact('loan', 'loan_options', 'loans', 'chartAccounts'));
             }

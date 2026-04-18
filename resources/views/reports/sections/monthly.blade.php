@@ -35,6 +35,9 @@
                             <a class="list-group-item list-group-item-action" href="{{ route('monthly.reports.irps-modelo-19') }}">
                                 {{ __('IRPS (Modelo 19)') }}
                             </a>
+                            <a class="list-group-item list-group-item-action" href="{{ route('monthly.reports.irps-modelo-22') }}">
+                                {{ __('IRPS / Payroll (Model 22)') }}
+                            </a>
                         @endcan
                     </div>
                 </div>

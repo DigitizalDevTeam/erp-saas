@@ -941,6 +941,9 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('monthly-reports/irps-modelo-19', [MonthlyIrpsReportController::class, 'modelo19'])
                 ->name('monthly.reports.irps-modelo-19');
 
+            Route::get('monthly-reports/irps-modelo-22', [MonthlyIrpsReportController::class, 'modelo22'])
+                ->name('monthly.reports.irps-modelo-22');
+
             Route::get('reports-monthly-cashflow', [ReportController::class, 'monthlyCashflow'])->name('report.monthly.cashflow')->middleware(['auth', 'XSS']);
             Route::get('reports-quarterly-cashflow', [ReportController::class, 'quarterlyCashflow'])->name('report.quarterly.cashflow')->middleware(['auth', 'XSS']);
             Route::post('export/trial-balance', [ReportController::class, 'trialBalanceExport'])->name('trial.balance.export');

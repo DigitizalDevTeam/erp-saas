@@ -137,6 +137,9 @@
                                                                 <li class="dash-item {{ Request::route()->getName() == 'monthly.reports.irps-modelo-19' ? ' active' : '' }}">
                                                                     <a class="dash-link" href="{{ route('monthly.reports.irps-modelo-19') }}">{{ __('IRPS (Modelo 19)') }}</a>
                                                                 </li>
+                                                                <li class="dash-item {{ Request::route()->getName() == 'monthly.reports.irps-modelo-22' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('monthly.reports.irps-modelo-22') }}">{{ __('IRPS / Payroll (Model 22)') }}</a>
+                                                                </li>
                                                             @endcan
                                                         </ul>
                                                     </li>

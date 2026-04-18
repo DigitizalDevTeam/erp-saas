@@ -22,6 +22,7 @@ class PaySlip extends Model
         'other_payment',
         'overtime',
         'created_by',
+        'payroll_journal_id',
     ];
 
     public static function employee($id)

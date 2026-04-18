@@ -10,6 +10,7 @@ use App\Models\Department;
 use App\Models\Designation;
 use App\Models\Document;
 use App\Models\Employee;
+use App\Services\EmployeeAttendanceScheduleService;
 use App\Models\EmployeeDocument;
 use App\Models\ExperienceCertificate;
 use App\Models\JoiningLetter;
@@ -143,6 +144,9 @@ class EmployeeController extends Controller
                 $document_implode = null;
             }
 
+            $defType = $settings['default_work_schedule_type'] ?? EmployeeAttendanceScheduleService::TYPE_OFFICE;
+            $defGrace = max(0, min(1440, (int) ($settings['default_grace_minutes'] ?? 0)));
+
             $employee = Employee::create(
                 [
                     'user_id' => $user->id,
@@ -168,6 +172,11 @@ class EmployeeController extends Controller
                     'branch_location' => $request['branch_location'],
                     'tax_payer_id' => $request['tax_payer_id'],
                     'dependents' => max(0, (int) ($request['dependents'] ?? 0)),
+                    'attendance_use_company_default' => $request->boolean('attendance_use_company_default'),
+                    'work_schedule_type' => $request->input('work_schedule_type', $defType),
+                    'work_start_time' => $request->input('work_start_time'),
+                    'work_end_time' => $request->input('work_end_time'),
+                    'grace_minutes' => max(0, min(1440, (int) ($request->input('grace_minutes', $defGrace)))),
                     'created_by' => \Auth::user()->creatorId(),
                 ]
             );
@@ -338,7 +347,27 @@ class EmployeeController extends Controller
                 }
             }
             $employee = Employee::findOrFail($id);
-            $input    = $request->all();
+
+            if (! $request->boolean('attendance_use_company_default')
+                && in_array($request->input('work_schedule_type'), [EmployeeAttendanceScheduleService::TYPE_OFFICE, EmployeeAttendanceScheduleService::TYPE_SHIFT], true)) {
+                $v2 = \Validator::make(
+                    $request->all(),
+                    [
+                        'work_start_time' => 'required|date_format:H:i',
+                        'work_end_time' => 'required|date_format:H:i',
+                    ]
+                );
+                if ($v2->fails()) {
+                    return redirect()->back()->with('error', $v2->getMessageBag()->first());
+                }
+            }
+
+            $request->merge([
+                'attendance_use_company_default' => $request->boolean('attendance_use_company_default'),
+                'grace_minutes' => max(0, min(1440, (int) $request->input('grace_minutes', 0))),
+            ]);
+
+            $input = $request->all();
             $employee->fill($input)->save();
             $employee = Employee::find($id);
             $user = User::where('id',$employee->user_id)->first();

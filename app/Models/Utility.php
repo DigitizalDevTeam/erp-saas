@@ -487,7 +487,16 @@ class Utility extends Model
             'zkteco_api_url' => '',
             'username' => '',
             'user_password' => '',
-            'auth_token' => ''
+            'auth_token' => '',
+
+            // Payroll → accounting (HRM + Account plans): liability accounts for auto journal
+            'payroll_irps_liability_account' => '',
+            'payroll_inss_employee_liability_account' => '',
+            'payroll_salaries_payable_account' => '',
+
+            // Default attendance profile for new employees (can override per employee)
+            'default_work_schedule_type' => 'office_fixed',
+            'default_grace_minutes' => '0',
         ];
 
         foreach ($data as $row) {
@@ -566,6 +575,8 @@ class Utility extends Model
             'footer_text' => '',
             "company_start_time" => "09:00",
             "company_end_time" => "18:00",
+            'default_work_schedule_type' => 'office_fixed',
+            'default_grace_minutes' => '0',
             'gdpr_cookie' => 'off',
             "interval_time" => "",
             "zoom_apikey" => "",

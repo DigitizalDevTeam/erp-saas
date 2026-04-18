@@ -34,7 +34,17 @@ class Employee extends Model
         'account',
         'salary_chart_account_id',
         'salary',
+        'attendance_use_company_default',
+        'work_schedule_type',
+        'work_start_time',
+        'work_end_time',
+        'grace_minutes',
         'created_by',
+    ];
+
+    protected $casts = [
+        'attendance_use_company_default' => 'boolean',
+        'grace_minutes' => 'integer',
     ];
 
     public function documents()

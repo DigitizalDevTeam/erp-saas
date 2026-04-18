@@ -213,6 +213,12 @@
                 </div>
             </div>
 
+            <div class="row mt-2">
+                <div class="col-12">
+                    @include('employee.partials.work_schedule_form', ['employee' => null])
+                </div>
+            </div>
+
         </div>
 
         <div class="float-end">

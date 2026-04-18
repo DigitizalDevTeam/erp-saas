@@ -38,6 +38,7 @@ use App\Models\Trainer;
 use App\Models\Training;
 use App\Models\User;
 use App\Models\Utility;
+use App\Services\EmployeeAttendanceScheduleService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -341,8 +342,7 @@ class DashboardController extends Controller
                     $time = date("H:i:s");
                     $employeeAttendance = AttendanceEmployee::orderBy('id', 'desc')->where('employee_id', '=', !empty(\Auth::user()->employee)?\Auth::user()->employee->id : 0)->where('date', '=', $date)->first();
 
-                    $officeTime['startTime'] = Utility::getValByName('company_start_time');
-                    $officeTime['endTime'] = Utility::getValByName('company_end_time');
+                    $officeTime = EmployeeAttendanceScheduleService::officeTimeForDashboard($emp, (int) $user->creatorId());
 
                     return view('dashboard.dashboard', compact('arrEvents', 'announcements', 'employees', 'meetings', 'employeeAttendance', 'officeTime'));
                 } else if ($user->type == 'super admin') {

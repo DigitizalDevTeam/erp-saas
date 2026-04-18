@@ -272,6 +272,12 @@
                     </div>
                 </div>
             </div>
+
+            <div class="row mt-2">
+                <div class="col-12">
+                    @include('employee.partials.work_schedule_form', ['employee' => $employee])
+                </div>
+            </div>
         @else
             <div class="row">
                 <div class="col-md-6 d-flex">

@@ -109,7 +109,14 @@
                                 <h5>{{__('Mark Attandance')}}</h5>
                             </div>
                             <div class="card-body dash-card-body">
-                                <p>{{__('My Office Time: '.$officeTime['startTime'].' to '.$officeTime['endTime'])}}</p>
+                                @if(!empty($officeTime['flexible']))
+                                    <p>{{ __('Flexible site') }} — {{ __('reference: :start to :end', ['start' => $officeTime['startTime'], 'end' => $officeTime['endTime']]) }}</p>
+                                @else
+                                    <p>{{ __('My Office Time: :start to :end', ['start' => $officeTime['startTime'], 'end' => $officeTime['endTime']]) }}</p>
+                                    @if(($officeTime['grace_minutes'] ?? 0) > 0)
+                                        <p class="text-muted small mb-0">{{ __('Grace after scheduled start: :m minutes', ['m' => $officeTime['grace_minutes']]) }}</p>
+                                    @endif
+                                @endif
                                 <center>
                                     <div class="row">
                                         <div class="col-md-6">

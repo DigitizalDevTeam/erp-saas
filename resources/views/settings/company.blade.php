@@ -942,6 +942,25 @@
                                         </span>
                                     @enderror
                                 </div>
+                                @php
+                                    $payrollLiabAccounts = \App\Support\PayrollChartAccountOptions::listLiabilitiesForCurrentUser(__('Select liability account'));
+                                @endphp
+                                <div class="form-group col-md-12">
+                                    <h6 class="mt-2 mb-1">{{ __('Payroll accounting (HRM + Account plans)') }}</h6>
+                                    <small class="text-muted d-block mb-2">{{ __('Used when paying payslips: posts a balanced journal (expense, IRPS / INSS liabilities, loan & deductions, salaries payable, bank).') }}</small>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    {{ Form::label('payroll_irps_liability_account', __('IRPS liability account'), ['class' => 'form-label']) }}
+                                    {{ Form::select('payroll_irps_liability_account', $payrollLiabAccounts, $setting['payroll_irps_liability_account'] ?? '', ['class' => 'form-control selectric']) }}
+                                </div>
+                                <div class="form-group col-md-4">
+                                    {{ Form::label('payroll_inss_employee_liability_account', __('INSS (employee) liability account'), ['class' => 'form-label']) }}
+                                    {{ Form::select('payroll_inss_employee_liability_account', $payrollLiabAccounts, $setting['payroll_inss_employee_liability_account'] ?? '', ['class' => 'form-control selectric']) }}
+                                </div>
+                                <div class="form-group col-md-4">
+                                    {{ Form::label('payroll_salaries_payable_account', __('Salaries payable account'), ['class' => 'form-label']) }}
+                                    {{ Form::select('payroll_salaries_payable_account', $payrollLiabAccounts, $setting['payroll_salaries_payable_account'] ?? '', ['class' => 'form-control selectric']) }}
+                                </div>
                                 <div class="form-group col-md-6">
                                     {{ Form::label('expense_prefix', __('Expense Prefix'), ['class' => 'form-label']) }}
                                     {{ Form::text('expense_prefix', null, ['class' => 'form-control', 'placeholder' => __('Enter Expense Prifix')]) }}
@@ -1240,7 +1259,22 @@
                                         </span>
                                     @enderror
                                 </div>
-
+                                <div class="form-group col-md-12">
+                                    <h6 class="mb-1">{{ __('Default attendance (new employees)') }}</h6>
+                                    <small class="text-muted d-block mb-2">{{ __('Defaults when creating an employee; each employee can override in their profile.') }}</small>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('default_work_schedule_type', __('Default work type'), ['class' => 'form-label']) }}
+                                    {{ Form::select('default_work_schedule_type', [
+                                        'office_fixed' => __('Office — fixed'),
+                                        'shift' => __('Shift-based'),
+                                        'flexible_site' => __('Flexible / site-based'),
+                                    ], $setting['default_work_schedule_type'] ?? 'office_fixed', ['class' => 'form-control']) }}
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('default_grace_minutes', __('Default grace (minutes)'), ['class' => 'form-label']) }}
+                                    {{ Form::number('default_grace_minutes', $setting['default_grace_minutes'] ?? 0, ['class' => 'form-control', 'min' => 0, 'max' => 1440]) }}
+                                </div>
 
                                 <div class="form-group col-md-12">
                                     {{ Form::label('timezone', __('Timezone'), ['class' => 'form-label']) }}

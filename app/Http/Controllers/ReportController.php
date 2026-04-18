@@ -1949,7 +1949,7 @@ class ReportController extends Controller
                                 $lateMins += date('i', strtotime($employeeAttendance->late));
                             }
 
-                        } elseif (!empty($employeeAttendance) && $employeeAttendance->status == 'Leave') {
+                        } elseif (!empty($employeeAttendance) && in_array($employeeAttendance->status, ['Leave', 'Absent'], true)) {
                             $attendanceStatus[$date] = 'A';
                             $totalLeave += 1;
                         } else {
@@ -2174,7 +2174,7 @@ class ReportController extends Controller
 
                     if (!empty($employeeAttendance) && $employeeAttendance->status == 'Present') {
                         $attendanceStatus[$date] = 'P';
-                    } elseif (!empty($employeeAttendance) && $employeeAttendance->status == 'Leave') {
+                    } elseif (!empty($employeeAttendance) && in_array($employeeAttendance->status, ['Leave', 'Absent'], true)) {
                         $attendanceStatus[$date] = 'A';
                     } else {
                         $attendanceStatus[$date] = '-';

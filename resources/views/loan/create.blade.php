@@ -65,8 +65,9 @@
             </div>
         </div>
         <div class="form-group col-md-12">
-            {{ Form::label('chart_account_id', __('Select Account'),['class'=>'form-label']) }}
-            {{ Form::select('chart_account_id',$chartAccounts,null, array('class' => 'form-control select')) }}
+            {{ Form::label('chart_account_id', __('Chart of account (payroll loan deduction)'), ['class' => 'form-label']) }}
+            {{ Form::select('chart_account_id', $chartAccounts, null, ['class' => 'form-control select']) }}
+            <small class="text-muted">{{ __('Choose the asset or liability account used when this loan is recovered on payslip (e.g. employee advance / loans receivable). Required for HRM + Accounting payroll journals.') }}</small>
         </div>
     </div>
 </div>
