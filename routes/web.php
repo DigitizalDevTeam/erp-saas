@@ -64,6 +64,15 @@ use App\Http\Controllers\GoalController;
 use App\Http\Controllers\GoalTrackingController;
 use App\Http\Controllers\GoalTypeController;
 use App\Http\Controllers\HolidayController;
+use App\Http\Controllers\HotelDashboardController;
+use App\Http\Controllers\HotelFolioController;
+use App\Http\Controllers\HotelFrontdeskController;
+use App\Http\Controllers\HotelPosIntegrationController;
+use App\Http\Controllers\HotelReservationController;
+use App\Http\Controllers\HotelRoomController;
+use App\Http\Controllers\HotelHousekeepingController;
+use App\Http\Controllers\HotelNightAuditController;
+use App\Http\Controllers\HotelRoomTypeController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\IndicatorController;
 use App\Http\Controllers\InterviewScheduleController;
@@ -550,6 +559,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('/crm-dashboard', [DashboardController::class, 'crm_dashboard_index'])->name('crm.dashboard')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('/sales-dashboard', [DashboardController::class, 'sales_dashboard_index'])->name('sales.dashboard')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('/pos-dashboard', [DashboardController::class, 'pos_dashboard_index'])->name('pos.dashboard')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('/hotel-dashboard', [HotelDashboardController::class, 'index'])->name('hotel.dashboard')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::get('profile', [UserController::class, 'profile'])->name('profile')->middleware(['auth', 'XSS', 'revalidate']);
 
@@ -658,6 +668,30 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('empty-cart', [ProductServiceController::class, 'emptyCart'])->middleware(['auth', 'XSS']);
     Route::post('warehouse-empty-cart', [ProductServiceController::class, 'warehouseemptyCart'])->name('warehouse-empty-cart')->middleware(['auth', 'XSS']);
     Route::resource('productservice', ProductServiceController::class)->middleware(['auth', 'XSS', 'revalidate']);
+
+    Route::group(
+        [
+            'middleware' => [
+                'auth',
+                'XSS',
+                'revalidate',
+            ],
+        ],
+        function () {
+            Route::resource('hotel/rooms', HotelRoomController::class)->names('hotel.rooms');
+            Route::resource('hotel/room-types', HotelRoomTypeController::class)->except(['show'])->names('hotel.room-types');
+            Route::resource('hotel/reservations', HotelReservationController::class)->names('hotel.reservations');
+            Route::resource('hotel/housekeeping', HotelHousekeepingController::class)->except(['show', 'destroy'])->names('hotel.housekeeping');
+            Route::get('hotel/frontdesk/in-house', [HotelFrontdeskController::class, 'inHouse'])->name('hotel.frontdesk.in-house');
+            Route::post('hotel/frontdesk/check-in/{reservation}', [HotelFrontdeskController::class, 'checkIn'])->name('hotel.frontdesk.check-in');
+            Route::post('hotel/frontdesk/check-out/{stay}', [HotelFrontdeskController::class, 'checkOut'])->name('hotel.frontdesk.check-out');
+            Route::get('hotel/folios/{folio}', [HotelFolioController::class, 'show'])->name('hotel.folios.show');
+            Route::get('hotel/night-audit', [HotelNightAuditController::class, 'index'])->name('hotel.night-audit.index');
+            Route::post('hotel/night-audit/run', [HotelNightAuditController::class, 'run'])->name('hotel.night-audit.run');
+            Route::get('hotel/pos/in-house-guests', [HotelPosIntegrationController::class, 'inHouseGuests'])->name('hotel.pos.in-house-guests');
+            Route::post('hotel/pos/charge', [HotelPosIntegrationController::class, 'charge'])->name('hotel.pos.charge');
+        }
+    );
 
     //Product Stock
     Route::get('product-batches', [ProductBatchMonitorController::class, 'index'])->name('product-batches.index')->middleware(['auth', 'XSS']);

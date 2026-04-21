@@ -112,7 +112,21 @@
                     <textarea class="form-control form-control-sm" id="payment_notes" name="notes" rows="2" placeholder="{{ __('Notes') }}"></textarea>
                 </div>
 
-                <button type="button" class="btn btn-success btn-sm w-100 payment-done-btn rounded" data-url="{{ route('pos.printview') }}" data-ajax-popup="true" data-size="sm" data-bs-toggle="tooltip" data-title="{{ __('pos.pos_invoice') }}">
+                <div class="mb-3 border rounded p-2">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="hotel_charge_enabled">
+                        <label class="form-check-label" for="hotel_charge_enabled">{{ __('Charge to Room') }}</label>
+                    </div>
+                    <div id="hotel_charge_wrap" class="d-none">
+                        <input type="text" class="form-control form-control-sm mb-2" id="hotel_guest_search" placeholder="{{ __('Search by guest or room') }}">
+                        <select class="form-select form-select-sm" id="hotel_folio_id">
+                            <option value="">{{ __('Select In-house Room/Folio') }}</option>
+                        </select>
+                        <small class="text-muted d-block mt-1">{{ __('Only open folios are shown.') }}</small>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-success btn-sm w-100 payment-done-btn rounded" data-url="{{ route('pos.data.store') }}" data-bs-toggle="tooltip" data-title="{{ __('pos.pos_invoice') }}">
                     {{ __('pos.pay_button') }}
                 </button>
             @endif
@@ -124,6 +138,9 @@
 (function() {
     var totalRaw = {{ $totalRaw }};
     var currencySymbol = @json(Auth::user()->currencySymbol() ?? '');
+    var getWarehouseValue = function () {
+        return $('#pos_restaurant_warehouse_hidden').val() || $('#warehouse_name_hidden').val() || '';
+    };
     var formatNum = function(n) {
         var v = Number(n).toFixed(2);
         if (currencySymbol) return currencySymbol + v.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -209,8 +226,41 @@
     togglePaymentFields();
     updateChange();
 
+    function renderHotelFolioOptions(items) {
+        var html = '<option value="">{{ __("Select In-house Room/Folio") }}</option>';
+        (items || []).forEach(function (row) {
+            if (!row.folio_id) return;
+            var label = (row.room_no ? ('Room ' + row.room_no + ' - ') : '') + (row.guest_name || '') + (row.folio_no ? (' [' + row.folio_no + ']') : '');
+            html += '<option value="' + row.folio_id + '">' + $('<div>').text(label).html() + '</option>';
+        });
+        $('#hotel_folio_id').html(html);
+    }
+
+    function loadHotelFolios(q) {
+        return $.ajax({
+            url: "{{ route('hotel.pos.in-house-guests') }}",
+            method: 'GET',
+            dataType: 'json',
+            data: { q: q || '' },
+            success: function (rows) { renderHotelFolioOptions(rows || []); }
+        });
+    }
+
+    $('#hotel_charge_enabled').on('change', function () {
+        var on = $(this).is(':checked');
+        $('#hotel_charge_wrap').toggleClass('d-none', !on);
+        if (on && $('#hotel_folio_id option').length <= 1) {
+            loadHotelFolios('');
+        }
+    });
+    $('#hotel_guest_search').on('input', function () {
+        if (!$('#hotel_charge_enabled').is(':checked')) return;
+        loadHotelFolios($(this).val() || '');
+    });
+
     $(document).on('click', '.payment-done-btn', function (e) {
         e.preventDefault();
+        console.log('payment-done-btn clicked');
         var ele = $(this);
         var method = $('#payment_method').val();
         if (method === 'mixed') {
@@ -232,7 +282,7 @@
             }
             var data = {
                 vc_name: $('#vc_name_hidden').val(),
-                warehouse_name: $('#warehouse_name_hidden').val(),
+                warehouse_name: getWarehouseValue(),
                 discount: ($('#discount_hidden_restaurant').length ? $('#discount_hidden_restaurant').val() : $('#discount_hidden').val()) || '0',
                 quotation_id: $('#quotation_id').val(),
                 payment_method: 'mixed',
@@ -241,7 +291,13 @@
                 pos_order_type: $('#pos_order_type_hidden').val() || '',
                 pos_table_id: $('#pos_table_id_hidden').val() || '',
                 pos_shift_id: $('#pos_shift_id_hidden').val() || '',
+                hotel_charge_enabled: $('#hotel_charge_enabled').is(':checked') ? 1 : 0,
+                hotel_folio_id: $('#hotel_folio_id').val() || '',
             };
+            if (data.hotel_charge_enabled && !data.hotel_folio_id) {
+                if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', '{{ __("Please select room folio.") }}', 'error');
+                return;
+            }
                 if ($('#pos_restaurant_pos_id').length && $('#pos_restaurant_pos_id').val()) data.pos_id = $('#pos_restaurant_pos_id').val();
             payments.forEach(function(p, i) {
                 data['payments[' + i + '][payment_method]'] = p.payment_method;
@@ -272,29 +328,41 @@
             if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', '{{ __("pos.amount_cannot_less_than_total") }}', 'error');
             return;
         }
-        $.ajax({
-            url: "{{ route('pos.data.store') }}",
-            method: 'GET',
-            data: (function() {
-                var d = {
-                    vc_name: $('#vc_name_hidden').val(),
-                    warehouse_name: $('#warehouse_name_hidden').val(),
-                    discount: ($('#discount_hidden_restaurant').length ? $('#discount_hidden_restaurant').val() : $('#discount_hidden').val()) || '0',
-                    quotation_id: $('#quotation_id').val(),
-                    payment_method: method,
-                    amount: amount.toFixed(2),
-                    change_amount: $('#payment_change').val() || '0',
-                    transaction_id: $('#payment_transaction_id').val() || '',
-credit_terms: $('#payment_credit_terms').val() || '',
+        console.log('payment-done-btn clicked 2');
+        var payload = (function() {
+            var d = {
+                vc_name: $('#vc_name_hidden').val(),
+                warehouse_name: getWarehouseValue(),
+                discount: ($('#discount_hidden_restaurant').length ? $('#discount_hidden_restaurant').val() : $('#discount_hidden').val()) || '0',
+                quotation_id: $('#quotation_id').val(),
+                payment_method: method,
+                amount: amount.toFixed(2),
+                change_amount: $('#payment_change').val() || '0',
+                transaction_id: $('#payment_transaction_id').val() || '',
+                credit_terms: $('#payment_credit_terms').val() || '',
                 notes: $('#payment_notes').val() || '',
                 tip: parseFloat($('#payment_tip').val()) || 0,
                 pos_order_type: $('#pos_order_type_hidden').val() || '',
-                    pos_table_id: $('#pos_table_id_hidden').val() || '',
-                    pos_shift_id: $('#pos_shift_id_hidden').val() || '',
-                };
-                if ($('#pos_restaurant_pos_id').length && $('#pos_restaurant_pos_id').val()) d.pos_id = $('#pos_restaurant_pos_id').val();
-                return d;
-            })(),
+                pos_table_id: $('#pos_table_id_hidden').val() || '',
+                pos_shift_id: $('#pos_shift_id_hidden').val() || '',
+                hotel_charge_enabled: $('#hotel_charge_enabled').is(':checked') ? 1 : 0,
+                hotel_folio_id: $('#hotel_folio_id').val() || '',
+            };
+            if (d.hotel_charge_enabled && !d.hotel_folio_id) {
+                if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', '{{ __("Please select room folio.") }}', 'error');
+                return null;
+            }
+            if ($('#pos_restaurant_pos_id').length && $('#pos_restaurant_pos_id').val()) d.pos_id = $('#pos_restaurant_pos_id').val();
+            return d;
+        })();
+        if (!payload) {
+            console.warn('POS payment aborted: invalid payload.');
+            return;
+        }
+        $.ajax({
+            url: "{{ route('pos.data.store') }}",
+            method: 'GET',
+            data: payload,
             beforeSend: function () {
                 ele.prop('disabled', true);
             },
@@ -308,6 +376,7 @@ credit_terms: $('#payment_credit_terms').val() || '',
                 var data = xhr.responseJSON || {};
                 if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', data.error || data.success || '{{ __("pos.error") }}', 'error');
                 ele.prop('disabled', false);
+                console.log('payment-done-btn clicked 3');
             }
         });
     });

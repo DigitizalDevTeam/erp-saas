@@ -1567,6 +1567,56 @@
                     @endif
 
                 <!--------------------- End POs System ----------------------------------->
+
+                <!--------------------- Start Hotel Management ---------------------------->
+                @if (Gate::check('manage hotel') || Gate::check('show hotel dashboard') || Gate::check('manage hotel room') || Gate::check('manage hotel reservation') || Gate::check('manage hotel frontdesk') || Gate::check('show hotel folio'))
+                <li class="dash-item dash-hasmenu {{ str_starts_with((string) Request::route()->getName(), 'hotel.') ? 'active dash-trigger' : '' }}">
+                    <a href="#!" class="dash-link">
+                        <span class="dash-micon"><i class="ti ti-home"></i></span>
+                        <span class="dash-mtext">{{ __('Hotel Management') }}</span>
+                        <span class="dash-arrow"><i data-feather="chevron-right"></i></span>
+                    </a>
+                    <ul class="dash-submenu">
+                        @if (Gate::check('manage hotel') || Gate::check('show hotel dashboard'))
+                        <li class="dash-item {{ Request::route()->getName() == 'hotel.dashboard' ? 'active' : '' }}">
+                            <a class="dash-link" href="{{ route('hotel.dashboard') }}">{{ __('Dashboard') }}</a>
+                        </li>
+                        @endif
+                        @if (Gate::check('manage hotel') || Gate::check('manage hotel room'))
+                        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.room-types.') ? 'active' : '' }}">
+                            <a class="dash-link" href="{{ route('hotel.room-types.index') }}">{{ __('Room Types') }}</a>
+                        </li>
+                        @endif
+                        @if (Gate::check('manage hotel') || Gate::check('manage hotel room'))
+                        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.rooms.') ? 'active' : '' }}">
+                            <a class="dash-link" href="{{ route('hotel.rooms.index') }}">{{ __('Rooms') }}</a>
+                        </li>
+                        @endif
+                        @if (Gate::check('manage hotel') || Gate::check('manage hotel reservation'))
+                        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.reservations.') ? 'active' : '' }}">
+                            <a class="dash-link" href="{{ route('hotel.reservations.index') }}">{{ __('Reservations') }}</a>
+                        </li>
+                        @endif
+                        @if (Gate::check('manage hotel') || Gate::check('manage hotel frontdesk'))
+                        <li class="dash-item {{ Request::route()->getName() == 'hotel.frontdesk.in-house' ? 'active' : '' }}">
+                            <a class="dash-link" href="{{ route('hotel.frontdesk.in-house') }}">{{ __('Frontdesk') }}</a>
+                        </li>
+                        @endif
+                        @if (Gate::check('manage hotel') || Gate::check('manage hotel frontdesk'))
+                        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.housekeeping.') ? 'active' : '' }}">
+                            <a class="dash-link" href="{{ route('hotel.housekeeping.index') }}">{{ __('Housekeeping') }}</a>
+                        </li>
+                        @endif
+                        @if (Gate::check('manage hotel') || Gate::check('manage hotel frontdesk'))
+                        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.night-audit.') ? 'active' : '' }}">
+                            <a class="dash-link" href="{{ route('hotel.night-audit.index') }}">{{ __('Night Audit') }}</a>
+                        </li>
+                        @endif
+                    </ul>
+                </li>
+                @endif
+                <!--------------------- End Hotel Management ------------------------------>
+
                 {{-- Expense Management --}}
                 @if(Gate::check('manage expense category') || Gate::check('manage expense'))
                 <li class="dash-item dash-hasmenu">

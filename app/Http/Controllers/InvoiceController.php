@@ -1398,9 +1398,3 @@ class InvoiceController extends Controller
     }
 
 }
-
-
-// Check pos cash sale after issue recipt name changes to recipt
-// Documents legal in Mozambique quote_proform invoice_invoice/guia de remessa_deliver note_recipt// debit/credit, guia de remessa (same thing as invoice)
-// So you _quote, convert to proform invoice, invoice or guia de remessa_deliver note, thouse are the basic
-

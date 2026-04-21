@@ -100,6 +100,19 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Whether the user can access Hotel Management module.
+     */
+    public function canManageHotel(): bool
+    {
+        return $this->can('manage hotel')
+            || $this->can('show hotel dashboard')
+            || $this->can('manage hotel room')
+            || $this->can('manage hotel reservation')
+            || $this->can('manage hotel frontdesk')
+            || $this->can('show hotel folio');
+    }
+
+    /**
      * True when the user has an assigned POS branch and is not a full POS admin.
      * Branch lists in POS are still filtered via filterBranchIdsForPosAccess() (supports multi-branch via branch_user).
      */

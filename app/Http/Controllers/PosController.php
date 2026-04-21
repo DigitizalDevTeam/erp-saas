@@ -29,9 +29,11 @@ use App\Models\PosArea;
 use App\Models\PosTable;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
+use App\Models\HotelFolio;
 use App\Models\BankAccount;
 use App\Models\Transaction;
 use App\Models\TransactionLines;
+use App\Services\HotelPosChargeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -1182,6 +1184,21 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 }
             }
 
+            $chargeToRoom = filter_var($request->get('hotel_charge_enabled', false), FILTER_VALIDATE_BOOLEAN);
+            $hotelFolio = null;
+            if ($chargeToRoom) {
+                if (!$request->filled('hotel_folio_id')) {
+                    return response()->json(['code' => 422, 'error' => __('Please select a room folio.')], 422);
+                }
+                $hotelFolio = HotelFolio::where('id', (int) $request->hotel_folio_id)
+                    ->where('created_by', $user_id)
+                    ->where('status', 'open')
+                    ->first();
+                if (!$hotelFolio) {
+                    return response()->json(['code' => 404, 'error' => __('Selected room folio was not found or is already closed.')], 404);
+                }
+            }
+
             if (isset($sales) && !empty($sales) && count($sales) > 0) {
                 $resolved_warehouse_id = warehouse::warehouse_id($request->warehouse_name);
                 if (empty($request->warehouse_name) || $resolved_warehouse_id <= 0) {
@@ -1377,6 +1394,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     }
                     $pos->load('items');
                     $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
+                    $this->attachPosChargeToHotelFolio($request, $pos, (float) $total, $user_id);
                     session()->forget('pos');
                     $cartKey = 'pos_restaurant_cart';
                     $sessionCartKeyToClear = $pos->table_id ? ($tableId . '_' . $shiftId) : ('pos_' . $pos->id);
@@ -1590,6 +1608,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     // Phase 2: Create invoice and accounting entries from POS
                     $pos->load('items');
                     $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
+                    $this->attachPosChargeToHotelFolio($request, $pos, (float) $total, $user_id);
 
                     session()->forget('pos');
 
@@ -1614,6 +1633,44 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+    }
+
+    protected function attachPosChargeToHotelFolio(Request $request, Pos $pos, float $total, int $creatorId): void
+    {
+        $chargeToRoom = filter_var($request->get('hotel_charge_enabled', false), FILTER_VALIDATE_BOOLEAN);
+        if (!$chargeToRoom) {
+            return;
+        }
+
+        $folioId = (int) $request->get('hotel_folio_id');
+        if ($folioId <= 0 || $total <= 0) {
+            return;
+        }
+
+        $folio = HotelFolio::where('id', $folioId)
+            ->where('created_by', $creatorId)
+            ->where('status', 'open')
+            ->first();
+        if (!$folio) {
+            return;
+        }
+
+        $existing = $folio->lines()
+            ->where('line_type', 'pos_charge')
+            ->where('source_pos_id', $pos->id)
+            ->exists();
+        if ($existing) {
+            return;
+        }
+
+        app(HotelPosChargeService::class)->chargeToFolio($folio, [
+            'description' => 'POS charge for order #' . $pos->pos_id,
+            'quantity' => 1,
+            'unit_price' => $total,
+            'tax_amount' => 0,
+            'discount_amount' => 0,
+            'source_pos_id' => $pos->id,
+        ], $creatorId);
     }
 
     public function show($ids)

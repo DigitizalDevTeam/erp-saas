@@ -2127,16 +2127,26 @@
                 toggleRestaurantOptions(initBranchId);
                 $.get('{{ route("pos.warehouses.by.branch") }}', { branch_id: initBranchId }, function(data) {
                     var $warehouse = $( '#warehouse' );
-                    $warehouse.empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
-                    $.each(data, function(id, name) {
-                        $warehouse.append($('<option></option>').val(id).text(name));
-                    });
+                    var ids = Object.keys(data || {});
+                    if (ids.length) {
+                        var prevVal = $warehouse.val();
+                        $warehouse.empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
+                        $.each(data, function(id, name) {
+                            $warehouse.append($('<option></option>').val(id).text(name));
+                        });
+                        var wh = ids.indexOf(String(prevVal)) !== -1 ? prevVal : ids[0];
+                        $warehouse.val(wh);
+                        $( "#warehouse_name_hidden" ).val(wh);
+                    }
                 });
             }
 
             // Multi-branch: filter warehouses when branch changes
             $( '#branch_id' ).change(function() {
                 var branchId = $(this).val();
+                if (!branchId) {
+                    return;
+                }
                 toggleRestaurantOptions(branchId);
                 var session_key = $( "#empty_cart" ).val();
                 $.ajax({
@@ -2145,11 +2155,17 @@
                     data: { branch_id: branchId },
                     success: function (data) {
                         var $warehouse = $( '#warehouse' );
+                        var ids = Object.keys(data || {});
+                        if (!ids.length) {
+                            return;
+                        }
                         $warehouse.empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
                         $.each(data, function(id, name) {
                             $warehouse.append($('<option></option>').val(id).text(name));
                         });
-                        $( "#warehouse_name_hidden" ).val('');
+                        var wh = ids[0];
+                        $warehouse.val(wh);
+                        $( "#warehouse_name_hidden" ).val(wh);
                         // Empty cart when branch changes
                         $.ajax({
                             type: 'POST',
@@ -2340,6 +2356,16 @@
                     if ($iconGo.length) $iconGo.removeClass('ti-plus').addClass('ti-loader ti-spin');
                 }
                 var addUrl = $el.data('url');
+                var warehouseId = '';
+                if (isRestaurant) {
+                    warehouseId = $('#pos-restaurant-warehouse').length ? ($('#pos-restaurant-warehouse').val() || '') : '';
+                }
+                if (!warehouseId) {
+                    warehouseId = $('#warehouse').length ? ($('#warehouse').val() || '') : '';
+                }
+                if (warehouseId) {
+                    addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'war_id=' + encodeURIComponent(warehouseId);
+                }
                 if (isRestaurant) {
                     addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'restaurant=1';
                     if (typeof posRestaurantCartKey !== 'undefined' && posRestaurantCartKey) {
@@ -2683,10 +2709,8 @@
                 e.preventDefault();
                 var ele = $(this);
                 var warehouseVal = $('#pos_restaurant_warehouse_hidden').val() || $('#warehouse_name_hidden').val();
-                $.ajax({
-                    url: ele.data('url') || '{{ route("pos.data.store") }}',
-                    method: 'GET',
-                    data: {
+                var payload = (function() {
+                    var d = {
                         vc_name: $('#vc_name_hidden').val(),
                         warehouse_name: warehouseVal,
                         discount: $('#discount_hidden').val(),
@@ -2695,8 +2719,26 @@
                         pos_order_type: $('#pos_order_type_hidden').val() || '',
                         pos_table_id: $('#pos_table_id_hidden').val() || '',
                         pos_shift_id: $('#pos_shift_id_hidden').val() || '',
+                        hotel_charge_enabled: $('#hotel_charge_enabled').length ? ($('#hotel_charge_enabled').is(':checked') ? 1 : 0) : 0,
+                        hotel_folio_id: $('#hotel_folio_id').length ? ($('#hotel_folio_id').val() || '') : '',
+                    };
+                    if (d.hotel_charge_enabled && !d.hotel_folio_id) {
+                        show_toastr('{{ __("Error") }}', '{{ __("Please select room folio.") }}', 'error');
+                        return null;
+                    }
+                    return d;
+                })();
+                if (!payload) {
+                    console.warn('POS payment aborted: invalid payload.');
+                    return;
+                }
+                $.ajax({
+                    url: '{{ route("pos.data.store") }}',
+                    method: 'GET',
+                    data: payload,
+                    beforeSend: function () {
+                        ele.prop('disabled', true);
                     },
-                    beforeSend: function () { ele.prop('disabled', true); },
                     success: function (data) {
                         if (data.code == 200) {
                             $(document).trigger('pos-payment-completed', [data]);
