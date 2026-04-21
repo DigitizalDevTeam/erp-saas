@@ -4,9 +4,26 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\IrpsWithholdingRow;
+use App\Models\Utility;
 
 class PayrollTaxService
 {
+    public const BURDEN_WORKER_PAYS = 'worker_pays';
+    public const BURDEN_COMPANY_PAYS_INSS = 'company_pays_inss';
+    public const BURDEN_COMPANY_PAYS_ALL = 'company_pays_all';
+
+    private static function resolvePayrollBurdenMode(Employee $employee): string
+    {
+        $settings = Utility::settingsById((int) $employee->created_by);
+        $mode = (string) ($settings['payroll_tax_burden_mode'] ?? self::BURDEN_WORKER_PAYS);
+
+        if (!in_array($mode, [self::BURDEN_WORKER_PAYS, self::BURDEN_COMPANY_PAYS_INSS, self::BURDEN_COMPANY_PAYS_ALL], true)) {
+            return self::BURDEN_WORKER_PAYS;
+        }
+
+        return $mode;
+    }
+
     public static function calculateInss(Employee $employee, float $grossMonthly): array
     {
         $grossMonthly = max(0, $grossMonthly);
@@ -17,7 +34,11 @@ class PayrollTaxService
         $employeePortion = round($grossMonthly * $employeeRate, 2);
         $employerPortion = round($grossMonthly * $employerRate, 2);
 
-        if ((bool) $employee->inss_employer_pays_all) {
+        $burdenMode = self::resolvePayrollBurdenMode($employee);
+        $companyPaysEmployeeInss = ((bool) $employee->inss_employer_pays_all)
+            || in_array($burdenMode, [self::BURDEN_COMPANY_PAYS_INSS, self::BURDEN_COMPANY_PAYS_ALL], true);
+
+        if ($companyPaysEmployeeInss) {
             // Company pays employee share too (not deducted from employee net)
             return [
                 'employee' => 0.0,
@@ -34,6 +55,12 @@ class PayrollTaxService
     public static function calculateIrps(Employee $employee, float $grossMonthly): float
     {
         $grossMonthly = max(0, $grossMonthly);
+        $burdenMode = self::resolvePayrollBurdenMode($employee);
+        if ($burdenMode === self::BURDEN_COMPANY_PAYS_ALL) {
+            // Company absorbs IRPS in this mode, so no employee withholding on payslip.
+            return 0.0;
+        }
+
         $dependents = (int) ($employee->dependents ?? 0);
 
         $row = IrpsWithholdingRow::query()

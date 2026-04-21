@@ -2027,6 +2027,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('warehouse-transfer/getquantity', [WarehouseTransferController::class, 'getquantity'])->name('warehouse-transfer.getquantity')->middleware(['auth', 'XSS']);
     Route::get('warehouse-loss', [WarehouseLossController::class, 'index'])->name('warehouse-loss.index')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('warehouse-loss', [WarehouseLossController::class, 'store'])->name('warehouse-loss.store')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('warehouse-loss/{id}/print', [WarehouseLossController::class, 'print'])->name('warehouse-loss.print')->middleware(['auth', 'XSS', 'revalidate']);
 
 
     // BiometricAttendance

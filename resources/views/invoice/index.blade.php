@@ -146,6 +146,9 @@
                                         @elseif($invoice->status == 4)
                                             <span
                                                 class="status_badge badge bg-primary p-2 px-3 rounded">{{ __(\App\Models\Invoice::$statues[$invoice->status]) }}</span>
+                                        @elseif($invoice->status == 5)
+                                            <span
+                                                class="status_badge badge bg-dark p-2 px-3 rounded">{{ __(\App\Models\Invoice::$statues[$invoice->status]) }}</span>
                                         @endif
                                     </td>
                                     @if (Gate::check('edit invoice') || Gate::check('delete invoice') || Gate::check('show invoice'))
@@ -181,25 +184,29 @@
                                                                 </div>
                                                     @endcan
                                                     @can('edit invoice')
-                                                        <div class="action-btn me-2">
-                                                                <a href="{{ route('invoice.edit', \Crypt::encrypt($invoice->id)) }}"
-                                                                   class="mx-3 btn btn-sm align-items-center  bg-info" data-bs-toggle="tooltip" title="Edit "
-                                                                   data-original-title="{{ __('Edit') }}">
-                                                                    <i class="ti ti-pencil text-white"></i>
-                                                                </a>
-                                                            </div>
+                                                        @if((int) $invoice->status !== 5)
+                                                            <div class="action-btn me-2">
+                                                                    <a href="{{ route('invoice.edit', \Crypt::encrypt($invoice->id)) }}"
+                                                                       class="mx-3 btn btn-sm align-items-center  bg-info" data-bs-toggle="tooltip" title="Edit "
+                                                                       data-original-title="{{ __('Edit') }}">
+                                                                        <i class="ti ti-pencil text-white"></i>
+                                                                    </a>
+                                                                </div>
+                                                        @endif
                                                     @endcan
                                                     @can('delete invoice')
-                                                        <div class="action-btn ">
-                                                                {!! Form::open(['method' => 'DELETE', 'route' => ['invoice.destroy', $invoice->id], 'id' => 'delete-form-' . $invoice->id]) !!}
-                                                                    <a href="#" class="mx-3 btn btn-sm align-items-center bs-pass-para bg-danger " data-bs-toggle="tooltip" title="{{__('Delete')}}"
-                                                                       data-original-title="{{ __('Delete') }}"
-                                                                       data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
-                                                                       data-confirm-yes="document.getElementById('delete-form-{{ $invoice->id }}').submit();">
-                                                                        <i class="ti ti-trash text-white"></i>
-                                                                    </a>
-                                                                {!! Form::close() !!}
-                                                            </div>
+                                                        @if((int) $invoice->status !== 5)
+                                                            <div class="action-btn ">
+                                                                    {!! Form::open(['method' => 'DELETE', 'route' => ['invoice.destroy', $invoice->id], 'id' => 'delete-form-' . $invoice->id]) !!}
+                                                                        <a href="#" class="mx-3 btn btn-sm align-items-center bs-pass-para bg-danger " data-bs-toggle="tooltip" title="{{__('Delete')}}"
+                                                                           data-original-title="{{ __('Delete') }}"
+                                                                           data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
+                                                                           data-confirm-yes="document.getElementById('delete-form-{{ $invoice->id }}').submit();">
+                                                                            <i class="ti ti-trash text-white"></i>
+                                                                        </a>
+                                                                    {!! Form::close() !!}
+                                                                </div>
+                                                        @endif
                                                     @endcan
                                                 </span>
                                         </td>

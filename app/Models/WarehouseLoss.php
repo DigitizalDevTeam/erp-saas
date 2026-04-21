@@ -7,11 +7,17 @@ use Illuminate\Database\Eloquent\Model;
 class WarehouseLoss extends Model
 {
     protected $fillable = [
+        'write_off_no',
         'warehouse_id',
         'product_id',
         'quantity',
         'date',
         'reason',
+        'issuer_name',
+        'authorized_by',
+        'witness_name',
+        'delivery_note_required',
+        'delivery_destination',
         'created_by',
     ];
 

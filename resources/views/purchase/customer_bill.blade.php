@@ -153,6 +153,8 @@
                                             <small>
                                                 <strong>{{__('Purchase Date')}} :</strong><br>
                                                 {{$user->dateFormat($purchase->purchase_date)}}<br><br>
+                                                <strong>{{ __('Issued By') }} :</strong><br>
+                                                {{ \App\Models\User::find($purchase->created_by)?->name ?? '-' }}<br><br>
                                             </small>
                                         </div>
                                     </div>

@@ -46,6 +46,8 @@
                                             <small>
                                                 <strong>{{ __('Date') }} :</strong><br>
                                                 {{ auth()->user()->dateFormat($note->date) }}<br><br>
+                                                <strong>{{ __('Issued By') }} :</strong><br>
+                                                {{ \App\Models\User::find($note->created_by)?->name ?? '-' }}<br><br>
                                             </small>
                                         </div>
                                     </div>

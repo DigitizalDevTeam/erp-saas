@@ -617,34 +617,52 @@ class BillController extends Controller
         {
             if($bill->created_by == \Auth::user()->creatorId())
             {
+                if ((int) $bill->status === 5) {
+                    return redirect()->route('bill.index')->with('info', __('Bill already cancelled.'));
+                }
+
                 $billpayments = $bill->payments;
 
                 foreach($billpayments as $key => $value)
                 {
                     Utility::bankAccountBalance($value->account_id, $value->amount, 'credit');
                     $transaction= Transaction::where('payment_id',$value->id)->first();
-                    $transaction->delete();
+                    if ($transaction) {
+                        $transaction->delete();
+                    }
 
-                    $billpayment = BillPayment::find($value->id)->first();
-                    $billpayment->delete();
+                    $billpayment = BillPayment::find($value->id);
+                    if ($billpayment) {
+                        $billpayment->delete();
+                    }
                 }
-                $bill->delete();
 
                 if($bill->vender_id != 0 && $bill->status!=0)
                 {
                     Utility::updateUserBalance('vendor', $bill->vender_id, $bill->getDue(), 'credit');
                 }
-                BillProduct::where('bill_id', '=', $bill->id)->delete();
-
-                BillAccount::where('ref_id', '=', $bill->id)->delete();
-
-                DebitNote::where('bill', '=', $bill->id)->delete();
 
                 TransactionLines::where('reference_id',$bill->id)->where('reference','Bill')->delete();
                 TransactionLines::where('reference_id',$bill->id)->where('reference','Bill Account')->delete();
                 TransactionLines::where('reference_id',$bill->id)->where('reference','Bill Payment')->delete();
 
-                return redirect()->route('bill.index')->with('success', __('Bill successfully deleted.'));
+                $remainingCredit = $bill->getTotal() - $bill->billTotalCreditNote();
+                if ($remainingCredit > 0) {
+                    $debit = new DebitNote();
+                    $debit->bill = $bill->id;
+                    $debit->vendor = $bill->vender_id;
+                    $debit->date = date('Y-m-d');
+                    $debit->amount = $remainingCredit;
+                    $debit->description = __('Auto-generated on document cancellation');
+                    $debit->created_by = \Auth::user()->creatorId();
+                    $debit->is_credit = 1;
+                    $debit->save();
+                }
+
+                $bill->status = 5;
+                $bill->save();
+
+                return redirect()->route('bill.index')->with('success', __('Bill cancelled and credit note generated.'));
             }
             else
             {

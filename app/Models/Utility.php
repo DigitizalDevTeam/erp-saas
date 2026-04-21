@@ -490,6 +490,7 @@ class Utility extends Model
             'auth_token' => '',
 
             // Payroll → accounting (HRM + Account plans): liability accounts for auto journal
+            'payroll_tax_burden_mode' => 'worker_pays',
             'payroll_irps_liability_account' => '',
             'payroll_inss_employee_liability_account' => '',
             'payroll_salaries_payable_account' => '',
@@ -575,6 +576,7 @@ class Utility extends Model
             'footer_text' => '',
             "company_start_time" => "09:00",
             "company_end_time" => "18:00",
+            'payroll_tax_burden_mode' => 'worker_pays',
             'default_work_schedule_type' => 'office_fixed',
             'default_grace_minutes' => '0',
             'gdpr_cookie' => 'off',

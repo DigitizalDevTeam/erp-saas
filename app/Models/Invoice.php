@@ -29,6 +29,7 @@ class Invoice extends Model
         'Unpaid',
         'Partialy Paid',
         'Paid',
+        'Cancelled',
     ];
 
 

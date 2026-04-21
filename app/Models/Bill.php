@@ -23,6 +23,7 @@ class Bill extends Model
         'Unpaid',
         'Partialy Paid',
         'Paid',
+        'Cancelled',
     ];
 
     public function customer()

@@ -29,6 +29,7 @@
                 <h2 style="margin:0;">{{ __('Delivery Note') }}</h2>
                 <div class="muted">{{ $deliveryNote->delivery_note_no }}</div>
                 <div class="muted">{{ __('Issue Date') }}: {{ \Auth::user()->dateFormat($deliveryNote->issue_date) }}</div>
+                <div class="muted">{{ __('Issued By') }}: {{ \App\Models\User::find($deliveryNote->created_by)?->name ?? '-' }}</div>
             </div>
             <div style="text-align:right;">
                 <div><b>{{ __('Company') }}:</b> {{ $settings['company_name'] ?? '' }}</div>

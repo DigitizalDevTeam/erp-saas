@@ -565,6 +565,10 @@ class InvoiceController extends Controller
     {
         if (\Auth::user()->can('delete invoice')) {
             if ($invoice->created_by == \Auth::user()->creatorId()) {
+                if ((int) $invoice->status === 5) {
+                    return redirect()->route('invoice.index')->with('info', __('Invoice already cancelled.'));
+                }
+
                 foreach ($invoice->payments as $invoices) {
                     Utility::bankAccountBalance($invoices->account_id, $invoices->amount, 'debit');
 
@@ -582,11 +586,22 @@ class InvoiceController extends Controller
                 TransactionLines::where('reference_id',$invoice->id)->where('reference','Invoice')->delete();
                 TransactionLines::where('reference_id',$invoice->id)->Where('reference','Invoice Payment')->delete();
 
-                CreditNote::where('invoice', '=', $invoice->id)->delete();
+                $remainingCredit = $invoice->getTotal() - $invoice->invoiceTotalCreditNote();
+                if ($remainingCredit > 0) {
+                    $creditNote = new CreditNote();
+                    $creditNote->invoice = $invoice->id;
+                    $creditNote->customer = $invoice->customer_id;
+                    $creditNote->amount = $remainingCredit;
+                    $creditNote->date = date('Y-m-d');
+                    $creditNote->description = __('Auto-generated on document cancellation');
+                    $creditNote->created_by = \Auth::user()->creatorId();
+                    $creditNote->save();
+                }
 
-                InvoiceProduct::where('invoice_id', '=', $invoice->id)->delete();
-                $invoice->delete();
-                return redirect()->route('invoice.index')->with('success', __('Invoice successfully deleted.'));
+                $invoice->status = 5;
+                $invoice->save();
+
+                return redirect()->route('invoice.index')->with('success', __('Invoice cancelled and credit note generated.'));
             } else {
                 return redirect()->back()->with('error', __('Permission denied.'));
             }
@@ -1383,3 +1398,9 @@ class InvoiceController extends Controller
     }
 
 }
+
+
+// Check pos cash sale after issue recipt name changes to recipt
+// Documents legal in Mozambique quote_proform invoice_invoice/guia de remessa_deliver note_recipt// debit/credit, guia de remessa (same thing as invoice)
+// So you _quote, convert to proform invoice, invoice or guia de remessa_deliver note, thouse are the basic
+

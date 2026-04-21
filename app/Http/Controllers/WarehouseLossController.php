@@ -12,6 +12,12 @@ use Illuminate\Support\Facades\DB;
 
 class WarehouseLossController extends Controller
 {
+    protected function nextWriteOffNumber(int $creatorId): string
+    {
+        $next = (int) (WarehouseLoss::where('created_by', $creatorId)->max('id') ?? 0) + 1;
+        return 'WO-' . str_pad((string) $next, 6, '0', STR_PAD_LEFT);
+    }
+
     protected function allowedWarehouseIds()
     {
         $user = \Auth::user();
@@ -50,6 +56,10 @@ class WarehouseLossController extends Controller
             'product_id' => 'required|integer',
             'quantity' => 'required|numeric|min:0.0001',
             'date' => 'nullable|date',
+            'issuer_name' => 'required|string|max:150',
+            'authorized_by' => 'required|string|max:150',
+            'witness_name' => 'required|string|max:150',
+            'delivery_destination' => 'nullable|string|max:255',
         ]);
 
         $warehouseProduct = WarehouseProduct::where('warehouse_id', $request->warehouse_id)
@@ -61,11 +71,17 @@ class WarehouseLossController extends Controller
 
         DB::transaction(function () use ($request) {
             WarehouseLoss::create([
+                'write_off_no' => $this->nextWriteOffNumber((int) \Auth::user()->creatorId()),
                 'warehouse_id' => $request->warehouse_id,
                 'product_id' => $request->product_id,
                 'quantity' => $request->quantity,
                 'date' => $request->date ?: date('Y-m-d'),
                 'reason' => $request->reason,
+                'issuer_name' => $request->issuer_name,
+                'authorized_by' => $request->authorized_by,
+                'witness_name' => $request->witness_name,
+                'delivery_note_required' => $request->boolean('delivery_note_required'),
+                'delivery_destination' => $request->delivery_destination,
                 'created_by' => \Auth::user()->creatorId(),
             ]);
 
@@ -75,6 +91,16 @@ class WarehouseLossController extends Controller
         });
 
         return redirect()->route('warehouse-loss.index')->with('success', __('Warehouse loss recorded successfully.'));
+    }
+
+    public function print($id)
+    {
+        $record = WarehouseLoss::with(['warehouse', 'product'])->findOrFail($id);
+        if ((int) $record->created_by !== (int) \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        return view('warehouse-loss.print', compact('record'));
     }
 }
 

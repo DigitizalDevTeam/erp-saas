@@ -169,6 +169,8 @@
                                             <small>
                                                 <strong>{{ __('Issue Date') }} :</strong><br>
                                                 {{ \Auth::user()->dateFormat($bill->bill_date) }}<br><br>
+                                                <strong>{{ __('Issued By') }} :</strong><br>
+                                                {{ \App\Models\User::find($bill->created_by)?->name ?? '-' }}<br><br>
                                             </small>
                                         </div>
                                         <div>

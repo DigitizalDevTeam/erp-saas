@@ -207,6 +207,14 @@
                                     {!! Form::number('dependents', old('dependents', 0), ['class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('0')]) !!}
                                     <small class="text-muted">{{ __('Used for IRPS and related payroll tax calculations.') }}</small>
                                 </div>
+                                <div class="form-group col-md-6">
+                                    {!! Form::label('inss_employer_pays_all', __('Company pays employee INSS 3%'), ['class' => 'form-label d-block']) !!}
+                                    <input type="hidden" name="inss_employer_pays_all" value="0">
+                                    <div class="form-check form-switch mt-1">
+                                        <input class="form-check-input" type="checkbox" name="inss_employer_pays_all" id="inss_employer_pays_all" value="1" {{ old('inss_employer_pays_all', 0) ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="inss_employer_pays_all">{{ __('Enable to make company pay 3% employee share for this employee.') }}</label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

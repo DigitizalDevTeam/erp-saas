@@ -949,6 +949,20 @@
                                     <h6 class="mt-2 mb-1">{{ __('Payroll accounting (HRM + Account plans)') }}</h6>
                                     <small class="text-muted d-block mb-2">{{ __('Used when paying payslips: posts a balanced journal (expense, IRPS / INSS liabilities, loan & deductions, salaries payable, bank).') }}</small>
                                 </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('payroll_tax_burden_mode', __('Payroll tax burden mode'), ['class' => 'form-label']) }}
+                                    {{ Form::select(
+                                        'payroll_tax_burden_mode',
+                                        [
+                                            'worker_pays' => __('Worker pays IRPS + 3% INSS (company pays 4% INSS)'),
+                                            'company_pays_inss' => __('Company pays INSS 3% + 4% (worker still pays IRPS)'),
+                                            'company_pays_all' => __('Company pays all (INSS 3%+4% + IRPS)'),
+                                        ],
+                                        $setting['payroll_tax_burden_mode'] ?? 'worker_pays',
+                                        ['class' => 'form-control selectric'],
+                                    ) }}
+                                    <small class="text-muted d-block mt-1">{{ __('Use this to choose statutory burden policy per company. IRPC remains part of fiscal closing setup.') }}</small>
+                                </div>
                                 <div class="form-group col-md-4">
                                     {{ Form::label('payroll_irps_liability_account', __('IRPS liability account'), ['class' => 'form-label']) }}
                                     {{ Form::select('payroll_irps_liability_account', $payrollLiabAccounts, $setting['payroll_irps_liability_account'] ?? '', ['class' => 'form-control selectric']) }}

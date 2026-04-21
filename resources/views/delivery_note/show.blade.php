@@ -38,6 +38,7 @@
                             <h4 class="mb-1">{{ __('Delivery Note') }}</h4>
                             <div class="text-muted">{{ $deliveryNote->delivery_note_no }}</div>
                             <div class="text-muted">{{ __('Issue Date') }}: {{ \Auth::user()->dateFormat($deliveryNote->issue_date) }}</div>
+                            <div class="text-muted">{{ __('Issued By') }}: {{ \App\Models\User::find($deliveryNote->created_by)?->name ?? '-' }}</div>
                         </div>
                         <div class="text-end">
                             <div><b>{{ __('Invoice') }}:</b> {{ \Auth::user()->invoiceNumberFormat($invoice->invoice_id) }}</div>

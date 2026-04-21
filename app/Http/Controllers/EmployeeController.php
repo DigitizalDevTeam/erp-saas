@@ -172,6 +172,7 @@ class EmployeeController extends Controller
                     'branch_location' => $request['branch_location'],
                     'tax_payer_id' => $request['tax_payer_id'],
                     'dependents' => max(0, (int) ($request['dependents'] ?? 0)),
+                    'inss_employer_pays_all' => $request->boolean('inss_employer_pays_all'),
                     'attendance_use_company_default' => $request->boolean('attendance_use_company_default'),
                     'work_schedule_type' => $request->input('work_schedule_type', $defType),
                     'work_start_time' => $request->input('work_start_time'),

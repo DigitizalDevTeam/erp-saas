@@ -188,6 +188,8 @@
                                                 <small>
                                                     <strong>{{ __('Issue Date') }} :</strong><br>
                                                     {{ Utility::dateFormat($settings, $invoice->issue_date) }}<br><br>
+                                                    <strong>{{ __('Issued By') }} :</strong><br>
+                                                    {{ \App\Models\User::find($invoice->created_by)?->name ?? '-' }}<br><br>
                                                 </small>
                                             </div>
                                             <small>
