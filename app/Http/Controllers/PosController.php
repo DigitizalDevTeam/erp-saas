@@ -39,6 +39,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 
 class PosController extends Controller
 {
@@ -2714,7 +2715,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         ->select('id', 'holder_name', 'bank_name', 'account_number')->get();
                     $barcode = ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()];
                     $posIdRaw = $pos->id;
-                    $receiptLinkUrl = url(route('pos.receipt.link', Crypt::encrypt($pos->id)));
+                    $receiptLinkUrl = URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]);
                     $printSource = in_array($request->get('source'), ['restaurant'], true) ? 'restaurant' : 'retail';
                     return view('pos.printview', [
                         'details' => $details,
@@ -2780,7 +2781,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $barcode = ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()];
                 $segundaVia = $request->boolean('segunda_via');
                 $posIdRaw = $pos->id;
-                $receiptLinkUrl = url(route('pos.receipt.link', Crypt::encrypt($pos->id)));
+                $receiptLinkUrl = URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]);
                 \Log::info('Receipt link URL: ' . $receiptLinkUrl);
                 $printSource = in_array($request->get('source'), ['restaurant'], true) ? 'restaurant' : 'retail';
                 return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'printSource'));
@@ -3235,7 +3236,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $barcode = ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()];
         $segundaVia = false;
         $posIdRaw = $pos->id;
-        $receiptLinkUrl = url(route('pos.receipt.link', Crypt::encrypt($pos->id)));
+        $receiptLinkUrl = URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]);
         $printSource = 'retail';
         $receiptUser = $user;
         return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'settings', 'printSource', 'receiptUser'))->with('standalone', true);
@@ -3283,7 +3284,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $userId = session('pos_pin_user_id', \Auth::id());
         $shiftId = $request->shift_id;
         $shift = $shiftId
-            ? \App\Models\PosShift::where('id', $shiftId)->where('user_id', $userId)->where('status', \App\Models\PosShift::STATUS_OPEN)->first()
+            ? \App\Models\PosShift::where('id', $shiftId)->where('user_id', $userId)->where('created_by', \Auth::user()->creatorId())->where('status', \App\Models\PosShift::STATUS_OPEN)->first()
             : \App\Models\PosShift::where('user_id', $userId)->where('status', \App\Models\PosShift::STATUS_OPEN)->where('created_by', \Auth::user()->creatorId())->orderBy('opened_at', 'desc')->first();
         if (!$shift) {
             return redirect()->route('pos.dashboard')->with('error', __('pos.open_shift_required_to_add_closing'));
@@ -3481,7 +3482,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         if (!$customerId) {
             return response()->json(['success' => true, 'balance' => 0, 'formatted' => Auth::user()->priceFormat(0), 'customer_id' => 0]);
         }
-        $balance = Customer::totalOutstanding($customerId);
+        $balance = Customer::totalOutstanding($customerId, (int) Auth::user()->creatorId());
         return response()->json([
             'success' => true,
             'balance' => $balance,
@@ -3507,6 +3508,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             return response()->json(['success' => true, 'invoices' => [], 'total_outstanding' => 0, 'formatted' => Auth::user()->priceFormat(0)]);
         }
         $invoices = Invoice::where('customer_id', $customerId)
+            ->where('created_by', Auth::user()->creatorId())
             ->whereIn('status', ['0', '1', '2', '3'])
             ->with('payments')
             ->orderBy('issue_date', 'asc')
@@ -3580,7 +3582,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             return response()->json(['success' => false, 'message' => __('Customer not found.')], 422);
         }
         $customer = Customer::find($customerId);
-        $totalOutstanding = Customer::totalOutstanding($customerId);
+        $totalOutstanding = Customer::totalOutstanding($customerId, (int) Auth::user()->creatorId());
         if ($totalOutstanding <= 0) {
             return response()->json(['success' => false, 'message' => __('Customer has no outstanding balance.')], 422);
         }
@@ -3617,6 +3619,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $invoiceIds = array_filter(array_map('intval', $invoiceIds));
 
         $query = Invoice::where('customer_id', $customerId)
+            ->where('created_by', Auth::user()->creatorId())
             ->whereIn('status', ['0', '1', '2', '3'])
             ->with('payments')
             ->orderBy('issue_date', 'asc');
@@ -3766,7 +3769,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'new_balance_formatted' => $user->priceFormat($newBalance),
         ];
         $posIdRaw = $pos->id;
-        $receiptLinkUrl = url(route('pos.receipt.link', Crypt::encrypt($pos->id)));
+        $receiptLinkUrl = URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]);
         $receiptHtml = view('pos.printview', [
             'details' => $details,
             'sales' => ['data' => [], 'discount' => '0', 'sub_total' => $user->priceFormat($amount), 'total' => $user->priceFormat($amount), 'tip' => '0'],

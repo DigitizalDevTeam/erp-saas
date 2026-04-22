@@ -27,6 +27,8 @@ use App\Services\PosRestaurantRoleService;
 use App\Services\TotpService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
@@ -40,7 +42,26 @@ class UserController extends Controller
             if (\Auth::user()->type == 'super admin') {
                 $users = User::where('created_by', '=', $user->creatorId())->where('type', '=', 'company')->with(['currentPlan'])->get();
             } else {
-                $users = User::where('created_by', '=', $user->creatorId())->where('type', '!=', 'client')->with(['currentPlan'])->get();
+                $companyId = (int) $user->creatorId();
+                if (Schema::hasTable('company_user')) {
+                    $memberUserIds = DB::table('company_user')
+                        ->where('company_id', $companyId)
+                        ->where('status', 'active')
+                        ->pluck('user_id')
+                        ->map(fn ($id) => (int) $id)
+                        ->all();
+                    $users = User::where('type', '!=', 'client')
+                        ->where(function ($q) use ($companyId, $memberUserIds) {
+                            $q->where('created_by', $companyId);
+                            if (!empty($memberUserIds)) {
+                                $q->orWhereIn('id', $memberUserIds);
+                            }
+                        })
+                        ->with(['currentPlan'])
+                        ->get();
+                } else {
+                    $users = User::where('created_by', '=', $companyId)->where('type', '!=', 'client')->with(['currentPlan'])->get();
+                }
             }
 
             return view('user.index')->with('users', $users);
@@ -131,6 +152,7 @@ class UserController extends Controller
                 $user['is_enable_login'] = $enableLogin;
 
                 $user->save();
+                $this->syncCompanyMembership($user, [(int) $user->id], (int) $user->id);
                 $role_r = Role::findByName('company');
                 $user->assignRole($role_r);
                 $user->userDefaultDataRegister($user->id);
@@ -159,7 +181,7 @@ class UserController extends Controller
                 $validator = \Validator::make(
                     $request->all(), [
                         'name' => 'required|max:120',
-                        'email' => 'required|email|unique:users',
+                        'email' => 'required|email',
                         'role' => 'required',
                     ]
                 );
@@ -248,11 +270,32 @@ class UserController extends Controller
                         }
                     }
 
-                    $user = User::create($request->all());
-                    $user->assignRole($role_r);
-                    $user->syncBranchesFromRequest($request->input('branch_ids', []));
-                    if ($request['type'] != 'client') {
-                        \App\Models\Utility::employeeDetails($user->id, \Auth::user()->creatorId());
+                    $existingUser = User::where('email', $request->email)->first();
+                    $linkedExistingUser = false;
+                    if ($existingUser) {
+                        if (in_array($existingUser->type, ['super admin', 'client'], true)) {
+                            return redirect()->back()->with('error', __('This email belongs to a super admin/client account and cannot be linked here.'));
+                        }
+                        $existingCompanyIds = DB::table('company_user')->where('user_id', $existingUser->id)->pluck('company_id')->map(fn ($cid) => (int) $cid)->all();
+                        $existingCompanyIds[] = (int) \Auth::user()->creatorId();
+                        $defaultCompanyId = !empty($existingUser->default_company_id) ? (int) $existingUser->default_company_id : (int) \Auth::user()->creatorId();
+                        $this->syncCompanyMembership($existingUser, $existingCompanyIds, $defaultCompanyId);
+                        if ($existingUser->type !== 'company' && !$existingUser->hasRole($role_r->name)) {
+                            $existingUser->assignRole($role_r);
+                        }
+                        if ($existingUser->type !== 'company') {
+                            $existingUser->syncBranchesFromRequest($request->input('branch_ids', []));
+                        }
+                        $user = $existingUser;
+                        $linkedExistingUser = true;
+                    } else {
+                        $user = User::create($request->all());
+                        $this->syncCompanyMembership($user, [(int) \Auth::user()->creatorId()], (int) \Auth::user()->creatorId());
+                        $user->assignRole($role_r);
+                        $user->syncBranchesFromRequest($request->input('branch_ids', []));
+                        if ($request['type'] != 'client') {
+                            \App\Models\Utility::employeeDetails($user->id, \Auth::user()->creatorId());
+                        }
                     }
 
                 } else {
@@ -261,7 +304,7 @@ class UserController extends Controller
             }
             // Send Email
             $setings = Utility::settings();
-            if ($setings['new_user'] == 1) {
+            if ($setings['new_user'] == 1 && (!isset($linkedExistingUser) || $linkedExistingUser === false)) {
 
                 $user->password = $psw;
                 $user->type = $role_r->name;
@@ -283,6 +326,9 @@ class UserController extends Controller
             if (\Auth::user()->type == 'super admin') {
                 return redirect()->route('users.index')->with('success', __('Company successfully created.'));
             } else {
+                if (isset($linkedExistingUser) && $linkedExistingUser === true) {
+                    return redirect()->route('users.index')->with('success', __('Existing user linked to this company successfully.'));
+                }
                 return redirect()->route('users.index')->with('success', __('User successfully created.'));
 
             }
@@ -303,6 +349,7 @@ class UserController extends Controller
         $roles = Role::where('created_by', '=', $user->creatorId())->where('name', '!=', 'client')->get()->pluck('name', 'id');
         if (\Auth::user()->can('edit user')) {
             $user = User::findOrFail($id);
+            $this->assertUserBelongsToCurrentCompany($user);
             $user->load('branches');
             $user->customField = CustomField::getData($user, 'user');
             $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'user')->get();
@@ -345,6 +392,7 @@ class UserController extends Controller
                 $input['type'] = $role->name;
 
                 $user->fill($input)->save();
+                $this->syncCompanyMembership($user, [(int) $user->id], (int) $user->id);
                 CustomField::saveData($user, $request->customField);
 
                 $roles[] = $role->id;
@@ -355,6 +403,7 @@ class UserController extends Controller
                 );
             } else {
                 $user = User::findOrFail($id);
+                $this->assertUserBelongsToCurrentCompany($user);
                 $validator = \Validator::make(
                     $request->all(), [
                         'name' => 'required|max:120',
@@ -427,6 +476,12 @@ class UserController extends Controller
                 }
 
                 $user->fill($input)->save();
+                $existingCompanyIds = DB::table('company_user')->where('user_id', $user->id)->pluck('company_id')->map(fn ($cid) => (int) $cid)->all();
+                if (empty($existingCompanyIds)) {
+                    $existingCompanyIds = [(int) \Auth::user()->creatorId()];
+                }
+                $defaultCompanyId = !empty($user->default_company_id) ? (int) $user->default_company_id : (int) $existingCompanyIds[0];
+                $this->syncCompanyMembership($user, $existingCompanyIds, $defaultCompanyId);
                 Utility::employeeDetailsUpdate($user->id, \Auth::user()->creatorId());
                 CustomField::saveData($user, $request->customField);
 
@@ -466,6 +521,7 @@ class UserController extends Controller
                 }
 
                 if (\Auth::user()->type == 'company') {
+                    $this->assertUserBelongsToCurrentCompany($user);
 
                     $delete_user = User::where(['id' => $user->id])->first();
                     if ($delete_user) {
@@ -750,6 +806,87 @@ class UserController extends Controller
         return redirect()->back();
     }
 
+    public function setCompanyContext(Request $request)
+    {
+        $request->validate([
+            'company_id' => 'required|integer|exists:users,id',
+        ]);
+        $user = \Auth::user();
+        $companyId = (int) $request->company_id;
+
+        if (! $user->canAccessCompany($companyId)) {
+            Log::warning('company_context_switch_denied', ['user_id' => $user->id, 'company_id' => $companyId]);
+            return redirect()->back()->with('error', __('You do not have access to this company.'));
+        }
+
+        $user->setActiveCompany($companyId);
+        session()->forget('active_branch_id');
+        if ((int) ($user->default_company_id ?? 0) !== $companyId) {
+            $user->default_company_id = $companyId;
+            $user->save();
+        }
+        if (Schema::hasTable('company_user')) {
+            DB::table('company_user')
+                ->where('user_id', $user->id)
+                ->where('status', 'active')
+                ->update(['is_default' => false, 'updated_at' => now()]);
+            DB::table('company_user')
+                ->where('user_id', $user->id)
+                ->where('company_id', $companyId)
+                ->update(['is_default' => true, 'updated_at' => now()]);
+        }
+
+        Log::info('company_context_switched', ['user_id' => $user->id, 'company_id' => $companyId]);
+
+        return redirect()->back()->with('success', __('Active company updated.'));
+    }
+
+    public function updateUserCompanyMemberships(Request $request, $id)
+    {
+        if (! \Auth::user()->can('edit user')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        if (! Schema::hasTable('company_user')) {
+            return redirect()->back()->with('error', __('Company memberships are not available yet.'));
+        }
+
+        $request->validate([
+            'company_ids' => 'required|array|min:1',
+            'company_ids.*' => 'integer|exists:users,id',
+            'default_company_id' => 'required|integer|exists:users,id',
+        ]);
+
+        $actor = \Auth::user();
+        $user = User::findOrFail($id);
+        if ($actor->type !== 'super admin' && (int) $user->created_by !== (int) $actor->creatorId()) {
+            return redirect()->back()->with('error', __('You do not have permission to update this user.'));
+        }
+
+        $allowedCompanyIds = $actor->type === 'super admin'
+            ? User::where('type', 'company')->pluck('id')->map(fn ($cid) => (int) $cid)->all()
+            : User::where('type', 'company')->where('id', $actor->creatorId())->pluck('id')->map(fn ($cid) => (int) $cid)->all();
+
+        $companyIds = array_values(array_unique(array_map('intval', $request->input('company_ids', []))));
+        $companyIds = array_values(array_intersect($companyIds, $allowedCompanyIds));
+        if (empty($companyIds)) {
+            return redirect()->back()->with('error', __('No valid company selected.'));
+        }
+
+        $defaultCompanyId = (int) $request->input('default_company_id');
+        if (! in_array($defaultCompanyId, $companyIds, true)) {
+            $defaultCompanyId = (int) $companyIds[0];
+        }
+
+        DB::table('company_user')->where('user_id', $user->id)->delete();
+        $this->syncCompanyMembership($user, $companyIds, $defaultCompanyId);
+        $user->created_by = $defaultCompanyId;
+        $user->default_company_id = $defaultCompanyId;
+        $user->save();
+        Log::info('user_company_memberships_updated', ['actor_id' => $actor->id, 'user_id' => $user->id, 'default_company_id' => $defaultCompanyId]);
+
+        return redirect()->back()->with('success', __('User company memberships updated.'));
+    }
+
     public function changeMode()
     {
         $usr = \Auth::user();
@@ -963,6 +1100,69 @@ class UserController extends Controller
             {
                 return redirect()->back()->with('success', __('User login enable successfully.'));
             }
+        }
+    }
+
+    private function syncCompanyMembership(User $user, array $companyIds, ?int $defaultCompanyId = null): void
+    {
+        if (! Schema::hasTable('company_user')) {
+            return;
+        }
+
+        $companyIds = array_values(array_unique(array_filter(array_map('intval', $companyIds), fn ($id) => $id > 0)));
+        if (empty($companyIds)) {
+            return;
+        }
+
+        $validCompanyIds = User::whereIn('id', $companyIds)
+            ->where('type', 'company')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        if (empty($validCompanyIds)) {
+            return;
+        }
+
+        $default = $defaultCompanyId && in_array((int) $defaultCompanyId, $validCompanyIds, true)
+            ? (int) $defaultCompanyId
+            : (int) $validCompanyIds[0];
+
+        foreach ($validCompanyIds as $companyId) {
+            DB::table('company_user')->updateOrInsert(
+                ['company_id' => $companyId, 'user_id' => (int) $user->id],
+                [
+                    'role' => null,
+                    'status' => 'active',
+                    'is_default' => $companyId === $default,
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+        }
+
+        if ((int) ($user->default_company_id ?? 0) !== $default) {
+            $user->default_company_id = $default;
+            $user->save();
+        }
+    }
+
+    private function assertUserBelongsToCurrentCompany(User $user): void
+    {
+        $actor = \Auth::user();
+        if ($actor->type === 'super admin') {
+            return;
+        }
+        $companyId = (int) $actor->creatorId();
+        $belongs = (int) $user->created_by === $companyId;
+        if (! $belongs && Schema::hasTable('company_user')) {
+            $belongs = DB::table('company_user')
+                ->where('user_id', $user->id)
+                ->where('company_id', $companyId)
+                ->where('status', 'active')
+                ->exists();
+        }
+        if (! $belongs) {
+            abort(403, __('You do not have permission to access this user.'));
         }
     }
 }

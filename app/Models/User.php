@@ -9,6 +9,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use Lab404\Impersonate\Models\Impersonate;
@@ -44,6 +45,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'two_factor_recovery_codes',
         'last_login_at',
         'created_by',
+        'default_company_id',
         'pos_branch_id',
         'warehouse_id',
         'pos_pin',
@@ -80,11 +82,145 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function creatorId()
     {
-        if ($this->type == 'company' || $this->type == 'super admin') {
+        if ($this->type == 'super admin') {
             return $this->id;
-        } else {
-            return $this->created_by;
         }
+
+        return $this->activeCompanyId() ?? $this->created_by;
+    }
+
+    public function companies()
+    {
+        return $this->belongsToMany(self::class, 'company_user', 'user_id', 'company_id')
+            ->withPivot(['role', 'status', 'is_default'])
+            ->withTimestamps();
+    }
+
+    public function companyMemberships()
+    {
+        return $this->belongsToMany(self::class, 'company_user', 'user_id', 'company_id')
+            ->withPivot(['role', 'status', 'is_default'])
+            ->withTimestamps();
+    }
+
+    public function defaultCompany()
+    {
+        return $this->belongsTo(self::class, 'default_company_id');
+    }
+
+    public function canAccessCompany(int $companyId): bool
+    {
+        if ($companyId <= 0) {
+            return false;
+        }
+        if ($this->type === 'super admin') {
+            return true;
+        }
+        if (! Schema::hasTable('company_user')) {
+            if ($this->type === 'company') {
+                return (int) $this->id === $companyId;
+            }
+
+            return (int) $this->created_by === $companyId;
+        }
+
+        if ($this->type === 'company' && (int) $this->id === $companyId) {
+            return true;
+        }
+
+        return DB::table('company_user')
+            ->where('user_id', $this->id)
+            ->where('company_id', $companyId)
+            ->where('status', 'active')
+            ->exists();
+    }
+
+    public function firstActiveCompanyId(): ?int
+    {
+        if ($this->type === 'super admin') {
+            return (int) $this->id;
+        }
+        if (! Schema::hasTable('company_user')) {
+            if ($this->type === 'company') {
+                return (int) $this->id;
+            }
+
+            return ! empty($this->created_by) ? (int) $this->created_by : null;
+        }
+
+        $companyId = DB::table('company_user')
+            ->where('user_id', $this->id)
+            ->where('status', 'active')
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->value('company_id');
+
+        if ($companyId) {
+            return (int) $companyId;
+        }
+
+        if ($this->type === 'company') {
+            return (int) $this->id;
+        }
+
+        return null;
+    }
+
+    public function activeCompanyId(): ?int
+    {
+        if ($this->type === 'super admin') {
+            return (int) $this->id;
+        }
+
+        $sessionCompany = session('active_company_id');
+        if ($sessionCompany !== null && $sessionCompany !== '' && $this->canAccessCompany((int) $sessionCompany)) {
+            return (int) $sessionCompany;
+        }
+
+        if (! empty($this->default_company_id) && $this->canAccessCompany((int) $this->default_company_id)) {
+            return (int) $this->default_company_id;
+        }
+
+        return $this->firstActiveCompanyId();
+    }
+
+    public function companiesForSelection()
+    {
+        if ($this->type === 'super admin') {
+            return collect();
+        }
+        if (! Schema::hasTable('company_user')) {
+            return User::where('id', $this->creatorId())->where('type', 'company')->get();
+        }
+
+        $companyIds = DB::table('company_user')
+            ->where('user_id', $this->id)
+            ->where('status', 'active')
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->pluck('company_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        if ($this->type === 'company' && ! in_array((int) $this->id, $companyIds, true)) {
+            $companyIds[] = (int) $this->id;
+        }
+
+        if (empty($companyIds)) {
+            return collect();
+        }
+
+        return User::whereIn('id', $companyIds)->where('type', 'company')->orderBy('name')->get();
+    }
+
+    public function setActiveCompany(int $companyId): bool
+    {
+        if (! $this->canAccessCompany($companyId)) {
+            return false;
+        }
+
+        session(['active_company_id' => $companyId]);
+
+        return true;
     }
 
     /**
@@ -286,10 +422,10 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function ownerId()
     {
-        if ($this->type == 'company' || $this->type == 'super admin') {
+        if ($this->type == 'super admin') {
             return $this->id;
         } else {
-            return $this->created_by;
+            return $this->activeCompanyId() ?? $this->created_by;
         }
     }
 
@@ -299,7 +435,7 @@ class User extends Authenticatable implements MustVerifyEmail
         if ($this->type == 'company' || $this->type == 'super admin') {
             return User::where('id', $this->id)->first();
         } else {
-            return User::where('id', $this->created_by)->first();
+            return User::where('id', $this->ownerId())->first();
         }
     }
 

@@ -15,8 +15,10 @@
     $unseenCounter=App\Models\ChMessage::where('to_id', Auth::user()->id)->where('seen', 0)->count();
 
     $branchSwitcherBranches = collect();
+    $companySwitcherCompanies = collect();
     if (\Auth::check() && \Auth::user()->type !== 'super admin') {
         $branchSwitcherBranches = \Auth::user()->branchesForSelection();
+        $companySwitcherCompanies = \Auth::user()->companiesForSelection();
     }
 @endphp
 @if (isset($setting['cust_theme_bg']) && $setting['cust_theme_bg'] == 'on')
@@ -74,6 +76,19 @@
                             <select name="branch_id" id="active-branch-switch" class="form-select form-select-sm" style="min-width: 10rem;" onchange="this.form.submit()">
                                 @foreach ($branchSwitcherBranches as $switchBranch)
                                     <option value="{{ $switchBranch->id }}" @selected((int) \Auth::user()->activeBranchContextId() === (int) $switchBranch->id)>{{ $switchBranch->name }}</option>
+                                @endforeach
+                            </select>
+                        </form>
+                    </li>
+                @endif
+                @if($companySwitcherCompanies->count() > 1)
+                    <li class="dash-h-item d-none d-md-flex align-items-center me-2">
+                        <form action="{{ route('user.company-context') }}" method="post" class="d-flex align-items-center gap-2 mb-0">
+                            @csrf
+                            <label for="active-company-switch" class="mb-0 small text-muted hide-mob">{{ __('Company') }}</label>
+                            <select name="company_id" id="active-company-switch" class="form-select form-select-sm" style="min-width: 13rem;" onchange="this.form.submit()">
+                                @foreach ($companySwitcherCompanies as $switchCompany)
+                                    <option value="{{ $switchCompany->id }}" @selected((int) \Auth::user()->activeCompanyId() === (int) $switchCompany->id)>{{ $switchCompany->name }}</option>
                                 @endforeach
                             </select>
                         </form>

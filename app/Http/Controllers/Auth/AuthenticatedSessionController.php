@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use DateTime;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -73,11 +74,10 @@ class AuthenticatedSessionController extends Controller
 
     public function store(LoginRequest $request)
     {
-
         $user = User::where('email',$request->email)->first();
-        if($user != null)
-        {
-            $companyUser = User::where('id' , $user->created_by)->first();
+        if($user != null) {
+            $preLoginCompanyId = $this->resolveLoginCompanyId($user);
+            $companyUser = $preLoginCompanyId ? User::where('id', $preLoginCompanyId)->first() : null;
         }
 
         if($user != null && $user->is_disable == 0 && $user->type != 'company' && $user->type != 'super admin')
@@ -125,7 +125,16 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
         $user = Auth::user();
 
-        $companyUser = User::find($user->created_by);
+        $resolvedCompanyId = $this->resolveLoginCompanyId($user);
+        if ($resolvedCompanyId) {
+            $request->session()->put('active_company_id', (int) $resolvedCompanyId);
+            Log::info('login_active_company_selected', ['user_id' => $user->id, 'company_id' => (int) $resolvedCompanyId]);
+        } else {
+            $request->session()->forget('active_company_id');
+            Log::warning('login_active_company_missing', ['user_id' => $user->id]);
+        }
+
+        $companyUser = $resolvedCompanyId ? User::find($resolvedCompanyId) : null;
         $status = $companyUser ? $companyUser->delete_status : 1;
 
         if($user->delete_status == 0 || $status == 0)
@@ -201,10 +210,11 @@ class AuthenticatedSessionController extends Controller
         if($user->type != 'company' && $user->type != 'super admin')
         {
 //            $ip = '49.36.83.154'; // This is static ip address
-            $ip = $_SERVER['REMOTE_ADDR']; // your ip address here
+            $ip = $_SERVER['REMOTE_ADDR'] ?? request()->ip() ?? '127.0.0.1'; // your ip address here
             $query = @unserialize(file_get_contents('http://ip-api.com/php/' . $ip));
 
-            $whichbrowser = new \WhichBrowser\Parser($_SERVER['HTTP_USER_AGENT']);
+            $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? (string) $request->userAgent();
+            $whichbrowser = new \WhichBrowser\Parser($userAgent);
             if ($whichbrowser->device->type == 'bot') {
                 return;
             }
@@ -214,7 +224,7 @@ class AuthenticatedSessionController extends Controller
             $query['browser_name'] = $whichbrowser->browser->name ?? null;
             $query['os_name'] = $whichbrowser->os->name ?? null;
             $query['browser_language'] = isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? mb_substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2) : null;
-            $query['device_type'] = get_device_type($_SERVER['HTTP_USER_AGENT']);
+            $query['device_type'] = get_device_type($userAgent);
             $query['referrer_host'] = !empty($referrer['host']);
             $query['referrer_path'] = !empty($referrer['path']);
 
@@ -260,6 +270,24 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    private function resolveLoginCompanyId(User $user): ?int
+    {
+        if ($user->type === 'super admin') {
+            return (int) $user->id;
+        }
+
+        if (!empty($user->default_company_id) && $user->canAccessCompany((int) $user->default_company_id)) {
+            return (int) $user->default_company_id;
+        }
+
+        $first = $user->firstActiveCompanyId();
+        if ($first) {
+            return (int) $first;
+        }
+
+        return !empty($user->created_by) ? (int) $user->created_by : null;
     }
 
     public function showLoginForm($lang = '')

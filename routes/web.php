@@ -401,7 +401,7 @@ Route::get('/customer/invoice/{id}/', [InvoiceController::class, 'invoiceLink'])
 Route::get('/vender/bill/{id}/', [BillController::class, 'invoiceLink'])->name('bill.link.copy');
 Route::get('/vendor/purchase/{id}/', [PurchaseController::class, 'purchaseLink'])->name('purchase.link.copy');
 Route::get('/customer/proposal/{id}/', [ProposalController::class, 'invoiceLink'])->name('proposal.link.copy');
-Route::get('/customer/pos-receipt/{id}/', [PosController::class, 'receiptLink'])->name('pos.receipt.link');
+Route::get('/customer/pos-receipt/{id}/', [PosController::class, 'receiptLink'])->name('pos.receipt.link')->middleware('signed');
 Route::get('proposal/pdf/{id}', [ProposalController::class, 'proposal'])->name('proposal.pdf')->middleware(['XSS', 'revalidate']);
 
 //================================= Invoice Payment Gateways  ====================================//
@@ -566,6 +566,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::any('edit-profile', [UserController::class, 'editprofile'])->name('update.account')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::post('user/branch-context', [UserController::class, 'setBranchContext'])->name('user.branch-context')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('user/company-context', [UserController::class, 'setCompanyContext'])->name('user.company-context')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('users/{id}/company-memberships', [UserController::class, 'updateUserCompanyMemberships'])->name('users.company-memberships')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('users', UserController::class)->middleware(['auth', 'XSS', 'revalidate']);
 

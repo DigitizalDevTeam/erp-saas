@@ -357,15 +357,18 @@ class Customer extends Authenticatable
     /**
      * Total outstanding (receivable) for customer: sum of getDue() on all unpaid/partial invoices.
      */
-    public static function totalOutstanding($customerId)
+    public static function totalOutstanding($customerId, ?int $companyId = null)
     {
         if (!$customerId) {
             return 0;
         }
-        $invoices = Invoice::where('customer_id', $customerId)
+        $query = Invoice::where('customer_id', $customerId)
             ->whereIn('status', ['0', '1', '2', '3'])
-            ->with('payments')
-            ->get();
+            ->with('payments');
+        if ($companyId !== null) {
+            $query->where('created_by', $companyId);
+        }
+        $invoices = $query->get();
         $total = 0;
         foreach ($invoices as $inv) {
             $total += $inv->getDue();
