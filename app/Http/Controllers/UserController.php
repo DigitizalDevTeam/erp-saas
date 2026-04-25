@@ -277,14 +277,24 @@ class UserController extends Controller
                             return redirect()->back()->with('error', __('This email belongs to a super admin/client account and cannot be linked here.'));
                         }
                         $existingCompanyIds = DB::table('company_user')->where('user_id', $existingUser->id)->pluck('company_id')->map(fn ($cid) => (int) $cid)->all();
+                        if ($existingUser->type === 'company') {
+                            $existingCompanyIds[] = (int) $existingUser->id;
+                        }
                         $existingCompanyIds[] = (int) \Auth::user()->creatorId();
-                        $defaultCompanyId = !empty($existingUser->default_company_id) ? (int) $existingUser->default_company_id : (int) \Auth::user()->creatorId();
+                        $defaultCompanyId = !empty($existingUser->default_company_id)
+                            ? (int) $existingUser->default_company_id
+                            : ($existingUser->type === 'company' ? (int) $existingUser->id : (int) \Auth::user()->creatorId());
                         $this->syncCompanyMembership($existingUser, $existingCompanyIds, $defaultCompanyId);
                         if ($existingUser->type !== 'company' && !$existingUser->hasRole($role_r->name)) {
                             $existingUser->assignRole($role_r);
                         }
                         if ($existingUser->type !== 'company') {
                             $existingUser->syncBranchesFromRequest($request->input('branch_ids', []));
+                        } else {
+                            if (empty($existingUser->default_company_id)) {
+                                $existingUser->default_company_id = (int) $existingUser->id;
+                                $existingUser->save();
+                            }
                         }
                         $user = $existingUser;
                         $linkedExistingUser = true;
@@ -1077,6 +1087,59 @@ class UserController extends Controller
         $user = User::find($eId);
         $authUser = \Auth::user();
 
+        if (! $user) {
+            return redirect()->back()->with('error', __('User not found.'));
+        }
+
+        if ($authUser->type !== 'super admin' && Schema::hasTable('company_user')) {
+            $companyId = (int) $authUser->creatorId();
+            $membership = DB::table('company_user')
+                ->where('user_id', $user->id)
+                ->where('company_id', $companyId)
+                ->first();
+
+            if (! $membership) {
+                return redirect()->back()->with('error', __('User is not linked to your company.'));
+            }
+
+            $nextStatus = ((string) $membership->status === 'active') ? 'inactive' : 'active';
+            DB::table('company_user')
+                ->where('user_id', $user->id)
+                ->where('company_id', $companyId)
+                ->update([
+                    'status' => $nextStatus,
+                    'is_default' => $nextStatus === 'active' ? (bool) $membership->is_default : false,
+                    'updated_at' => now(),
+                ]);
+
+            if ($nextStatus === 'inactive' && (int) ($user->default_company_id ?? 0) === $companyId) {
+                $nextDefault = DB::table('company_user')
+                    ->join('users as companies', 'companies.id', '=', 'company_user.company_id')
+                    ->where('company_user.user_id', $user->id)
+                    ->where('company_user.status', 'active')
+                    ->where('companies.type', 'company')
+                    ->where('companies.is_enable_login', 1)
+                    ->where('companies.is_active', 1)
+                    ->where('companies.delete_status', 1)
+                    ->orderByDesc('company_user.is_default')
+                    ->orderBy('company_user.id')
+                    ->value('company_user.company_id');
+                $user->default_company_id = $nextDefault ? (int) $nextDefault : null;
+            }
+
+            $hasAnyActiveMembership = DB::table('company_user')
+                ->where('user_id', $user->id)
+                ->where('status', 'active')
+                ->exists();
+            $user->is_enable_login = $hasAnyActiveMembership ? 1 : 0;
+            $user->save();
+
+            return redirect()->back()->with(
+                'success',
+                $nextStatus === 'active' ? __('User login enable successfully.') : __('User login disable successfully.')
+            );
+        }
+
         if ($user->is_enable_login == 1) {
             $user->is_enable_login = 0;
             $user->save();
@@ -1101,6 +1164,42 @@ class UserController extends Controller
                 return redirect()->back()->with('success', __('User login enable successfully.'));
             }
         }
+    }
+
+    public function checkUserExists(Request $request)
+    {
+        if (! \Auth::user()->can('create user')) {
+            return response()->json(['exists' => false, 'allowed' => false], 403);
+        }
+
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $email = trim((string) $request->email);
+        $user = User::where('email', $email)->first();
+        if (! $user) {
+            return response()->json([
+                'exists' => false,
+                'allowed' => true,
+                'message' => '',
+            ]);
+        }
+
+        if (in_array($user->type, ['super admin', 'client'], true)) {
+            return response()->json([
+                'exists' => true,
+                'allowed' => false,
+                'message' => __('This email belongs to a super admin/client account and cannot be linked here.'),
+            ]);
+        }
+
+        return response()->json([
+            'exists' => true,
+            'allowed' => true,
+            'message' => __('User already exists. This user will be linked to your company, and password will remain unchanged.'),
+            'type' => $user->type,
+        ]);
     }
 
     private function syncCompanyMembership(User $user, array $companyIds, ?int $defaultCompanyId = null): void

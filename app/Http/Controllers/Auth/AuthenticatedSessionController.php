@@ -85,8 +85,20 @@ class AuthenticatedSessionController extends Controller
             return redirect()->back()->with('status', __('Your Account is disable,please contact your Administrator.'));
         }
 
-        if(($user != null && $user->is_enable_login == 0 || (isset($companyUser) && $companyUser != null) && $companyUser->is_enable_login == 0)  && $user->type != 'super admin')
-        {
+        $activeMembershipCount = $user ? $this->activeCompanyMembershipCount($user) : 0;
+        $isUserLoginDisabled = $user != null
+            && $user->type != 'super admin'
+            && $user->type != 'company'
+            && $activeMembershipCount <= 1
+            && (int) $user->is_enable_login === 0;
+
+        $isCompanyLoginDisabled = $user != null
+            && $user->type != 'super admin'
+            && isset($companyUser)
+            && $companyUser != null
+            && (int) $companyUser->is_enable_login === 0;
+
+        if ($isUserLoginDisabled || $isCompanyLoginDisabled) {
             return redirect()->back()->with('status', __('Your Account is disable from company.'));
         }
 
@@ -288,6 +300,18 @@ class AuthenticatedSessionController extends Controller
         }
 
         return !empty($user->created_by) ? (int) $user->created_by : null;
+    }
+
+    private function activeCompanyMembershipCount(User $user): int
+    {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('company_user')) {
+            return 0;
+        }
+
+        return (int) DB::table('company_user')
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->count();
     }
 
     public function showLoginForm($lang = '')

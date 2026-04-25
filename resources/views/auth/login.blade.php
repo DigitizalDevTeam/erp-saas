@@ -341,6 +341,13 @@
                             <h2>{{ str_replace('_', ' ', config('app.name')) }}</h2>
                             <p>{{ __('Log in to continue your business management session') }}</p>
                         </div>
+
+                        @if (session('status'))
+                            <div class="alert alert-warning py-2">{{ session('status') }}</div>
+                        @endif
+                        @if (session('error'))
+                            <div class="alert alert-danger py-2">{{ session('error') }}</div>
+                        @endif
     
                         {{ Form::open(['route' => 'login', 'method' => 'post', 'class'=>'needs-validation', 'novalidate']) }}
     

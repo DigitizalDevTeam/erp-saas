@@ -118,20 +118,31 @@ class User extends Authenticatable implements MustVerifyEmail
         }
         if (! Schema::hasTable('company_user')) {
             if ($this->type === 'company') {
-                return (int) $this->id === $companyId;
+                return (int) $this->id === $companyId && (int) $this->is_enable_login === 1 && (int) $this->is_active === 1 && (int) $this->delete_status === 1;
             }
 
             return (int) $this->created_by === $companyId;
         }
 
-        if ($this->type === 'company' && (int) $this->id === $companyId) {
+        if (
+            $this->type === 'company'
+            && (int) $this->id === $companyId
+            && (int) $this->is_enable_login === 1
+            && (int) $this->is_active === 1
+            && (int) $this->delete_status === 1
+        ) {
             return true;
         }
 
         return DB::table('company_user')
+            ->join('users as companies', 'companies.id', '=', 'company_user.company_id')
             ->where('user_id', $this->id)
             ->where('company_id', $companyId)
             ->where('status', 'active')
+            ->where('companies.type', 'company')
+            ->where('companies.is_enable_login', 1)
+            ->where('companies.is_active', 1)
+            ->where('companies.delete_status', 1)
             ->exists();
     }
 
@@ -149,11 +160,16 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         $companyId = DB::table('company_user')
+            ->join('users as companies', 'companies.id', '=', 'company_user.company_id')
             ->where('user_id', $this->id)
             ->where('status', 'active')
-            ->orderByDesc('is_default')
-            ->orderBy('id')
-            ->value('company_id');
+            ->where('companies.type', 'company')
+            ->where('companies.is_enable_login', 1)
+            ->where('companies.is_active', 1)
+            ->where('companies.delete_status', 1)
+            ->orderByDesc('company_user.is_default')
+            ->orderBy('company_user.id')
+            ->value('company_user.company_id');
 
         if ($companyId) {
             return (int) $companyId;
@@ -194,14 +210,25 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         $companyIds = DB::table('company_user')
+            ->join('users as companies', 'companies.id', '=', 'company_user.company_id')
             ->where('user_id', $this->id)
             ->where('status', 'active')
-            ->orderByDesc('is_default')
-            ->orderBy('id')
-            ->pluck('company_id')
+            ->where('companies.type', 'company')
+            ->where('companies.is_enable_login', 1)
+            ->where('companies.is_active', 1)
+            ->where('companies.delete_status', 1)
+            ->orderByDesc('company_user.is_default')
+            ->orderBy('company_user.id')
+            ->pluck('company_user.company_id')
             ->map(fn ($id) => (int) $id)
             ->all();
-        if ($this->type === 'company' && ! in_array((int) $this->id, $companyIds, true)) {
+        if (
+            $this->type === 'company'
+            && (int) $this->is_enable_login === 1
+            && (int) $this->is_active === 1
+            && (int) $this->delete_status === 1
+            && ! in_array((int) $this->id, $companyIds, true)
+        ) {
             $companyIds[] = (int) $this->id;
         }
 

@@ -60,12 +60,14 @@
             <div class="col-md-6">
                 <div class="form-group">
                     {{ Form::label('email', __('Email'), ['class' => 'form-label']) }}<x-required></x-required>
-                    {{ Form::email('email', null, ['class' => 'form-control', 'placeholder' => __('Enter User Email'), 'required' => 'required']) }}
+                    {{ Form::email('email', null, ['class' => 'form-control', 'placeholder' => __('Enter User Email'), 'required' => 'required', 'id' => 'user-create-email']) }}
                     @error('email')
                         <small class="invalid-email" role="alert">
                             <strong class="text-danger">{{ $message }}</strong>
                         </small>
                     @enderror
+                    <small id="existing-user-message" class="text-warning d-none mt-1 d-block"></small>
+                    <small id="existing-user-error" class="text-danger d-none mt-1 d-block"></small>
                 </div>
             </div>
             <div class="form-group col-md-6">
@@ -112,7 +114,7 @@
                 </div>
             </div>
             @endif
-            <div class="col-md-5 mb-3 form-group mt-4">
+            <div class="col-md-5 mb-3 form-group mt-4 login-enable-wrap">
                 <label for="password_switch">{{ __('Login is enable') }}</label>
                 <div class="form-check form-switch custom-switch-v1 float-end">
                     <input type="checkbox" name="password_switch" class="form-check-input input-primary pointer" value="on" id="password_switch">
@@ -167,3 +169,88 @@
 })();
 </script>
 @endif
+<script>
+(function() {
+    var emailInput = document.getElementById('user-create-email');
+    if (!emailInput) return;
+    var passwordSwitch = document.getElementById('password_switch');
+    var passwordWrap = document.querySelector('.ps_div');
+    var loginEnableWrap = document.querySelector('.login-enable-wrap');
+    var msg = document.getElementById('existing-user-message');
+    var err = document.getElementById('existing-user-error');
+    var checkUrl = @json(route('user.exists'));
+    var timer = null;
+
+    function showAsExisting(message) {
+        if (msg) { msg.textContent = message; msg.classList.remove('d-none'); }
+        if (err) { err.classList.add('d-none'); err.textContent = ''; }
+        if (passwordSwitch) {
+            passwordSwitch.checked = false;
+            passwordSwitch.setAttribute('disabled', 'disabled');
+        }
+        if (loginEnableWrap) loginEnableWrap.classList.add('d-none');
+        if (passwordWrap) {
+            passwordWrap.classList.add('d-none');
+            var p = passwordWrap.querySelector('input[name=password]');
+            if (p) p.value = '';
+        }
+    }
+
+    function showAsNewUser() {
+        if (msg) { msg.classList.add('d-none'); msg.textContent = ''; }
+        if (err) { err.classList.add('d-none'); err.textContent = ''; }
+        if (passwordSwitch) passwordSwitch.removeAttribute('disabled');
+        if (loginEnableWrap) loginEnableWrap.classList.remove('d-none');
+    }
+
+    function showAsBlocked(message) {
+        if (msg) { msg.classList.add('d-none'); msg.textContent = ''; }
+        if (err) { err.textContent = message; err.classList.remove('d-none'); }
+        if (passwordSwitch) {
+            passwordSwitch.checked = false;
+            passwordSwitch.setAttribute('disabled', 'disabled');
+        }
+        if (loginEnableWrap) loginEnableWrap.classList.add('d-none');
+        if (passwordWrap) {
+            passwordWrap.classList.add('d-none');
+            var p = passwordWrap.querySelector('input[name=password]');
+            if (p) p.value = '';
+        }
+    }
+
+    async function checkExisting() {
+        var email = (emailInput.value || '').trim();
+        if (!email || email.indexOf('@') === -1) {
+            showAsNewUser();
+            return;
+        }
+        try {
+            var res = await fetch(checkUrl + '?email=' + encodeURIComponent(email), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            });
+            if (!res.ok) {
+                showAsNewUser();
+                return;
+            }
+            var data = await res.json();
+            if (data.exists && data.allowed === false) {
+                showAsBlocked(data.message || '{{ __('This email cannot be used here.') }}');
+                return;
+            }
+            if (data.exists) {
+                showAsExisting(data.message || '{{ __('User already exists. Password will not be changed.') }}');
+                return;
+            }
+            showAsNewUser();
+        } catch (e) {
+            showAsNewUser();
+        }
+    }
+
+    emailInput.addEventListener('input', function() {
+        clearTimeout(timer);
+        timer = setTimeout(checkExisting, 350);
+    });
+    emailInput.addEventListener('blur', checkExisting);
+})();
+</script>
