@@ -32,6 +32,7 @@
                                 <th> {{__('Date')}}</th>
                                 <th> {{__('Amount')}}</th>
                                 <th> {{__('Description')}}</th>
+                                <th> {{__('Status')}}</th>
                                 <th width="10%"> {{__('Action')}}</th>
                             </tr>
                             </thead>
@@ -47,6 +48,29 @@
                                     </td>
                                     <td>{{!empty($journalEntry->description)?$journalEntry->description:'-'}}</td>
                                     <td>
+                                        @if($journalEntry->status == \App\Models\JournalEntry::STATUS_PENDING)
+                                            <span class="badge bg-warning">{{ __('Pending') }}</span>
+                                        @elseif($journalEntry->status == \App\Models\JournalEntry::STATUS_APPROVED)
+                                            <span class="badge bg-success">{{ __('Approve') }}</span>
+                                        @else
+                                            <span class="badge bg-danger">{{ __('Reject') }}</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @can('approve journal entry')
+                                            @if($journalEntry->status == \App\Models\JournalEntry::STATUS_PENDING)
+                                                {!! Form::open(['method' => 'POST', 'route' => ['journal-entry.approve', $journalEntry->id], 'id' => 'approve-form-' . $journalEntry->id, 'class' => 'd-inline']) !!}
+                                                <a href="#" class="mx-1 btn btn-sm btn-success bs-pass-para" data-bs-toggle="tooltip" title="{{ __('Approve') }}" data-confirm="{{ __('Approve this journal entry?') }}" data-confirm-yes="document.getElementById('approve-form-{{ $journalEntry->id }}').submit();"><i class="ti ti-check text-white"></i></a>
+                                                {!! Form::close() !!}
+                                            @endif
+                                        @endcan
+                                        @can('reject journal entry')
+                                            @if($journalEntry->status == \App\Models\JournalEntry::STATUS_PENDING)
+                                                {!! Form::open(['method' => 'POST', 'route' => ['journal-entry.reject', $journalEntry->id], 'id' => 'reject-form-' . $journalEntry->id, 'class' => 'd-inline']) !!}
+                                                <a href="#" class="mx-1 btn btn-sm btn-danger bs-pass-para" data-bs-toggle="tooltip" title="{{ __('Reject') }}" data-confirm="{{ __('Reject this journal entry?') }}" data-confirm-yes="document.getElementById('reject-form-{{ $journalEntry->id }}').submit();"><i class="ti ti-x text-white"></i></a>
+                                                {!! Form::close() !!}
+                                            @endif
+                                        @endcan
                                         @can('edit journal entry')
                                             <div class="action-btn me-2">
                                                 <a data-title="{{__('Edit Journal')}}" href="{{ route('journal-entry.edit',[$journalEntry->id]) }}" class="mx-3 btn btn-sm align-items-center bg-info" data-bs-toggle="tooltip" title="{{__('Edit')}}" data-original-title="{{__('Edit')}}">

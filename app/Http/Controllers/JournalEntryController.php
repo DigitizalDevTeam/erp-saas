@@ -107,6 +107,7 @@ class JournalEntryController extends Controller
             $journal->date = $request->date;
             $journal->reference = $request->reference;
             $journal->description = $request->description;
+            $journal->status = JournalEntry::STATUS_PENDING;
             $journal->created_by = \Auth::user()->creatorId();
             $journal->accounting_period = $request->filled('accounting_period') ? (int) $request->accounting_period : null;
             $journal->save();
@@ -120,47 +121,9 @@ class JournalEntryController extends Controller
                 $journalItem->credit = isset($accounts[$i]['credit']) ? $accounts[$i]['credit'] : 0;
                 $journalItem->save();
 
-                $bankAccounts = BankAccount::where('chart_account_id', '=', $accounts[$i]['account'])->get();
-                if (!empty($bankAccounts)) {
-                    foreach ($bankAccounts as $bankAccount) {
-                        $old_balance = $bankAccount->opening_balance;
-                        if ($journalItem->debit > 0) {
-                            $new_balance = $old_balance - $journalItem->debit;
-                        }
-                        if ($journalItem->credit > 0) {
-                            $new_balance = $old_balance + $journalItem->credit;
-                        }
-                        if (isset($new_balance)) {
-                            $bankAccount->opening_balance = $new_balance;
-                            $bankAccount->save();
-                        }
-                    }
-                }
-                if (isset($accounts[$i]['debit'])) {
-                    $data = [
-                        'account_id' => $accounts[$i]['account'],
-                        'transaction_type' => 'Debit',
-                        'transaction_amount' => $accounts[$i]['debit'],
-                        'reference' => 'Journal',
-                        'reference_id' => $journal->id,
-                        'reference_sub_id' => $journalItem->id,
-                        'date' => $journal->date,
-                    ];
-                } else {
-                    $data = [
-                        'account_id' => $accounts[$i]['account'],
-                        'transaction_type' => 'Credit',
-                        'transaction_amount' => $accounts[$i]['credit'],
-                        'reference' => 'Journal',
-                        'reference_id' => $journal->id,
-                        'reference_sub_id' => $journalItem->id,
-                        'date' => $journal->date,
-                    ];
-                }
-                Utility::addTransactionLines($data , 'create');
             }
 
-            return redirect()->route('journal-entry.index')->with('success', __('Journal entry successfully created.'));
+            return redirect()->route('journal-entry.index')->with('success', __('Journal entry successfully created and is pending approval.'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -305,45 +268,30 @@ class JournalEntryController extends Controller
                     $journalItem->credit = isset($accounts[$i]['credit']) ? $accounts[$i]['credit'] : 0;
                     $journalItem->save();
 
-                    $bankAccounts = BankAccount::where('chart_account_id', '=', $accounts[$i]['account'])->get();
-                    if (!empty($bankAccounts)) {
-                        foreach ($bankAccounts as $bankAccount) {
-                            $old_balance = $bankAccount->opening_balance;
-                            if ($journalItem->debit > 0) {
-                                $new_balance = $old_balance - $journalItem->debit;
-                            }
-                            if ($journalItem->credit > 0) {
-                                $new_balance = $old_balance + $journalItem->credit;
-                            }
-                            if (isset($new_balance)) {
-                                $bankAccount->opening_balance = $new_balance;
-                                $bankAccount->save();
-                            }
+                    if ($journalEntry->status == JournalEntry::STATUS_APPROVED) {
+                        if (isset($accounts[$i]['debit'])) {
+                            $data = [
+                                'account_id' => $accounts[$i]['account'],
+                                'transaction_type' => 'Debit',
+                                'transaction_amount' => $accounts[$i]['debit'],
+                                'reference' => 'Journal',
+                                'reference_id' => $journalEntry->id,
+                                'reference_sub_id' => $journalItem->id,
+                                'date' => $journalEntry->date,
+                            ];
+                        } else {
+                            $data = [
+                                'account_id' => $accounts[$i]['account'],
+                                'transaction_type' => 'Credit',
+                                'transaction_amount' => $accounts[$i]['credit'],
+                                'reference' => 'Journal',
+                                'reference_id' => $journalEntry->id,
+                                'reference_sub_id' => $journalItem->id,
+                                'date' => $journalEntry->date,
+                            ];
                         }
+                        Utility::addTransactionLines($data , 'edit');
                     }
-
-                    if (isset($accounts[$i]['debit'])) {
-                        $data = [
-                            'account_id' => $accounts[$i]['account'],
-                            'transaction_type' => 'Debit',
-                            'transaction_amount' => $accounts[$i]['debit'],
-                            'reference' => 'Journal',
-                            'reference_id' => $journalEntry->id,
-                            'reference_sub_id' => $journalItem->id,
-                            'date' => $journalEntry->date,
-                        ];
-                    } else {
-                        $data = [
-                            'account_id' => $accounts[$i]['account'],
-                            'transaction_type' => 'Credit',
-                            'transaction_amount' => $accounts[$i]['credit'],
-                            'reference' => 'Journal',
-                            'reference_id' => $journalEntry->id,
-                            'reference_sub_id' => $journalItem->id,
-                            'date' => $journalEntry->date,
-                        ];
-                    }
-                    Utility::addTransactionLines($data , 'edit');
                 }
 
                 return redirect()->route('journal-entry.index')->with('success', __('Journal entry successfully updated.'));
@@ -407,5 +355,83 @@ class JournalEntryController extends Controller
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+    }
+
+    public function approve(JournalEntry $journalEntry)
+    {
+        if (! \Auth::user()->can('approve journal entry')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        if ($journalEntry->created_by != \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        if ($journalEntry->status != JournalEntry::STATUS_PENDING) {
+            return redirect()->back()->with('error', __('Only pending journal entries can be approved.'));
+        }
+
+        $accounts = $journalEntry->accounts;
+        foreach ($accounts as $journalItem) {
+            $bankAccounts = BankAccount::where('chart_account_id', '=', $journalItem->account)->get();
+            if (! empty($bankAccounts)) {
+                foreach ($bankAccounts as $bankAccount) {
+                    $old_balance = $bankAccount->opening_balance;
+                    if ($journalItem->debit > 0) {
+                        $new_balance = $old_balance - $journalItem->debit;
+                    }
+                    if ($journalItem->credit > 0) {
+                        $new_balance = $old_balance + $journalItem->credit;
+                    }
+                    if (isset($new_balance)) {
+                        $bankAccount->opening_balance = $new_balance;
+                        $bankAccount->save();
+                    }
+                }
+            }
+            if ((float) $journalItem->debit > 0) {
+                $data = [
+                    'account_id' => $journalItem->account,
+                    'transaction_type' => 'Debit',
+                    'transaction_amount' => $journalItem->debit,
+                    'reference' => 'Journal',
+                    'reference_id' => $journalEntry->id,
+                    'reference_sub_id' => $journalItem->id,
+                    'date' => $journalEntry->date,
+                ];
+            } else {
+                $data = [
+                    'account_id' => $journalItem->account,
+                    'transaction_type' => 'Credit',
+                    'transaction_amount' => $journalItem->credit,
+                    'reference' => 'Journal',
+                    'reference_id' => $journalEntry->id,
+                    'reference_sub_id' => $journalItem->id,
+                    'date' => $journalEntry->date,
+                ];
+            }
+            Utility::addTransactionLines($data, 'create');
+        }
+
+        $journalEntry->status = JournalEntry::STATUS_APPROVED;
+        $journalEntry->save();
+
+        return redirect()->route('journal-entry.index')->with('success', __('Journal entry approved successfully.'));
+    }
+
+    public function reject(JournalEntry $journalEntry)
+    {
+        if (! \Auth::user()->can('reject journal entry')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        if ($journalEntry->created_by != \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        if ($journalEntry->status != JournalEntry::STATUS_PENDING) {
+            return redirect()->back()->with('error', __('Only pending journal entries can be rejected.'));
+        }
+
+        $journalEntry->status = JournalEntry::STATUS_REJECTED;
+        $journalEntry->save();
+
+        return redirect()->route('journal-entry.index')->with('success', __('Journal entry rejected successfully.'));
     }
 }

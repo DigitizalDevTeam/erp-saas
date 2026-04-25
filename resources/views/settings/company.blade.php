@@ -950,6 +950,19 @@
                                     <small class="text-muted d-block mb-2">{{ __('Used when paying payslips: posts a balanced journal (expense, IRPS / INSS liabilities, loan & deductions, salaries payable, bank).') }}</small>
                                 </div>
                                 <div class="form-group col-md-6">
+                                    {{ Form::label('payroll_integration_mode', __('HRM → accounting integration'), ['class' => 'form-label']) }}
+                                    {{ Form::select(
+                                        'payroll_integration_mode',
+                                        [
+                                            'hrm_only' => __('HRM only'),
+                                            'hrm_accounting' => __('HRM + Accounting'),
+                                        ],
+                                        $setting['payroll_integration_mode'] ?? 'hrm_only',
+                                        ['class' => 'form-control selectric'],
+                                    ) }}
+                                    <small class="text-muted d-block mt-1">{{ __('HRM only: payslip payment will not post accounting entries or bank balance changes. HRM + Accounting: payslip payment will auto-post to accounts.') }}</small>
+                                </div>
+                                <div class="form-group col-md-6">
                                     {{ Form::label('payroll_tax_burden_mode', __('Payroll tax burden mode'), ['class' => 'form-label']) }}
                                     {{ Form::select(
                                         'payroll_tax_burden_mode',

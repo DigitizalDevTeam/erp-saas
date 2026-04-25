@@ -325,8 +325,6 @@ class PaySlipController extends Controller
             } catch (\InvalidArgumentException $e) {
                 return redirect()->route('payslip.index')->with('error', $e->getMessage());
             }
-        } else {
-            Utility::bankAccountBalance($account->account, $employeePayslip->net_payble, 'debit');
         }
 
         $employeePayslip->status = 1;
@@ -360,8 +358,6 @@ class PaySlipController extends Controller
                 } catch (\InvalidArgumentException $e) {
                     return redirect()->route('payslip.index')->with('error', $e->getMessage());
                 }
-            } else {
-                Utility::bankAccountBalance($emp->account, $payslip->net_payble, 'debit');
             }
             $payslip->status = 1;
             $payslip->save();

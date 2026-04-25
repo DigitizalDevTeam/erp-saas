@@ -26,6 +26,12 @@ class PayrollAccountingService
      */
     public static function isAccountingPayrollEnabledForCreator(int $creatorId): bool
     {
+        $settings = Utility::settingsById($creatorId);
+        $mode = (string) ($settings['payroll_integration_mode'] ?? 'hrm_only');
+        if ($mode !== 'hrm_accounting') {
+            return false;
+        }
+
         $owner = User::find($creatorId);
         if (! $owner || ! $owner->plan) {
             return false;

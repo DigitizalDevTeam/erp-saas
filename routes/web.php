@@ -1066,6 +1066,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('journal-entry/account/destroy', [JournalEntryController::class, 'accountDestroy'])->name('journal.account.destroy');
 
             Route::delete('journal-entry/journal/destroy/{item_id}', [JournalEntryController::class, 'journalDestroy'])->name('journal.destroy');
+            Route::post('journal-entry/{journalEntry}/approve', [JournalEntryController::class, 'approve'])->name('journal-entry.approve');
+            Route::post('journal-entry/{journalEntry}/reject', [JournalEntryController::class, 'reject'])->name('journal-entry.reject');
             Route::get('fiscal-year-closing', [FiscalYearClosingController::class, 'index'])->name('fiscal-year-closing.index');
             Route::post('fiscal-year-closing', [FiscalYearClosingController::class, 'runClosing'])->name('fiscal-year-closing.run');
             Route::post('fiscal-year-closing/vat', [FiscalYearClosingController::class, 'runVat'])->name('fiscal-year-closing.vat');

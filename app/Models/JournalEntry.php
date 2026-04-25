@@ -6,14 +6,33 @@ use Illuminate\Database\Eloquent\Model;
 
 class JournalEntry extends Model
 {
+    const STATUS_PENDING = 0;
+    const STATUS_APPROVED = 1;
+    const STATUS_REJECTED = 2;
+
     protected $fillable = [
         'date',
         'reference',
         'description',
         'journal_id',
+        'status',
         'created_by',
         'accounting_period',
     ];
+
+    public static function getStatuses()
+    {
+        return [
+            self::STATUS_PENDING => __('Pending'),
+            self::STATUS_APPROVED => __('Approve'),
+            self::STATUS_REJECTED => __('Reject'),
+        ];
+    }
+
+    public function getStatusLabelAttribute()
+    {
+        return self::getStatuses()[$this->status] ?? $this->status;
+    }
 
 
     public function accounts()
