@@ -166,6 +166,32 @@
             </div>
             @endif
 
+            <h6 class="border-bottom pb-2 mb-2 mt-4">{{ __('Products sold (Qty Summary)') }}</h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead>
+                        <tr>
+                            <th>{{ __('Product') }}</th>
+                            <th class="text-center">{{ __('Qty') }}</th>
+                            <th class="text-end">{{ __('Amount') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse(($productQtySummary ?? collect()) as $row)
+                            <tr>
+                                <td>{{ $row->product ? $row->product->name : __('Unknown product') }}</td>
+                                <td class="text-center">{{ (float) $row->qty_total }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $row->amount_total) }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">{{ __('No sold products for this shift.') }}</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
             <h6 class="border-bottom pb-2 mb-2 mt-4">{{ __('Sales') }} ({{ $sales->count() }} {{ __('transactions') }})</h6>
             <div class="table-responsive">
                 <table class="table table-sm table-bordered">

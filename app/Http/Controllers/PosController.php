@@ -2067,9 +2067,15 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'items.*.price' => 'required|numeric|min:0',
         ];
         if ($isNonDineIn) {
-            $rules['guest_name'] = 'required|string|max:255';
-            $rules['guest_email'] = 'required|email';
-            $rules['guest_phone'] = 'required|string|max:64';
+            if ((int) $request->get('pos_id', 0) > 0) {
+                $rules['guest_name'] = 'nullable|string|max:255';
+                $rules['guest_email'] = 'nullable|email';
+                $rules['guest_phone'] = 'nullable|string|max:64';
+            } else {
+                $rules['guest_name'] = 'required|string|max:255';
+                $rules['guest_email'] = 'required|email';
+                $rules['guest_phone'] = 'required|string|max:64';
+            }
         } else {
             $rules['table_id'] = 'required|exists:pos_tables,id';
         }
@@ -2144,11 +2150,15 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         } else {
             $pos->order_type = $orderType;
             if ($isNonDineIn) {
-                $pos->guest_name = $request->guest_name;
-                $pos->guest_email = $request->guest_email;
-                $pos->guest_phone = $request->guest_phone;
+                $pos->guest_name = $request->filled('guest_name') ? $request->guest_name : $pos->guest_name;
+                $pos->guest_email = $request->filled('guest_email') ? $request->guest_email : $pos->guest_email;
+                $pos->guest_phone = $request->filled('guest_phone') ? $request->guest_phone : $pos->guest_phone;
             }
             $pos->save();
+        }
+
+        if ($isNonDineIn && (! $pos->guest_name || ! $pos->guest_email || ! $pos->guest_phone)) {
+            return response()->json(['error' => __('Customer details are required for delivery/takeaway orders.')], 422);
         }
 
         // Add only new lines (do not delete or change already-sent lines). Request items = unsent items to send.
@@ -3321,6 +3331,26 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $shift->status = \App\Models\PosShift::STATUS_CLOSED;
         $shift->closed_at = now();
         $shift->save();
+
+        $assignedTableIds = \App\Models\PosTableAssignment::where('shift_id', $shift->id)
+            ->whereNull('unassigned_at')
+            ->pluck('table_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        \App\Models\PosTableAssignment::where('shift_id', $shift->id)
+            ->whereNull('unassigned_at')
+            ->update(['unassigned_at' => now()]);
+        if (! empty($assignedTableIds)) {
+            \App\Models\PosTable::whereIn('id', $assignedTableIds)
+                ->where('created_by', \Auth::user()->creatorId())
+                ->update([
+                    'status' => \App\Models\PosTable::STATUS_AVAILABLE,
+                    'current_guests' => null,
+                    'customer_name' => null,
+                ]);
+        }
 
         return redirect()->route('pos-shift.index')->with('success', __('Closing balance saved and shift closed.'));
     }

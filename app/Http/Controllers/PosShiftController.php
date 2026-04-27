@@ -375,7 +375,15 @@ class PosShiftController extends Controller
             ->with(['product', 'pos', 'voidedByUser'])
             ->orderBy('voided_at')
             ->get();
-        return view('pos_shift.report', compact('pos_shift', 'sales', 'paymentsByMethod', 'cashTotal', 'cardTotal', 'creditTotal', 'salesTotal', 'cashDropsTotal', 'cashInsTotal', 'cashOutExpensesTotal', 'voidedLines', 'balanceCash', 'expectedCash'));
+        $productQtySummary = \App\Models\PosProduct::selectRaw('product_id, SUM(quantity) as qty_total, SUM(price * quantity) as amount_total')
+            ->whereIn('pos_id', $posIds)
+            ->whereNull('voided_at')
+            ->groupBy('product_id')
+            ->with('product')
+            ->orderByRaw('SUM(quantity) DESC')
+            ->get();
+
+        return view('pos_shift.report', compact('pos_shift', 'sales', 'paymentsByMethod', 'cashTotal', 'cardTotal', 'creditTotal', 'salesTotal', 'cashDropsTotal', 'cashInsTotal', 'cashOutExpensesTotal', 'voidedLines', 'balanceCash', 'expectedCash', 'productQtySummary'));
     }
 
     public function closeForm(PosShift $pos_shift)
@@ -427,7 +435,7 @@ class PosShiftController extends Controller
             $pos_shift->status = PosShift::STATUS_CLOSED;
             $pos_shift->save();
             PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
-            PosTableAssignment::where('shift_id', $pos_shift->id)->whereNull('unassigned_at')->update(['unassigned_at' => now()]);
+            $this->releaseShiftTables($pos_shift);
             $this->sendShiftClosedEmailToManagers($pos_shift, (float) $expectedCash);
             return redirect()->route('pos-shift.index')->with('success', __('Shift closed successfully.'));
         }
@@ -479,7 +487,7 @@ class PosShiftController extends Controller
             $pos_shift->status = PosShift::STATUS_CLOSED;
             $pos_shift->save();
             PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed (EOD)'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
-            PosTableAssignment::where('shift_id', $pos_shift->id)->whereNull('unassigned_at')->update(['unassigned_at' => now()]);
+            $this->releaseShiftTables($pos_shift);
             $this->sendShiftClosedEmailToManagers($pos_shift, (float) $expectedCash);
         }
 
@@ -559,6 +567,34 @@ class PosShiftController extends Controller
             }
         }
         return response()->json(['success' => true, 'message' => __('Tables transferred successfully.')]);
+    }
+
+    /**
+     * On shift close, unassign tables and force them to available to avoid "occupied but empty" state.
+     */
+    private function releaseShiftTables(PosShift $shift): void
+    {
+        $tableIds = PosTableAssignment::where('shift_id', $shift->id)
+            ->whereNull('unassigned_at')
+            ->pluck('table_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        PosTableAssignment::where('shift_id', $shift->id)
+            ->whereNull('unassigned_at')
+            ->update(['unassigned_at' => now()]);
+
+        if (! empty($tableIds)) {
+            PosTable::whereIn('id', $tableIds)
+                ->where('created_by', (int) $shift->created_by)
+                ->update([
+                    'status' => PosTable::STATUS_AVAILABLE,
+                    'current_guests' => null,
+                    'customer_name' => null,
+                ]);
+        }
     }
 
     /**
