@@ -1199,7 +1199,7 @@ class InvoiceController extends Controller
             return redirect()->back()->with('error', __('Something went wrong.'));
         }
 
-        $invoice = Invoice::with(['pos.branch', 'pos.table', 'pos.shift'])->where('id', $invoiceId)->first();
+        $invoice = Invoice::with(['pos.branch', 'pos.table', 'pos.shift','billing_address','shipping_address'])->where('id', $invoiceId)->first();
 
         $data = DB::table('settings');
         $data = $data->where('created_by', '=', $invoice->created_by);

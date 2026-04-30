@@ -261,7 +261,7 @@ class Utility extends Model
             "vender_prefix" => "#VEND",
             "footer_title" => "",
             "footer_notes" => "",
-            "invoice_template" => "template1",
+            "invoice_template" => "template11",
             "bill_template" => "template1",
             "proposal_template" => "template1",
             "qr_display" => 'on',
@@ -547,7 +547,7 @@ class Utility extends Model
             "vender_prefix" => "#VEND",
             "footer_title" => "",
             "footer_notes" => "",
-            "invoice_template" => "template1",
+            "invoice_template" => "template11",
             "bill_template" => "template1",
             "proposal_template" => "template1",
             "qr_display" => 'on',
@@ -888,6 +888,7 @@ class Utility extends Model
             "template8" => "Tokyo",
             "template9" => "Sydney",
             "template10" => "Paris",
+            "template11" => "Mozambique Layout",
         ];
 
         return $arr;

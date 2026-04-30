@@ -10,7 +10,7 @@
     $(window).on('load', function () {
         var element = document.getElementById('boxes');
         var opt = {
-            margin: [0.5, 0, 0.5, 0],
+            margin: [0, 0, 0, 0],
             filename: '{{Utility::customerInvoiceNumberFormat($invoice->invoice_id)}}',
             image: {type: 'jpeg', quality: 1},
             html2canvas: {scale: 4, dpi: 72, letterRendering: true},
