@@ -8,6 +8,8 @@ use App\Models\CustomField;
 use App\Models\ProductService;
 use App\Models\ProductServiceCategory;
 use App\Models\Purchase;
+use App\Models\PurchaseQuotation;
+use App\Models\BillProduct;
 use App\Models\ProductIdentifier;
 use App\Models\ProductExpiryLot;
 use App\Models\ProductVariant;
@@ -199,6 +201,9 @@ class PurchaseController extends Controller
             $purchase->status         =  0;
             $purchase->category_id    = $request->category_id;
             $purchase->created_by     = \Auth::user()->creatorId();
+            if ($request->filled('purchase_quotation_id')) {
+                $purchase->purchase_quotation_id = (int) $request->purchase_quotation_id;
+            }
             $purchase->save();
 
             $products = $request->items;
@@ -330,12 +335,92 @@ class PurchaseController extends Controller
                 }
             }
 
+            if ($request->filled('purchase_quotation_id')) {
+                PurchaseQuotation::where('id', (int) $request->purchase_quotation_id)
+                    ->where('created_by', (int) \Auth::user()->creatorId())
+                    ->update([
+                        'converted_purchase_id' => $purchase->id,
+                        'is_converted' => 1,
+                    ]);
+            }
+
             return redirect()->route('purchase.index', $purchase->id)->with('success', __('Purchase successfully created.'));
         }
         else
         {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+    }
+
+    /**
+     * Purchase order (stock) → Vendor bill (AP / accounting) without duplicating inventory.
+     */
+    public function convertToVendorBill($encryptedId)
+    {
+        if (! \Auth::user()->can('create bill')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $pid = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid purchase.'));
+        }
+
+        $purchase = Purchase::with('items')->where('created_by', \Auth::user()->creatorId())->find($pid);
+        if (! $purchase) {
+            return redirect()->back()->with('error', __('Purchase not found.'));
+        }
+        if (! empty($purchase->converted_bill_id)) {
+            return redirect()->route('bill.show', Crypt::encrypt($purchase->converted_bill_id))
+                ->with('info', __('Vendor bill already exists for this purchase.'));
+        }
+
+        $bill = DB::transaction(function () use ($purchase) {
+            $nextBillNo = $this->vendorBillNextNumber();
+            $bill = new Bill();
+            $bill->bill_id = $nextBillNo;
+            $bill->vender_id = $purchase->vender_id;
+            $bill->bill_date = $purchase->purchase_date ?? now()->toDateString();
+            $bill->due_date = $purchase->purchase_date ?? now()->toDateString();
+            $bill->status = 0;
+            $bill->type = 'Bill';
+            $bill->user_type = 'vendor';
+            $bill->category_id = $purchase->category_id ?: 0;
+            $bill->order_number = (int) ($purchase->purchase_number ?? 0);
+            $bill->purchase_id = $purchase->id;
+            $bill->suppress_inventory = true;
+            $bill->created_by = \Auth::user()->creatorId();
+            $bill->save();
+
+            foreach ($purchase->items as $line) {
+                $bp = new BillProduct();
+                $bp->bill_id = $bill->id;
+                $bp->product_id = $line->product_id;
+                $bp->quantity = $line->quantity;
+                $bp->tax = $line->tax;
+                $bp->discount = $line->discount;
+                $bp->price = $line->price;
+                $bp->description = $line->description;
+                $bp->save();
+            }
+
+            $purchase->converted_bill_id = $bill->id;
+            $purchase->save();
+
+            return $bill;
+        });
+
+        return redirect()->route('bill.show', Crypt::encrypt($bill->id))->with('success', __('Vendor bill created from purchase. Send the bill to post accounting entries.'));
+    }
+
+    protected function vendorBillNextNumber(): int
+    {
+        $latest = Bill::where('created_by', '=', \Auth::user()->creatorId())->latest('id')->first();
+        if (! $latest) {
+            return 1;
+        }
+
+        return (int) $latest->bill_id + 1;
     }
 
 

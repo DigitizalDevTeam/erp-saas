@@ -16,6 +16,22 @@
 
 @section('content')
 
+    @can('create bill')
+        @if (empty($purchase->converted_bill_id))
+            <div class="row mb-3">
+                <div class="col-12 text-end">
+                    <a href="{{ route('purchase.convert-vendor-bill', \Crypt::encrypt($purchase->id)) }}" class="btn btn-sm btn-primary">{{ __('Create vendor bill (from PO)') }}</a>
+                </div>
+            </div>
+        @else
+            <div class="row mb-3">
+                <div class="col-12 text-end">
+                    <a href="{{ route('bill.show', \Crypt::encrypt($purchase->converted_bill_id)) }}" class="btn btn-sm btn-outline-primary">{{ __('View vendor bill') }}</a>
+                </div>
+            </div>
+        @endif
+    @endcan
+
     @can('send purchase')
         @if($purchase->status!=4)
         <div class="row">

@@ -360,6 +360,16 @@
         @if ($invoice->status != 0)
             <div class="row justify-content-between align-items-center mb-3">
                 <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
+                    @if (! empty($invoice->quotation_id) || ! empty($invoice->proforma_id))
+                        <div class="all-button-box">
+                            @if (! empty($invoice->quotation_id))
+                                <a href="{{ route('quotation.show', \Crypt::encrypt($invoice->quotation_id)) }}" class="btn btn-sm btn-outline-secondary">{{ __('Quotation') }}</a>
+                            @endif
+                            @if (! empty($invoice->proforma_id))
+                                <a href="{{ route('proforma.show', \Crypt::encrypt($invoice->proforma_id)) }}" class="btn btn-sm btn-outline-secondary">{{ __('Proforma') }}</a>
+                            @endif
+                        </div>
+                    @endif
                     @if ($invoice->status != 0)
                         <div class="all-button-box">
                             @if (!empty($invoice->deliveryNote))

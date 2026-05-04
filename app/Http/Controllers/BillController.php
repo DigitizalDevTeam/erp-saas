@@ -171,6 +171,8 @@ class BillController extends Controller
             $bill->due_date       = $request->due_date;
             $bill->category_id    = !empty($request->category_id) ? $request->category_id :0;
             $bill->order_number   = !empty($request->order_number) ? $request->order_number : 0;
+            $bill->purchase_id = $request->filled('purchase_id') ? (int) $request->purchase_id : null;
+            $bill->suppress_inventory = $request->boolean('suppress_inventory');
             $bill->created_by     = \Auth::user()->creatorId();
             $bill->save();
 
@@ -181,6 +183,7 @@ class BillController extends Controller
 
             for($i = 0; $i < count($products); $i++)
             {
+                $billProduct = null;
                 if(!empty($products[$i]['item']))
                 {
                     $billProduct              = new BillProduct();
@@ -206,22 +209,21 @@ class BillController extends Controller
                     $billTotal= $billAccount->price;
                 }
 
-                //inventory management (Quantity)
-                if(!empty($billProduct))
-                {
-                    Utility::total_quantity('plus',$billProduct->quantity,$billProduct->product_id);
+                //inventory management (Quantity) — skipped when bill mirrors an existing purchase (stock already received)
+                if (! $bill->suppress_inventory && ! empty($billProduct)) {
+                    Utility::total_quantity('plus', $billProduct->quantity, $billProduct->product_id);
                 }
 
                 //Product Stock Report
-                if(!empty($products[$i]['item']))
-                {
-                    $type='bill';
+                if (! $bill->suppress_inventory && ! empty($products[$i]['item'])) {
+                    $type = 'bill';
                     $type_id = $bill->id;
-                    $description=$products[$i]['quantity'].'  '.__('quantity purchase in bill').' '. \Auth::user()->billNumberFormat($bill->bill_id);
-                    Utility::addProductStock( $products[$i]['item'],$products[$i]['quantity'],$type,$description,$type_id);
-                    // $total_amount += ($billProduct->quantity * $billProduct->price)+$billTotal ;
-                    $total_amount += ((float)$billProduct->quantity * (float)$billProduct->price) + (float)$billTotal;
+                    $description = $products[$i]['quantity'].'  '.__('quantity purchase in bill').' '. \Auth::user()->billNumberFormat($bill->bill_id);
+                    Utility::addProductStock($products[$i]['item'], $products[$i]['quantity'], $type, $description, $type_id);
+                    $total_amount += ((float) $billProduct->quantity * (float) $billProduct->price) + (float) $billTotal;
 
+                } elseif (! empty($products[$i]['item']) && ! empty($billProduct)) {
+                    $total_amount += ((float) $billProduct->quantity * (float) $billProduct->price) + (float) $billTotal;
                 }
 
             }
@@ -485,7 +487,7 @@ class BillController extends Controller
                         $billProduct             = new BillProduct();
                         $billProduct->bill_id    = $bill->id;
 
-                        if(isset($products[$i]['items']) ) {
+                        if (isset($products[$i]['items']) && ! $bill->suppress_inventory) {
                             Utility::total_quantity('plus', $products[$i]['quantity'], $products[$i]['items']);
                         }
 
@@ -494,8 +496,9 @@ class BillController extends Controller
 
                     }
                     else{
-
-                        Utility::total_quantity('minus',$billProduct->quantity,$billProduct->product_id);
+                        if (! $bill->suppress_inventory) {
+                            Utility::total_quantity('minus', $billProduct->quantity, $billProduct->product_id);
+                        }
                     }
 
                     if (isset($products[$i]['items'])) {
@@ -528,18 +531,18 @@ class BillController extends Controller
                         $billTotal= $billAccount->price;
                     }
 
-                    if ($products[$i]['id']>0) {
-                        Utility::total_quantity('plus',$products[$i]['quantity'],$billProduct->product_id);
+                    if ($products[$i]['id'] > 0 && ! $bill->suppress_inventory) {
+                        Utility::total_quantity('plus', $products[$i]['quantity'], $billProduct->product_id);
                     }
 
                     //Product Stock Report
-                    $type='bill';
+                    $type = 'bill';
                     $type_id = $bill->id;
-                    StockReport::where('type','=','bill')->where('type_id','=',$bill->id)->delete();
-                    $description=$products[$i]['quantity'].'  '.__(' quantity purchase in bill').' '. \Auth::user()->billNumberFormat($bill->bill_id);
+                    StockReport::where('type', '=', 'bill')->where('type_id', '=', $bill->id)->delete();
+                    $description = $products[$i]['quantity'].'  '.__(' quantity purchase in bill').' '. \Auth::user()->billNumberFormat($bill->bill_id);
 
-                    if(isset($products[$i]['items']) ){
-                        Utility::addProductStock( $products[$i]['items'],$products[$i]['quantity'],$type,$description,$type_id);
+                    if (isset($products[$i]['items']) && ! $bill->suppress_inventory) {
+                        Utility::addProductStock($products[$i]['items'], $products[$i]['quantity'], $type, $description, $type_id);
                     }
 
                     $total_amount += ($billProduct->quantity * $billProduct->price)+$billTotal ;

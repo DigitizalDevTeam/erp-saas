@@ -9,6 +9,8 @@ class Invoice extends Model
     protected $fillable = [
         'invoice_id',
         'pos_id',
+        'quotation_id',
+        'proforma_id',
         'customer_id',
         'issue_date',
         'due_date',
@@ -21,6 +23,16 @@ class Invoice extends Model
     public function pos()
     {
         return $this->belongsTo(Pos::class, 'pos_id');
+    }
+
+    public function sourceQuotation()
+    {
+        return $this->belongsTo(Quotation::class, 'quotation_id');
+    }
+
+    public function sourceProforma()
+    {
+        return $this->belongsTo(Proforma::class, 'proforma_id');
     }
 
     public static $statues = [

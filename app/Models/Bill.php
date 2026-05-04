@@ -13,8 +13,14 @@ class Bill extends Model
         'due_date',
         'bill_id',
         'order_number',
+        'purchase_id',
+        'suppress_inventory',
         'category_id',
         'created_by',
+    ];
+
+    protected $casts = [
+        'suppress_inventory' => 'boolean',
     ];
 
     public static $statues = [
@@ -149,6 +155,11 @@ class Bill extends Model
     public function category()
     {
         return $this->hasOne('App\Models\ProductServiceCategory', 'id', 'category_id');
+    }
+
+    public function purchase()
+    {
+        return $this->belongsTo(Purchase::class, 'purchase_id');
     }
 
     public function debitNote()

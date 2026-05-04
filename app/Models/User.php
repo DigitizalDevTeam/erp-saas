@@ -570,6 +570,22 @@ class User extends Authenticatable implements MustVerifyEmail
 
         return $settings["quotation_prefix"] . sprintf("%05d", $number);
     }
+
+    public function proformaNumberFormat($number)
+    {
+        $settings = Utility::settings();
+        $prefix = $settings['proforma_prefix'] ?? '#PF';
+
+        return $prefix . sprintf('%05d', $number);
+    }
+
+    public function vendorQuoteNumberFormat($number)
+    {
+        $settings = Utility::settings();
+        $prefix = $settings['vendor_quote_prefix'] ?? '#VQ';
+
+        return $prefix . sprintf('%05d', $number);
+    }
     public function posNumberFormat($number)
     {
         $settings = Utility::settings();

@@ -189,6 +189,8 @@ use App\Http\Controllers\OzowPaymentController;
 use App\Http\Controllers\PaiementProController;
 use App\Http\Controllers\PayHereController;
 use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\ProformaController;
+use App\Http\Controllers\PurchaseQuotationController;
 use App\Http\Controllers\ReferralProgramController;
 use App\Http\Controllers\TapController;
 use App\Http\Controllers\BillCreditNoteController;
@@ -1936,6 +1938,22 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('printview/quotation', [QuotationController::class, 'printView'])->name('quotation.printview');
     Route::get('quotation/pdf/{id}', [QuotationController::class, 'quotation'])->name('quotation.pdf')->middleware(['auth', 'XSS', 'revalidate']);
 
+    Route::get('proforma/from-quotation/{id}', [ProformaController::class, 'createFromQuotation'])->name('proforma.create-from-quotation')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('proforma/{id}/issue-invoice', [ProformaController::class, 'issueInvoiceForm'])->name('proforma.issue-invoice.form')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('proforma/{id}/issue-invoice', [ProformaController::class, 'issueInvoiceStore'])->name('proforma.issue-invoice.store')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('proforma/items', [ProformaController::class, 'items'])->name('proforma.items')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('proforma/product', [ProformaController::class, 'product'])->name('proforma.product')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('proforma/product/destroy', [ProformaController::class, 'productDestroy'])->name('proforma.product.destroy')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::resource('proforma', ProformaController::class)->middleware(['auth', 'XSS', 'revalidate']);
+    Route::any('proforma/create/{cid}', [ProformaController::class, 'proformaCreate'])->name('proformas.create')->middleware(['auth', 'XSS', 'revalidate']);
+
+    Route::get('vendor-quote/items', [PurchaseQuotationController::class, 'items'])->name('vendor-quote.items')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('vendor-quote/product', [PurchaseQuotationController::class, 'product'])->name('vendor-quote.product')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('vendor-quote/product/destroy', [PurchaseQuotationController::class, 'productDestroy'])->name('vendor-quote.product.destroy')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('vendor-quote/convert-purchase/{id}', [PurchaseQuotationController::class, 'convertToPurchase'])->name('vendor-quote.convert-purchase')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::resource('vendor-quote', PurchaseQuotationController::class)->middleware(['auth', 'XSS', 'revalidate']);
+    Route::any('vendor-quote/create/{cid}', [PurchaseQuotationController::class, 'quoteCreate'])->name('vendor_quotes.create')->middleware(['auth', 'XSS', 'revalidate']);
+
     Route::resource('warehouse', WarehouseController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('warehouse/{warehouse}/document', [WarehouseController::class, 'uploadDocument'])->name('warehouse.document.upload')->middleware(['auth', 'XSS', 'revalidate']);
     Route::delete('warehouse/{warehouse}/document/{documentId}', [WarehouseController::class, 'deleteDocument'])->name('warehouse.document.delete')->middleware(['auth', 'XSS', 'revalidate']);
@@ -1960,6 +1978,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('purchase/product', [PurchaseController::class, 'product'])->name('purchase.product');
             Route::get('purchase/{id}/sent', [PurchaseController::class, 'sent'])->name('purchase.sent');
             Route::get('purchase/{id}/resent', [PurchaseController::class, 'resent'])->name('purchase.resent');
+            Route::get('purchase/convert-vendor-bill/{id}', [PurchaseController::class, 'convertToVendorBill'])->name('purchase.convert-vendor-bill');
         }
 
     );

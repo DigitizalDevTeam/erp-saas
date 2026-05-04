@@ -11,6 +11,8 @@ use App\Models\Customer;
 use App\Models\CustomField;
 use App\Models\Invoice;
 use App\Models\InvoiceBankTransfer;
+use App\Models\Proforma;
+use App\Models\Quotation;
 use App\Models\InvoicePayment;
 use App\Models\InvoiceProduct;
 use App\Models\Plan;
@@ -251,8 +253,26 @@ class InvoiceController extends Controller
                     $invoice->billing_address_id = $request->billing_address ?? null;
                     $invoice->shipping_address_id = $request->shipping_address ?? null;
                     $invoice->created_by = \Auth::user()->creatorId();
+                    $creatorId = (int) \Auth::user()->creatorId();
+                    $invoice->quotation_id = null;
+                    $invoice->proforma_id = null;
+                    if ($request->filled('source_proforma_id')) {
+                        $pf = Proforma::where('id', (int) $request->input('source_proforma_id'))->where('created_by', $creatorId)->first();
+                        if ($pf) {
+                            $invoice->proforma_id = $pf->id;
+                            if ($pf->quotation_id) {
+                                $invoice->quotation_id = $pf->quotation_id;
+                            }
+                        }
+                    }
+                    if ($request->filled('source_quotation_id') && empty($invoice->quotation_id)) {
+                        $q = Quotation::where('id', (int) $request->input('source_quotation_id'))->where('created_by', $creatorId)->first();
+                        if ($q) {
+                            $invoice->quotation_id = $q->id;
+                        }
+                    }
                     $invoice->save();
-                    CustomField::saveData($invoice, $request->customField);
+                    CustomField::saveData($invoice, $request->input('customField'));
 
                     StockReport::where('type', '=', 'invoice')->where('type_id', '=', $invoice->id)->delete();
 
@@ -533,7 +553,7 @@ class InvoiceController extends Controller
                 return redirect()->back()->with('error', __('Invoice Not Found.'));
             }
             $id = Crypt::decrypt($ids);
-            $invoice = Invoice::with(['creditNote','payments.bankAccount','items.product.unit', 'shipping_address', 'billing_address', 'pos.branch', 'pos.table', 'pos.shift', 'deliveryNote.roadManifest'])->find($id);
+            $invoice = Invoice::with(['creditNote','payments.bankAccount','items.product.unit', 'shipping_address', 'billing_address', 'pos.branch', 'pos.table', 'pos.shift', 'deliveryNote.roadManifest', 'sourceQuotation', 'sourceProforma'])->find($id);
 
             if (!empty($invoice->created_by) == \Auth::user()->creatorId()) {
                 $invoicePayment = InvoicePayment::where('invoice_id', $invoice->id)->first();

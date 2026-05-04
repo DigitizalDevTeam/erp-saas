@@ -1422,11 +1422,17 @@
                             <li class="dash-item">
                                 <a class="dash-link" href="{{ route('purchase.index') }}">{{ __('Purchase') }}</a>
                             </li>
+                            <li class="dash-item">
+                                <a class="dash-link" href="{{ route('vendor-quote.index') }}">{{ __('Vendor quotes') }}</a>
+                            </li>
                             @endcan
 
                             @can('manage quotation')
                             <li class="dash-item">
                                 <a class="dash-link" href="{{ route('quotation.index') }}">{{ __('Quotation') }}</a>
+                            </li>
+                            <li class="dash-item">
+                                <a class="dash-link" href="{{ route('proforma.index') }}">{{ __('Proforma') }}</a>
                             </li>
                             @endcan
 

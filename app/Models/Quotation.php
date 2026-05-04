@@ -15,8 +15,14 @@ class Quotation extends Model
         'status',
         'converted_pos_id',
         'is_converted',
+        'converted_proforma_id',
         'created_by',
     ];
+
+    public function proformaFromQuotation()
+    {
+        return $this->belongsTo(Proforma::class, 'converted_proforma_id');
+    }
 
     public function customer()
     {

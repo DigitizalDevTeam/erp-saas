@@ -27,7 +27,7 @@ class QuotationController extends Controller
     {
         if (Auth::user()->can('manage quotation'))
         {
-            $quotations      = Quotation::where('created_by', \Auth::user()->creatorId())->with(['customer','warehouse'])->get();
+            $quotations      = Quotation::where('created_by', \Auth::user()->creatorId())->with(['customer', 'warehouse', 'proformaFromQuotation'])->get();
 
             return view('quotation.index',compact('quotations'));
         }
@@ -276,7 +276,13 @@ class QuotationController extends Controller
         {
             if($quotation->created_by == \Auth::user()->creatorId())
             {
-
+                if (! empty($quotation->converted_proforma_id)) {
+                    $pf = \App\Models\Proforma::find($quotation->converted_proforma_id);
+                    if ($pf && (int) $pf->is_invoice_converted !== 1) {
+                        \App\Models\ProformaProduct::where('proforma_id', $pf->id)->delete();
+                        $pf->delete();
+                    }
+                }
 
                 $quotation->delete();
                 QuotationProduct::where('quotation_id', '=', $quotation->id)->delete();
@@ -575,6 +581,18 @@ class QuotationController extends Controller
 
         return view('quotation.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode'));
 
+    }
+
+    /**
+     * Accounting flow: Quotation → Proforma (POS conversion remains separate on quotation index).
+     */
+    public function convert($id)
+    {
+        if (! \Auth::user()->can('convert quotation')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        return redirect()->route('proforma.create-from-quotation', \Crypt::encrypt((int) $id));
     }
 
     public function quotation($quotation_Id)

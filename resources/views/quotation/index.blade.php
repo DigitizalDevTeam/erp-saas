@@ -75,14 +75,33 @@
 
                                                     @if ($quotation->is_converted == 0)
                                                         @can('convert quotation')
-                                                            <div class="action-btn me-2">
-                                                                <a href="{{ route('pos.index', $quotation->id) }}"
-                                                                    class="mx-3 btn btn-sm align-items-center bg-warning"
-                                                                    data-bs-toggle="tooltip" title="{{ __('Convert to POS') }}"
-                                                                    data-original-title="{{ __('Detail') }}">
-                                                                    <i class="ti ti-exchange text-white"></i>
-                                                                </a>
-                                                            </div>
+                                                            @if (empty($quotation->converted_proforma_id))
+                                                                <div class="action-btn me-2">
+                                                                    <a href="{{ route('proforma.create-from-quotation', \Crypt::encrypt($quotation->id)) }}"
+                                                                        class="mx-3 btn btn-sm align-items-center bg-primary"
+                                                                        data-bs-toggle="tooltip" title="{{ __('Convert to proforma') }}">
+                                                                        <i class="ti ti-exchange text-white"></i>
+                                                                    </a>
+                                                                </div>
+                                                            @else
+                                                                <div class="action-btn me-2">
+                                                                    <a href="{{ route('proforma.show', \Crypt::encrypt($quotation->converted_proforma_id)) }}"
+                                                                        class="mx-3 btn btn-sm align-items-center bg-primary"
+                                                                        data-bs-toggle="tooltip" title="{{ __('View proforma') }}">
+                                                                        <i class="ti ti-file text-white"></i>
+                                                                    </a>
+                                                                </div>
+                                                            @endif
+                                                            @if (empty($quotation->converted_proforma_id))
+                                                                <div class="action-btn me-2">
+                                                                    <a href="{{ route('pos.index', $quotation->id) }}"
+                                                                        class="mx-3 btn btn-sm align-items-center bg-warning"
+                                                                        data-bs-toggle="tooltip" title="{{ __('Convert to POS') }}"
+                                                                        data-original-title="{{ __('Detail') }}">
+                                                                        <i class="ti ti-exchange text-white"></i>
+                                                                    </a>
+                                                                </div>
+                                                            @endif
                                                         @endcan
                                                         @else
                                                         {{-- @can('show pos') --}}
