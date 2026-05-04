@@ -93,6 +93,9 @@ class MonthlyIrpsReportController extends Controller
 
     /**
      * Monthly IRPS / payroll statutory detail (Model 22): earnings, deductions, IRPS — from pay_slips only.
+     *
+     * PDF (all): ?month=Y-m&download=pdf
+     * PDF (one employee): ?month=Y-m&download=pdf&payslip_id={id}
      */
     public function modelo22(Request $request)
     {
@@ -101,6 +104,32 @@ class MonthlyIrpsReportController extends Controller
         }
 
         $month = ! empty($request->month) ? $request->month : date('Y-m');
+        $filter = ['month' => $month];
+
+        if ($request->query('download') === 'pdf' && $request->filled('payslip_id')) {
+            $payslip = PaySlip::query()
+                ->with(['employees'])
+                ->where('created_by', \Auth::user()->creatorId())
+                ->where('salary_month', $month)
+                ->where('id', (int) $request->query('payslip_id'))
+                ->first();
+
+            if (! $payslip) {
+                return redirect()
+                    ->route('monthly.reports.irps-modelo-22', ['month' => $month])
+                    ->with('error', __('Payslip not found for this month.'));
+            }
+
+            ['rows' => $rows, 'totals' => $totals] = $this->buildModel22Rows(collect([$payslip]));
+            $empPart = (string) ($rows[0]['employee_id'] ?? '');
+            if ($empPart === '') {
+                $empPart = 'payslip-'.$payslip->id;
+            }
+            $safeEmp = preg_replace('/[^\w\-]+/u', '-', $empPart) ?: 'emp';
+            $fileName = sprintf('irps-modelo-22_%s_%s.pdf', $month, $safeEmp);
+
+            return $this->downloadModel22Pdf($fileName, $filter, $rows, $totals);
+        }
 
         $payslips = PaySlip::query()
             ->with(['employees'])
@@ -109,6 +138,23 @@ class MonthlyIrpsReportController extends Controller
             ->orderBy('employee_id')
             ->get();
 
+        ['rows' => $rows, 'totals' => $totals] = $this->buildModel22Rows($payslips);
+
+        if ($request->query('download') === 'pdf') {
+            $fileName = sprintf('irps-modelo-22_%s_all.pdf', $month);
+
+            return $this->downloadModel22Pdf($fileName, $filter, $rows, $totals);
+        }
+
+        return view('reports.monthly.irps_modelo_22', compact('filter', 'rows', 'totals'));
+    }
+
+    /**
+     * @param \Illuminate\Support\Collection<int, \App\Models\PaySlip>|\Illuminate\Database\Eloquent\Collection<int, \App\Models\PaySlip> $payslips
+     * @return array{rows: array<int, array<string, mixed>>, totals: array<string, float>}
+     */
+    private function buildModel22Rows($payslips): array
+    {
         $rows = [];
         $totals = [
             'basic' => 0.0,
@@ -122,19 +168,22 @@ class MonthlyIrpsReportController extends Controller
             'inss_employee' => 0.0,
             'inss_employer' => 0.0,
             'irps' => 0.0,
+            'irps_a_reter' => 0.0,
             'gross_irps_base' => 0.0,
             'net' => 0.0,
         ];
 
         foreach ($payslips as $payslip) {
             $employee = $payslip->employees ?: Employee::find($payslip->employee_id);
-            $b = IrpsModel22ReportService::breakdown($payslip);
+            $dependents = (int) ($employee?->dependents ?? 0);
+            $b = IrpsModel22ReportService::breakdown($payslip, $dependents);
 
             $rows[] = array_merge([
+                'payslip_id' => $payslip->id,
                 'employee_id' => $employee?->employee_id,
                 'name' => $employee?->name,
                 'tax_payer_id' => $employee?->tax_payer_id,
-                'dependents' => (int) ($employee?->dependents ?? 0),
+                'dependents' => $dependents,
             ], $b);
 
             foreach ($totals as $key => $_) {
@@ -146,33 +195,32 @@ class MonthlyIrpsReportController extends Controller
             $totals[$key] = round($v, 2);
         }
 
-        $filter = [
-            'month' => $month,
-        ];
+        return ['rows' => $rows, 'totals' => $totals];
+    }
 
-        if ($request->query('download') === 'pdf') {
-            $fileName = sprintf('irps-modelo-22_%s.pdf', $month);
-
-            if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
-                return \Barryvdh\DomPDF\Facade\Pdf::loadView(
-                    'reports.monthly.irps_modelo_22_pdf',
-                    compact('filter', 'rows', 'totals')
-                )->setPaper('a4', 'landscape')->download($fileName);
-            }
-
-            $html = view('reports.monthly.irps_modelo_22_pdf', compact('filter', 'rows', 'totals'))->render();
-            $pdfBinary = Browsershot::html($html)
-                ->showBackground()
-                ->format('A4')
-                ->margins(8, 8, 8, 8)
-                ->pdf();
-
-            return response()->streamDownload(static function () use ($pdfBinary): void {
-                echo $pdfBinary;
-            }, $fileName, ['Content-Type' => 'application/pdf']);
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @param array<string, float> $totals
+     */
+    private function downloadModel22Pdf(string $fileName, array $filter, array $rows, array $totals)
+    {
+        if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
+            return \Barryvdh\DomPDF\Facade\Pdf::loadView(
+                'reports.monthly.irps_modelo_22_pdf',
+                compact('filter', 'rows', 'totals')
+            )->setPaper('a4', 'landscape')->download($fileName);
         }
 
-        return view('reports.monthly.irps_modelo_22', compact('filter', 'rows', 'totals'));
+        $html = view('reports.monthly.irps_modelo_22_pdf', compact('filter', 'rows', 'totals'))->render();
+        $pdfBinary = Browsershot::html($html)
+            ->showBackground()
+            ->format('A4')
+            ->margins(8, 8, 8, 8)
+            ->pdf();
+
+        return response()->streamDownload(static function () use ($pdfBinary): void {
+            echo $pdfBinary;
+        }, $fileName, ['Content-Type' => 'application/pdf']);
     }
 }
 

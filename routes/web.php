@@ -143,6 +143,8 @@ use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\RazorpayPaymentController;
 use App\Http\Controllers\ProductReportsController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\DreReportController;
+use App\Http\Controllers\HrmTaxReportController;
 use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\MonthlyVatReportController;
 use App\Http\Controllers\MonthlyIrpsReportController;
@@ -955,6 +957,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('report/account-statement-report', [ReportController::class, 'accountStatement'])->name('report.account.statement');
             Route::get('balance-sheet-report/{view?}/{collapseview?}', [ReportController::class, 'balanceSheet'])->name('report.balance.sheet');
             Route::get('profit-loss-report/{view?}/{collapseView?}', [ReportController::class, 'profitLoss'])->name('report.profit.loss');
+            Route::get('reports-demonstracao-resultados', [DreReportController::class, 'index'])->name('report.dre.comparativa');
 
             Route::get('ledger-report/{account?}', [ReportController::class, 'ledgerSummary'])->name('report.ledger');
             Route::get('trial-balance-report/{view?}', [ReportController::class, 'trialBalanceSummary'])->name('trial.balance');
@@ -1390,6 +1393,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('reports-payroll', [ReportController::class, 'payroll'])->name('report.payroll')->middleware(['auth', 'XSS']);
     Route::post('reports-payroll/getdepartment', [ReportController::class, 'getPayrollDepartment'])->name('report.payroll.getdepartment')->middleware(['auth', 'XSS']);
     Route::post('reports-payroll/getemployee', [ReportController::class, 'getPayrollEmployee'])->name('report.payroll.getemployee')->middleware(['auth', 'XSS']);
+
+    Route::get('reports-hrm-tax', [HrmTaxReportController::class, 'index'])->name('report.hrm.tax')->middleware(['auth', 'XSS']);
 
     Route::get('reports-monthly-attendance', [ReportController::class, 'monthlyAttendance'])->name('report.monthly.attendance')->middleware(['auth', 'XSS']);
     Route::get('report/attendance/{month}/{branch}/{department}', [ReportController::class, 'exportCsv'])->name('report.attendance')->middleware(['auth', 'XSS']);

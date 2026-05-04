@@ -10,10 +10,84 @@ use App\Models\PaySlip;
  */
 class IrpsModel22ReportService
 {
+    /** Mínimo não tributável mensal (MT), Sheet 1 reference. */
+    public const MIN_NON_TAXABLE_MONTHLY = 18750.0;
+
     /**
-     * @return array<string, float>
+     * IRPS retenção na fonte — tabela progressiva mensal (Rendimentos Colectáveis em MT).
+     *
+     * @return array{
+     *     irps_rendimento_mensal: float,
+     *     irps_minimo_nao_tributavel: float,
+     *     irps_rendimento_colectavel: float,
+     *     irps_taxa: float,
+     *     irps_calculo_imposto: float,
+     *     irps_parcela_abater: float,
+     *     irps_colecta: float,
+     *     irps_deducao_dependentes: float,
+     *     irps_a_reter: float
+     * }
      */
-    public static function breakdown(PaySlip $p): array
+    public static function computeIrpsWithholding(float $rendimentoMensal, int $dependents): array
+    {
+        $minNaoTrib = self::MIN_NON_TAXABLE_MONTHLY;
+        $colectavel = max(0.0, round($rendimentoMensal - $minNaoTrib, 2));
+        [$rate, $parcela] = self::irpsRateAndParcela($colectavel);
+        $calculoImposto = round($colectavel * $rate, 2);
+        $parcelaAbater = round($parcela, 2);
+        $colecta = round($calculoImposto - $parcelaAbater, 2);
+        $deducaoDep = self::dependentsCollectaDeduction($dependents);
+        $irpsAReter = round(max(0.0, $colecta - $deducaoDep), 2);
+
+        return [
+            'irps_rendimento_mensal' => round($rendimentoMensal, 2),
+            'irps_minimo_nao_tributavel' => $minNaoTrib,
+            'irps_rendimento_colectavel' => $colectavel,
+            'irps_taxa' => $rate,
+            'irps_calculo_imposto' => $calculoImposto,
+            'irps_parcela_abater' => $parcelaAbater,
+            'irps_colecta' => $colecta,
+            'irps_deducao_dependentes' => $deducaoDep,
+            'irps_a_reter' => $irpsAReter,
+        ];
+    }
+
+    /**
+     * @return array{0: float, 1: float} [rate decimal, parcela MT]
+     */
+    private static function irpsRateAndParcela(float $h): array
+    {
+        if ($h <= 3500) {
+            return [0.10, 0.0];
+        }
+        if ($h <= 14000) {
+            return [0.15, 175.0];
+        }
+        if ($h <= 42000) {
+            return [0.20, 875.0];
+        }
+        if ($h <= 126000) {
+            return [0.25, 2975.0];
+        }
+
+        return [0.32, 11795.0];
+    }
+
+    private static function dependentsCollectaDeduction(int $dependents): float
+    {
+        return match (true) {
+            $dependents <= 0 => 150.0,
+            $dependents === 1 => 200.0,
+            $dependents === 2 => 225.0,
+            $dependents === 3 => 250.0,
+            default => 300.0,
+        };
+    }
+
+    /**
+     * @return array<string, float|int>
+     */
+    public static function breakdown(PaySlip $p, int $dependents = 0): array
     {
         $basic = (float) $p->basic_salary;
         $allowance = self::sumTypedAmountJson($p->allowance, $basic);
@@ -31,6 +105,8 @@ class IrpsModel22ReportService
         $grossIrpsBase = round($net + $inssEmployee + $irps, 2);
         $totalEarnings = round($basic + $allowance + $commission + $otherPayment + $overtime, 2);
 
+        $irpsSheet = self::computeIrpsWithholding($grossIrpsBase, $dependents);
+
         return [
             'basic' => round($basic, 2),
             'allowance' => $allowance,
@@ -46,7 +122,7 @@ class IrpsModel22ReportService
             'gross_irps_base' => $grossIrpsBase,
             'net' => round($net, 2),
             'total_deductions' => round($loan + $saturation + $inssEmployee + $irps, 2),
-        ];
+        ] + $irpsSheet;
     }
 
     private static function sumTypedAmountJson(?string $json, float $basicSalary): float

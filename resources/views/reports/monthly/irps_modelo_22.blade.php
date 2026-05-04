@@ -24,12 +24,15 @@
 @endpush
 
 @section('action-btn')
-    <div class="float-end">
-        <a href="{{ route('monthly.reports.irps-modelo-22', array_merge(request()->query(), ['download' => 'pdf'])) }}"
-            class="btn btn-sm btn-primary me-1" data-bs-toggle="tooltip" title="{{ __('Download PDF') }}">
-            <i class="ti ti-download"></i> {{ __('PDF') }}
+    <div class="float-end d-flex flex-wrap gap-1 justify-content-end">
+        <a href="{{ route('monthly.reports.irps-modelo-22', ['month' => $filter['month'], 'download' => 'pdf']) }}"
+            class="btn btn-sm btn-primary"
+            data-bs-toggle="tooltip"
+            title="{{ __('Download full report as PDF (all employees)') }}"
+            target="_blank" rel="noopener noreferrer">
+            <i class="ti ti-file"></i> {{ __('All PDF') }}
         </a>
-        <a href="#" onclick="printModel22()" class="btn btn-sm btn-primary-subtle me-1" data-bs-toggle="tooltip"
+        <a href="#" onclick="printModel22(); return false;" class="btn btn-sm btn-primary-subtle" data-bs-toggle="tooltip"
             title="{{ __('Print') }}"><i class="ti ti-printer"></i> {{ __('Print') }}</a>
     </div>
 @endsection
@@ -87,6 +90,7 @@
                                         <th>{{ __('Name') }}</th>
                                         <th>{{ __('NUIT') }}</th>
                                         <th class="text-center">{{ __('Dep.') }}</th>
+                                        <th class="text-center d-print-none" style="width: 3rem;">{{ __('PDF') }}</th>
                                         <th class="text-end">{{ __('Basic') }}</th>
                                         <th class="text-end">{{ __('Allow.') }}</th>
                                         <th class="text-end">{{ __('Comm.') }}</th>
@@ -109,6 +113,16 @@
                                             <td>{{ $r['name'] }}</td>
                                             <td>{{ $r['tax_payer_id'] }}</td>
                                             <td class="text-center">{{ $r['dependents'] }}</td>
+                                            <td class="text-center d-print-none">
+                                                <a href="{{ route('monthly.reports.irps-modelo-22', ['month' => $filter['month'], 'download' => 'pdf', 'payslip_id' => $r['payslip_id']]) }}"
+                                                    class="btn btn-sm btn-outline-primary py-0 px-2"
+                                                    data-bs-toggle="tooltip"
+                                                    title="{{ __('Download PDF (this employee)') }}"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer">
+                                                    <i class="ti ti-file"></i>
+                                                </a>
+                                            </td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['basic']) }}</td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['allowance']) }}</td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['commission']) }}</td>
@@ -118,7 +132,7 @@
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['loan']) }}</td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['saturation']) }}</td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['inss_employee']) }}</td>
-                                            <td class="text-end">{{ \Auth::user()->priceFormat($r['irps']) }}</td>
+                                            <td class="text-end">{{ \Auth::user()->priceFormat($r['irps_a_reter']) }}</td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['gross_irps_base']) }}</td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['net']) }}</td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['inss_employer']) }}</td>
@@ -127,7 +141,8 @@
                                 </tbody>
                                 <tfoot>
                                     <tr class="fw-bold table-secondary">
-                                        <td colspan="4">{{ __('TOTAL') }}</td>
+                                        <td colspan="4" class="d-none d-print-table-cell">{{ __('TOTAL') }}</td>
+                                        <td colspan="5" class="d-print-none">{{ __('TOTAL') }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['basic']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['allowance']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['commission']) }}</td>
@@ -137,7 +152,7 @@
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['loan']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['saturation']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['inss_employee']) }}</td>
-                                        <td class="text-end">{{ \Auth::user()->priceFormat($totals['irps']) }}</td>
+                                        <td class="text-end">{{ \Auth::user()->priceFormat($totals['irps_a_reter']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['gross_irps_base']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['net']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['inss_employer']) }}</td>
@@ -146,8 +161,9 @@
                             </table>
                         </div>
                         <p class="small text-muted mb-0 mt-2">
-                            * {{ __('Gross (IRPS base)') }} = {{ __('Net') }} + {{ __('INSS (employee)') }} + {{ __('IRPS') }}
+                            * {{ __('Gross (IRPS base)') }} = {{ __('Net') }} + {{ __('INSS (employee)') }} + {{ __('IRPS (on payslip)') }}
                             ({{ __('same basis as Model 19') }}).
+                            {{ __('IRPS column: calculated withholding (progressive table + dependents).') }}
                         </p>
                     @endif
                 </div>

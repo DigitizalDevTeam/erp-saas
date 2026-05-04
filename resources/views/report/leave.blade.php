@@ -70,6 +70,74 @@
 
     </script>
 @endpush
+@push('css-page')
+    <style>
+        .icon-box:before{
+            content: '' !important;
+        }
+        .leave-stat-modern.modern-card {
+            position: relative;
+            padding: 22px 24px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            transition: all 0.35s ease;
+            overflow: hidden;
+            border: 1px solid rgba(15, 23, 42, 0.06);
+        }
+
+        .leave-stat-modern.modern-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+        }
+
+        .leave-stat-modern .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .leave-stat-modern .icon-box {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: #fff;
+        }
+
+        .leave-stat-modern .stat-number {
+            font-size: 28px;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        .leave-stat-modern .card-title {
+            margin-bottom: 0 !important;
+        }
+
+        .leave-stat-modern .card-title span {
+            font-size: 15px;
+            font-weight: 500;
+            color: #6b7280;
+        }
+
+        .leave-stat-modern .bg-leave-approved {
+            background: linear-gradient(135deg, #10b981, #34d399);
+        }
+
+        .leave-stat-modern .bg-leave-rejected {
+            background: linear-gradient(135deg, #ef4444, #f87171);
+        }
+
+        .leave-stat-modern .bg-leave-pending {
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+        }
+    </style>
+@endpush
 @section('action-btn')
     <div class="float-end">
         <a href="#" class="btn btn-sm btn-primary" onclick="saveAsPDF()"data-bs-toggle="tooltip" title="{{__('Download')}}" data-original-title="{{__('Download')}}">
@@ -271,93 +339,43 @@
                 </div>
             </div>
             <div class="col-xl-9">
-                <div class="row gy-4">
-                    <div class="col-md-4 col-sm-6 col-12 leave-card">
-                        <div class="leave-card-inner d-flex align-items-center gap-3">
-                            <svg class="bottom-svg" width="135" height="80" viewBox="0 0 135 80" fill="none"
-                                xmlns="http://www.w3.org/2000/svg">
-                                <path
-                                    d="M74.7692 35C27.8769 35 5.38462 65 0 80H135.692V0C134.923 11.6667 121.662 35 74.7692 35Z"
-                                    fill="#FF3A6E"></path>
-                            </svg>
-
-                            <div class="leave-icon">
-                                <div class="leave-icon-inner">
-                                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <g clip-path="url(#clip0_766_1759)">
-                                        <path d="M5.3125 9.45312C2.40473 9.45312 0.0390625 11.8188 0.0390625 14.7266C0.0390625 17.6343 2.40473 20 5.3125 20C8.22027 20 10.5859 17.6343 10.5859 14.7266C10.5859 11.8188 8.22027 9.45312 5.3125 9.45312ZM7.64086 14.0862L4.90648 16.8205C4.79211 16.935 4.64215 16.9922 4.49219 16.9922C4.34223 16.9922 4.19227 16.935 4.07789 16.8205L2.90602 15.6487C2.67719 15.4199 2.67719 15.0489 2.90602 14.82C3.1348 14.5913 3.50582 14.5913 3.73465 14.82L4.49219 15.5776L6.81227 13.2575C7.04105 13.0288 7.41207 13.0288 7.6409 13.2575C7.86969 13.4864 7.86969 13.8574 7.64086 14.0862Z" fill="#FF3A6E"/>
-                                        <path d="M15.4688 5.07812C15.1452 5.07812 14.8828 4.81578 14.8828 4.49219V0H6.48438C5.51512 0 4.72656 0.788555 4.72656 1.75781V8.30816C4.91961 8.29066 5.11496 8.28125 5.3125 8.28125C7.30969 8.28125 9.09754 9.19437 10.2807 10.625H16.6406C16.9642 10.625 17.2266 10.8873 17.2266 11.2109C17.2266 11.5345 16.9642 11.7969 16.6406 11.7969H11.0527C11.4189 12.5116 11.6551 13.3033 11.7309 14.1406H16.6406C16.9642 14.1406 17.2266 14.403 17.2266 14.7266C17.2266 15.0502 16.9642 15.3125 16.6406 15.3125H11.7309C11.5557 17.2476 10.5218 18.9385 9.01398 20H18.2031C19.1724 20 19.9609 19.2114 19.9609 18.2422V5.07812H15.4688ZM16.6406 8.28125H8.04688C7.72328 8.28125 7.46094 8.01891 7.46094 7.69531C7.46094 7.37172 7.72328 7.10938 8.04688 7.10938H16.6406C16.9642 7.10938 17.2266 7.37172 17.2266 7.69531C17.2266 8.01891 16.9642 8.28125 16.6406 8.28125Z" fill="#FF3A6E"/>
-                                        <path d="M16.0547 0.343018V3.90618H19.6176L16.0547 0.343018Z" fill="#FF3A6E"/>
-                                        </g>
-                                        <defs>
-                                        <clipPath id="clip0_766_1759">
-                                        <rect width="20" height="20" fill="white"/>
-                                        </clipPath>
-                                        </defs>
-                                        </svg>
-
+                <div class="row g-4">
+                    <div class="col-xl-4 col-md-6 col-12">
+                        <div class="leave-stat-modern modern-card card card-body">
+                            <div class="card-top">
+                                <div class="icon-box bg-leave-approved">
+                                    <i class="ti ti-circle-check"></i>
                                 </div>
+                                <div class="stat-number">{{ $filter['totalApproved'] }}</div>
                             </div>
-                            <div class="leave-info">
-                                <h5 class="mb-2">{{ __('Approved Leaves') }}</h5>
-                                <span class="h3">{{ $filter['totalApproved'] }}</span>
+                            <div class="card-title">
+                                <span>{{ __('Approved Leaves') }}</span>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4 col-sm-6 col-12 leave-card">
-                        <div class="leave-card-inner d-flex align-items-center gap-3">
-                            <svg class="bottom-svg" width="135" height="80" viewBox="0 0 135 80" fill="none"
-                                xmlns="http://www.w3.org/2000/svg">
-                                <path
-                                    d="M74.7692 35C27.8769 35 5.38462 65 0 80H135.692V0C134.923 11.6667 121.662 35 74.7692 35Z"
-                                    fill="#FF3A6E"></path>
-                            </svg>
-
-                            <div class="leave-icon">
-                                <div class="leave-icon-inner">
-                                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <g clip-path="url(#clip0_766_1748)">
-                                        <path d="M15.4688 5.07812C15.1452 5.07812 14.8828 4.81578 14.8828 4.49219V0H6.48438C5.51512 0 4.72656 0.788555 4.72656 1.75781V8.30816C4.91961 8.29066 5.11496 8.28125 5.3125 8.28125C7.30969 8.28125 9.09754 9.19438 10.2807 10.625H16.6406C16.9642 10.625 17.2266 10.8873 17.2266 11.2109C17.2266 11.5345 16.9642 11.7969 16.6406 11.7969H11.0527C11.4189 12.5116 11.6551 13.3033 11.7309 14.1406H16.6406C16.9642 14.1406 17.2266 14.403 17.2266 14.7266C17.2266 15.0502 16.9642 15.3125 16.6406 15.3125H11.7309C11.5557 17.2476 10.5218 18.9385 9.01398 20H18.2031C19.1724 20 19.9609 19.2114 19.9609 18.2422V5.07812H15.4688ZM16.6406 8.28125H8.04688C7.72328 8.28125 7.46094 8.01891 7.46094 7.69531C7.46094 7.37172 7.72328 7.10938 8.04688 7.10938H16.6406C16.9642 7.10938 17.2266 7.37172 17.2266 7.69531C17.2266 8.01891 16.9642 8.28125 16.6406 8.28125Z" fill="#0CAF60"/>
-                                        <path d="M16.0547 0.343018V3.90618H19.6176L16.0547 0.343018Z" fill="#0CAF60"/>
-                                        <path d="M5.3125 9.45312C2.40473 9.45312 0.0390625 11.8188 0.0390625 14.7266C0.0390625 17.6343 2.40473 20 5.3125 20C8.22027 20 10.5859 17.6343 10.5859 14.7266C10.5859 11.8188 8.22027 9.45312 5.3125 9.45312ZM7.48461 16.0701C7.71344 16.2989 7.71344 16.6699 7.48461 16.8987C7.37023 17.0131 7.22027 17.0703 7.07031 17.0703C6.92035 17.0703 6.77039 17.0131 6.65602 16.8987L5.3125 15.5552L3.96898 16.8987C3.85461 17.0131 3.70465 17.0703 3.55469 17.0703C3.40473 17.0703 3.25477 17.0131 3.14039 16.8987C2.91156 16.6699 2.91156 16.2989 3.14039 16.07L4.48387 14.7266L3.14035 13.383C2.91152 13.1543 2.91152 12.7832 3.14035 12.5544C3.36914 12.3256 3.74016 12.3256 3.96898 12.5544L5.3125 13.8979L6.65602 12.5544C6.8848 12.3256 7.25582 12.3256 7.48465 12.5544C7.71348 12.7832 7.71348 13.1542 7.48465 13.383L6.14113 14.7266L7.48461 16.0701Z" fill="#0CAF60"/>
-                                        </g>
-                                        <defs>
-                                        <clipPath id="clip0_766_1748">
-                                        <rect width="20" height="20" fill="white"/>
-                                        </clipPath>
-                                        </defs>
-                                        </svg>
-
+                    <div class="col-xl-4 col-md-6 col-12">
+                        <div class="leave-stat-modern modern-card card card-body">
+                            <div class="card-top">
+                                <div class="icon-box bg-leave-rejected">
+                                    <i class="ti ti-circle-x"></i>
                                 </div>
+                                <div class="stat-number">{{ $filter['totalReject'] }}</div>
                             </div>
-                            <div class="leave-info">
-                                <h5 class="mb-2">{{ __('Rejected Leave') }}</h5>
-                                <span class="h3">{{ $filter['totalReject'] }}</span>
+                            <div class="card-title">
+                                <span>{{ __('Rejected Leave') }}</span>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4 col-sm-6 col-12 leave-card">
-                        <div class="leave-card-inner d-flex align-items-center gap-3">
-                            <svg class="bottom-svg" width="135" height="80" viewBox="0 0 135 80" fill="none"
-                                xmlns="http://www.w3.org/2000/svg">
-                                <path
-                                    d="M74.7692 35C27.8769 35 5.38462 65 0 80H135.692V0C134.923 11.6667 121.662 35 74.7692 35Z"
-                                    fill="#FF3A6E"></path>
-                            </svg>
-
-                            <div class="leave-icon">
-                                <div class="leave-icon-inner">
-                                    <svg width="26" height="26" viewBox="0 0 26 26" fill="none"
-                                        xmlns="http://www.w3.org/2000/svg">
-                                        <path
-                                            d="M12.9995 0.8125C10.5891 0.8125 8.23273 1.52728 6.22851 2.86646C4.22428 4.20564 2.66218 6.10907 1.73974 8.33605C0.817292 10.563 0.575939 13.0135 1.0462 15.3777C1.51645 17.7418 2.6772 19.9134 4.38165 21.6179C6.08611 23.3223 8.25771 24.4831 10.6219 24.9533C12.986 25.4236 15.4365 25.1822 17.6635 24.2598C19.8904 23.3373 21.7939 21.7752 23.1331 19.771C24.4722 17.7668 25.187 15.4105 25.187 13C25.1837 9.76869 23.8986 6.67067 21.6137 4.38579C19.3288 2.10091 16.2308 0.815809 12.9995 0.8125ZM17.412 17.4125C17.2362 17.5881 16.998 17.6867 16.7495 17.6867C16.5011 17.6867 16.2628 17.5881 16.087 17.4125L12.337 13.6625C12.1612 13.4869 12.0622 13.2486 12.062 13V5.5C12.062 5.25136 12.1608 5.0129 12.3366 4.83709C12.5124 4.66127 12.7509 4.5625 12.9995 4.5625C13.2482 4.5625 13.4866 4.66127 13.6624 4.83709C13.8382 5.0129 13.937 5.25136 13.937 5.5V12.6125L17.412 16.0875C17.5876 16.2633 17.6862 16.5016 17.6862 16.75C17.6862 16.9984 17.5876 17.2367 17.412 17.4125Z"
-                                            fill="white" />
-                                    </svg>
+                    <div class="col-xl-4 col-md-6 col-12">
+                        <div class="leave-stat-modern modern-card card card-body">
+                            <div class="card-top">
+                                <div class="icon-box bg-leave-pending">
+                                    <i class="ti ti-clock"></i>
                                 </div>
+                                <div class="stat-number">{{ $filter['totalPending'] }}</div>
                             </div>
-                            <div class="leave-info">
-                                <h5 class="mb-2">{{ __('Pending Leaves') }}</h5>
-                                <span class="h3">{{ $filter['totalPending'] }}</span>
+                            <div class="card-title">
+                                <span>{{ __('Pending Leaves') }}</span>
                             </div>
                         </div>
                     </div>

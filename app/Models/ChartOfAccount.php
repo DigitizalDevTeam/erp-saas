@@ -70,4 +70,29 @@ class ChartOfAccount extends Model
     {
         return $this->belongsTo(ChartOfAccount::class, 'parent_account_id', 'id');
     }
+
+    /**
+     * Display name for the current user's language — same logic as the Chart of Accounts index (English `name` as default).
+     */
+    public function labelForLocale(?string $lang = null): string
+    {
+        $lang = strtolower((string) ($lang ?? (auth()->check() ? (auth()->user()->lang ?? 'en') : 'en')));
+        if (str_starts_with($lang, 'pt')) {
+            $lang = 'pt';
+        }
+
+        $pick = match ($lang) {
+            'fr' => $this->name_fr,
+            'zh' => $this->name_zh,
+            'es' => $this->name_es,
+            'pt' => $this->name_pt_br,
+            default => null,
+        };
+
+        if ($pick !== null && trim((string) $pick) !== '') {
+            return trim((string) $pick);
+        }
+
+        return trim((string) ($this->name ?? ''));
+    }
 }
