@@ -92,26 +92,23 @@
 </head>
 <body>
 @php
-    $authUser = \Auth::user()->creatorId();
-    $user = \App\Models\User::find($authUser);
-    $settings = \App\Models\Utility::settings();
-    $companyName = $settings['company_name'] ?? ($user?->name ?? '');
-    $companyNuit = $settings['vat_number'] ?? '';
-    $monthRef = \Carbon\Carbon::createFromFormat('Y-m', $filter['month'])->format('m/Y');
+    $companyName = $reportData['company_name'] ?? '';
+    $companyNuit = $reportData['company_nuit'] ?? '';
+    $monthRef = $reportData['month_year'] ?? \Carbon\Carbon::createFromFormat('Y-m', $filter['month'])->format('m/Y');
     $today = now()->format('d');
     $monthNow = now()->format('m');
     $yearNow = now()->format('Y');
 
-    $line10 = (float) ($totals['irps'] ?? 0);
-    $line11 = 0.0;
-    $line13 = 0.0;
-    $line14 = 0.0;
-    $line15 = 0.0;
-    $line16 = 0.0;
-    $line20 = 0.0;
-    $line21 = 0.0;
-    $line22 = 0.0;
-    $line30 = $line10 + $line11 + $line13 + $line14 + $line15 + $line16 + $line20 + $line21 + $line22;
+    $line10 = (float) ($reportData['line10'] ?? 0);
+    $line11 = (float) ($reportData['line11'] ?? 0);
+    $line12 = (float) ($reportData['line12'] ?? 0);
+    $line13 = (float) ($reportData['line13'] ?? 0);
+    $line14 = (float) ($reportData['line14'] ?? 0);
+    $line15 = (float) ($reportData['line15'] ?? 0);
+    $line16 = (float) ($reportData['line16'] ?? 0);
+    $line20 = (float) ($reportData['line20'] ?? 0);
+    $line21 = (float) ($reportData['line21'] ?? 0);
+    $line30 = $line10 + $line11 + $line12 + $line13 + $line14 + $line15 + $line16;
 @endphp
 
 <div class="sheet">
@@ -243,6 +240,22 @@
             </td>
         </tr>
 
+        {{-- Linha 12 --}}
+        <tr class="amount-row">
+            <td class="center">
+                <div style="border:2px solid #444; padding:6px 4px;">10-10-10-20-2</div>
+            </td>
+            <td>Rendimentos Profissionais</td>
+            <td>
+                <table style="width:100%; border-collapse:collapse; border: 2px solid #444;">
+                    <tr>
+                        <td class="code-cell">12</td>
+                        <td class="value-cell">{{ number_format($line12, 2, ',', '.') }}</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+
         {{-- Linha 13 --}}
         <tr class="amount-row">
             <td class="center">
@@ -307,38 +320,6 @@
             </td>
         </tr>
 
-        {{-- Linha em branco (-----) 1 --}}
-        <tr class="amount-row">
-            <td class="center">
-                <div style="border:2px solid #444; padding:6px 4px;">10-10-10-20-2</div>
-            </td>
-            <td><span class="muted-line">-----------------------------------------------</span></td>
-            <td>
-                <table style="width:100%; border-collapse:collapse; border: 2px solid #444;">
-                    <tr>
-                        <td class="code-cell"></td>
-                        <td class="value-cell">0,00</td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-
-        {{-- Linha em branco (-----) 2 --}}
-        <tr class="amount-row">
-            <td class="center">
-                <div style="border:2px solid #444; padding:6px 4px;">10-10-10-20-2</div>
-            </td>
-            <td><span class="muted-line">-----------------------------------------------</span></td>
-            <td>
-                <table style="width:100%; border-collapse:collapse; border: 2px solid #444;">
-                    <tr>
-                        <td class="code-cell"></td>
-                        <td class="value-cell">0,00</td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-
         {{-- Linha 20 --}}
         <tr class="amount-row">
             <td class="center">
@@ -366,22 +347,6 @@
                     <tr>
                         <td class="code-cell">21</td>
                         <td class="value-cell">{{ number_format($line21, 2, ',', '.') }}</td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-
-        {{-- Linha 22 --}}
-        <tr class="amount-row">
-            <td class="center">
-                <div style="border:2px solid #444; padding:6px 4px;">10-10-10-20-2</div>
-            </td>
-            <td>Outros</td>
-            <td>
-                <table style="width:100%; border-collapse:collapse; border: 2px solid #444;">
-                    <tr>
-                        <td class="code-cell">22</td>
-                        <td class="value-cell">{{ number_format($line22, 2, ',', '.') }}</td>
                     </tr>
                 </table>
             </td>

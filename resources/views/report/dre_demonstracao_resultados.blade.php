@@ -28,10 +28,14 @@
                     <div class="col-auto">
                         <button type="submit" class="btn btn-primary">{{ __('Apply') }}</button>
                         <a href="{{ route('report.dre.comparativa') }}" class="btn btn-outline-secondary">{{ __('Reset') }}</a>
+                        <a href="{{ route('report.dre.comparativa.export', ['year1' => request('year1', (int) date('Y')), 'year2' => request('year2', (int) date('Y') - 1)]) }}"
+                            class="btn btn-success">
+                            <i class="ti ti-file-spreadsheet"></i> {{ __('Export Excel') }}
+                        </a>
                     </div>
                     {{ Form::close() }}
                     <p class="small text-muted mb-0 mt-2">
-                        {{ __('Amounts are taken from accounting transaction lines by chart account code (PCGAP-style 6xx / 7xx mapping). Costs use debit − credit; revenues use credit − debit.') }}
+                        {{ __('Valores calculados a partir dos lançamentos contabilísticos. O mapeamento considera código e nome da conta para alinhar com o formato do cliente.') }}
                     </p>
                 </div>
             </div>

@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\ChartOfAccount;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -11,64 +10,64 @@ use Illuminate\Support\Facades\DB;
  */
 class DreDemonstracaoResultadosService
 {
-    /** Section headings (English default; same order as schema keys). */
-    private const HEADING_EN = [
-        '_h1' => 'Costs and losses',
-        '_h2' => 'Cost of circulating materials sold or consumed',
-        '_h3' => 'Personnel costs',
-        '_h4' => 'Supplies and third-party services',
-        '_r1' => 'Income and gains',
-        '_r2' => 'Sales',
+    /** Section headings in client-required Portuguese format. */
+    private const HEADING_PT = [
+        '_h1' => 'Custos e perdas',
+        '_h2' => 'Custo dos meios circulantes materiais vendidos ou consumidos',
+        '_h3' => 'Custos com o pessoal',
+        '_h4' => 'Fornecimentos e serviços de terceiros',
+        '_r1' => 'Proveitos e ganhos',
+        '_r2' => 'Vendas:',
     ];
 
-    /** Sub-totals / totals / special rows (English). */
-    private const STATIC_LABEL_EN = [
-        'sub_mat' => 'Sub-total (materials)',
-        'sub_pers' => 'Sub-total (personnel)',
-        'sub_op_cost' => 'Sub-total (operating costs)',
-        'A' => 'Total operating costs (A)',
-        'fin_cost' => 'Financial costs and losses (C)',
-        'ext_cost' => 'Extraordinary costs and losses (E)',
-        'G' => 'Total costs (G)',
-        'net_line_cost' => 'Net result for the period (reference)',
-        'B' => 'Total operating income (B)',
-        'fin_rev' => 'Financial income and gains (D)',
-        'ext_rev' => 'Extraordinary income and gains (F)',
-        'H' => 'Total income (H)',
+    /** Sub-totals / totals / special rows in client-required Portuguese format. */
+    private const STATIC_LABEL_PT = [
+        'sub_mat' => 'Sub-total..............',
+        'sub_pers' => 'Sub-total..............',
+        'sub_op_cost' => 'Sub-total.............',
+        'A' => 'Total dos custos operacionais            (A).....................................',
+        'fin_cost' => 'Custos e perdas financeiros               (C).....................................',
+        'ext_cost' => 'Custos e perdas extraordinários         (E).....................................',
+        'G' => 'Total dos custos                                  (G).....................................',
+        'net_line_cost' => 'Resultado líquido do exercício.',
+        'B' => 'Total dos proveitos operacionais      (B)',
+        'fin_rev' => 'Proveitos e ganhos financeiros         (D)',
+        'ext_rev' => 'Proveitos ou ganhos extraordinários (F)',
+        'H' => 'Total dos proveitos                         (H)',
     ];
 
-    /** Fallback when no chart account matches (English). */
-    private const LINE_FALLBACK_EN = [
-        'c612' => '612 — Goods (merchandise)',
-        'c616' => '616 — Raw materials, supplies and consumables',
-        'c61_other' => '611–615 — Other class 61 costs',
-        'c621' => '621 — Board and statutory body remuneration',
-        'c622' => '622 — Employee remuneration',
-        'c623' => '623 — Payroll charges and contributions',
-        'c624' => '624 — Pensions',
-        'c625' => '625 — Travel and subsistence',
-        'c626' => '626 — Compensation and severance',
-        'c627' => '627 — Workplace accident and occupational disease insurance',
-        'c628' => '628 — Social action costs',
-        'c629' => '629 — Other personnel costs',
-        'c631' => '631 — Subcontracts',
-        'c632' => '632 — Supplies and services',
-        'c635_taxes' => '635–636 — Taxes and fees (operating)',
-        'c_amort' => '642–648 — Depreciation and amortisation',
-        'c_provision' => '65x — Provisions for the period',
-        'c_other_ops' => '66x / 68x / 69x — Other operating costs and losses',
-        'c_unclassified' => 'Class 6 — Other unmapped costs',
-        'rev_711' => '711 — Goods sales',
-        'rev_712' => '712 — Finished and intermediate products',
-        'rev_713_718' => '713–718 — Other sales / variation (71x)',
-        'rev_services' => '72x — Service sales',
-        'rev_production_var' => '73x — Production variation',
-        'rev_investment' => '758x — Company investments (income)',
-        'rev_subsidies' => '74x — Operating subsidies',
-        'rev_supplementary' => '75x — Supplementary income',
-        'rev_other_ops' => '76x — Other operating income and gains',
-        'rev_unclassified' => '77x–78x — Other income',
-        'income_tax' => '681 — Income tax for the period',
+    /** Fallback when no chart account matches. */
+    private const LINE_FALLBACK_PT = [
+        'c612' => '612 - De mercadorias...................................................................',
+        'c616' => '616 - De matérias primas, auxiliares e materiais',
+        'c61_other' => '611/613/614/615 - Outros custos de meios circulantes',
+        'c621' => '621 - Remunerações dos órgãos sociais.....................................',
+        'c622' => '622 - Remunerações dos trabalhadores......................................',
+        'c623' => '623 - Encargos sobre remunerações...........................................',
+        'c624' => '624 - Pensões...............................................................................',
+        'c625' => '625 - Ajudas de custo..................................................................',
+        'c626' => '626 - Indemnizações.....................................................................',
+        'c627' => '627 - Seg. de acidentes no trabalho e doenças profissionais....',
+        'c628' => '628 - Custos de acção Social.......................................................',
+        'c629' => '629 - Outros custos com pessoal................................................',
+        'c631' => '631 - Subcontratos.......................................................................',
+        'c632' => '632 - Fornecimentos e Serviços..................................................',
+        'c635_taxes' => 'Impostos e taxas...........................................................................',
+        'c_amort' => 'Amortizações do exercício de imobil. corpórias e incorpórias.....',
+        'c_provision' => 'Provisões do exercício..................................................................',
+        'c_other_ops' => 'Outros custos e perdas operacionais...........................................',
+        'c_unclassified' => 'Outros custos operacionais',
+        'rev_711' => '711 - Mercadorias',
+        'rev_712' => '712 - Produtos acabados e intermédios',
+        'rev_713_718' => 'Vendas de serviços',
+        'rev_services' => 'Variação da produção',
+        'rev_production_var' => 'Investimentos realizados pela empresa',
+        'rev_investment' => 'Subsídios à exploração',
+        'rev_subsidies' => 'Proveitos suplementares',
+        'rev_supplementary' => 'Outros proveitos e ganhos operacionais',
+        'rev_other_ops' => 'Outros proveitos e ganhos operacionais',
+        'rev_unclassified' => 'Outros proveitos e ganhos operacionais',
+        'income_tax' => 'Impostos sobre rendimento',
     ];
 
     /** @var list<string> */
@@ -196,10 +195,12 @@ class DreDemonstracaoResultadosService
             ->join('chart_of_accounts as c', 'c.id', '=', 'tl.account_id')
             ->where('tl.created_by', $creatorId)
             ->whereBetween('tl.date', [$minDate, $maxDate])
-            ->groupBy(DB::raw('YEAR(tl.date)'), 'c.id', 'c.code')
+            ->groupBy(DB::raw('YEAR(tl.date)'), 'c.id', 'c.code', 'c.name', 'c.name_pt_br')
             ->select(
                 DB::raw('YEAR(tl.date) as fy'),
                 'c.code',
+                'c.name',
+                'c.name_pt_br',
                 DB::raw('SUM(tl.debit) as debit'),
                 DB::raw('SUM(tl.credit) as credit')
             )
@@ -221,7 +222,11 @@ class DreDemonstracaoResultadosService
                 continue;
             }
             $yKey = $fy === $year1 ? 'y1' : 'y2';
-            $lineId = self::classifyLineId((string) $row->code);
+            $lineId = self::classifyLineIdFromAccount(
+                (string) $row->code,
+                (string) ($row->name_pt_br ?? ''),
+                (string) ($row->name ?? '')
+            );
             if ($lineId === 'unmapped') {
                 $digits = preg_replace('/\D/', '', (string) $row->code) ?? '';
                 if ($digits !== '' && ctype_digit($digits)) {
@@ -389,6 +394,103 @@ class DreDemonstracaoResultadosService
         return 'unmapped';
     }
 
+    public static function classifyLineIdFromAccount(string $code, ?string $namePt = null, ?string $nameEn = null): string
+    {
+        $byCode = self::classifyLineId($code);
+        if ($byCode !== 'unmapped') {
+            return $byCode;
+        }
+
+        $name = trim((string) ($namePt ?: $nameEn));
+        if ($name === '') {
+            return 'unmapped';
+        }
+
+        $n = mb_strtolower($name, 'UTF-8');
+        $contains = static fn (string $needle): bool => str_contains($n, $needle);
+
+        if ($contains('mercador')) {
+            return 'c612';
+        }
+        if ($contains('matéria') || $contains('materia prima') || $contains('consum')) {
+            return 'c616';
+        }
+        if ($contains('órgão social') || $contains('orgao social')) {
+            return 'c621';
+        }
+        if ($contains('trabalhador') || $contains('remunera')) {
+            return 'c622';
+        }
+        if ($contains('encargo')) {
+            return 'c623';
+        }
+        if ($contains('pens')) {
+            return 'c624';
+        }
+        if ($contains('ajuda de custo')) {
+            return 'c625';
+        }
+        if ($contains('indemniza') || $contains('indeniza')) {
+            return 'c626';
+        }
+        if ($contains('acidente') || $contains('doença') || $contains('doenca')) {
+            return 'c627';
+        }
+        if ($contains('acção social') || $contains('acao social')) {
+            return 'c628';
+        }
+        if ($contains('pessoal')) {
+            return 'c629';
+        }
+        if ($contains('subcontrat')) {
+            return 'c631';
+        }
+        if ($contains('fornec') || $contains('servi')) {
+            return 'c632';
+        }
+        if ($contains('imposto') || $contains('taxa')) {
+            return 'c635_taxes';
+        }
+        if ($contains('amortiza') || $contains('depreci')) {
+            return 'c_amort';
+        }
+        if ($contains('provis')) {
+            return 'c_provision';
+        }
+        if ($contains('financeir')) {
+            return $contains('custo') || $contains('perda') ? 'fin_cost' : 'fin_rev';
+        }
+        if ($contains('extraordin')) {
+            return $contains('custo') || $contains('perda') ? 'ext_cost' : 'ext_rev';
+        }
+        if ($contains('mercador') && ($contains('venda') || $contains('proveito'))) {
+            return 'rev_711';
+        }
+        if ($contains('produto acabado') || $contains('intermédio') || $contains('intermedio')) {
+            return 'rev_712';
+        }
+        if ($contains('venda de servi')) {
+            return 'rev_713_718';
+        }
+        if ($contains('variação da produção') || $contains('variacao da producao')) {
+            return 'rev_production_var';
+        }
+        if ($contains('investimento')) {
+            return 'rev_investment';
+        }
+        if ($contains('subsídio') || $contains('subsidio')) {
+            return 'rev_subsidies';
+        }
+        if ($contains('suplementar')) {
+            return 'rev_supplementary';
+        }
+        if ($contains('proveito') || $contains('ganho')) {
+            return 'rev_other_ops';
+        }
+
+        return 'unmapped';
+    }
+
     /**
      * @return list<array{key: string, sub?: bool, total?: bool}>
      */
@@ -455,105 +557,38 @@ class DreDemonstracaoResultadosService
         ];
     }
 
-    /**
-     * @return list<string>|null  digit prefix(es) to match chart_of_accounts.code
-     */
-    private static function codePrefixesForRowKey(string $key): ?array
-    {
-        if (preg_match('/^c(\d{3})$/', $key, $m)) {
-            return [$m[1]];
-        }
-        if ($key === 'c61_other') {
-            return ['611', '613', '614', '615'];
-        }
-        if ($key === 'c635_taxes') {
-            return ['635', '636'];
-        }
-        if ($key === 'c_amort') {
-            return ['642', '643', '644', '645', '646', '647', '648'];
-        }
-        if ($key === 'c_provision') {
-            return ['655', '656', '657', '658', '659'];
-        }
-        if ($key === 'rev_713_718') {
-            return ['713', '714', '715', '716', '717', '718'];
-        }
-        if ($key === 'rev_services') {
-            return ['721', '722', '723', '724', '725', '726', '727', '728', '729'];
-        }
-
-        return match ($key) {
-            'rev_711' => ['711'],
-            'rev_712' => ['712'],
-            'rev_production_var' => ['731', '732', '733', '734', '735', '736', '737', '738', '739'],
-            'rev_investment' => ['758'],
-            'rev_subsidies' => ['741', '742', '743', '744', '745', '746', '747', '748', '749'],
-            'rev_supplementary' => ['751', '752', '753', '754', '755', '756', '757'],
-            'rev_other_ops' => ['760', '764', '765', '766', '767', '768', '769'],
-            'rev_unclassified' => ['771', '772', '773', '774', '775', '776', '777', '778', '779'],
-            'income_tax' => ['681'],
-            default => null,
-        };
-    }
-
-    private static function findRepresentativeCoa(int $creatorId, string $digitsPrefix): ?ChartOfAccount
-    {
-        return ChartOfAccount::query()
-            ->where('created_by', $creatorId)
-            ->where(function ($q) use ($digitsPrefix): void {
-                $q->where('code', 'like', $digitsPrefix.'%')
-                    ->orWhere('code', 'like', $digitsPrefix.'.%')
-                    ->orWhere('code', 'like', $digitsPrefix.'-%');
-            })
-            ->orderByRaw('LENGTH(code) asc')
-            ->orderBy('code')
-            ->first();
-    }
-
     public static function resolveRowLabel(string $key, int $creatorId, ?string $lang = null): string
     {
-        if (isset(self::HEADING_EN[$key])) {
-            return self::HEADING_EN[$key];
+        if (isset(self::HEADING_PT[$key])) {
+            return self::HEADING_PT[$key];
         }
-        if (isset(self::STATIC_LABEL_EN[$key])) {
-            return self::STATIC_LABEL_EN[$key];
-        }
-
-        $prefixes = self::codePrefixesForRowKey($key);
-        if ($prefixes !== null) {
-            foreach ($prefixes as $pfx) {
-                $acc = self::findRepresentativeCoa($creatorId, $pfx);
-                if ($acc) {
-                    $name = $acc->labelForLocale($lang);
-
-                    return trim($acc->code.' — '.$name);
-                }
-            }
+        if (isset(self::STATIC_LABEL_PT[$key])) {
+            return self::STATIC_LABEL_PT[$key];
         }
 
-        return self::LINE_FALLBACK_EN[$key] ?? $key;
+        return self::LINE_FALLBACK_PT[$key] ?? $key;
     }
 
-    private static function summaryRowsEnglish(array $report): array
+    private static function summaryRows(array $report): array
     {
         return [
             [
-                'label' => 'Operating result (B − A)',
+                'label' => 'Resultados operacionais:         (B - A)',
                 'y1' => $report['operating_result']['y1'],
                 'y2' => $report['operating_result']['y2'],
             ],
             [
-                'label' => 'Financial result (D − C)',
+                'label' => 'Resultados financeiros:           (D - C)',
                 'y1' => $report['financial_result']['y1'],
                 'y2' => $report['financial_result']['y2'],
             ],
             [
-                'label' => 'Extraordinary result (F − E)',
+                'label' => 'Resultados extraordinários:     (F - E)',
                 'y1' => $report['extraordinary_result']['y1'],
                 'y2' => $report['extraordinary_result']['y2'],
             ],
             [
-                'label' => 'Net result for the period (H − G)',
+                'label' => 'Resultado líquido do exercício: (H - G)',
                 'y1' => $report['net_result']['y1'],
                 'y2' => $report['net_result']['y2'],
             ],
@@ -731,7 +766,7 @@ class DreDemonstracaoResultadosService
         return [
             'cost' => $costOut,
             'revenue' => $revOut,
-            'summary' => self::summaryRowsEnglish($report),
+            'summary' => self::summaryRows($report),
         ];
     }
 }

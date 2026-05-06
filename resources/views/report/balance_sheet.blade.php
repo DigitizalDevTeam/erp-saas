@@ -9,8 +9,6 @@
 @push('script-page')
     <script type="text/javascript" src="{{ asset('js/html2pdf.bundle.min.js') }}"></script>
     <script>
-        var filename = $('#filename').val();
-
         function saveAsPDF() {
             var printContents = document.getElementById('printableArea').innerHTML;
             var originalContents = document.body.innerHTML;
@@ -18,7 +16,6 @@
             window.print();
             document.body.innerHTML = originalContents;
         }
-        html2pdf().set(opt).from(element).save();
     </script>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -63,11 +60,6 @@
         <button id="filter" class="btn btn-sm btn-primary"  data-bs-toggle="tooltip" title="{{ __('Filter') }}" data-original-title="{{ __('Filter') }}"><i class="ti ti-filter"></i></button>
     </div>
 
-    <div class="float-end me-2">
-        <a href="{{ route('report.balance.sheet', 'horizontal') }}" class="btn btn-sm bg-light-blue-subtitle" data-bs-toggle="tooltip"
-            title="{{ __('Horizontal View') }}" data-original-title="{{ __('Horizontal View') }}"><i
-                class="ti ti-separator-vertical"></i></a>
-    </div>
 @endsection
 
 @section('content')
@@ -79,23 +71,8 @@
                         <div class="card-body">
                             {{ Form::open(['route' => ['report.balance.sheet'], 'method' => 'GET', 'id' => 'report_balancesheet']) }}
                             <div class="col-xl-12">
-
                                 <div class="row justify-content-between">
-                                    <div class="col-xl-3 mt-4">
-                                        <div class="btn-group btn-group-toggle" data-toggle="buttons"
-                                            aria-label="Basic radio toggle button group">
-                                            <label class="btn btn-primary month-label">
-                                                <a href="{{ route('report.balance.sheet', ['vertical', 'collapse']) }}"
-                                                    class="text-white" id="collapse"> {{ __('Collapse') }} </a>
-                                            </label>
-
-                                            <label class="btn btn-primary year-label active">
-                                                <a href="{{ route('report.balance.sheet', ['vertical', 'expand']) }}"
-                                                    class="text-white"> {{ __('Expand') }} </a>
-                                            </label>
-                                        </div>
-                                    </div>
-                                    <div class="col-xl-9">
+                                    <div class="col-xl-12">
                                         <div class="row justify-content-end align-items-center">
                                             <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                                                 <div class="btn-box">
@@ -137,214 +114,114 @@
                 </div>
             </div>
         </div>
-        @php
-            $authUser = \Auth::user()->creatorId();
-            $user = App\Models\User::find($authUser);
-        @endphp
 
         <div class="row justify-content-center" id="printableArea">
-            <div class="col-md-8">
+            <div class="col-md-10">
                 <div class="card">
-                    <div class="card-body {{ $collapseview == 'expand' ? 'collapse-view' : '' }}">
-                        <div class="account-main-title">
-                            <h5 class="mb-3">{{ 'Balance Sheet of ' . $user->name . ' as of ' . $filter['startDateRange'] . ' to ' . $filter['endDateRange'] }}
-                                </h5>
+                    <div class="card-body">
+                        <div class="text-center mb-3">
+                            <h5 class="mb-1">{{ $header['company_name'] }}</h5>
+                            <p class="mb-0">{{ __('NUIT') }}: {{ $header['nuit'] != '' ? $header['nuit'] : '-' }}</p>
+                            <p class="mb-0">{{ __('Currency') }}: {{ $header['currency'] }}</p>
+                            <h6 class="mt-2 mb-0">
+                                {{ __('Balance Sheet') }} ({{ $filter['currentYear'] }} / {{ $filter['previousYear'] }})
+                            </h6>
+                            <small class="text-muted">
+                                {{ $filter['startDateRange'] }} - {{ $filter['endDateRange'] }}
+                                |
+                                {{ $filter['previousStartDateRange'] }} - {{ $filter['previousEndDateRange'] }}
+                            </small>
                         </div>
-                        <div
-                            class="aacount-title d-flex align-items-center justify-content-between border-top border-bottom py-2">
-                            <h6 class="mb-0">{{ __('Account') }}</h6>
-                            <h6 class="mb-0 text-center">{{ _('Account Code') }}</h6>
-                            <h6 class="mb-0 text-end">{{ __('Total') }}</h6>
-                        </div>
-                        @php
-                            $totalAmount = 0;
-                        @endphp
-
-                        @foreach ($totalAccounts as $type => $accounts)
-                            @if ($accounts != [])
-                                <div class="account-main-inner py-2">
-                                    @if ($type == 'Liabilities')
-                                        <p class="fw-bold mb-3"> {{ __('Liabilities & Equity') }}</p>
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr class="table-light">
+                                    <th>{{ __('Rubrics') }}</th>
+                                    <th class="text-center">{{ __('Code Accounts') }}</th>
+                                    <th class="text-end">{{ $filter['currentYear'] }}</th>
+                                    <th class="text-end">{{ $filter['previousYear'] }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="table-secondary fw-bold">
+                                    <td colspan="4">{{ __('Assets') }}</td>
+                                </tr>
+                                @foreach ($rows as $row)
+                                    @if ($row['section'] === 'Assets')
+                                        <tr>
+                                            <td>{{ __($row['label']) }}</td>
+                                            <td class="text-center">{{ $row['code_label'] }}</td>
+                                            <td class="text-end">{{ \Auth::user()->priceFormat($row['current_year']) }}</td>
+                                            <td class="text-end">{{ \Auth::user()->priceFormat($row['previous_year']) }}</td>
+                                        </tr>
                                     @endif
-                                    <p class="fw-bold ps-2 mb-2">{{ $type }}</p>
+                                @endforeach
+                                <tr class="fw-bold">
+                                    <td>{{ __('Total Assets') }}</td>
+                                    <td></td>
+                                    <td class="text-end">{{ \Auth::user()->priceFormat($totals['assets']['current']) }}</td>
+                                    <td class="text-end">{{ \Auth::user()->priceFormat($totals['assets']['previous']) }}</td>
+                                </tr>
 
-                                    @php
-                                        $total = 0;
-                                    @endphp
-                                    @foreach ($accounts as $account)
-                                        <div class="border-bottom py-2">
-                                            <p class="fw-bold ps-4 mb-2">
-                                                {{ $account['subType'] == true ? $account['subType'] : '' }}</p>
-                                            @foreach ($account['account'] as $records)
-                                                @if ($collapseview == 'collapse')
-                                                    @foreach ($records as $key => $record)
-                                                        @if ($record['account'] == 'parentTotal')
-                                                            <div
-                                                                class="account-inner d-flex align-items-center justify-content-between ps-xl-5 ps-4">
-                                                                <div class="mb-2 account-arrow">
-                                                                    <div class="">
-                                                                        <a
-                                                                            href="{{ route('report.balance.sheet', ['vertical', 'expand']) }}"><i
-                                                                                class="ti ti-chevron-down account-icon"></i></a>
-                                                                    </div>
-                                                                    <a href="{{ route('report.ledger', $record['account_id']) }}?account={{ $record['account_id'] }}"
-                                                                        class="text-primary">{{ str_replace('Total ', '', $record['account_name']) }}</a>
-                                                                </div>
-                                                                <p class="mb-2 ms-3 text-center">
-                                                                    {{ $record['account_code'] }}
-                                                                </p>
-                                                                <p class="text-primary mb-2 float-end text-end">
-                                                                    {{ \Auth::user()->priceFormat($record['netAmount']) }}
-                                                                </p>
-                                                            </div>
-                                                        @endif
+                                <tr class="table-secondary fw-bold">
+                                    <td colspan="4">{{ __('Equity') }}</td>
+                                </tr>
+                                @foreach ($rows as $row)
+                                    @if ($row['section'] === 'Equity')
+                                        <tr>
+                                            <td>{{ __($row['label']) }}</td>
+                                            <td class="text-center">{{ $row['code_label'] }}</td>
+                                            <td class="text-end">{{ \Auth::user()->priceFormat($row['current_year']) }}</td>
+                                            <td class="text-end">{{ \Auth::user()->priceFormat($row['previous_year']) }}</td>
+                                        </tr>
+                                    @endif
+                                @endforeach
+                                <tr class="fw-bold">
+                                    <td>{{ __('Total Equity') }}</td>
+                                    <td></td>
+                                    <td class="text-end">{{ \Auth::user()->priceFormat($totals['equity']['current']) }}</td>
+                                    <td class="text-end">{{ \Auth::user()->priceFormat($totals['equity']['previous']) }}</td>
+                                </tr>
 
-                                                        @if (
-                                                            !preg_match('/\btotal\b/i', $record['account_name']) &&
-                                                                $record['account'] == '' &&
-                                                                $record['account'] != 'subAccount')
-                                                            <div
-                                                                class="account-inner d-flex align-items-center justify-content-between ps-xl-5 ps-4">
-                                                                <p class="mb-2 ms-3"><a
-                                                                        href="{{ route('report.ledger', $record['account_id']) }}?account={{ $record['account_id'] }}"
-                                                                        class="text-primary">{{ $record['account_name'] }}</a>
-                                                                </p>
-                                                                <p class="mb-2 text-center">{{ $record['account_code'] }}
-                                                                </p>
-                                                                <p class="text-primary mb-2 float-end text-end">
-                                                                    {{ \Auth::user()->priceFormat($record['netAmount']) }}
-                                                                </p>
-                                                            </div>
-                                                        @endif
-                                                    @endforeach
-                                                @else
-                                                    @foreach ($records as $key => $record)
-                                                        @if ($record['account'] == 'parent' || $record['account'] == 'parentTotal')
-                                                            <div
-                                                                class="account-inner d-flex align-items-center justify-content-between ps-xl-5 ps-4">
-                                                                @if ($record['account'] == 'parent')
-                                                                    <div class="mb-2 account-arrow">
-                                                                        <div class="">
-                                                                            <a
-                                                                                href="{{ route('report.balance.sheet', ['vertical', 'collapse']) }}"><i
-                                                                                    class="ti ti-chevron-down account-icon"></i></a>
-                                                                        </div>
-                                                                        <a href="{{ route('report.ledger', $record['account_id']) }}?account={{ $record['account_id'] }}"
-                                                                            class="{{ $record['account'] == 'parent' ? 'text-primary' : 'text-dark' }} fw-bold">{{ $record['account_name'] }}</a>
-                                                                    </div>
-                                                                @else
-                                                                    <p class="mb-2"><a href="#"
-                                                                            class="text-dark fw-bold">{{ $record['account_name'] }}</a>
-                                                                    </p>
-                                                                @endif
-                                                                <p class="mb-2 ms-3 text-center">
-                                                                    {{ $record['account_code'] }}
-                                                                </p>
-                                                                <p class="text-dark fw-bold mb-2 float-end text-end">
-                                                                    {{ \Auth::user()->priceFormat($record['netAmount']) }}
-                                                                </p>
-                                                            </div>
-                                                        @endif
-                                                        @if (
-                                                            (!preg_match('/\btotal\b/i', $record['account_name']) && $record['account'] == '') ||
-                                                                $record['account'] == 'subAccount')
-                                                            <div
-                                                                class="account-inner d-flex align-items-center justify-content-between ps-xl-5 ps-4">
-                                                                <p class="mb-2 ms-3"><a
-                                                                        href="{{ route('report.ledger', $record['account_id']) }}?account={{ $record['account_id'] }}"
-                                                                        class="text-primary">{{ $record['account_name'] }}</a>
-                                                                </p>
-                                                                <p class="mb-2 text-center">{{ $record['account_code'] }}
-                                                                </p>
-                                                                <p class="text-primary mb-2 float-end text-end">
-                                                                    {{ \Auth::user()->priceFormat($record['netAmount']) }}
-                                                                </p>
-                                                            </div>
-                                                        @endif
-                                                    @endforeach
-                                                @endif
-                                            @endforeach
-                                            <div
-                                                class="account-inner d-flex align-items-center justify-content-between ps-4">
-                                                <p class="fw-bold mb-2">
-                                                    {{ $record['account_name'] ? $record['account_name'] : '' }}
-                                                </p>
-                                                <p class="fw-bold mb-2 text-end">
-                                                    {{ $record['netAmount'] ? \Auth::user()->priceFormat($record['netAmount']) : \Auth::user()->priceFormat(0) }}
-                                                </p>
-                                            </div>
-                                        </div>
+                                <tr class="table-secondary fw-bold">
+                                    <td colspan="4">{{ __('Liabilities') }}</td>
+                                </tr>
+                                @foreach ($rows as $row)
+                                    @if ($row['section'] === 'Liabilities')
+                                        <tr>
+                                            <td>{{ __($row['label']) }}</td>
+                                            <td class="text-center">{{ $row['code_label'] }}</td>
+                                            <td class="text-end">{{ \Auth::user()->priceFormat($row['current_year']) }}</td>
+                                            <td class="text-end">{{ \Auth::user()->priceFormat($row['previous_year']) }}</td>
+                                        </tr>
+                                    @endif
+                                @endforeach
+                                <tr class="fw-bold">
+                                    <td>{{ __('Total Liabilities') }}</td>
+                                    <td></td>
+                                    <td class="text-end">{{ \Auth::user()->priceFormat($totals['liabilities']['current']) }}</td>
+                                    <td class="text-end">{{ \Auth::user()->priceFormat($totals['liabilities']['previous']) }}</td>
+                                </tr>
 
-                                        @php
-                                            $total += $record['netAmount'] ? $record['netAmount'] : 0;
-                                        @endphp
-                                    @endforeach
-                                    <div
-                                        class="aacount-title d-flex align-items-center justify-content-between border-bottom py-2 px-2 pe-0">
-                                        <h6 class="fw-bold mb-0">{{ 'Total for ' . $type }}</h6>
-                                        <h6 class="fw-bold mb-0 text-end">{{ \Auth::user()->priceFormat($total) }}</h6>
-                                    </div>
-                                    @php
-                                        if ($type != 'Assets') {
-                                            $totalAmount += $total;
-                                        }
-                                    @endphp
-                                </div>
-                            @endif
-                        @endforeach
+                                <tr class="table-dark fw-bold">
+                                    <td>{{ __('Total Equity + Liabilities') }}</td>
+                                    <td></td>
+                                    <td class="text-end">{{ \Auth::user()->priceFormat($totals['equity_liabilities']['current']) }}</td>
+                                    <td class="text-end">{{ \Auth::user()->priceFormat($totals['equity_liabilities']['previous']) }}</td>
+                                </tr>
 
-                        @foreach ($totalAccounts as $type => $accounts)
-                            @php
-                                if ($type == 'Assets') {
-                                    continue;
-                                }
-                            @endphp
-
-                            @if ($accounts != [])
-                                <div
-                                    class="aacount-title d-flex align-items-center justify-content-between border-bottom py-2 px-0">
-                                    <h6 class="fw-bold mb-0">{{ 'Total for Liabilities & Equity' }}</h6>
-                                    <h6 class="fw-bold mb-0 text-end">{{ \Auth::user()->priceFormat($totalAmount) }}</h6>
-                                </div>
-                            @endif
-                            @php
-                                if ($type == 'Liabilities' || $type == 'Equity') {
-                                    break;
-                                }
-                            @endphp
-                        @endforeach
+                                @if (round($totals['difference']['current'], 2) != 0 || round($totals['difference']['previous'], 2) != 0)
+                                    <tr class="table-warning fw-bold">
+                                        <td>{{ __('Balance Difference (Assets - Equity - Liabilities)') }}</td>
+                                        <td></td>
+                                        <td class="text-end">{{ \Auth::user()->priceFormat($totals['difference']['current']) }}</td>
+                                        <td class="text-end">{{ \Auth::user()->priceFormat($totals['difference']['previous']) }}</td>
+                                    </tr>
+                                @endif
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 @endsection
-
-
-@push('script-page')
-    <script>
-        $(document).on('click', '#collapse', function() {
-            view = "collapse";
-            $.ajax({
-                url: '{{ route('report.balance.sheet', 'vertical') }}',
-                type: 'GET',
-                data: {
-                    "view": view,
-                    ,
-                },
-                success: function(data) {
-                    return false;
-
-                    $('#employee_id').empty();
-                    $('#employee_id').append('<option value="">{{ __('Select Employee') }}</option>');
-                    $('#employee_id').append('<option value="0"> {{ __('All Employee') }} </option>');
-
-                    $.each(data, function(key, value) {
-                        $('#employee_id').append('<option value="' + key + '">' + value +
-                            '</option>');
-                    });
-                }
-            });
-        });
-    </script>
-@endpush

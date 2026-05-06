@@ -10,6 +10,24 @@ use Spatie\Browsershot\Browsershot;
 
 class MonthlyReportController extends Controller
 {
+    /**
+     * Base balance logic used by trial balance style reports:
+     * A = totalDebit, B = totalCredit
+     * If A > B => debit balance, If B > A => credit balance, else zero.
+     */
+    private function applyBaseBalanceLogic(array $entry): array
+    {
+        $debit = (float) ($entry['totalDebit'] ?? 0);
+        $credit = (float) ($entry['totalCredit'] ?? 0);
+
+        $entry['totalDebit'] = $debit;
+        $entry['totalCredit'] = $credit;
+        $entry['balanceDebit'] = $debit > $credit ? ($debit - $credit) : 0.0;
+        $entry['balanceCredit'] = $credit > $debit ? ($credit - $debit) : 0.0;
+
+        return $entry;
+    }
+
     public function trialBalance(Request $request, $view = 'government')
     {
         if (!\Auth::user()->can('trial balance report')) {
@@ -130,22 +148,18 @@ class MonthlyReportController extends Controller
                     }
 
                     foreach ($accounts as $account) {
-                        $Balance = $account['totalCredit'] - $account['totalDebit'];
+                        $data = [
+                            'account_id' => $account['id'],
+                            'account_code' => $account['code'],
+                            'account_name' => $account['name'],
+                            'account' => 'subAccount',
+                            'totalCredit' => $account['totalCredit'],
+                            'totalDebit' => $account['totalDebit'],
+                        ];
 
-                        if ($Balance != 0) {
-                            $data = [
-                                'account_id' => $account['id'],
-                                'account_code' => $account['code'],
-                                'account_name' => $account['name'],
-                                'account' => 'subAccount',
-                                'totalCredit' => $account['totalCredit'],
-                                'totalDebit' => $account['totalDebit'],
-                            ];
-
-                            $parentAccountArray[] = $data;
-                            $parentcreditTotal += $data['totalCredit'];
-                            $parenntdebitTotal += $data['totalDebit'];
-                        }
+                        $parentAccountArray[] = $data;
+                        $parentcreditTotal += $data['totalCredit'];
+                        $parenntdebitTotal += $data['totalDebit'];
                     }
 
                    
@@ -199,13 +213,14 @@ class MonthlyReportController extends Controller
                         'totalCredit' => 0,
                     ];
                 }
-                if ($entry['totalDebit'] < 0) {
-                    $totalAccounts[$category][$name]['totalDebit'] += 0;
-                    $totalAccounts[$category][$name]['totalCredit'] += -$entry['totalDebit'];
-                } else {
-                    $totalAccounts[$category][$name]['totalDebit'] += $entry['totalDebit'];
-                    $totalAccounts[$category][$name]['totalCredit'] += $entry['totalCredit'];
-                }
+                $totalAccounts[$category][$name]['totalDebit'] += (float) ($entry['totalDebit'] ?? 0);
+                $totalAccounts[$category][$name]['totalCredit'] += (float) ($entry['totalCredit'] ?? 0);
+            }
+        }
+
+        foreach ($totalAccounts as $category => $entries) {
+            foreach ($entries as $name => $entry) {
+                $totalAccounts[$category][$name] = $this->applyBaseBalanceLogic($entry);
             }
         }
 

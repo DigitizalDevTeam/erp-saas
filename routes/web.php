@@ -958,6 +958,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('balance-sheet-report/{view?}/{collapseview?}', [ReportController::class, 'balanceSheet'])->name('report.balance.sheet');
             Route::get('profit-loss-report/{view?}/{collapseView?}', [ReportController::class, 'profitLoss'])->name('report.profit.loss');
             Route::get('reports-demonstracao-resultados', [DreReportController::class, 'index'])->name('report.dre.comparativa');
+            Route::get('export/dre-demonstracao-resultados', [DreReportController::class, 'export'])->name('report.dre.comparativa.export');
 
             Route::get('ledger-report/{account?}', [ReportController::class, 'ledgerSummary'])->name('report.ledger');
             Route::get('trial-balance-report/{view?}', [ReportController::class, 'trialBalanceSummary'])->name('trial.balance');
@@ -978,6 +979,8 @@ Route::group(['middleware' => ['verified']], function () {
 
             Route::get('monthly-reports/vat-modelo-a', [MonthlyVatReportController::class, 'modeloA'])
                 ->name('monthly.reports.vat-modelo-a');
+            Route::get('monthly-reports/vat-modelo-a/export', [MonthlyVatReportController::class, 'exportModeloA'])
+                ->name('monthly.reports.vat-modelo-a.export');
 
             Route::get('monthly-reports/irps-modelo-19', [MonthlyIrpsReportController::class, 'modelo19'])
                 ->name('monthly.reports.irps-modelo-19');

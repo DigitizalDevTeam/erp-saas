@@ -85,9 +85,8 @@
                         $totalCredit += $record['totalCredit'];
                     }
 
-                    $balance = ($record['totalDebit'] ?? 0) - ($record['totalCredit'] ?? 0);
-                    $saldoDevedor = $balance > 0 ? $balance : 0;
-                    $saldoCredor = $balance < 0 ? abs($balance) : 0;
+                    $saldoDevedor = (float) ($record['balanceDebit'] ?? 0);
+                    $saldoCredor = (float) ($record['balanceCredit'] ?? 0);
 
                     $rowClass = match ($record['account'] ?? '') {
                         'parent' => 'row-parent',

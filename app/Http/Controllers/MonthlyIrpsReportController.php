@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\PaySlip;
+use App\Models\Revenue;
 use App\Services\IrpsModel22ReportService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Spatie\Browsershot\Browsershot;
 
@@ -24,38 +26,66 @@ class MonthlyIrpsReportController extends Controller
             ->where('salary_month', $month)
             ->get();
 
-        $rows = [];
-        $totals = [
-            'gross' => 0.0,
-            'inss_employee' => 0.0,
-            'inss_employer' => 0.0,
-            'irps' => 0.0,
-            'net' => 0.0,
-        ];
-
+        $line10 = 0.0;
         foreach ($payslips as $payslip) {
             $employee = $payslip->employees ?: Employee::find($payslip->employee_id);
-
-            $gross = (float) $payslip->net_payble + (float) $payslip->inss_employee_amount + (float) $payslip->irps_amount;
-
-            $rows[] = [
-                'employee_id' => $employee?->employee_id,
-                'name' => $employee?->name,
-                'tax_payer_id' => $employee?->tax_payer_id,
-                'dependents' => (int) ($employee?->dependents ?? 0),
-                'gross' => $gross,
-                'inss_employee' => (float) $payslip->inss_employee_amount,
-                'inss_employer' => (float) $payslip->inss_employer_amount,
-                'irps' => (float) $payslip->irps_amount,
-                'net' => (float) $payslip->net_payble,
-            ];
-
-            $totals['gross'] += $gross;
-            $totals['inss_employee'] += (float) $payslip->inss_employee_amount;
-            $totals['inss_employer'] += (float) $payslip->inss_employer_amount;
-            $totals['irps'] += (float) $payslip->irps_amount;
-            $totals['net'] += (float) $payslip->net_payble;
+            $dependents = (int) ($employee?->dependents ?? 0);
+            $breakdown = IrpsModel22ReportService::breakdown($payslip, $dependents);
+            $line10 += (float) ($breakdown['total_earnings_components'] ?? 0);
         }
+
+        $line10 = round($line10, 2);
+        $line10Auto = $line10;
+
+        // Allow manual override when user needs to adjust payroll-derived salary value.
+        $line10Manual = $this->toFloat($request->query('line10_manual'));
+        if ($line10Manual !== null) {
+            $line10 = $line10Manual;
+        }
+
+        $line11 = $this->toFloat($request->query('line11')) ?? 0.0; // Pension
+        $monthStart = Carbon::createFromFormat('Y-m', $month)->startOfMonth()->toDateString();
+        $monthEnd = Carbon::createFromFormat('Y-m', $month)->endOfMonth()->toDateString();
+        $line12Auto = (float) Revenue::query()
+            ->where('created_by', \Auth::user()->creatorId())
+            ->whereDate('date', '>=', $monthStart)
+            ->whereDate('date', '<=', $monthEnd)
+            ->sum('amount');
+        $line12 = $this->toFloat($request->query('line12')) ?? round($line12Auto, 2); // Professional income (accounting)
+        $line13 = $this->toFloat($request->query('line13')) ?? 0.0; // Business income
+        $line14 = $this->toFloat($request->query('line14')) ?? 0.0; // Games income
+        $line15 = $this->toFloat($request->query('line15')) ?? 0.0; // Capital gains
+        $line16 = $this->toFloat($request->query('line16')) ?? 0.0; // Rental income
+        $line20 = $this->toFloat($request->query('line20')) ?? 0.0; // Advance payment
+        $line21 = $this->toFloat($request->query('line21')) ?? 0.0; // Interest
+
+        $lineTotal = round($line10 + $line11 + $line12 + $line13 + $line14 + $line15 + $line16, 2);
+
+        $settings = \App\Models\Utility::settings();
+        $creator = \App\Models\User::find(\Auth::user()->creatorId());
+        $monthYear = Carbon::createFromFormat('Y-m', $month)->format('m/Y');
+
+        $reportData = [
+            'month' => $month,
+            'month_year' => $monthYear,
+            'company_name' => $settings['company_name'] ?? ($creator?->name ?? ''),
+            'company_nuit' => $settings['vat_number'] ?? '',
+            'address' => $settings['company_address'] ?? '',
+            'phone' => $settings['company_telephone'] ?? ($settings['company_phone'] ?? ''),
+            'email' => $settings['company_email'] ?? '',
+            'line10' => $line10,
+            'line11' => $line11,
+            'line12' => $line12,
+            'line13' => $line13,
+            'line14' => $line14,
+            'line15' => $line15,
+            'line16' => $line16,
+            'line20' => $line20,
+            'line21' => $line21,
+            'line_total' => $lineTotal,
+            'auto_line10' => $line10Auto,
+            'auto_line12' => round($line12Auto, 2),
+        ];
 
         $filter = [
             'month' => $month,
@@ -72,11 +102,11 @@ class MonthlyIrpsReportController extends Controller
             if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
                 return \Barryvdh\DomPDF\Facade\Pdf::loadView(
                     'reports.monthly.irps_modelo_19_pdf',
-                    compact('filter', 'rows', 'totals')
+                    compact('filter', 'reportData')
                 )->setPaper([0, 0, $paperWidthPt, $paperHeightPt], 'portrait')->download($fileName);
             }
 
-            $html = view('reports.monthly.irps_modelo_19_pdf', compact('filter', 'rows', 'totals'))->render();
+            $html = view('reports.monthly.irps_modelo_19_pdf', compact('filter', 'reportData'))->render();
             $pdfBinary = Browsershot::html($html)
                 ->showBackground()
                 ->paperSize($paperWidthMm, $paperHeightMm, 'mm')
@@ -88,7 +118,21 @@ class MonthlyIrpsReportController extends Controller
             }, $fileName, ['Content-Type' => 'application/pdf']);
         }
 
-        return view('reports.monthly.irps_modelo_19', compact('filter', 'rows', 'totals'));
+        return view('reports.monthly.irps_modelo_19', compact('filter', 'reportData'));
+    }
+
+    private function toFloat($value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $normalized = str_replace([' ', ','], ['', '.'], (string) $value);
+        if (! is_numeric($normalized)) {
+            return null;
+        }
+
+        return round((float) $normalized, 2);
     }
 
     /**

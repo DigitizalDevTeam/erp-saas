@@ -2,349 +2,211 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BillProduct;
-use App\Models\InvoiceProduct;
-use App\Models\ProductService;
-use App\Models\Tax;
 use App\Models\Utility;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class MonthlyVatReportController extends Controller
 {
-    private const RATE_IVA = 16.0;
-
-    private const RATE_ICMS = 5.0;
-
     public function modeloA(Request $request)
     {
-        if (!\Auth::user()->can('tax report')) {
+        if (! \Auth::user()->can('tax report')) {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 
-        $start = !empty($request->start_date) ? $request->start_date : date('Y-m-01');
-        $end = !empty($request->end_date) ? $request->end_date : date('Y-m-t');
-
+        [$year, $month, $start, $end] = $this->resolvePeriod($request);
+        $insideDeadline = (int) $request->input('inside_deadline', 1) === 1;
         $settings = Utility::settings();
         $creatorId = \Auth::user()->creatorId();
-
-        $exportKeywords = $this->keywordList($settings['modelo_a_export_tax_keywords'] ?? 'export,exportação,exportacao,exportacion');
-        $art9Keywords = $this->keywordList($settings['modelo_a_art9_tax_keywords'] ?? 'art. 9,art 9,artigo 9,isenção,isencao');
-
-        $fixedAssetCategoryIds = array_filter(array_map('intval', explode(',', (string) ($settings['modelo_a_fixed_asset_category_ids'] ?? ''))));
-
-        $rates = [
-            'iva' => (float) ($settings['modelo_a_iva_rate'] ?? self::RATE_IVA),
-            'icms' => (float) ($settings['modelo_a_icms_rate'] ?? self::RATE_ICMS),
-        ];
-
-        $ivaTaxName = trim((string) ($settings['vat_tax_name'] ?? 'IVA'));
-        $icmsTaxName = trim((string) ($settings['modelo_a_icms_tax_name'] ?? 'ICMS'));
-        $ivaTax = $ivaTaxName !== ''
-            ? $this->findTaxByNameCaseInsensitive($creatorId, $ivaTaxName)
-            : null;
-        $icmsTax = $icmsTaxName !== ''
-            ? $this->findTaxByNameCaseInsensitive($creatorId, $icmsTaxName)
-            : null;
-
-        $c = array_fill(1, 21, 0.0);
-
-        $stats = [
-            'invoice_lines_in_period' => 0,
-            'invoice_lines_no_tax' => 0,
-            'bill_lines_in_period' => 0,
-            'bill_lines_no_tax' => 0,
-        ];
-
-        $invoiceProducts = InvoiceProduct::query()
-            ->select('invoice_products.*')
-            ->leftJoin('invoices', 'invoice_products.invoice_id', '=', 'invoices.id')
-            ->where('invoices.created_by', $creatorId)
-            ->whereRaw('COALESCE(invoices.send_date, invoices.issue_date) BETWEEN ? AND ?', [$start, $end])
-            ->get();
-
-        foreach ($invoiceProducts as $row) {
-            $qty = (float) $row->quantity;
-            $price = (float) $row->price;
-            $discount = (float) ($row->discount ?? 0);
-            $lineBase = max(0.0, ($price - $discount) * $qty);
-
-            $stats['invoice_lines_in_period']++;
-            $taxes = $this->resolveTaxesForLine($row->tax, $row->product_id, $creatorId);
-            if ($taxes === []) {
-                $stats['invoice_lines_no_tax']++;
-
-                continue;
-            }
-
-            $this->allocateSalesLine($c, $lineBase, $taxes, $rates, $exportKeywords, $art9Keywords, $ivaTax, $icmsTax);
-        }
-
-        $billProducts = BillProduct::query()
-            ->select('bill_products.*')
-            ->leftJoin('bills', 'bill_products.bill_id', '=', 'bills.id')
-            ->where('bills.created_by', $creatorId)
-            ->whereBetween('bills.bill_date', [$start, $end])
-            ->get();
-
-        foreach ($billProducts as $row) {
-            $qty = (float) $row->quantity;
-            $price = (float) $row->price;
-            $discount = (float) ($row->discount ?? 0);
-            $lineBase = max(0.0, ($price * $qty) - $discount);
-
-            $stats['bill_lines_in_period']++;
-            $taxes = $this->resolveTaxesForLine($row->tax, $row->product_id, $creatorId);
-            if ($taxes === []) {
-                $stats['bill_lines_no_tax']++;
-
-                continue;
-            }
-
-            $product = ProductService::where('id', $row->product_id)->where('created_by', $creatorId)->first();
-            $this->allocatePurchaseLine($c, $lineBase, $taxes, $rates, $product, $fixedAssetCategoryIds, $ivaTax, $icmsTax);
-        }
-
-        $c[6] += $this->manualAmount($request, 'manual_06');
-        $c[11] += $this->manualAmount($request, 'manual_11');
-        $c[12] += $this->manualAmount($request, 'manual_12');
-        $c[13] += $this->manualAmount($request, 'manual_13');
-
-        foreach (range(1, 13) as $i) {
-            $c[$i] = round($c[$i], 2);
-        }
-
-        $c[14] = round($c[1] + $c[3] + $c[5] + $c[7], 2);
-        $c[15] = round($c[8] + $c[9] + $c[10] + $c[11] + $c[12], 2);
-        $c[16] = round($c[2] + $c[4] + $c[6] + $c[13], 2);
-
-        if ($c[16] > $c[15]) {
-            $c[17] = round($c[16] - $c[15], 2);
-            $c[18] = 0.0;
-        } else {
-            $c[17] = 0.0;
-            $c[18] = round($c[15] - $c[16], 2);
-        }
-
-        $creditsCommunicated = round($this->manualAmount($request, 'credits_communicated'), 2);
-        $c[19] = $creditsCommunicated;
-        $c[20] = round(max(0.0, $c[18] - $creditsCommunicated), 2);
-
-        $tabela9 = [
-            'additional_pay' => round($this->manualAmount($request, 't9_additional_pay'), 2),
-            'additional_recover' => round($this->manualAmount($request, 't9_additional_recover'), 2),
-        ];
-
-        $filter = [
-            'startDateRange' => $start,
-            'endDateRange' => $end,
-            'vatTaxName' => $settings['vat_tax_name'] ?? 'IVA',
-        ];
+        $company = $this->companyDefaults($settings);
+        $manual = $this->manualInputs($request);
+        $report = $this->buildReportData($creatorId, $start, $end, $manual, $insideDeadline);
 
         return view('reports.monthly.vat_modelo_a', [
-            'filter' => $filter,
-            'c' => $c,
-            'tabela9' => $tabela9,
-            'modeloANotes' => [
-                'iva_tax_name' => $ivaTaxName,
-                'iva_tax_matched' => $ivaTax !== null,
-                'icms_tax_name' => $icmsTaxName,
-                'icms_tax_matched' => $icmsTax !== null,
-                'rates' => $rates,
-                'stats' => $stats,
-            ],
-            'manualInputs' => [
-                'manual_06' => $request->input('manual_06'),
-                'manual_11' => $request->input('manual_11'),
-                'manual_12' => $request->input('manual_12'),
-                'manual_13' => $request->input('manual_13'),
-                'credits_communicated' => $request->input('credits_communicated'),
-                't9_additional_pay' => $request->input('t9_additional_pay'),
-                't9_additional_recover' => $request->input('t9_additional_recover'),
-            ],
+            'period' => compact('year', 'month', 'start', 'end'),
+            'insideDeadline' => $insideDeadline,
+            'report' => $report,
+            'company' => $company,
+            'manualInputs' => $manual,
         ]);
     }
 
-    private function manualAmount(Request $request, string $key): float
+    public function exportModeloA(Request $request)
     {
-        $v = $request->input($key);
+        if (! \Auth::user()->can('tax report')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
+        [$year, $month, $start, $end] = $this->resolvePeriod($request);
+        $insideDeadline = (int) $request->input('inside_deadline', 1) === 1;
+        $settings = Utility::settings();
+        $creatorId = \Auth::user()->creatorId();
+        $company = $this->companyDefaults($settings);
+        $manual = $this->manualInputs($request);
+        $report = $this->buildReportData($creatorId, $start, $end, $manual, $insideDeadline);
+
+        $template = base_path('Modelo A.xlsx');
+        if (! file_exists($template)) {
+            return redirect()->back()->with('error', __('Template file Modelo A.xlsx not found in project root.'));
+        }
+
+        $spreadsheet = IOFactory::load($template);
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $this->fillCell($sheet, 'AK7', sprintf('%02d / %d', $month, $year));
+        $this->fillCell($sheet, 'AM9', $insideDeadline ? 'X' : '');
+        $this->fillCell($sheet, 'AM11', $insideDeadline ? '' : 'X');
+
+        $this->fillCell($sheet, 'T6', $company['nuit']);
+        $this->fillCell($sheet, 'E16', $company['name']);
+        $this->fillCell($sheet, 'H17', $company['address']);
+        $this->fillCell($sheet, 'F18', $company['city']);
+        $this->fillCell($sheet, 'AB18', $company['phone']);
+        $this->fillCell($sheet, 'AJ18', $company['fax']);
+
+        $this->fillCell($sheet, 'M31', $report['f01']);
+        $this->fillCell($sheet, 'M33', $report['f03']);
+        $this->fillCell($sheet, 'M35', $report['f04']);
+        $this->fillCell($sheet, 'AJ31', $report['f02']);
+        $this->fillCell($sheet, 'Y41', $report['f05']);
+        $this->fillCell($sheet, 'Y43', $report['f06']);
+        $this->fillCell($sheet, 'Y45', $report['f07']);
+        $this->fillCell($sheet, 'Y47', $report['f08']);
+        $this->fillCell($sheet, 'Y49', $report['f09']);
+        $this->fillCell($sheet, 'AJ49', $report['f10']);
+        $this->fillCell($sheet, 'Y52', $report['f12']);
+        $this->fillCell($sheet, 'AJ52', $report['f13']);
+        $this->fillCell($sheet, 'M52', $report['f11']);
+        $this->fillCell($sheet, 'AJ55', $report['f14']);
+        $this->fillCell($sheet, 'AJ58', $report['f15']);
+        $this->fillCell($sheet, 'K63', $report['f16']);
+        $this->fillCell($sheet, 'AJ63', $report['f17']);
+        $this->fillCell($sheet, 'F69', $report['f18']);
+        $this->fillCell($sheet, 'AJ73', $report['f20']);
+        $this->fillCell($sheet, 'C83', $report['f21']);
+
+        $fileName = sprintf('modelo_a_vat_%04d_%02d.xlsx', $year, $month);
+
+        return response()->streamDownload(function () use ($spreadsheet): void {
+            $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
+            $writer->save('php://output');
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    private function fillCell(Worksheet $sheet, string $cell, float|string $value): void
+    {
+        $sheet->setCellValue($cell, $value);
+    }
+
+    private function resolvePeriod(Request $request): array
+    {
+        $year = (int) $request->input('year', date('Y'));
+        $month = (int) $request->input('month', date('n'));
+        $year = max(2000, min(2100, $year));
+        $month = max(1, min(12, $month));
+        $start = sprintf('%04d-%02d-01', $year, $month);
+        $end = date('Y-m-t', strtotime($start));
+
+        return [$year, $month, $start, $end];
+    }
+
+    private function companyDefaults(array $settings): array
+    {
+        return [
+            'name' => (string) ($settings['company_name'] ?? (\Auth::user()->name ?? config('app.name'))),
+            'nuit' => (string) ($settings['vat_number'] ?? ''),
+            'address' => (string) ($settings['company_address'] ?? ''),
+            'city' => (string) ($settings['company_city'] ?? ''),
+            'phone' => (string) ($settings['company_telephone'] ?? ''),
+            'fax' => (string) ($settings['company_fax'] ?? ''),
+        ];
+    }
+
+    private function manualInputs(Request $request): array
+    {
+        return [
+            'manual_08' => $request->input('manual_08'),
+            'manual_09' => $request->input('manual_09'),
+            'manual_10' => $request->input('manual_10'),
+            'manual_16' => $request->input('manual_16'),
+            'manual_19' => $request->input('manual_19'),
+            'manual_03' => $request->input('manual_03'),
+            'manual_04' => $request->input('manual_04'),
+        ];
+    }
+
+    private function amount(array $manual, string $key): float
+    {
+        $v = $manual[$key] ?? null;
         if ($v === null || $v === '') {
             return 0.0;
         }
 
-        return (float) str_replace([' ', ','], ['', '.'], (string) $v);
+        return round((float) str_replace([' ', ','], ['', '.'], (string) $v), 2);
     }
 
-    /**
-     * @return list<object>
-     */
-    private function resolveTaxesForLine(?string $taxField, int $productId, int $creatorId): array
+    private function buildReportData(int $creatorId, string $start, string $end, array $manual, bool $insideDeadline): array
     {
-        $taxStr = $this->normalizeTaxField($taxField);
-        if ($taxStr === null || $taxStr === '') {
-            $product = ProductService::where('id', $productId)->where('created_by', $creatorId)->first();
-            if ($product && !empty($product->tax_id)) {
-                $taxStr = $this->normalizeTaxField((string) $product->tax_id);
-            }
-        }
-        if ($taxStr === null || $taxStr === '') {
-            return [];
-        }
+        $rows = DB::table('transaction_lines as tl')
+            ->join('chart_of_accounts as coa', 'coa.id', '=', 'tl.account_id')
+            ->where('tl.created_by', $creatorId)
+            ->whereBetween('tl.date', [$start, $end])
+            ->select(
+                'coa.code',
+                DB::raw('SUM(tl.debit) as debit'),
+                DB::raw('SUM(tl.credit) as credit')
+            )
+            ->groupBy('coa.code')
+            ->get();
 
-        $taxes = Utility::tax($taxStr);
-        $out = [];
-        foreach ($taxes as $tax) {
-            if ($tax && (int) $tax->created_by === (int) $creatorId) {
-                $out[] = $tax;
-            }
-        }
-
-        return $out;
-    }
-
-    private function normalizeTaxField(?string $taxField): ?string
-    {
-        if ($taxField === null) {
-            return null;
-        }
-        $s = trim((string) $taxField);
-        if ($s === '') {
-            return null;
-        }
-        if ($s[0] === '[') {
-            $decoded = json_decode($s, true);
-            if (is_array($decoded)) {
-                return implode(',', array_map('strval', $decoded));
-            }
-        }
-
-        return $s;
-    }
-
-    private function findTaxByNameCaseInsensitive(int $creatorId, string $name): ?Tax
-    {
-        $n = mb_strtolower(trim($name));
-
-        return Tax::where('created_by', $creatorId)
-            ->whereRaw('LOWER(TRIM(name)) = ?', [$n])
-            ->first();
-    }
-
-    /**
-     * @param array<int,float> $c
-     * @param list<object>     $taxes
-     * @param list<string>     $exportKeywords
-     * @param list<string>     $art9Keywords
-     */
-    private function allocateSalesLine(array &$c, float $lineBase, array $taxes, array $rates, array $exportKeywords, array $art9Keywords, ?Tax $ivaTax, ?Tax $icmsTax): void
-    {
-        $sumRate = 0.0;
-        foreach ($taxes as $tax) {
-            $sumRate += (float) ($tax->rate ?? 0);
-        }
-
-        if ($sumRate <= 0.001) {
-            $name = mb_strtolower(implode(' ', array_map(fn ($t) => (string) ($t->name ?? ''), $taxes)));
-            if ($this->nameMatchesKeyword($name, $exportKeywords)) {
-                $c[5] += $lineBase;
-            } elseif ($this->nameMatchesKeyword($name, $art9Keywords)) {
-                $c[7] += $lineBase;
-            } else {
-                $c[7] += $lineBase;
+        $sumByPrefix = function (array $prefixes, string $mode) use ($rows): float {
+            $t = 0.0;
+            foreach ($rows as $r) {
+                $code = preg_replace('/\D/', '', (string) $r->code) ?? '';
+                if ($code === '') {
+                    continue;
+                }
+                foreach ($prefixes as $pfx) {
+                    if (str_starts_with($code, $pfx)) {
+                        $debit = (float) $r->debit;
+                        $credit = (float) $r->credit;
+                        $t += $mode === 'credit' ? ($credit - $debit) : ($debit - $credit);
+                        break;
+                    }
+                }
             }
 
-            return;
-        }
+            return round(max(0.0, $t), 2);
+        };
 
-        foreach ($taxes as $tax) {
-            $rate = (float) ($tax->rate ?? 0);
-            $portion = $lineBase * ($rate / $sumRate);
-            $taxAmount = $portion * ($rate / 100.0);
+        $f01 = $sumByPrefix(['71', '72'], 'credit');
+        $f03 = $this->amount($manual, 'manual_03');
+        $f04 = $this->amount($manual, 'manual_04');
+        $f02 = $sumByPrefix(['44331'], 'credit');
+        $f05 = $sumByPrefix(['44322'], 'debit');
+        $f06 = $sumByPrefix(['44321'], 'debit');
+        $f07 = $sumByPrefix(['44323'], 'debit');
+        $f08 = $this->amount($manual, 'manual_08');
+        $f09 = $this->amount($manual, 'manual_09');
+        $f10 = $this->amount($manual, 'manual_10');
 
-            $isIva = $ivaTax && (int) $tax->id === (int) $ivaTax->id;
-            $isIcms = $icmsTax && (int) $tax->id === (int) $icmsTax->id;
+        $f12 = round($f05 + $f06 + $f07 + $f08 + $f09, 2);
+        $f13 = round($f02 + $f10, 2);
+        $f11 = round($f01 + $f03 + $f04, 2);
+        $f14 = round(max(0.0, $f13 - $f12), 2);
+        $f15 = round(max(0.0, $f12 - $f13), 2);
+        $f16 = $insideDeadline ? $this->amount($manual, 'manual_16') : 0.0;
+        $f17 = round(max(0.0, $f15 - $f16), 2);
+        $f18 = $f14;
+        $f19 = $this->amount($manual, 'manual_19');
+        $f20 = round($f18 + $f19, 2);
+        $f21 = $f17;
 
-            if ($isIva || (!$isIcms && $this->approxRate($rate, $rates['iva']))) {
-                $c[1] += $portion;
-                $c[2] += $taxAmount;
-            } elseif ($isIcms || $this->approxRate($rate, $rates['icms'])) {
-                $c[3] += $portion;
-                $c[4] += $taxAmount;
-            } elseif ($rate > 0.001) {
-                $c[1] += $portion;
-                $c[2] += $taxAmount;
-            }
-        }
-    }
-
-    /**
-     * @param array<int,float> $c
-     * @param list<object>     $taxes
-     */
-    private function allocatePurchaseLine(array &$c, float $lineBase, array $taxes, array $rates, ?ProductService $product, array $fixedAssetCategoryIds, ?Tax $ivaTax, ?Tax $icmsTax): void
-    {
-        $sumRate = 0.0;
-        foreach ($taxes as $tax) {
-            $sumRate += (float) ($tax->rate ?? 0);
-        }
-        if ($sumRate <= 0) {
-            $sumRate = 1.0;
-        }
-
-        $slot = $this->purchaseDeductionSlot($product, $fixedAssetCategoryIds);
-
-        foreach ($taxes as $tax) {
-            $rate = (float) ($tax->rate ?? 0);
-            $portion = $lineBase * ($rate / $sumRate);
-            $taxAmount = $portion * ($rate / 100.0);
-
-            $isIva = $ivaTax && (int) $tax->id === (int) $ivaTax->id;
-            $isIcms = $icmsTax && (int) $tax->id === (int) $icmsTax->id;
-
-            if ($isIva || (!$isIcms && $this->approxRate($rate, $rates['iva']))) {
-                $c[$slot] += $taxAmount;
-            } elseif ($isIcms || $this->approxRate($rate, $rates['icms'])) {
-                $c[$slot] += $taxAmount;
-            } elseif ($rate > 0.001) {
-                $c[$slot] += $taxAmount;
-            }
-        }
-    }
-
-    private function purchaseDeductionSlot(?ProductService $product, array $fixedAssetCategoryIds): int
-    {
-        if ($product && in_array((int) $product->category_id, $fixedAssetCategoryIds, true)) {
-            return 8;
-        }
-        if ($product && $product->type === 'product') {
-            return 9;
-        }
-
-        return 10;
-    }
-
-    private function approxRate(float $a, float $b): bool
-    {
-        return abs(round($a, 2) - round($b, 2)) < 0.02;
-    }
-
-    private function nameMatchesKeyword(string $name, array $keywords): bool
-    {
-        foreach ($keywords as $kw) {
-            if ($kw !== '' && str_contains($name, $kw)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function keywordList(string $csv): array
-    {
-        $parts = array_map('trim', explode(',', $csv));
-
-        return array_values(array_filter(array_map(fn ($p) => mb_strtolower($p), $parts)));
+        return compact('f01', 'f02', 'f03', 'f04', 'f05', 'f06', 'f07', 'f08', 'f09', 'f10', 'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f20', 'f21');
     }
 }
+
