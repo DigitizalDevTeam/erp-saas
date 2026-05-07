@@ -9,6 +9,7 @@
         "anandsiddharth/laravel-paytm-wallet": "^2.0",
         "anhskohbo/no-captcha": "^3.6",
         "arkitecht/laravel-twilio": "^1.6",
+        "composer/semver": "^3.4",
         "doctrine/dbal": "^4.1",
         "fedapay/fedapay-php": "^0.4.2",
         "guzzlehttp/guzzle": "^7.9",

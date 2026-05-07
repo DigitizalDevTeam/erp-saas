@@ -1,0 +1,132 @@
+<?php
+
+namespace Modules\HotelManagement\Http\Controllers;
+
+use App\Http\Controllers\Controller;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Modules\HotelManagement\Entities\HotelGroup;
+use Modules\HotelManagement\Entities\HotelGroupMember;
+use Modules\HotelManagement\Entities\HotelGuest;
+use Modules\HotelManagement\Entities\HotelReservation;
+use Modules\HotelManagement\Entities\HotelRoomType;
+
+class HotelGroupController extends Controller
+{
+    public function index()
+    {
+        if (!Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $groups = HotelGroup::where('created_by', Auth::user()->creatorId())
+            ->withCount('reservations')
+            ->orderByDesc('id')
+            ->get();
+
+        return view('hotelmanagement::groups.index', compact('groups'));
+    }
+
+    public function create()
+    {
+        if (!Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $roomTypes = HotelRoomType::where('created_by', Auth::user()->creatorId())->where('is_active', true)->pluck('name', 'id');
+
+        return view('hotelmanagement::groups.create', compact('roomTypes'));
+    }
+
+    public function store(Request $request)
+    {
+        if (!Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $request->validate([
+            'name' => 'required|string|max:191',
+            'company_name' => 'nullable|string|max:191',
+            'contact_name' => 'nullable|string|max:191',
+            'members' => 'required|array|min:1',
+            'members.*.first_name' => 'required|string|max:100',
+            'members.*.last_name' => 'nullable|string|max:100',
+            'members.*.hotel_room_type_id' => 'required|exists:hotel_room_types,id',
+            'members.*.check_in_at' => 'required|date',
+            'members.*.check_out_at' => 'required|date',
+            'members.*.rate_per_night' => 'required|numeric|min:0',
+            'members.*.role' => 'nullable|in:adult,child',
+            'members.*.phone' => 'nullable|string|max:50',
+            'members.*.email' => 'nullable|email|max:191',
+            'members.*.hotel_room_id' => 'nullable|exists:hotel_rooms,id',
+            'members.*.notes' => 'nullable|string|max:500',
+        ]);
+
+        $creatorId = Auth::user()->creatorId();
+        $branchId = Auth::user()->activeBranchContextId();
+
+        DB::transaction(function () use ($request, $creatorId, $branchId) {
+            $group = HotelGroup::create([
+                'name' => $request->name,
+                'company_name' => $request->company_name,
+                'contact_name' => $request->contact_name,
+                'notes' => $request->notes,
+                'branch_id' => $branchId,
+                'created_by' => $creatorId,
+            ]);
+
+            $sort = 0;
+            foreach ($request->members as $m) {
+                $checkInAt = Carbon::parse($m['check_in_at']);
+                $checkOutAt = Carbon::parse($m['check_out_at']);
+                if ($checkOutAt->lte($checkInAt)) {
+                    continue;
+                }
+                $guest = HotelGuest::create([
+                    'first_name' => $m['first_name'],
+                    'last_name' => $m['last_name'] ?? null,
+                    'phone' => $m['phone'] ?? null,
+                    'email' => $m['email'] ?? null,
+                    'created_by' => $creatorId,
+                ]);
+                HotelGroupMember::create([
+                    'hotel_group_id' => $group->id,
+                    'hotel_guest_id' => $guest->id,
+                    'role' => $m['role'] ?? 'adult',
+                    'sort_order' => $sort++,
+                ]);
+                HotelReservation::create([
+                    'reservation_no' => 'RSV-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5)),
+                    'hotel_guest_id' => $guest->id,
+                    'hotel_group_id' => $group->id,
+                    'hotel_room_type_id' => $m['hotel_room_type_id'],
+                    'hotel_room_id' => !empty($m['hotel_room_id']) ? $m['hotel_room_id'] : null,
+                    'branch_id' => $branchId,
+                    'check_in_at' => $checkInAt->format('Y-m-d H:i:s'),
+                    'check_out_at' => $checkOutAt->format('Y-m-d H:i:s'),
+                    'check_in_date' => $checkInAt->toDateString(),
+                    'check_out_date' => $checkOutAt->toDateString(),
+                    'adults' => ($m['role'] ?? 'adult') === 'child' ? 0 : 1,
+                    'children' => ($m['role'] ?? 'adult') === 'child' ? 1 : 0,
+                    'source' => 'manual',
+                    'status' => HotelReservation::STATUS_CONFIRMED,
+                    'rate_per_night' => $m['rate_per_night'],
+                    'discount_amount' => 0,
+                    'notes' => $m['notes'] ?? null,
+                    'created_by' => $creatorId,
+                ]);
+            }
+        });
+
+        return redirect()->route('hotel.groups.index')->with('success', __('Group reservations created.'));
+    }
+
+    public function show(HotelGroup $group)
+    {
+        if ((int) $group->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $group->load(['reservations.guest', 'reservations.room', 'members.guest', 'reservations.stay.folio.payments']);
+
+        return view('hotelmanagement::groups.show', compact('group'));
+    }
+}

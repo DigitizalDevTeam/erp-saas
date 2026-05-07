@@ -1,0 +1,23 @@
+{
+    "name": "modules/hotelmanagement",
+    "description": "Hotel Management module for ERP SaaS",
+    "authors": [
+        {
+            "name": "ERP SaaS",
+            "email": "support@example.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\HotelManagement\\": ""
+        }
+    }
+}

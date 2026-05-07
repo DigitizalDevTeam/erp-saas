@@ -1,0 +1,11 @@
+{
+    "name": "HotelManagement",
+    "alias": "hotelmanagement",
+    "description": "Hotel Management module: rooms, room types, reservations, frontdesk, housekeeping, night audit and folios.",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\HotelManagement\\Providers\\HotelManagementServiceProvider"
+    ],
+    "files": []
+}
