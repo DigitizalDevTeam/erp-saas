@@ -17,8 +17,13 @@
         </li>
         @endif
         @if (Gate::check('manage hotel') || Gate::check('manage hotel room'))
-        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.rooms.') ? 'active' : '' }}">
+        <li class="dash-item {{ Request::route()->getName() === 'hotel.rooms.index' || (str_starts_with((string) Request::route()->getName(), 'hotel.rooms.') && Request::route()->getName() !== 'hotel.rooms.map') ? 'active' : '' }}">
             <a class="dash-link" href="{{ route('hotel.rooms.index') }}">{{ __('Rooms') }}</a>
+        </li>
+        @endif
+        @if (Gate::check('manage hotel') || Gate::check('manage hotel room'))
+        <li class="dash-item {{ Request::route()->getName() == 'hotel.rooms.map' ? 'active' : '' }}">
+            <a class="dash-link" href="{{ route('hotel.rooms.map') }}">{{ __('Mapa de Quartos') }}</a>
         </li>
         @endif
         @if (Gate::check('manage hotel') || Gate::check('manage hotel reservation'))

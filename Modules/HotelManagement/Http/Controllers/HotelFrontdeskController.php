@@ -10,9 +10,12 @@ use Modules\HotelManagement\Entities\HotelFolioLine;
 use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelStay;
+use Modules\HotelManagement\Http\Controllers\Concerns\BuildsRoomMap;
 
 class HotelFrontdeskController extends Controller
 {
+    use BuildsRoomMap;
+
     public function inHouse()
     {
         if (!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) {
@@ -22,7 +25,8 @@ class HotelFrontdeskController extends Controller
             ->with(['reservation.guest', 'reservation.room', 'folio.payments'])
             ->orderByDesc('id')
             ->get();
-        return view('hotelmanagement::frontdesk.in_house', compact('stays'));
+        $mapRooms = $this->roomsWithCurrentReservation((int) Auth::user()->creatorId());
+        return view('hotelmanagement::frontdesk.in_house', compact('stays', 'mapRooms'));
     }
 
     public function checkIn(HotelReservation $reservation)

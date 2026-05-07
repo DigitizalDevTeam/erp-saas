@@ -93,14 +93,19 @@
                             }
 
                             $tooltip = '';
+                            $fmtDate = function ($v) {
+                                if (!$v) return '';
+                                if ($v instanceof \Carbon\CarbonInterface) return $v->toDateString();
+                                return (string) $v;
+                            };
                             if ($status === 'occupied' && $reservation) {
                                 $tooltip = ($guest ? trim(($guest->first_name ?? '').' '.($guest->last_name ?? '')) . ' • ' : '')
-                                    . __('In') . ': ' . optional($reservation->check_in_date)
-                                    . ' / ' . __('Out') . ': ' . optional($reservation->check_out_date);
+                                    . __('In') . ': ' . $fmtDate($reservation->check_in_date)
+                                    . ' / ' . __('Out') . ': ' . $fmtDate($reservation->check_out_date);
                             } elseif ($status === 'reserved' && $reservation) {
                                 $tooltip = ($guest ? trim(($guest->first_name ?? '').' '.($guest->last_name ?? '')) . ' • ' : '')
-                                    . __('Reserved') . ': ' . optional($reservation->check_in_date)
-                                    . ' → ' . optional($reservation->check_out_date);
+                                    . __('Reserved') . ': ' . $fmtDate($reservation->check_in_date)
+                                    . ' → ' . $fmtDate($reservation->check_out_date);
                             } else {
                                 $tooltip = $meta['label'];
                             }
