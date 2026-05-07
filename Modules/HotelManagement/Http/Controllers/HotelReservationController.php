@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelGuest;
 use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelRoom;
@@ -58,11 +59,72 @@ class HotelReservationController extends Controller
         if (!Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
-        $reservations = HotelReservation::where('created_by', Auth::user()->creatorId())
+        $creatorId = Auth::user()->creatorId();
+        $today = Carbon::today()->toDateString();
+
+        $reservations = HotelReservation::where('created_by', $creatorId)
             ->with(['guest', 'room', 'roomType', 'stay.folio.payments'])
             ->orderByDesc('id')
             ->get();
-        return view('hotelmanagement::reservations.index', compact('reservations'));
+
+        $kpis = [
+            'today' => HotelReservation::where('created_by', $creatorId)
+                ->whereDate('check_in_date', $today)
+                ->count(),
+            'confirmed' => HotelReservation::where('created_by', $creatorId)
+                ->whereIn('status', [HotelReservation::STATUS_CONFIRMED, HotelReservation::STATUS_CHECKED_IN])
+                ->count(),
+            'pending' => HotelReservation::where('created_by', $creatorId)
+                ->where('status', HotelReservation::STATUS_PENDING)
+                ->count(),
+            'no_shows' => HotelReservation::where('created_by', $creatorId)
+                ->where('status', HotelReservation::STATUS_PENDING)
+                ->whereDate('check_in_date', '<', $today)
+                ->count(),
+            'revenue' => (float) \DB::table('hotel_folios')
+                ->join('hotel_stays', 'hotel_stays.id', '=', 'hotel_folios.hotel_stay_id')
+                ->join('hotel_reservations', 'hotel_reservations.id', '=', 'hotel_stays.hotel_reservation_id')
+                ->where('hotel_reservations.created_by', $creatorId)
+                ->whereIn('hotel_reservations.status', [
+                    HotelReservation::STATUS_CONFIRMED,
+                    HotelReservation::STATUS_CHECKED_IN,
+                    HotelReservation::STATUS_CHECKED_OUT,
+                ])
+                ->sum('hotel_folios.grand_total'),
+        ];
+
+        $sourceCounts = HotelReservation::where('created_by', $creatorId)
+            ->selectRaw('COALESCE(NULLIF(source, ""), "manual") as source, COUNT(*) as total')
+            ->groupBy('source')
+            ->pluck('total', 'source');
+
+        $sourceLabels = $sourceCounts->keys()->map(fn ($s) => __(\Illuminate\Support\Str::title(str_replace('_', ' ', $s))))->values();
+        $sourceSeries = $sourceCounts->values();
+        $totalSource = (int) $sourceCounts->sum();
+
+        $daySummary = [
+            'check_ins' => HotelReservation::where('created_by', $creatorId)
+                ->whereDate('check_in_date', $today)
+                ->count(),
+            'check_outs' => HotelReservation::where('created_by', $creatorId)
+                ->whereDate('check_out_date', $today)
+                ->count(),
+            'reservations' => HotelReservation::where('created_by', $creatorId)
+                ->whereDate('created_at', $today)
+                ->count(),
+            'revenue' => (float) HotelFolio::where('created_by', $creatorId)
+                ->whereDate('created_at', $today)
+                ->sum('grand_total'),
+            'occupancy_rate' => (function () use ($creatorId) {
+                $rt = HotelRoom::where('created_by', $creatorId)->count();
+                $occ = HotelRoom::where('created_by', $creatorId)->where('status', HotelRoom::STATUS_OCCUPIED)->count();
+                return $rt > 0 ? round(($occ / $rt) * 100, 1) : 0;
+            })(),
+        ];
+
+        $recent = $reservations->take(8);
+
+        return view('hotelmanagement::reservations.index', compact('reservations', 'kpis', 'sourceLabels', 'sourceSeries', 'totalSource', 'daySummary', 'recent'));
     }
 
     public function create()

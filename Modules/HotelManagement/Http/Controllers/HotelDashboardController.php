@@ -5,7 +5,9 @@ namespace Modules\HotelManagement\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Modules\HotelManagement\Entities\HotelFolio;
+use Modules\HotelManagement\Entities\HotelHousekeepingTask;
 use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelStay;
@@ -121,9 +123,312 @@ class HotelDashboardController extends Controller
                 ->where('status', 'open')
                 ->whereColumn('paid_total', '<', 'grand_total')
                 ->count(),
+            'inHouseGuests' => $this->inHouseGuestList($creatorId),
+            'alerts' => $this->alertsFeed($creatorId, $today),
+            'recentActivity' => $this->recentActivity($creatorId),
+            'financial' => $this->financialSummary($creatorId, $today),
         ];
 
         return view('hotelmanagement::dashboard', compact('data'));
+    }
+
+    /**
+     * Top 8 in-house stays with guest, room and folio info — used by the dashboard mini list.
+     */
+    private function inHouseGuestList(int $creatorId)
+    {
+        return HotelStay::where('created_by', $creatorId)
+            ->where('status', 'in_house')
+            ->with(['reservation.guest', 'reservation.room', 'folio'])
+            ->orderByDesc('check_in_at')
+            ->limit(8)
+            ->get();
+    }
+
+    /**
+     * Aggregates the alerts feed from existing data:
+     *  - Late check-ins (reservations with check-in date <= today, status pending/confirmed, not checked in)
+     *  - Rooms ready for cleaning (status = cleaning)
+     *  - VIP arrivals today
+     *  - Pending payments (open folios with balance)
+     *  - Scheduled maintenance (rooms with status = maintenance)
+     */
+    private function alertsFeed(int $creatorId, Carbon $today): array
+    {
+        $alerts = [];
+
+        $lateCheckIns = HotelReservation::where('created_by', $creatorId)
+            ->whereIn('status', [HotelReservation::STATUS_PENDING, HotelReservation::STATUS_CONFIRMED])
+            ->whereDate('check_in_date', '<', $today->toDateString())
+            ->with(['guest', 'room'])
+            ->orderBy('check_in_date')
+            ->limit(5)
+            ->get();
+
+        foreach ($lateCheckIns as $r) {
+            $name = trim(($r->guest->first_name ?? '') . ' ' . ($r->guest->last_name ?? ''));
+            $alerts[] = [
+                'kind' => 'late_check_in',
+                'level' => 'danger',
+                'icon' => 'ti ti-alert-triangle',
+                'title' => __('Late check-in'),
+                'description' => ($name ?: __('Guest')) . ' — ' . __('Room') . ' ' . ($r->room->room_no ?? '—'),
+                'when' => optional($r->check_in_date)->format('d/m/Y') ?: $r->check_in_date,
+                'href' => route('hotel.reservations.edit', $r->id),
+            ];
+        }
+
+        $cleaningRooms = HotelRoom::where('created_by', $creatorId)
+            ->where('status', HotelRoom::STATUS_CLEANING)
+            ->orderBy('room_no')
+            ->limit(5)
+            ->get();
+
+        foreach ($cleaningRooms as $room) {
+            $alerts[] = [
+                'kind' => 'cleaning',
+                'level' => 'warning',
+                'icon' => 'ti ti-spray',
+                'title' => __('Room ready for cleaning'),
+                'description' => __('Room') . ' ' . $room->room_no,
+                'when' => null,
+                'href' => route('hotel.housekeeping.index'),
+            ];
+        }
+
+        if (Schema::hasTable('hotel_guests')) {
+            $vipArrivals = HotelReservation::where('created_by', $creatorId)
+                ->whereDate('check_in_date', $today->toDateString())
+                ->whereIn('status', [HotelReservation::STATUS_PENDING, HotelReservation::STATUS_CONFIRMED])
+                ->whereHas('guest', fn ($q) => $q->where('is_vip', 1))
+                ->with(['guest', 'room'])
+                ->limit(3)
+                ->get();
+
+            foreach ($vipArrivals as $r) {
+                $name = trim(($r->guest->first_name ?? '') . ' ' . ($r->guest->last_name ?? ''));
+                $alerts[] = [
+                    'kind' => 'vip_arrival',
+                    'level' => 'info',
+                    'icon' => 'ti ti-star-filled',
+                    'title' => __('VIP guest arriving today'),
+                    'description' => $name . ' — ' . __('Room') . ' ' . ($r->room->room_no ?? __('not assigned')),
+                    'when' => __('Today'),
+                    'href' => route('hotel.reservations.edit', $r->id),
+                ];
+            }
+        }
+
+        $pendingPayments = HotelFolio::where('created_by', $creatorId)
+            ->where('status', 'open')
+            ->whereColumn('paid_total', '<', 'grand_total')
+            ->with('stay.reservation.guest', 'stay.reservation.room')
+            ->orderByDesc('id')
+            ->limit(4)
+            ->get();
+
+        foreach ($pendingPayments as $f) {
+            $guest = $f->stay->reservation->guest ?? null;
+            $name = $guest ? trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? '')) : __('Guest');
+            $room = $f->stay->reservation->room->room_no ?? '—';
+            $alerts[] = [
+                'kind' => 'pending_payment',
+                'level' => 'info',
+                'icon' => 'ti ti-credit-card',
+                'title' => __('Pending payment'),
+                'description' => $name . ' — ' . __('Room') . ' ' . $room . ' · ' . Auth::user()->priceFormat(max(0, $f->grand_total - $f->paid_total)),
+                'when' => null,
+                'href' => route('hotel.folios.show', $f->id),
+            ];
+        }
+
+        $maintenanceRooms = HotelRoom::where('created_by', $creatorId)
+            ->where('status', HotelRoom::STATUS_MAINTENANCE)
+            ->orderBy('room_no')
+            ->limit(3)
+            ->get();
+
+        foreach ($maintenanceRooms as $room) {
+            $alerts[] = [
+                'kind' => 'maintenance',
+                'level' => 'secondary',
+                'icon' => 'ti ti-tool',
+                'title' => __('Scheduled maintenance'),
+                'description' => __('Room') . ' ' . $room->room_no . ($room->notes ? ' · ' . $room->notes : ''),
+                'when' => null,
+                'href' => route('hotel.rooms.edit', $room->id),
+            ];
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Recent activity feed assembled from check-ins, check-outs, payments and new reservations.
+     */
+    private function recentActivity(int $creatorId): array
+    {
+        $events = [];
+
+        $recentCheckIns = HotelStay::where('created_by', $creatorId)
+            ->where('status', 'in_house')
+            ->with(['reservation.guest', 'reservation.room'])
+            ->orderByDesc('check_in_at')
+            ->limit(5)
+            ->get();
+
+        foreach ($recentCheckIns as $s) {
+            $guest = $s->reservation->guest ?? null;
+            $name = $guest ? trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? '')) : __('Guest');
+            $events[] = [
+                'kind' => 'check_in',
+                'icon' => 'ti ti-login',
+                'level' => 'success',
+                'title' => __('Check-in performed'),
+                'description' => $name . ' — ' . __('Room') . ' ' . ($s->reservation->room->room_no ?? '—'),
+                'when' => $s->check_in_at,
+                'sort' => $s->check_in_at,
+            ];
+        }
+
+        $recentCheckOuts = HotelStay::where('created_by', $creatorId)
+            ->where('status', 'checked_out')
+            ->whereNotNull('checked_out_at')
+            ->with(['reservation.guest', 'reservation.room'])
+            ->orderByDesc('checked_out_at')
+            ->limit(5)
+            ->get();
+
+        foreach ($recentCheckOuts as $s) {
+            $guest = $s->reservation->guest ?? null;
+            $name = $guest ? trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? '')) : __('Guest');
+            $events[] = [
+                'kind' => 'check_out',
+                'icon' => 'ti ti-logout',
+                'level' => 'primary',
+                'title' => __('Check-out performed'),
+                'description' => $name . ' — ' . __('Room') . ' ' . ($s->reservation->room->room_no ?? '—'),
+                'when' => $s->checked_out_at,
+                'sort' => $s->checked_out_at,
+            ];
+        }
+
+        if (Schema::hasTable('hotel_folio_payments')) {
+            $recentPayments = \DB::table('hotel_folio_payments as p')
+                ->leftJoin('hotel_folios as f', 'f.id', '=', 'p.hotel_folio_id')
+                ->leftJoin('hotel_stays as s', 's.id', '=', 'f.hotel_stay_id')
+                ->leftJoin('hotel_reservations as r', 'r.id', '=', 's.hotel_reservation_id')
+                ->leftJoin('hotel_guests as g', 'g.id', '=', 'r.hotel_guest_id')
+                ->where('p.created_by', $creatorId)
+                ->orderByDesc('p.created_at')
+                ->limit(5)
+                ->select('p.amount', 'p.method', 'p.created_at', 'g.first_name', 'g.last_name', 'r.hotel_room_id', 'f.id as folio_id')
+                ->get();
+
+            foreach ($recentPayments as $p) {
+                $name = trim(($p->first_name ?? '') . ' ' . ($p->last_name ?? '')) ?: __('Guest');
+                $events[] = [
+                    'kind' => 'payment',
+                    'icon' => 'ti ti-cash',
+                    'level' => 'info',
+                    'title' => __('Payment received'),
+                    'description' => $name . ' · ' . Auth::user()->priceFormat($p->amount),
+                    'when' => $p->created_at,
+                    'sort' => $p->created_at,
+                ];
+            }
+        }
+
+        $recentReservations = HotelReservation::where('created_by', $creatorId)
+            ->with(['guest', 'group', 'room'])
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get();
+
+        foreach ($recentReservations as $r) {
+            $guest = $r->guest;
+            $label = $r->group?->name ? $r->group->name : ($guest ? trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? '')) : __('Guest'));
+            $events[] = [
+                'kind' => 'reservation',
+                'icon' => 'ti ti-calendar-plus',
+                'level' => 'warning',
+                'title' => __('New reservation'),
+                'description' => $label . ' — ' . __('Room') . ' ' . ($r->room->room_no ?? __('not assigned')),
+                'when' => $r->created_at,
+                'sort' => $r->created_at,
+            ];
+        }
+
+        if (Schema::hasTable('hotel_housekeeping_tasks')) {
+            $recentHk = HotelHousekeepingTask::where('created_by', $creatorId)
+                ->where('status', '!=', 'done')
+                ->with(['room'])
+                ->orderByDesc('updated_at')
+                ->limit(3)
+                ->get();
+
+            foreach ($recentHk as $hk) {
+                $events[] = [
+                    'kind' => 'housekeeping',
+                    'icon' => 'ti ti-spray',
+                    'level' => 'secondary',
+                    'title' => __('Room needs cleaning'),
+                    'description' => __('Room') . ' ' . ($hk->room->room_no ?? '—'),
+                    'when' => $hk->updated_at,
+                    'sort' => $hk->updated_at,
+                ];
+            }
+        }
+
+        usort($events, function ($a, $b) {
+            $tsA = $a['sort'] ? Carbon::parse($a['sort'])->getTimestamp() : 0;
+            $tsB = $b['sort'] ? Carbon::parse($b['sort'])->getTimestamp() : 0;
+            return $tsB <=> $tsA;
+        });
+
+        return array_slice($events, 0, 8);
+    }
+
+    /**
+     * Returns financial summary used by the right-side card on the dashboard.
+     */
+    private function financialSummary(int $creatorId, Carbon $today): array
+    {
+        $todayRev = (float) HotelFolio::where('created_by', $creatorId)
+            ->whereDate('created_at', $today->toDateString())
+            ->sum('grand_total');
+
+        $yesterdayRev = (float) HotelFolio::where('created_by', $creatorId)
+            ->whereDate('created_at', $today->copy()->subDay()->toDateString())
+            ->sum('grand_total');
+
+        $pendingFolios = HotelFolio::where('created_by', $creatorId)
+            ->where('status', 'open')
+            ->whereColumn('paid_total', '<', 'grand_total')
+            ->get(['grand_total', 'paid_total']);
+
+        $pendingCount = $pendingFolios->count();
+        $pendingAmount = (float) $pendingFolios->sum(fn ($f) => max(0, $f->grand_total - $f->paid_total));
+
+        $totalReceivables = (float) HotelFolio::where('created_by', $creatorId)
+            ->whereColumn('paid_total', '<', 'grand_total')
+            ->sum(\DB::raw('grand_total - paid_total'));
+
+        $trend = 0.0;
+        if ($yesterdayRev > 0.0) {
+            $trend = round((($todayRev - $yesterdayRev) / $yesterdayRev) * 100, 1);
+        } elseif ($todayRev > 0) {
+            $trend = 100.0;
+        }
+
+        return [
+            'today_revenue' => $todayRev,
+            'yesterday_revenue' => $yesterdayRev,
+            'today_trend_pct' => $trend,
+            'pending_count' => $pendingCount,
+            'pending_amount' => $pendingAmount,
+            'total_receivables' => $totalReceivables,
+        ];
     }
 
     /**

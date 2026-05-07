@@ -26,6 +26,11 @@
             <a class="dash-link" href="{{ route('hotel.rooms.map') }}">{{ __('Mapa de Quartos') }}</a>
         </li>
         @endif
+        @if (Gate::check('manage hotel') || Gate::check('manage hotel reservation') || Gate::check('manage hotel frontdesk'))
+        <li class="dash-item {{ Request::route()->getName() == 'hotel.guests.map' ? 'active' : '' }}">
+            <a class="dash-link" href="{{ route('hotel.guests.map') }}">{{ __('Mapa de Hospedes') }}</a>
+        </li>
+        @endif
         @if (Gate::check('manage hotel') || Gate::check('manage hotel reservation'))
         <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.reservations.') ? 'active' : '' }}">
             <a class="dash-link" href="{{ route('hotel.reservations.index') }}">{{ __('Reservations') }}</a>

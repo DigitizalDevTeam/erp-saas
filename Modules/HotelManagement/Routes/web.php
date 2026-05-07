@@ -11,6 +11,7 @@ use Modules\HotelManagement\Http\Controllers\HotelDashboardController;
 use Modules\HotelManagement\Http\Controllers\HotelFolioController;
 use Modules\HotelManagement\Http\Controllers\HotelFrontdeskController;
 use Modules\HotelManagement\Http\Controllers\HotelGroupController;
+use Modules\HotelManagement\Http\Controllers\HotelGuestMapController;
 use Modules\HotelManagement\Http\Controllers\HotelHousekeepingController;
 use Modules\HotelManagement\Http\Controllers\HotelNightAuditController;
 use Modules\HotelManagement\Http\Controllers\HotelOtaSettingsController;
@@ -60,6 +61,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('hotel/folios/{folio}/payments', [HotelFolioController::class, 'storePayment'])->name('hotel.folios.payments.store');
 
             Route::get('hotel/rooms/map', [HotelRoomController::class, 'map'])->name('hotel.rooms.map');
+            Route::get('hotel/guests/map', [HotelGuestMapController::class, 'index'])->name('hotel.guests.map');
             Route::resource('hotel/rooms', HotelRoomController::class)->names('hotel.rooms');
             Route::resource('hotel/room-types', HotelRoomTypeController::class)->except(['show'])->names('hotel.room-types');
             Route::resource('hotel/reservations', HotelReservationController::class)->names('hotel.reservations');

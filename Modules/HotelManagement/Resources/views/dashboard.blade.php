@@ -74,6 +74,69 @@
         </div>
 
         <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-body py-3">
+                    <div class="row g-2">
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <a href="{{ route('hotel.frontdesk.in-house') }}" class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2 py-2">
+                                <i class="ti ti-login fs-5"></i>
+                                <span class="text-start lh-sm small">
+                                    <strong class="d-block">{{ __('Novo Check-in') }}</strong>
+                                    <span class="opacity-75">{{ __('Register guest') }}</span>
+                                </span>
+                            </a>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <a href="{{ route('hotel.frontdesk.in-house') }}" class="btn btn-success w-100 d-flex align-items-center justify-content-center gap-2 py-2">
+                                <i class="ti ti-logout fs-5"></i>
+                                <span class="text-start lh-sm small">
+                                    <strong class="d-block">{{ __('Check-out') }}</strong>
+                                    <span class="opacity-75">{{ __('Finish stay') }}</span>
+                                </span>
+                            </a>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <a href="{{ route('hotel.reservations.create') }}" class="btn btn-info w-100 d-flex align-items-center justify-content-center gap-2 py-2 text-white">
+                                <i class="ti ti-calendar-plus fs-5"></i>
+                                <span class="text-start lh-sm small">
+                                    <strong class="d-block">{{ __('Nova Reserva') }}</strong>
+                                    <span class="opacity-75">{{ __('Create reservation') }}</span>
+                                </span>
+                            </a>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <a href="{{ route('hotel.rooms.map') }}" class="btn btn-warning w-100 d-flex align-items-center justify-content-center gap-2 py-2">
+                                <i class="ti ti-arrows-exchange fs-5"></i>
+                                <span class="text-start lh-sm small">
+                                    <strong class="d-block">{{ __('Trocar Quarto') }}</strong>
+                                    <span class="opacity-75">{{ __('Change room') }}</span>
+                                </span>
+                            </a>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <a href="{{ route('hotel.frontdesk.in-house') }}" class="btn btn-outline-success w-100 d-flex align-items-center justify-content-center gap-2 py-2">
+                                <i class="ti ti-credit-card fs-5"></i>
+                                <span class="text-start lh-sm small">
+                                    <strong class="d-block">{{ __('Pagamento') }}</strong>
+                                    <span class="opacity-75">{{ __('Register payment') }}</span>
+                                </span>
+                            </a>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <a href="{{ route('hotel.reservations.index') }}" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2 py-2">
+                                <i class="ti ti-receipt fs-5"></i>
+                                <span class="text-start lh-sm small">
+                                    <strong class="d-block">{{ __('Fatura') }}</strong>
+                                    <span class="opacity-75">{{ __('Issue invoice') }}</span>
+                                </span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
             <div class="card shadow-sm border-0 {{ ($data['smart']['low_occupancy'] ?? false) ? 'border-warning' : '' }}" style="border-left: 4px solid #6366F1 !important;">
                 <div class="card-body">
                     <h6 class="text-muted mb-2">{{ __('Smart insights') }}</h6>
@@ -86,8 +149,8 @@
             </div>
         </div>
 
-        <div class="col-12">
-            <div class="card shadow-sm border-0">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
                         <h5 class="mb-0">{{ __('Mapa de Quartos') }}</h5>
@@ -106,6 +169,120 @@
                 </div>
             </div>
         </div>
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ __('Alerts and Tasks') }}</h5>
+                    <a class="small" href="{{ route('hotel.reports.alerts') }}">{{ __('See all') }}</a>
+                </div>
+                <div class="card-body p-0">
+                    @if(empty($data['alerts']))
+                        <p class="text-muted small p-3 mb-0">{{ __('No active alerts. Everything looks great!') }}</p>
+                    @else
+                        <ul class="list-group list-group-flush">
+                            @foreach($data['alerts'] as $alert)
+                                <li class="list-group-item d-flex align-items-start gap-2">
+                                    <span class="badge bg-{{ $alert['level'] }} d-flex align-items-center justify-content-center" style="width:32px;height:32px;border-radius:50%;flex-shrink:0;">
+                                        <i class="{{ $alert['icon'] }}"></i>
+                                    </span>
+                                    <div class="flex-grow-1" style="min-width:0;">
+                                        <a class="d-block text-decoration-none text-body" href="{{ $alert['href'] }}">
+                                            <strong class="small d-block">{{ $alert['title'] }}</strong>
+                                            <small class="text-muted text-truncate d-block">{{ $alert['description'] }}</small>
+                                        </a>
+                                    </div>
+                                    @if(!empty($alert['when']))
+                                        <small class="text-muted text-nowrap">{{ $alert['when'] }}</small>
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">{{ __('Hospedes em Estadia') }}</h5>
+                        <small class="text-muted">{{ __('Top') }} {{ $data['inHouseGuests']->count() }} {{ __('of') }} {{ $data['inHouse'] }}</small>
+                    </div>
+                    <a class="small" href="{{ route('hotel.frontdesk.in-house') }}">{{ __('See all') }}</a>
+                </div>
+                <div class="card-body p-0">
+                    @if($data['inHouseGuests']->isEmpty())
+                        <p class="text-muted small p-3 mb-0">{{ __('No guests currently in house.') }}</p>
+                    @else
+                        <div class="table-responsive">
+                            <table class="table mb-0">
+                                <thead><tr><th>{{ __('Guest') }}</th><th>{{ __('Room') }}</th><th>{{ __('Check-in') }}</th><th>{{ __('Check-out') }}</th><th>{{ __('Status') }}</th></tr></thead>
+                                <tbody>
+                                @foreach($data['inHouseGuests'] as $stay)
+                                    @php
+                                        $g = $stay->reservation->guest ?? null;
+                                        $name = $g ? trim(($g->first_name ?? '').' '.($g->last_name ?? '')) : __('Guest');
+                                        $room = $stay->reservation->room->room_no ?? '—';
+                                        $exp = $stay->expected_check_out_at ? \Carbon\Carbon::parse($stay->expected_check_out_at)->format('d/m/Y') : '—';
+                                        $isCheckOutToday = $stay->expected_check_out_at && \Carbon\Carbon::parse($stay->expected_check_out_at)->isToday();
+                                    @endphp
+                                    <tr>
+                                        <td>
+                                            <strong class="small">{{ $name }}</strong>
+                                            @if($g && !empty($g->is_vip)) <i class="ti ti-star-filled text-warning ms-1" title="VIP"></i> @endif
+                                        </td>
+                                        <td>{{ $room }}</td>
+                                        <td>{{ $stay->check_in_at ? \Carbon\Carbon::parse($stay->check_in_at)->format('d/m/Y') : '—' }}</td>
+                                        <td>{{ $exp }}</td>
+                                        <td>
+                                            @if($isCheckOutToday)
+                                                <span class="badge bg-warning">{{ __('Check-out today') }}</span>
+                                            @else
+                                                <span class="badge bg-success">{{ __('Hospedado') }}</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ __('Resumo Financeiro') }}</h5>
+                    <a class="small" href="{{ route('hotel.reports.financial') }}">{{ __('See report') }}</a>
+                </div>
+                <div class="card-body">
+                    @php
+                        $fin = $data['financial'];
+                        $finTrend = (float) ($fin['today_trend_pct'] ?? 0);
+                        $finTrendIcon = $finTrend > 0.01 ? 'ti ti-trending-up' : ($finTrend < -0.01 ? 'ti ti-trending-down' : 'ti ti-minus');
+                        $finTrendCls = $finTrend > 0.01 ? 'text-success' : ($finTrend < -0.01 ? 'text-danger' : 'text-muted');
+                    @endphp
+                    <p class="text-muted small mb-1">{{ __('Today Revenue') }}</p>
+                    <h3 class="mb-0">{{ Auth::user()->priceFormat($fin['today_revenue']) }}</h3>
+                    <small class="{{ $finTrendCls }}"><i class="{{ $finTrendIcon }} me-1"></i>{{ ($finTrend > 0 ? '+' : '') . number_format($finTrend, 1) }}% {{ __('vs yesterday') }}</small>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">{{ __('Pending payments') }}</span>
+                        <span class="text-end">
+                            <strong>{{ $fin['pending_count'] }}</strong>
+                            <small class="text-muted d-block">{{ Auth::user()->priceFormat($fin['pending_amount']) }}</small>
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">{{ __('Total receivables') }}</span>
+                        <strong>{{ Auth::user()->priceFormat($fin['total_receivables']) }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <div class="col-lg-8">
             <div class="card shadow-sm border-0">
@@ -120,6 +297,36 @@
         </div>
         <div class="col-lg-4">
             <div class="card shadow-sm border-0 h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ __('Recent Activity') }}</h5>
+                </div>
+                <div class="card-body p-0">
+                    @if(empty($data['recentActivity']))
+                        <p class="text-muted small p-3 mb-0">{{ __('No recent activity yet.') }}</p>
+                    @else
+                        <ul class="list-group list-group-flush">
+                            @foreach($data['recentActivity'] as $event)
+                                <li class="list-group-item d-flex align-items-start gap-2">
+                                    <span class="badge bg-{{ $event['level'] }} d-flex align-items-center justify-content-center" style="width:30px;height:30px;border-radius:50%;flex-shrink:0;">
+                                        <i class="{{ $event['icon'] }}"></i>
+                                    </span>
+                                    <div class="flex-grow-1" style="min-width:0;">
+                                        <strong class="small d-block">{{ $event['title'] }}</strong>
+                                        <small class="text-muted text-truncate d-block">{{ $event['description'] }}</small>
+                                    </div>
+                                    @if(!empty($event['when']))
+                                        <small class="text-muted text-nowrap">{{ \Carbon\Carbon::parse($event['when'])->diffForHumans() }}</small>
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
                 <div class="card-header">
                     <h5 class="mb-0">{{ __('Reservation Status Mix') }}</h5>
                 </div>
