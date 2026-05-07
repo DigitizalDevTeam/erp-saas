@@ -6,6 +6,9 @@ return [
         'resources',
         'Modules/LandingPage/Http',
         'Modules/LandingPage/Resources',
+        'Modules/HotelManagement/Http',
+        'Modules/HotelManagement/Resources',
+        'Modules/HotelManagement/Console',
     ],
 
     // Directories to exclude from search.

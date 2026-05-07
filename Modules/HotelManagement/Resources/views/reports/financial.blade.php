@@ -16,7 +16,7 @@
         <h6>{{ __('Payments by method') }}</h6>
         <ul>
             @foreach($methodTotals as $m => $t)
-                <li><strong>{{ $m }}:</strong> {{ Auth::user()->priceFormat($t) }}</li>
+                <li><strong>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $m))) }}:</strong> {{ Auth::user()->priceFormat($t) }}</li>
             @endforeach
         </ul>
     @endif

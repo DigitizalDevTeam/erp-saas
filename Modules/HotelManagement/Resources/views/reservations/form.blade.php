@@ -44,7 +44,7 @@
                             <span class="input-group-text bg-white px-2">
                                 <div class="form-check m-0">
                                     {!! Form::checkbox('is_vip', 1, $guest?->is_vip, ['class' => 'form-check-input me-1', 'id' => 'is_vip']) !!}
-                                    <label for="is_vip" class="form-check-label small mb-0">VIP</label>
+                                    <label for="is_vip" class="form-check-label small mb-0">{{ __('VIP') }}</label>
                                 </div>
                             </span>
                         </div>
@@ -83,11 +83,11 @@
                             <button type="button" class="btn btn-outline-primary" id="btn_suggest_room" title="{{ __('Suggest available room') }}"><i class="ti ti-wand"></i></button>
                         </div>
                     </div>
-                    <div class="col-md-4">{!! Form::label('source', __('Source'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('source', ['manual' => 'Manual', 'walkin' => 'Walk-in', 'online' => 'Online', 'ota' => 'OTA'], $reservation?->source ?? 'manual', ['class' => 'form-control']) !!}</div>
+                    <div class="col-md-4">{!! Form::label('source', __('Source'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('source', ['manual' => __('Manual'), 'walkin' => __('Walk-in'), 'online' => __('Online'), 'ota' => __('OTA')], $reservation?->source ?? 'manual', ['class' => 'form-control']) !!}</div>
 
                     <div class="col-md-4">{!! Form::label('check_in_at', __('Check-in'), ['class' => 'form-label small mb-1']) !!}<input type="datetime-local" name="check_in_at" id="check_in_at" value="{{ $checkInAtValue }}" class="form-control" required></div>
                     <div class="col-md-4">{!! Form::label('check_out_at', __('Check-out'), ['class' => 'form-label small mb-1']) !!}<input type="datetime-local" name="check_out_at" id="check_out_at" value="{{ $checkOutAtValue }}" class="form-control" required></div>
-                    <div class="col-md-4">{!! Form::label('status', __('Status'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('status', ['pending' => 'Pending', 'confirmed' => 'Confirmed', 'checked_in' => 'Checked In', 'checked_out' => 'Checked Out', 'cancelled' => 'Cancelled'], $reservation?->status ?? 'pending', ['class' => 'form-control', 'id' => 'reservation_status']) !!}</div>
+                    <div class="col-md-4">{!! Form::label('status', __('Status'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('status', ['pending' => __('Pending'), 'confirmed' => __('Confirmed'), 'checked_in' => __('Checked In'), 'checked_out' => __('Checked Out'), 'cancelled' => __('Cancelled')], $reservation?->status ?? 'pending', ['class' => 'form-control', 'id' => 'reservation_status']) !!}</div>
 
                     <div class="col-md-3">{!! Form::label('adults', __('Adults'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('adults', $reservation?->adults ?? 1, ['class' => 'form-control', 'min' => 1]) !!}</div>
                     <div class="col-md-3">{!! Form::label('children', __('Children'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('children', $reservation?->children ?? 0, ['class' => 'form-control', 'min' => 0]) !!}</div>
@@ -136,7 +136,7 @@
             list.forEach(function (room) {
                 var selected = selectedRoomId && String(room.id) === String(selectedRoomId) ? ' selected' : '';
                 var st = room.status ? ' [' + room.status + ']' : '';
-                html += '<option value="' + room.id + '"' + selected + '>Room ' + room.room_no + st + '</option>';
+                html += '<option value="' + room.id + '"' + selected + '>{{ __("Room") }} ' + room.room_no + st + '</option>';
             });
             roomSelect.innerHTML = html;
         }

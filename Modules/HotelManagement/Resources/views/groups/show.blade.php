@@ -26,7 +26,7 @@
             <td>
                 @if($folio)
                     @php $ps = $folio->paymentStatusLabel(); @endphp
-                    <span class="badge bg-{{ $ps === 'paid' ? 'success' : ($ps === 'partial' ? 'warning' : 'secondary') }}">{{ ucfirst($ps) }}</span>
+                    <span class="badge bg-{{ $ps === 'paid' ? 'success' : ($ps === 'partial' ? 'warning' : 'secondary') }}">{{ __(ucfirst($ps)) }}</span>
                 @else
                     —
                 @endif

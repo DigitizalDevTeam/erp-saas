@@ -16,7 +16,7 @@
         <tr>
             <td>{{ $task->room->room_no ?? '-' }}</td>
             <td>{{ $task->assignee->name ?? '-' }}</td>
-            <td>{{ ucfirst(str_replace('_',' ',$task->status)) }}</td>
+            <td>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $task->status))) }}</td>
             <td>{{ $task->notes }}</td>
             <td><a class="btn btn-sm btn-info" href="{{ route('hotel.housekeeping.edit', $task->id) }}"><i class="ti ti-pencil text-white"></i></a></td>
         </tr>

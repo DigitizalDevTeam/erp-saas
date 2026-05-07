@@ -31,7 +31,7 @@
     <h6>{{ __('Room status snapshot') }}</h6>
     <ul class="list-inline">
         @foreach($roomStatus as $st => $c)
-            <li class="list-inline-item"><strong>{{ ucfirst($st) }}:</strong> {{ $c }}</li>
+            <li class="list-inline-item"><strong>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $st))) }}:</strong> {{ $c }}</li>
         @endforeach
     </ul>
 </div></div>

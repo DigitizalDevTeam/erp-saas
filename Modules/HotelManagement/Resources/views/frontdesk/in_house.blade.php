@@ -42,7 +42,7 @@
                                 <td>{{ trim(($stay->reservation->guest->first_name ?? '').' '.($stay->reservation->guest->last_name ?? '')) }}</td>
                                 <td>{{ $stay->reservation->room->room_no ?? '-' }}</td>
                                 <td>{{ $stay->check_in_at }}</td>
-                                <td>{{ ucfirst(str_replace('_',' ',$stay->status)) }}</td>
+                                <td>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $stay->status))) }}</td>
                                 <td>
                                     @if($stay->folio)
                                         <a href="{{ route('hotel.folios.show', $stay->folio->id) }}">{{ $stay->folio->folio_no }}</a>
@@ -51,7 +51,7 @@
                                 <td>
                                     @if($stay->folio)
                                         @php $ps = $stay->folio->paymentStatusLabel(); @endphp
-                                        <span class="badge bg-{{ $ps === 'paid' ? 'success' : ($ps === 'partial' ? 'warning' : 'secondary') }}">{{ ucfirst($ps) }}</span>
+                                        <span class="badge bg-{{ $ps === 'paid' ? 'success' : ($ps === 'partial' ? 'warning' : 'secondary') }}">{{ __(ucfirst($ps)) }}</span>
                                     @else
                                         —
                                     @endif

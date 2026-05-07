@@ -120,7 +120,7 @@
                                 <div class="d-flex align-items-center justify-content-between">
                                     <span class="room-no">{{ $room->room_no }}</span>
                                     @if($guest && !empty($guest->is_vip))
-                                        <i class="ti ti-star-filled text-warning" title="VIP"></i>
+                                        <i class="ti ti-star-filled text-warning" title="{{ __('VIP') }}"></i>
                                     @endif
                                 </div>
                                 <span class="room-status-pill" style="background: {{ $meta['color'] }};">{{ $meta['label'] }}</span>

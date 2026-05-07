@@ -21,7 +21,7 @@
             <td>{{ Auth::user()->priceFormat($audit->room_revenue) }}</td>
             <td>{{ Auth::user()->priceFormat($audit->service_revenue) }}</td>
             <td>{{ Auth::user()->priceFormat($audit->total_revenue) }}</td>
-            <td>{{ ucfirst($audit->status) }}</td>
+            <td>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $audit->status))) }}</td>
         </tr>
     @endforeach
     </tbody>

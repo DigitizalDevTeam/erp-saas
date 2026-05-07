@@ -18,12 +18,12 @@
             <td>{{ trim(($r->guest->first_name ?? '').' '.($r->guest->last_name ?? '')) }}</td>
             <td>{{ $r->room->room_no ?? '-' }}</td>
             <td>{{ $r->check_in_date }} - {{ $r->check_out_date }}</td>
-            <td>{{ ucfirst(str_replace('_',' ',$r->status)) }}</td>
+            <td>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $r->status))) }}</td>
             <td>
                 @php $folio = $r->stay?->folio; @endphp
                 @if($folio)
                     @php $ps = $folio->paymentStatusLabel(); @endphp
-                    <span class="badge bg-{{ $ps === 'paid' ? 'success' : ($ps === 'partial' ? 'warning' : 'secondary') }}">{{ ucfirst($ps) }}</span>
+                    <span class="badge bg-{{ $ps === 'paid' ? 'success' : ($ps === 'partial' ? 'warning' : 'secondary') }}">{{ __(ucfirst($ps)) }}</span>
                     <a class="small" href="{{ route('hotel.folios.show', $folio->id) }}">{{ __('Folio') }}</a>
                 @else
                     <span class="text-muted">—</span>

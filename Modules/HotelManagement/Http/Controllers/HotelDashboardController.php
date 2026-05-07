@@ -108,7 +108,7 @@ class HotelDashboardController extends Controller
                 'revenue' => $this->trendVsYesterday($revenueSeries->all()),
             ],
             'mapRooms' => $mapRooms,
-            'statusLabels' => ['Pending', 'Confirmed', 'Checked In', 'Checked Out', 'Cancelled'],
+            'statusLabels' => [__('Pending'), __('Confirmed'), __('Checked In'), __('Checked Out'), __('Cancelled')],
             'statusSeries' => [
                 (int) ($statusCounts['pending'] ?? 0),
                 (int) ($statusCounts['confirmed'] ?? 0),

@@ -16,10 +16,10 @@
                 <div>
                     <h5 class="mb-1">{{ $folio->folio_no }}</h5>
                     <p class="mb-1">{{ __('Guest') }}: {{ trim(($folio->stay->reservation->guest->first_name ?? '').' '.($folio->stay->reservation->guest->last_name ?? '')) }}</p>
-                    <p class="mb-0">{{ __('Folio status') }}: {{ ucfirst($folio->status) }}</p>
+                    <p class="mb-0">{{ __('Folio status') }}: {{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $folio->status))) }}</p>
                 </div>
                 <div class="text-end">
-                    <span class="badge bg-{{ $ps === 'paid' ? 'success' : ($ps === 'partial' ? 'warning' : 'secondary') }} fs-6">{{ __('Payment') }}: {{ ucfirst($ps) }}</span>
+                    <span class="badge bg-{{ $ps === 'paid' ? 'success' : ($ps === 'partial' ? 'warning' : 'secondary') }} fs-6">{{ __('Payment') }}: {{ __(ucfirst($ps)) }}</span>
                     <p class="mb-0 mt-2"><strong>{{ __('Grand total') }}:</strong> {{ Auth::user()->priceFormat($folio->grand_total) }}</p>
                     <p class="mb-0"><strong>{{ __('Paid') }}:</strong> {{ Auth::user()->priceFormat($folio->paid_total) }}</p>
                 </div>

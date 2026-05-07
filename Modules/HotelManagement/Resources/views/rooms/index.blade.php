@@ -16,7 +16,7 @@
         <tr>
             <td>{{ $room->room_no }}</td>
             <td>{{ $room->roomType->name ?? '-' }}</td>
-            <td>{{ ucfirst($room->status) }}</td>
+            <td>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $room->status))) }}</td>
             <td>{{ $room->override_price ?? '-' }}</td>
             <td>
                 <a class="btn btn-sm btn-info" href="{{ route('hotel.rooms.edit', $room->id) }}"><i class="ti ti-pencil text-white"></i></a>

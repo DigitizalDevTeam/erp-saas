@@ -17,7 +17,7 @@
 {!! Form::open(['route' => 'hotel.ota-settings.update', 'method' => 'POST']) !!}
 @foreach($channels as $ch)
     @php $s = $settings[$ch]; @endphp
-    <div class="card shadow-sm mb-2"><div class="card-header py-2"><strong>{{ str_replace('_', ' ', $ch) }}</strong></div><div class="card-body">
+    <div class="card shadow-sm mb-2"><div class="card-header py-2"><strong>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $ch))) }}</strong></div><div class="card-body">
         <div class="form-check mb-2">
             <input type="hidden" name="channels[{{ $ch }}][enabled]" value="0">
             <input class="form-check-input" type="checkbox" name="channels[{{ $ch }}][enabled]" value="1" id="en_{{ $ch }}" {{ $s->enabled ? 'checked' : '' }}>
