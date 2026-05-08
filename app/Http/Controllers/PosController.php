@@ -68,16 +68,21 @@ class PosController extends Controller
         return Auth::user();
     }
 
+    /**
+     * Branch dropdown/data scope should follow logged-in user assignments.
+     */
+    protected function restaurantBranchScopeUser(): User
+    {
+        return Auth::user();
+    }
+
     protected function assertRestaurantPosActorBranch(int $branchId): ?\Illuminate\Http\JsonResponse
     {
         if (! $branchId) {
             return null;
         }
-        if ($this->isCompanyLogin()) {
-            return null;
-        }
-        $actor = $this->restaurantPosActor();
-        if (! $actor->canAccessBranchForPos($branchId, 'restaurant')) {
+        $scopeUser = $this->restaurantBranchScopeUser();
+        if (! $scopeUser->canAccessBranchForPos($branchId, 'restaurant')) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
 
@@ -1880,14 +1885,14 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
     public function getWarehousesByBranch(Request $request)
     {
         $branchId = $request->branch_id;
-        $actor = $this->restaurantPosActor();
+        $branchScopeUser = $this->restaurantBranchScopeUser();
         $warehouses = warehouse::where('created_by', \Auth::user()->creatorId());
 
         if ($branchId) {
             $b = Branch::where('id', $branchId)->where('created_by', \Auth::user()->creatorId())->where('is_active', true)->first();
             if ($b) {
                 $mode = $b->isRestaurant() ? 'restaurant' : 'retail';
-                if (! $this->isCompanyLogin() && ! $actor->canAccessBranchForPos((int) $branchId, $mode)) {
+                if (! $branchScopeUser->canAccessBranchForPos((int) $branchId, $mode)) {
                     return response()->json([]);
                 }
             }
@@ -3465,13 +3470,11 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $customers = Customer::where('created_by', $creatorId)->get()->pluck('name', 'name');
         $customers->prepend('Walk-in-customer', '');
         $posPinUser->loadMissing('branches');
+        $branchScopeUser = $this->restaurantBranchScopeUser();
+        $branchScopeUser->loadMissing('branches');
         $restaurantBranchIds = Branch::where('created_by', $creatorId)->where('is_active', true)
             ->where('pos_type', Branch::POS_TYPE_RESTAURANT)->pluck('id')->toArray();
-        if ($this->isCompanyLogin()) {
-            $restaurantBranchIds = Auth::user()->filterBranchIdsForPosAccess($restaurantBranchIds);
-        } else {
-            $restaurantBranchIds = $posPinUser->filterBranchIdsForPosAccess($restaurantBranchIds);
-        }
+        $restaurantBranchIds = $branchScopeUser->filterBranchIdsForPosAccess($restaurantBranchIds);
         $posBranchLocked = count($restaurantBranchIds) === 1;
         $branches = Branch::whereIn('id', $restaurantBranchIds)->get()->pluck('name', 'id');
         $warehouses = warehouse::with('branch')->where('created_by', $creatorId)
