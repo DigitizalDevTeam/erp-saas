@@ -16,69 +16,69 @@
         <div class="card-body py-2 px-3">
             <div class="row align-items-center mb-2">
                 <div class="col-md-3 m-0">
-                    <label class="form-label small text-muted mb-0">{{ __('pos.branch') }}@if(!empty($posBranchLocked)) <span class="text-muted">({{ __('Assigned') }})</span>@endif</label>
+                    <label class="form-label small text-muted mb-0">{{ $tp('pos.branch', 'Branch') }}@if(!empty($posBranchLocked)) <span class="text-muted">({{ __('Assigned') }})</span>@endif</label>
                     <select class="form-control form-control-sm" id="pos-restaurant-branch" style="min-width: 140px;" @if(!empty($posBranchLocked)) disabled @endif>
-                        <option value="">{{ __('pos.select_branch') }}</option>
+                        <option value="">{{ $tp('pos.select_branch', 'Select Branch') }}</option>
                         @foreach($restaurantBranches as $id => $name)
                             <option value="{{ $id }}" {{ ($shiftBranchId && (string)$id === (string)$shiftBranchId) || (!empty($posBranchLocked) && $restaurantBranches->count() === 1) ? 'selected' : '' }}>{{ $name }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label small text-muted mb-0">{{ __('pos.select_warehouse') }}</label>
+                    <label class="form-label small text-muted mb-0">{{ $tp('pos.select_warehouse', 'Select Warehouse') }}</label>
                     <select class="form-control form-control-sm" id="pos-restaurant-warehouse" style="min-width: 140px;">
-                        <option value="">{{ __('pos.select_warehouse') }}</option>
+                        <option value="">{{ $tp('pos.select_warehouse', 'Select Warehouse') }}</option>
                         @foreach($restaurantWarehouses as $id => $name)
                             <option value="{{ $id }}">{{ $name }}</option>
                         @endforeach
                     </select>
-                    <small class="text-muted d-block" id="pos-restaurant-warehouse-hint">{{ __('pos.select_branch_first') }}</small>
+                    <small class="text-muted d-block" id="pos-restaurant-warehouse-hint">{{ $tp('pos.select_branch_first', 'Select branch first') }}</small>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small text-muted mb-0">{{ __('pos.order_type') }}</label>
+                    <label class="form-label small text-muted mb-0">{{ $tp('pos.order_type', 'Order Type') }}</label>
                     <select class="form-control form-control-sm" id="pos-restaurant-order-type" style="min-width: 100px;">
-                        <option value="dine_in">{{ __('pos.dine_in') }}</option>
-                        <option value="delivery">{{ __('pos.delivery') }}</option>
-                        <option value="takeaway">{{ __('pos.takeaway') }}</option>
+                        <option value="dine_in">{{ $tp('pos.dine_in', 'Dine In') }}</option>
+                        <option value="delivery">{{ $tp('pos.delivery', 'Delivery') }}</option>
+                        <option value="takeaway">{{ $tp('pos.takeaway', 'Takeaway') }}</option>
                     </select>
                 </div>
                 <div id="pos-restaurant-table-block" class="col-md-2 d-flex align-items-end gap-1">
                     <div>
-                        <label class="form-label small text-muted mb-0">{{ __('pos.select_table') }}</label>
+                        <label class="form-label small text-muted mb-0">{{ $tp('pos.select_table', 'Select Table') }}</label>
                         <div id="pos-selected-table" class="fw-bold text-primary">—</div>
                     </div>
                     @if($canShowPayButton ?? true)
-                    <button type="button" class="btn btn-sm btn-outline-danger d-none" id="pos-close-table-btn" title="{{ __('pos.close_table') }} ({{ __('pos.manager_emergency') }})">
+                    <button type="button" class="btn btn-sm btn-outline-danger d-none" id="pos-close-table-btn" title="{{ $tp('pos.close_table', 'Close Table') }} ({{ $tp('pos.manager_emergency', 'Manager Emergency') }})">
                         <i class="ti ti-door-exit"></i>
                     </button>
                     @endif
                 </div>
                 <div id="pos-restaurant-guest-block" class="col-md-4 d-none">
-                    <label class="form-label small text-muted mb-0">{{ __('pos.customer_details_required') }}</label>
+                    <label class="form-label small text-muted mb-0">{{ $tp('pos.customer_details_required', 'Customer Details Required') }}</label>
                     <div class="row g-1">
-                        <div class="col-4"><input type="text" class="form-control form-control-sm" id="pos-guest-name" placeholder="{{ __('pos.guest_name') }}" maxlength="255"></div>
-                        <div class="col-4"><input type="email" class="form-control form-control-sm" id="pos-guest-email" placeholder="{{ __('pos.guest_email') }}" maxlength="255"></div>
-                        <div class="col-4"><input type="text" class="form-control form-control-sm" id="pos-guest-phone" placeholder="{{ __('pos.guest_phone') }}" maxlength="64"></div>
+                        <div class="col-4"><input type="text" class="form-control form-control-sm" id="pos-guest-name" placeholder="{{ $tp('pos.guest_name', 'Guest Name') }}" maxlength="255"></div>
+                        <div class="col-4"><input type="email" class="form-control form-control-sm" id="pos-guest-email" placeholder="{{ $tp('pos.guest_email', 'Guest Email') }}" maxlength="255"></div>
+                        <div class="col-4"><input type="text" class="form-control form-control-sm" id="pos-guest-phone" placeholder="{{ $tp('pos.guest_phone', 'Guest Phone') }}" maxlength="64"></div>
                     </div>
                 </div>
                 <div class="col-md-2 ms-auto" id="pos-restaurant-manage-tables-wrap">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="pos-manage-tables-btn" title="{{ __('pos.manage_tables') }}">
-                        <i class="ti ti-settings"></i> {{ __('pos.manage_tables') }}
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="pos-manage-tables-btn" title="{{ $tp('pos.manage_tables', 'Manage Tables') }}">
+                        <i class="ti ti-settings"></i> {{ $tp('pos.manage_tables', 'Manage Tables') }}
                     </button>
                 </div>
             </div>
             <div id="pos-restaurant-table-grid-wrap" class="border-top pt-2">
                 <div class="d-flex flex-wrap gap-2 align-items-center" id="pos-table-grid">
-                    <p class="text-muted small mb-0">{{ __('pos.select_branch_first') }}</p>
+                    <p class="text-muted small mb-0">{{ $tp('pos.select_branch_first', 'Select branch first') }}</p>
                 </div>
             </div>
             <div id="pos-restaurant-customer-grid-wrap" class="border-top pt-2 d-none">
-                <label class="form-label small text-muted mb-1">{{ __('pos.select_customer') }}</label>
+                <label class="form-label small text-muted mb-1">{{ $tp('pos.select_customer', 'Select Customer') }}</label>
                 <div class="d-flex flex-wrap gap-2 align-items-center" id="pos-customer-grid">
-                    <p class="text-muted small mb-0">{{ __('pos.select_branch_first') }}</p>
+                    <p class="text-muted small mb-0">{{ $tp('pos.select_branch_first', 'Select branch first') }}</p>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="pos-new-delivery-takeaway-btn">
-                    <i class="ti ti-plus"></i> <span id="pos-new-delivery-takeaway-label">{{ __('pos.new_delivery') }}</span>
+                    <i class="ti ti-plus"></i> <span id="pos-new-delivery-takeaway-label">{{ $tp('pos.new_delivery', 'New Delivery') }}</span>
                 </button>
             </div>
         </div>
@@ -150,11 +150,11 @@
                         </div>
                         <div class="pos-totals mt-2 pt-2 border-top">
                             <div class="d-flex justify-content-between mb-1">
-                                <span class="fw-semibold">{{ __('pos.sub_total') }}</span>
+                                <span class="fw-semibold">{{ $tp('pos.sub_total', 'Sub Total') }}</span>
                                 <span id="pos-restaurant-subtotal" class="fw-semibold">0</span>
                             </div>
                             <div class="d-flex justify-content-between mb-1 align-items-center flex-wrap gap-1 discount-wrap-restaurant" data-currency-symbol="{{ \Auth::user()->currencySymbol() }}">
-                                <span class="fw-semibold">{{ __('pos.discount') }}</span>
+                                <span class="fw-semibold">{{ $tp('pos.discount', 'Discount') }}</span>
                                 <div class="d-flex align-items-center gap-1 flex-nowrap">
                                     <select class="form-select form-select-sm pos-discount-type-restaurant" id="pos_discount_type_restaurant" style="width: auto; min-width: 95px;">
                                         <option value="fixed">{{ __('Fixed') }}</option>
@@ -168,7 +168,7 @@
                             </div>
                             {{ Form::hidden('discount_hidden_restaurant', '0', ['id' => 'discount_hidden_restaurant']) }}
                             <div class="d-flex justify-content-between">
-                                <span class="fw-semibold">{{ __('pos.total') }}</span>
+                                <span class="fw-semibold">{{ $tp('pos.total', 'Total') }}</span>
                                 <span id="pos-restaurant-total" class="fw-bold text-primary">0</span>
                             </div>
                         </div>

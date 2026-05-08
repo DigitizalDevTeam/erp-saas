@@ -186,7 +186,7 @@
                         @endif
                         <a href="#" id="pos-end-shift-btn" class="btn btn-sm btn-warning d-none" title="{{ __('pos.end_shift') }}"><i class="ti ti-logout"></i> <span class="d-none d-sm-inline">{{ __('pos.end_shift') }}</span></a>
                         @if(isset($posPinUser) && $posPinUser)
-                        <span class="text-white opacity-90 small align-middle ms-1">{{ __('pos.logged_in_as') }} <strong>{{ $posPinUser->name }}</strong></span>
+                        <span class="text-white opacity-90 small align-middle ms-1">{{ $tp('pos.logged_in_as', 'Logged in as') }} <strong>{{ $posPinUser->name }}</strong></span>
                         <form method="post" action="{{ route('pos.restaurant.logout-pin') }}" class="d-inline ms-1">
                             @csrf
                             <button type="submit" class="btn btn-sm btn-outline-light" title="{{ $tp('pos.switch_user', 'Switch User') }}"><i class="ti ti-user-switch"></i> <span class="d-none d-sm-inline">{{ $tp('pos.switch_user', 'Switch User') }}</span></button>
