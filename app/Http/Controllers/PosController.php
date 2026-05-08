@@ -69,11 +69,11 @@ class PosController extends Controller
     }
 
     /**
-     * Branch dropdown/data scope should follow logged-in user assignments.
+     * Branch dropdown/data scope should follow current POS actor assignments (PIN user).
      */
     protected function restaurantBranchScopeUser(): User
     {
-        return Auth::user();
+        return $this->restaurantPosActor();
     }
 
     protected function assertRestaurantPosActorBranch(int $branchId): ?\Illuminate\Http\JsonResponse

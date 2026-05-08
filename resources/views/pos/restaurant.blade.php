@@ -4,6 +4,7 @@
     $restaurantBranchIds = $restaurantBranchIds ?? [];
     $restaurantBranches = isset($branches) ? $branches->only($restaurantBranchIds) : collect();
     $restaurantWarehouses = $warehouses ?? collect();
+    $posAssignedBranchId = isset($posPinUser) && !empty($posPinUser->pos_branch_id) ? (int) $posPinUser->pos_branch_id : null;
     $shiftBranchId = (isset($userOpenShift) && $userOpenShift && $userOpenShift->branch_id) ? $userOpenShift->branch_id : null;
     $tp = function (string $key, string $fallback) {
         $translated = __($key);
@@ -20,7 +21,7 @@
                     <select class="form-control form-control-sm" id="pos-restaurant-branch" style="min-width: 140px;" @if(!empty($posBranchLocked)) disabled @endif>
                         <option value="">{{ $tp('pos.select_branch', 'Select Branch') }}</option>
                         @foreach($restaurantBranches as $id => $name)
-                            <option value="{{ $id }}" {{ ($shiftBranchId && (string)$id === (string)$shiftBranchId) || (!empty($posBranchLocked) && $restaurantBranches->count() === 1) ? 'selected' : '' }}>{{ $name }}</option>
+                            <option value="{{ $id }}" {{ ($posAssignedBranchId && (string)$id === (string)$posAssignedBranchId) || (!$posAssignedBranchId && $shiftBranchId && (string)$id === (string)$shiftBranchId) || (!empty($posBranchLocked) && $restaurantBranches->count() === 1) ? 'selected' : '' }}>{{ $name }}</option>
                         @endforeach
                     </select>
                 </div>
