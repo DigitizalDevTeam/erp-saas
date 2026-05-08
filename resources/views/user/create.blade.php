@@ -147,16 +147,23 @@
 
 {{ Form::close() }}
 @if(!empty($posBranchRoleNames))
+@php
+    $posBranchRoleIds = collect($roles ?? [])
+        ->filter(fn ($name) => in_array($name, $posBranchRoleNames, true))
+        ->keys()
+        ->map(fn ($id) => (string) $id)
+        ->values()
+        ->all();
+@endphp
 <script>
 (function() {
-    var posRoleNames = @json($posBranchRoleNames);
+    var posRoleIds = @json($posBranchRoleIds);
     function togglePosBranch() {
         var sel = document.getElementById('user-create-role');
         var branchDiv = document.querySelector('.pos-branch-div');
         var pinDiv = document.querySelector('.pos-pin-div');
         if (!sel) return;
-        var text = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
-        var show = posRoleNames.indexOf(text) !== -1;
+        var show = posRoleIds.indexOf(String(sel.value)) !== -1;
         if (branchDiv) {
             if (show) { branchDiv.classList.remove('d-none'); branchDiv.querySelector('select').setAttribute('required', 'required'); }
             else { branchDiv.classList.add('d-none'); branchDiv.querySelector('select').removeAttribute('required'); branchDiv.querySelector('select').value = ''; }
