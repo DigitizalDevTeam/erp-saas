@@ -13,6 +13,10 @@
     } else {
         $themeColor = $color;
     }
+    $tp = function (string $key, string $fallback) {
+        $translated = __($key);
+        return $translated === $key ? __($fallback) : $translated;
+    };
 
 @endphp
 <!DOCTYPE html>
@@ -133,11 +137,11 @@
                     <div class="d-flex align-items-center flex-wrap gap-2">
                         <span class="text-white pos-brand">{{ __('POS Restaurant') }}</span>
                         @if($userOpenShift)
-                            <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.opening_balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->opening_balance ?? 0) }}</span>
+                            <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ $tp('pos.opening_balance', 'Opening Balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->opening_balance ?? 0) }}</span>
                             @if(isset($userOpenShift->closing_balance) && $userOpenShift->closing_balance !== null && $userOpenShift->closing_balance !== '')
                                 <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.closing_balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->closing_balance) }}</span>
                             @else
-                                <a href="#" class="btn btn-sm btn-light pos-add-closing-balance-btn" data-url="{{ route('pos.add_closing_balance') }}" data-title="{{ __('pos.add_closing_balance') }}" data-bs-toggle="tooltip" title="{{ __('pos.add_closing_balance') }}">{{ __('pos.add_closing_balance') }}</a>
+                                <a href="#" class="btn btn-sm btn-light pos-add-closing-balance-btn" data-url="{{ route('pos.add_closing_balance') }}" data-title="{{ $tp('pos.add_closing_balance', 'Add Closing Balance') }}" data-bs-toggle="tooltip" title="{{ $tp('pos.add_closing_balance', 'Add Closing Balance') }}">{{ $tp('pos.add_closing_balance', 'Add Closing Balance') }}</a>
                             @endif
                         @else
                             <button type="button" class="btn btn-sm btn-light ms-2" id="pos-open-shift-btn" title="{{ __('pos.open_shift') }}">
@@ -149,8 +153,8 @@
                         <span id="pos-current-time" class="text-white opacity-90 small align-middle" style="min-width: 5rem;">--:--:--</span>
                         <span id="pos-status-badge" class="badge bg-success align-middle" style="font-size: 0.75rem;">{{ __('pos.online') }}</span>
                         <span id="pos-pending-badge" class="badge bg-warning text-dark d-none" style="font-size: 0.8rem; cursor: pointer;" data-msg="{{ __('pos.pending_sync_label') }}" title="{{ __('pos.sync_now') }}"></span>
-                        <button type="button" id="pos-install-app-btn" class="btn btn-sm btn-light" title="{{ __('pos.install_app') }}">
-                            <i class="ti ti-download" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ __('pos.install_app') }}</span>
+                        <button type="button" id="pos-install-app-btn" class="btn btn-sm btn-light" title="{{ $tp('pos.install_app', 'Install App') }}">
+                            <i class="ti ti-download" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ $tp('pos.install_app', 'Install App') }}</span>
                         </button>
                         <a href="{{ route('pos.restaurant.index') }}" class="btn btn-sm btn-light me-1" title="{{ __('POS Restaurant') }}"><i class="ti ti-building-store" style="font-size: 1.25rem;"></i></a>
                         <a href="{{ route('pos.index') }}" class="btn btn-sm btn-outline-light" title="{{ __('POS Retail') }}"><i class="ti ti-shopping-cart" style="font-size: 1.25rem;"></i></a>
@@ -185,7 +189,7 @@
                         <span class="text-white opacity-90 small align-middle ms-1">{{ __('pos.logged_in_as') }} <strong>{{ $posPinUser->name }}</strong></span>
                         <form method="post" action="{{ route('pos.restaurant.logout-pin') }}" class="d-inline ms-1">
                             @csrf
-                            <button type="submit" class="btn btn-sm btn-outline-light" title="{{ __('pos.switch_user') }}"><i class="ti ti-user-switch"></i> <span class="d-none d-sm-inline">{{ __('pos.switch_user') }}</span></button>
+                            <button type="submit" class="btn btn-sm btn-outline-light" title="{{ $tp('pos.switch_user', 'Switch User') }}"><i class="ti ti-user-switch"></i> <span class="d-none d-sm-inline">{{ $tp('pos.switch_user', 'Switch User') }}</span></button>
                         </form>
                         @endif
                     </div>

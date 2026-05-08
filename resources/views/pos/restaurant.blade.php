@@ -5,6 +5,10 @@
     $restaurantBranches = isset($branches) ? $branches->only($restaurantBranchIds) : collect();
     $restaurantWarehouses = $warehouses ?? collect();
     $shiftBranchId = (isset($userOpenShift) && $userOpenShift && $userOpenShift->branch_id) ? $userOpenShift->branch_id : null;
+    $tp = function (string $key, string $fallback) {
+        $translated = __($key);
+        return $translated === $key ? __($fallback) : $translated;
+    };
 @endphp
 <div class="pos-restaurant-layout">
     {{-- Top bar: Branch, Warehouse, Selected table + Tables grid --}}
@@ -86,17 +90,17 @@
             <div id="pos-restaurant-order" class="d-none">
                 <div class="card border-0 shadow-sm pos-cart-card h-100">
                     <div class="card-header py-2 d-flex justify-content-between align-items-center flex-wrap gap-2 bg-light">
-                        <span class="fw-semibold">{{ __('pos.pos_invoice') }}</span>
+                        <span class="fw-semibold">{{ $tp('pos.pos_invoice', 'POS Invoice') }}</span>
                         <div class="d-flex gap-1 flex-wrap">
                             <button type="button" class="btn btn-sm btn-success" id="pos-send-to-production" title="{{ __('Send to production') }}"><i class="ti ti-send"></i> {{ __('Send to production') }}</button>
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="pos-print-kitchen-slip" title="{{ __('pos.print_kitchen_slip') }}"><i class="ti ti-printer"></i></button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary pos-open-drawer-btn" title="{{ __('pos.open_drawer') }}"><i class="ti ti-cash"></i> {{ __('pos.open_drawer') }}</button>
-                            <button type="button" class="btn btn-sm btn-outline-info" id="pos-join-table-restaurant" title="{{ __('pos.join_table') }}"><i class="ti ti-table-plus"></i> {{ __('pos.join_table') }}</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary pos-open-drawer-btn" title="{{ $tp('pos.open_drawer', 'Open Drawer') }}"><i class="ti ti-cash"></i> {{ $tp('pos.open_drawer', 'Open Drawer') }}</button>
+                            <button type="button" class="btn btn-sm btn-outline-info" id="pos-join-table-restaurant" title="{{ $tp('pos.join_table', 'Join Table') }}"><i class="ti ti-table-plus"></i> {{ $tp('pos.join_table', 'Join Table') }}</button>
                             <button type="button" class="btn btn-sm btn-outline-warning" id="pos-split-bill-restaurant" title="{{ __('pos.split_bill') }}"><i class="ti ti-separator-horizontal"></i></button>
                             <button type="button" class="btn btn-sm btn-outline-danger" id="pos-empty-cart-restaurant" title="{{ __('pos.empty_cart') }}"><i class="ti ti-trash"></i></button>
-                            <button type="button" id="pos-view-bill-restaurant" class="btn btn-sm btn-outline-secondary" title="{{ __('pos.view_bill') }}"><i class="ti ti-file-invoice me-1"></i>{{ __('pos.view_bill') }}</button>
+                            <button type="button" id="pos-view-bill-restaurant" class="btn btn-sm btn-outline-secondary" title="{{ $tp('pos.view_bill', 'View Bill') }}"><i class="ti ti-file-invoice me-1"></i>{{ $tp('pos.view_bill', 'View Bill') }}</button>
                             @if($canShowPayButton ?? true)
-                            <button type="button" id="pos-pay-btn-restaurant" class="btn btn-sm btn-primary" data-size="xl" data-url="{{ route('pos.create') }}" data-title="{{ __('pos.pos_invoice') }}" disabled>{{ __('pos.pay') }}</button>
+                            <button type="button" id="pos-pay-btn-restaurant" class="btn btn-sm btn-primary" data-size="xl" data-url="{{ route('pos.create') }}" data-title="{{ $tp('pos.pos_invoice', 'POS Invoice') }}" disabled>{{ $tp('pos.pay', 'Pay') }}</button>
                             @endif
                         </div>
                     </div>
