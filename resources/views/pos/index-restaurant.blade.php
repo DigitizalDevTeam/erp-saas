@@ -2356,6 +2356,12 @@
                     if ($iconGo.length) $iconGo.removeClass('ti-plus').addClass('ti-loader ti-spin');
                 }
                 var addUrl = $el.data('url');
+                try {
+                    var parsedAddUrl = new URL(addUrl, window.location.origin);
+                    parsedAddUrl.protocol = window.location.protocol;
+                    parsedAddUrl.host = window.location.host;
+                    addUrl = parsedAddUrl.toString();
+                } catch (e) {}
                 var warehouseId = '';
                 if (isRestaurant) {
                     warehouseId = $('#pos-restaurant-warehouse').length ? ($('#pos-restaurant-warehouse').val() || '') : '';

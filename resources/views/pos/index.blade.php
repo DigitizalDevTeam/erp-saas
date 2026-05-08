@@ -2223,6 +2223,12 @@
                     if ($icon.length) $icon.removeClass('ti-plus').addClass('ti-loader ti-spin');
                 }
                 var addToCartUrl = $el.data('url');
+                try {
+                    var parsedAddToCartUrl = new URL(addToCartUrl, window.location.origin);
+                    parsedAddToCartUrl.protocol = window.location.protocol;
+                    parsedAddToCartUrl.host = window.location.host;
+                    addToCartUrl = parsedAddToCartUrl.toString();
+                } catch (e) {}
                 var selectedWarId = '';
                 if (isRestaurant) {
                     selectedWarId = $('#pos-restaurant-warehouse').length ? ($('#pos-restaurant-warehouse').val() || '') : '';
