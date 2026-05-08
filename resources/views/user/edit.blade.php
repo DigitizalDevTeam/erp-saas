@@ -99,12 +99,15 @@
         var branchDiv = document.querySelector('.pos-branch-div');
         var pinDiv = document.querySelector('.pos-pin-div');
         if (!sel) return;
-        var show = posRoleIds.indexOf(String(sel.value)) !== -1;
+        var branchSelect = branchDiv ? branchDiv.querySelector('select[name="pos_branch_id"]') : null;
+        var showByRole = posRoleIds.indexOf(String(sel.value)) !== -1;
+        var showByExistingValue = !!(branchSelect && branchSelect.value);
+        var show = showByRole || showByExistingValue;
         if (branchDiv) {
             if (show) { branchDiv.classList.remove('d-none'); branchDiv.querySelector('select').setAttribute('required', 'required'); }
-            else { branchDiv.classList.add('d-none'); branchDiv.querySelector('select').removeAttribute('required'); branchDiv.querySelector('select').value = ''; }
+            else { branchDiv.classList.add('d-none'); branchDiv.querySelector('select').removeAttribute('required'); }
         }
-        if (pinDiv) { if (show) pinDiv.classList.remove('d-none'); else pinDiv.classList.add('d-none'); }
+        if (pinDiv) { if (showByRole) pinDiv.classList.remove('d-none'); else pinDiv.classList.add('d-none'); }
     }
     document.getElementById('user-edit-role').addEventListener('change', togglePosBranch);
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', togglePosBranch);
