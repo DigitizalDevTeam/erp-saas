@@ -751,7 +751,7 @@ class ProductServiceController extends Controller
                     return $user->priceFormat($price);
                 };
                 $baseImgUrl = asset(Storage::url('uploads/pro_image/'));
-                $addToCartBase = url('add-to-cart');
+                $addToCartBase = rtrim($request->getSchemeAndHttpHost(), '/') . '/add-to-cart';
                 foreach ($products as $product) {
                     $isKitOrNoStock = (($product->type ?? null) === 'kit') || !($product->affect_stock ?? true);
                     $quantity = $isPos
