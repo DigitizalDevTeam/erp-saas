@@ -2888,42 +2888,7 @@
             }
         });
     </script>
-    {{-- 30s inactivity → return to PIN screen (shared device) --}}
-    @if(isset($posPinUser) && $posPinUser)
-    <script>
-        (function () {
-            var INACTIVITY_SEC = 30;
-            var timeoutId = null;
-            var logoutUrl = '{{ route("pos.restaurant.logout-pin") }}';
-            var redirectUrl = '{{ route("pos.restaurant.index") }}';
-            function goToPinScreen() {
-                document.body.removeEventListener('mousemove', resetTimer);
-                document.body.removeEventListener('keydown', resetTimer);
-                document.body.removeEventListener('click', resetTimer);
-                document.body.removeEventListener('touchstart', resetTimer);
-                if (timeoutId) clearTimeout(timeoutId);
-                var form = document.createElement('form');
-                form.method = 'POST';
-                form.action = logoutUrl;
-                var csrf = document.createElement('input');
-                csrf.name = '_token';
-                csrf.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                form.appendChild(csrf);
-                document.body.appendChild(form);
-                form.submit();
-            }
-            function resetTimer() {
-                if (timeoutId) clearTimeout(timeoutId);
-                timeoutId = setTimeout(goToPinScreen, INACTIVITY_SEC * 1000);
-            }
-            document.body.addEventListener('mousemove', resetTimer);
-            document.body.addEventListener('keydown', resetTimer);
-            document.body.addEventListener('click', resetTimer);
-            document.body.addEventListener('touchstart', resetTimer);
-            timeoutId = setTimeout(goToPinScreen, INACTIVITY_SEC * 1000);
-        })();
-    </script>
-    @endif
+    {{-- PIN stays active until user manually switches/logouts --}}
     {{-- PWA Install: button always visible when not standalone; click = native prompt or fallback --}}
     <script>
         (function () {
