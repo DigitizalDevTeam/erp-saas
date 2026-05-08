@@ -43,11 +43,22 @@ use Illuminate\Support\Facades\URL;
 
 class PosController extends Controller
 {
+    protected function isCompanyLogin(): bool
+    {
+        $authUser = Auth::user();
+
+        return $authUser && $authUser->type === 'company';
+    }
+
     /**
      * Restaurant PIN user when set and valid for this company; otherwise the logged-in user.
      */
     protected function restaurantPosActor(): User
     {
+        if ($this->isCompanyLogin()) {
+            return Auth::user();
+        }
+
         $id = session('pos_pin_user_id', Auth::id());
         $user = User::find($id);
         if ($user && (int) $user->created_by === (int) Auth::user()->creatorId()) {
@@ -60,6 +71,9 @@ class PosController extends Controller
     protected function assertRestaurantPosActorBranch(int $branchId): ?\Illuminate\Http\JsonResponse
     {
         if (! $branchId) {
+            return null;
+        }
+        if ($this->isCompanyLogin()) {
             return null;
         }
         $actor = $this->restaurantPosActor();
@@ -1873,7 +1887,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $b = Branch::where('id', $branchId)->where('created_by', \Auth::user()->creatorId())->where('is_active', true)->first();
             if ($b) {
                 $mode = $b->isRestaurant() ? 'restaurant' : 'retail';
-                if (! $actor->canAccessBranchForPos((int) $branchId, $mode)) {
+                if (! $this->isCompanyLogin() && ! $actor->canAccessBranchForPos((int) $branchId, $mode)) {
                     return response()->json([]);
                 }
             }
@@ -3453,7 +3467,11 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $posPinUser->loadMissing('branches');
         $restaurantBranchIds = Branch::where('created_by', $creatorId)->where('is_active', true)
             ->where('pos_type', Branch::POS_TYPE_RESTAURANT)->pluck('id')->toArray();
-        $restaurantBranchIds = $posPinUser->filterBranchIdsForPosAccess($restaurantBranchIds);
+        if ($this->isCompanyLogin()) {
+            $restaurantBranchIds = Auth::user()->filterBranchIdsForPosAccess($restaurantBranchIds);
+        } else {
+            $restaurantBranchIds = $posPinUser->filterBranchIdsForPosAccess($restaurantBranchIds);
+        }
         $posBranchLocked = count($restaurantBranchIds) === 1;
         $branches = Branch::whereIn('id', $restaurantBranchIds)->get()->pluck('name', 'id');
         $warehouses = warehouse::with('branch')->where('created_by', $creatorId)
