@@ -16,16 +16,11 @@ class IrpcCalculationService
         $settings = Utility::settingsById($creatorId);
         $creator = User::find($creatorId);
 
-        $settingsMap = [];
-        foreach ($settings as $row) {
-            $settingsMap[$row->name] = $row->value;
-        }
-
         return $this->buildPayloadFromComparativeReport(
             $dreReport,
             $fiscalYear,
             (float) config('fiscal_closing.irpc_rate'),
-            $settingsMap,
+            $settings,
             $creator?->name
         );
     }
