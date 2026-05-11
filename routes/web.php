@@ -136,6 +136,7 @@ use App\Http\Controllers\ProductReportsController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\DreReportController;
 use App\Http\Controllers\HrmTaxReportController;
+use App\Http\Controllers\IrpcReportController;
 use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\MonthlyVatReportController;
 use App\Http\Controllers\MonthlyIrpsReportController;
@@ -953,6 +954,9 @@ Route::group(['middleware' => ['verified']], function () {
 
             Route::get('monthly-reports/irps-modelo-22', [MonthlyIrpsReportController::class, 'modelo22'])
                 ->name('monthly.reports.irps-modelo-22');
+
+            Route::get('annual-reports/irpc-payment-guide', [IrpcReportController::class, 'index'])
+                ->name('annual.reports.irpc-payment-guide');
 
             Route::get('reports-monthly-cashflow', [ReportController::class, 'monthlyCashflow'])->name('report.monthly.cashflow')->middleware(['auth', 'XSS']);
             Route::get('reports-quarterly-cashflow', [ReportController::class, 'quarterlyCashflow'])->name('report.quarterly.cashflow')->middleware(['auth', 'XSS']);

@@ -39,6 +39,11 @@
                                 {{ __('IRPS / Payroll (Model 22)') }}
                             </a>
                         @endcan
+                        @can('tax report')
+                            <a class="list-group-item list-group-item-action" href="{{ route('annual.reports.irpc-payment-guide') }}">
+                                {{ __('IRPC Payment Guide (Annual)') }}
+                            </a>
+                        @endcan
                     </div>
                 </div>
             </div>

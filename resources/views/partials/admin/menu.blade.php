@@ -149,6 +149,11 @@
                                                                     <a class="dash-link" href="{{ route('monthly.reports.irps-modelo-22') }}">{{ __('IRPS / Payroll (Model 22)') }}</a>
                                                                 </li>
                                                             @endcan
+                                                            @can('tax report')
+                                                                <li class="dash-item {{ Request::route()->getName() == 'annual.reports.irpc-payment-guide' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('annual.reports.irpc-payment-guide') }}">{{ __('IRPC Payment Guide (Annual)') }}</a>
+                                                                </li>
+                                                            @endcan
                                                         </ul>
                                                     </li>
 
