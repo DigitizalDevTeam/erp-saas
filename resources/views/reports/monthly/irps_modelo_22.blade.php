@@ -132,7 +132,7 @@
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['loan']) }}</td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['saturation']) }}</td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['inss_employee']) }}</td>
-                                            <td class="text-end">{{ \Auth::user()->priceFormat($r['irps_a_reter']) }}</td>
+                                            <td class="text-end">{{ \Auth::user()->priceFormat($r['irps']) }}</td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['gross_irps_base']) }}</td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['net']) }}</td>
                                             <td class="text-end">{{ \Auth::user()->priceFormat($r['inss_employer']) }}</td>
@@ -152,7 +152,7 @@
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['loan']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['saturation']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['inss_employee']) }}</td>
-                                        <td class="text-end">{{ \Auth::user()->priceFormat($totals['irps_a_reter']) }}</td>
+                                        <td class="text-end">{{ \Auth::user()->priceFormat($totals['irps']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['gross_irps_base']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['net']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['inss_employer']) }}</td>
@@ -161,9 +161,9 @@
                             </table>
                         </div>
                         <p class="small text-muted mb-0 mt-2">
-                            * {{ __('Gross (IRPS base)') }} = {{ __('Net') }} + {{ __('INSS (employee)') }} + {{ __('IRPS (on payslip)') }}
-                            ({{ __('same basis as Model 19') }}).
-                            {{ __('IRPS column: calculated withholding (progressive table + dependents).') }}
+                            * {{ __('Gross (IRPS base)') }} = {{ __('Basic') }} + {{ __('Allowances') }} + {{ __('Commission') }} + {{ __('Overtime') }} + {{ __('Other payments') }}
+                            ({{ __('before loans and other deductions') }}).
+                            {{ __('IRPS column: stored payslip withholding amount.') }}
                         </p>
                     @endif
                 </div>

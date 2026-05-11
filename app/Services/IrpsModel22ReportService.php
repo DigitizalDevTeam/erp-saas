@@ -102,8 +102,8 @@ class IrpsModel22ReportService
         $irps = (float) $p->irps_amount;
         $net = (float) $p->net_payble;
 
-        $grossIrpsBase = round($net + $inssEmployee + $irps, 2);
         $totalEarnings = round($basic + $allowance + $commission + $otherPayment + $overtime, 2);
+        $grossIrpsBase = $totalEarnings;
 
         $irpsSheet = self::computeIrpsWithholding($grossIrpsBase, $dependents);
 

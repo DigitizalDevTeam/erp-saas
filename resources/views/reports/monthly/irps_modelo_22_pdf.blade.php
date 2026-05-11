@@ -75,7 +75,7 @@
                     <td class="num">{{ number_format($r['loan'], 2, ',', '.') }}</td>
                     <td class="num">{{ number_format($r['saturation'], 2, ',', '.') }}</td>
                     <td class="num">{{ number_format($r['inss_employee'], 2, ',', '.') }}</td>
-                    <td class="num">{{ number_format($r['irps_a_reter'], 2, ',', '.') }}</td>
+                    <td class="num">{{ number_format($r['irps'], 2, ',', '.') }}</td>
                     <td class="num">{{ number_format($r['gross_irps_base'], 2, ',', '.') }}</td>
                     <td class="num">{{ number_format($r['net'], 2, ',', '.') }}</td>
                     <td class="num">{{ number_format($r['inss_employer'], 2, ',', '.') }}</td>
@@ -94,14 +94,14 @@
                 <td class="num">{{ number_format($totals['loan'], 2, ',', '.') }}</td>
                 <td class="num">{{ number_format($totals['saturation'], 2, ',', '.') }}</td>
                 <td class="num">{{ number_format($totals['inss_employee'], 2, ',', '.') }}</td>
-                <td class="num">{{ number_format($totals['irps_a_reter'], 2, ',', '.') }}</td>
+                <td class="num">{{ number_format($totals['irps'], 2, ',', '.') }}</td>
                 <td class="num">{{ number_format($totals['gross_irps_base'], 2, ',', '.') }}</td>
                 <td class="num">{{ number_format($totals['net'], 2, ',', '.') }}</td>
                 <td class="num">{{ number_format($totals['inss_employer'], 2, ',', '.') }}</td>
             </tr>
         </tfoot>
     </table>
-    <p class="note">* {{ __('Gross (IRPS base) = Net + INSS (employee) + IRPS (on payslip)') }}. {{ __('IRPS column: calculated withholding.') }}</p>
+    <p class="note">* {{ __('Gross (IRPS base) = Basic + Allowances + Commission + Overtime + Other payments') }}. {{ __('Loans and other deductions do not reduce this base. IRPS column shows the stored payslip withholding.') }}</p>
 @endif
 </body>
 </html>

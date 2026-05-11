@@ -133,19 +133,6 @@ class PaySlipController extends Controller
                 if (!$chek && $chek == null) {
                     $payslipEmployee                       = new PaySlip();
                     $payslipEmployee->employee_id          = $employee->id;
-                    $grossMonthly = (float) $employee->get_net_salary($formate_month_year);
-
-                    $inss = PayrollTaxService::calculateInss($employee, $grossMonthly);
-                    $irps = PayrollTaxService::calculateIrps($employee, $grossMonthly);
-
-                    $payslipEmployee->inss_employee_amount = $inss['employee'];
-                    $payslipEmployee->inss_employer_amount = $inss['employer'];
-                    $payslipEmployee->irps_amount          = $irps;
-
-                    // Net payable rules:
-                    // - IRPS is withheld from employee salary (deduction)
-                    // - INSS employee portion is deducted only if employee pays it (when employer_pays_all is OFF)
-                    $payslipEmployee->net_payble           = max(0, $grossMonthly - (float) $payslipEmployee->inss_employee_amount - (float) $payslipEmployee->irps_amount);
                     $payslipEmployee->salary_month         = $formate_month_year;
                     $payslipEmployee->status               = 0;
                     $payslipEmployee->basic_salary         = !empty($employee->salary) ? $employee->salary : 0;
@@ -155,6 +142,7 @@ class PaySlipController extends Controller
                     $payslipEmployee->saturation_deduction = Employee::saturation_deduction($employee->id);
                     $payslipEmployee->other_payment        = Employee::other_payment($employee->id);
                     $payslipEmployee->overtime             = Employee::overtime($employee->id);
+                    $this->recalculatePayslipPayroll($payslipEmployee, $employee);
                     $payslipEmployee->created_by           = \Auth::user()->creatorId();
                     $payslipEmployee->save();
                     EmployeeLoanScheduleService::recordRepaymentsForPayslip($payslipEmployee);
@@ -540,18 +528,36 @@ class PaySlipController extends Controller
         }
 
 
-        $payslipEmployee                       = PaySlip::find($request->payslip_id);
+        $payslipEmployee = PaySlip::find($request->payslip_id);
         $payslipEmployee->allowance            = Employee::allowance($payslipEmployee->employee_id);
         $payslipEmployee->commission           = Employee::commission($payslipEmployee->employee_id);
         $payslipEmployee->loan                 = Employee::loanJsonForPayslipMonth($payslipEmployee->employee_id, $payslipEmployee->salary_month, (float) $payslipEmployee->basic_salary);
         $payslipEmployee->saturation_deduction = Employee::saturation_deduction($payslipEmployee->employee_id);
         $payslipEmployee->other_payment        = Employee::other_payment($payslipEmployee->employee_id);
         $payslipEmployee->overtime             = Employee::overtime($payslipEmployee->employee_id);
-        $payslipEmployee->net_payble           = Employee::find($payslipEmployee->employee_id)->get_net_salary($payslipEmployee->salary_month);
+        $employee = Employee::find($payslipEmployee->employee_id);
+        if ($employee) {
+            $this->recalculatePayslipPayroll($payslipEmployee, $employee);
+        }
         $payslipEmployee->save();
         EmployeeLoanScheduleService::ensureRepaymentsForPayslip($payslipEmployee);
 
         return redirect()->route('payslip.index')->with('success', __('Employee payroll successfully updated.'));
+    }
+
+    private function recalculatePayslipPayroll(PaySlip $payslipEmployee, Employee $employee): void
+    {
+        $salaryMonth = $payslipEmployee->salary_month ?: date('Y-m');
+        $netBeforeStatutory = (float) $employee->get_net_salary($salaryMonth);
+        $irpsBase = (float) $employee->get_irps_base_salary($salaryMonth);
+
+        $inss = PayrollTaxService::calculateInss($employee, $netBeforeStatutory);
+        $irps = PayrollTaxService::calculateIrps($employee, $irpsBase);
+
+        $payslipEmployee->inss_employee_amount = $inss['employee'];
+        $payslipEmployee->inss_employer_amount = $inss['employer'];
+        $payslipEmployee->irps_amount = $irps;
+        $payslipEmployee->net_payble = max(0, $netBeforeStatutory - (float) $payslipEmployee->inss_employee_amount - (float) $payslipEmployee->irps_amount);
     }
 
     public function export(Request $request)

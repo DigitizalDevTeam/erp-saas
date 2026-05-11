@@ -91,47 +91,69 @@ class Employee extends Model
      * @param  string|null  $forPayrollMonthYm  When set, installment loans use first deduction month vs this payroll month.
      */
     public function get_net_salary(?string $forPayrollMonthYm = null)
-{
-    // Load related data efficiently using Eloquent relationships
-    // $this->load('allowances', 'commissions', 'loans', 'saturationDeductions', 'otherPayments', 'overtimes');
+    {
+        $totals = $this->get_payroll_component_totals($forPayrollMonthYm);
 
-    $monthYm = $forPayrollMonthYm ?? date('Y-m');
+        return $this->salary
+            + $totals['allowance']
+            + $totals['commission']
+            - $totals['loan']
+            - $totals['saturation_deduction']
+            + $totals['other_payment']
+            + $totals['overtime'];
+    }
 
-    // Calculate total allowances
-    $total_allowance = $this->allowances->sum(function ($allowance) {
-        return ($allowance->type === 'fixed') ? $allowance->amount : ($allowance->amount * $this->salary / 100);
-    });
+    /**
+     * Earnings base used for IRPS before non-statutory deductions are applied.
+     *
+     * @param  string|null  $forPayrollMonthYm
+     */
+    public function get_irps_base_salary(?string $forPayrollMonthYm = null)
+    {
+        $totals = $this->get_payroll_component_totals($forPayrollMonthYm);
 
-    // Calculate total commissions
-    $total_commission = $this->commissions->sum(function ($commission) {
-        return ($commission->type === 'fixed') ? $commission->amount : ($commission->amount * $this->salary / 100);
-    });
+        return $this->salary
+            + $totals['allowance']
+            + $totals['commission']
+            + $totals['other_payment']
+            + $totals['overtime'];
+    }
 
-    // Calculate total loans (includes term-loan EMI estimates)
-    $total_loan = $this->loans->sum(function ($loan) use ($monthYm) {
-        return $loan->estimatedMonthlyPayrollImpact((float) $this->salary, $monthYm);
-    });
+    /**
+     * @return array{
+     *     allowance: float,
+     *     commission: float,
+     *     loan: float,
+     *     saturation_deduction: float,
+     *     other_payment: float,
+     *     overtime: float
+     * }
+     */
+    private function get_payroll_component_totals(?string $forPayrollMonthYm = null): array
+    {
+        $monthYm = $forPayrollMonthYm ?? date('Y-m');
 
-    // Calculate total saturation deductions
-    $total_saturation_deduction = $this->saturationDeductions->sum(function ($deduction) {
-        return ($deduction->type === 'fixed') ? $deduction->amount : ($deduction->amount * $this->salary / 100);
-    });
-
-    // Calculate total other payments
-    $total_other_payment = $this->otherPayments->sum(function ($otherPayment) {
-        return ($otherPayment->type === 'fixed') ? $otherPayment->amount : ($otherPayment->amount * $this->salary / 100);
-    });
-
-    // Calculate total overtime
-    $total_over_time = $this->overtimes->sum(function ($over_time) {
-        return $over_time->number_of_days * $over_time->hours * $over_time->rate;
-    });
-
-    // Calculate net salary
-    $net_salary = $this->salary + $total_allowance + $total_commission - $total_loan - $total_saturation_deduction + $total_other_payment + $total_over_time;
-
-    return $net_salary;
-}
+        return [
+            'allowance' => $this->allowances->sum(function ($allowance) {
+                return ($allowance->type === 'fixed') ? $allowance->amount : ($allowance->amount * $this->salary / 100);
+            }),
+            'commission' => $this->commissions->sum(function ($commission) {
+                return ($commission->type === 'fixed') ? $commission->amount : ($commission->amount * $this->salary / 100);
+            }),
+            'loan' => $this->loans->sum(function ($loan) use ($monthYm) {
+                return $loan->estimatedMonthlyPayrollImpact((float) $this->salary, $monthYm);
+            }),
+            'saturation_deduction' => $this->saturationDeductions->sum(function ($deduction) {
+                return ($deduction->type === 'fixed') ? $deduction->amount : ($deduction->amount * $this->salary / 100);
+            }),
+            'other_payment' => $this->otherPayments->sum(function ($otherPayment) {
+                return ($otherPayment->type === 'fixed') ? $otherPayment->amount : ($otherPayment->amount * $this->salary / 100);
+            }),
+            'overtime' => $this->overtimes->sum(function ($over_time) {
+                return $over_time->number_of_days * $over_time->hours * $over_time->rate;
+            }),
+        ];
+    }
 
 
     public static function allowance($id)
