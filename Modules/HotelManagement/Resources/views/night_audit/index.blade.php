@@ -5,10 +5,12 @@
     <li class="breadcrumb-item">{{ __('Night Audit') }}</li>
 @endsection
 @section('action-btn')
+@if($canManage ?? false)
 {!! Form::open(['route' => 'hotel.night-audit.run', 'method' => 'POST', 'class' => 'd-flex align-items-center gap-2']) !!}
 <input type="date" name="audit_date" class="form-control form-control-sm" value="{{ date('Y-m-d') }}" required>
 <button class="btn btn-sm btn-primary">{{ __('Close Day') }}</button>
 {!! Form::close() !!}
+@endif
 @endsection
 @section('content')
 <div class="card"><div class="card-body table-border-style"><div class="table-responsive">

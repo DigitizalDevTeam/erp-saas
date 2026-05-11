@@ -9,6 +9,7 @@
 use Modules\HotelManagement\Http\Controllers\HotelCalendarController;
 use Modules\HotelManagement\Http\Controllers\HotelDashboardController;
 use Modules\HotelManagement\Http\Controllers\HotelFolioController;
+use Modules\HotelManagement\Http\Controllers\HotelFloorController;
 use Modules\HotelManagement\Http\Controllers\HotelFrontdeskController;
 use Modules\HotelManagement\Http\Controllers\HotelGroupController;
 use Modules\HotelManagement\Http\Controllers\HotelGuestMapController;
@@ -16,6 +17,7 @@ use Modules\HotelManagement\Http\Controllers\HotelHousekeepingController;
 use Modules\HotelManagement\Http\Controllers\HotelNightAuditController;
 use Modules\HotelManagement\Http\Controllers\HotelOtaSettingsController;
 use Modules\HotelManagement\Http\Controllers\HotelPosIntegrationController;
+use Modules\HotelManagement\Http\Controllers\HotelRatePlanController;
 use Modules\HotelManagement\Http\Controllers\HotelReportController;
 use Modules\HotelManagement\Http\Controllers\HotelReservationController;
 use Modules\HotelManagement\Http\Controllers\HotelRoomController;
@@ -62,8 +64,10 @@ Route::group(['middleware' => ['verified']], function () {
 
             Route::get('hotel/rooms/map', [HotelRoomController::class, 'map'])->name('hotel.rooms.map');
             Route::get('hotel/guests/map', [HotelGuestMapController::class, 'index'])->name('hotel.guests.map');
+            Route::resource('hotel/floors', HotelFloorController::class)->except(['show'])->names('hotel.floors');
             Route::resource('hotel/rooms', HotelRoomController::class)->names('hotel.rooms');
             Route::resource('hotel/room-types', HotelRoomTypeController::class)->except(['show'])->names('hotel.room-types');
+            Route::resource('hotel/rate-plans', HotelRatePlanController::class)->except(['show'])->names('hotel.rate-plans');
             Route::resource('hotel/reservations', HotelReservationController::class)->names('hotel.reservations');
             Route::resource('hotel/housekeeping', HotelHousekeepingController::class)->except(['show', 'destroy'])->names('hotel.housekeeping');
             Route::get('hotel/frontdesk/in-house', [HotelFrontdeskController::class, 'inHouse'])->name('hotel.frontdesk.in-house');

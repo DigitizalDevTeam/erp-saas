@@ -285,7 +285,29 @@ class HotelReportController extends Controller
             ->limit(20)
             ->get();
 
-        return view('hotelmanagement::reports.customers', compact('vipCount', 'returning', 'newGuests', 'frequent', 'byOrigin', 'from', 'to'));
+        $guestsWithAlerts = HotelGuest::where('created_by', $creatorId)
+            ->where(function ($query) {
+                $query->whereNotNull('allergies')->where('allergies', '!=', '')
+                    ->orWhere(function ($sub) {
+                        $sub->whereNotNull('preferences')->where('preferences', '!=', '');
+                    })
+                    ->orWhere(function ($sub) {
+                        $sub->whereNotNull('drink_preferences')->where('drink_preferences', '!=', '');
+                    });
+            })
+            ->count();
+
+        $parkingRequests = HotelReservation::where('created_by', $creatorId)
+            ->whereBetween('check_in_date', [$from->toDateString(), $to->toDateString()])
+            ->where('parking_requested', true)
+            ->count();
+
+        $etaReservations = HotelReservation::where('created_by', $creatorId)
+            ->whereBetween('check_in_date', [$from->toDateString(), $to->toDateString()])
+            ->whereNotNull('estimated_arrival_time')
+            ->count();
+
+        return view('hotelmanagement::reports.customers', compact('vipCount', 'returning', 'newGuests', 'frequent', 'byOrigin', 'guestsWithAlerts', 'parkingRequests', 'etaReservations', 'from', 'to'));
     }
 
     public function alerts(Request $request)
@@ -319,7 +341,25 @@ class HotelReportController extends Controller
             ->limit(50)
             ->get();
 
-        return view('hotelmanagement::reports.alerts', compact('lateCheckIns', 'unassignedToday', 'cancellations', 'paymentIssues'));
+        $guestAlerts = HotelReservation::where('created_by', $creatorId)
+            ->whereIn('status', [HotelReservation::STATUS_PENDING, HotelReservation::STATUS_CONFIRMED, HotelReservation::STATUS_CHECKED_IN])
+            ->whereDate('check_in_date', '>=', $today)
+            ->with(['guest', 'room'])
+            ->get()
+            ->filter(function ($reservation) {
+                $guest = $reservation->guest;
+                return $guest && (
+                    filled($guest->allergies ?? null)
+                    || filled($guest->preferences ?? null)
+                    || filled($guest->drink_preferences ?? null)
+                    || !empty($reservation->parking_requested)
+                    || !empty($reservation->estimated_arrival_time)
+                );
+            })
+            ->take(50)
+            ->values();
+
+        return view('hotelmanagement::reports.alerts', compact('lateCheckIns', 'unassignedToday', 'cancellations', 'paymentIssues', 'guestAlerts'));
     }
 
     private function averageStayNights(int $creatorId, Carbon $from, Carbon $to): float

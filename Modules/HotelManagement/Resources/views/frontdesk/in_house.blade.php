@@ -20,7 +20,7 @@
             <div class="card-body">
                 @include('hotelmanagement::partials.floor_grid', [
                     'rooms' => $mapRooms ?? collect(),
-                    'interactive' => true,
+                    'interactive' => $canManage ?? false,
                     'compact' => true,
                 ])
             </div>
@@ -57,10 +57,14 @@
                                     @endif
                                 </td>
                                 <td>
+                                    @if($canManage ?? false)
                                     @if($stay->status !== 'checked_out')
                                     {!! Form::open(['method' => 'POST', 'route' => ['hotel.frontdesk.check-out', $stay->id], 'class' => 'd-inline']) !!}
                                     <button class="btn btn-sm btn-warning">{{ __('Check-out') }}</button>
                                     {!! Form::close() !!}
+                                    @endif
+                                    @else
+                                    <span class="text-muted small">{{ __('View only') }}</span>
                                     @endif
                                 </td>
                             </tr>

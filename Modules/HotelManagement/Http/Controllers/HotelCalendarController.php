@@ -12,7 +12,7 @@ class HotelCalendarController extends Controller
 {
     public function index()
     {
-        if (!Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
+        if (!Auth::user()->can('show hotel reservation') && !Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -21,7 +21,7 @@ class HotelCalendarController extends Controller
 
     public function events(Request $request)
     {
-        if (!Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
+        if (!Auth::user()->can('show hotel reservation') && !Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
             return response()->json([], 403);
         }
         $creatorId = Auth::user()->creatorId();

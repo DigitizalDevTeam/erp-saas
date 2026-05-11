@@ -18,15 +18,17 @@
                 <a href="{{ route('hotel.rooms.index') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="ti ti-list me-1"></i>{{ __('Mostrar lista') }}
                 </a>
+                @if($canManage ?? false)
                 <a href="{{ route('hotel.reservations.create') }}" class="btn btn-sm btn-primary">
                     <i class="ti ti-plus me-1"></i>{{ __('New reservation') }}
                 </a>
+                @endif
             </div>
         </div>
         <div class="card-body">
             @include('hotelmanagement::partials.floor_grid', [
                 'rooms' => $rooms,
-                'interactive' => true,
+                'interactive' => $canManage ?? false,
                 'compact' => false,
             ])
         </div>

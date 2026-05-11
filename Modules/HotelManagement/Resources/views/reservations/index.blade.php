@@ -5,7 +5,9 @@
     <li class="breadcrumb-item">{{ __('Reservations') }}</li>
 @endsection
 @section('action-btn')
+@if(Auth::user()->can('manage hotel reservation') || Auth::user()->can('manage hotel'))
 <a href="{{ route('hotel.reservations.create') }}" class="btn btn-sm btn-primary"><i class="ti ti-plus"></i> {{ __('Add Reservation') }}</a>
+@endif
 @endsection
 @section('content')
 <div class="row g-3">
@@ -84,11 +86,15 @@
                                     @endif
                                 </td>
                                 <td>
+                                    @if(Auth::user()->can('manage hotel reservation') || Auth::user()->can('manage hotel'))
                                     <a class="btn btn-sm btn-info" href="{{ route('hotel.reservations.edit', $r->id) }}"><i class="ti ti-pencil text-white"></i></a>
                                     @if($r->status !== 'checked_in' && $r->status !== 'cancelled')
                                         {!! Form::open(['method' => 'POST', 'route' => ['hotel.frontdesk.check-in', $r->id], 'class' => 'd-inline']) !!}
                                         <button class="btn btn-sm btn-success">{{ __('Check-in') }}</button>
                                         {!! Form::close() !!}
+                                    @endif
+                                    @else
+                                    <span class="text-muted small">{{ __('View only') }}</span>
                                     @endif
                                 </td>
                             </tr>

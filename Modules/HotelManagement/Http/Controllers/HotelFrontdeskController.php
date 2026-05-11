@@ -11,14 +11,29 @@ use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelStay;
 use Modules\HotelManagement\Http\Controllers\Concerns\BuildsRoomMap;
+use Modules\HotelManagement\Services\HotelReservationPricingService;
 
 class HotelFrontdeskController extends Controller
 {
     use BuildsRoomMap;
 
+    public function __construct(private readonly HotelReservationPricingService $pricingService)
+    {
+    }
+
+    private function canView(): bool
+    {
+        return Auth::user()->can('show hotel frontdesk') || Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
+    }
+
+    private function canManage(): bool
+    {
+        return Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
+    }
+
     public function inHouse()
     {
-        if (!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) {
+        if (! $this->canView()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $stays = HotelStay::where('created_by', Auth::user()->creatorId())
@@ -26,12 +41,13 @@ class HotelFrontdeskController extends Controller
             ->orderByDesc('id')
             ->get();
         $mapRooms = $this->roomsWithCurrentReservation((int) Auth::user()->creatorId());
-        return view('hotelmanagement::frontdesk.in_house', compact('stays', 'mapRooms'));
+        $canManage = $this->canManage();
+        return view('hotelmanagement::frontdesk.in_house', compact('stays', 'mapRooms', 'canManage'));
     }
 
     public function checkIn(HotelReservation $reservation)
     {
-        if ((!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) || (int) $reservation->created_by !== (int) Auth::user()->creatorId()) {
+        if ((! $this->canManage()) || (int) $reservation->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         if (!$reservation->hotel_room_id) {
@@ -52,27 +68,24 @@ class HotelFrontdeskController extends Controller
                 'created_by' => Auth::user()->creatorId(),
             ]);
 
-            $checkInAt = \Carbon\Carbon::parse($reservation->check_in_at ?: ($reservation->check_in_date . ' 12:00:00'));
-            $checkOutAt = \Carbon\Carbon::parse($reservation->check_out_at ?: ($reservation->check_out_date . ' 12:00:00'));
-            $hours = max(1, $checkInAt->diffInHours($checkOutAt));
-            $nights = max(1, (int) ceil($hours / 24));
-            $roomTotal = ($reservation->rate_per_night * $nights) - $reservation->discount_amount;
+            $totals = $this->pricingService->reservationTotals($reservation);
+            $unitLabel = strtolower($totals['unit_label']);
             $folio = HotelFolio::create([
                 'hotel_stay_id' => $stay->id,
                 'folio_no' => 'FOL-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5)),
-                'sub_total' => $roomTotal,
-                'grand_total' => $roomTotal,
+                'sub_total' => $totals['sub_total'],
+                'grand_total' => $totals['grand_total'],
                 'created_by' => Auth::user()->creatorId(),
             ]);
 
             HotelFolioLine::create([
                 'hotel_folio_id' => $folio->id,
                 'line_type' => 'room_charge',
-                'description' => 'Room charge (' . $nights . ' night(s))',
-                'quantity' => $nights,
+                'description' => ucfirst($unitLabel) . ' charge (' . $totals['units'] . ' ' . $unitLabel . ')',
+                'quantity' => $totals['units'],
                 'unit_price' => $reservation->rate_per_night,
                 'discount_amount' => $reservation->discount_amount,
-                'line_total' => $roomTotal,
+                'line_total' => $totals['grand_total'],
                 'created_by' => Auth::user()->creatorId(),
             ]);
 
@@ -85,7 +98,7 @@ class HotelFrontdeskController extends Controller
 
     public function checkOut(HotelStay $stay)
     {
-        if ((!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) || (int) $stay->created_by !== (int) Auth::user()->creatorId()) {
+        if ((! $this->canManage()) || (int) $stay->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         if ($stay->status === 'checked_out') {

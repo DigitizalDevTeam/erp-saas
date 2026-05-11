@@ -17,7 +17,13 @@ class HotelGuestMapController extends Controller
 
     public function index()
     {
-        if (!Auth::user()->can('manage hotel') && !Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel frontdesk')) {
+        if (
+            !Auth::user()->can('manage hotel')
+            && !Auth::user()->can('manage hotel reservation')
+            && !Auth::user()->can('manage hotel frontdesk')
+            && !Auth::user()->can('show hotel reservation')
+            && !Auth::user()->can('show hotel frontdesk')
+        ) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 

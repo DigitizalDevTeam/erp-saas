@@ -3,44 +3,71 @@
 namespace Modules\HotelManagement\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Mail\HotelReservationCreatedMail;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Modules\HotelManagement\Entities\HotelGroup;
 use Modules\HotelManagement\Entities\HotelGroupMember;
 use Modules\HotelManagement\Entities\HotelGuest;
 use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelRoomType;
+use Modules\HotelManagement\Services\HotelReservationPricingService;
 
 class HotelGroupController extends Controller
 {
+    public function __construct(private readonly HotelReservationPricingService $pricingService)
+    {
+    }
+
+    private function canView(): bool
+    {
+        return Auth::user()->can('show hotel reservation') || Auth::user()->can('manage hotel reservation') || Auth::user()->can('manage hotel');
+    }
+
+    private function canManage(): bool
+    {
+        return Auth::user()->can('manage hotel reservation') || Auth::user()->can('manage hotel');
+    }
+
     public function index()
     {
-        if (!Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
+        if (! $this->canView()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $groups = HotelGroup::where('created_by', Auth::user()->creatorId())
             ->withCount('reservations')
             ->orderByDesc('id')
             ->get();
+        $canManage = $this->canManage();
 
-        return view('hotelmanagement::groups.index', compact('groups'));
+        return view('hotelmanagement::groups.index', compact('groups', 'canManage'));
     }
 
     public function create()
     {
-        if (!Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
+        if (! $this->canManage()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $roomTypes = HotelRoomType::where('created_by', Auth::user()->creatorId())->where('is_active', true)->pluck('name', 'id');
+        $roomTypesMeta = HotelRoomType::where('created_by', Auth::user()->creatorId())
+            ->where('is_active', true)
+            ->get(['id', 'nightly_rate', 'monthly_rate', 'default_billing_mode', 'base_price'])
+            ->mapWithKeys(fn ($type) => [$type->id => [
+                'nightly_rate' => (float) ($type->nightly_rate ?? $type->base_price ?? 0),
+                'monthly_rate' => (float) ($type->monthly_rate ?? 0),
+                'default_billing_mode' => $type->default_billing_mode ?? 'nightly',
+            ]])
+            ->toArray();
 
-        return view('hotelmanagement::groups.create', compact('roomTypes'));
+        return view('hotelmanagement::groups.create', compact('roomTypes', 'roomTypesMeta'));
     }
 
     public function store(Request $request)
     {
-        if (!Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
+        if (! $this->canManage()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $request->validate([
@@ -53,7 +80,7 @@ class HotelGroupController extends Controller
             'members.*.hotel_room_type_id' => 'required|exists:hotel_room_types,id',
             'members.*.check_in_at' => 'required|date',
             'members.*.check_out_at' => 'required|date',
-            'members.*.rate_per_night' => 'required|numeric|min:0',
+            'members.*.billing_mode' => 'required|in:nightly,monthly',
             'members.*.role' => 'nullable|in:adult,child',
             'members.*.phone' => 'nullable|string|max:50',
             'members.*.email' => 'nullable|email|max:191',
@@ -81,6 +108,14 @@ class HotelGroupController extends Controller
                 if ($checkOutAt->lte($checkInAt)) {
                     continue;
                 }
+                $quote = $this->pricingService->quote(
+                    $creatorId,
+                    (int) $m['hotel_room_type_id'],
+                    !empty($m['hotel_room_id']) ? (int) $m['hotel_room_id'] : null,
+                    $checkInAt,
+                    $checkOutAt,
+                    $m['billing_mode'] ?? 'nightly'
+                );
                 $guest = HotelGuest::create([
                     'first_name' => $m['first_name'],
                     'last_name' => $m['last_name'] ?? null,
@@ -94,12 +129,13 @@ class HotelGroupController extends Controller
                     'role' => $m['role'] ?? 'adult',
                     'sort_order' => $sort++,
                 ]);
-                HotelReservation::create([
+                $reservation = HotelReservation::create([
                     'reservation_no' => 'RSV-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5)),
                     'hotel_guest_id' => $guest->id,
                     'hotel_group_id' => $group->id,
                     'hotel_room_type_id' => $m['hotel_room_type_id'],
                     'hotel_room_id' => !empty($m['hotel_room_id']) ? $m['hotel_room_id'] : null,
+                    'hotel_rate_plan_id' => $quote['rate_plan_id'] ?? null,
                     'branch_id' => $branchId,
                     'check_in_at' => $checkInAt->format('Y-m-d H:i:s'),
                     'check_out_at' => $checkOutAt->format('Y-m-d H:i:s'),
@@ -109,11 +145,24 @@ class HotelGroupController extends Controller
                     'children' => ($m['role'] ?? 'adult') === 'child' ? 1 : 0,
                     'source' => 'manual',
                     'status' => HotelReservation::STATUS_CONFIRMED,
-                    'rate_per_night' => $m['rate_per_night'],
+                    'billing_mode' => $quote['billing_mode'],
+                    'rate_per_night' => $quote['rate_amount'],
                     'discount_amount' => 0,
                     'notes' => $m['notes'] ?? null,
                     'created_by' => $creatorId,
                 ]);
+
+                if (!empty($guest->email)) {
+                    try {
+                        Mail::to($guest->email)->send(new HotelReservationCreatedMail($reservation->fresh(['guest', 'roomType', 'room']), [
+                            'billing_mode' => $reservation->billing_mode,
+                            'rate_display' => Auth::user()->priceFormat($reservation->rate_per_night) . ' / ' . __($reservation->billing_mode === 'monthly' ? 'month' : 'night'),
+                        ]));
+                        $reservation->forceFill(['guest_email_sent_at' => now()])->save();
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
+                }
             }
         });
 
@@ -122,11 +171,12 @@ class HotelGroupController extends Controller
 
     public function show(HotelGroup $group)
     {
-        if ((int) $group->created_by !== (int) Auth::user()->creatorId()) {
+        if (! $this->canView() || (int) $group->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $group->load(['reservations.guest', 'reservations.room', 'members.guest', 'reservations.stay.folio.payments']);
+        $canManage = $this->canManage();
 
-        return view('hotelmanagement::groups.show', compact('group'));
+        return view('hotelmanagement::groups.show', compact('group', 'canManage'));
     }
 }

@@ -16,9 +16,11 @@ class HotelRoom extends Model
 
     protected $fillable = [
         'hotel_room_type_id',
+        'hotel_floor_id',
         'branch_id',
         'room_no',
         'override_price',
+        'monthly_override_price',
         'status',
         'notes',
         'created_by',
@@ -27,5 +29,10 @@ class HotelRoom extends Model
     public function roomType()
     {
         return $this->belongsTo(HotelRoomType::class, 'hotel_room_type_id');
+    }
+
+    public function floor()
+    {
+        return $this->belongsTo(HotelFloor::class, 'hotel_floor_id');
     }
 }

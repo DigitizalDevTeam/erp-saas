@@ -12,6 +12,9 @@
         <div class="col-md-3"><div class="border rounded p-2"><small class="text-muted">{{ __('VIP guests') }}</small><h4 class="mb-0">{{ $vipCount }}</h4></div></div>
         <div class="col-md-3"><div class="border rounded p-2"><small class="text-muted">{{ __('Returning (2+ stays in range)') }}</small><h4 class="mb-0">{{ $returning }}</h4></div></div>
         <div class="col-md-3"><div class="border rounded p-2"><small class="text-muted">{{ __('New guest profiles') }}</small><h4 class="mb-0">{{ $newGuests }}</h4></div></div>
+        <div class="col-md-3"><div class="border rounded p-2"><small class="text-muted">{{ __('Guests with alerts') }}</small><h4 class="mb-0">{{ $guestsWithAlerts }}</h4></div></div>
+        <div class="col-md-3"><div class="border rounded p-2"><small class="text-muted">{{ __('Parking requests') }}</small><h4 class="mb-0">{{ $parkingRequests }}</h4></div></div>
+        <div class="col-md-3"><div class="border rounded p-2"><small class="text-muted">{{ __('Reservations with ETA') }}</small><h4 class="mb-0">{{ $etaReservations }}</h4></div></div>
     </div>
     <h6>{{ __('Frequent guests (range)') }}</h6>
     <div class="table-responsive">

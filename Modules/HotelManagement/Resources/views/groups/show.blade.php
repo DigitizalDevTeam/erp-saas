@@ -32,7 +32,9 @@
                 @endif
             </td>
             <td>
+                @if($canManage ?? false)
                 <a class="btn btn-sm btn-outline-primary" href="{{ route('hotel.reservations.edit', $r->id) }}">{{ __('Reservation') }}</a>
+                @endif
                 @if($folio)
                     <a class="btn btn-sm btn-outline-secondary" href="{{ route('hotel.folios.show', $folio->id) }}">{{ __('Folio') }}</a>
                 @endif

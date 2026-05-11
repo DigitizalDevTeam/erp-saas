@@ -5,7 +5,9 @@
     <li class="breadcrumb-item">{{ __('Groups') }}</li>
 @endsection
 @section('action-btn')
+@if($canManage ?? false)
 <a href="{{ route('hotel.groups.create') }}" class="btn btn-sm btn-primary"><i class="ti ti-plus"></i> {{ __('New group') }}</a>
+@endif
 @endsection
 @section('content')
 <div class="card shadow-sm"><div class="card-body table-border-style"><div class="table-responsive">

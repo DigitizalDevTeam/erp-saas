@@ -5,7 +5,9 @@
     <li class="breadcrumb-item">{{ __('Housekeeping') }}</li>
 @endsection
 @section('action-btn')
+@if($canManage ?? false)
 <a href="{{ route('hotel.housekeeping.create') }}" class="btn btn-sm btn-primary"><i class="ti ti-plus"></i> {{ __('Add Task') }}</a>
+@endif
 @endsection
 @section('content')
 <div class="card"><div class="card-body table-border-style"><div class="table-responsive">
@@ -18,7 +20,13 @@
             <td>{{ $task->assignee->name ?? '-' }}</td>
             <td>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $task->status))) }}</td>
             <td>{{ $task->notes }}</td>
-            <td><a class="btn btn-sm btn-info" href="{{ route('hotel.housekeeping.edit', $task->id) }}"><i class="ti ti-pencil text-white"></i></a></td>
+            <td>
+                @if($canManage ?? false)
+                <a class="btn btn-sm btn-info" href="{{ route('hotel.housekeeping.edit', $task->id) }}"><i class="ti ti-pencil text-white"></i></a>
+                @else
+                <span class="text-muted small">{{ __('View only') }}</span>
+                @endif
+            </td>
         </tr>
     @endforeach
     </tbody>

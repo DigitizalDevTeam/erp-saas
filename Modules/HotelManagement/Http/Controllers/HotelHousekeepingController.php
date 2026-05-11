@@ -11,9 +11,19 @@ use Modules\HotelManagement\Entities\HotelRoom;
 
 class HotelHousekeepingController extends Controller
 {
+    private function canView(): bool
+    {
+        return Auth::user()->can('show hotel frontdesk') || Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
+    }
+
+    private function canManage(): bool
+    {
+        return Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
+    }
+
     public function index()
     {
-        if (!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) {
+        if (! $this->canView()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $tasks = HotelHousekeepingTask::where('created_by', Auth::user()->creatorId())
@@ -21,12 +31,13 @@ class HotelHousekeepingController extends Controller
             ->orderByRaw("FIELD(status, 'pending', 'in_progress', 'done')")
             ->orderByDesc('id')
             ->get();
-        return view('hotelmanagement::housekeeping.index', compact('tasks'));
+        $canManage = $this->canManage();
+        return view('hotelmanagement::housekeeping.index', compact('tasks', 'canManage'));
     }
 
     public function create()
     {
-        if (!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) {
+        if (! $this->canManage()) {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
         $rooms = HotelRoom::where('created_by', Auth::user()->creatorId())->orderBy('room_no')->pluck('room_no', 'id');
@@ -36,7 +47,7 @@ class HotelHousekeepingController extends Controller
 
     public function store(Request $request)
     {
-        if (!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) {
+        if (! $this->canManage()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $validator = \Validator::make($request->all(), [
@@ -66,7 +77,7 @@ class HotelHousekeepingController extends Controller
 
     public function edit(HotelHousekeepingTask $housekeeping)
     {
-        if ((!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) || (int) $housekeeping->created_by !== (int) Auth::user()->creatorId()) {
+        if ((! $this->canManage()) || (int) $housekeeping->created_by !== (int) Auth::user()->creatorId()) {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
         $rooms = HotelRoom::where('created_by', Auth::user()->creatorId())->orderBy('room_no')->pluck('room_no', 'id');
@@ -76,7 +87,7 @@ class HotelHousekeepingController extends Controller
 
     public function update(Request $request, HotelHousekeepingTask $housekeeping)
     {
-        if ((!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) || (int) $housekeeping->created_by !== (int) Auth::user()->creatorId()) {
+        if ((! $this->canManage()) || (int) $housekeeping->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $validator = \Validator::make($request->all(), [

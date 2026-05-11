@@ -20,9 +20,13 @@ class HotelGuest extends Model
         'nationality',
         'preferred_room_type_id',
         'preferred_floor',
+        'preferred_hotel_floor_id',
         'preferred_payment_method',
         'credit_limit',
         'notes',
+        'allergies',
+        'preferences',
+        'drink_preferences',
         'company_name',
         'is_vip',
         'created_by',
@@ -31,6 +35,11 @@ class HotelGuest extends Model
     public function preferredRoomType()
     {
         return $this->belongsTo(HotelRoomType::class, 'preferred_room_type_id');
+    }
+
+    public function preferredFloor()
+    {
+        return $this->belongsTo(HotelFloor::class, 'preferred_hotel_floor_id');
     }
 
     public function reservations()

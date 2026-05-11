@@ -12,9 +12,19 @@ use Modules\HotelManagement\Entities\HotelStay;
 
 class HotelNightAuditController extends Controller
 {
+    private function canView(): bool
+    {
+        return Auth::user()->can('show hotel frontdesk') || Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
+    }
+
+    private function canManage(): bool
+    {
+        return Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
+    }
+
     public function index()
     {
-        if (!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) {
+        if (! $this->canView()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -22,12 +32,13 @@ class HotelNightAuditController extends Controller
             ->orderByDesc('audit_date')
             ->orderByDesc('id')
             ->get();
-        return view('hotelmanagement::night_audit.index', compact('audits'));
+        $canManage = $this->canManage();
+        return view('hotelmanagement::night_audit.index', compact('audits', 'canManage'));
     }
 
     public function run(Request $request)
     {
-        if (!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) {
+        if (! $this->canManage()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 

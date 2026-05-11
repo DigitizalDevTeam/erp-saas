@@ -18,7 +18,7 @@ trait BuildsRoomMap
         $today = $today ?: Carbon::today();
 
         $rooms = HotelRoom::where('created_by', $creatorId)
-            ->with('roomType')
+            ->with(['roomType', 'floor'])
             ->orderBy('room_no')
             ->get();
 

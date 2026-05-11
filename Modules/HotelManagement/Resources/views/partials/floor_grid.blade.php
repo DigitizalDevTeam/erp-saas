@@ -34,15 +34,18 @@
     };
 
     $grouped = $rooms->groupBy(function ($room) {
+        if ($room->relationLoaded('floor') && $room->floor) {
+            return $room->floor->name;
+        }
         $no = (string) $room->room_no;
         if (preg_match('/^\d+$/', $no)) {
             $n = (int) $no;
             if ($n >= 100) {
-                return (int) floor($n / 100);
+                return __('Floor') . ' ' . (int) floor($n / 100);
             }
-            return (int) substr($no, 0, 1);
+            return __('Floor') . ' ' . (int) substr($no, 0, 1);
         }
-        return 0;
+        return __('Other');
     })->sortKeys();
 @endphp
 
@@ -65,7 +68,7 @@
             <div class="floor-block mb-3">
                 <div class="floor-header d-flex align-items-center justify-content-between mb-2">
                     <h6 class="mb-0 text-muted small text-uppercase fw-bold">
-                        {{ $floor > 0 ? __('Floor') . ' ' . $floor : __('Other') }}
+                        {{ $floor }}
                     </h6>
                     <small class="text-muted">{{ count($floorRooms) }} {{ __('rooms') }}</small>
                 </div>
@@ -76,6 +79,11 @@
                             $meta = $statusMeta[$status] ?? $statusMeta['available'];
                             $reservation = $room->relationLoaded('currentReservation') ? $room->currentReservation : null;
                             $guest = $reservation && $reservation->relationLoaded('guest') ? $reservation->guest : null;
+                            $hasGuestAlerts = $guest && (
+                                filled($guest->allergies ?? null)
+                                || filled($guest->preferences ?? null)
+                                || filled($guest->drink_preferences ?? null)
+                            );
 
                             $href = '#';
                             if ($interactive) {
@@ -119,9 +127,14 @@
                             <div class="floor-room-inner">
                                 <div class="d-flex align-items-center justify-content-between">
                                     <span class="room-no">{{ $room->room_no }}</span>
-                                    @if($guest && !empty($guest->is_vip))
-                                        <i class="ti ti-star-filled text-warning" title="{{ __('VIP') }}"></i>
-                                    @endif
+                                    <span>
+                                        @if($guest && !empty($guest->is_vip))
+                                            <i class="ti ti-star-filled text-warning" title="{{ __('VIP') }}"></i>
+                                        @endif
+                                        @if($hasGuestAlerts)
+                                            <i class="ti ti-alert-triangle text-danger" title="{{ __('Guest alert') }}"></i>
+                                        @endif
+                                    </span>
                                 </div>
                                 <span class="room-status-pill" style="background: {{ $meta['color'] }};">{{ $meta['label'] }}</span>
                                 @if(!$compact)

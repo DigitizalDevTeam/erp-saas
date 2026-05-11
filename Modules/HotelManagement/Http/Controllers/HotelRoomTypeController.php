@@ -9,9 +9,19 @@ use Modules\HotelManagement\Entities\HotelRoomType;
 
 class HotelRoomTypeController extends Controller
 {
+    private function canView(): bool
+    {
+        return Auth::user()->can('show hotel room') || Auth::user()->can('manage hotel room') || Auth::user()->can('manage hotel');
+    }
+
+    private function canManage(): bool
+    {
+        return Auth::user()->can('manage hotel room') || Auth::user()->can('manage hotel');
+    }
+
     public function index()
     {
-        if (!Auth::user()->can('manage hotel room') && !Auth::user()->can('manage hotel')) {
+        if (! $this->canView()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -24,7 +34,7 @@ class HotelRoomTypeController extends Controller
 
     public function create()
     {
-        if (!Auth::user()->can('manage hotel room') && !Auth::user()->can('manage hotel')) {
+        if (! $this->canManage()) {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
@@ -33,13 +43,16 @@ class HotelRoomTypeController extends Controller
 
     public function store(Request $request)
     {
-        if (!Auth::user()->can('manage hotel room') && !Auth::user()->can('manage hotel')) {
+        if (! $this->canManage()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
         $validator = \Validator::make($request->all(), [
             'name' => 'required|string|max:100',
-            'base_price' => 'nullable|numeric|min:0',
+            'unit_category' => 'required|in:room,apartment',
+            'nightly_rate' => 'nullable|numeric|min:0',
+            'monthly_rate' => 'nullable|numeric|min:0',
+            'default_billing_mode' => 'required|in:nightly,monthly',
             'max_occupancy' => 'required|integer|min:1',
         ]);
         if ($validator->fails()) {
@@ -49,7 +62,11 @@ class HotelRoomTypeController extends Controller
         HotelRoomType::create([
             'name' => $request->name,
             'description' => $request->description,
-            'base_price' => $request->base_price ?: 0,
+            'unit_category' => $request->unit_category,
+            'base_price' => $request->nightly_rate ?: 0,
+            'nightly_rate' => $request->nightly_rate ?: 0,
+            'monthly_rate' => $request->monthly_rate ?: 0,
+            'default_billing_mode' => $request->default_billing_mode,
             'max_occupancy' => $request->max_occupancy,
             'is_active' => $request->has('is_active'),
             'created_by' => Auth::user()->creatorId(),
@@ -60,7 +77,7 @@ class HotelRoomTypeController extends Controller
 
     public function edit(HotelRoomType $room_type)
     {
-        if ((!Auth::user()->can('manage hotel room') && !Auth::user()->can('manage hotel')) || (int) $room_type->created_by !== (int) Auth::user()->creatorId()) {
+        if ((! $this->canManage()) || (int) $room_type->created_by !== (int) Auth::user()->creatorId()) {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
@@ -69,13 +86,16 @@ class HotelRoomTypeController extends Controller
 
     public function update(Request $request, HotelRoomType $room_type)
     {
-        if ((!Auth::user()->can('manage hotel room') && !Auth::user()->can('manage hotel')) || (int) $room_type->created_by !== (int) Auth::user()->creatorId()) {
+        if ((! $this->canManage()) || (int) $room_type->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
         $validator = \Validator::make($request->all(), [
             'name' => 'required|string|max:100',
-            'base_price' => 'nullable|numeric|min:0',
+            'unit_category' => 'required|in:room,apartment',
+            'nightly_rate' => 'nullable|numeric|min:0',
+            'monthly_rate' => 'nullable|numeric|min:0',
+            'default_billing_mode' => 'required|in:nightly,monthly',
             'max_occupancy' => 'required|integer|min:1',
         ]);
         if ($validator->fails()) {
@@ -85,7 +105,11 @@ class HotelRoomTypeController extends Controller
         $room_type->update([
             'name' => $request->name,
             'description' => $request->description,
-            'base_price' => $request->base_price ?: 0,
+            'unit_category' => $request->unit_category,
+            'base_price' => $request->nightly_rate ?: 0,
+            'nightly_rate' => $request->nightly_rate ?: 0,
+            'monthly_rate' => $request->monthly_rate ?: 0,
+            'default_billing_mode' => $request->default_billing_mode,
             'max_occupancy' => $request->max_occupancy,
             'is_active' => $request->has('is_active'),
         ]);
@@ -95,7 +119,7 @@ class HotelRoomTypeController extends Controller
 
     public function destroy(HotelRoomType $room_type)
     {
-        if ((!Auth::user()->can('manage hotel room') && !Auth::user()->can('manage hotel')) || (int) $room_type->created_by !== (int) Auth::user()->creatorId()) {
+        if ((! $this->canManage()) || (int) $room_type->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 

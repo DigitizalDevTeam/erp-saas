@@ -12,7 +12,11 @@ class HotelRoomType extends Model
     protected $fillable = [
         'name',
         'description',
+        'unit_category',
         'base_price',
+        'nightly_rate',
+        'monthly_rate',
+        'default_billing_mode',
         'max_occupancy',
         'is_active',
         'created_by',
@@ -21,5 +25,10 @@ class HotelRoomType extends Model
     public function rooms()
     {
         return $this->hasMany(HotelRoom::class);
+    }
+
+    public function ratePlans()
+    {
+        return $this->hasMany(HotelRatePlan::class);
     }
 }

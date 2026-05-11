@@ -27,6 +27,32 @@
             </tbody>
         </table>
     </div>
+    <h6>{{ __('Guest profile / arrival alerts') }}</h6>
+    <div class="table-responsive mb-4">
+        <table class="table table-sm">
+            <thead><tr><th>{{ __('Guest') }}</th><th>{{ __('Alerts') }}</th><th>{{ __('ETA / Parking') }}</th><th></th></tr></thead>
+            <tbody>
+            @foreach($guestAlerts as $r)
+                @php
+                    $alerts = collect([
+                        $r->guest->allergies ? __('Allergies') . ': ' . $r->guest->allergies : null,
+                        $r->guest->preferences ? __('Preferences') . ': ' . $r->guest->preferences : null,
+                        $r->guest->drink_preferences ? __('Drinks') . ': ' . $r->guest->drink_preferences : null,
+                    ])->filter()->implode(' | ');
+                @endphp
+                <tr>
+                    <td>{{ trim(($r->guest->first_name ?? '').' '.($r->guest->last_name ?? '')) }}</td>
+                    <td>{{ $alerts ?: '—' }}</td>
+                    <td>
+                        @if($r->estimated_arrival_time){{ __('ETA') }}: {{ $r->estimated_arrival_time }}@endif
+                        @if($r->parking_requested){{ $r->estimated_arrival_time ? ' | ' : '' }}{{ __('Parking requested') }}@endif
+                    </td>
+                    <td><a class="btn btn-sm btn-outline-primary" href="{{ route('hotel.reservations.edit', $r->id) }}">{{ __('Open') }}</a></td>
+                </tr>
+            @endforeach
+            </tbody>
+        </table>
+    </div>
     <h6>{{ __('Payment issues (open folios, underpaid)') }}</h6>
     <div class="table-responsive">
         <table class="table table-sm">
