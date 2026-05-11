@@ -49,15 +49,23 @@ class IrpcReportController extends Controller
             )->setPaper('a4', 'portrait')->download($fileName);
         }
 
-        $html = view('reports.annual.irpc_payment_guide_pdf', compact('reportData'))->render();
-        $pdfBinary = Browsershot::html($html)
-            ->showBackground()
-            ->paperSize(210, 297, 'mm')
-            ->margins(8, 8, 8, 8)
-            ->pdf();
+        try {
+            $html = view('reports.annual.irpc_payment_guide_pdf', compact('reportData'))->render();
+            $pdfBinary = Browsershot::html($html)
+                ->showBackground()
+                ->paperSize(210, 297, 'mm')
+                ->margins(8, 8, 8, 8)
+                ->pdf();
 
-        return response()->streamDownload(static function () use ($pdfBinary): void {
-            echo $pdfBinary;
-        }, $fileName, ['Content-Type' => 'application/pdf']);
+            return response()->streamDownload(static function () use ($pdfBinary): void {
+                echo $pdfBinary;
+            }, $fileName, ['Content-Type' => 'application/pdf']);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()
+                ->route('annual.reports.irpc-payment-guide', ['year' => $reportData['fiscal_year']])
+                ->with('error', __('PDF generation is not available on this server. Please install Node.js for Browsershot or enable DomPDF.'));
+        }
     }
 }

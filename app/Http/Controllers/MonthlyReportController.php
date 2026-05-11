@@ -246,16 +246,27 @@ class MonthlyReportController extends Controller
                 )->setPaper('a4')->download($fileName);
             }
 
-            $html = view('reports.monthly.trial_balance_pdf', compact('filter', 'totalAccounts', 'view'))->render();
-            $pdfBinary = Browsershot::html($html)
-                ->showBackground()
-                ->format('A4')
-                ->margins(12, 12, 16, 12)
-                ->pdf();
+            try {
+                $html = view('reports.monthly.trial_balance_pdf', compact('filter', 'totalAccounts', 'view'))->render();
+                $pdfBinary = Browsershot::html($html)
+                    ->showBackground()
+                    ->format('A4')
+                    ->margins(12, 12, 16, 12)
+                    ->pdf();
 
-            return response()->streamDownload(static function () use ($pdfBinary): void {
-                echo $pdfBinary;
-            }, $fileName, ['Content-Type' => 'application/pdf']);
+                return response()->streamDownload(static function () use ($pdfBinary): void {
+                    echo $pdfBinary;
+                }, $fileName, ['Content-Type' => 'application/pdf']);
+            } catch (\Throwable $e) {
+                report($e);
+
+                return redirect()
+                    ->route('monthly.reports.trial-balance', [
+                        'start_date' => $filter['startDateRange'],
+                        'end_date' => $filter['endDateRange'],
+                    ])
+                    ->with('error', __('PDF generation is not available on this server. Please install Node.js for Browsershot or enable DomPDF.'));
+            }
         }
 
         return view($blade, compact('filter', 'totalAccounts', 'view'));

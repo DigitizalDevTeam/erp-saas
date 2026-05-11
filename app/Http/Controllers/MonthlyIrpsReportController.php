@@ -106,16 +106,24 @@ class MonthlyIrpsReportController extends Controller
                 )->setPaper([0, 0, $paperWidthPt, $paperHeightPt], 'portrait')->download($fileName);
             }
 
-            $html = view('reports.monthly.irps_modelo_19_pdf', compact('filter', 'reportData'))->render();
-            $pdfBinary = Browsershot::html($html)
-                ->showBackground()
-                ->paperSize($paperWidthMm, $paperHeightMm, 'mm')
-                ->margins(8, 8, 8, 8)
-                ->pdf();
+            try {
+                $html = view('reports.monthly.irps_modelo_19_pdf', compact('filter', 'reportData'))->render();
+                $pdfBinary = Browsershot::html($html)
+                    ->showBackground()
+                    ->paperSize($paperWidthMm, $paperHeightMm, 'mm')
+                    ->margins(8, 8, 8, 8)
+                    ->pdf();
 
-            return response()->streamDownload(static function () use ($pdfBinary): void {
-                echo $pdfBinary;
-            }, $fileName, ['Content-Type' => 'application/pdf']);
+                return response()->streamDownload(static function () use ($pdfBinary): void {
+                    echo $pdfBinary;
+                }, $fileName, ['Content-Type' => 'application/pdf']);
+            } catch (\Throwable $e) {
+                report($e);
+
+                return redirect()
+                    ->route('monthly.reports.irps-modelo-19', ['month' => $month])
+                    ->with('error', __('PDF generation is not available on this server. Please install Node.js for Browsershot or enable DomPDF.'));
+            }
         }
 
         return view('reports.monthly.irps_modelo_19', compact('filter', 'reportData'));
@@ -255,16 +263,24 @@ class MonthlyIrpsReportController extends Controller
             )->setPaper('a4', 'landscape')->download($fileName);
         }
 
-        $html = view('reports.monthly.irps_modelo_22_pdf', compact('filter', 'rows', 'totals'))->render();
-        $pdfBinary = Browsershot::html($html)
-            ->showBackground()
-            ->format('A4')
-            ->margins(8, 8, 8, 8)
-            ->pdf();
+        try {
+            $html = view('reports.monthly.irps_modelo_22_pdf', compact('filter', 'rows', 'totals'))->render();
+            $pdfBinary = Browsershot::html($html)
+                ->showBackground()
+                ->format('A4')
+                ->margins(8, 8, 8, 8)
+                ->pdf();
 
-        return response()->streamDownload(static function () use ($pdfBinary): void {
-            echo $pdfBinary;
-        }, $fileName, ['Content-Type' => 'application/pdf']);
+            return response()->streamDownload(static function () use ($pdfBinary): void {
+                echo $pdfBinary;
+            }, $fileName, ['Content-Type' => 'application/pdf']);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()
+                ->route('monthly.reports.irps-modelo-22', ['month' => $filter['month'] ?? date('Y-m')])
+                ->with('error', __('PDF generation is not available on this server. Please install Node.js for Browsershot or enable DomPDF.'));
+        }
     }
 }
 
