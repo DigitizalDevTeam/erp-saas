@@ -10,7 +10,7 @@
         <div class="card shadow-sm border-0">
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div>
-                    <h5 class="mb-0">{{ __('Mapa de Quartos') }}</h5>
+                    <h5 class="mb-0">{{ __('Room map') }}</h5>
                     <small class="text-muted">{{ __('Quick at-a-glance status across all floors') }}</small>
                 </div>
                 <a href="{{ route('hotel.rooms.map') }}" class="btn btn-sm btn-outline-primary">

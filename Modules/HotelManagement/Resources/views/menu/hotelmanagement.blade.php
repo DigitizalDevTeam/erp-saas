@@ -33,12 +33,12 @@
         @endif
         @if (Gate::check('manage hotel') || Gate::check('manage hotel room') || Gate::check('show hotel room'))
         <li class="dash-item {{ Request::route()->getName() == 'hotel.rooms.map' ? 'active' : '' }}">
-            <a class="dash-link" href="{{ route('hotel.rooms.map') }}">{{ __('Mapa de Quartos') }}</a>
+            <a class="dash-link" href="{{ route('hotel.rooms.map') }}">{{ __('Room map') }}</a>
         </li>
         @endif
         @if (Gate::check('manage hotel') || Gate::check('manage hotel reservation') || Gate::check('show hotel reservation') || Gate::check('manage hotel frontdesk') || Gate::check('show hotel frontdesk'))
         <li class="dash-item {{ Request::route()->getName() == 'hotel.guests.map' ? 'active' : '' }}">
-            <a class="dash-link" href="{{ route('hotel.guests.map') }}">{{ __('Mapa de Hospedes') }}</a>
+            <a class="dash-link" href="{{ route('hotel.guests.map') }}">{{ __('Guest map') }}</a>
         </li>
         @endif
         @if (Gate::check('manage hotel') || Gate::check('manage hotel reservation') || Gate::check('show hotel reservation'))

@@ -81,7 +81,7 @@
                             <a href="{{ route('hotel.frontdesk.in-house') }}" class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2 py-2">
                                 <i class="ti ti-login fs-5"></i>
                                 <span class="text-start lh-sm small">
-                                    <strong class="d-block">{{ __('Novo Check-in') }}</strong>
+                                    <strong class="d-block">{{ __('New check-in') }}</strong>
                                     <span class="opacity-75">{{ __('Register guest') }}</span>
                                 </span>
                             </a>
@@ -99,7 +99,7 @@
                             <a href="{{ route('hotel.reservations.create') }}" class="btn btn-info w-100 d-flex align-items-center justify-content-center gap-2 py-2 text-white">
                                 <i class="ti ti-calendar-plus fs-5"></i>
                                 <span class="text-start lh-sm small">
-                                    <strong class="d-block">{{ __('Nova Reserva') }}</strong>
+                                    <strong class="d-block">{{ __('New reservation') }}</strong>
                                     <span class="opacity-75">{{ __('Create reservation') }}</span>
                                 </span>
                             </a>
@@ -108,7 +108,7 @@
                             <a href="{{ route('hotel.rooms.map') }}" class="btn btn-warning w-100 d-flex align-items-center justify-content-center gap-2 py-2">
                                 <i class="ti ti-arrows-exchange fs-5"></i>
                                 <span class="text-start lh-sm small">
-                                    <strong class="d-block">{{ __('Trocar Quarto') }}</strong>
+                                    <strong class="d-block">{{ __('Change room') }}</strong>
                                     <span class="opacity-75">{{ __('Change room') }}</span>
                                 </span>
                             </a>
@@ -117,7 +117,7 @@
                             <a href="{{ route('hotel.frontdesk.in-house') }}" class="btn btn-outline-success w-100 d-flex align-items-center justify-content-center gap-2 py-2">
                                 <i class="ti ti-credit-card fs-5"></i>
                                 <span class="text-start lh-sm small">
-                                    <strong class="d-block">{{ __('Pagamento') }}</strong>
+                                    <strong class="d-block">{{ __('Payment') }}</strong>
                                     <span class="opacity-75">{{ __('Register payment') }}</span>
                                 </span>
                             </a>
@@ -126,7 +126,7 @@
                             <a href="{{ route('hotel.reservations.index') }}" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2 py-2">
                                 <i class="ti ti-receipt fs-5"></i>
                                 <span class="text-start lh-sm small">
-                                    <strong class="d-block">{{ __('Fatura') }}</strong>
+                                    <strong class="d-block">{{ __('Invoice') }}</strong>
                                     <span class="opacity-75">{{ __('Issue invoice') }}</span>
                                 </span>
                             </a>
@@ -153,7 +153,7 @@
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="mb-0">{{ __('Mapa de Quartos') }}</h5>
+                        <h5 class="mb-0">{{ __('Room map') }}</h5>
                         <small class="text-muted">{{ __('Real-time room status by floor') }}</small>
                     </div>
                     <a href="{{ route('hotel.rooms.map') }}" class="btn btn-sm btn-outline-primary">
@@ -206,7 +206,7 @@
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="mb-0">{{ __('Hospedes em Estadia') }}</h5>
+                        <h5 class="mb-0">{{ __('Current guests') }}</h5>
                         <small class="text-muted">{{ __('Top') }} {{ $data['inHouseGuests']->count() }} {{ __('of') }} {{ $data['inHouse'] }}</small>
                     </div>
                     <a class="small" href="{{ route('hotel.frontdesk.in-house') }}">{{ __('See all') }}</a>
@@ -230,7 +230,7 @@
                                     <tr>
                                         <td>
                                             <strong class="small">{{ $name }}</strong>
-                                            @if($g && !empty($g->is_vip)) <i class="ti ti-star-filled text-warning ms-1" title="VIP"></i> @endif
+                                            @if($g && !empty($g->is_vip)) <i class="ti ti-star-filled text-warning ms-1" title="{{ __('VIP') }}"></i> @endif
                                         </td>
                                         <td>{{ $room }}</td>
                                         <td>{{ $stay->check_in_at ? \Carbon\Carbon::parse($stay->check_in_at)->format('d/m/Y') : '—' }}</td>
@@ -239,7 +239,7 @@
                                             @if($isCheckOutToday)
                                                 <span class="badge bg-warning">{{ __('Check-out today') }}</span>
                                             @else
-                                                <span class="badge bg-success">{{ __('Hospedado') }}</span>
+                                                <span class="badge bg-success">{{ __('Checked-in') }}</span>
                                             @endif
                                         </td>
                                     </tr>
@@ -255,7 +255,7 @@
         <div class="col-lg-4">
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">{{ __('Resumo Financeiro') }}</h5>
+                    <h5 class="mb-0">{{ __('Financial summary') }}</h5>
                     <a class="small" href="{{ route('hotel.reports.financial') }}">{{ __('See report') }}</a>
                 </div>
                 <div class="card-body">
