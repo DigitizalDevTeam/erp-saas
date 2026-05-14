@@ -11,7 +11,7 @@ class PayrollChartAccountOptions
     public static function listForCurrentUser(string $placeholder = 'Select chart of account')
     {
         $creatorId = \Auth::user()->creatorId();
-        $nameColumn = 'name';
+        $nameColumn = 'name'; // ordering only; display uses ChartOfAccount::labelForLocale()
         $options = collect(['' => __($placeholder)]);
 
         $expenseType = ChartOfAccountType::where('created_by', $creatorId)
@@ -52,12 +52,12 @@ class PayrollChartAccountOptions
 
         foreach ($parents as $parent) {
             if ($parent->accountMain) {
-                $add($parent->accountMain->id, self::label($parent->accountMain, 0, $nameColumn));
+                $add($parent->accountMain->id, self::label($parent->accountMain, 0));
             }
             foreach ($parent->children as $child) {
-                $add($child->id, self::label($child, 1, $nameColumn));
+                $add($child->id, self::label($child, 1));
                 foreach ($child->subChildren as $sub) {
-                    $add($sub->id, self::label($sub, 2, $nameColumn));
+                    $add($sub->id, self::label($sub, 2));
                 }
             }
         }
@@ -75,7 +75,7 @@ class PayrollChartAccountOptions
 
         foreach ($orphans as $row) {
             $depth = ((int) $row->parent_account_id > 0) ? 2 : (((int) $row->parent > 0) ? 1 : 0);
-            $add($row->id, self::label($row, $depth, $nameColumn));
+            $add($row->id, self::label($row, $depth));
         }
 
         return $options;
@@ -128,12 +128,12 @@ class PayrollChartAccountOptions
 
         foreach ($parents as $parent) {
             if ($parent->accountMain) {
-                $add($parent->accountMain->id, self::label($parent->accountMain, 0, $nameColumn));
+                $add($parent->accountMain->id, self::label($parent->accountMain, 0));
             }
             foreach ($parent->children as $child) {
-                $add($child->id, self::label($child, 1, $nameColumn));
+                $add($child->id, self::label($child, 1));
                 foreach ($child->subChildren as $sub) {
-                    $add($sub->id, self::label($sub, 2, $nameColumn));
+                    $add($sub->id, self::label($sub, 2));
                 }
             }
         }
@@ -151,7 +151,83 @@ class PayrollChartAccountOptions
 
         foreach ($orphans as $row) {
             $depth = ((int) $row->parent_account_id > 0) ? 2 : (((int) $row->parent > 0) ? 1 : 0);
-            $add($row->id, self::label($row, $depth, $nameColumn));
+            $add($row->id, self::label($row, $depth));
+        }
+
+        return $options;
+    }
+
+    /**
+     * Income / revenue accounts (product default sale account, hotel folio revenue mapping, etc.).
+     */
+    public static function listIncomeForCurrentUser(string $placeholder = 'Select chart of account')
+    {
+        $creatorId = \Auth::user()->creatorId();
+        $nameColumn = 'name';
+        $options = collect(['' => __($placeholder)]);
+
+        $incomeType = ChartOfAccountType::where('created_by', $creatorId)
+            ->where(function ($q) {
+                $q->where('name', 'Income')
+                    ->orWhere('name_pt_br', 'Receita / Rendimento');
+            })
+            ->first();
+
+        if (! $incomeType) {
+            return $options;
+        }
+
+        $seen = [];
+        $add = function (int $id, string $label) use (&$options, &$seen) {
+            if ($id <= 0 || isset($seen[$id])) {
+                return;
+            }
+            $seen[$id] = true;
+            $options[$id] = $label;
+        };
+
+        $parents = ChartOfAccountParent::where('created_by', $creatorId)
+            ->where('type', $incomeType->id)
+            ->with([
+                'accountMain',
+                'children' => function ($q) use ($nameColumn) {
+                    $q->orderByRaw('CAST(code AS UNSIGNED)')->orderBy($nameColumn);
+                },
+                'children.subChildren' => function ($q) use ($nameColumn) {
+                    $q->orderByRaw('CAST(code AS UNSIGNED)')->orderBy($nameColumn);
+                },
+            ])
+            ->get()
+            ->sortBy(function ($p) use ($nameColumn) {
+                return [(int) ($p->accountMain->code ?? 0), $p->{$nameColumn} ?? $p->name ?? ''];
+            });
+
+        foreach ($parents as $parent) {
+            if ($parent->accountMain) {
+                $add($parent->accountMain->id, self::label($parent->accountMain, 0));
+            }
+            foreach ($parent->children as $child) {
+                $add($child->id, self::label($child, 1));
+                foreach ($child->subChildren as $sub) {
+                    $add($sub->id, self::label($sub, 2));
+                }
+            }
+        }
+
+        $orphanQuery = ChartOfAccount::query()
+            ->where('created_by', $creatorId)
+            ->where('type', $incomeType->id);
+        if ($seen !== []) {
+            $orphanQuery->whereNotIn('id', array_keys($seen));
+        }
+        $orphans = $orphanQuery
+            ->orderByRaw('CAST(code AS UNSIGNED)')
+            ->orderBy($nameColumn)
+            ->get();
+
+        foreach ($orphans as $row) {
+            $depth = ((int) $row->parent_account_id > 0) ? 2 : (((int) $row->parent > 0) ? 1 : 0);
+            $add($row->id, self::label($row, $depth));
         }
 
         return $options;
@@ -216,12 +292,12 @@ class PayrollChartAccountOptions
 
         foreach ($parents as $parent) {
             if ($parent->accountMain) {
-                $add($parent->accountMain->id, self::label($parent->accountMain, 0, $nameColumn));
+                $add($parent->accountMain->id, self::label($parent->accountMain, 0));
             }
             foreach ($parent->children as $child) {
-                $add($child->id, self::label($child, 1, $nameColumn));
+                $add($child->id, self::label($child, 1));
                 foreach ($child->subChildren as $sub) {
-                    $add($sub->id, self::label($sub, 2, $nameColumn));
+                    $add($sub->id, self::label($sub, 2));
                 }
             }
         }
@@ -239,17 +315,16 @@ class PayrollChartAccountOptions
 
         foreach ($orphans as $row) {
             $depth = ((int) $row->parent_account_id > 0) ? 2 : (((int) $row->parent > 0) ? 1 : 0);
-            $add($row->id, self::label($row, $depth, $nameColumn));
+            $add($row->id, self::label($row, $depth));
         }
 
         return $options;
     }
 
-    private static function label(ChartOfAccount $account, int $depth, string $nameColumn): string
+    private static function label(ChartOfAccount $account, int $depth): string
     {
         $prefix = $depth > 0 ? str_repeat('· ', $depth) : '';
-        $name = $account->{$nameColumn} ?? $account->name;
 
-        return $prefix . $account->code . ' — ' . $name;
+        return $prefix . $account->code . ' — ' . $account->labelForLocale();
     }
 }

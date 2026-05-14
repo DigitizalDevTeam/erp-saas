@@ -13,28 +13,30 @@
         <p class="text-muted small">{{ __('Map chart of account IDs for guest folio finalization (invoice journal) and folio payments. VAT uses folio tax_total when set; otherwise net is derived from folio lines.') }}</p>
         {!! Form::open(['route' => 'hotel.accounting-settings.update', 'method' => 'POST', 'class' => 'row g-3']) !!}
         <div class="col-md-6">
-            {!! Form::label('chart_guest_ar_id', __('Guest accounts receivable (chart account id)')) !!}
-            {!! Form::number('chart_guest_ar_id', $setting->chart_guest_ar_id, ['class' => 'form-control', 'min' => 1]) !!}
+            {!! Form::label('chart_guest_ar_id', __('Guest accounts receivable')) !!}
+            {!! Form::select('chart_guest_ar_id', $chartGuestArOptions, $setting->chart_guest_ar_id, ['class' => 'form-control']) !!}
+            <small class="form-text text-muted">{{ __('Asset accounts (e.g. guest / trade receivable).') }}</small>
         </div>
         <div class="col-md-6">
-            {!! Form::label('chart_vat_payable_id', __('VAT payable (chart account id)')) !!}
-            {!! Form::number('chart_vat_payable_id', $setting->chart_vat_payable_id, ['class' => 'form-control', 'min' => 1]) !!}
+            {!! Form::label('chart_vat_payable_id', __('VAT payable')) !!}
+            {!! Form::select('chart_vat_payable_id', $chartVatPayableOptions, $setting->chart_vat_payable_id, ['class' => 'form-control']) !!}
+            <small class="form-text text-muted">{{ __('Liability accounts (output VAT / sales tax payable).') }}</small>
         </div>
         <div class="col-md-6">
-            {!! Form::label('chart_room_revenue_id', __('Room revenue (chart account id)')) !!}
-            {!! Form::number('chart_room_revenue_id', $setting->chart_room_revenue_id, ['class' => 'form-control', 'min' => 1]) !!}
+            {!! Form::label('chart_room_revenue_id', __('Room revenue')) !!}
+            {!! Form::select('chart_room_revenue_id', $chartRevenueOptions, $setting->chart_room_revenue_id, ['class' => 'form-control']) !!}
         </div>
         <div class="col-md-6">
-            {!! Form::label('chart_restaurant_revenue_id', __('Restaurant / F&B revenue (chart account id)')) !!}
-            {!! Form::number('chart_restaurant_revenue_id', $setting->chart_restaurant_revenue_id, ['class' => 'form-control', 'min' => 1]) !!}
+            {!! Form::label('chart_restaurant_revenue_id', __('Restaurant / F&B revenue')) !!}
+            {!! Form::select('chart_restaurant_revenue_id', $chartRevenueOptions, $setting->chart_restaurant_revenue_id, ['class' => 'form-control']) !!}
         </div>
         <div class="col-md-6">
-            {!! Form::label('chart_laundry_revenue_id', __('Laundry revenue (chart account id)')) !!}
-            {!! Form::number('chart_laundry_revenue_id', $setting->chart_laundry_revenue_id, ['class' => 'form-control', 'min' => 1]) !!}
+            {!! Form::label('chart_laundry_revenue_id', __('Laundry revenue')) !!}
+            {!! Form::select('chart_laundry_revenue_id', $chartRevenueOptions, $setting->chart_laundry_revenue_id, ['class' => 'form-control']) !!}
         </div>
         <div class="col-md-6">
-            {!! Form::label('chart_misc_revenue_id', __('Misc revenue (chart account id)')) !!}
-            {!! Form::number('chart_misc_revenue_id', $setting->chart_misc_revenue_id, ['class' => 'form-control', 'min' => 1]) !!}
+            {!! Form::label('chart_misc_revenue_id', __('Misc revenue')) !!}
+            {!! Form::select('chart_misc_revenue_id', $chartRevenueOptions, $setting->chart_misc_revenue_id, ['class' => 'form-control']) !!}
         </div>
         <div class="col-md-4">
             {!! Form::label('default_vat_rate_percent', __('Default VAT % (reference only)')) !!}

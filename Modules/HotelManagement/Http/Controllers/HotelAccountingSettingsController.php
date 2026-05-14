@@ -4,8 +4,10 @@ namespace Modules\HotelManagement\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
+use App\Support\PayrollChartAccountOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Modules\HotelManagement\Entities\HotelAccountingSetting;
 
 class HotelAccountingSettingsController extends Controller
@@ -34,7 +36,24 @@ class HotelAccountingSettingsController extends Controller
             ->toArray();
         $paymentMethods = ['cash', 'mpesa', 'card', 'bank_transfer', 'e_mola', 'mkesh'];
 
-        return view('hotelmanagement::accounting_settings.index', compact('setting', 'banks', 'paymentMethods'));
+        $chartGuestArOptions = PayrollChartAccountOptions::listAssetsForCurrentUser(__('—'))->all();
+        $chartVatPayableOptions = PayrollChartAccountOptions::listLiabilitiesForCurrentUser(__('—'))->all();
+        $chartRevenueOptions = PayrollChartAccountOptions::listIncomeForCurrentUser(__('—'))->all();
+
+        $this->appendChartAccountIfMissing($chartGuestArOptions, $setting->chart_guest_ar_id, $creatorId);
+        $this->appendChartAccountIfMissing($chartVatPayableOptions, $setting->chart_vat_payable_id, $creatorId);
+        foreach (['chart_room_revenue_id', 'chart_restaurant_revenue_id', 'chart_laundry_revenue_id', 'chart_misc_revenue_id'] as $attr) {
+            $this->appendChartAccountIfMissing($chartRevenueOptions, $setting->{$attr}, $creatorId);
+        }
+
+        return view('hotelmanagement::accounting_settings.index', compact(
+            'setting',
+            'banks',
+            'paymentMethods',
+            'chartGuestArOptions',
+            'chartVatPayableOptions',
+            'chartRevenueOptions'
+        ));
     }
 
     public function update(Request $request)
@@ -47,13 +66,29 @@ class HotelAccountingSettingsController extends Controller
         }
         $creatorId = (int) Auth::user()->creatorId();
 
+        $coaIdFields = [
+            'chart_guest_ar_id',
+            'chart_room_revenue_id',
+            'chart_restaurant_revenue_id',
+            'chart_laundry_revenue_id',
+            'chart_misc_revenue_id',
+            'chart_vat_payable_id',
+        ];
+        foreach ($coaIdFields as $field) {
+            if ($request->input($field) === '' || $request->input($field) === null) {
+                $request->merge([$field => null]);
+            }
+        }
+
+        $chartAccountOwned = Rule::exists('chart_of_accounts', 'id')->where('created_by', $creatorId);
+
         $request->validate([
-            'chart_guest_ar_id' => 'nullable|integer|min:1',
-            'chart_room_revenue_id' => 'nullable|integer|min:1',
-            'chart_restaurant_revenue_id' => 'nullable|integer|min:1',
-            'chart_laundry_revenue_id' => 'nullable|integer|min:1',
-            'chart_misc_revenue_id' => 'nullable|integer|min:1',
-            'chart_vat_payable_id' => 'nullable|integer|min:1',
+            'chart_guest_ar_id' => ['nullable', 'integer', 'min:1', $chartAccountOwned],
+            'chart_room_revenue_id' => ['nullable', 'integer', 'min:1', $chartAccountOwned],
+            'chart_restaurant_revenue_id' => ['nullable', 'integer', 'min:1', $chartAccountOwned],
+            'chart_laundry_revenue_id' => ['nullable', 'integer', 'min:1', $chartAccountOwned],
+            'chart_misc_revenue_id' => ['nullable', 'integer', 'min:1', $chartAccountOwned],
+            'chart_vat_payable_id' => ['nullable', 'integer', 'min:1', $chartAccountOwned],
             'default_vat_rate_percent' => 'nullable|numeric|min:0|max:100',
             'pos_invoice_when_charge_to_room' => 'nullable|boolean',
             'bank_map' => 'nullable|array',
@@ -83,5 +118,23 @@ class HotelAccountingSettingsController extends Controller
         );
 
         return redirect()->route('hotel.accounting-settings.index')->with('success', __('Hotel accounting settings saved.'));
+    }
+
+    /**
+     * @param  array<int|string, string>  $options
+     */
+    private function appendChartAccountIfMissing(array &$options, $accountId, int $creatorId): void
+    {
+        $id = (int) $accountId;
+        if ($id <= 0) {
+            return;
+        }
+        if (isset($options[$id])) {
+            return;
+        }
+        $acc = \App\Models\ChartOfAccount::where('id', $id)->where('created_by', $creatorId)->first();
+        if ($acc) {
+            $options[$id] = $acc->code . ' — ' . $acc->labelForLocale() . ' (' . __('current mapping') . ')';
+        }
     }
 }
