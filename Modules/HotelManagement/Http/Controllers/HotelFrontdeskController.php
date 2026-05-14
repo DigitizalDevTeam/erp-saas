@@ -42,7 +42,9 @@ class HotelFrontdeskController extends Controller
             ->get();
         $mapRooms = $this->roomsWithCurrentReservation((int) Auth::user()->creatorId());
         $canManage = $this->canManage();
-        return view('hotelmanagement::frontdesk.in_house', compact('stays', 'mapRooms', 'canManage'));
+        $canForceCheckout = Auth::user()->can('force hotel checkout') || Auth::user()->can('manage hotel');
+
+        return view('hotelmanagement::frontdesk.in_house', compact('stays', 'mapRooms', 'canManage', 'canForceCheckout'));
     }
 
     public function checkIn(HotelReservation $reservation)
@@ -105,7 +107,24 @@ class HotelFrontdeskController extends Controller
             return redirect()->back()->with('error', __('Stay already checked out.'));
         }
 
-        DB::transaction(function () use ($stay) {
+        $folio = $stay->folio;
+        if ($folio) {
+            $folio->refresh();
+            $paid = $folio->paymentStatusLabel();
+            if ($paid !== 'paid') {
+                $canForce = Auth::user()->can('force hotel checkout') || Auth::user()->can('manage hotel');
+                if (! $canForce) {
+                    return redirect()->back()->with(
+                        'error',
+                        __('Settle room bill before checkout')
+                    )->with('warning_folio_id', $folio->id);
+                }
+            }
+        }
+
+        $forcedCheckout = $folio && $folio->paymentStatusLabel() !== 'paid';
+
+        DB::transaction(function () use ($stay, $folio, $forcedCheckout) {
             $stay->update([
                 'checked_out_at' => now(),
                 'status' => 'checked_out',
@@ -117,9 +136,21 @@ class HotelFrontdeskController extends Controller
             }
 
             HotelRoom::where('id', $stay->hotel_room_id)->update(['status' => HotelRoom::STATUS_CLEANING]);
-            $stay->folio()->update(['status' => 'settled']);
+
+            if ($folio) {
+                $folio->refresh();
+                if ($folio->paymentStatusLabel() === 'paid') {
+                    $folio->update(['status' => 'settled']);
+                }
+                // Forced checkout with balance: leave folio open until fully paid.
+            }
         });
 
-        return redirect()->route('hotel.frontdesk.in-house')->with('success', __('Guest checked out successfully.'));
+        $msg = __('Guest checked out successfully.');
+        if ($forcedCheckout) {
+            $msg .= ' ' . __('Guest checked out balance note');
+        }
+
+        return redirect()->route('hotel.frontdesk.in-house')->with('success', $msg);
     }
 }

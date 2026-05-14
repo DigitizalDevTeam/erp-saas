@@ -5,6 +5,7 @@ namespace Modules\HotelManagement\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Modules\HotelManagement\Entities\HotelFloor;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelRoomType;
@@ -89,8 +90,15 @@ class HotelRoomController extends Controller
         if (! $this->canManage()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+        $request->merge(['room_no' => trim((string) $request->input('room_no', ''))]);
+        $creatorId = (int) Auth::user()->creatorId();
         $validator = \Validator::make($request->all(), [
-            'room_no' => 'required|string|max:50',
+            'room_no' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('hotel_rooms', 'room_no')->where(fn ($q) => $q->where('created_by', $creatorId)),
+            ],
             'hotel_room_type_id' => 'required|exists:hotel_room_types,id',
             'hotel_floor_id' => 'nullable|exists:hotel_floors,id',
             'status' => 'required|in:available,occupied,cleaning,maintenance',
@@ -129,8 +137,17 @@ class HotelRoomController extends Controller
         if ((! $this->canManage()) || (int) $room->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+        $request->merge(['room_no' => trim((string) $request->input('room_no', ''))]);
+        $creatorId = (int) Auth::user()->creatorId();
         $validator = \Validator::make($request->all(), [
-            'room_no' => 'required|string|max:50',
+            'room_no' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('hotel_rooms', 'room_no')
+                    ->where(fn ($q) => $q->where('created_by', $creatorId))
+                    ->ignore($room),
+            ],
             'hotel_room_type_id' => 'required|exists:hotel_room_types,id',
             'hotel_floor_id' => 'nullable|exists:hotel_floors,id',
             'status' => 'required|in:available,occupied,cleaning,maintenance',

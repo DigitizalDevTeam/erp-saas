@@ -61,6 +61,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('hotel/reservations/{reservation}/calendar-update', [HotelReservationController::class, 'calendarUpdate'])->name('hotel.reservations.calendar-update');
 
             Route::post('hotel/folios/{folio}/payments', [HotelFolioController::class, 'storePayment'])->name('hotel.folios.payments.store');
+            Route::post('hotel/folios/{folio}/lines', [HotelFolioController::class, 'storeLine'])->name('hotel.folios.lines.store');
 
             Route::get('hotel/rooms/map', [HotelRoomController::class, 'map'])->name('hotel.rooms.map');
             Route::get('hotel/guests/map', [HotelGuestMapController::class, 'index'])->name('hotel.guests.map');
@@ -74,6 +75,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('hotel/frontdesk/check-in/{reservation}', [HotelFrontdeskController::class, 'checkIn'])->name('hotel.frontdesk.check-in');
             Route::post('hotel/frontdesk/check-out/{stay}', [HotelFrontdeskController::class, 'checkOut'])->name('hotel.frontdesk.check-out');
             Route::get('hotel/folios/{folio}', [HotelFolioController::class, 'show'])->name('hotel.folios.show');
+            Route::get('hotel/folios/{folio}/final-bill', [HotelFolioController::class, 'finalBillPrint'])->name('hotel.folios.final-bill');
             Route::get('hotel/night-audit', [HotelNightAuditController::class, 'index'])->name('hotel.night-audit.index');
             Route::post('hotel/night-audit/run', [HotelNightAuditController::class, 'run'])->name('hotel.night-audit.run');
             Route::get('hotel/pos/in-house-guests', [HotelPosIntegrationController::class, 'inHouseGuests'])->name('hotel.pos.in-house-guests');

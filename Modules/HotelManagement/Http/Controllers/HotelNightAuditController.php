@@ -62,7 +62,7 @@ class HotelNightAuditController extends Controller
             $serviceRevenue = (float) HotelFolio::where('created_by', $creatorId)
                 ->whereDate('created_at', $auditDate)
                 ->withSum(['lines as service_lines_total' => function ($q) {
-                    $q->where('line_type', 'pos_charge');
+                    $q->whereIn('line_type', ['pos_charge', 'misc_charge']);
                 }], 'line_total')
                 ->get()
                 ->sum('service_lines_total');
@@ -77,10 +77,8 @@ class HotelNightAuditController extends Controller
                 'created_by' => $creatorId,
             ]);
 
-            HotelFolio::where('created_by', $creatorId)
-                ->where('status', 'open')
-                ->whereDate('created_at', '<=', $auditDate)
-                ->update(['status' => 'settled']);
+            // Do not mass-mark unpaid folios as settled; that hid outstanding balances.
+            // Folios become settled when fully paid (payments) or on paid check-out.
 
             HotelStay::where('created_by', $creatorId)
                 ->where('status', 'checked_out')

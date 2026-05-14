@@ -9,6 +9,19 @@ class HotelPosChargeService
 {
     public function chargeToFolio(HotelFolio $folio, array $payload, int $creatorId): HotelFolioLine
     {
+        return $this->addChargeLine($folio, $payload, $creatorId, 'pos_charge');
+    }
+
+    /**
+     * Manual / outlet charges (restaurant, bar, laundry, damages, etc.) — same totals logic as POS.
+     */
+    public function addMiscChargeToFolio(HotelFolio $folio, array $payload, int $creatorId): HotelFolioLine
+    {
+        return $this->addChargeLine($folio, $payload, $creatorId, 'misc_charge');
+    }
+
+    private function addChargeLine(HotelFolio $folio, array $payload, int $creatorId, string $lineType): HotelFolioLine
+    {
         $qty = max(1, (int) ($payload['quantity'] ?? 1));
         $unitPrice = (float) ($payload['unit_price'] ?? 0);
         $tax = (float) ($payload['tax_amount'] ?? 0);
@@ -17,8 +30,8 @@ class HotelPosChargeService
 
         $line = HotelFolioLine::create([
             'hotel_folio_id' => $folio->id,
-            'line_type' => 'pos_charge',
-            'description' => (string) ($payload['description'] ?? 'POS Charge'),
+            'line_type' => $lineType,
+            'description' => (string) ($payload['description'] ?? 'Charge'),
             'quantity' => $qty,
             'unit_price' => $unitPrice,
             'tax_amount' => $tax,
@@ -34,6 +47,21 @@ class HotelPosChargeService
         $folio->grand_total = (float) $folio->grand_total + $lineTotal;
         $folio->save();
 
+        $this->reopenFolioIfUnderpaid($folio);
+
         return $line;
+    }
+
+    /**
+     * New charges after a folio was marked settled must reopen until paid again.
+     */
+    private function reopenFolioIfUnderpaid(HotelFolio $folio): void
+    {
+        $folio->refresh();
+        $paid = (float) $folio->paid_total;
+        $grand = (float) $folio->grand_total;
+        if ($grand > 0 && $paid < $grand - 0.01 && $folio->status === 'settled') {
+            $folio->update(['status' => 'open']);
+        }
     }
 }

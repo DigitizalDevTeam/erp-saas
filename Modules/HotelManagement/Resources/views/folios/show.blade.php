@@ -1,9 +1,9 @@
 @extends('layouts.admin')
-@section('page-title'){{ __('Folio') }}@endsection
+@section('page-title'){{ __('Room bill') }}@endsection
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('hotel.dashboard') }}">{{ __('Hotel Management') }}</a></li>
     <li class="breadcrumb-item"><a href="{{ route('hotel.frontdesk.in-house') }}">{{ __('Frontdesk') }}</a></li>
-    <li class="breadcrumb-item">{{ __('Folio') }}</li>
+    <li class="breadcrumb-item">{{ __('Room bill') }} <span class="text-muted small">({{ __('Folio') }} {{ $folio->folio_no }})</span></li>
 @endsection
 @section('content')
 @php
@@ -11,6 +11,7 @@
 @endphp
 <div class="row">
     <div class="col-md-12">
+        <div class="alert alert-light border small mb-3">{{ __('Frontdesk workflow hint') }}</div>
         <div class="card shadow-sm"><div class="card-body">
             <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
                 <div>
@@ -22,6 +23,7 @@
                     <span class="badge bg-{{ $ps === 'paid' ? 'success' : ($ps === 'partial' ? 'warning' : 'secondary') }} fs-6">{{ __('Payment') }}: {{ __(ucfirst($ps)) }}</span>
                     <p class="mb-0 mt-2"><strong>{{ __('Grand total') }}:</strong> {{ Auth::user()->priceFormat($folio->grand_total) }}</p>
                     <p class="mb-0"><strong>{{ __('Paid') }}:</strong> {{ Auth::user()->priceFormat($folio->paid_total) }}</p>
+                    <a href="{{ route('hotel.folios.final-bill', $folio) }}" class="btn btn-sm btn-outline-primary mt-2">{{ __('Open final bill PDF') }}</a>
                 </div>
             </div>
             <hr>
@@ -41,6 +43,37 @@
                     </tbody>
                 </table>
             </div>
+
+            @if(Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel'))
+            <hr>
+            <h6>{{ __('Add charge to room bill') }}</h6>
+            <p class="text-muted small">{{ __('Restaurant, bar, laundry, or other charges post here (same running bill as POS).') }}</p>
+            {!! Form::open(['route' => ['hotel.folios.lines.store', $folio->id], 'method' => 'POST', 'class' => 'row g-2']) !!}
+            <div class="col-md-4">
+                {!! Form::label('description', __('Description')) !!}
+                {!! Form::text('description', null, ['class' => 'form-control', 'required', 'maxlength' => '191']) !!}
+            </div>
+            <div class="col-md-2">
+                {!! Form::label('quantity', __('Qty')) !!}
+                {!! Form::number('quantity', 1, ['class' => 'form-control', 'min' => '1']) !!}
+            </div>
+            <div class="col-md-2">
+                {!! Form::label('unit_price', __('Unit')) !!}
+                {!! Form::number('unit_price', null, ['class' => 'form-control', 'step' => '0.01', 'required', 'min' => '0']) !!}
+            </div>
+            <div class="col-md-2">
+                {!! Form::label('tax_amount', __('Tax')) !!}
+                {!! Form::number('tax_amount', 0, ['class' => 'form-control', 'step' => '0.01', 'min' => '0']) !!}
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-secondary w-100">{{ __('Add') }}</button>
+            </div>
+            <div class="col-md-2">
+                {!! Form::label('discount_amount', __('Discount')) !!}
+                {!! Form::number('discount_amount', 0, ['class' => 'form-control', 'step' => '0.01', 'min' => '0']) !!}
+            </div>
+            {!! Form::close() !!}
+            @endif
 
             <h6 class="mt-4">{{ __('Payments') }}</h6>
             @if($folio->payments->isEmpty())

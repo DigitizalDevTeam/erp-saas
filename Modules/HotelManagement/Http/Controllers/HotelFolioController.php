@@ -9,12 +9,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelFolioPayment;
+use Modules\HotelManagement\Services\HotelPosChargeService;
 
 class HotelFolioController extends Controller
 {
     public function show(HotelFolio $folio)
     {
-        if ((!Auth::user()->can('show hotel folio') && !Auth::user()->can('manage hotel')) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
+        if ((! Auth::user()->can('show hotel folio') && ! Auth::user()->can('manage hotel frontdesk') && ! Auth::user()->can('manage hotel')) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $folio->load(['stay.reservation.guest', 'lines', 'payments']);
@@ -63,5 +64,38 @@ class HotelFolioController extends Controller
         });
 
         return redirect()->route('hotel.folios.show', $folio)->with('success', __('Payment recorded.'));
+    }
+
+    public function storeLine(Request $request, HotelFolio $folio, HotelPosChargeService $chargeService)
+    {
+        if ((! Auth::user()->can('manage hotel frontdesk') && ! Auth::user()->can('manage hotel')) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $request->validate([
+            'description' => 'required|string|max:191',
+            'quantity' => 'nullable|integer|min:1',
+            'unit_price' => 'required|numeric|min:0',
+            'tax_amount' => 'nullable|numeric|min:0',
+            'discount_amount' => 'nullable|numeric|min:0',
+        ]);
+
+        DB::transaction(function () use ($request, $folio, $chargeService) {
+            $chargeService->addMiscChargeToFolio($folio, $request->only([
+                'description', 'quantity', 'unit_price', 'tax_amount', 'discount_amount',
+            ]), (int) Auth::user()->creatorId());
+        });
+
+        return redirect()->route('hotel.folios.show', $folio)->with('success', __('Charge added to room bill.'));
+    }
+
+    public function finalBillPrint(HotelFolio $folio)
+    {
+        if ((! Auth::user()->can('show hotel folio') && ! Auth::user()->can('manage hotel frontdesk') && ! Auth::user()->can('manage hotel')) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $folio->load(['stay.reservation.guest', 'stay.reservation.room', 'lines', 'payments']);
+
+        return view('hotelmanagement::folios.final_bill_print', compact('folio'));
     }
 }

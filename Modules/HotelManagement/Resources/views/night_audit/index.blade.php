@@ -13,6 +13,7 @@
 @endif
 @endsection
 @section('content')
+<div class="alert alert-light border small">{{ __('Night audit no longer marks unpaid room bills as settled. Close the day after departures and payments are complete.') }}</div>
 <div class="card"><div class="card-body table-border-style"><div class="table-responsive">
 <table class="table datatable">
     <thead><tr><th>{{ __('Date') }}</th><th>{{ __('Room Revenue') }}</th><th>{{ __('Service Revenue') }}</th><th>{{ __('Total Revenue') }}</th><th>{{ __('Status') }}</th></tr></thead>

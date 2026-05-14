@@ -5,7 +5,14 @@
     <li class="breadcrumb-item">{{ __('Frontdesk') }}</li>
 @endsection
 @section('content')
-<div class="row g-3">
+@if(session('warning_folio_id'))
+<div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span>{{ session('error') }}</span>
+    <a href="{{ route('hotel.folios.show', session('warning_folio_id')) }}" class="btn btn-sm btn-primary">{{ __('Pay room bill') }}</a>
+</div>
+@endif
+<div class="alert alert-light border small mb-0">{{ __('Frontdesk workflow hint') }}</div>
+<div class="row g-3 mt-1">
     <div class="col-12">
         <div class="card shadow-sm border-0">
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -35,7 +42,7 @@
             <div class="card-body table-border-style">
                 <div class="table-responsive">
                     <table class="table datatable">
-                        <thead><tr><th>{{ __('Guest') }}</th><th>{{ __('Room') }}</th><th>{{ __('Check-in') }}</th><th>{{ __('Status') }}</th><th>{{ __('Folio') }}</th><th>{{ __('Payment') }}</th><th>{{ __('Action') }}</th></tr></thead>
+                        <thead><tr><th>{{ __('Guest') }}</th><th>{{ __('Room') }}</th><th>{{ __('Check-in') }}</th><th>{{ __('Status') }}</th><th>{{ __('Room bill') }}</th><th>{{ __('Payment') }}</th><th>{{ __('Action') }}</th></tr></thead>
                         <tbody>
                         @foreach($stays as $stay)
                             <tr>
@@ -59,9 +66,21 @@
                                 <td>
                                     @if($canManage ?? false)
                                     @if($stay->status !== 'checked_out')
-                                    {!! Form::open(['method' => 'POST', 'route' => ['hotel.frontdesk.check-out', $stay->id], 'class' => 'd-inline']) !!}
-                                    <button class="btn btn-sm btn-warning">{{ __('Check-out') }}</button>
-                                    {!! Form::close() !!}
+                                        @php
+                                            $folioPs = $stay->folio ? $stay->folio->paymentStatusLabel() : null;
+                                        @endphp
+                                        @if($stay->folio && $folioPs !== 'paid')
+                                            <a href="{{ route('hotel.folios.show', $stay->folio->id) }}" class="btn btn-sm btn-primary me-1">{{ __('Pay room bill') }}</a>
+                                            @if($canForceCheckout ?? false)
+                                                {!! Form::open(['method' => 'POST', 'route' => ['hotel.frontdesk.check-out', $stay->id], 'class' => 'd-inline', 'onsubmit' => "return confirm('" . e(__('Confirm check-out with unpaid room bill?')) . "')"]) !!}
+                                                <button type="submit" class="btn btn-sm btn-outline-warning">{{ __('Check-out') }}</button>
+                                                {!! Form::close() !!}
+                                            @endif
+                                        @else
+                                            {!! Form::open(['method' => 'POST', 'route' => ['hotel.frontdesk.check-out', $stay->id], 'class' => 'd-inline']) !!}
+                                            <button type="submit" class="btn btn-sm btn-warning">{{ __('Check-out') }}</button>
+                                            {!! Form::close() !!}
+                                        @endif
                                     @endif
                                     @else
                                     <span class="text-muted small">{{ __('View only') }}</span>

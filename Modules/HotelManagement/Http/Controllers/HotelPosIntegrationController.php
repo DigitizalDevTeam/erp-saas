@@ -57,6 +57,7 @@ class HotelPosIntegrationController extends Controller
             'tax_amount' => 'nullable|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
             'source_pos_id' => 'nullable|integer',
+            'line_type' => 'nullable|in:pos_charge,misc_charge',
         ]);
         if ($validator->fails()) {
             return response()->json(['error' => $validator->getMessageBag()->first()], 422);
@@ -66,7 +67,12 @@ class HotelPosIntegrationController extends Controller
             ->where('created_by', Auth::user()->creatorId())
             ->firstOrFail();
 
-        $line = $service->chargeToFolio($folio, $request->all(), (int) Auth::user()->creatorId());
+        $lineType = (string) $request->get('line_type', 'pos_charge');
+        if ($lineType === 'misc_charge') {
+            $line = $service->addMiscChargeToFolio($folio, $request->all(), (int) Auth::user()->creatorId());
+        } else {
+            $line = $service->chargeToFolio($folio, $request->all(), (int) Auth::user()->creatorId());
+        }
 
         return response()->json([
             'success' => true,
