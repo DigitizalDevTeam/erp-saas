@@ -12,7 +12,7 @@ class HotelAccountingSettingsController extends Controller
 {
     private function canManage(): bool
     {
-        return Auth::user()->can('manage hotel');
+        return Auth::user()->can('manage hotel') || Auth::user()->can('manage hotel frontdesk');
     }
 
     public function index()
