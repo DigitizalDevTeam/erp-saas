@@ -2,6 +2,7 @@
 
 namespace Modules\HotelManagement\Services;
 
+use Illuminate\Support\Facades\Schema;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelFolioLine;
 
@@ -28,7 +29,7 @@ class HotelPosChargeService
         $discount = (float) ($payload['discount_amount'] ?? 0);
         $lineTotal = ($qty * $unitPrice) + $tax - $discount;
 
-        $line = HotelFolioLine::create([
+        $lineData = [
             'hotel_folio_id' => $folio->id,
             'line_type' => $lineType,
             'description' => (string) ($payload['description'] ?? 'Charge'),
@@ -39,7 +40,13 @@ class HotelPosChargeService
             'line_total' => $lineTotal,
             'source_pos_id' => $payload['source_pos_id'] ?? null,
             'created_by' => $creatorId,
-        ]);
+        ];
+        if (Schema::hasColumn('hotel_folio_lines', 'revenue_channel')) {
+            $lineData['revenue_channel'] = isset($payload['revenue_channel']) && $payload['revenue_channel'] !== ''
+                ? (string) $payload['revenue_channel']
+                : null;
+        }
+        $line = HotelFolioLine::create($lineData);
 
         $folio->sub_total = (float) $folio->sub_total + ($qty * $unitPrice);
         $folio->tax_total = (float) $folio->tax_total + $tax;

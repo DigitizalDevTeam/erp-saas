@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelFolioPayment;
+use Modules\HotelManagement\Services\HotelFolioAccountingService;
 use Modules\HotelManagement\Services\HotelPosChargeService;
 
 class HotelFolioController extends Controller
@@ -46,8 +47,9 @@ class HotelFolioController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
-        DB::transaction(function () use ($request, $folio) {
-            HotelFolioPayment::create([
+        $newPaymentId = null;
+        DB::transaction(function () use ($request, $folio, &$newPaymentId) {
+            $payment = HotelFolioPayment::create([
                 'hotel_folio_id' => $folio->id,
                 'amount' => $request->amount,
                 'method' => $request->method,
@@ -55,6 +57,7 @@ class HotelFolioController extends Controller
                 'notes' => $request->notes,
                 'created_by' => Auth::user()->creatorId(),
             ]);
+            $newPaymentId = $payment->id;
             $folio->refresh();
             $paid = (float) $folio->payments()->sum('amount');
             $folio->update(['paid_total' => $paid]);
@@ -62,6 +65,13 @@ class HotelFolioController extends Controller
                 $folio->update(['status' => 'settled']);
             }
         });
+
+        if ($newPaymentId) {
+            $payment = HotelFolioPayment::find($newPaymentId);
+            if ($payment) {
+                app(HotelFolioAccountingService::class)->postFolioPaymentJournalIfConfigured($payment);
+            }
+        }
 
         return redirect()->route('hotel.folios.show', $folio)->with('success', __('Payment recorded.'));
     }
@@ -78,12 +88,17 @@ class HotelFolioController extends Controller
             'unit_price' => 'required|numeric|min:0',
             'tax_amount' => 'nullable|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
+            'revenue_channel' => 'nullable|in:room,restaurant,laundry,misc',
         ]);
 
         DB::transaction(function () use ($request, $folio, $chargeService) {
-            $chargeService->addMiscChargeToFolio($folio, $request->only([
-                'description', 'quantity', 'unit_price', 'tax_amount', 'discount_amount',
-            ]), (int) Auth::user()->creatorId());
+            $payload = $request->only([
+                'description', 'quantity', 'unit_price', 'tax_amount', 'discount_amount', 'revenue_channel',
+            ]);
+            if (empty($payload['revenue_channel'])) {
+                unset($payload['revenue_channel']);
+            }
+            $chargeService->addMiscChargeToFolio($folio, $payload, (int) Auth::user()->creatorId());
         });
 
         return redirect()->route('hotel.folios.show', $folio)->with('success', __('Charge added to room bill.'));

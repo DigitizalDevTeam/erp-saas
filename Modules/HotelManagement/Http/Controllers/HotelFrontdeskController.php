@@ -5,6 +5,7 @@ namespace Modules\HotelManagement\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelFolioLine;
 use Modules\HotelManagement\Entities\HotelReservation;
@@ -12,6 +13,7 @@ use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelStay;
 use Modules\HotelManagement\Http\Controllers\Concerns\BuildsRoomMap;
 use Modules\HotelManagement\Services\HotelReservationPricingService;
+use Modules\HotelManagement\Services\HotelFolioAccountingService;
 
 class HotelFrontdeskController extends Controller
 {
@@ -125,6 +127,17 @@ class HotelFrontdeskController extends Controller
         $forcedCheckout = $folio && $folio->paymentStatusLabel() !== 'paid';
 
         DB::transaction(function () use ($stay, $folio, $forcedCheckout) {
+            if ($folio) {
+                $folio->refresh();
+                if (Schema::hasColumn('hotel_folios', 'finalize_journal_id')) {
+                    app(HotelFolioAccountingService::class)->finalizeGuestInvoiceIfConfigured(
+                        $folio,
+                        now()->format('Y-m-d')
+                    );
+                    $folio->refresh();
+                }
+            }
+
             $stay->update([
                 'checked_out_at' => now(),
                 'status' => 'checked_out',

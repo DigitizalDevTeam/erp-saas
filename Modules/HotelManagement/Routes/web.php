@@ -6,6 +6,7 @@
 |--------------------------------------------------------------------------
 */
 
+use Modules\HotelManagement\Http\Controllers\HotelAccountingSettingsController;
 use Modules\HotelManagement\Http\Controllers\HotelCalendarController;
 use Modules\HotelManagement\Http\Controllers\HotelDashboardController;
 use Modules\HotelManagement\Http\Controllers\HotelFolioController;
@@ -37,6 +38,9 @@ Route::group(['middleware' => ['verified']], function () {
             ],
         ],
         function () {
+            Route::get('hotel/accounting-settings', [HotelAccountingSettingsController::class, 'index'])->name('hotel.accounting-settings.index');
+            Route::post('hotel/accounting-settings', [HotelAccountingSettingsController::class, 'update'])->name('hotel.accounting-settings.update');
+
             Route::get('hotel/calendar', [HotelCalendarController::class, 'index'])->name('hotel.calendar');
             Route::get('hotel/calendar/events', [HotelCalendarController::class, 'events'])->name('hotel.calendar.events');
 

@@ -29,6 +29,7 @@ use App\Models\PosArea;
 use App\Models\PosTable;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
+use Modules\HotelManagement\Entities\HotelAccountingSetting;
 use Modules\HotelManagement\Entities\HotelFolio;
 use App\Models\BankAccount;
 use App\Models\Transaction;
@@ -38,6 +39,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 
@@ -1049,7 +1051,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         }
 
         $pos->load('items');
-        $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
+        $skipInvoice = $this->shouldSkipPosInvoiceForHotelRoom($request, $user_id);
+        $invoice = $skipInvoice ? null : app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
         session()->forget('pos');
 
         return response()->json([
@@ -1413,7 +1416,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $posPayment->save();
                     }
                     $pos->load('items');
-                    $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
+                    $skipInvoice = $this->shouldSkipPosInvoiceForHotelRoom($request, $user_id);
+                    $invoice = $skipInvoice ? null : app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
                     $this->attachPosChargeToHotelFolio($request, $pos, (float) $total, $user_id);
                     session()->forget('pos');
                     $cartKey = 'pos_restaurant_cart';
@@ -1625,9 +1629,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $posPayment->save();
                     }
 
-                    // Phase 2: Create invoice and accounting entries from POS
+                    // Phase 2: Create invoice and accounting entries from POS (skip when charging to hotel folio unless tenant override)
                     $pos->load('items');
-                    $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
+                    $skipInvoice = $this->shouldSkipPosInvoiceForHotelRoom($request, $user_id);
+                    $invoice = $skipInvoice ? null : app(PosToInvoiceService::class)->createInvoiceFromPos($pos);
                     $this->attachPosChargeToHotelFolio($request, $pos, (float) $total, $user_id);
 
                     session()->forget('pos');
@@ -1653,6 +1658,24 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+    }
+
+    protected function shouldSkipPosInvoiceForHotelRoom(Request $request, int $creatorId): bool
+    {
+        if (! Schema::hasTable('hotel_accounting_settings')) {
+            return false;
+        }
+        $chargeToRoom = filter_var($request->get('hotel_charge_enabled', false), FILTER_VALIDATE_BOOLEAN);
+        $folioId = (int) $request->get('hotel_folio_id');
+        if (! $chargeToRoom || $folioId <= 0) {
+            return false;
+        }
+        $row = HotelAccountingSetting::where('created_by', $creatorId)->first();
+        if ($row && $row->pos_invoice_when_charge_to_room) {
+            return false;
+        }
+
+        return true;
     }
 
     protected function attachPosChargeToHotelFolio(Request $request, Pos $pos, float $total, int $creatorId): void

@@ -12,6 +12,7 @@ class HotelFolioLine extends Model
     protected $fillable = [
         'hotel_folio_id',
         'line_type',
+        'revenue_channel',
         'description',
         'quantity',
         'unit_price',

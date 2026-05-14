@@ -36,6 +36,11 @@
             <a class="dash-link" href="{{ route('hotel.night-audit.index') }}">{{ __('Night Audit') }}</a>
         </li>
         @endif
+        @if (Gate::check('manage hotel'))
+        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.accounting-settings') ? 'active' : '' }}">
+            <a class="dash-link" href="{{ route('hotel.accounting-settings.index') }}">{{ __('Hotel accounting (COA)') }}</a>
+        </li>
+        @endif
         @if (Gate::check('manage hotel') || Gate::check('show hotel dashboard'))
         <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.reports.') ? 'active' : '' }}">
             <a class="dash-link" href="{{ route('hotel.reports.operational') }}">{{ __('Hotel Reports') }}</a>

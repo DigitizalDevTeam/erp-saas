@@ -18,6 +18,8 @@ class HotelFolio extends Model
         'grand_total',
         'paid_total',
         'status',
+        'finalize_journal_id',
+        'invoice_id',
         'created_by',
     ];
 

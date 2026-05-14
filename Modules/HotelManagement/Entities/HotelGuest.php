@@ -30,6 +30,7 @@ class HotelGuest extends Model
         'company_name',
         'is_vip',
         'created_by',
+        'customer_id',
     ];
 
     public function preferredRoomType()

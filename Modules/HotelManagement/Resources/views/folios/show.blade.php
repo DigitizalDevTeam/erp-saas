@@ -65,12 +65,22 @@
                 {!! Form::label('tax_amount', __('Tax')) !!}
                 {!! Form::number('tax_amount', 0, ['class' => 'form-control', 'step' => '0.01', 'min' => '0']) !!}
             </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button type="submit" class="btn btn-secondary w-100">{{ __('Add') }}</button>
-            </div>
             <div class="col-md-2">
                 {!! Form::label('discount_amount', __('Discount')) !!}
                 {!! Form::number('discount_amount', 0, ['class' => 'form-control', 'step' => '0.01', 'min' => '0']) !!}
+            </div>
+            <div class="col-md-4">
+                {!! Form::label('revenue_channel', __('Revenue channel')) !!}
+                {!! Form::select('revenue_channel', [
+                    '' => __('Default by line type'),
+                    'room' => __('Room'),
+                    'restaurant' => __('Restaurant'),
+                    'laundry' => __('Laundry'),
+                    'misc' => __('Misc'),
+                ], null, ['class' => 'form-control']) !!}
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-secondary w-100">{{ __('Add') }}</button>
             </div>
             {!! Form::close() !!}
             @endif

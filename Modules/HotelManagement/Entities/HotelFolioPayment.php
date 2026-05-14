@@ -15,6 +15,7 @@ class HotelFolioPayment extends Model
         'method',
         'reference',
         'notes',
+        'accounting_payment_journal_id',
         'created_by',
     ];
 
