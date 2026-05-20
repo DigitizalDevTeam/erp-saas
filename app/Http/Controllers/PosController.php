@@ -18,6 +18,7 @@ use App\Services\InvoiceSaleDeductionService;
 use App\Services\PosKitDeductionService;
 use App\Services\PosFefoDeductionService;
 use App\Services\PosRecipeDeductionService;
+use App\Services\PosRestaurantRoleService;
 use App\Services\PosToInvoiceService;
 use App\Models\QuotationProduct;
 use App\Models\StockReport;
@@ -126,7 +127,11 @@ class PosController extends Controller
                 ->where('created_by', $creatorId)
                 ->where('is_active', true)
                 ->first();
-            if ($assigned && $assigned->isRestaurant()) {
+            if ($assigned) {
+                if (! $assigned->isRestaurant()) {
+                    PosRestaurantRoleService::ensureRestaurantPosTypeForPosBranchAssignment($assignedId, $creatorId);
+                }
+
                 return [$assignedId];
             }
         }

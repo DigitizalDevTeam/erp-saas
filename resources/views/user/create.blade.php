@@ -85,7 +85,7 @@
             <div class="form-group col-md-6 pos-branch-div d-none">
                 {{ Form::label('pos_branch_id', __('POS Branch (assigned branch for Waiter/Cashier/Manager/Kitchen/Bar)'), ['class' => 'form-label']) }}<x-required></x-required>
                 {!! Form::select('pos_branch_id', $branches ?? [], null, ['class' => 'form-control select', 'placeholder' => __('Select Branch')]) !!}
-                <small class="text-muted">{{ __('Restaurant POS only. Branch must have POS type Restaurant.') }}</small>
+                <small class="text-muted">{{ __('Used for Restaurant POS. Saving sets the branch POS type to Restaurant if needed.') }}</small>
                 @error('pos_branch_id')
                     <small class="invalid-feedback d-block"><strong class="text-danger">{{ $message }}</strong></small>
                 @enderror

@@ -80,7 +80,6 @@ class UserController extends Controller
         $roles = Role::where('created_by', '=', $user->creatorId())->where('name', '!=', 'client')->get()->pluck('name', 'id');
         $creatorId = (int) \Auth::user()->creatorId();
         $branches = Branch::where('created_by', $creatorId)->where('is_active', true)
-            ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
             ->orderBy('name')->pluck('name', 'id');
         $tenantBranches = Branch::where('created_by', $creatorId)->where('is_active', true)->orderBy('name')->get();
         $posBranchRoleNames = PosRestaurantRoleService::posBranchRoleNames();
@@ -321,14 +320,7 @@ class UserController extends Controller
             $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'user')->get();
             $creatorId = (int) \Auth::user()->creatorId();
             $branches = Branch::where('created_by', $creatorId)->where('is_active', true)
-                ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
                 ->orderBy('name')->pluck('name', 'id');
-            if ($user->pos_branch_id && ! $branches->has((int) $user->pos_branch_id)) {
-                $assigned = Branch::where('id', $user->pos_branch_id)->where('created_by', $creatorId)->first();
-                if ($assigned) {
-                    $branches[(int) $assigned->id] = $assigned->name.' — '.__('set branch POS type to Restaurant');
-                }
-            }
             $tenantBranches = Branch::where('created_by', $creatorId)->where('is_active', true)->orderBy('name')->get();
             $posBranchRoleNames = PosRestaurantRoleService::posBranchRoleNames();
             $posBranchRoleIds = PosRestaurantRoleService::roleIdsRequiringPosBranch($creatorId);

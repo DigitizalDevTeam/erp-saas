@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
 use App\Models\User;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -185,6 +186,22 @@ class PosRestaurantRoleService
     }
 
     /**
+     * Restaurant POS roles use branches with pos_type = restaurant. Upgrade on assign so POS shows the branch.
+     */
+    public static function ensureRestaurantPosTypeForPosBranchAssignment(int $branchId, int $companyId): void
+    {
+        $branch = Branch::where('id', $branchId)
+            ->where('created_by', $companyId)
+            ->where('is_active', true)
+            ->first();
+        if (! $branch || $branch->isRestaurant()) {
+            return;
+        }
+        $branch->pos_type = Branch::POS_TYPE_RESTAURANT;
+        $branch->save();
+    }
+
+    /**
      * Apply pos_branch_id / validation for user create & update.
      *
      * @param  array<string, mixed>  $input
@@ -203,6 +220,7 @@ class PosRestaurantRoleService
             $branchId = (int) $request->pos_branch_id;
             $request->validate(['pos_branch_id' => 'exists:branches,id']);
             $input['pos_branch_id'] = $branchId;
+            self::ensureRestaurantPosTypeForPosBranchAssignment($branchId, $companyId);
 
             if ($role->name === self::ROLE_KITCHEN) {
                 $exists = User::where('created_by', $companyId)
