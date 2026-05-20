@@ -313,13 +313,14 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         if (! empty($this->pos_branch_id)) {
-            if ($hasPivot) {
-                $allowed = array_values(array_unique(array_merge([(int) $this->pos_branch_id], $pivotAllowed)));
-
-                return array_values(array_intersect($candidates, $allowed));
+            $allowedIds = $hasPivot
+                ? array_values(array_unique(array_merge([(int) $this->pos_branch_id], $pivotAllowed)))
+                : [(int) $this->pos_branch_id];
+            $filtered = array_values(array_intersect($candidates, $allowedIds));
+            if ($filtered !== []) {
+                return $filtered;
             }
-
-            return array_values(array_intersect($candidates, [(int) $this->pos_branch_id]));
+            // pos_branch_id may be retail while this POS mode needs restaurant — use branch_user grants.
         }
         if ($hasPivot) {
             return array_values(array_intersect($candidates, $pivotAllowed));

@@ -265,12 +265,24 @@
                         <div class="row gy-2">
                             @php
                                 $restaurantBranchIds = $restaurantBranchIds ?? [];
-                                $defaultBranchId = (isset($branches) && $branches->count() == 1) ? $branches->keys()->first() : '';
+                                $defaultBranchId = '';
+                                if (isset($branches) && $branches->count() === 1) {
+                                    $defaultBranchId = $branches->keys()->first();
+                                } elseif (isset($posPinUser) && !empty($posPinUser->pos_branch_id) && isset($branches) && $branches->has($posPinUser->pos_branch_id)) {
+                                    $defaultBranchId = $posPinUser->pos_branch_id;
+                                } elseif (isset($userOpenShift) && $userOpenShift && $userOpenShift->branch_id && isset($branches) && $branches->has($userOpenShift->branch_id)) {
+                                    $defaultBranchId = $userOpenShift->branch_id;
+                                }
                             @endphp
-                            @if(isset($branches) && $branches->count() >= 1)
+                            @if(!empty($posBranchAssignmentWarning))
                             <div class="col-12">
+                                <div class="alert alert-warning py-2 mb-0 small">{{ $posBranchAssignmentWarning }}</div>
+                            </div>
+                            @elseif(isset($branches) && $branches->count() >= 1)
+                            <div class="col-12">
+                                <label class="form-label small text-muted mb-0">{{ __('Branch') }}@if(!empty($posBranchLocked)) <span class="text-muted">({{ __('Assigned') }})</span>@endif</label>
                                 {{ Form::select('branch_id', $branches, $defaultBranchId, ['class' => 'form-control select branch_select', 'id' => 'branch_id', 'placeholder' => __('Select Branch'), 'readonly' => !empty($posBranchLocked), 'disabled' => !empty($posBranchLocked)]) }}
-                                @if(!empty($posBranchLocked))<small class="text-muted">{{ __('Assigned branch only') }}</small>@endif
+                                @if(!empty($posBranchLocked))<small class="text-muted d-block">{{ __('Assigned branch only') }}</small>@endif
                             </div>
                             @endif
                             <div id="pos-restaurant-options" class="col-12 row gy-1 {{ empty($restaurantBranchIds) ? 'd-none' : '' }}">

@@ -92,6 +92,49 @@ class PosController extends Controller
     }
 
     /**
+     * Restaurant branch ids visible in POS for the current actor (PIN user or company login).
+     *
+     * @return int[]
+     */
+    protected function resolveRestaurantBranchIdsForActor(User $actor, int $creatorId): array
+    {
+        $pool = Branch::where('created_by', $creatorId)
+            ->where('is_active', true)
+            ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->toArray();
+
+        $allowed = $actor->filterBranchIdsForPosAccess($pool);
+        if ($allowed !== []) {
+            return $allowed;
+        }
+
+        $actor->loadMissing('branches');
+        $fromPivot = $actor->branches
+            ->filter(fn (Branch $b) => (int) $b->created_by === $creatorId && $b->is_active && $b->isRestaurant())
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->toArray();
+        if ($fromPivot !== []) {
+            return array_values(array_intersect($pool, $fromPivot));
+        }
+
+        $assignedId = (int) ($actor->pos_branch_id ?? 0);
+        if ($assignedId > 0) {
+            $assigned = Branch::where('id', $assignedId)
+                ->where('created_by', $creatorId)
+                ->where('is_active', true)
+                ->first();
+            if ($assigned && $assigned->isRestaurant()) {
+                return [$assignedId];
+            }
+        }
+
+        return $actor->can('manage pos') ? $pool : [];
+    }
+
+    /**
      * Display a listing of the resource.
      *
      * @return \Illuminate\Http\Response
@@ -3495,13 +3538,21 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $posPinUser->loadMissing('branches');
         $branchScopeUser = $this->restaurantBranchScopeUser();
         $branchScopeUser->loadMissing('branches');
-        $restaurantBranchIds = Branch::where('created_by', $creatorId)->where('is_active', true)
-            ->where('pos_type', Branch::POS_TYPE_RESTAURANT)->pluck('id')->toArray();
-        $restaurantBranchIds = $branchScopeUser->filterBranchIdsForPosAccess($restaurantBranchIds);
-        $posBranchLocked = count($restaurantBranchIds) === 1;
-        $branches = Branch::whereIn('id', $restaurantBranchIds)->get()->pluck('name', 'id');
+        $restaurantBranchIds = $this->resolveRestaurantBranchIdsForActor($branchScopeUser, $creatorId);
+        $posBranchLocked = $branchScopeUser->hasPosBranchRestriction() && count($restaurantBranchIds) === 1;
+        $branches = Branch::whereIn('id', $restaurantBranchIds)->orderBy('name')->pluck('name', 'id');
         $warehouses = warehouse::with('branch')->where('created_by', $creatorId)
             ->whereIn('branch_id', $restaurantBranchIds)->get()->pluck('name', 'id');
+        $posBranchAssignmentWarning = null;
+        if ($restaurantBranchIds === [] && $branchScopeUser->pos_branch_id) {
+            $assigned = Branch::where('id', $branchScopeUser->pos_branch_id)
+                ->where('created_by', $creatorId)->first();
+            if ($assigned && ! $assigned->isRestaurant()) {
+                $posBranchAssignmentWarning = __('Your assigned POS branch is not a restaurant branch. Ask an admin to set branch POS type to Restaurant or assign restaurant branches under the user profile.');
+            }
+        } elseif ($restaurantBranchIds === []) {
+            $posBranchAssignmentWarning = __('No restaurant branches are available. Create a branch with POS type Restaurant and assign it to this user (POS branch or Branches access).');
+        }
         $hasRetailBranches = false;
         $hasRestaurantBranches = !empty($restaurantBranchIds);
         $posMode = 'restaurant';
@@ -3537,7 +3588,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $userOpenShift = $userOpenShifts->first();
         $canShowPayButton = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('pos restaurant cashier') || $user->can('manage pos');
         $canShowVoid = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
-        return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'posPinUser'));
+        return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'posPinUser', 'posBranchAssignmentWarning'));
     }
 
     /**

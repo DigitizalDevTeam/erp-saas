@@ -2,7 +2,7 @@
 @php
     $lastsegment = request()->segment(count(request()->segments()));
     $restaurantBranchIds = $restaurantBranchIds ?? [];
-    $restaurantBranches = isset($branches) ? $branches->only($restaurantBranchIds) : collect();
+    $restaurantBranches = isset($branches) ? collect($branches) : collect();
     $restaurantWarehouses = $warehouses ?? collect();
     $posAssignedBranchId = isset($posPinUser) && !empty($posPinUser->pos_branch_id) ? (int) $posPinUser->pos_branch_id : null;
     $shiftBranchId = (isset($userOpenShift) && $userOpenShift && $userOpenShift->branch_id) ? $userOpenShift->branch_id : null;
@@ -12,6 +12,9 @@
     };
 @endphp
 <div class="pos-restaurant-layout">
+    @if(!empty($posBranchAssignmentWarning))
+        <div class="alert alert-warning mb-3 py-2 small">{{ $posBranchAssignmentWarning }}</div>
+    @endif
     {{-- Top bar: Branch, Warehouse, Selected table + Tables grid --}}
     <div class="pos-restaurant-top card border-0 shadow-sm mb-3">
         <div class="card-body py-2 px-3">
