@@ -1,0 +1,10 @@
+hotel_accounting_settings
+hotel_floors
+hotel_folio_payments
+hotel_group_members
+hotel_groups
+hotel_ota_settings
+proforma_products
+proformas
+purchase_quotation_products
+purchase_quotations

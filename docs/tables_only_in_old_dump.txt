@@ -1,0 +1,11 @@
+backups
+customer_billing_addresses
+customer_shipping_addresses
+migrations
+model_has_permissions
+model_has_roles
+permissions
+pos_balances
+price_levels
+role_has_permissions
+roles
