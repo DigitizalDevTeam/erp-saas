@@ -119,4 +119,149 @@ class PosRestaurantRoleService
         }
         return $count;
     }
+
+    /** @return string[] */
+    public static function posBranchRoleNames(): array
+    {
+        return [
+            self::ROLE_CASHIER,
+            self::ROLE_WAITER,
+            self::ROLE_MANAGER,
+            self::ROLE_BAR,
+            self::ROLE_KITCHEN,
+        ];
+    }
+
+    public static function roleRequiresPosBranch(\Spatie\Permission\Models\Role $role): bool
+    {
+        if (in_array($role->name, self::posBranchRoleNames(), true)) {
+            return true;
+        }
+
+        foreach (self::permissionNames() as $permission) {
+            if ($role->hasPermissionTo($permission, self::GUARD)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Role ids for user create/edit JS (show POS branch + PIN fields).
+     *
+     * @return string[]
+     */
+    public static function roleIdsRequiringPosBranch(int $companyId): array
+    {
+        return Role::where('created_by', $companyId)
+            ->where('name', '!=', 'client')
+            ->where(function ($q) {
+                $q->whereIn('name', self::posBranchRoleNames())
+                    ->orWhereHas('permissions', function ($p) {
+                        $p->whereIn('name', self::permissionNames());
+                    });
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Branch ids for branch_user pivot: checked allowed branches + assigned POS branch.
+     *
+     * @return int[]
+     */
+    public static function branchIdsForSyncFromRequest(\Illuminate\Http\Request $request): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $request->input('branch_ids', [])))));
+        if ($request->filled('pos_branch_id')) {
+            $ids[] = (int) $request->pos_branch_id;
+            $ids = array_values(array_unique($ids));
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Apply pos_branch_id / validation for user create & update.
+     *
+     * @param  array<string, mixed>  $input
+     * @return \Illuminate\Http\RedirectResponse|null
+     */
+    public static function applyPosBranchToUserInput(
+        array &$input,
+        \Illuminate\Http\Request $request,
+        Role $role,
+        int $companyId,
+        ?int $excludeUserId = null
+    ): ?\Illuminate\Http\RedirectResponse {
+        $needsBranch = self::roleRequiresPosBranch($role);
+
+        if ($request->filled('pos_branch_id')) {
+            $branchId = (int) $request->pos_branch_id;
+            $request->validate(['pos_branch_id' => 'exists:branches,id']);
+            $input['pos_branch_id'] = $branchId;
+
+            if ($role->name === self::ROLE_KITCHEN) {
+                $exists = User::where('created_by', $companyId)
+                    ->where('pos_branch_id', $branchId)
+                    ->whereHas('roles', fn ($q) => $q->where('name', self::ROLE_KITCHEN))
+                    ->when($excludeUserId, fn ($q) => $q->where('id', '!=', $excludeUserId))
+                    ->exists();
+                if ($exists) {
+                    return redirect()->back()->with('error', __('This branch already has a Kitchen user. Only one Kitchen per branch is allowed.'));
+                }
+            }
+            if ($role->name === self::ROLE_BAR) {
+                $exists = User::where('created_by', $companyId)
+                    ->where('pos_branch_id', $branchId)
+                    ->whereHas('roles', fn ($q) => $q->where('name', self::ROLE_BAR))
+                    ->when($excludeUserId, fn ($q) => $q->where('id', '!=', $excludeUserId))
+                    ->exists();
+                if ($exists) {
+                    return redirect()->back()->with('error', __('This branch already has a Bar user. Only one Bar per branch is allowed.'));
+                }
+            }
+
+            return null;
+        }
+
+        if ($needsBranch) {
+            return redirect()->back()->with('error', __('Please select a POS branch.'));
+        }
+
+        $input['pos_branch_id'] = null;
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    public static function applyPosPinToUserInput(array &$input, \Illuminate\Http\Request $request, Role $role, int $companyId, ?int $excludeUserId = null): ?\Illuminate\Http\RedirectResponse
+    {
+        if (! self::roleRequiresPosBranch($role)) {
+            $input['pos_pin'] = null;
+
+            return null;
+        }
+
+        $pin = $request->pos_pin ? preg_replace('/\D/', '', (string) $request->pos_pin) : null;
+        $input['pos_pin'] = ($pin !== '' && strlen($pin) >= 4 && strlen($pin) <= 8) ? $pin : null;
+        if ($input['pos_pin'] === null) {
+            return null;
+        }
+
+        $v = \Validator::make(
+            ['pos_pin' => $input['pos_pin']],
+            ['pos_pin' => \Illuminate\Validation\Rule::unique('users', 'pos_pin')->where('created_by', $companyId)->ignore($excludeUserId)]
+        );
+        if ($v->fails()) {
+            return redirect()->back()->with('error', __('This PIN is already used by another user.'));
+        }
+
+        return null;
+    }
 }

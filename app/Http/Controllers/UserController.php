@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\CustomField;
 use App\Models\Employee;
 use App\Models\ExperienceCertificate;
@@ -77,17 +78,15 @@ class UserController extends Controller
         $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'user')->get();
         $user = \Auth::user();
         $roles = Role::where('created_by', '=', $user->creatorId())->where('name', '!=', 'client')->get()->pluck('name', 'id');
-        $branches = \App\Models\Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->orderBy('name')->get()->pluck('name', 'id');
-        $tenantBranches = \App\Models\Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->orderBy('name')->get();
-        $posBranchRoleNames = [
-            \App\Services\PosRestaurantRoleService::ROLE_CASHIER,
-            \App\Services\PosRestaurantRoleService::ROLE_WAITER,
-            \App\Services\PosRestaurantRoleService::ROLE_MANAGER,
-            \App\Services\PosRestaurantRoleService::ROLE_BAR,
-            \App\Services\PosRestaurantRoleService::ROLE_KITCHEN,
-        ];
+        $creatorId = (int) \Auth::user()->creatorId();
+        $branches = Branch::where('created_by', $creatorId)->where('is_active', true)
+            ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
+            ->orderBy('name')->pluck('name', 'id');
+        $tenantBranches = Branch::where('created_by', $creatorId)->where('is_active', true)->orderBy('name')->get();
+        $posBranchRoleNames = PosRestaurantRoleService::posBranchRoleNames();
+        $posBranchRoleIds = PosRestaurantRoleService::roleIdsRequiringPosBranch($creatorId);
         if (\Auth::user()->can('create user')) {
-            return view('user.create', compact('roles', 'customFields', 'branches', 'posBranchRoleNames', 'tenantBranches'));
+            return view('user.create', compact('roles', 'customFields', 'branches', 'posBranchRoleNames', 'tenantBranches', 'posBranchRoleIds'));
         } else {
             return redirect()->back();
         }
@@ -216,59 +215,15 @@ class UserController extends Controller
                     $request['created_by'] = \Auth::user()->creatorId();
                     $request['email_verified_at'] = date('Y-m-d H:i:s');
                     $request['is_enable_login'] = $enableLogin;
-                    $posBranchRoleNames = [
-                        \App\Services\PosRestaurantRoleService::ROLE_CASHIER,
-                        \App\Services\PosRestaurantRoleService::ROLE_WAITER,
-                        \App\Services\PosRestaurantRoleService::ROLE_MANAGER,
-                        \App\Services\PosRestaurantRoleService::ROLE_BAR,
-                        \App\Services\PosRestaurantRoleService::ROLE_KITCHEN,
-                    ];
-                    if (in_array($role_r->name, $posBranchRoleNames)) {
-                        $request->validate(['pos_branch_id' => 'required|exists:branches,id']);
-                        $request['pos_branch_id'] = (int) $request->pos_branch_id;
-                        if ($role_r->name === PosRestaurantRoleService::ROLE_KITCHEN) {
-                            $exists = User::where('created_by', \Auth::user()->creatorId())
-                                ->where('pos_branch_id', $request['pos_branch_id'])
-                                ->whereHas('roles', fn ($q) => $q->where('name', PosRestaurantRoleService::ROLE_KITCHEN))
-                                ->exists();
-                            if ($exists) {
-                                return redirect()->back()->with('error', __('This branch already has a Kitchen user. Only one Kitchen per branch is allowed.'));
-                            }
-                        }
-                        if ($role_r->name === PosRestaurantRoleService::ROLE_BAR) {
-                            $exists = User::where('created_by', \Auth::user()->creatorId())
-                                ->where('pos_branch_id', $request['pos_branch_id'])
-                                ->whereHas('roles', fn ($q) => $q->where('name', PosRestaurantRoleService::ROLE_BAR))
-                                ->exists();
-                            if ($exists) {
-                                return redirect()->back()->with('error', __('This branch already has a Bar user. Only one Bar per branch is allowed.'));
-                            }
-                        }
-                    } else {
-                        $request['pos_branch_id'] = null;
+                    $companyId = (int) \Auth::user()->creatorId();
+                    $requestPayload = $request->all();
+                    if ($redirect = PosRestaurantRoleService::applyPosBranchToUserInput($requestPayload, $request, $role_r, $companyId)) {
+                        return $redirect;
                     }
-                    if (in_array($role_r->name, $posBranchRoleNames)) {
-                        $pin = $request->pos_pin ? preg_replace('/\D/', '', (string) $request->pos_pin) : null;
-                        $request['pos_pin'] = ($pin !== '' && strlen($pin) >= 4 && strlen($pin) <= 8) ? $pin : null;
-                        if ($request['pos_pin'] !== null) {
-                            $v = \Validator::make(
-                                ['pos_pin' => $request['pos_pin']],
-                                ['pos_pin' => Rule::unique('users', 'pos_pin')->where('created_by', \Auth::user()->creatorId())]
-                            );
-                            if ($v->fails()) {
-                                return redirect()->back()->with('error', __('This PIN is already used by another user.'));
-                            }
-                        }
-                    } else {
-                        $request['pos_pin'] = null;
+                    if ($redirect = PosRestaurantRoleService::applyPosPinToUserInput($requestPayload, $request, $role_r, $companyId)) {
+                        return $redirect;
                     }
-
-                    $branchIdsSel = array_values(array_unique(array_filter(array_map('intval', $request->input('branch_ids', [])))));
-                    if (count($branchIdsSel) > 0 && in_array($role_r->name, $posBranchRoleNames, true) && $request->filled('pos_branch_id')) {
-                        if (! in_array((int) $request->pos_branch_id, $branchIdsSel, true)) {
-                            return redirect()->back()->with('error', __('POS branch must be one of the allowed branches you selected.'));
-                        }
-                    }
+                    $branchIdsForSync = PosRestaurantRoleService::branchIdsForSyncFromRequest($request);
 
                     $existingUser = User::where('email', $request->email)->first();
                     $linkedExistingUser = false;
@@ -289,7 +244,8 @@ class UserController extends Controller
                             $existingUser->assignRole($role_r);
                         }
                         if ($existingUser->type !== 'company') {
-                            $existingUser->syncBranchesFromRequest($request->input('branch_ids', []));
+                            $existingUser->fill($requestPayload)->save();
+                            $existingUser->syncBranchesFromRequest($branchIdsForSync);
                         } else {
                             if (empty($existingUser->default_company_id)) {
                                 $existingUser->default_company_id = (int) $existingUser->id;
@@ -299,10 +255,10 @@ class UserController extends Controller
                         $user = $existingUser;
                         $linkedExistingUser = true;
                     } else {
-                        $user = User::create($request->all());
+                        $user = User::create($requestPayload);
                         $this->syncCompanyMembership($user, [(int) \Auth::user()->creatorId()], (int) \Auth::user()->creatorId());
                         $user->assignRole($role_r);
-                        $user->syncBranchesFromRequest($request->input('branch_ids', []));
+                        $user->syncBranchesFromRequest($branchIdsForSync);
                         if ($request['type'] != 'client') {
                             \App\Models\Utility::employeeDetails($user->id, \Auth::user()->creatorId());
                         }
@@ -363,17 +319,21 @@ class UserController extends Controller
             $user->load('branches');
             $user->customField = CustomField::getData($user, 'user');
             $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'user')->get();
-            $branches = \App\Models\Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->orderBy('name')->get()->pluck('name', 'id');
-            $tenantBranches = \App\Models\Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->orderBy('name')->get();
-            $posBranchRoleNames = [
-                \App\Services\PosRestaurantRoleService::ROLE_CASHIER,
-                \App\Services\PosRestaurantRoleService::ROLE_WAITER,
-                \App\Services\PosRestaurantRoleService::ROLE_MANAGER,
-                \App\Services\PosRestaurantRoleService::ROLE_BAR,
-                \App\Services\PosRestaurantRoleService::ROLE_KITCHEN,
-            ];
+            $creatorId = (int) \Auth::user()->creatorId();
+            $branches = Branch::where('created_by', $creatorId)->where('is_active', true)
+                ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
+                ->orderBy('name')->pluck('name', 'id');
+            if ($user->pos_branch_id && ! $branches->has((int) $user->pos_branch_id)) {
+                $assigned = Branch::where('id', $user->pos_branch_id)->where('created_by', $creatorId)->first();
+                if ($assigned) {
+                    $branches[(int) $assigned->id] = $assigned->name.' — '.__('set branch POS type to Restaurant');
+                }
+            }
+            $tenantBranches = Branch::where('created_by', $creatorId)->where('is_active', true)->orderBy('name')->get();
+            $posBranchRoleNames = PosRestaurantRoleService::posBranchRoleNames();
+            $posBranchRoleIds = PosRestaurantRoleService::roleIdsRequiringPosBranch($creatorId);
 
-            return view('user.edit', compact('user', 'roles', 'customFields', 'branches', 'posBranchRoleNames', 'tenantBranches'));
+            return view('user.edit', compact('user', 'roles', 'customFields', 'branches', 'posBranchRoleNames', 'tenantBranches', 'posBranchRoleIds'));
         } else {
             return redirect()->back();
         }
@@ -427,63 +387,16 @@ class UserController extends Controller
                 }
 
                 $role = Role::findById($request->role);
-                $posBranchRoleNames = [
-                    \App\Services\PosRestaurantRoleService::ROLE_CASHIER,
-                    \App\Services\PosRestaurantRoleService::ROLE_WAITER,
-                    \App\Services\PosRestaurantRoleService::ROLE_MANAGER,
-                    \App\Services\PosRestaurantRoleService::ROLE_BAR,
-                    \App\Services\PosRestaurantRoleService::ROLE_KITCHEN,
-                ];
+                $companyId = (int) \Auth::user()->creatorId();
                 $input = $request->all();
                 $input['type'] = $role->name;
-                if (in_array($role->name, $posBranchRoleNames)) {
-                    $request->validate(['pos_branch_id' => 'required|exists:branches,id']);
-                    $input['pos_branch_id'] = (int) $request->pos_branch_id;
-                    if ($role->name === PosRestaurantRoleService::ROLE_KITCHEN) {
-                        $exists = User::where('created_by', \Auth::user()->creatorId())
-                            ->where('pos_branch_id', $input['pos_branch_id'])
-                            ->whereHas('roles', fn ($q) => $q->where('name', PosRestaurantRoleService::ROLE_KITCHEN))
-                            ->where('id', '!=', $user->id)
-                            ->exists();
-                        if ($exists) {
-                            return redirect()->back()->with('error', __('This branch already has a Kitchen user. Only one Kitchen per branch is allowed.'));
-                        }
-                    }
-                    if ($role->name === PosRestaurantRoleService::ROLE_BAR) {
-                        $exists = User::where('created_by', \Auth::user()->creatorId())
-                            ->where('pos_branch_id', $input['pos_branch_id'])
-                            ->whereHas('roles', fn ($q) => $q->where('name', PosRestaurantRoleService::ROLE_BAR))
-                            ->where('id', '!=', $user->id)
-                            ->exists();
-                        if ($exists) {
-                            return redirect()->back()->with('error', __('This branch already has a Bar user. Only one Bar per branch is allowed.'));
-                        }
-                    }
-                } else {
-                    $input['pos_branch_id'] = null;
+                if ($redirect = PosRestaurantRoleService::applyPosBranchToUserInput($input, $request, $role, $companyId, (int) $user->id)) {
+                    return $redirect;
                 }
-                if (in_array($role->name, $posBranchRoleNames)) {
-                    $pin = $request->pos_pin ? preg_replace('/\D/', '', (string) $request->pos_pin) : null;
-                    $input['pos_pin'] = ($pin !== '' && strlen($pin) >= 4 && strlen($pin) <= 8) ? $pin : null;
-                    if ($input['pos_pin'] !== null) {
-                        $v = \Validator::make(
-                            ['pos_pin' => $input['pos_pin']],
-                            ['pos_pin' => Rule::unique('users', 'pos_pin')->where('created_by', \Auth::user()->creatorId())->ignore($user->id)]
-                        );
-                        if ($v->fails()) {
-                            return redirect()->back()->with('error', __('This PIN is already used by another user.'));
-                        }
-                    }
-                } else {
-                    $input['pos_pin'] = null;
+                if ($redirect = PosRestaurantRoleService::applyPosPinToUserInput($input, $request, $role, $companyId, (int) $user->id)) {
+                    return $redirect;
                 }
-
-                $branchIdsSel = array_values(array_unique(array_filter(array_map('intval', $request->input('branch_ids', [])))));
-                if (count($branchIdsSel) > 0 && in_array($role->name, $posBranchRoleNames, true) && $request->filled('pos_branch_id')) {
-                    if (! in_array((int) $request->pos_branch_id, $branchIdsSel, true)) {
-                        return redirect()->back()->with('error', __('POS branch must be one of the allowed branches you selected.'));
-                    }
-                }
+                $branchIdsForSync = PosRestaurantRoleService::branchIdsForSyncFromRequest($request);
 
                 $user->fill($input)->save();
                 $existingCompanyIds = DB::table('company_user')->where('user_id', $user->id)->pluck('company_id')->map(fn ($cid) => (int) $cid)->all();
@@ -497,7 +410,7 @@ class UserController extends Controller
 
                 $roles[] = $request->role;
                 $user->roles()->sync($roles);
-                $user->syncBranchesFromRequest($request->input('branch_ids', []));
+                $user->syncBranchesFromRequest($branchIdsForSync);
 
                 return redirect()->route('users.index')->with(
                     'success', 'User successfully updated.'

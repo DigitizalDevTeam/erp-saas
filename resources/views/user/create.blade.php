@@ -85,7 +85,7 @@
             <div class="form-group col-md-6 pos-branch-div d-none">
                 {{ Form::label('pos_branch_id', __('POS Branch (assigned branch for Waiter/Cashier/Manager/Kitchen/Bar)'), ['class' => 'form-label']) }}<x-required></x-required>
                 {!! Form::select('pos_branch_id', $branches ?? [], null, ['class' => 'form-control select', 'placeholder' => __('Select Branch')]) !!}
-                <small class="text-muted">{{ __('This user will only use this branch in POS; they cannot change branch.') }}</small>
+                <small class="text-muted">{{ __('Restaurant POS only. Branch must have POS type Restaurant.') }}</small>
                 @error('pos_branch_id')
                     <small class="invalid-feedback d-block"><strong class="text-danger">{{ $message }}</strong></small>
                 @enderror
@@ -146,15 +146,7 @@
 </div>
 
 {{ Form::close() }}
-@if(!empty($posBranchRoleNames))
-@php
-    $posBranchRoleIds = collect($roles ?? [])
-        ->filter(fn ($name) => in_array($name, $posBranchRoleNames, true))
-        ->keys()
-        ->map(fn ($id) => (string) $id)
-        ->values()
-        ->all();
-@endphp
+@if(!empty($posBranchRoleIds))
 <script>
 (function() {
     var posRoleIds = @json($posBranchRoleIds);
