@@ -690,6 +690,7 @@
         var posRestaurantOrderUrl = '{{ route("pos.restaurant.order") }}';
         var posSearchProductsUrl = '{{ route("search.products") }}';
         var posCategoriesUrl = '{{ route("product.categories") }}';
+        var posCategoriesJsonUrl = '{{ route("product.categories.json") }}';
         var sessionKey = '{{ $lastsegment ?? "pos" }}';
         var session_key = sessionKey;
 
@@ -938,8 +939,46 @@
             $( "#warehouse_name_hidden" ).val($('.warehouse_select').val());
             $( "#discount_hidden").val($('.discount').val());
             $( "#quotation_id").val($('.quotation').val());
+            function getRestaurantCategoryId() {
+                var $sel = $('#pos-restaurant-category');
+                return $sel.length ? ($sel.val() || '0') : '0';
+            }
+
+            function getRestaurantWarehouseId() {
+                return $('#pos-restaurant-warehouse').val() || $('#warehouse').val() || '0';
+            }
+
+            function fillRestaurantCategorySelect(skipProductReload) {
+                var $sel = $('#pos-restaurant-category');
+                if (!$sel.length) return;
+                $.get(posCategoriesJsonUrl, function (data) {
+                    var currentVal = $sel.val();
+                    $sel.find('option:not(:first)').remove();
+                    (data || []).forEach(function (item) {
+                        if (item.id !== 0) {
+                            $sel.append($('<option></option>').val(item.id).text(item.name));
+                        }
+                    });
+                    $sel.val(currentVal || '0');
+                    if (skipProductReload) return;
+                    var wh = getRestaurantWarehouseId();
+                    if (wh && wh !== '0') {
+                        searchProducts(posSearchProductsUrl, '', $sel.val() || '0', wh, 'name', 'product-listing-restaurant');
+                    }
+                });
+            }
+
             $(function () {
                 getProductCategories();
+                fillRestaurantCategorySelect(true);
+            });
+
+            $('#pos-restaurant-category').on('change', function () {
+                var cat = getRestaurantCategoryId();
+                var wh = getRestaurantWarehouseId();
+                if (wh) {
+                    searchProducts(posSearchProductsUrl, '', cat, wh, 'name', 'product-listing-restaurant');
+                }
             });
 
             if ($('.barcodeScanner').length > 0) {
@@ -1065,8 +1104,9 @@
                                     var wh = ids[0];
                                     $whSelect.val(wh);
                                     $('#pos_restaurant_warehouse_hidden').val(wh);
+                                    $('#pos-restaurant-category').val('0');
                                     searchProducts(posSearchProductsUrl, '', '0', wh, 'name', 'product-listing-restaurant');
-                                    getProductCategoriesRestaurant();
+                                    fillRestaurantCategorySelect(true);
                                 }
                                 $('#pos-restaurant-warehouse-hint').text(ids.length ? '' : '{{ __("No warehouses for this branch") }}').toggle(ids.length === 0);
                             });
@@ -1093,8 +1133,9 @@
                 var wh = $(this).val();
                 $('#pos_restaurant_warehouse_hidden').val(wh || '');
                 if (wh) {
+                    $('#pos-restaurant-category').val('0');
                     searchProducts(posSearchProductsUrl, '', '0', wh, 'name', 'product-listing-restaurant');
-                    getProductCategoriesRestaurant();
+                    fillRestaurantCategorySelect(true);
                 }
                 var sk = $( "#empty_cart" ).val() || sessionKey;
                 var emptyData = { session_key: sk };
@@ -1169,7 +1210,7 @@
                             $whSelect.val(wh);
                             $('#pos_restaurant_warehouse_hidden').val(wh);
                             searchProducts(posSearchProductsUrl, '', '0', wh, 'name', 'product-listing-restaurant');
-                            getProductCategoriesRestaurant();
+                            fillRestaurantCategorySelect(true);
                         }
                         $('#pos-restaurant-warehouse-hint').text(ids.length ? '' : '{{ __("No warehouses for this branch") }}').toggle(ids.length === 0);
                     });
@@ -1471,21 +1512,6 @@
             if ($('#pos-restaurant-order-type').length) {
                 posRestaurantToggleOrderTypeUI($('#pos-restaurant-order-type').val() || 'dine_in');
             }
-
-            function getProductCategoriesRestaurant() {
-                $.get(posCategoriesUrl, function (data) {
-                    $('#categories-listing-restaurant').html(data);
-                });
-            }
-
-            $(document).on('click', '#pos-restaurant-panel .category-select', function () {
-                var $panel = $('#pos-restaurant-panel');
-                $panel.find('.category-select').parent().removeClass('cat-active');
-                $(this).parent().addClass('cat-active');
-                var cat = $(this).data('cat-id');
-                var warehouse_id = $('#pos-restaurant-warehouse').val();
-                searchProducts(posSearchProductsUrl, '', cat, warehouse_id, 'name', 'product-listing-restaurant');
-            });
 
             $(document).on('click', '.pos-void-line', function () {
                 var lineId = $(this).data('line-id');
@@ -2255,8 +2281,8 @@
             var searchProductRestaurantDebounced = posDebounce(function() {
                 var url = $(this).data('url');
                 var value = this.value;
-                var ware_id = $( "#pos-restaurant-warehouse" ).val();
-                var cat = $('#pos-restaurant-panel .cat-active').length ? $('#pos-restaurant-panel .cat-active').first().children().data('cat-id') : '0';
+                var ware_id = getRestaurantWarehouseId();
+                var cat = getRestaurantCategoryId();
                 searchProducts(url, value, cat, ware_id, 'name', 'product-listing-restaurant');
             }, 280);
             var barcodeSearchDebounced = posDebounce(function() {

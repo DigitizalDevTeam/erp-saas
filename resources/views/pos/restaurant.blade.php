@@ -191,15 +191,21 @@
             <div id="pos-restaurant-order-right" class="d-none">
                 <div class="card border-0 shadow-sm h-100 pos-products-card">
                     <div class="card-header py-2 bg-light">
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text" style="padding:11px !important"><i class="ti ti-search"></i></span>
-                            <input type="text" class="form-control searchproduct-restaurant" placeholder="{{ __('pos.search_product') }}" data-url="{{ route('search.products') }}">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text" style="padding:11px !important"><i class="ti ti-search"></i></span>
+                                    <input type="text" class="form-control searchproduct-restaurant" placeholder="{{ __('pos.search_product') }}" data-url="{{ route('search.products') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <select class="form-control form-control-sm select" id="pos-restaurant-category">
+                                    <option value="0">{{ __('All Categories') }}</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body p-2">
-                        <div class="button-list b-bottom catgory-pad mb-2">
-                            <div class="form-row m-0" id="categories-listing-restaurant"></div>
-                        </div>
                         <div class="product-body-nop">
                             <div class="form-row m-0" id="product-listing-restaurant"></div>
                         </div>
