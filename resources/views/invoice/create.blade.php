@@ -9,6 +9,8 @@
     <li class="breadcrumb-item">{{__('Invoice Create')}}</li>
 @endsection
 @push('script-page')
+    @include('partials.product-options-picker')
+    @include('partials.product-options-document-hook')
     <script src="{{asset('js/jquery-ui.min.js')}}"></script>
     <script src="{{asset('js/jquery.repeater.min.js')}}"></script>
     <script>
@@ -387,94 +389,98 @@
                 success: function (data) {
                     var item = JSON.parse(data);
                     var $line = $(el).closest('[data-repeater-item]');
+
+                    function finishInvoiceLine(finalPrice, selectedJson) {
+                        $(el.parent().parent().find('.quantity')).val(1);
+                        $(el.parent().parent().find('.price')).val(parseFloat(finalPrice).toFixed(2));
+                        $line.find('.selected-options-json').val(selectedJson || '');
+                        $(el.parent().parent().parent().find('.pro_description')).val(item.product.description);
+
+                        var $wrap = $(el).closest('[data-repeater-item]');
+                        var $idRow = $wrap.find('.identifier-row');
+                        if (item.identifier_tracking) {
+                            $idRow.removeClass('d-none');
+                            var label = item.identifier_type === 'mac' ? '{{ __("MAC Address List") }}' : '{{ __("Serial Number List") }}';
+                            if (item.identifier_type === 'both') {
+                                label = '{{ __("Serial/MAC List") }}';
+                            }
+                            $idRow.find('.identifier-label').text(label);
+                            $idRow.find('.identifiers-input').val('');
+                            invoiceLoadIdentifierPicklist($wrap, '');
+                        } else {
+                            $idRow.addClass('d-none');
+                            $idRow.find('.identifiers-input').val('');
+                            $idRow.find('.identifiers-select').empty();
+                        }
+
+                        var taxes = '';
+                        var tax = [];
+                        var totalItemTaxRate = 0;
+                        if (item.taxes == 0) {
+                            taxes += '-';
+                        } else {
+                            for (var i = 0; i < item.taxes.length; i++) {
+                                taxes += '<span class="badge bg-primary mt-1 mr-2">' + item.taxes[i].name + ' ' + '(' + item.taxes[i].rate + '%)' + '</span>';
+                                tax.push(item.taxes[i].id);
+                                totalItemTaxRate += parseFloat(item.taxes[i].rate);
+                            }
+                        }
+                        var itemTaxPrice = parseFloat((totalItemTaxRate / 100)) * parseFloat(finalPrice);
+                        $(el.parent().parent().find('.itemTaxPrice')).val(itemTaxPrice.toFixed(2));
+                        $(el.parent().parent().find('.itemTaxRate')).val(totalItemTaxRate.toFixed(2));
+                        $(el.parent().parent().find('.taxes')).html(taxes);
+                        $(el.parent().parent().find('.tax')).val(tax);
+                        $(el.parent().parent().find('.unit')).html(item.unit);
+                        $(el.parent().parent().find('.discount')).val(0);
+
+                        var totalItemPrice = 0;
+                        var priceInput = $('.price');
+                        for (var j = 0; j < priceInput.length; j++) {
+                            if (!isNaN(parseFloat(priceInput[j].value))) {
+                                totalItemPrice += parseFloat(priceInput[j].value);
+                            }
+                        }
+
+                        var totalItemTaxPrice = 0;
+                        var itemTaxPriceInput = $('.itemTaxPrice');
+                        for (var j = 0; j < itemTaxPriceInput.length; j++) {
+                            if (!isNaN(parseFloat(itemTaxPriceInput[j].value))) {
+                                totalItemTaxPrice += parseFloat(itemTaxPriceInput[j].value);
+                            }
+                        }
+                        $(el.parent().parent().find('.amount')).html((parseFloat(finalPrice) + itemTaxPrice).toFixed(2));
+
+                        var totalItemDiscountPrice = 0;
+                        var itemDiscountPriceInput = $('.discount');
+                        for (var k = 0; k < itemDiscountPriceInput.length; k++) {
+                            if (!isNaN(parseFloat(itemDiscountPriceInput[k].value))) {
+                                totalItemDiscountPrice += parseFloat(itemDiscountPriceInput[k].value);
+                            }
+                        }
+
+                        $('.subTotal').html(totalItemPrice.toFixed(2));
+                        $('.totalTax').html(totalItemTaxPrice.toFixed(2));
+                        $('.totalAmount').html((parseFloat(totalItemPrice) - parseFloat(totalItemDiscountPrice) + parseFloat(totalItemTaxPrice)).toFixed(2));
+                    }
+
                     invoiceMeasurementPopup(item, $line, function (m) {
                         if (m === false) {
                             $(el).val('');
                             return;
                         }
-                        $(el.parent().parent().find('.quantity')).val(1);
                         var basePrice = parseFloat(item.product.sale_price || 0);
-                        var finalPrice = m ? (basePrice * m.factor) : basePrice;
-                        $(el.parent().parent().find('.price')).val(finalPrice.toFixed(2));
-                        $(el.parent().parent().parent().find('.pro_description')).val(item.product.description);
+                        var parentPrice = m ? (basePrice * m.factor) : basePrice;
+                        var itemForOpts = $.extend(true, {}, item);
+                        itemForOpts.product = $.extend({}, item.product, { sale_price: parentPrice });
 
-                    // Identifier tracking (Serial/MAC)
-                    var $wrap = $(el).closest('[data-repeater-item]');
-                    var $idRow = $wrap.find('.identifier-row');
-                    if (item.identifier_tracking) {
-                        $idRow.removeClass('d-none');
-                        var label = item.identifier_type === 'mac' ? '{{ __("MAC Address List") }}' : '{{ __("Serial Number List") }}';
-                        if (item.identifier_type === 'both') {
-                            label = '{{ __("Serial/MAC List") }}';
+                        if (item.options_enabled && item.options && item.options.length) {
+                            window.ErpProductOptions.open(itemForOpts, function (selected, total) {
+                                finishInvoiceLine(total, JSON.stringify(selected));
+                            }, { forPurchase: false });
+                        } else {
+                            finishInvoiceLine(parentPrice, '');
                         }
-                        $idRow.find('.identifier-label').text(label);
-                        $idRow.find('.identifiers-input').val('');
-                        invoiceLoadIdentifierPicklist($wrap, '');
-                    } else {
-                        $idRow.addClass('d-none');
-                        $idRow.find('.identifiers-input').val('');
-                        $idRow.find('.identifiers-select').empty();
-                    }
-
-                    var taxes = '';
-                    var tax = [];
-
-                    var totalItemTaxRate = 0;
-                    if (item.taxes == 0) {
-                        taxes += '-';
-                    } else {
-                        for (var i = 0; i < item.taxes.length; i++) {
-                            taxes += '<span class="badge bg-primary mt-1 mr-2">' + item.taxes[i].name + ' ' + '(' + item.taxes[i].rate + '%)' + '</span>';
-                            tax.push(item.taxes[i].id);
-                            totalItemTaxRate += parseFloat(item.taxes[i].rate);
-                        }
-                    }
-                    var itemTaxPrice = parseFloat((totalItemTaxRate / 100)) * parseFloat((item.product.sale_price * 1));
-                    $(el.parent().parent().find('.itemTaxPrice')).val(itemTaxPrice.toFixed(2));
-                    $(el.parent().parent().find('.itemTaxRate')).val(totalItemTaxRate.toFixed(2));
-                    $(el.parent().parent().find('.taxes')).html(taxes);
-                    $(el.parent().parent().find('.tax')).val(tax);
-                    $(el.parent().parent().find('.unit')).html(item.unit);
-                    $(el.parent().parent().find('.discount')).val(0);
-
-                    var inputs = $(".amount");
-                    var subTotal = 0;
-                    for (var i = 0; i < inputs.length; i++) {
-                        subTotal = parseFloat(subTotal) + parseFloat($(inputs[i]).html());
-                    }
-
-                    var totalItemPrice = 0;
-                    var priceInput = $('.price');
-                    for (var j = 0; j < priceInput.length; j++) {
-                        if (!isNaN(parseFloat(priceInput[j].value))) {
-                            totalItemPrice += parseFloat(priceInput[j].value);
-                        }
-                    }
-
-                    var totalItemTaxPrice = 0;
-                    var itemTaxPriceInput = $('.itemTaxPrice');
-                    for (var j = 0; j < itemTaxPriceInput.length; j++) {
-                        if (!isNaN(parseFloat(itemTaxPriceInput[j].value))) {
-                            totalItemTaxPrice += parseFloat(itemTaxPriceInput[j].value);
-                            $(el.parent().parent().find('.amount')).html(parseFloat(item.totalAmount)+parseFloat(itemTaxPriceInput[j].value));
-                        }
-                    }
-
-                    var totalItemDiscountPrice = 0;
-                    var itemDiscountPriceInput = $('.discount');
-
-                    for (var k = 0; k < itemDiscountPriceInput.length; k++) {
-                        if (!isNaN(parseFloat(itemDiscountPriceInput[k].value))) {
-                            totalItemDiscountPrice += parseFloat(itemDiscountPriceInput[k].value);
-                        }
-                    }
-
-                    $('.subTotal').html(totalItemPrice.toFixed(2));
-                    $('.totalTax').html(totalItemTaxPrice.toFixed(2));
-                    $('.totalAmount').html((parseFloat(totalItemPrice) - parseFloat(totalItemDiscountPrice) + parseFloat(totalItemTaxPrice)).toFixed(2));
                     });
-
-
                 },
             });
         });
@@ -859,6 +865,7 @@
                                             {{ Form::hidden('itemTaxPrice','', array('class' => 'form-control itemTaxPrice')) }}
                                             {{ Form::hidden('itemTaxRate','', array('class' => 'form-control itemTaxRate')) }}
                                             {{ Form::hidden('measurement_json','', array('class' => 'form-control measurement_json')) }}
+                                            {{ Form::hidden('selected_options_json','', array('class' => 'form-control selected-options-json')) }}
                                         </div>
                                     </div>
                                 </td>

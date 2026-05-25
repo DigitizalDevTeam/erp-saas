@@ -28,6 +28,7 @@ class PosProduct extends Model
         'description',
         'identifiers',
         'measurement_json',
+        'selected_options_json',
         'status',
         'sent_at',
         'ready_at',

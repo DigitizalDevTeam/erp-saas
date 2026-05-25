@@ -335,6 +335,49 @@
             </div>
         </div>
 
+        <div class="col-12 quantity" id="product_options_create_section" style="display:none;">
+            <hr class="my-3">
+            <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+                <div>
+                    <h6 class="mb-1">{{ __('Product options') }}</h6>
+                    <p class="text-muted small mb-0">{{ __('At sale time the user picks one or more linked products. Line price = this product price + selected option prices. Stock is deducted from options only.') }}</p>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="options_enabled" id="options_enabled_create" value="1">
+                    <label class="form-check-label" for="options_enabled_create">{{ __('This product has options') }}</label>
+                </div>
+            </div>
+            <div id="product_options_create_fields" class="mt-3" style="display:none;">
+                <div class="table-responsive mb-2">
+                    <table class="table table-sm" id="product_options_create_table">
+                        <thead>
+                            <tr>
+                                <th>{{ __('Option product') }}</th>
+                                <th width="60"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="text-muted"><td colspan="2">{{ __('No options added yet.') }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-8">
+                        <label class="form-label">{{ __('Product') }}</label>
+                        <select class="form-select" id="product_option_create_select">
+                            <option value="">{{ __('Select product') }}</option>
+                            @foreach(($optionProducts ?? []) as $op)
+                                <option value="{{ $op->id }}">{{ $op->name }}{{ $op->sku ? ' (' . $op->sku . ')' : '' }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-sm btn-primary w-100" id="product_option_create_add_btn"><i class="ti ti-plus"></i> {{ __('Add option') }}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="col-12 d-none" id="kit_components_create_section">
             <hr class="my-3">
             <h6 class="mb-2">{{ __('Kit Components') }}</h6>
@@ -414,7 +457,48 @@
         } else {
             $('#kit_components_create_section').addClass('d-none');
         }
+        if (type == 'product') {
+            $('#product_options_create_section').show();
+        } else {
+            $('#product_options_create_section').hide();
+            $('#options_enabled_create').prop('checked', false);
+            $('#product_options_create_fields').hide();
+        }
     });
+
+    (function () {
+        let optIdx = 0;
+        function renderOptEmpty() {
+            const $tbody = $('#product_options_create_table tbody');
+            if ($tbody.find('tr[data-option-row]').length === 0) {
+                $tbody.html('<tr class="text-muted" data-empty-row><td colspan="2">{{ __("No options added yet.") }}</td></tr>');
+            }
+        }
+        function syncOptFields() {
+            const type = $('input[name="type"]:checked').val();
+            const show = type === 'product' && $('#options_enabled_create').is(':checked');
+            $('#product_options_create_fields').toggle(show);
+        }
+        $('#options_enabled_create').on('change', syncOptFields);
+        $(document).on('change', 'input[name="type"]', syncOptFields);
+        $('#product_option_create_add_btn').on('click', function () {
+            const id = $('#product_option_create_select').val();
+            const text = $('#product_option_create_select option:selected').text();
+            if (!id) return;
+            const $tbody = $('#product_options_create_table tbody');
+            if ($tbody.find('tr[data-empty-row]').length) $tbody.empty();
+            if ($tbody.find('input[value="' + id + '"]').length) return;
+            $tbody.append('<tr data-option-row><td>' + $('<div>').text(text).html() +
+                '<input type="hidden" name="product_options[' + optIdx + '][option_product_id]" value="' + id + '"></td>' +
+                '<td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger product-option-remove"><i class="ti ti-trash"></i></button></td></tr>');
+            optIdx++;
+        });
+        $(document).on('click', '.product-option-remove', function () {
+            $(this).closest('tr').remove();
+            renderOptEmpty();
+        });
+        syncOptFields();
+    })();
 
     (function () {
         let kitRowIdx = 0;

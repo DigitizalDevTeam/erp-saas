@@ -332,6 +332,8 @@ class QuotationController extends Controller
         }
         $data['productquantity'] = $productquantity;
 
+        $data = array_merge($data, \App\Services\ProductOptionService::productJsonExtras($product));
+
         return json_encode($data);
     }
 

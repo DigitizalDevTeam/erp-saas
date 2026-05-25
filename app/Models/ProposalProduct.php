@@ -13,6 +13,7 @@ class ProposalProduct extends Model
         'tax',
         'discount',
         'total',
+        'selected_options_json',
     ];
 
     public function product()

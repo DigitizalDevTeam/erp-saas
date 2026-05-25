@@ -14,6 +14,7 @@ class QuotationProduct extends Model
         'tax',
         'discount',
         'price',
+        'selected_options_json',
     ];
 
     public function product(){

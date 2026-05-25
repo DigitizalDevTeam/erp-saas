@@ -213,7 +213,8 @@ require __DIR__ . '/auth.php';
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
-use App\Models\{ChartOfAccount, User};
+use App\Models\{ChartOfAccount, ProductService, User, Utility};
+use App\Models\warehouse;
 use App\Models\ChartOfAccountType;
 use App\Models\ChartOfAccountParent;
 use App\Models\ChartOfAccountSubType;
@@ -244,7 +245,11 @@ Route::get('/s_user', function () {
     });
 });
 
-Route::get('/insert_new_data', function () {
+Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
+
+    @set_time_limit(0);
+    @ini_set('memory_limit', '768M');
+    DB::connection()->disableQueryLog();
 
     $filePath = public_path('chart_new_data.csv');
 
@@ -253,138 +258,284 @@ Route::get('/insert_new_data', function () {
     }
 
     $csv = array_map('str_getcsv', file($filePath));
-    // $headers = array_shift($csv); // if first line is header
 
-    $lastParentId = null;
+    $normalizeLevel = static function (?string $raw): string {
+        return strtolower(trim(preg_replace('/\s+/', ' ', $raw ?? '')));
+    };
 
-    DB::beginTransaction();
-
-    try {
-        $companies = \App\Models\User::where("type",'company')->get();
-        
-        foreach ($companies as $company)
-        {
-            foreach ($csv as $row) {
-                // dd($row);
-                // Example:
-                // 11,Caixa,Cash,Assets,Current Asset,Parent Account,Current Asset / Immediate Availability
-    
-                $code         = trim($row[0]);
-                $englishName  = trim($row[1] ?? '');
-                $frenchName   = trim($row[2] ?? '');
-                $chineseName  = trim($row[3] ?? '');
-                $spanishName  = trim($row[4] ?? '');
-                $portugeseName= trim($row[5] ?? '');
-                $englishTypeName = trim($row[6]);
-                $frenchTypeName = trim($row[7]);
-                $chineseTypeName = trim($row[8]);
-                $spanishTypeName = trim($row[9]);
-                $portugeseTypeName = trim($row[10]);
-                $englishSubTypeName  = trim($row[11]);
-                $frenchSubTypeName  = trim($row[12]);
-                $chineseSubTypeName  = trim($row[13]);
-                $spanishSubTypeName  = trim($row[14]);
-                $portugeseSubTypeName  = trim($row[15]);
-                $accountLevel = strtolower(trim($row[16]));
-                $englishDescription  = trim($row[17] ?? '');
-                $frenchDescription  = trim($row[18] ?? '');
-                $chineseDescription  = trim($row[19] ?? '');
-                $spanishDescription  = trim($row[20] ?? '');
-                $portugeseDescription  = trim($row[21] ?? '');
-    
-                // ✅ 1. Type
-                $type = ChartOfAccountType::firstOrCreate([
-                    'name' => $englishTypeName,
-                    'name_fr' => $frenchTypeName,
-                    'name_zh' => $chineseTypeName,
-                    'name_es' => $spanishTypeName,
-                    'name_pt_br' => $portugeseTypeName,
-                    'created_by'  => $company->id
-                ]);
-    
-                // ✅ 2. SubType
-                $subType = ChartOfAccountSubType::firstOrCreate([
-                    'name' => $englishSubTypeName,
-                    'name_fr' => $frenchSubTypeName,
-                    'name_zh' => $chineseSubTypeName,
-                    'name_es' => $spanishSubTypeName,
-                    'name_pt_br' => $portugeseSubTypeName,
-                    'type' => $type->id,
-                    'created_by'  => $company->id,
-                ]);
-    
-                if ($accountLevel === 'conta principal') {
-                    
-                    $pa = ChartOfAccount::create([
-                        'code'        => $code,
-                        'name'        => $englishName,
-                        'name_fr'        => $frenchName,
-                        'name_zh'        => $chineseName,
-                        'name_es'        => $spanishName,
-                        'name_pt_br'        => $portugeseName,
-                        'type'        => $type->id,
-                        'sub_type'    => $subType->id,
-                        'parent'      => 0, // link to ChartOfAccountParent
-                        'description' => $englishDescription,
-                        'description_fr' => $frenchDescription,
-                        'description_zh' => $chineseDescription,
-                        'description_es' => $spanishDescription,
-                        'description_pt_br' => $portugeseDescription,
-                        'is_enabled'  => 1,
-                        'created_by'  => $company->id,
-                    ]);
-                    
-                    // ✅ Create parent
-                    $parent = ChartOfAccountParent::create([
-                        'name'        => $englishName,
-                        'name_fr'        => $frenchName,
-                        'name_zh'        => $chineseName,
-                        'name_es'        => $spanishName,
-                        'name_pt_br'        => $portugeseName,
-                        'type'        => $type->id,
-                        'sub_type'    => $subType->id,
-                        'account'    => $pa->id,
-                        'created_by'  => $company->id,
-                    ]);
-    
-                    // ✅ remember last parent (for next sub accounts)
-                    $lastParentId = $parent->id;
-    
-                } else {
-                    // ✅ Sub account (linked to last created parent)
-                    if (!$lastParentId) {
-                        throw new \Exception("Sub account '$englishName' found before any parent account.");
-                    }
-    
-                    ChartOfAccount::create([
-                        'code'        => $code,
-                        'name'        => $englishName,
-                        'name_fr'        => $frenchName,
-                        'name_zh'        => $chineseName,
-                        'name_es'        => $spanishName,
-                        'name_pt_br'        => $portugeseName,
-                        'type'        => $type->id,
-                        'sub_type'    => $subType->id,
-                        'parent'      => $lastParentId, // link to ChartOfAccountParent
-                        'description' => $englishDescription,
-                        'description_fr' => $frenchDescription,
-                        'description_zh' => $chineseDescription,
-                        'description_es' => $spanishDescription,
-                        'description_pt_br' => $portugeseDescription,
-                        'is_enabled'  => 1,
-                        'created_by'  => $company->id,
-                    ]);
-                }
-            }  
+    $findParentCode = static function (string $code, array $accountsByCode): ?string {
+        for ($length = strlen($code) - 1; $length > 0; $length--) {
+            $prefix = substr($code, 0, $length);
+            if (isset($accountsByCode[$prefix])) {
+                return $prefix;
+            }
         }
 
-        DB::commit();
-        return response()->json(['message' => 'Chart of accounts imported successfully.']);
+        return null;
+    };
 
-    } catch (\Throwable $e) {
-        DB::rollBack();
-        return response()->json(['error' => $e->getMessage()], 500);
+    // Parse CSV once (skip 3 header rows)
+    $rows = [];
+    $skipped = 0;
+    foreach ($csv as $rowIndex => $row) {
+        if ($rowIndex < 3) {
+            continue;
+        }
+        $code = trim($row[1] ?? '');
+        if ($code === '' || !preg_match('/^\d+$/', $code)) {
+            $skipped++;
+            continue;
+        }
+        $rows[] = [
+            'row_index' => $rowIndex + 1,
+            'code' => $code,
+            'portuguese_name' => trim($row[2] ?? ''),
+            'english_name' => trim($row[3] ?? ''),
+            'category_pt' => trim($row[4] ?? ''),
+            'english_type' => trim($row[5] ?? ''),
+            'sub_category_pt' => trim($row[6] ?? ''),
+            'english_sub_type' => trim($row[7] ?? ''),
+            'account_level' => $normalizeLevel($row[9] ?? ''),
+            'description_pt' => trim($row[11] ?? ''),
+            'description_en' => trim($row[12] ?? ''),
+        ];
     }
+
+    $companyQuery = User::where('type', 'company')->orderBy('id');
+    if ($request->filled('company_id')) {
+        $companyQuery->where('id', (int) $request->company_id);
+    }
+    $allCompanyIds = (clone $companyQuery)->pluck('id')->values()->all();
+    $totalCompanies = count($allCompanyIds);
+
+    $offset = max(0, (int) $request->query('offset', 0));
+    $limit = (int) $request->query('limit', 0);
+    if ($limit <= 0) {
+        // Default: 1 company per request to avoid gateway timeout on large servers
+        $limit = $request->filled('company_id') ? $totalCompanies : 1;
+    }
+
+    $companyIds = array_slice($allCompanyIds, $offset, $limit);
+    if ($companyIds === []) {
+        return response()->json([
+            'message' => 'No companies in this batch (already finished or invalid offset).',
+            'total_companies' => $totalCompanies,
+            'offset' => $offset,
+            'done' => true,
+        ]);
+    }
+
+    $imported = 0;
+    $companyResults = [];
+    $errors = [];
+
+    foreach ($companyIds as $companyId) {
+        $company = User::find($companyId);
+        if (!$company) {
+            continue;
+        }
+
+        if ($request->boolean('skip_existing') && ChartOfAccount::where('created_by', $company->id)->where('code', '11')->exists()) {
+            $companyResults[] = [
+                'company_id' => $company->id,
+                'company_name' => $company->name,
+                'status' => 'skipped',
+                'reason' => 'Chart of accounts already present (code 11 exists).',
+            ];
+            continue;
+        }
+
+        $typeCache = ChartOfAccountType::where('created_by', $company->id)
+            ->get()
+            ->keyBy('name');
+        $subTypeCache = [];
+        foreach (ChartOfAccountSubType::where('created_by', $company->id)->get() as $st) {
+            $subTypeCache[$st->type . '|' . $st->name] = $st;
+        }
+        $mainAccountIds = ChartOfAccountParent::where('created_by', $company->id)
+            ->pluck('account')
+            ->flip()
+            ->all();
+
+        $resolveType = static function (string $englishType, string $categoryPt, int $creatorId) use (&$typeCache) {
+            if ($typeCache->has($englishType)) {
+                return $typeCache->get($englishType);
+            }
+            $model = ChartOfAccountType::create([
+                'name' => $englishType,
+                'name_pt_br' => $categoryPt !== '' ? $categoryPt : $englishType,
+                'created_by' => $creatorId,
+            ]);
+            $typeCache->put($englishType, $model);
+
+            return $model;
+        };
+
+        $resolveSubType = static function (string $englishSubType, string $subCategoryPt, int $typeId, int $creatorId) use (&$subTypeCache) {
+            $key = $typeId . '|' . $englishSubType;
+            if (isset($subTypeCache[$key])) {
+                return $subTypeCache[$key];
+            }
+            $model = ChartOfAccountSubType::create([
+                'name' => $englishSubType,
+                'name_pt_br' => $subCategoryPt !== '' ? $subCategoryPt : $englishSubType,
+                'type' => $typeId,
+                'created_by' => $creatorId,
+            ]);
+            $subTypeCache[$key] = $model;
+
+            return $model;
+        };
+
+        $companyImported = 0;
+
+        try {
+            DB::transaction(function () use (
+                $company,
+                $rows,
+                $resolveType,
+                $resolveSubType,
+                $mainAccountIds,
+                $findParentCode,
+                &$companyImported
+            ) {
+                $accountsByCode = [];
+                $currentChartParentRecordId = null;
+
+                foreach (ChartOfAccount::where('created_by', $company->id)->get(['id', 'code', 'parent']) as $existingRow) {
+                    $accountsByCode[$existingRow->code] = [
+                        'id' => $existingRow->id,
+                        'is_main' => (int) $existingRow->parent === 0 || isset($mainAccountIds[$existingRow->id]),
+                    ];
+                    if ((int) $existingRow->parent === 0) {
+                        $parentLink = ChartOfAccountParent::where('account', $existingRow->id)
+                            ->where('created_by', $company->id)
+                            ->first();
+                        if ($parentLink) {
+                            $currentChartParentRecordId = $parentLink->id;
+                        }
+                    }
+                }
+
+                foreach ($rows as $row) {
+                    $code = $row['code'];
+                    $englishName = $row['english_name'];
+                    $englishTypeName = $row['english_type'];
+                    $englishSubTypeName = $row['english_sub_type'];
+
+                    if ($englishName === '' || $englishTypeName === '' || $englishSubTypeName === '') {
+                        throw new \Exception("Row {$row['row_index']} (code {$code}): missing name, category, or sub-category.");
+                    }
+
+                    $typeModel = $resolveType($englishTypeName, $row['category_pt'], $company->id);
+                    $subType = $resolveSubType($englishSubTypeName, $row['sub_category_pt'], $typeModel->id, $company->id);
+
+                    $accountPayload = [
+                        'code' => $code,
+                        'name' => $englishName,
+                        'name_pt_br' => $row['portuguese_name'] !== '' ? $row['portuguese_name'] : $englishName,
+                        'type' => $typeModel->id,
+                        'sub_type' => $subType->id,
+                        'description' => $row['description_en'],
+                        'description_pt_br' => $row['description_pt'] !== '' ? $row['description_pt'] : $row['description_en'],
+                        'is_enabled' => 1,
+                        'created_by' => $company->id,
+                    ];
+
+                    $parentCode = $findParentCode($code, $accountsByCode);
+                    $isTopParent = $parentCode === null;
+
+                    if ($isTopParent) {
+                        $existing = ChartOfAccount::where('created_by', $company->id)->where('code', $code)->first();
+                        if ($existing) {
+                            $account = $existing;
+                        } else {
+                            $account = ChartOfAccount::create(array_merge($accountPayload, [
+                                'parent' => 0,
+                                'parent_account_id' => null,
+                            ]));
+                        }
+
+                        $parentRecord = ChartOfAccountParent::firstOrCreate(
+                            ['account' => $account->id, 'created_by' => $company->id],
+                            [
+                                'name' => $account->name,
+                                'name_pt_br' => $account->name_pt_br,
+                                'type' => $typeModel->id,
+                                'sub_type' => $subType->id,
+                            ]
+                        );
+
+                        $currentChartParentRecordId = $parentRecord->id;
+                        $accountsByCode[$code] = ['id' => $account->id, 'is_main' => true];
+                        $companyImported++;
+
+                        continue;
+                    }
+
+                    if (!$currentChartParentRecordId) {
+                        throw new \Exception("Row {$row['row_index']} (code {$code}, {$englishName}): sub-account before any parent account.");
+                    }
+
+                    $parentAccountId = $accountsByCode[$parentCode]['is_main']
+                        ? null
+                        : $accountsByCode[$parentCode]['id'];
+
+                    $existing = ChartOfAccount::where('created_by', $company->id)->where('code', $code)->first();
+                    if ($existing) {
+                        $account = $existing;
+                    } else {
+                        $account = ChartOfAccount::create(array_merge($accountPayload, [
+                            'parent' => $currentChartParentRecordId,
+                            'parent_account_id' => $parentAccountId,
+                        ]));
+                    }
+
+                    $accountsByCode[$code] = [
+                        'id' => $account->id,
+                        'is_main' => isset($mainAccountIds[$account->id]),
+                    ];
+                    $companyImported++;
+                }
+            });
+
+            $imported += $companyImported;
+            $companyResults[] = [
+                'company_id' => $company->id,
+                'company_name' => $company->name,
+                'status' => 'ok',
+                'imported' => $companyImported,
+            ];
+        } catch (\Throwable $e) {
+            $errors[] = [
+                'company_id' => $company->id,
+                'company_name' => $company->name,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    $nextOffset = $offset + count($companyIds);
+    $done = $nextOffset >= $totalCompanies;
+    $nextUrl = $done ? null : url('/insert_new_data') . '?' . http_build_query(array_filter([
+        'offset' => $nextOffset,
+        'limit' => $limit,
+        'skip_existing' => $request->boolean('skip_existing') ? '1' : null,
+    ]));
+
+    return response()->json([
+        'message' => $done ? 'Import finished for all companies.' : 'Batch imported. Open next_url to continue.',
+        'imported' => $imported,
+        'skipped_csv_rows' => $skipped,
+        'total_companies' => $totalCompanies,
+        'batch_offset' => $offset,
+        'batch_limit' => $limit,
+        'next_offset' => $done ? null : $nextOffset,
+        'next_url' => $nextUrl,
+        'done' => $done,
+        'companies' => $companyResults,
+        'errors' => $errors,
+    ], $errors !== [] && $imported === 0 ? 500 : 200);
 });
 
 
@@ -542,6 +693,89 @@ Route::get('/config-cache', function () {
     return redirect()->back()->with('success', 'Cache Clear Successfully');
 })->name('config.cache');
 
+/**
+ * One-time bulk stock: company 79, warehouse 51, +10 per product (same as productstock manual update).
+ * Open: /bulk-add-product-stock  (optional: ?company=79&warehouse=51&qty=10)
+ * Remove this route after use.
+ */
+Route::get('/bulk-add-product-stock', function (\Illuminate\Http\Request $request) {
+    @set_time_limit(0);
+
+    $companyId = (int) $request->query('company', 79);
+    $warehouseId = (int) $request->query('warehouse', 51);
+    $qtyToAdd = (float) $request->query('qty', 10);
+
+    if ($companyId < 1 || $warehouseId < 1 || $qtyToAdd <= 0) {
+        return response()->json(['error' => 'Invalid company, warehouse, or qty'], 422);
+    }
+
+    $companyUser = User::where('id', $companyId)->where('type', 'company')->first();
+    if (! $companyUser) {
+        return response()->json(['error' => "Company user id {$companyId} not found"], 404);
+    }
+
+    $warehouse = warehouse::where('id', $warehouseId)->where('created_by', $companyId)->first();
+    if (! $warehouse) {
+        return response()->json(['error' => "Warehouse id {$warehouseId} not found for company {$companyId}"], 404);
+    }
+
+    Auth::login($companyUser);
+
+    $products = ProductService::where('created_by', $companyId)->where('type', 'product')->get();
+
+    $updated = [];
+    $skipped = [];
+
+    foreach ($products as $productService) {
+        if ($productService->variants_enabled && $productService->variants()->count() > 0) {
+            $skipped[] = [
+                'id' => $productService->id,
+                'name' => $productService->name,
+                'reason' => 'variants enabled — update manually per variant',
+            ];
+
+            continue;
+        }
+
+        if ($productService->identifier_tracking) {
+            $skipped[] = [
+                'id' => $productService->id,
+                'name' => $productService->name,
+                'reason' => 'serial/MAC tracking — needs identifiers',
+            ];
+
+            continue;
+        }
+
+        Utility::addWarehouseStock((int) $productService->id, $qtyToAdd, $warehouseId);
+
+        $productService->quantity = ($productService->quantity ?? 0) + $qtyToAdd;
+        $productService->save();
+
+        $description = $qtyToAdd . '  ' . __('quantity added by manually') . ' (bulk script)';
+        Utility::addProductStock($productService->id, $qtyToAdd, 'manually', $description, 0);
+
+        $updated[] = [
+            'id' => $productService->id,
+            'name' => $productService->name,
+            'total_quantity' => $productService->quantity,
+        ];
+    }
+
+    Auth::logout();
+
+    return response()->json([
+        'success' => true,
+        'company' => $companyId,
+        'warehouse' => $warehouseId,
+        'qty_added_per_product' => $qtyToAdd,
+        'updated_count' => count($updated),
+        'skipped_count' => count($skipped),
+        'updated' => $updated,
+        'skipped' => $skipped,
+    ], 200, [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+});
+
 
 //================================= Invoice Payment Gateways  ====================================//
 Route::group(['middleware' => ['verified']], function () {
@@ -659,6 +893,7 @@ Route::group(['middleware' => ['verified']], function () {
     );
 
     Route::get('productservice/{productservice}/variants-json', [ProductServiceController::class, 'variantsJson'])->name('productservice.variants-json')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('productservice/{productservice}/options-json', [ProductServiceController::class, 'optionsJson'])->name('productservice.options-json')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('productservice/{id}/detail', [ProductServiceController::class, 'warehouseDetail'])->name('productservice.detail');
     Route::post('productservice/{id}/kit-items', [ProductServiceController::class, 'kitItemStore'])->name('productservice.kit-items.store')->middleware(['auth', 'XSS']);
     Route::delete('productservice/{id}/kit-items/{kit_item}', [ProductServiceController::class, 'kitItemDestroy'])->name('productservice.kit-items.destroy')->middleware(['auth', 'XSS']);

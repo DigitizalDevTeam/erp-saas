@@ -16,6 +16,7 @@ class PurchaseProduct extends Model
         'total',
         'row_no',
         'shelf_no',
+        'selected_options_json',
     ];
 
     public function product()

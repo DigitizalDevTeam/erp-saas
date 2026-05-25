@@ -22,6 +22,8 @@ use App\Models\ProductKitItem;
 use App\Models\ProductVariant;
 use App\Models\PurchaseProduct;
 use App\Services\PosFefoDeductionService;
+use App\Services\ProductOptionService;
+use App\Models\ProductOptionItem;
 use Google\Service\Dataproc\Session;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -156,7 +158,12 @@ class ProductServiceController extends Controller
                 ->orderBy('name')
                 ->get();
 
-            return view('productservice.create', compact('category', 'unit', 'tax', 'customFields', 'incomeChartAccounts', 'incomeSubAccounts', 'expenseChartAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitComponents'));
+            $optionProducts = ProductService::where('created_by', \Auth::user()->creatorId())
+                ->where('type', 'product')
+                ->orderBy('name')
+                ->get();
+
+            return view('productservice.create', compact('category', 'unit', 'tax', 'customFields', 'incomeChartAccounts', 'incomeSubAccounts', 'expenseChartAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitComponents', 'optionProducts'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
@@ -261,6 +268,7 @@ class ProductServiceController extends Controller
 
             if ($productService->type === 'product') {
                 $this->syncProductVariants($productService, $request);
+                ProductOptionService::syncProductOptions($productService, $request);
             }
 
             return redirect()->route('productservice.index')->with('success', __('Product successfully created.'));
@@ -347,9 +355,16 @@ class ProductServiceController extends Controller
                         ->get();
                 }
 
-                $productService->load('variants');
+                $productService->load(['variants', 'optionItems.optionProduct:id,name,sku,sale_price,purchase_price']);
 
-                return view('productservice.edit', compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'incomeSubAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitItems', 'kitComponents'));
+                $optionItems = $productService->optionItems;
+                $optionProducts = ProductService::where('created_by', \Auth::user()->creatorId())
+                    ->where('type', 'product')
+                    ->where('id', '!=', $productService->id)
+                    ->orderBy('name')
+                    ->get();
+
+                return view('productservice.edit', compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'incomeSubAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitItems', 'kitComponents', 'optionItems', 'optionProducts'));
             } else {
                 return response()->json(['error' => __('Permission denied.')], 401);
             }
@@ -522,12 +537,15 @@ class ProductServiceController extends Controller
 
                 if ($productService->type === 'product') {
                     $this->syncProductVariants($productService, $request);
+                    ProductOptionService::syncProductOptions($productService, $request);
                 } else {
                     ProductVariant::where('product_service_id', $productService->id)->delete();
+                    ProductOptionItem::where('parent_product_id', $productService->id)->delete();
                     $productService->forceFill([
                         'variants_enabled' => false,
                         'variant_size_label' => null,
                         'variant_color_label' => null,
+                        'options_enabled' => false,
                     ]);
                     $productService->save();
                 }
@@ -666,7 +684,7 @@ class ProductServiceController extends Controller
 
             $cacheKey = null;
             if ($isPos) {
-                $cacheKey = 'pos_products_html_' . Auth::user()->creatorId() . '_' . $lastsegment . '_' . ($request->war_id ?? '0') . '_' . ($request->cat_id ?? '0') . '_' . ($request->search ?? '') . '_' . ($request->type ?? 'name') . '_' . $page;
+                $cacheKey = 'pos_products_html_' . Auth::user()->creatorId() . '_' . $lastsegment . '_' . ($request->war_id ?? '0') . '_' . ($request->cat_id ?? '0') . '_' . ($request->search ?? '') . '_' . ($request->type ?? 'name') . '_' . $page . '_optv1';
                 $cachedHtml = Cache::get($cacheKey);
                 if ($cachedHtml !== null) {
                     return Response($cachedHtml);
@@ -714,7 +732,10 @@ class ProductServiceController extends Controller
 
             $products = $runQuery();
             if ($isPos && $products->isNotEmpty()) {
-                $products->load(['variants' => fn ($q) => $q->orderBy('sort_order')->orderBy('id')]);
+                $products->load([
+                    'variants' => fn ($q) => $q->orderBy('sort_order')->orderBy('id'),
+                    'optionItems.optionProduct:id,name,sku,sale_price,purchase_price',
+                ]);
             }
 
             // Build tax rate map in one query (avoid N+1)
@@ -771,17 +792,37 @@ class ProductServiceController extends Controller
                     $printZone = $product->print_zone ?? '';
                     $variantsPayload = '[]';
                     if ($isPos && ($product->variants_enabled ?? false) && $product->relationLoaded('variants') && $product->variants->isNotEmpty()) {
-                        $variantsPayload = e(json_encode($product->variants->map(function ($v) use ($product) {
+                        $variantsPayload = htmlspecialchars(json_encode($product->variants->map(function ($v) use ($product) {
                             return [
                                 'id' => $v->id,
                                 'label' => $v->displayLabel($product),
                                 'sale_price' => $v->sale_price !== null ? (float) $v->sale_price : null,
                             ];
-                        })->values()->all()));
+                        })->values()->all()), ENT_QUOTES, 'UTF-8');
+                    }
+                    $optionsPayload = '[]';
+                    $optionsEnabledAttr = '0';
+                    if ($isPos && ($product->options_enabled ?? false) && $product->relationLoaded('optionItems')) {
+                        $optionsEnabledAttr = '1';
+                        $opts = [];
+                        foreach ($product->optionItems as $oi) {
+                            $op = $oi->optionProduct;
+                            if (! $op || ($op->type ?? '') !== 'product' || ($op->options_enabled ?? false)) {
+                                continue;
+                            }
+                            $opts[] = [
+                                'product_id' => (int) $op->id,
+                                'name' => $op->name,
+                                'sku' => $op->sku,
+                                'sale_price' => (float) ($op->sale_price ?? 0),
+                                'purchase_price' => (float) ($op->purchase_price ?? 0),
+                            ];
+                        }
+                        $optionsPayload = htmlspecialchars(json_encode($opts, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8');
                     }
                     $dimUnit = $product->dimension_unit ?: ($product->unit->length_unit ?? 'cm');
                     $volDiv = $product->volumetric_divisor ?: ($product->unit->volumetric_divisor ?? '');
-                    $output .= '<div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\' data-unit-type="' . e($product->unit_type ?? '') . '" data-dimension-unit="' . e($dimUnit) . '" data-volumetric-divisor="' . e((string) $volDiv) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body mt-2 p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Add to Cart') . '</button></div></div></div></div></div>';
+                    $output .= '<div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\' data-options-enabled="' . $optionsEnabledAttr . '" data-options=\'' . $optionsPayload . '\' data-unit-type="' . e($product->unit_type ?? '') . '" data-dimension-unit="' . e($dimUnit) . '" data-volumetric-divisor="' . e((string) $volDiv) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body mt-2 p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Add to Cart') . '</button></div></div></div></div></div>';
                 }
                 if ($cacheKey) {
                     Cache::put($cacheKey, $output, 90);
@@ -869,12 +910,51 @@ class ProductServiceController extends Controller
                 }
             }
 
+            $selectedOptions = [];
+            $selectedOptionsJson = null;
+            if ($product && ($product->options_enabled ?? false)) {
+                try {
+                    $selectedOptions = ProductOptionService::validateSelectedForParent(
+                        (int) $product->id,
+                        ProductOptionService::parseFromRequest($request),
+                        (int) Auth::user()->creatorId(),
+                        $session_key === 'purchases'
+                    );
+                } catch (\Throwable $e) {
+                    return response()->json(
+                        [
+                            'code' => 422,
+                            'status' => 'Error',
+                            'error' => $e->getMessage(),
+                        ],
+                        422
+                    );
+                }
+                $selectedOptionsJson = ProductOptionService::encodeOptions($selectedOptions);
+                $cartLineKey .= ProductOptionService::optionsLineKeySuffix($selectedOptions);
+            }
+
             if ($product) {
                 if ($isPosSession) {
                     // Products that do not affect stock (e.g. composite dishes with BOM): allow sale without product-level quantity check
                     $affectStock = ($product->type === 'kit') ? false : ($product->affect_stock ?? true);
+                    if (($product->options_enabled ?? false) && $selectedOptions !== []) {
+                        $affectStock = false;
+                    }
                     $warId = (int) ($request->war_id ?? 0);
-                    if ($affectStock && ($product->variants_enabled ?? false)) {
+                    if (($product->options_enabled ?? false) && $selectedOptions !== []) {
+                        $minOpt = PHP_INT_MAX;
+                        foreach ($selectedOptions as $optRow) {
+                            $opt = ProductService::where('id', (int) $optRow['product_id'])->where('created_by', Auth::user()->creatorId())->first();
+                            if (! $opt || ! ($opt->affect_stock ?? true)) {
+                                continue;
+                            }
+                            $need = (float) ($optRow['quantity'] ?? 1);
+                            $have = (int) floor((float) ($opt->quantity ?? 0));
+                            $minOpt = min($minOpt, $need > 0 ? (int) floor($have / $need) : 0);
+                        }
+                        $productquantity = $minOpt === PHP_INT_MAX ? 999999 : max(0, $minOpt);
+                    } elseif ($affectStock && ($product->variants_enabled ?? false)) {
                         $productquantity = (int) floor($product->variantStockInWarehouse($warId, $variantId));
                     } elseif ($affectStock && ! ($product->variants_enabled ?? false) && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product->id, $warId, (int) Auth::user()->creatorId()))) {
                         $productquantity = (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warId, (int) Auth::user()->creatorId()));
@@ -923,6 +1003,15 @@ class ProductServiceController extends Controller
                     }
                     $displayName = $productname . ' — ' . $vrD->displayLabel($product);
                 }
+            }
+
+            if ($product && $selectedOptions !== []) {
+                $productprice = ProductOptionService::calculateUnitPrice(
+                    $product,
+                    $selectedOptions,
+                    $session_key === 'purchases'
+                );
+                $displayName = ProductOptionService::formatLineName($product, $selectedOptions);
             }
 
             $originalquantity = (int) $productquantity;
@@ -974,6 +1063,7 @@ class ProductServiceController extends Controller
             }
             $image_url = !empty($product->pro_image) ? 'uploads/pro_image/' . $product->pro_image : 'uploads/pro_image/default.png';
             $measurementJsonEsc = is_string($measurementJson) ? e($measurementJson) : '';
+            $selectedOptionsAttr = $selectedOptionsJson ? e($selectedOptionsJson) : '';
 
             $model_delete_id = 'delete-form-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $cartLineKey);
 
@@ -989,7 +1079,7 @@ class ProductServiceController extends Controller
                 if ($request->get('restaurant') || $session_key === 'pos-restaurant') {
                     $statusNotSent = __('pos.status_not_sent');
                     $cartKeyVal = $tableKey !== null ? $tableKey : '';
-                    $carthtml .= '<tr data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" data-line-id="" data-is-sent="0" data-status="not_sent" data-discount="0" id="product-id-r-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '" data-measurement-json="' . $measurementJsonEsc . '">
+                    $carthtml .= '<tr data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" data-line-id="" data-is-sent="0" data-status="not_sent" data-discount="0" id="product-id-r-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '" data-measurement-json="' . $measurementJsonEsc . '" data-selected-options="' . $selectedOptionsAttr . '">
                             <td class="name">' . e($displayName) . '</td>
                             <td class="pos-note-cell"><textarea class="form-control form-control-sm notes pos-item-notes" placeholder="' . e(__('pos.note_placeholder')) . '" maxlength="200" rows="2" title="' . e(__('Note')) . '"></textarea></td>
                             <td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" class="input-number" data-url="' . url('update-cart/') . '" data-id="' . e($cartLineKey) . '" value="1"><input type="button" value="+" class="plus"></span></td>
@@ -1069,6 +1159,8 @@ class ProductServiceController extends Controller
                 'identifier_tracking' => $identifierTracking,
                 'identifiers' => '',
                 'measurement_json' => is_string($measurementJson) ? $measurementJson : null,
+                'selected_options' => $selectedOptions,
+                'selected_options_json' => $selectedOptionsJson,
             ];
 
             // if cart is empty then this the first product
@@ -1566,6 +1658,15 @@ class ProductServiceController extends Controller
                 ->whereNotIn('id', $seenIds)
                 ->delete();
         }
+    }
+
+    public function optionsJson(ProductService $productservice)
+    {
+        if ((int) $productservice->created_by !== (int) Auth::user()->creatorId()) {
+            abort(403);
+        }
+
+        return response()->json(ProductOptionService::productJsonExtras($productservice));
     }
 
     public function variantsJson(ProductService $productservice)

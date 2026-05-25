@@ -349,6 +349,61 @@
             </div>
         </div>
 
+        <div class="col-12 {{ (($productService->type ?? '') === 'product') ? '' : 'd-none' }}" id="product_options_edit_section">
+            <hr class="my-3">
+            <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+                <div>
+                    <h6 class="mb-1">{{ __('Product options') }}</h6>
+                    <p class="text-muted small mb-0">{{ __('Linked products selectable at sale time. Price = parent + selected options; stock from options only.') }}</p>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="options_enabled" id="options_enabled_edit" value="1" {{ ($productService->options_enabled ?? false) ? 'checked' : '' }}>
+                    <label class="form-check-label" for="options_enabled_edit">{{ __('This product has options') }}</label>
+                </div>
+            </div>
+            <div id="product_options_edit_fields" class="mt-3" style="{{ ($productService->options_enabled ?? false) ? '' : 'display:none;' }}">
+                <div class="table-responsive mb-2">
+                    <table class="table table-sm" id="product_options_edit_table">
+                        <thead>
+                            <tr>
+                                <th>{{ __('Option product') }}</th>
+                                <th width="60"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse(($optionItems ?? []) as $oi)
+                                @if($oi->optionProduct)
+                                <tr data-option-row>
+                                    <td>
+                                        {{ $oi->optionProduct->name }}{{ $oi->optionProduct->sku ? ' (' . $oi->optionProduct->sku . ')' : '' }}
+                                        <input type="hidden" name="product_options[{{ $loop->index }}][option_product_id]" value="{{ $oi->option_product_id }}">
+                                    </td>
+                                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger product-option-remove"><i class="ti ti-trash"></i></button></td>
+                                </tr>
+                                @endif
+                            @empty
+                                <tr class="text-muted" data-empty-row><td colspan="2">{{ __('No options added yet.') }}</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-8">
+                        <label class="form-label">{{ __('Product') }}</label>
+                        <select class="form-select" id="product_option_edit_select">
+                            <option value="">{{ __('Select product') }}</option>
+                            @foreach(($optionProducts ?? []) as $op)
+                                <option value="{{ $op->id }}">{{ $op->name }}{{ $op->sku ? ' (' . $op->sku . ')' : '' }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-sm btn-primary w-100" id="product_option_edit_add_btn"><i class="ti ti-plus"></i> {{ __('Add option') }}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="col-12 {{ (($productService->type ?? '') === 'kit') ? '' : 'd-none' }}" id="kit_components_edit_section">
             <hr class="my-3">
             <h6 class="mb-2">{{ __('Kit Components') }}</h6>
@@ -586,6 +641,41 @@
             syncVariantVisibility();
         });
         syncVariantVisibility();
+    })();
+
+    (function () {
+        let optIdx = {{ max(count($optionItems ?? []), 0) }};
+        function renderOptEmpty() {
+            const $tbody = $('#product_options_edit_table tbody');
+            if ($tbody.find('tr[data-option-row]').length === 0) {
+                $tbody.html('<tr class="text-muted" data-empty-row><td colspan="2">{{ __("No options added yet.") }}</td></tr>');
+            }
+        }
+        function syncOptVisibility() {
+            const type = $('input[name="type"]:checked').val();
+            $('#product_options_edit_section').toggleClass('d-none', type !== 'product');
+            const enabled = $('#options_enabled_edit').is(':checked');
+            $('#product_options_edit_fields').toggle(type === 'product' && enabled);
+        }
+        $(document).on('change', '#options_enabled_edit', syncOptVisibility);
+        $(document).on('click', '.type', syncOptVisibility);
+        $('#product_option_edit_add_btn').on('click', function () {
+            const id = $('#product_option_edit_select').val();
+            const text = $('#product_option_edit_select option:selected').text();
+            if (!id) return;
+            const $tbody = $('#product_options_edit_table tbody');
+            if ($tbody.find('tr[data-empty-row]').length) $tbody.empty();
+            if ($tbody.find('input[value="' + id + '"]').length) return;
+            $tbody.append('<tr data-option-row><td>' + $('<div>').text(text).html() +
+                '<input type="hidden" name="product_options[' + optIdx + '][option_product_id]" value="' + id + '"></td>' +
+                '<td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger product-option-remove"><i class="ti ti-trash"></i></button></td></tr>');
+            optIdx++;
+        });
+        $(document).on('click', '#product_options_edit_table .product-option-remove', function () {
+            $(this).closest('tr').remove();
+            renderOptEmpty();
+        });
+        syncOptVisibility();
     })();
 </script>
 

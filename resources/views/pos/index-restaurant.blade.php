@@ -607,6 +607,7 @@
     </div>
 
     @include('pos.partials.variant-picker-modal')
+    @include('partials.product-options-picker')
 
     <div class="position-fixed top-0 end-0 p-3" style="z-index: 99999">
         <div id="liveToast" class="toast text-white  fade" role="alert" aria-live="assertive" aria-atomic="true">
@@ -774,6 +775,9 @@
                 var subtotal = price * qty;
                 var discount = parseFloat($row.attr('data-discount')) || 0;
                 var netPrice = subtotal - discount;
+                var selRaw = $row.attr('data-selected-options') || '';
+                var selOpts = null;
+                try { selOpts = selRaw ? JSON.parse(selRaw) : null; } catch (e) { selOpts = null; }
                 cart[lineKey] = {
                     id: parseInt(id, 10),
                     product_variant_id: (!isNaN(vId) && vId > 0) ? vId : null,
@@ -783,7 +787,9 @@
                     tax: tax,
                     subtotal: subtotal,
                     discount: discount,
-                    netPrice: netPrice
+                    netPrice: netPrice,
+                    selected_options: selOpts,
+                    selected_options_json: selRaw || null
                 };
             });
             return cart;
@@ -1739,6 +1745,10 @@
                     var desc = ($n.length && ($n.is('input') || $n.is('textarea'))) ? ($n.val() || '').trim() : ($n.text() || '').trim();
                     var line = { id: id, quantity: qty, price: price, discount: discount, description: desc };
                     if (!isNaN(vid) && vid > 0) line.product_variant_id = vid;
+                    var selAttr = $(this).attr('data-selected-options');
+                    if (selAttr) {
+                        try { line.selected_options = JSON.parse(selAttr); } catch (e) {}
+                    }
                     if (id && qty > 0) items.push(line);
                 });
                 var orderType = ($('#pos-restaurant-order-type').length ? $('#pos-restaurant-order-type').val() : '') || 'dine_in';
@@ -2386,7 +2396,7 @@
                 });
             }
 
-            function posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, productVariantId, ctx) {
+            function posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, productVariantId, ctx, selectedOptions) {
                 var isRestaurant = ctx.isRestaurant;
                 var tbodySel = ctx.tbodySel;
                 var rowIdPrefix = ctx.rowIdPrefix;
@@ -2432,6 +2442,9 @@
                 }
                 if (productVariantId) {
                     addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'product_variant_id=' + encodeURIComponent(productVariantId);
+                }
+                if (selectedOptions && selectedOptions.length) {
+                    addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'selected_options=' + encodeURIComponent(JSON.stringify(selectedOptions));
                 }
                 $.ajax({
                     url: addUrl,
@@ -2494,6 +2507,100 @@
                 });
             }
 
+            var posProductOptionsJsonBase = @json(url('/productservice'));
+
+            function posProductHasOptions($el) {
+                return String($el.attr('data-options-enabled')) === '1';
+            }
+
+            function posOpenOptionsModal($el, $btn, wasDisabled, variantId, ctx, optsList) {
+                if (!window.ErpProductOptions || typeof window.ErpProductOptions.open !== 'function') {
+                    if (typeof show_toastr === 'function') {
+                        show_toastr('{{ __("Error") }}', '{{ __("Options picker failed to load. Refresh the page.") }}', 'error');
+                    }
+                    return;
+                }
+                if (!optsList || !optsList.length) {
+                    if (typeof show_toastr === 'function') {
+                        show_toastr('{{ __("Error") }}', '{{ __("No options configured for this product.") }}', 'error');
+                    }
+                    return;
+                }
+                var item = {
+                    product: {
+                        name: $el.attr('data-product-name') || $el.data('productName') || '',
+                        sale_price: parseFloat($el.attr('data-product-price') || $el.data('productPrice')) || 0,
+                        purchase_price: parseFloat($el.attr('data-product-price') || $el.data('productPrice')) || 0
+                    },
+                    options: optsList
+                };
+                window.ErpProductOptions.open(item, function (selected) {
+                    posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, variantId, ctx, selected);
+                }, { forPurchase: false });
+            }
+
+            function posLoadProductOptions($el, done) {
+                var productId = $el.attr('data-product-id') || $el.data('productId');
+                if (!productId) {
+                    done(null, []);
+                    return;
+                }
+                var url = (posProductOptionsJsonBase+'/' || '/productservice/') + String(productId) + '/options-json';
+                $.ajax({
+                    url: url,
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function (resp) {
+                        if (resp && resp.options_enabled) {
+                            $el.attr('data-options-enabled', '1');
+                        }
+                        var list = (resp && resp.options) ? resp.options : [];
+                        if (list.length) {
+                            $el.attr('data-options', JSON.stringify(list));
+                        }
+                        done(resp, list);
+                    },
+                    error: function () {
+                        done(null, []);
+                    }
+                });
+            }
+
+            function posOpenOptionsThenCart($el, $btn, wasDisabled, variantId, ctx) {
+                var rawO = $el.attr('data-options');
+                var opts = [];
+                try { opts = rawO ? JSON.parse(rawO) : []; } catch (e) { opts = []; }
+
+                if (posProductHasOptions($el) && opts.length) {
+                    posOpenOptionsModal($el, $btn, wasDisabled, variantId, ctx, opts);
+                    return;
+                }
+
+                if (!posProductHasOptions($el) && !opts.length) {
+                    posLoadProductOptions($el, function (resp, list) {
+                        if (resp && resp.options_enabled && list.length) {
+                            posOpenOptionsModal($el, $btn, wasDisabled, variantId, ctx, list);
+                        } else {
+                            posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, variantId, ctx, null);
+                        }
+                    });
+                    return;
+                }
+
+                if (posProductHasOptions($el)) {
+                    posLoadProductOptions($el, function (resp, list) {
+                        if (list.length) {
+                            posOpenOptionsModal($el, $btn, wasDisabled, variantId, ctx, list);
+                        } else if (typeof show_toastr === 'function') {
+                            show_toastr('{{ __("Error") }}', '{{ __("No options configured for this product.") }}', 'error');
+                        }
+                    });
+                    return;
+                }
+
+                posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, variantId, ctx, null);
+            }
+
             $(document).on('click', '#posVariantPickerConfirm', function () {
                 var $modal = $('#posVariantPickerModal');
                 var d = $modal.data('posVariantCtx');
@@ -2501,7 +2608,7 @@
                 if (!d || !d.$el) return;
                 var vid = $('#posVariantPickerSelect').val();
                 if (!vid) return;
-                posRestaurantRunAddToCartAjax(d.$el, d.$btn, d.wasDisabled, vid, d.ctx);
+                posOpenOptionsThenCart(d.$el, d.$btn, d.wasDisabled, vid, d.ctx);
             });
 
             $(document).on('click', '.toacart', function () {
@@ -2555,7 +2662,7 @@
                     return;
                 }
                 var wasDisabled = $btn.length && $btn.prop('disabled');
-                if (navigator.onLine && String($el.data('variants-enabled')) === '1') {
+                if (navigator.onLine && String($el.attr('data-variants-enabled')) === '1') {
                     var rawVL = $el.attr('data-variants');
                     var vlist = [];
                     try { vlist = rawVL ? JSON.parse(rawVL) : []; } catch (vex) { vlist = []; }
@@ -2570,7 +2677,7 @@
                         return;
                     }
                 }
-                posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, null, ctx);
+                posOpenOptionsThenCart($el, $btn, wasDisabled, null, ctx);
             });
 
             $(document).on('click', '.pos-offline-remove', function(e) {

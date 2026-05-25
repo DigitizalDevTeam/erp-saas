@@ -248,6 +248,9 @@ class PurchaseController extends Controller
                     $purchaseProduct->expiry_date = ! empty($line['expiry_date']) ? $line['expiry_date'] : null;
                     $purchaseProduct->batch_no = ! empty($line['batch_no']) ? trim($line['batch_no']) : null;
                     $purchaseProduct->mfg_date = ! empty($line['mfg_date']) ? $line['mfg_date'] : null;
+                    $purchaseProduct->selected_options_json = ! empty($line['selected_options_json'])
+                        ? (is_string($line['selected_options_json']) ? $line['selected_options_json'] : json_encode($line['selected_options_json']))
+                        : null;
                     $purchaseProduct->save();
 
                     $createExpiryLot = ($product && ($product->batch_tracking ?? false) && ($product->affect_stock ?? true))
@@ -313,8 +316,6 @@ class PurchaseController extends Controller
                         }
                     }
 
-                    Utility::total_quantity('plus', $purchaseProduct->quantity, $purchaseProduct->product_id);
-
                     $type = 'purchase';
                     $type_id = $purchase->id;
                     $description = $line['quantity'] . '  ' . __(' quantity add in purchase') . ' ' . \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
@@ -327,10 +328,25 @@ class PurchaseController extends Controller
                     if (! empty($purchaseProduct->expiry_date)) {
                         $description .= ' | ' . __('Expiry') . ': ' . $purchaseProduct->expiry_date;
                     }
-                    Utility::addProductStock($line['item'], $line['quantity'], $type, $description, $type_id);
 
-                    if (isset($line['item'])) {
-                        Utility::addWarehouseStock($line['item'], $line['quantity'], $warehouseId, $pRow, $pShelf, $variantId);
+                    $selectedOpts = \App\Services\ProductOptionService::normalizeSelectedOptions($purchaseProduct->selected_options_json);
+                    if (($product->options_enabled ?? false) && $selectedOpts !== []) {
+                        \App\Services\ProductOptionService::addOptionsForPurchase(
+                            $selectedOpts,
+                            (float) $purchaseProduct->quantity,
+                            $warehouseId,
+                            $creatorId,
+                            $type,
+                            $description,
+                            (int) $type_id
+                        );
+                    } else {
+                        Utility::total_quantity('plus', $purchaseProduct->quantity, $purchaseProduct->product_id);
+                        Utility::addProductStock($line['item'], $line['quantity'], $type, $description, $type_id);
+
+                        if (isset($line['item'])) {
+                            Utility::addWarehouseStock($line['item'], $line['quantity'], $warehouseId, $pRow, $pShelf, $variantId);
+                        }
                     }
                 }
             }
@@ -1265,6 +1281,8 @@ class PurchaseController extends Controller
             'volume' => __('Volumetric weight'),
             default => __('Piece / unit'),
         };
+
+        $data = array_merge($data, \App\Services\ProductOptionService::productJsonExtras($product));
 
         return json_encode($data);
     }

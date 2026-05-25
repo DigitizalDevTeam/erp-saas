@@ -112,6 +112,8 @@ class ProposalController extends Controller
         $taxPrice            = ($taxRate / 100) * ($salePrice * $quantity);
         $data['totalAmount'] = ($salePrice * $quantity);
 
+        $data = array_merge($data, \App\Services\ProductOptionService::productJsonExtras($product));
+
         return json_encode($data);
     }
 

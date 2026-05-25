@@ -34,6 +34,7 @@ class ProductService extends Model
         'expiry_alert_days',
         'batch_tracking',
         'variants_enabled',
+        'options_enabled',
         'variant_size_label',
         'variant_color_label',
         'unit_volume_cbm',
@@ -56,6 +57,7 @@ class ProductService extends Model
         'identifier_tracking' => 'boolean',
         'batch_tracking' => 'boolean',
         'variants_enabled' => 'boolean',
+        'options_enabled' => 'boolean',
         'last_min_stock_alert_at' => 'datetime',
         'last_max_stock_alert_at' => 'datetime',
     ];
@@ -94,6 +96,11 @@ class ProductService extends Model
     public function variants()
     {
         return $this->hasMany(ProductVariant::class, 'product_service_id')->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function optionItems()
+    {
+        return $this->hasMany(ProductOptionItem::class, 'parent_product_id')->orderBy('sort_order')->orderBy('id');
     }
 
     public function variantStockInWarehouse(?int $warehouseId, ?int $variantId): float

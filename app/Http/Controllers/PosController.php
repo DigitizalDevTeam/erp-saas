@@ -16,6 +16,7 @@ use App\Models\PosAuditLog;
 use App\Services\PosAuditLogService;
 use App\Services\InvoiceSaleDeductionService;
 use App\Services\PosKitDeductionService;
+use App\Services\ProductOptionService;
 use App\Services\PosFefoDeductionService;
 use App\Services\PosRecipeDeductionService;
 use App\Services\PosRestaurantRoleService;
@@ -848,6 +849,17 @@ class PosController extends Controller
                     return response()->json(['code' => 400, 'error' => $e->getMessage()], 400);
                 }
             }
+            if ($cartProduct && ($cartProduct->options_enabled ?? false)) {
+                $sel = ProductOptionService::normalizeSelectedOptions($v['selected_options'] ?? $v['selected_options_json'] ?? null);
+                if ($sel === []) {
+                    return response()->json(['code' => 400, 'error' => __('Select at least one product option.')], 400);
+                }
+                try {
+                    ProductOptionService::validateSelectedForParent($pid, $sel, $user_id, false);
+                } catch (\Throwable $e) {
+                    return response()->json(['code' => 400, 'error' => $e->getMessage()], 400);
+                }
+            }
         }
 
         // Block credit sale if customer has overdue invoice(s)
@@ -974,10 +986,15 @@ class PosController extends Controller
             $positems->discount = $discount;
             $positems->identifiers = $value['identifiers'] ?? null;
             $positems->measurement_json = $value['measurement_json'] ?? null;
+            $positems->selected_options_json = ProductOptionService::encodeOptions(
+                ProductOptionService::normalizeSelectedOptions($value['selected_options'] ?? $value['selected_options_json'] ?? null)
+            );
             $positems->save();
             $idNote = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
             $deductByVariant = ($product->variants_enabled ?? false) && $product_variant_id;
-            if (($product->type ?? null) === 'kit') {
+            if (ProductOptionService::tryDeductPosLine($product, $value, $warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id), (int) $pos->id)) {
+                // options only
+            } elseif (($product->type ?? null) === 'kit') {
                 PosKitDeductionService::deductForSale(
                     (int) $product_id,
                     (float) $value['quantity'],
@@ -1357,7 +1374,12 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         }
                         $lineIdNote = InvoiceSaleDeductionService::formatIdentifiersNote($line->identifiers ?? null);
                         $deductLineByVariant = ($lineProduct->variants_enabled ?? false) && $lineVariantId;
-                        if (($lineProduct->type ?? null) === 'kit') {
+                        if (ProductOptionService::tryDeductPosLine($lineProduct, [
+                            'quantity' => $line->quantity,
+                            'selected_options_json' => $line->selected_options_json,
+                        ], (int) $pos->warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id), (int) $pos->id)) {
+                            // options only
+                        } elseif (($lineProduct->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
                                 (int) $line->product_id,
                                 (float) $line->quantity,
@@ -1548,10 +1570,15 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $positems->discount = $discount;
                         $positems->identifiers = $value['identifiers'] ?? null;
                         $positems->measurement_json = $value['measurement_json'] ?? null;
+                        $positems->selected_options_json = ProductOptionService::encodeOptions(
+                            ProductOptionService::normalizeSelectedOptions($value['selected_options'] ?? $value['selected_options_json'] ?? null)
+                        );
                         $positems->save();
                         $idNote2 = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
                         $deductByVariant2 = ($product->variants_enabled ?? false) && $product_variant_id;
-                        if (($product->type ?? null) === 'kit') {
+                        if (ProductOptionService::tryDeductPosLine($product, $value, $warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id), (int) $pos->id)) {
+                            // options only
+                        } elseif (($product->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
                                 (int) $product_id,
                                 (float) $value['quantity'],
@@ -2276,6 +2303,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 'tax' => $taxId,
                 'discount' => (float) ($item['discount'] ?? 0),
                 'description' => $item['description'] ?? null,
+                'selected_options_json' => ! empty($item['selected_options'])
+                    ? ProductOptionService::encodeOptions(ProductOptionService::normalizeSelectedOptions($item['selected_options']))
+                    : (! empty($item['selected_options_json']) ? $item['selected_options_json'] : null),
                 'status' => PosProduct::STATUS_PENDING,
                 'sent_at' => $now,
                 'print_zone' => $printZone,

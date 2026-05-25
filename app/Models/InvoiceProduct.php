@@ -16,6 +16,7 @@ class InvoiceProduct extends Model
         'description',
         'identifiers',
         'measurement_json',
+        'selected_options_json',
     ];
 
     public function product(){

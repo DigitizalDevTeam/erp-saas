@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ProductIdentifier;
 use App\Models\ProductKitItem;
 use App\Models\ProductService;
+use App\Services\ProductOptionService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -56,7 +57,7 @@ class InvoiceSaleDeductionService
         }
     }
 
-    public static function deductLine(int $productId, float $quantity, int $creatorId, int $invoiceId, int $invoiceProductId, int $customerId, string $invoiceNoFormatted, ?string $identifiersRaw = null): void
+    public static function deductLine(int $productId, float $quantity, int $creatorId, int $invoiceId, int $invoiceProductId, int $customerId, string $invoiceNoFormatted, ?string $identifiersRaw = null, ?string $selectedOptionsJson = null): void
     {
         if ($quantity <= 0) {
             return;
@@ -64,6 +65,22 @@ class InvoiceSaleDeductionService
 
         $product = ProductService::where('id', $productId)->where('created_by', $creatorId)->first();
         if (!$product) {
+            return;
+        }
+
+        $selectedOptions = ProductOptionService::normalizeSelectedOptions($selectedOptionsJson);
+        if (($product->options_enabled ?? false) && $selectedOptions !== []) {
+            $description = $quantity . ' ' . __('quantity sold in invoice') . ' ' . $invoiceNoFormatted;
+            ProductOptionService::deductOptionsForSale(
+                $selectedOptions,
+                $quantity,
+                0,
+                $creatorId,
+                'invoice',
+                $description,
+                $invoiceId
+            );
+
             return;
         }
 

@@ -9,6 +9,8 @@
     <li class="breadcrumb-item">{{__('Purchase Create')}}</li>
 @endsection
 @push('script-page')
+    @include('partials.product-options-picker')
+    @include('partials.product-options-document-hook')
     <script src="{{asset('js/jquery-ui.min.js')}}"></script>
     <script src="{{asset('js/jquery.repeater.min.js')}}"></script>
     <script>
@@ -127,7 +129,9 @@
 
                     var $wrap = $(el).closest('[data-repeater-item]');
                     var $qtyInput = $(el.parent().parent().find('.quantity'));
-                    $(el.parent().parent().find('.price')).val(item.product.purchase_price);
+
+                    function applyPurchaseProductLine(item, unitPrice) {
+                    $(el.parent().parent().find('.price')).val(parseFloat(unitPrice).toFixed(2));
                     $(el.parent().parent().parent().find('.pro_description')).val(item.product.description);
                     var $variant = $wrap.find('.variant-select');
                     var $grid = $wrap.find('.variant-qty-grid');
@@ -176,7 +180,7 @@
 
                         }
                     }
-                    var itemTaxPrice = parseFloat((totalItemTaxRate / 100) * (item.product.purchase_price * 1));
+                    var itemTaxPrice = parseFloat((totalItemTaxRate / 100) * (unitPrice * 1));
 
                     $(el.parent().parent().find('.itemTaxPrice')).val(itemTaxPrice.toFixed(2));
                     $(el.parent().parent().find('.itemTaxRate')).val(totalItemTaxRate.toFixed(2));
@@ -219,6 +223,11 @@
                     if ($wrap.find('.variant-qty-input').length) {
                         recalcPurchaseRowFromVariants($wrap);
                     }
+                    }
+
+                    ErpDocProductOptions.afterLoad(item, $wrap, el, true, function (it, unitPrice) {
+                        applyPurchaseProductLine(it, unitPrice);
+                    });
 
                 },
             });
@@ -628,6 +637,7 @@
                                         <div class="input-group">
                                             <div class="taxes"></div>
                                             {{ Form::hidden('tax','', array('class' => 'form-control tax')) }}
+                                            {{ Form::hidden('selected_options_json','', array('class' => 'form-control selected-options-json')) }}
                                             {{ Form::hidden('itemTaxPrice','', array('class' => 'form-control itemTaxPrice')) }}
                                             {{ Form::hidden('itemTaxRate','', array('class' => 'form-control itemTaxRate')) }}
                                         </div>

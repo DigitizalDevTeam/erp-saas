@@ -137,6 +137,8 @@ class InvoiceController extends Controller
         $data['unit_area_sqm'] = $product->unit_area_sqm;
         $data['unit_volume_cbm'] = $product->unit_volume_cbm;
 
+        $data = array_merge($data, \App\Services\ProductOptionService::productJsonExtras($product));
+
         return json_encode($data);
     }
 
@@ -290,6 +292,11 @@ class InvoiceController extends Controller
                         $invoiceProduct->description = $products[$i]['description'];
                         $invoiceProduct->identifiers = $products[$i]['identifiers'] ?? null;
                         $invoiceProduct->measurement_json = $products[$i]['measurement_json'] ?? null;
+                        $invoiceProduct->selected_options_json = ! empty($products[$i]['selected_options_json'])
+                            ? (is_string($products[$i]['selected_options_json'])
+                                ? $products[$i]['selected_options_json']
+                                : json_encode($products[$i]['selected_options_json']))
+                            : null;
                         $invoiceProduct->save();
 
                         if ($timing === 'invoice') {
@@ -301,7 +308,8 @@ class InvoiceController extends Controller
                                 (int) $invoiceProduct->id,
                                 (int) $invoice->customer_id,
                                 \Auth::user()->invoiceNumberFormat($invoice->invoice_id),
-                                $invoiceProduct->identifiers
+                                $invoiceProduct->identifiers,
+                                $invoiceProduct->selected_options_json
                             );
                         }
                     }
