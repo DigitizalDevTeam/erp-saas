@@ -29,6 +29,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
@@ -50,52 +51,351 @@ class ProductServiceController extends Controller
 
     public function index(Request $request)
     {
-
         if (\Auth::user()->can('manage product & service')) {
             $category = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())->where('type', '=', 'product & service')->get()->pluck('name', 'id');
             $category->prepend('Select Category', '');
 
-            if (!empty($request->category)) {
-
-                $productServices = ProductService::where('created_by', '=', \Auth::user()->creatorId())->where('category_id', $request->category)->with(['category', 'unit'])->get();
-            } else {
-                $productServices = ProductService::where('created_by', '=', \Auth::user()->creatorId())->with(['category', 'unit'])->get();
-            }
-
-            $creatorId = \Auth::user()->creatorId();
-            $productIds = $productServices->pluck('id')->filter()->unique()->values()->all();
-            $lastPurchasesByProduct = [];
-            if (!empty($productIds)) {
-                $lines = DB::table('purchase_products')
-                    ->join('purchases', 'purchases.id', '=', 'purchase_products.purchase_id')
-                    ->leftJoin('venders', 'venders.id', '=', 'purchases.vender_id')
-                    ->where('purchases.created_by', $creatorId)
-                    ->whereIn('purchase_products.product_id', $productIds)
-                    ->orderBy('purchases.purchase_date', 'desc')
-                    ->orderBy('purchases.id', 'desc')
-                    ->select([
-                        'purchase_products.product_id',
-                        'purchase_products.quantity',
-                        'purchase_products.price',
-                        'purchases.id as purchase_id',
-                        'purchases.purchase_date',
-                        'purchases.purchase_number',
-                        'venders.name as supplier_name',
-                    ])
-                    ->get();
-
-                $lastPurchasesByProduct = $lines
-                    ->groupBy('product_id')
-                    ->map(function ($rows) {
-                        return $rows->take(5)->values();
-                    })
-                    ->toArray();
-            }
-
-            return view('productservice.index', compact('productServices', 'category', 'lastPurchasesByProduct'));
-        } else {
-            return redirect()->back()->with('error', __('Permission denied.'));
+            return view('productservice.index', compact('category'));
         }
+
+        return redirect()->back()->with('error', __('Permission denied.'));
+    }
+
+    public function datatable(Request $request)
+    {
+        if (!\Auth::user()->can('manage product & service')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $user = \Auth::user();
+        $creatorId = $user->creatorId();
+        $draw = (int) $request->input('draw', 1);
+        $start = max(0, (int) $request->input('start', 0));
+        $length = (int) $request->input('length', 25);
+        if ($length < 1) {
+            $length = 25;
+        }
+        if ($length > 100) {
+            $length = 100;
+        }
+
+        $categoryId = $request->input('category');
+        if ($categoryId === '' || $categoryId === null || $categoryId === '0') {
+            $categoryId = null;
+        } else {
+            $categoryId = (int) $categoryId;
+        }
+        $searchValue = trim((string) $request->input('search.value', ''));
+        $hasSearch = $searchValue !== '';
+
+        // Fast count without joins (cached); avoid recounting on every page click.
+        $recordsTotal = $this->cachedProductServiceCount($creatorId, $categoryId);
+
+        $baseQuery = $this->productServiceListQuery($creatorId, $categoryId);
+
+        if ($hasSearch) {
+            $this->applyProductServiceListSearch($baseQuery, $searchValue);
+            $recordsFiltered = (clone $baseQuery)->count('product_services.id');
+        } else {
+            $recordsFiltered = $recordsTotal;
+        }
+
+        $orderColumnIndex = (int) $request->input('order.0.column', 0);
+        $orderDir = strtolower((string) $request->input('order.0.dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+        $sortableColumns = [
+            0 => 'product_services.name',
+            1 => 'product_services.sku',
+            2 => 'product_services.sale_price',
+            3 => 'product_services.purchase_price',
+            8 => 'product_services.quantity',
+            10 => 'product_services.type',
+        ];
+        $orderBy = $sortableColumns[$orderColumnIndex] ?? 'product_services.name';
+        $baseQuery->orderBy($orderBy, $orderDir);
+
+        $products = (clone $baseQuery)
+            ->skip($start)
+            ->take($length)
+            ->get();
+
+        $canEdit = Gate::check('edit product & service');
+        $canDelete = Gate::check('delete product & service');
+        $showActions = $canEdit || $canDelete;
+
+        $taxData = $this->cachedTaxDataForCreator($creatorId);
+        $productBaseUrl = rtrim(url('productservice'), '/');
+        $csrfToken = csrf_token();
+        $formatPrice = $this->priceFormatterForDatatable();
+        $rowContext = [
+            'formatPrice' => $formatPrice,
+            'taxData' => $taxData,
+            'productBaseUrl' => $productBaseUrl,
+            'csrfToken' => $csrfToken,
+            'labels' => [
+                'shelf' => __('Shelf'),
+                'row' => __('Row'),
+                'warehouse' => __('Warehouse Details'),
+                'edit' => __('Edit'),
+                'edit_product' => __('Edit Product'),
+                'delete' => __('Delete'),
+            ],
+        ];
+
+        $data = $products->map(function (ProductService $product) use ($canEdit, $canDelete, $showActions, $rowContext) {
+            return $this->formatProductServiceRow($product, $canEdit, $canDelete, $showActions, $rowContext);
+        })->values()->all();
+
+        return response()->json([
+            'draw' => $draw,
+            'recordsTotal' => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Base list query with joins (avoids slow whereHas subqueries).
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<ProductService>
+     */
+    private function productServiceListQuery(int $creatorId, $categoryId = null)
+    {
+        $query = ProductService::query()
+            ->select([
+                'product_services.id',
+                'product_services.name',
+                'product_services.sku',
+                'product_services.sale_price',
+                'product_services.purchase_price',
+                'product_services.tax_id',
+                'product_services.price_level_id',
+                'product_services.category_id',
+                'product_services.unit_id',
+                'product_services.quantity',
+                'product_services.type',
+                'product_services.shelf_no',
+                'product_services.row_no',
+                'psc.name as category_name',
+                'psu.name as unit_name',
+                'pl.name as price_level_name',
+                'pl.type as price_level_type',
+                'pl.value as price_level_value',
+            ])
+            ->leftJoin('product_service_categories as psc', 'psc.id', '=', 'product_services.category_id')
+            ->leftJoin('product_service_units as psu', 'psu.id', '=', 'product_services.unit_id')
+            ->leftJoin('price_levels as pl', 'pl.id', '=', 'product_services.price_level_id')
+            ->where('product_services.created_by', $creatorId);
+
+        if (! empty($categoryId)) {
+            $query->where('product_services.category_id', $categoryId);
+        }
+
+        return $query;
+    }
+
+    private function applyProductServiceListSearch($query, string $searchValue): void
+    {
+        $like = '%'.$searchValue.'%';
+        $query->where(function ($q) use ($like) {
+            $q->where('product_services.name', 'like', $like)
+                ->orWhere('product_services.sku', 'like', $like)
+                ->orWhere('product_services.type', 'like', $like)
+                ->orWhere('psc.name', 'like', $like)
+                ->orWhere('psu.name', 'like', $like);
+        });
+    }
+
+    private function cachedProductServiceCount(int $creatorId, $categoryId): int
+    {
+        $cacheKey = $this->productServiceCountCacheKey($creatorId, $categoryId);
+
+        return (int) Cache::remember($cacheKey, now()->addMinutes(10), function () use ($creatorId, $categoryId) {
+            $query = ProductService::query()->where('created_by', $creatorId);
+            if (! empty($categoryId)) {
+                $query->where('category_id', $categoryId);
+            }
+
+            return $query->count();
+        });
+    }
+
+    private function productServiceCountCacheKey(int $creatorId, $categoryId): string
+    {
+        $version = (int) Cache::get('productservice_datatable_count_ver_'.$creatorId, 1);
+
+        return 'productservice_datatable_count_'.$creatorId.'_v'.$version.'_'.($categoryId ?: 'all');
+    }
+
+    private function bumpProductServiceDatatableCountCache(int $creatorId): void
+    {
+        $versionKey = 'productservice_datatable_count_ver_'.$creatorId;
+        if (! Cache::has($versionKey)) {
+            Cache::put($versionKey, 1, now()->addYear());
+        } else {
+            Cache::increment($versionKey);
+        }
+    }
+
+    /**
+     * @return array<int, array{name: string, rate: mixed}>
+     */
+    private function cachedTaxDataForCreator(int $creatorId): array
+    {
+        return Cache::remember(
+            'productservice_datatable_tax_'.$creatorId,
+            now()->addMinutes(30),
+            fn () => $this->taxDataForCreator($creatorId)
+        );
+    }
+
+    /**
+     * @return array<int, array{name: string, rate: mixed}>
+     */
+    private function taxDataForCreator(int $creatorId): array
+    {
+        $data = [];
+        foreach (Tax::where('created_by', $creatorId)->get(['id', 'name', 'rate']) as $rate) {
+            $data[$rate->id] = ['name' => $rate->name, 'rate' => $rate->rate];
+        }
+
+        return $data;
+    }
+
+    /**
+     * Format prices once per request (User::priceFormat reloads Utility::settings() every call).
+     *
+     * @return \Closure(float|int|string|null): string
+     */
+    private function priceFormatterForDatatable(): \Closure
+    {
+        $settings = Utility::settings();
+
+        return function ($price) use ($settings) {
+            return $this->formatPriceFromSettings($price, $settings);
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     */
+    private function formatPriceFromSettings($price, array $settings): string
+    {
+        $price = (float) $price;
+        $number = explode('.', (string) $price);
+        $length = strlen(trim($number[0]));
+        $floatNumber = ($settings['float_number'] ?? 'dot') === 'dot' ? '.' : ',';
+
+        if ($length > 3) {
+            $decimalSeparator = ($settings['decimal_separator'] ?? 'dot') === 'dot' ? ',' : ',';
+            $thousandSeparator = ($settings['thousand_separator'] ?? 'dot') === 'dot' ? '.' : ',';
+        } else {
+            $decimalSeparator = ($settings['decimal_separator'] ?? 'dot') === 'dot' ? '.' : ',';
+            $thousandSeparator = ($settings['thousand_separator'] ?? 'dot') === 'dot' ? '.' : ',';
+        }
+
+        $currency = ($settings['currency_symbol'] ?? '') === 'withcurrencysymbol'
+            ? ($settings['site_currency_symbol'] ?? '')
+            : ($settings['site_currency'] ?? '');
+        $decimalNumber = ! empty($settings['decimal_number']) ? (int) $settings['decimal_number'] : 0;
+        $currencySpace = $settings['currency_space'] ?? '';
+        $formatted = number_format($price, $decimalNumber, $decimalSeparator, $thousandSeparator);
+
+        if ($floatNumber === '.') {
+            $formatted = preg_replace('/'.preg_quote($thousandSeparator, '/').'([^'.preg_quote($thousandSeparator, '/').']*)$/', $floatNumber.'$1', $formatted);
+        } else {
+            $formatted = preg_replace('/'.preg_quote($decimalSeparator, '/').'([^'.preg_quote($decimalSeparator, '/').']*)$/', $floatNumber.'$1', $formatted);
+        }
+
+        $space = $currencySpace === 'withspace' ? ' ' : '';
+
+        return (($settings['site_currency_symbol_position'] ?? '') === 'pre' ? $currency : '')
+            .$space.$formatted.$space
+            .(($settings['site_currency_symbol_position'] ?? '') === 'post' ? $currency : '');
+    }
+
+    /**
+     * @param  array{formatPrice: \Closure, taxData: array, productBaseUrl: string, csrfToken: string, labels: array<string, string>}  $context
+     * @return array<int, string>
+     */
+    private function formatProductServiceRow(ProductService $productService, bool $canEdit, bool $canDelete, bool $showActions, array $context): array
+    {
+        $formatPrice = $context['formatPrice'];
+        $taxData = $context['taxData'];
+        $labels = $context['labels'];
+
+        $taxHtml = '-';
+        if (! empty($productService->tax_id)) {
+            $parts = [];
+            foreach (explode(',', $productService->tax_id) as $tax) {
+                $tax = trim($tax);
+                if ($tax === '' || ! isset($taxData[$tax])) {
+                    continue;
+                }
+                $parts[] = '<span>'.e($taxData[$tax]['name'].' ('.$taxData[$tax]['rate'].'%)').'</span>';
+            }
+            if (! empty($parts)) {
+                $taxHtml = implode('<br>', $parts);
+            }
+        }
+
+        $discountHtml = '-';
+        if (! empty($productService->price_level_id) && ! empty($productService->price_level_name)) {
+            $discountHtml = e($productService->price_level_name.' - '.$productService->price_level_type.' - '.$productService->price_level_value);
+        }
+
+        $quantityHtml = in_array($productService->type, ['product', 'kit'], true)
+            ? e((string) $productService->quantity)
+            : '-';
+
+        $locationHtml = '-';
+        if (! empty($productService->shelf_no) || ! empty($productService->row_no)) {
+            $locationHtml = e($labels['shelf']).': '.e($productService->shelf_no ?? '-')
+                .'<br>'.e($labels['row']).': '.e($productService->row_no ?? '-');
+        }
+
+        $categoryName = $productService->category_name ?? '';
+        $unitName = $productService->unit_name ?? '';
+
+        $actionHtml = '';
+        if ($showActions) {
+            $id = (int) $productService->id;
+            $base = $context['productBaseUrl'];
+            $csrf = e($context['csrfToken']);
+            $actionHtml = '<div class="action-btn me-2 d-inline-block">'
+                .'<a href="#" class="mx-3 btn btn-sm align-items-center bg-warning" data-url="'.e($base.'/'.$id.'/detail').'"'
+                .' data-ajax-popup="true" data-bs-toggle="tooltip" title="'.e($labels['warehouse']).'" data-title="'.e($labels['warehouse']).'">'
+                .'<i class="ti ti-eye text-white"></i></a></div>';
+
+            if ($canEdit) {
+                $actionHtml .= '<div class="action-btn me-2 d-inline-block">'
+                    .'<a href="#" class="mx-3 btn btn-sm align-items-center bg-info" data-url="'.e($base.'/'.$id.'/edit').'"'
+                    .' data-ajax-popup="true" data-size="lg" data-bs-toggle="tooltip" title="'.e($labels['edit']).'" data-title="'.e($labels['edit_product']).'">'
+                    .'<i class="ti ti-pencil text-white"></i></a></div>';
+            }
+
+            if ($canDelete) {
+                $actionHtml .= '<div class="action-btn d-inline-block">'
+                    .'<form method="POST" action="'.e($base.'/'.$id).'" id="delete-form-'.$id.'" class="d-inline">'
+                    .'<input type="hidden" name="_token" value="'.$csrf.'"><input type="hidden" name="_method" value="DELETE">'
+                    .'<a href="#" class="mx-3 btn btn-sm align-items-center bs-pass-para bg-danger" data-bs-toggle="tooltip" title="'.e($labels['delete']).'">'
+                    .'<i class="ti ti-trash text-white"></i></a></form></div>';
+            }
+        }
+
+        return [
+            e($productService->name),
+            e($productService->sku),
+            e($formatPrice($productService->sale_price)),
+            e($formatPrice($productService->purchase_price)),
+            $taxHtml,
+            $discountHtml,
+            e($categoryName),
+            e($unitName),
+            $quantityHtml,
+            $locationHtml,
+            e(ucwords((string) $productService->type)),
+            $actionHtml,
+        ];
     }
 
 
@@ -270,6 +570,8 @@ class ProductServiceController extends Controller
                 $this->syncProductVariants($productService, $request);
                 ProductOptionService::syncProductOptions($productService, $request);
             }
+
+            $this->bumpProductServiceDatatableCountCache(\Auth::user()->creatorId());
 
             return redirect()->route('productservice.index')->with('success', __('Product successfully created.'));
         } else {
@@ -550,6 +852,8 @@ class ProductServiceController extends Controller
                     $productService->save();
                 }
 
+                $this->bumpProductServiceDatatableCountCache(\Auth::user()->creatorId());
+
                 return redirect()->route('productservice.index')->with('success', __('Product successfully updated.'));
             } else {
                 return redirect()->back()->with('error', __('Permission denied.'));
@@ -571,6 +875,8 @@ class ProductServiceController extends Controller
                 }
 
                 $productService->delete();
+
+                $this->bumpProductServiceDatatableCountCache(\Auth::user()->creatorId());
 
                 return redirect()->route('productservice.index')->with('success', __('Product successfully deleted.'));
             } else {

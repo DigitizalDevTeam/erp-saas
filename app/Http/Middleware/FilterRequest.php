@@ -13,6 +13,10 @@ class FilterRequest
      */
     public function handle(Request $request, Closure $next)
     {
+        // DataTables sends a large read-only param set; skip expensive per-field regex.
+        if ($request->is('productservice/datatable')) {
+            return $next($request);
+        }
 
         $input = $request->all();
         array_walk_recursive($input, function (&$value) {

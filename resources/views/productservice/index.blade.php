@@ -1,8 +1,117 @@
- @extends('layouts.admin')
+@extends('layouts.admin')
 @section('page-title')
     {{__('Manage Product & Services')}}
 @endsection
+@push('css-page')
+    <link rel="stylesheet" href="{{ asset('css/jquery.dataTables.min.css') }}">
+@endpush
 @push('script-page')
+    <script src="{{ asset('js/jquery.dataTables.min.js') }}"></script>
+    <script>
+        $(document).ready(function () {
+            var initialCategory = @json(request('category', ''));
+            var categoryEl = document.getElementById('productservice-category');
+            var categoryChoices = null;
+
+            if (categoryEl && typeof Choices !== 'undefined') {
+                categoryChoices = new Choices(categoryEl, {
+                    searchEnabled: true,
+                    itemSelectText: '',
+                    shouldSort: false,
+                });
+            }
+
+            function getCategoryFilterValue() {
+                if (categoryChoices) {
+                    var v = categoryChoices.getValue(true);
+                    return (v === null || v === undefined) ? '' : String(v);
+                }
+                return $('#productservice-category').val() || '';
+            }
+
+            function setCategoryFilterValue(value) {
+                if (categoryChoices) {
+                    categoryChoices.setChoiceByValue(value ? String(value) : '');
+                } else {
+                    $('#productservice-category').val(value || '');
+                }
+            }
+
+            function reloadProductServiceTable() {
+                productServiceTable.page(0);
+                productServiceTable.ajax.reload(null, false);
+            }
+
+            if (initialCategory) {
+                setCategoryFilterValue(initialCategory);
+            }
+
+            var productServiceTable = $('#productservice-table').DataTable({
+                processing: true,
+                serverSide: true,
+                deferRender: true,
+                searchDelay: 450,
+                ajax: {
+                    url: '{{ route('productservice.datatable') }}',
+                    type: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    },
+                    data: function (d) {
+                        d.category = getCategoryFilterValue();
+                    }
+                },
+                order: [[0, 'asc']],
+                pageLength: 25,
+                lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+                columns: [
+                    { data: 0, name: 'name', orderable: true },
+                    { data: 1, name: 'sku', orderable: true },
+                    { data: 2, name: 'sale_price', orderable: true },
+                    { data: 3, name: 'purchase_price', orderable: true },
+                    { data: 4, name: 'tax', orderable: false, searchable: false },
+                    { data: 5, name: 'discount', orderable: false, searchable: false },
+                    { data: 6, name: 'category', orderable: false },
+                    { data: 7, name: 'unit', orderable: false },
+                    { data: 8, name: 'quantity', orderable: true },
+                    { data: 9, name: 'location', orderable: false, searchable: false },
+                    { data: 10, name: 'type', orderable: true },
+                    { data: 11, name: 'action', orderable: false, searchable: false }
+                ],
+                columnDefs: [
+                    { targets: [4, 5, 9, 11], orderable: false }
+                ],
+                drawCallback: function () {
+                    if (typeof feather !== 'undefined') {
+                        feather.replace();
+                    }
+                    var tooltipTriggerList = [].slice.call(document.querySelectorAll('#productservice-table [data-bs-toggle="tooltip"]'));
+                    tooltipTriggerList.forEach(function (el) {
+                        var existing = bootstrap.Tooltip.getInstance(el);
+                        if (existing) {
+                            existing.dispose();
+                        }
+                        new bootstrap.Tooltip(el);
+                    });
+                }
+            });
+
+            $('#productservice-category').on('change', function () {
+                reloadProductServiceTable();
+            });
+
+            $('#productservice-filter-apply').on('click', function (e) {
+                e.preventDefault();
+                reloadProductServiceTable();
+            });
+
+            $('#productservice-filter-reset').on('click', function (e) {
+                e.preventDefault();
+                setCategoryFilterValue('');
+                reloadProductServiceTable();
+            });
+        });
+    </script>
 @endpush
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
@@ -27,31 +136,28 @@
 @section('content')
     <div class="row">
         <div class="col-sm-12">
-            <div class=" mt-2 {{isset($_GET['category'])?'show':''}}" id="multiCollapseExample1">
+            <div class="mt-2 show" id="multiCollapseExample1">
                 <div class="card">
                     <div class="card-body">
-                        {{ Form::open(['route' => ['productservice.index'], 'method' => 'GET', 'id' => 'product_service']) }}
-                        <div class="d-flex align-items-center justify-content-end">
+                        <div class="d-flex align-items-center justify-content-end" id="product_service">
                             <div class="col-xl-3 col-lg-3 col-md-6 me-1">
                                 <div class="btn-box">
                                     {{ Form::label('category', __('Category'),['class'=>'form-label']) }}
-                                    {{ Form::select('category', $category, isset($_GET['category']) ? $_GET['category'] : null, ['class' => 'form-control select','id'=>'choices-multiple', 'required' => 'required']) }}
+                                    {{ Form::select('category', $category, isset($_GET['category']) ? $_GET['category'] : '', ['class' => 'form-control', 'id' => 'productservice-category']) }}
                                 </div>
                             </div>
                             <div class="col-auto float-end ms-2 mt-4">
-                                <a href="#" class="btn btn-sm btn-primary me-1"
-                                   onclick="document.getElementById('product_service').submit(); return false;"
+                                <a href="#" class="btn btn-sm btn-primary me-1" id="productservice-filter-apply"
                                    data-bs-toggle="tooltip" title="{{ __('apply') }}">
                                     <span class="btn-inner--icon"><i class="ti ti-search"></i></span>
                                 </a>
-                                <a href="{{ route('productservice.index') }}" class="btn btn-sm btn-danger" data-bs-toggle="tooltip"
+                                <a href="#" class="btn btn-sm btn-danger" id="productservice-filter-reset" data-bs-toggle="tooltip"
                                    title="{{ __('Reset') }}">
                                     <span class="btn-inner--icon"><i class="ti ti-refresh "></i></span>
                                 </a>
                             </div>
 
                         </div>
-                        {{ Form::close() }}
                     </div>
                 </div>
             </div>
@@ -62,7 +168,7 @@
             <div class="card">
                 <div class="card-body table-border-style">
                     <div class="table-responsive">
-                        <table class="table datatable">
+                        <table class="table" id="productservice-table" width="100%">
                             <thead>
                             <tr>
                                 <th>{{__('Name')}}</th>
@@ -75,113 +181,11 @@
                                 <th>{{__('Unit')}}</th>
                                 <th>{{__('Quantity')}}</th>
                                 <th>{{__('Location')}}</th>
-                                <th>{{__('Last Purchases')}}</th>
                                 <th>{{__('Type')}}</th>
                                 <th>{{__('Action')}}</th>
                             </tr>
                             </thead>
-                            <tbody>
-                            @foreach ($productServices as $productService)
-                                <tr class="font-style">
-                                    <td>{{ $productService->name}}</td>
-                                    <td>{{ $productService->sku }}</td>
-                                    <td>{{ \Auth::user()->priceFormat($productService->sale_price) }}</td>
-                                    <td>{{  \Auth::user()->priceFormat($productService->purchase_price )}}</td>
-                                    <td>
-                                        @if (!empty($productService->tax_id))
-                                            @php
-                                                $itemTaxes = [];
-                                                $getTaxData = Utility::getTaxData();
-
-                                                    foreach (explode(',', $productService->tax_id) as $tax) {
-                                                        $itemTax['name'] = $getTaxData[$tax]['name'];
-                                                        $itemTax['rate'] = $getTaxData[$tax]['rate'] . '%';
-
-                                                        $itemTaxes[] = $itemTax;
-
-                                                    }
-                                                    $productService->itemTax = $itemTaxes;
-                                            @endphp
-                                            @foreach ($productService->itemTax as $tax)
-
-                                                        <span>{{$tax['name'] .' ('.$tax['rate'] .')'}}</span><br>
-                                            @endforeach
-                                    @else
-                                        -
-                                    @endif
-                                    <td>
-                                        @if(!empty($productService->price_level_id))
-                                        {{ $productService->priceLevel->name .' - '. $productService->priceLevel->type .' - '. $productService->priceLevel->value }}
-                                        @else
-                                        -
-                                        @endif
-                                    </td>
-                                    </td>
-                                    <td>{{ !empty($productService->category)?$productService->category->name:'' }}</td>
-                                    <td>{{ !empty($productService->unit)?$productService->unit->name:'' }}</td>
-                                    @if(in_array($productService->type, ['product','kit']))
-                                        <td>{{$productService->quantity}}</td>
-                                    @else
-                                        <td>-</td>
-                                    @endif
-                                    <td>
-                                        @if(!empty($productService->shelf_no) || !empty($productService->row_no))
-                                            {{ __('Shelf') }}: {{ $productService->shelf_no ?? '-' }}<br>
-                                            {{ __('Row') }}: {{ $productService->row_no ?? '-' }}
-                                        @else
-                                            -
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @php
-                                            $lp = $lastPurchasesByProduct[$productService->id] ?? [];
-                                        @endphp
-                                        @if(!empty($lp))
-                                            @foreach($lp as $row)
-                                                <div class="small text-muted">
-                                                    {{ !empty($row->purchase_date) ? \Carbon\Carbon::parse($row->purchase_date)->format('Y-m-d') : '-' }}
-                                                    —
-                                                    {{ $row->supplier_name ?? __('Unknown') }}
-                                                    —
-                                                    {{ \Auth::user()->priceFormat($row->price ?? 0) }}
-                                                    × {{ $row->quantity ?? 0 }}
-                                                </div>
-                                            @endforeach
-                                        @else
-                                            <span class="text-muted">-</span>
-                                        @endif
-                                    </td>
-                                    <td>{{ucwords($productService->type)}}</td>
-
-                                    @if(Gate::check('edit product & service') || Gate::check('delete product & service'))
-                                        <td class="Action">
-                                            <div class="action-btn me-2">
-                                                <a href="#" class="mx-3 btn btn-sm align-items-center bg-warning" data-url="{{ route('productservice.detail',$productService->id) }}"
-                                                   data-ajax-popup="true" data-bs-toggle="tooltip" title="{{__('Warehouse Details')}}" data-title="{{__('Warehouse Details')}}">
-                                                    <i class="ti ti-eye text-white"></i>
-                                                </a>
-                                            </div>
-
-                                            @can('edit product & service')
-                                                <div class="action-btn me-2">
-                                                    <a href="#" class="mx-3 btn btn-sm  align-items-center bg-info" data-url="{{ route('productservice.edit',$productService->id) }}" data-ajax-popup="true"  data-size="lg " data-bs-toggle="tooltip" title="{{__('Edit')}}"  data-title="{{__('Edit Product')}}">
-                                                        <i class="ti ti-pencil text-white"></i>
-                                                    </a>
-                                                </div>
-                                            @endcan
-                                            @can('delete product & service')
-                                                <div class="action-btn \">
-                                                    {!! Form::open(['method' => 'DELETE', 'route' => ['productservice.destroy', $productService->id],'id'=>'delete-form-'.$productService->id]) !!}
-                                                    <a href="#" class="mx-3 btn btn-sm  align-items-center bs-pass-para bg-danger" data-bs-toggle="tooltip" title="{{__('Delete')}}" ><i class="ti ti-trash text-white"></i></a>
-                                                    {!! Form::close() !!}
-                                                </div>
-                                            @endcan
-                                        </td>
-                                    @endif
-                                </tr>
-                            @endforeach
-
-                            </tbody>
+                            <tbody></tbody>
                         </table>
                     </div>
                 </div>
@@ -189,4 +193,3 @@
         </div>
     </div>
 @endsection
-
