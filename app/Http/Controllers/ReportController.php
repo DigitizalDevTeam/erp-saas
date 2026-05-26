@@ -51,6 +51,7 @@ use App\Models\TransactionLines;
 use App\Models\User;
 use App\Models\UserDeal;
 use App\Models\Utility;
+use App\Services\PosShiftReportService;
 use App\Models\Vender;
 use App\Models\warehouse;
 use App\Models\WarehouseProduct;
@@ -3372,6 +3373,131 @@ class ReportController extends Controller
 
         $filter = ['start_date' => $start, 'end_date' => $end, 'branch_id' => $branchId];
         return view('report.pos_branch', compact('branches', 'byBranch', 'totalSales', 'totalCount', 'filter'));
+    }
+
+    /**
+     * Filterable POS shift report (multi-shift).
+     */
+    public function posShiftReport(Request $request)
+    {
+        if (! \Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $service = app(PosShiftReportService::class);
+        $creatorId = \Auth::user()->creatorId();
+        $filter = $service->normalizeFilters($request->all());
+        $filterOptions = $this->posShiftReportFilterOptions($creatorId);
+
+        $shiftIds = $service->getShiftIdsForFilters($creatorId, $filter);
+        $summary = $shiftIds->count() > 100
+            ? $service->buildSummaryFast($shiftIds, $creatorId)
+            : $service->buildSummaryFromMetrics(
+                PosShift::whereIn('id', $shiftIds)->with(['branch', 'user'])->get(),
+                $creatorId
+            );
+
+        $aggregates = $service->buildAggregates($shiftIds, $creatorId, $filter['product_id']);
+
+        $shifts = $service->queryShifts($creatorId, $filter)->paginate(50)->withQueryString();
+        $shiftRows = [];
+        foreach ($shifts as $shift) {
+            $metrics = $service->buildShiftMetrics($shift, $creatorId);
+            $shiftRows[] = [
+                'shift' => $shift,
+                'metrics' => $metrics,
+            ];
+        }
+
+        return view('report.pos_shift', compact(
+            'filter',
+            'filterOptions',
+            'shifts',
+            'shiftRows',
+            'summary',
+            'aggregates',
+            'shiftIds'
+        ));
+    }
+
+    public function posShiftReportExport(Request $request)
+    {
+        if (! \Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $service = app(PosShiftReportService::class);
+        $creatorId = \Auth::user()->creatorId();
+        $filter = $service->normalizeFilters($request->all());
+        $shiftIds = $service->getShiftIdsForFilters($creatorId, $filter);
+        $summary = $service->buildSummaryFast($shiftIds, $creatorId);
+        $aggregates = $service->buildAggregates($shiftIds, $creatorId, $filter['product_id']);
+
+        $shiftRows = [];
+        foreach (PosShift::whereIn('id', $shiftIds)->with(['branch', 'user'])->orderByDesc('opened_at')->get() as $shift) {
+            $m = $service->buildShiftMetrics($shift, $creatorId);
+            $shiftRows[] = [
+                'id' => $shift->id,
+                'branch' => $shift->branch ? $shift->branch->name : '-',
+                'cashier' => $shift->user ? $shift->user->name : '-',
+                'opened' => $shift->opened_at ? $shift->opened_at->format('Y-m-d H:i') : '-',
+                'closed' => $shift->closed_at ? $shift->closed_at->format('Y-m-d H:i') : '-',
+                'status' => $shift->status,
+                'opening' => (float) ($shift->opening_balance ?? 0),
+                'sales' => $m['salesTotal'],
+                'cash' => $m['cashTotal'],
+                'card' => $m['cardTotal'],
+                'credit' => $m['creditTotal'],
+                'expected_cash' => $m['expectedCash'],
+                'difference' => $shift->status === PosShift::STATUS_CLOSED ? (float) ($shift->difference ?? 0) : null,
+            ];
+        }
+
+        $filename = 'POS_Shift_Report_' . $filter['start_date'] . '_' . $filter['end_date'] . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\PosShiftReportExport($filter, $summary, $shiftRows, $aggregates),
+            $filename
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function posShiftReportFilterOptions(int $creatorId): array
+    {
+        $branches = Branch::where('created_by', $creatorId)->where('is_active', true)->orderBy('name')->pluck('name', 'id');
+        $branches->prepend(__('All Branches'), 0);
+
+        $warehouses = warehouse::where('created_by', $creatorId)->orderBy('name')->pluck('name', 'id');
+        $warehouses->prepend(__('All Warehouses'), 0);
+
+        $products = ProductService::where('created_by', $creatorId)->where('type', 'product & service')->orderBy('name')->pluck('name', 'id');
+        $products->prepend(__('All Products'), 0);
+
+        $users = User::where('created_by', $creatorId)->orderBy('name')->pluck('name', 'id');
+        $users->prepend(__('All'), 0);
+
+        $service = app(PosShiftReportService::class);
+
+        return [
+            'branches' => $branches,
+            'warehouses' => $warehouses,
+            'products' => $products,
+            'users' => $users,
+            'shift_statuses' => [
+                '' => __('All'),
+                PosShift::STATUS_OPEN => __('Open'),
+                PosShift::STATUS_CLOSED => __('Closed'),
+            ],
+            'order_types' => [
+                '' => __('All'),
+                Pos::ORDER_TYPE_DINE_IN => __('pos.dine_in'),
+                Pos::ORDER_TYPE_DELIVERY => __('pos.delivery'),
+                Pos::ORDER_TYPE_TAKEAWAY => __('pos.takeaway'),
+            ],
+            'payment_methods' => $service->paymentMethodOptions(),
+        ];
     }
 
     /**

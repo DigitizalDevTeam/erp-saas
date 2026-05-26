@@ -79,14 +79,90 @@
             justify-content: center;
             align-items: center;
         }
-        .pos-top-bar { padding: 0.6rem 1rem; align-items: center; border-radius: 0.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .pos-top-bar .pos-brand { font-weight: 700; font-size: 1.25rem; letter-spacing: 0.02em; }
+        .pos-top-bar {
+            padding: 0.6rem 1rem;
+            align-items: center;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            flex-wrap: nowrap !important;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .pos-top-bar > div {
+            flex-shrink: 0;
+        }
+        .pos-top-bar .pos-brand { font-weight: 700; font-size: 1.25rem; letter-spacing: 0.02em; white-space: nowrap; }
+        .pos-restaurant-controls-row {
+            flex-wrap: nowrap;
+        }
+        .pos-restaurant-controls-main {
+            scrollbar-width: thin;
+        }
         .pos-cart-card .card-header { font-weight: 600; }
         .pos-cart-card .total-section { background: rgba(0,0,0,0.03); border-radius: 0.5rem; padding: 1rem; }
         #categories-listing{
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
+        }
+        .pos-category-scroll-wrap {
+            position: relative;
+            padding: 0 3.25rem;
+        }
+        .pos-category-scroll {
+            overflow-x: auto;
+            flex-wrap: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scroll-snap-type: x proximity;
+            padding: 2px 0;
+        }
+        .pos-category-scroll::-webkit-scrollbar {
+            height: 4px;
+        }
+        .pos-category-scroll::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+        .pos-category-btn {
+            white-space: nowrap;
+            flex-shrink: 0;
+            scroll-snap-align: start;
+        }
+        .pos-category-scroll-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 2;
+            min-width: 2.75rem;
+            min-height: 2.75rem;
+            padding: 0.5rem 0.65rem;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+            background-color: #000 !important;
+            border-color: #000 !important;
+            color: #fff !important;
+        }
+        .pos-category-scroll-arrow:hover,
+        .pos-category-scroll-arrow:focus {
+            background-color: #222 !important;
+            border-color: #222 !important;
+            color: #fff !important;
+        }
+        .pos-category-scroll-arrow i {
+            font-size: 1.35rem;
+            line-height: 1;
+            color: #fff !important;
+        }
+        .pos-category-scroll-prev {
+            left: 0;
+        }
+        .pos-category-scroll-next {
+            right: 0;
         }
         .pl-1{
             padding-left: 3px !important;
@@ -133,8 +209,8 @@
         <?php $lastsegment = request()->segment(count(request()->segments())); ?>
         <div class="row">
             <div class="col-12">
-                <div class="mt-2 pos-top-bar bg-primary d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div class="d-flex align-items-center flex-wrap gap-2">
+                <div class="mt-2 pos-top-bar bg-primary d-flex justify-content-between align-items-center gap-2">
+                    <div class="d-flex align-items-center flex-nowrap gap-2">
                         <span class="text-white pos-brand">{{ __('POS Restaurant') }}</span>
                         @if($userOpenShift)
                             <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ $tp('pos.opening_balance', 'Opening Balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->opening_balance ?? 0) }}</span>
@@ -149,10 +225,16 @@
                             </button>
                         @endif
                     </div>
-                    <div class="d-flex align-items-center gap-2">
+                    <div class="d-flex align-items-center flex-nowrap gap-2">
                         <span id="pos-current-time" class="text-white opacity-90 small align-middle" style="min-width: 5rem;">--:--:--</span>
                         <span id="pos-status-badge" class="badge bg-success align-middle" style="font-size: 0.75rem;">{{ __('pos.online') }}</span>
                         <span id="pos-pending-badge" class="badge bg-warning text-dark d-none" style="font-size: 0.8rem; cursor: pointer;" data-msg="{{ __('pos.pending_sync_label') }}" title="{{ __('pos.sync_now') }}"></span>
+                        <button type="button" id="pos-fullscreen-toggle-btn" class="btn btn-sm btn-light" title="{{ $tp('pos.fullscreen', 'Fullscreen') }}" aria-pressed="false">
+                            <i class="ti ti-maximize pos-fullscreen-icon-enter" style="font-size: 1.1rem;"></i>
+                            <i class="ti ti-minimize pos-fullscreen-icon-exit d-none" style="font-size: 1.1rem;"></i>
+                            <span class="d-none d-sm-inline pos-fullscreen-label-enter">{{ $tp('pos.fullscreen', 'Fullscreen') }}</span>
+                            <span class="d-none pos-fullscreen-label-exit">{{ $tp('pos.exit_fullscreen', 'Exit fullscreen') }}</span>
+                        </button>
                         <button type="button" id="pos-install-app-btn" class="btn btn-sm btn-light" title="{{ $tp('pos.install_app', 'Install App') }}">
                             <i class="ti ti-download" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ $tp('pos.install_app', 'Install App') }}</span>
                         </button>
@@ -168,6 +250,7 @@
                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="pos-reports-dropdown">
                                 <li><h6 class="dropdown-header">{{ __('Reports') }}</h6></li>
                                 <li><a class="dropdown-item" href="{{ route('pos.report') }}" target="_blank"><i class="ti ti-summary me-2"></i>{{ __('pos.pos_summary') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('report.pos.shift') }}" target="_blank"><i class="ti ti-clock-hour-4 me-2"></i>{{ __('pos.shift_report') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('pos.balances') }}" target="_blank"><i class="ti ti-wallet me-2"></i>{{ __('pos.pos_balances') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('report.daily.pos') }}" target="_blank"><i class="ti ti-calendar me-2"></i>{{ __('POS Daily/Monthly Report') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('report.pos.branch') }}" target="_blank"><i class="ti ti-building-store me-2"></i>{{ __('POS by Branch') }}</a></li>
@@ -945,46 +1028,151 @@
             $( "#warehouse_name_hidden" ).val($('.warehouse_select').val());
             $( "#discount_hidden").val($('.discount').val());
             $( "#quotation_id").val($('.quotation').val());
+            var posRestaurantCategoryTree = { categories: [], children_by_parent: {} };
+            var posRestaurantActiveParentId = '0';
+            var posRestaurantActiveSubId = '0';
+
+            function getRestaurantCategoryChildren(parentId) {
+                parentId = String(parentId || '0');
+                var map = posRestaurantCategoryTree.children_by_parent || {};
+                return map[parentId] || map[parseInt(parentId, 10)] || [];
+            }
+
+            function restaurantCategoryHasChildren(parentId) {
+                if (!parentId || parentId === '0') {
+                    return false;
+                }
+                var cat = (posRestaurantCategoryTree.categories || []).find(function (c) {
+                    return String(c.id) === String(parentId);
+                });
+                if (cat && typeof cat.has_children !== 'undefined') {
+                    return !!cat.has_children;
+                }
+                return getRestaurantCategoryChildren(parentId).length > 0;
+            }
+
+            function escapeRestaurantCategoryLabel(text) {
+                return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+            }
+
+            function buildRestaurantCategoryButton(id, name, level) {
+                var active = (level === 'parent' && String(id) === String(posRestaurantActiveParentId))
+                    || (level === 'sub' && String(id) === String(posRestaurantActiveSubId));
+                return '<button type="button" class="btn btn-sm pos-category-btn ' + (active ? 'btn-primary active' : 'btn-outline-primary') + '" data-level="' + level + '" data-id="' + id + '">' + escapeRestaurantCategoryLabel(name) + '</button>';
+            }
+
+            function scrollPosCategoryBar($scrollEl, direction) {
+                if (!$scrollEl.length) {
+                    return;
+                }
+                var el = $scrollEl[0];
+                if (el && el.scrollBy) {
+                    el.scrollBy({ left: direction * 200, behavior: 'smooth' });
+                }
+            }
+
             function getRestaurantCategoryId() {
-                var $sel = $('#pos-restaurant-category');
-                return $sel.length ? ($sel.val() || '0') : '0';
+                var $subWrap = $('#pos-restaurant-subcategory-scroll-wrap');
+                if ($subWrap.length && !$subWrap.hasClass('d-none') && posRestaurantActiveSubId !== '0') {
+                    return posRestaurantActiveSubId;
+                }
+                return posRestaurantActiveParentId || '0';
             }
 
             function getRestaurantWarehouseId() {
                 return $('#pos-restaurant-warehouse').val() || $('#warehouse').val() || '0';
             }
 
-            function fillRestaurantCategorySelect(skipProductReload) {
-                var $sel = $('#pos-restaurant-category');
-                if (!$sel.length) return;
+            function reloadRestaurantProductsByCategory() {
+                var wh = getRestaurantWarehouseId();
+                if (wh && wh !== '0') {
+                    searchProducts(posSearchProductsUrl, '', getRestaurantCategoryId(), wh, 'name', 'product-listing-restaurant');
+                }
+            }
+
+            function renderRestaurantSubcategoryBar(parentId) {
+                var $wrap = $('#pos-restaurant-subcategory-scroll-wrap');
+                var $bar = $('#pos-restaurant-subcategory-bar');
+                if (!$wrap.length || !$bar.length) {
+                    return;
+                }
+                parentId = String(parentId || '0');
+                if (parentId === '0' || !restaurantCategoryHasChildren(parentId)) {
+                    $wrap.addClass('d-none');
+                    posRestaurantActiveSubId = '0';
+                    $bar.empty();
+                    return;
+                }
+                var html = buildRestaurantCategoryButton('0', '{{ __("All subcategories") }}', 'sub');
+                getRestaurantCategoryChildren(parentId).forEach(function (item) {
+                    html += buildRestaurantCategoryButton(item.id, item.name, 'sub');
+                });
+                $bar.html(html);
+                $wrap.removeClass('d-none');
+            }
+
+            function renderRestaurantCategoryBar() {
+                var $bar = $('#pos-restaurant-category-bar');
+                if (!$bar.length) {
+                    return;
+                }
+                var html = buildRestaurantCategoryButton('0', '{{ __("All Categories") }}', 'parent');
+                (posRestaurantCategoryTree.categories || []).forEach(function (item) {
+                    if (!item.parent_id) {
+                        html += buildRestaurantCategoryButton(item.id, item.name, 'parent');
+                    }
+                });
+                $bar.html(html);
+                renderRestaurantSubcategoryBar(posRestaurantActiveParentId);
+            }
+
+            function resetRestaurantCategories(skipProductReload) {
+                posRestaurantActiveParentId = '0';
+                posRestaurantActiveSubId = '0';
+                renderRestaurantCategoryBar();
+                if (!skipProductReload) {
+                    reloadRestaurantProductsByCategory();
+                }
+            }
+
+            function loadRestaurantCategories(skipProductReload) {
+                if (!$('#pos-restaurant-category-bar').length) {
+                    return;
+                }
                 $.get(posCategoriesJsonUrl, function (data) {
-                    var currentVal = $sel.val();
-                    $sel.find('option:not(:first)').remove();
-                    (data || []).forEach(function (item) {
-                        if (item.id !== 0) {
-                            $sel.append($('<option></option>').val(item.id).text(item.name));
-                        }
-                    });
-                    $sel.val(currentVal || '0');
-                    if (skipProductReload) return;
-                    var wh = getRestaurantWarehouseId();
-                    if (wh && wh !== '0') {
-                        searchProducts(posSearchProductsUrl, '', $sel.val() || '0', wh, 'name', 'product-listing-restaurant');
+                    if (data && data.categories) {
+                        posRestaurantCategoryTree = data;
+                    } else if (Array.isArray(data)) {
+                        posRestaurantCategoryTree = { categories: data, children_by_parent: {} };
+                    }
+                    renderRestaurantCategoryBar();
+                    if (!skipProductReload) {
+                        reloadRestaurantProductsByCategory();
                     }
                 });
             }
 
             $(function () {
                 getProductCategories();
-                fillRestaurantCategorySelect(true);
+                loadRestaurantCategories(true);
             });
 
-            $('#pos-restaurant-category').on('change', function () {
-                var cat = getRestaurantCategoryId();
-                var wh = getRestaurantWarehouseId();
-                if (wh) {
-                    searchProducts(posSearchProductsUrl, '', cat, wh, 'name', 'product-listing-restaurant');
-                }
+            $(document).on('click', '#pos-restaurant-panel .pos-category-scroll-prev', function () {
+                scrollPosCategoryBar($(this).closest('.pos-category-scroll-wrap').find('.pos-category-scroll'), -1);
+            });
+            $(document).on('click', '#pos-restaurant-panel .pos-category-scroll-next', function () {
+                scrollPosCategoryBar($(this).closest('.pos-category-scroll-wrap').find('.pos-category-scroll'), 1);
+            });
+            $(document).on('click', '#pos-restaurant-panel .pos-category-btn[data-level="parent"]', function () {
+                posRestaurantActiveParentId = String($(this).data('id') || '0');
+                posRestaurantActiveSubId = '0';
+                renderRestaurantCategoryBar();
+                reloadRestaurantProductsByCategory();
+            });
+            $(document).on('click', '#pos-restaurant-panel .pos-category-btn[data-level="sub"]', function () {
+                posRestaurantActiveSubId = String($(this).data('id') || '0');
+                renderRestaurantSubcategoryBar(posRestaurantActiveParentId);
+                reloadRestaurantProductsByCategory();
             });
 
             if ($('.barcodeScanner').length > 0) {
@@ -1110,9 +1298,8 @@
                                     var wh = ids[0];
                                     $whSelect.val(wh);
                                     $('#pos_restaurant_warehouse_hidden').val(wh);
-                                    $('#pos-restaurant-category').val('0');
+                                    resetRestaurantCategories(true);
                                     searchProducts(posSearchProductsUrl, '', '0', wh, 'name', 'product-listing-restaurant');
-                                    fillRestaurantCategorySelect(true);
                                 }
                                 $('#pos-restaurant-warehouse-hint').text(ids.length ? '' : '{{ __("No warehouses for this branch") }}').toggle(ids.length === 0);
                             });
@@ -1139,9 +1326,8 @@
                 var wh = $(this).val();
                 $('#pos_restaurant_warehouse_hidden').val(wh || '');
                 if (wh) {
-                    $('#pos-restaurant-category').val('0');
+                    resetRestaurantCategories(true);
                     searchProducts(posSearchProductsUrl, '', '0', wh, 'name', 'product-listing-restaurant');
-                    fillRestaurantCategorySelect(true);
                 }
                 var sk = $( "#empty_cart" ).val() || sessionKey;
                 var emptyData = { session_key: sk };
@@ -1215,8 +1401,8 @@
                             var wh = ids[0];
                             $whSelect.val(wh);
                             $('#pos_restaurant_warehouse_hidden').val(wh);
+                            resetRestaurantCategories(true);
                             searchProducts(posSearchProductsUrl, '', '0', wh, 'name', 'product-listing-restaurant');
-                            fillRestaurantCategorySelect(true);
                         }
                         $('#pos-restaurant-warehouse-hint').text(ids.length ? '' : '{{ __("No warehouses for this branch") }}').toggle(ids.length === 0);
                     });
@@ -1440,11 +1626,37 @@
                     if (payBtn) payBtn.disabled = true;
                 });
             }
+            function posRestaurantToggleTableGridPanel(forceOpen) {
+                var $wrap = $('#pos-restaurant-table-grid-wrap');
+                if (!$wrap.length || $('#pos-restaurant-order-type').val() !== 'dine_in') {
+                    return;
+                }
+                if (typeof forceOpen === 'boolean') {
+                    $wrap.toggleClass('d-none', !forceOpen);
+                } else {
+                    $wrap.toggleClass('d-none');
+                }
+                var expanded = !$wrap.hasClass('d-none');
+                $('#pos-open-table-panel-btn')
+                    .attr('aria-expanded', expanded ? 'true' : 'false')
+                    .toggleClass('active btn-primary', expanded)
+                    .toggleClass('btn-outline-primary', !expanded);
+            }
+
+            $(document).on('click', '#pos-open-table-panel-btn', function () {
+                posRestaurantToggleTableGridPanel();
+            });
+
             function posRestaurantToggleOrderTypeUI(orderType) {
                 var isDineIn = orderType === 'dine_in';
                 $('#pos-restaurant-table-block').toggleClass('d-none', !isDineIn);
+                $('#pos-open-table-panel-btn').toggleClass('d-none', !isDineIn);
                 $('#pos-restaurant-guest-block').toggleClass('d-none', isDineIn);
-                $('#pos-restaurant-table-grid-wrap').toggleClass('d-none', !isDineIn);
+                $('#pos-restaurant-table-grid-wrap').addClass('d-none');
+                $('#pos-open-table-panel-btn')
+                    .attr('aria-expanded', 'false')
+                    .removeClass('active btn-primary')
+                    .addClass('btn-outline-primary');
                 $('#pos-restaurant-customer-grid-wrap').toggleClass('d-none', isDineIn);
                 $('#pos-restaurant-manage-tables-wrap').toggleClass('d-none', !isDineIn);
                 $('#pos-join-table-restaurant, #pos-split-bill-restaurant').toggleClass('d-none', !isDineIn);
@@ -3081,6 +3293,62 @@
                 }
                 showToast('{{ __("pos.install_app") }}', '{{ __("pos.install_app_browser_hint") }}', 'info');
             });
+        })();
+    </script>
+    <script>
+        (function () {
+            var btn = document.getElementById('pos-fullscreen-toggle-btn');
+            if (!btn) return;
+
+            function isFullscreen() {
+                return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+            }
+
+            function requestFullscreen() {
+                var el = document.documentElement;
+                var fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+                if (fn) {
+                    var p = fn.call(el);
+                    if (p && typeof p.catch === 'function') {
+                        p.catch(function () {});
+                    }
+                }
+            }
+
+            function exitFullscreen() {
+                var fn = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+                if (fn) {
+                    var p = fn.call(document);
+                    if (p && typeof p.catch === 'function') {
+                        p.catch(function () {});
+                    }
+                }
+            }
+
+            function updateFullscreenButton() {
+                var on = isFullscreen();
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                btn.title = on ? '{{ $tp("pos.exit_fullscreen", "Exit fullscreen") }}' : '{{ $tp("pos.fullscreen", "Fullscreen") }}';
+                btn.querySelectorAll('.pos-fullscreen-icon-enter, .pos-fullscreen-label-enter').forEach(function (el) {
+                    el.classList.toggle('d-none', on);
+                });
+                btn.querySelectorAll('.pos-fullscreen-icon-exit, .pos-fullscreen-label-exit').forEach(function (el) {
+                    el.classList.toggle('d-none', !on);
+                });
+            }
+
+            btn.addEventListener('click', function () {
+                if (isFullscreen()) {
+                    exitFullscreen();
+                } else {
+                    requestFullscreen();
+                }
+            });
+
+            ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(function (ev) {
+                document.addEventListener(ev, updateFullscreenButton);
+            });
+            updateFullscreenButton();
         })();
     </script>
 </body>

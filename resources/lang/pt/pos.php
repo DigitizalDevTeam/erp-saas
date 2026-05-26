@@ -113,4 +113,7 @@ return [
     'install_app_browser_hint' => 'Use o menu do browser (⋮ ou ⋯) → "Instalar POS" ou "Instalar app" / "Adicionar ao ecrã inicial".',
     'offline_load_first' => 'Visite quando estiver online para carregar produtos deste armazém.',
     'offline_no_products' => 'Sem produtos em cache. Visite quando estiver online primeiro.',
+    'shift_report' => 'Relatório de turnos POS',
+    'shift_user' => 'Caixa / Utilizador do turno',
+    'sale_operator' => 'Operador de venda (PIN)',
 ];

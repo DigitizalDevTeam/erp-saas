@@ -49,6 +49,45 @@ class ProductServiceController extends Controller
         return $out;
     }
 
+    /**
+     * POS category filter: include subcategories when filtering by a parent category.
+     *
+     * @return array<int, int>|null null = no category filter (all products)
+     */
+    protected function resolvePosCategoryFilterIds($catId): ?array
+    {
+        if ($catId === null || $catId === '' || $catId === '0' || $catId === 0) {
+            return null;
+        }
+
+        $id = (int) $catId;
+        $creatorId = \Auth::user()->creatorId();
+        $all = ProductServiceCategory::query()
+            ->where('created_by', $creatorId)
+            ->where('type', 'product & service')
+            ->get(['id', 'parent_id']);
+
+        $hasChildren = $all->contains(fn ($c) => (int) ($c->parent_id ?? 0) === $id);
+        if ($hasChildren) {
+            return array_values(array_unique(array_merge(
+                [$id],
+                ProductServiceCategory::descendantIds($id, $all)
+            )));
+        }
+
+        return [$id];
+    }
+
+    protected function applyPosCategoryFilter($query, $catId)
+    {
+        $ids = $this->resolvePosCategoryFilterIds($catId);
+        if ($ids === null) {
+            return $query;
+        }
+
+        return $query->whereIn('product_services.category_id', $ids);
+    }
+
     public function index(Request $request)
     {
         if (\Auth::user()->can('manage product & service')) {
@@ -1002,16 +1041,12 @@ class ProductServiceController extends Controller
                 if ($isPos) {
                     $q = ProductService::posList()->with(['unit:id,name']);
                     if ($request->cat_id !== '' && $request->search == '') {
-                        if ($request->cat_id != '0') {
-                            $q = $q->where('product_services.category_id', $request->cat_id);
-                        }
+                        $q = $this->applyPosCategoryFilter($q, $request->cat_id);
                     } else {
                         if ($request->search != '') {
                             $q = $q->where('product_services.' . $request->type, 'LIKE', "%{$request->search}%");
                         }
-                        if ($request->cat_id != '0') {
-                            $q = $q->where('product_services.category_id', $request->cat_id);
-                        }
+                        $q = $this->applyPosCategoryFilter($q, $request->cat_id);
                     }
                     $q = $q->limit($perPage)->offset(($page - 1) * $perPage);
                     return $q->get();

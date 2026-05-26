@@ -1640,6 +1640,8 @@ Route::group(['middleware' => ['verified']], function () {
 
     Route::get('reports-pos-vs-purchase', [ReportController::class, 'posVsPurchaseReport'])->name('report.pos.vs.purchase')->middleware(['auth', 'XSS']);
     Route::get('reports-pos-by-branch', [ReportController::class, 'posBranchReport'])->name('report.pos.branch')->middleware(['auth', 'XSS']);
+    Route::get('report/pos-shift', [ReportController::class, 'posShiftReport'])->name('report.pos.shift')->middleware(['auth', 'XSS']);
+    Route::get('report/pos-shift/export', [ReportController::class, 'posShiftReportExport'])->name('report.pos.shift.export')->middleware(['auth', 'XSS']);
 
     // User Module
 

@@ -55,6 +55,7 @@
                                             @can('manage pos')
                                                 @if($shift->created_by == Auth::user()->creatorId())
                                                     <a href="{{ route('pos-shift.show', $shift) }}" class="btn btn-sm btn-info" title="{{ __('View') }}"><i class="ti ti-eye text-white"></i></a>
+                                                    <a href="{{ route('pos-shift.report', $shift) }}" class="btn btn-sm btn-primary" title="{{ __('Report') }}" target="_blank"><i class="ti ti-file-text text-white"></i></a>
                                                     @if($shift->status === 'open')
                                                         <a href="{{ route('pos-shift.assign-table', $shift) }}" class="btn btn-sm btn-warning" title="{{ __('Assign Tables') }}"><i class="ti ti-table text-white"></i></a>
                                                         <a href="{{ route('pos-shift.close-form', $shift) }}" class="btn btn-sm btn-danger" title="{{ __('Close Shift') }}"><i class="ti ti-lock text-white"></i></a>

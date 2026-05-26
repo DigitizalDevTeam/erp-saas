@@ -201,16 +201,45 @@ class ProductServiceCategoryController extends Controller
     }
 
     /**
-     * Return categories as JSON for POS category dropdown (id => name).
+     * Return product categories as JSON for POS dropdowns (supports parent / subcategory).
      */
     public function getProductCategoriesJson()
     {
-        $categories = ProductServiceCategory::getallCategories();
-        $list = [['id' => 0, 'name' => __('All Categories')]];
-        foreach ($categories as $c) {
-            $list[] = ['id' => (int) $c->id, 'name' => $c->name];
+        $creatorId = \Auth::user()->creatorId();
+        $rows = ProductServiceCategory::query()
+            ->where('created_by', $creatorId)
+            ->where('type', 'product & service')
+            ->orderBy('name')
+            ->get(['id', 'name', 'parent_id']);
+
+        $byParent = [];
+        foreach ($rows as $c) {
+            $pid = $c->parent_id ? (int) $c->parent_id : 0;
+            if (! isset($byParent[$pid])) {
+                $byParent[$pid] = [];
+            }
+            $byParent[$pid][] = [
+                'id' => (int) $c->id,
+                'name' => $c->name,
+                'parent_id' => $c->parent_id ? (int) $c->parent_id : null,
+            ];
         }
-        return response()->json($list);
+
+        $categories = [];
+        foreach ($rows as $c) {
+            $id = (int) $c->id;
+            $categories[] = [
+                'id' => $id,
+                'name' => $c->name,
+                'parent_id' => $c->parent_id ? (int) $c->parent_id : null,
+                'has_children' => ! empty($byParent[$id]),
+            ];
+        }
+
+        return response()->json([
+            'categories' => $categories,
+            'children_by_parent' => $byParent,
+        ]);
     }
 
     public function getAccount(Request $request)

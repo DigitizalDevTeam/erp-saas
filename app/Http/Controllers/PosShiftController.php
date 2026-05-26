@@ -10,6 +10,7 @@ use App\Models\PosCashIn;
 use App\Models\PosCashDrop;
 use App\Models\PosPayment;
 use App\Services\PosAuditLogService;
+use App\Services\PosShiftReportService;
 use App\Models\PosShift;
 use App\Models\PosTable;
 use App\Models\PosTableAssignment;
@@ -355,35 +356,11 @@ class PosShiftController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $pos_shift->load(['branch', 'user', 'cashDrops.user', 'cashIns.user']);
-        $posIds = \App\Models\Pos::where('shift_id', $pos_shift->id)->pluck('id');
-        $sales = \App\Models\Pos::where('shift_id', $pos_shift->id)->with(['items', 'posPayments'])->orderBy('pos_id')->get();
-        $paymentsByMethod = \App\Models\PosPayment::whereIn('pos_id', $posIds)->selectRaw('payment_method, sum(amount) as total, count(*) as cnt')->groupBy('payment_method')->get()->keyBy('payment_method');
-        $cashTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
-            $q->where('payment_method', \App\Models\PosPayment::METHOD_CASH)->orWhereNull('payment_method');
-        })->sum('amount');
-        $balanceCash = (float) \App\Models\InvoicePayment::where('pos_shift_id', $pos_shift->id)->where('payment_method', 0)->sum('amount');
-        $cashTotal += $balanceCash;
-        $cardTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', ['card', 'visa', 'mpesa', 'bank_transfer', 'cheque'])->sum('amount');
-        $creditTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
-        $salesTotal = $sales->sum(fn ($p) => $p->getTotal());
-        $cashDropsTotal = (float) PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');
-        $cashInsTotal = (float) PosCashIn::where('shift_id', $pos_shift->id)->sum('amount');
-        $cashOutExpensesTotal = (float) Expense::where('pos_shift_id', $pos_shift->id)->where('created_by', \Auth::user()->creatorId())->where('status', Expense::STATUS_APPROVED)->sum('amount');
-        $expectedCash = (float) ($pos_shift->opening_balance ?? 0) + $cashTotal + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
-        $voidedLines = \App\Models\PosProduct::whereIn('pos_id', $posIds)
-            ->whereNotNull('voided_at')
-            ->with(['product', 'pos', 'voidedByUser'])
-            ->orderBy('voided_at')
-            ->get();
-        $productQtySummary = \App\Models\PosProduct::selectRaw('product_id, SUM(quantity) as qty_total, SUM(price * quantity) as amount_total')
-            ->whereIn('pos_id', $posIds)
-            ->whereNull('voided_at')
-            ->groupBy('product_id')
-            ->with('product')
-            ->orderByRaw('SUM(quantity) DESC')
-            ->get();
+        $metrics = app(PosShiftReportService::class)->buildShiftMetrics($pos_shift, \Auth::user()->creatorId());
 
-        return view('pos_shift.report', compact('pos_shift', 'sales', 'paymentsByMethod', 'cashTotal', 'cardTotal', 'creditTotal', 'salesTotal', 'cashDropsTotal', 'cashInsTotal', 'cashOutExpensesTotal', 'voidedLines', 'balanceCash', 'expectedCash', 'productQtySummary'));
+        return view('pos_shift.report', array_merge($metrics, [
+            'pos_shift' => $pos_shift,
+        ]));
     }
 
     public function closeForm(PosShift $pos_shift)

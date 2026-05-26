@@ -16,6 +16,11 @@
                     <h5 class="mb-4">{{ __('Restaurant Reports') }}</h5>
                     <div class="row g-3">
                         <div class="col-md-6 col-lg-4">
+                            <a href="{{ route('report.pos.shift') }}" class="btn btn-outline-primary w-100 text-start d-flex align-items-center">
+                                <i class="ti ti-clock-hour-4 me-2"></i> {{ __('pos.shift_report') }}
+                            </a>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
                             <a href="{{ route('report.pos.day-summary') }}" class="btn btn-outline-primary w-100 text-start d-flex align-items-center">
                                 <i class="ti ti-calendar me-2"></i> {{ __('Daily Sales / Day Summary') }}
                             </a>
