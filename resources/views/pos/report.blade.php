@@ -12,6 +12,11 @@
 
 @section('content')
     <div id="printableArea">
+        <div class="mb-3">
+            <a href="{{ route('report.restaurant.sales-by-category') }}" class="btn btn-sm btn-primary" target="_blank">
+                <i class="ti ti-category"></i> {{ __('Sales by Categories') }}
+            </a>
+        </div>
         <div class="row mt-3">
             <div class="col-md-12">
                 <div class="card">

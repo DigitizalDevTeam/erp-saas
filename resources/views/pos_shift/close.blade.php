@@ -48,6 +48,11 @@
                     @if($expectedCash < 0)
                         <p class="small text-muted mb-0">{{ __('Expected cash can be negative when cash drops exceed cash in. Enter the physical cash counted in the drawer (0 or more).') }}</p>
                     @endif
+                    <div class="mb-2">
+                        <a href="{{ route('report.restaurant.sales-by-category', ['scope' => 'shift', 'shift_id' => $pos_shift->id, 'with_stock' => 1]) }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                            <i class="ti ti-category"></i> {{ __('Sales by Categories') }}
+                        </a>
+                    </div>
                     <hr>
                     {{ Form::open(['route' => ['pos-shift.close', $pos_shift], 'method' => 'post', 'class' => 'needs-validation', 'novalidate']) }}
                     <div class="form-group">

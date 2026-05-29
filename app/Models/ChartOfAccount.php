@@ -59,13 +59,18 @@ class ChartOfAccount extends Model
         return $this->hasOne('App\Models\ChartOfAccountParent', 'id', 'parent');
     }
 
-    /** Direct sub-accounts under this account (3rd level in hierarchy) */
-    public function subChildren()
+    /** Direct child accounts (any depth; use ChartOfAccountHierarchy for full tree). */
+    public function children()
     {
         return $this->hasMany(ChartOfAccount::class, 'parent_account_id', 'id');
     }
 
-    /** Parent account record when this account is under a sub-account */
+    /** @deprecated Use children() — kept for backward compatibility */
+    public function subChildren()
+    {
+        return $this->children();
+    }
+
     public function parentAccountRecord()
     {
         return $this->belongsTo(ChartOfAccount::class, 'parent_account_id', 'id');

@@ -456,49 +456,13 @@ class ExpenseRecordController extends Controller
             $options[$id] = $label;
         };
 
-        $parents = ChartOfAccountParent::where('created_by', $creatorId)
-            ->where('type', $expenseType->id)
-            ->with([
-                'accountMain',
-                'children' => function ($q) use ($name_column) {
-                    $q->orderByRaw('CAST(code AS UNSIGNED)')->orderBy($name_column);
-                },
-                'children.subChildren' => function ($q) use ($name_column) {
-                    $q->orderByRaw('CAST(code AS UNSIGNED)')->orderBy($name_column);
-                },
-            ])
-            ->get()
-            ->sortBy(function ($p) use ($name_column) {
-                return [(int) ($p->accountMain->code ?? 0), $p->{$name_column} ?? $p->name ?? ''];
-            });
+        \App\Support\ChartOfAccountHierarchy::backfillLegacyParentLinks($creatorId);
+        $accounts = \App\Support\ChartOfAccountHierarchy::accountsForCreator($creatorId, (int) $expenseType->id);
+        $tree = \App\Support\ChartOfAccountHierarchy::buildTree($accounts, $name_column);
 
-        foreach ($parents as $parent) {
-            if ($parent->accountMain) {
-                $add($parent->accountMain->id, $this->chartAccountSelectLabel($parent->accountMain, 0, $name_column));
-            }
-            foreach ($parent->children as $child) {
-                $add($child->id, $this->chartAccountSelectLabel($child, 1, $name_column));
-                foreach ($child->subChildren as $sub) {
-                    $add($sub->id, $this->chartAccountSelectLabel($sub, 2, $name_column));
-                }
-            }
-        }
-
-        $orphanQuery = ChartOfAccount::query()
-            ->where('created_by', $creatorId)
-            ->where('type', $expenseType->id);
-        if ($seen !== []) {
-            $orphanQuery->whereNotIn('id', array_keys($seen));
-        }
-        $orphans = $orphanQuery
-            ->orderByRaw('CAST(code AS UNSIGNED)')
-            ->orderBy($name_column)
-            ->get();
-
-        foreach ($orphans as $row) {
-            $depth = ((int) $row->parent_account_id > 0) ? 2 : (((int) $row->parent > 0) ? 1 : 0);
-            $add($row->id, $this->chartAccountSelectLabel($row, $depth, $name_column));
-        }
+        \App\Support\ChartOfAccountHierarchy::walkTree($tree, function ($node, $depth) use ($add, $name_column) {
+            $add((int) $node->id, $this->chartAccountSelectLabel($node, $depth, $name_column));
+        });
 
         return $options;
     }

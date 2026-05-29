@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
@@ -39,6 +40,12 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ProductServiceController extends Controller
 {
+    /** Bootstrap grid classes for POS product cards (restaurant + retail). */
+    private const POS_PRODUCT_CARD_COL_CLASS = 'col-xl-3 col-lg-3 col-md-3 col-sm-4 col-6';
+
+    /** Bump when POS product card HTML shape changes (invalidates Laravel + client caches). */
+    private const POS_PRODUCT_HTML_CACHE_VER = 'pv5';
+
     protected function buildCategoryOptions($categories, $parentId = null, string $prefix = ''): array
     {
         $out = [];
@@ -1029,10 +1036,10 @@ class ProductServiceController extends Controller
 
             $cacheKey = null;
             if ($isPos) {
-                $cacheKey = 'pos_products_html_' . Auth::user()->creatorId() . '_' . $lastsegment . '_' . ($request->war_id ?? '0') . '_' . ($request->cat_id ?? '0') . '_' . ($request->search ?? '') . '_' . ($request->type ?? 'name') . '_' . $page . '_optv1';
+                $cacheKey = 'pos_products_html_' . Auth::user()->creatorId() . '_' . $lastsegment . '_' . ($request->war_id ?? '0') . '_' . ($request->cat_id ?? '0') . '_' . ($request->search ?? '') . '_' . ($request->type ?? 'name') . '_' . $page . '_' . self::POS_PRODUCT_HTML_CACHE_VER;
                 $cachedHtml = Cache::get($cacheKey);
                 if ($cachedHtml !== null) {
-                    return Response($cachedHtml);
+                    return response($cachedHtml)->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
                 }
             }
 
@@ -1073,10 +1080,13 @@ class ProductServiceController extends Controller
 
             $products = $runQuery();
             if ($isPos && $products->isNotEmpty()) {
-                $products->load([
+                $eager = [
                     'variants' => fn ($q) => $q->orderBy('sort_order')->orderBy('id'),
-                    'optionItems.optionProduct:id,name,sku,sale_price,purchase_price',
-                ]);
+                ];
+                if (Schema::hasTable('product_option_items') && Schema::hasColumn('product_services', 'options_enabled')) {
+                    $eager['optionItems.optionProduct'] = fn ($q) => $q->select('id', 'name', 'sku', 'sale_price', 'purchase_price', 'type', 'options_enabled');
+                }
+                $products->load($eager);
             }
 
             // Build tax rate map in one query (avoid N+1)
@@ -1163,12 +1173,12 @@ class ProductServiceController extends Controller
                     }
                     $dimUnit = $product->dimension_unit ?: ($product->unit->length_unit ?? 'cm');
                     $volDiv = $product->volumetric_divisor ?: ($product->unit->volumetric_divisor ?? '');
-                    $output .= '<div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\' data-options-enabled="' . $optionsEnabledAttr . '" data-options=\'' . $optionsPayload . '\' data-unit-type="' . e($product->unit_type ?? '') . '" data-dimension-unit="' . e($dimUnit) . '" data-volumetric-divisor="' . e((string) $volDiv) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body mt-2 p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Add to Cart') . '</button></div></div></div></div></div>';
+                    $output .= '<div class="' . self::POS_PRODUCT_CARD_COL_CLASS . '"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\' data-options-enabled="' . $optionsEnabledAttr . '" data-options=\'' . $optionsPayload . '\' data-unit-type="' . e($product->unit_type ?? '') . '" data-dimension-unit="' . e($dimUnit) . '" data-volumetric-divisor="' . e((string) $volDiv) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body mt-2 p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Cart') . '</button></div></div></div></div></div>';
                 }
                 if ($cacheKey) {
                     Cache::put($cacheKey, $output, 90);
                 }
-                return Response($output);
+                return response($output)->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
             }
 
             $output = '<div class="card card-body col-12 text-center"><h5>' . __("No Product Available") . '</h5></div>';
@@ -1178,7 +1188,7 @@ class ProductServiceController extends Controller
             if ($cacheKey) {
                 Cache::put($cacheKey, $output, 90);
             }
-            return Response($output);
+            return response($output)->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
         }
     }
 

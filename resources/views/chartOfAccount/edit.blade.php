@@ -56,6 +56,11 @@
             </div>
         </div>
 
+        <div class="form-group col-md-12">
+            {{ Form::label('parent_account_id', __('Parent Account'), ['class' => 'form-label']) }}
+            {{ Form::select('parent_account_id', $parentOptions, $currentParentId, ['class' => 'form-control select']) }}
+            <small class="text-muted">{{ __('Leave as top-level, or pick a parent for unlimited nesting.') }}</small>
+        </div>
 
         @if(in_array('en',$act_lan))
         <div class="form-group col-md-6">

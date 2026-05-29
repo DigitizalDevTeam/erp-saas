@@ -1627,6 +1627,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('report/pos-day-summary', [ReportController::class, 'posDaySummary'])->name('report.pos.day-summary')->middleware(['auth', 'XSS']);
     Route::get('report/pos-low-stock', [ReportController::class, 'posLowStockReport'])->name('report.pos.low-stock')->middleware(['auth', 'XSS']);
     Route::get('report/restaurant', [ReportController::class, 'restaurantReportsIndex'])->name('report.restaurant.index')->middleware(['auth', 'XSS']);
+    Route::get('report/restaurant/sales-by-category', [ReportController::class, 'posSalesByCategoriesReport'])->name('report.restaurant.sales-by-category')->middleware(['auth', 'XSS']);
+    Route::get('report/restaurant/sales-by-category/export', [ReportController::class, 'posSalesByCategoriesExport'])->name('report.restaurant.sales-by-category.export')->middleware(['auth', 'XSS']);
     Route::get('report/restaurant/sales-by-product', [ReportController::class, 'posSalesByProductReport'])->name('report.restaurant.sales-by-product')->middleware(['auth', 'XSS']);
     Route::get('report/restaurant/sales-by-waiter', [ReportController::class, 'posSalesByWaiterReport'])->name('report.restaurant.sales-by-waiter')->middleware(['auth', 'XSS']);
     Route::get('report/restaurant/cancellations', [ReportController::class, 'posCancellationsReport'])->name('report.restaurant.cancellations')->middleware(['auth', 'XSS']);

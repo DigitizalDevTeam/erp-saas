@@ -64,23 +64,19 @@
             </div>
         </div>
 
-        <div class="col-md-4 mt-4 acc_check d-none">
+        <div class="col-md-4 mt-4 acc_check">
             <div class="form-check">
                 <input type="checkbox" class="form-check-input" id="account">
                 <label class="form-check-label" for="account">{{__('Make this a sub-account')}}</label>
             </div>
         </div>
 
-        <div class="form-group col-md-6 acc_type d-none">
-            {{ Form::label('parent', __('Parent Account'), ['class' => 'form-label']) }}<x-required></x-required>
-            <select class="form-control select" name="parent" id="parent" required>
+        <div class="form-group col-md-12 acc_type d-none">
+            {{ Form::label('parent_account_id', __('Parent Account'), ['class' => 'form-label']) }}
+            <select class="form-control" name="parent_account_id" id="parent_account_id">
+                <option value="0">{{ __('Select an account') }}</option>
             </select>
-        </div>
-        <div class="form-group col-md-6 acc_sub_type d-none">
-            {{ Form::label('parent_account_id', __('Under sub-account'), ['class' => 'form-label']) }}
-            <select class="form-control select" name="parent_account_id" id="parent_account_id">
-                <option value="0">{{ __('Direct under parent') }}</option>
-            </select>
+            <small class="text-muted">{{ __('Choose any account to nest under it (unlimited levels).') }}</small>
         </div>
 
         @if(in_array('en',$act_lan))

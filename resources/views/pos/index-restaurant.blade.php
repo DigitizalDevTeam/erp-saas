@@ -85,8 +85,8 @@
             border-radius: 0.5rem;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             flex-wrap: nowrap !important;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
+            /* overflow-x: auto;
+            -webkit-overflow-scrolling: touch; */
         }
         .pos-top-bar > div {
             flex-shrink: 0;
@@ -213,11 +213,11 @@
                     <div class="d-flex align-items-center flex-nowrap gap-2">
                         <span class="text-white pos-brand">{{ __('POS Restaurant') }}</span>
                         @if($userOpenShift)
-                            <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ $tp('pos.opening_balance', 'Opening Balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->opening_balance ?? 0) }}</span>
+                            <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('OB') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->opening_balance ?? 0) }}</span>
                             @if(isset($userOpenShift->closing_balance) && $userOpenShift->closing_balance !== null && $userOpenShift->closing_balance !== '')
                                 <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.closing_balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->closing_balance) }}</span>
                             @else
-                                <a href="#" class="btn btn-sm btn-light pos-add-closing-balance-btn" data-url="{{ route('pos.add_closing_balance') }}" data-title="{{ $tp('pos.add_closing_balance', 'Add Closing Balance') }}" data-bs-toggle="tooltip" title="{{ $tp('pos.add_closing_balance', 'Add Closing Balance') }}">{{ $tp('pos.add_closing_balance', 'Add Closing Balance') }}</a>
+                                <a href="#" class="btn btn-sm btn-light pos-add-closing-balance-btn" data-url="{{ route('pos.add_closing_balance') }}" data-title="{{ $tp('pos.add_closing_balance', 'Add Closing Balance') }}" data-bs-toggle="tooltip" title="{{ $tp('pos.add_closing_balance', 'Add Closing Balance') }}">{{ __('Closing Balance') }}</a>
                             @endif
                         @else
                             <button type="button" class="btn btn-sm btn-light ms-2" id="pos-open-shift-btn" title="{{ __('pos.open_shift') }}">
@@ -226,17 +226,15 @@
                         @endif
                     </div>
                     <div class="d-flex align-items-center flex-nowrap gap-2">
-                        <span id="pos-current-time" class="text-white opacity-90 small align-middle" style="min-width: 5rem;">--:--:--</span>
+                        <span id="pos-current-time" class="text-white opacity-90 small align-middle" style="min-width: 3rem;">--:--:--</span>
                         <span id="pos-status-badge" class="badge bg-success align-middle" style="font-size: 0.75rem;">{{ __('pos.online') }}</span>
                         <span id="pos-pending-badge" class="badge bg-warning text-dark d-none" style="font-size: 0.8rem; cursor: pointer;" data-msg="{{ __('pos.pending_sync_label') }}" title="{{ __('pos.sync_now') }}"></span>
                         <button type="button" id="pos-fullscreen-toggle-btn" class="btn btn-sm btn-light" title="{{ $tp('pos.fullscreen', 'Fullscreen') }}" aria-pressed="false">
-                            <i class="ti ti-maximize pos-fullscreen-icon-enter" style="font-size: 1.1rem;"></i>
-                            <i class="ti ti-minimize pos-fullscreen-icon-exit d-none" style="font-size: 1.1rem;"></i>
-                            <span class="d-none d-sm-inline pos-fullscreen-label-enter">{{ $tp('pos.fullscreen', 'Fullscreen') }}</span>
-                            <span class="d-none pos-fullscreen-label-exit">{{ $tp('pos.exit_fullscreen', 'Exit fullscreen') }}</span>
+                            <i class="ti ti-maximize pos-fullscreen-icon-enter m-0" style="font-size: 1.1rem;"></i>
+                            <i class="ti ti-minimize pos-fullscreen-icon-exit d-none m-0" style="font-size: 1.1rem;"></i>
                         </button>
                         <button type="button" id="pos-install-app-btn" class="btn btn-sm btn-light" title="{{ $tp('pos.install_app', 'Install App') }}">
-                            <i class="ti ti-download" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ $tp('pos.install_app', 'Install App') }}</span>
+                            <i class="ti ti-download" style="font-size: 1.1rem;"></i>
                         </button>
                         <a href="{{ route('pos.restaurant.index') }}" class="btn btn-sm btn-light me-1" title="{{ __('POS Restaurant') }}"><i class="ti ti-building-store" style="font-size: 1.25rem;"></i></a>
                         <a href="{{ route('pos.index') }}" class="btn btn-sm btn-outline-light" title="{{ __('POS Retail') }}"><i class="ti ti-shopping-cart" style="font-size: 1.25rem;"></i></a>
@@ -245,7 +243,7 @@
                         @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
                         <div class="dropdown d-inline-block">
                             <button type="button" class="btn btn-sm btn-light dropdown-toggle" id="pos-reports-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="{{ __('Reports & more') }}">
-                                <i class="ti ti-report" style="font-size: 1.1rem;"></i> <span class="d-none d-sm-inline">{{ __('Reports') }}</span>
+                                <i class="ti ti-report" style="font-size: 1.1rem;"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="pos-reports-dropdown">
                                 <li><h6 class="dropdown-header">{{ __('Reports') }}</h6></li>
@@ -257,6 +255,7 @@
                                 <li><a class="dropdown-item" href="{{ route('report.pos.vs.purchase') }}" target="_blank"><i class="ti ti-chart-bar me-2"></i>{{ __('Pos VS Purchase Report') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('report.pos.day-summary', ['date' => date('Y-m-d')]) }}" target="_blank"><i class="ti ti-calendar-event me-2"></i>{{ __('Day Summary') }}</a></li>
                                 <li><a class="dropdown-item pos-eod-link" href="#" data-date="{{ date('Y-m-d') }}" data-bs-toggle="modal" data-bs-target="#posEodWarningModal"><i class="ti ti-calendar-off me-2"></i>{{ __('pos.day_closed') }} / {{ __('EOD Report') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('report.restaurant.sales-by-category') }}" target="_blank"><i class="ti ti-category me-2"></i>{{ __('Sales by Categories') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('report.pos.low-stock') }}" target="_blank"><i class="ti ti-box me-2"></i>{{ __('Low Stock') }}</a></li>
                                 <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#payReceiptsModal"><i class="ti ti-receipt me-2"></i>{{ __('pos.pay_receipts') }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
@@ -769,6 +768,7 @@
         var POS_PENDING_KEY = 'pos_pending_sales';
         var POS_CACHE_PRODUCTS = 'pos_cache_products';
         var POS_CACHE_CATEGORIES = 'pos_cache_categories';
+        var POS_PRODUCT_HTML_VER = 'pv5';
         var posSyncUrl = '{{ route("pos.sync") }}';
         var posEmptyCartUrl = '{{ route("warehouse-empty-cart") }}';
         var posRestaurantOrderUrl = '{{ route("pos.restaurant.order") }}';
@@ -779,8 +779,18 @@
         var session_key = sessionKey;
 
         function posProductCacheKey(warehouse, cat, search, type) {
-            return (warehouse || '0') + '|' + (cat || '0') + '|' + (search || '') + '|' + (type || 'name');
+            return POS_PRODUCT_HTML_VER + '|' + (warehouse || '0') + '|' + (cat || '0') + '|' + (search || '') + '|' + (type || 'name');
         }
+        (function posMigrateProductLocalCache() {
+            try {
+                var verKey = 'pos_product_html_ver';
+                if (localStorage.getItem(verKey) === POS_PRODUCT_HTML_VER) {
+                    return;
+                }
+                localStorage.removeItem(POS_CACHE_PRODUCTS);
+                localStorage.setItem(verKey, POS_PRODUCT_HTML_VER);
+            } catch (e) {}
+        })();
         function posGetCachedProducts(key) {
             try {
                 var o = JSON.parse(localStorage.getItem(POS_CACHE_PRODUCTS) || '{}');
@@ -2544,6 +2554,15 @@
                 function showOfflineNoProducts() {
                     renderProducts('<div class="card card-body col-12 text-center"><h5>{{ __("pos.offline_no_products") }}</h5><small>{{ __("pos.offline_load_first") }}</small></div>');
                 }
+                function showProductsLoadError(xhr) {
+                    var msg = '{{ __("pos.products_load_failed") }}';
+                    if (xhr && xhr.status === 419) {
+                        msg = '{{ __("pos.sync_refresh") }}';
+                    } else if (xhr && xhr.status >= 500) {
+                        msg = '{{ __("pos.sync_server_error") }}';
+                    }
+                    renderProducts('<div class="card card-body col-12 text-center"><h5 class="mb-2">' + msg + '</h5><button type="button" class="btn btn-sm btn-primary pos-retry-products">{{ __("pos.retry_load_products") }}</button></div>');
+                }
                 function maybeAddLoadMore(htmlStr) {
                     var $tmp = $('<div>').append($.parseHTML(htmlStr));
                     var count = $tmp.find('.toacart').length;
@@ -2563,7 +2582,9 @@
                 $.ajax({
                     type: 'GET',
                     url: url,
-                    data: { 'search': value, 'cat_id': cat_id, 'war_id': war_id, 'session_key': session_key, 'type': type, 'page': page },
+                    cache: false,
+                    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+                    data: { 'search': value, 'cat_id': cat_id, 'war_id': war_id, 'session_key': session_key, 'type': type, 'page': page, '_': Date.now() },
                     success: function(data) {
                         if (appendPage === true) {
                             posSearchPage = page;
@@ -2575,13 +2596,23 @@
                             maybeAddLoadMore(data);
                         }
                     },
-                    error: function() {
+                    error: function(xhr) {
+                        if (!navigator.onLine) {
+                            var cached = posGetCachedProducts(cacheKey);
+                            if (cached) renderProducts(cached);
+                            else showOfflineNoProducts();
+                            return;
+                        }
                         var cached = posGetCachedProducts(cacheKey);
                         if (cached) renderProducts(cached);
-                        else showOfflineNoProducts();
+                        else showProductsLoadError(xhr);
                     }
                 });
             }
+            $(document).on('click', '.pos-retry-products', function() {
+                var p = posLastSearchParams;
+                if (p.url) searchProducts(p.url, p.value, p.cat_id, p.war_id, p.type, p.targetId);
+            });
             $(document).on('click', '.pos-load-more-products', function() {
                 var p = posLastSearchParams;
                 if (p.url) searchProducts(p.url, p.value, p.cat_id, p.war_id, p.type, p.targetId, true);

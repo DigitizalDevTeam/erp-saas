@@ -8,6 +8,7 @@ use App\Exports\LeaveReportExport;
 use App\Exports\PayrollExport;
 use App\Exports\ProductStockExport;
 use App\Exports\ProfitLossExport;
+use App\Exports\PosSalesByCategoryExport;
 use App\Exports\ReceivableExport;
 use App\Exports\SalesReportExport;
 use App\Exports\TrialBalancExport;
@@ -3509,6 +3510,313 @@ class ReportController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         return view('report.restaurant_index');
+    }
+
+    /**
+     * Sales by categories report for POS operations (shift closing + night audit).
+     * Supports shift-wise and end-of-day scopes with optional stock visibility.
+     */
+    public function posSalesByCategoriesReport(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $reportData = $this->buildPosSalesByCategoryData($request);
+
+        return view('report.restaurant_sales_by_category', $reportData);
+    }
+
+    public function posSalesByCategoriesExport(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $reportData = $this->buildPosSalesByCategoryData($request);
+        $filter = $reportData['filter'];
+        $stamp = $filter['scope'] === 'eod'
+            ? ($filter['date'] ?? date('Y-m-d'))
+            : (($filter['start_date'] ?? date('Y-m-d')) . '_' . ($filter['end_date'] ?? date('Y-m-d')));
+        $filename = 'POS_Sales_By_Categories_' . $stamp . '.xlsx';
+
+        return Excel::download(
+            new PosSalesByCategoryExport(
+                $reportData['filter'],
+                $reportData['summary'],
+                $reportData['rows']->toArray(),
+                $reportData['taxSummary'],
+                $reportData['itemsSummary']
+            ),
+            $filename
+        );
+    }
+
+    /**
+     * Build filtered Sales by Categories dataset for UI and export.
+     *
+     * @return array<string,mixed>
+     */
+    protected function buildPosSalesByCategoryData(Request $request): array
+    {
+        $creatorId = \Auth::user()->creatorId();
+        $scope = $request->get('scope', 'shift') === 'eod' ? 'eod' : 'shift';
+        $withStock = (int) $request->get('with_stock', 1) === 1;
+        $branchId = (int) $request->get('branch_id', 0);
+        $warehouseId = (int) $request->get('warehouse_id', 0);
+        $shiftId = (int) $request->get('shift_id', 0);
+        $date = $request->get('date', date('Y-m-d'));
+        $start = $request->get('start_date', date('Y-m-d'));
+        $end = $request->get('end_date', date('Y-m-d'));
+
+        $basePosQuery = Pos::query()
+            ->where('created_by', $creatorId)
+            ->whereNull('cancelled_at')
+            ->whereHas('posPayments');
+
+        if ($branchId > 0) {
+            $basePosQuery->where('branch_id', $branchId);
+        }
+        if ($warehouseId > 0) {
+            $basePosQuery->where('warehouse_id', $warehouseId);
+        }
+
+        if ($scope === 'eod') {
+            $basePosQuery->whereDate('pos_date', $date);
+        } else {
+            if ($shiftId > 0) {
+                $basePosQuery->where('shift_id', $shiftId);
+            } else {
+                $basePosQuery->whereBetween('pos_date', [$start, $end]);
+            }
+        }
+
+        $posIds = $basePosQuery->pluck('id');
+        $categoryRows = [];
+        if ($posIds->isNotEmpty()) {
+            $categoryRows = \DB::table('pos_products as pp')
+                ->join('product_services as ps', 'ps.id', '=', 'pp.product_id')
+                ->leftJoin('product_service_categories as c', 'c.id', '=', 'ps.category_id')
+                ->whereIn('pp.pos_id', $posIds->all())
+                ->selectRaw("COALESCE(c.id, 0) as category_id")
+                ->selectRaw("COALESCE(c.name, 'Uncategorized') as category_name")
+                ->selectRaw('SUM(pp.quantity) as qty_sold')
+                ->selectRaw('SUM((pp.price * pp.quantity) - COALESCE(pp.discount, 0)) as amount_sold')
+                ->groupBy('category_id', 'category_name')
+                ->orderBy('amount_sold', 'desc')
+                ->get();
+        }
+
+        $grandAmount = (float) collect($categoryRows)->sum(fn ($r) => (float) $r->amount_sold);
+        $grandQty = (float) collect($categoryRows)->sum(fn ($r) => (float) $r->qty_sold);
+        $rows = collect($categoryRows)->map(function ($row) use ($grandAmount) {
+            $amount = (float) $row->amount_sold;
+            return [
+                'category_id' => (int) $row->category_id,
+                'category_name' => (string) $row->category_name,
+                'qty_sold' => (float) $row->qty_sold,
+                'amount_sold' => $amount,
+                'sales_pct' => $grandAmount > 0 ? round(($amount / $grandAmount) * 100, 2) : 0,
+                'stock_qty' => null,
+                'min_alerts' => 0,
+                'max_alerts' => 0,
+            ];
+        })->values();
+
+        $stockAlerts = collect();
+        $globalMin = (float) (Utility::getValByName('pos_low_stock_threshold') ?: 10);
+        $globalMax = (float) (Utility::getValByName('max_stock_threshold_global') ?: 0);
+        $taxSummary = [];
+        $itemsSummary = [];
+
+        if ($withStock && $rows->isNotEmpty()) {
+            $categoryIds = $rows->pluck('category_id')->filter(fn ($id) => $id > 0)->all();
+            $stockByCategoryQuery = \DB::table('warehouse_products as wp')
+                ->join('product_services as ps', 'ps.id', '=', 'wp.product_id')
+                ->where('ps.created_by', $creatorId)
+                ->where('ps.type', 'product')
+                ->where('ps.affect_stock', 1);
+            if (!empty($categoryIds)) {
+                $stockByCategoryQuery->whereIn('ps.category_id', $categoryIds);
+            }
+            if ($warehouseId > 0) {
+                $stockByCategoryQuery->where('wp.warehouse_id', $warehouseId);
+            }
+            $stockByCategory = $stockByCategoryQuery
+                ->selectRaw('COALESCE(ps.category_id, 0) as category_id')
+                ->selectRaw('SUM(wp.quantity) as stock_qty')
+                ->groupBy('category_id')
+                ->pluck('stock_qty', 'category_id');
+
+            $stockPerProductSub = \DB::table('warehouse_products')
+                ->when($warehouseId > 0, fn ($q) => $q->where('warehouse_id', $warehouseId))
+                ->selectRaw('product_id, SUM(quantity) as stock_qty')
+                ->groupBy('product_id');
+
+            $productStockRows = ProductService::query()
+                ->leftJoinSub($stockPerProductSub, 'wps', function ($join) {
+                    $join->on('wps.product_id', '=', 'product_services.id');
+                })
+                ->leftJoin('product_service_categories as c', 'c.id', '=', 'product_services.category_id')
+                ->where('product_services.created_by', $creatorId)
+                ->where('product_services.type', 'product')
+                ->where('product_services.affect_stock', 1)
+                ->when(!empty($categoryIds), fn ($q) => $q->whereIn('product_services.category_id', $categoryIds))
+                ->select([
+                    'product_services.id',
+                    'product_services.name',
+                    'product_services.sku',
+                    'product_services.category_id',
+                    'product_services.low_stock_threshold',
+                    'product_services.max_stock_threshold',
+                    \DB::raw('COALESCE(c.name, "Uncategorized") as category_name'),
+                    \DB::raw('COALESCE(wps.stock_qty, 0) as stock_qty'),
+                ])
+                ->get();
+
+            $alertCounters = [];
+            foreach ($productStockRows as $p) {
+                $cid = (int) ($p->category_id ?? 0);
+                $stockQty = (float) ($p->stock_qty ?? 0);
+                $minAt = $p->low_stock_threshold !== null ? (float) $p->low_stock_threshold : $globalMin;
+                $maxAt = $p->max_stock_threshold !== null ? (float) $p->max_stock_threshold : $globalMax;
+
+                if ($stockQty < $minAt) {
+                    $alertCounters[$cid]['min'] = ($alertCounters[$cid]['min'] ?? 0) + 1;
+                    $stockAlerts->push([
+                        'alert_type' => 'min',
+                        'category_name' => $p->category_name,
+                        'product_name' => $p->name,
+                        'sku' => $p->sku,
+                        'stock_qty' => $stockQty,
+                        'threshold' => $minAt,
+                    ]);
+                }
+                if ($maxAt > 0 && $stockQty > $maxAt) {
+                    $alertCounters[$cid]['max'] = ($alertCounters[$cid]['max'] ?? 0) + 1;
+                    $stockAlerts->push([
+                        'alert_type' => 'max',
+                        'category_name' => $p->category_name,
+                        'product_name' => $p->name,
+                        'sku' => $p->sku,
+                        'stock_qty' => $stockQty,
+                        'threshold' => $maxAt,
+                    ]);
+                }
+            }
+
+            $rows = $rows->map(function ($row) use ($stockByCategory, $alertCounters) {
+                $cid = (int) $row['category_id'];
+                $row['stock_qty'] = (float) ($stockByCategory[$cid] ?? 0);
+                $row['min_alerts'] = (int) ($alertCounters[$cid]['min'] ?? 0);
+                $row['max_alerts'] = (int) ($alertCounters[$cid]['max'] ?? 0);
+                return $row;
+            })->values();
+        }
+
+        if ($posIds->isNotEmpty()) {
+            $lineRows = \DB::table('pos_products as pp')
+                ->leftJoin('product_services as ps', 'ps.id', '=', 'pp.product_id')
+                ->whereIn('pp.pos_id', $posIds->all())
+                ->select([
+                    'pp.tax',
+                    'pp.quantity',
+                    'pp.price',
+                    \DB::raw('COALESCE(pp.discount, 0) as discount'),
+                    \DB::raw("COALESCE(ps.name, 'Unknown') as product_name"),
+                ])
+                ->get();
+
+            $taxIds = [];
+            foreach ($lineRows as $line) {
+                foreach (array_filter(array_map('trim', explode(',', (string) ($line->tax ?? '')))) as $tid) {
+                    $taxIds[] = (int) $tid;
+                }
+            }
+            $taxRates = Tax::whereIn('id', array_unique($taxIds))->pluck('rate', 'id');
+
+            $taxBuckets = [];
+            $itemBuckets = [];
+            foreach ($lineRows as $line) {
+                $qty = (float) ($line->quantity ?? 0);
+                $price = (float) ($line->price ?? 0);
+                $discount = (float) ($line->discount ?? 0);
+                $base = max(0, ($price * $qty) - $discount);
+                $rate = 0.0;
+                foreach (array_filter(array_map('trim', explode(',', (string) ($line->tax ?? '')))) as $tid) {
+                    $rate += (float) ($taxRates[(int) $tid] ?? 0);
+                }
+                $quota = $base * $rate / 100;
+                $gross = $base + $quota;
+
+                $rateLabel = rtrim(rtrim(number_format($rate, 2, '.', ''), '0'), '.');
+                $taxKey = $rateLabel . '% IVA';
+                if (!isset($taxBuckets[$taxKey])) {
+                    $taxBuckets[$taxKey] = ['base' => 0.0, 'quota' => 0.0, 'total' => 0.0];
+                }
+                $taxBuckets[$taxKey]['base'] += $base;
+                $taxBuckets[$taxKey]['quota'] += $quota;
+                $taxBuckets[$taxKey]['total'] += $gross;
+
+                $name = (string) ($line->product_name ?: 'Unknown');
+                if (!isset($itemBuckets[$name])) {
+                    $itemBuckets[$name] = ['qty' => 0.0, 'amount' => 0.0];
+                }
+                $itemBuckets[$name]['qty'] += $qty;
+                $itemBuckets[$name]['amount'] += $gross;
+            }
+
+            uasort($itemBuckets, fn ($a, $b) => $b['qty'] <=> $a['qty']);
+            $taxSummary = $taxBuckets;
+            $itemsSummary = $itemBuckets;
+        }
+
+        $branches = Branch::where('created_by', $creatorId)->where('is_active', true)->orderBy('name')->pluck('name', 'id');
+        $branches->prepend(__('All Branches'), 0);
+        $warehouses = warehouse::where('created_by', $creatorId)->orderBy('name')->pluck('name', 'id');
+        $warehouses->prepend(__('All Warehouses'), 0);
+        $shiftOptions = PosShift::where('created_by', $creatorId)
+            ->with(['branch', 'user'])
+            ->orderByDesc('id')
+            ->limit(300)
+            ->get()
+            ->mapWithKeys(function ($shift) {
+                $label = '#' . $shift->id
+                    . ' - ' . ($shift->branch->name ?? __('Branch'))
+                    . ' - ' . ($shift->user->name ?? __('User'))
+                    . ' (' . ($shift->opened_at ? $shift->opened_at->format('Y-m-d H:i') : '-') . ')';
+                return [$shift->id => $label];
+            });
+        $shiftOptions->prepend(__('All Shifts in Date Range'), 0);
+
+        return [
+            'rows' => $rows,
+            'stockAlerts' => $stockAlerts,
+            'filter' => [
+                'scope' => $scope,
+                'with_stock' => $withStock ? 1 : 0,
+                'branch_id' => $branchId,
+                'warehouse_id' => $warehouseId,
+                'shift_id' => $shiftId,
+                'date' => $date,
+                'start_date' => $start,
+                'end_date' => $end,
+            ],
+            'filterOptions' => [
+                'branches' => $branches,
+                'warehouses' => $warehouses,
+                'shifts' => $shiftOptions,
+            ],
+            'summary' => [
+                'categories_count' => $rows->count(),
+                'total_qty' => $grandQty,
+                'total_sales' => $grandAmount,
+                'total_stock' => (float) $rows->sum(fn ($r) => (float) ($r['stock_qty'] ?? 0)),
+                'total_min_alerts' => (int) $rows->sum(fn ($r) => (int) ($r['min_alerts'] ?? 0)),
+                'total_max_alerts' => (int) $rows->sum(fn ($r) => (int) ($r['max_alerts'] ?? 0)),
+            ],
+            'taxSummary' => $taxSummary,
+            'itemsSummary' => $itemsSummary,
+        ];
     }
 
     /**

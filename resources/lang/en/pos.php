@@ -151,6 +151,8 @@ return [
     'install_app_browser_hint' => 'Use browser menu (⋮ or ⋯) → "Install POS" or "Install app" / "Add to Home Screen" to install.',
     'offline_load_first' => 'Visit when online to load products for this warehouse.',
     'offline_no_products' => 'No cached products. Visit when online first.',
+    'products_load_failed' => 'Could not load products. Please try again.',
+    'retry_load_products' => 'Retry',
     'sync_now' => 'Click to sync now',
     'sync_failed' => 'Sync failed',
     'sync_offline' => 'You are offline. Sync when connected.',

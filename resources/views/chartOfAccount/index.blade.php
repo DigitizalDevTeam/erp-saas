@@ -1,4 +1,4 @@
-@extends('layouts.admin')
+﻿@extends('layouts.admin')
 @section('page-title')
     {{ __('Manage Chart of Accounts') }}
 @endsection
@@ -8,60 +8,68 @@
 @endsection
 @push('script-page')
     <script>
-        $(document).on('change', '#sub_type', function() {
-            $('.acc_check').removeClass('d-none');
-            var type = $(this).val();
+        function destroyChoicesOnSelect(el) {
+            if (!el) return;
+            if (el._choices && typeof el._choices.destroy === 'function') {
+                el._choices.destroy();
+                el._choices = null;
+            }
+            if (typeof Choices !== 'undefined' && typeof Choices.getInstance === 'function') {
+                try {
+                    var inst = Choices.getInstance(el);
+                    if (inst) inst.destroy();
+                } catch (e) {}
+            }
+        }
+
+        function loadChartParentOptions(subTypeId) {
+            if (!subTypeId || subTypeId === '0' || subTypeId === '') {
+                return;
+            }
+            var el = document.querySelector('#commonModal #parent_account_id') || document.getElementById('parent_account_id');
+            if (!el) return;
+
             $.ajax({
                 url: '{{ route('charofAccount.subType') }}',
                 type: 'POST',
+                cache: false,
                 data: {
-                    "type": type,
-                    "_token": "{{ csrf_token() }}",
+                    type: subTypeId,
+                    _token: '{{ csrf_token() }}',
+                    _t: Date.now()
                 },
                 success: function(data) {
-                    $('#parent').empty();
+                    destroyChoicesOnSelect(el);
+                    var html = '';
                     $.each(data, function(key, value) {
-                        $('#parent').append('<option value="' + key + '">' + value +
-                            '</option>');
+                        html += '<option value="' + key + '">' + $('<div>').text(value).html() + '</option>';
                     });
+                    el.innerHTML = html;
+                    el.value = '0';
                 }
             });
+        }
+
+        $(document).on('change', '#commonModal #sub_type, #sub_type', function() {
+            $('.acc_check').removeClass('d-none');
+            loadChartParentOptions($(this).val());
         });
-        $(document).on('click', '#account', function() {
-            const element = $('#account').is(':checked');
-            $('.acc_type').addClass('d-none');
-            $('.acc_sub_type').addClass('d-none');
-            if (element==true) {
+
+        $(document).on('click', '#commonModal #account, #account', function() {
+            if ($(this).is(':checked')) {
                 $('.acc_type').removeClass('d-none');
+                var subType = $('#commonModal #sub_type').val() || $('#sub_type').val();
+                loadChartParentOptions(subType);
             } else {
                 $('.acc_type').addClass('d-none');
+                $('#parent_account_id').val('0');
             }
         });
-        $(document).on('change', '#parent', function() {
-            var parentId = $(this).val();
-            var $subWrap = $('.acc_sub_type');
-            var $subSelect = $('#parent_account_id');
-            if (!parentId || parentId == '0') {
-                $subWrap.addClass('d-none');
-                $subSelect.find('option').remove().end().append('<option value="0">{{ __("Direct under parent") }}</option>');
-                return;
+
+        $(document).on('shown.bs.modal', '#commonModal', function() {
+            if ($('#commonModal #parent_account_id').length && $('#commonModal #sub_type').val()) {
+                $('.acc_check').removeClass('d-none');
             }
-            $subWrap.removeClass('d-none');
-            $subSelect.find('option').remove();
-            $.ajax({
-                url: '{{ route("chart-of-account.parent-children") }}',
-                type: 'POST',
-                data: {
-                    parent: parentId,
-                    _token: '{{ csrf_token() }}'
-                },
-                success: function(data) {
-                    $subSelect.find('option').remove();
-                    $.each(data, function(key, value) {
-                        $subSelect.append('<option value="' + key + '">' + value + '</option>');
-                    });
-                }
-            });
         });
     </script>
             <script>
@@ -170,209 +178,13 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-@foreach ($accounts as $parent)
-    @php
-        $parentBalance = App\Models\Utility::getAccountBalance($parent->id, $filter['startDateRange'], $filter['endDateRange']);
-    @endphp
-    {{-- ðŸ”¹ Parent Row --}}
-    <tr style="font-weight:bold; background:#f8f9fa;">
-        <td>{{ $parent->accountMain ? $parent->accountMain->code : '-' }}</td>
-        <td>{{ $parent->$name_column }}</td>
-        <td>{{ $parent->subType->$name_column ?? '-' }}</td>
-        <!--<td>-</td>-->
-        <td>
-            @if (!empty($parentBalance))
-                {{ \Auth::user()->priceFormat($parentBalance) }}
-            @else
-                -
-            @endif
-        </td>
-        <td>
-            @if($parent->accountMain)
-            @if ($parent->accountMain->is_enabled)
-                <span class="badge status_badge bg-primary p-2 px-3 rounded">{{ __('Enabled') }}</span>
-            @else
-                <span class="badge status_badge bg-danger p-2 px-3 rounded">{{ __('Disabled') }}</span>
-            @endif
-            @endif
-        </td>
-        <td>
-            @if($parent->accountMain->is_default != 1)
-            @can('edit chart of account')
-                <div class="action-btn me-2">
-                    <a href="#" class="mx-3 btn btn-sm align-items-center bg-info"
-                        data-url="{{ route('chart-of-account.edit', $parent->accountMain->id) }}"
-                        data-ajax-popup="true"
-                        data-title="{{ __('Edit Account') }}"
-                        title="{{ __('Edit') }}">
-                        <i class="ti ti-pencil text-white"></i>
-                    </a>
-                </div>
-            @endcan
-
-            @can('delete chart of account')
-                <div class="action-btn ">
-                    {!! Form::open([
-                        'method' => 'DELETE',
-                        'route' => ['chart-of-account.destroy', $parent->accountMain->id],
-                        'id' => 'delete-form-' . $parent->accountMain->id,
-                    ]) !!}
-                    <a href="#"
-                        class="mx-3 btn btn-sm align-items-center bs-pass-para bg-danger"
-                        title="{{ __('Delete') }}"
-                        data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
-                        data-confirm-yes="document.getElementById('delete-form-{{ $parent->accountMain->id }}').submit();">
-                        <i class="ti ti-trash text-white"></i>
-                    </a>
-                    {!! Form::close() !!}
-                </div>
-            @endcan
-            @else
-            -
-            @endif
-        </td>
-    </tr>
-    
-    {{-- ðŸ”¸ Child Accounts --}}
-
-@php
-        $directChildren = $parent->children->where('parent_account_id', null)->sortBy(function ($c) use ($name_column) {
-            return [(int)($c->code ?? 0), $c->{$name_column} ?? ''];
-        });
-    @endphp
-    @foreach ($directChildren as $child)
-        @php
-            $totalBalance = App\Models\Utility::getAccountBalance($child->id, $filter['startDateRange'], $filter['endDateRange']);
-        @endphp
-        <tr>
-            <td style="padding-left: 65px;">{{ $child->code }}</td>
-            <td style="padding-left: 65px;">
-                <a href="{{ route('report.ledger', $child->id) }}?account={{ $child->id }}">{{ $child->$name_column }}</a>
-            </td>
-            <td>{{ $child->subType->$name_column ?? '-' }}</td>
-            <!--<td>{{ $parent->name }}</td>-->
-            <td>
-                @if (!empty($totalBalance))
-                    {{ \Auth::user()->priceFormat($totalBalance) }}
-                @else
-                    -
-                @endif
-            </td>
-            <td>
-                @if ($child->is_enabled)
-                    <span class="badge status_badge bg-primary p-2 px-3 rounded">{{ __('Enabled') }}</span>
-                @else
-                    <span class="badge status_badge bg-danger p-2 px-3 rounded">{{ __('Disabled') }}</span>
-                @endif
-            </td>
-            <td class="Action">
-                <div class="action-btn me-2">
-                    <a href="{{ route('report.ledger', $child->id) }}?account={{ $child->id }}"
-                        class="mx-3 btn btn-sm align-items-center bg-warning"
-                        title="{{ __('Transaction Summary') }}">
-                        <i class="ti ti-wave-sine text-white"></i>
-                    </a>
-                </div>
-
-            @if($child->is_default != 1)
-                @can('edit chart of account')
-                    <div class="action-btn me-2">
-                        <a href="#" class="mx-3 btn btn-sm align-items-center bg-info"
-                            data-url="{{ route('chart-of-account.edit', $child->id) }}"
-                            data-ajax-popup="true"
-                            data-title="{{ __('Edit Account') }}"
-                            title="{{ __('Edit') }}">
-                            <i class="ti ti-pencil text-white"></i>
-                        </a>
-                    </div>
-                @endcan
-
-                @can('delete chart of account')
-                    <div class="action-btn ">
-                        {!! Form::open([
-                            'method' => 'DELETE',
-                            'route' => ['chart-of-account.destroy', $child->id],
-                            'id' => 'delete-form-' . $child->id,
-                        ]) !!}
-                        <a href="#"
-                            class="mx-3 btn btn-sm align-items-center bs-pass-para bg-danger"
-                            title="{{ __('Delete') }}"
-                            data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
-                            data-confirm-yes="document.getElementById('delete-form-{{ $child->id }}').submit();">
-                            <i class="ti ti-trash text-white"></i>
-                        </a>
-                        {!! Form::close() !!}
-                    </div>
-                @endcan
-                @endif
-            </td>
-        </tr>
-        @foreach ($child->subChildren as $subChild)
-            @php
-                $subBalance = App\Models\Utility::getAccountBalance($subChild->id, $filter['startDateRange'], $filter['endDateRange']);
-            @endphp
-            <tr>
-                <td style="padding-left: 95px;">{{ $subChild->code }}</td>
-                <td style="padding-left: 95px;">
-                    <a href="{{ route('report.ledger', $subChild->id) }}?account={{ $subChild->id }}">{{ $subChild->$name_column }}</a>
-                </td>
-                <td>{{ $subChild->subType->$name_column ?? '-' }}</td>
-                <td>
-                    @if (!empty($subBalance))
-                        {{ \Auth::user()->priceFormat($subBalance) }}
-                    @else
-                        -
-                    @endif
-                </td>
-                <td>
-                    @if ($subChild->is_enabled)
-                        <span class="badge status_badge bg-primary p-2 px-3 rounded">{{ __('Enabled') }}</span>
-                    @else
-                        <span class="badge status_badge bg-danger p-2 px-3 rounded">{{ __('Disabled') }}</span>
-                    @endif
-                </td>
-                <td class="Action">
-                    <div class="action-btn me-2">
-                        <a href="{{ route('report.ledger', $subChild->id) }}?account={{ $subChild->id }}"
-                            class="mx-3 btn btn-sm align-items-center bg-warning"
-                            title="{{ __('Transaction Summary') }}">
-                            <i class="ti ti-wave-sine text-white"></i>
-                        </a>
-                    </div>
-                @if($subChild->is_default != 1)
-                    @can('edit chart of account')
-                        <div class="action-btn me-2">
-                            <a href="#" class="mx-3 btn btn-sm align-items-center bg-info"
-                                data-url="{{ route('chart-of-account.edit', $subChild->id) }}"
-                                data-ajax-popup="true"
-                                data-title="{{ __('Edit Account') }}"
-                                title="{{ __('Edit') }}">
-                                <i class="ti ti-pencil text-white"></i>
-                            </a>
-                        </div>
-                    @endcan
-                    @can('delete chart of account')
-                        <div class="action-btn ">
-                            {!! Form::open([
-                                'method' => 'DELETE',
-                                'route' => ['chart-of-account.destroy', $subChild->id],
-                                'id' => 'delete-form-' . $subChild->id,
-                            ]) !!}
-                            <a href="#"
-                                class="mx-3 btn btn-sm align-items-center bs-pass-para bg-danger"
-                                title="{{ __('Delete') }}"
-                                data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
-                                data-confirm-yes="document.getElementById('delete-form-{{ $subChild->id }}').submit();">
-                                <i class="ti ti-trash text-white"></i>
-                            </a>
-                            {!! Form::close() !!}
-                        </div>
-                    @endcan
-                @endif
-                </td>
-            </tr>
-        @endforeach
-    @endforeach
+@foreach ($accounts as $rootAccount)
+    @include('chartOfAccount.partials.account_row', [
+        'account' => $rootAccount,
+        'filter' => $filter,
+        'name_column' => $name_column,
+        'depth' => 0,
+    ])
 @endforeach
 </tbody>
 

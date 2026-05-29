@@ -31,6 +31,11 @@
                             </a>
                         </div>
                         <div class="col-md-6 col-lg-4">
+                            <a href="{{ route('report.restaurant.sales-by-category') }}" class="btn btn-outline-primary w-100 text-start d-flex align-items-center">
+                                <i class="ti ti-report me-2"></i> {{ __('Sales by Categories') }}
+                            </a>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
                             <a href="{{ route('report.restaurant.sales-by-product') }}" class="btn btn-outline-primary w-100 text-start d-flex align-items-center">
                                 <i class="ti ti-package me-2"></i> {{ __('Sales by Product') }}
                             </a>

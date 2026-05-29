@@ -207,7 +207,7 @@
                     <div class="d-flex align-items-center flex-wrap gap-2">
                         <span class="text-white pos-brand">{{ __('POS Retail') }}</span>
                         @if($userOpenShift)
-                            <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.opening_balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->opening_balance ?? 0) }}</span>
+                            <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('OB') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->opening_balance ?? 0) }}</span>
                             @if(isset($userOpenShift->closing_balance) && $userOpenShift->closing_balance !== null && $userOpenShift->closing_balance !== '')
                                 <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('pos.closing_balance') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->closing_balance) }}</span>
                             @else
@@ -244,6 +244,7 @@
                                 <li><a class="dropdown-item" href="{{ route('report.pos.vs.purchase') }}" target="_blank"><i class="ti ti-chart-bar me-2"></i>{{ __('Pos VS Purchase Report') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('report.pos.day-summary', ['date' => date('Y-m-d')]) }}" target="_blank"><i class="ti ti-calendar-event me-2"></i>{{ __('Day Summary') }}</a></li>
                                 <li><a class="dropdown-item pos-eod-link" href="#" data-date="{{ date('Y-m-d') }}" data-bs-toggle="modal" data-bs-target="#posEodWarningModal"><i class="ti ti-calendar-off me-2"></i>{{ __('pos.day_closed') }} / {{ __('EOD Report') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('report.restaurant.sales-by-category') }}" target="_blank"><i class="ti ti-report me-2"></i>{{ __('Sales by Categories') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('report.pos.low-stock') }}" target="_blank"><i class="ti ti-box me-2"></i>{{ __('Low Stock') }}</a></li>
                                 <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#payReceiptsModal"><i class="ti ti-receipt me-2"></i>{{ __('pos.pay_receipts') }}</a></li>
                                 <li><hr class="dropdown-divider"></li>
@@ -855,6 +856,7 @@
         var POS_PENDING_KEY = 'pos_pending_sales';
         var POS_CACHE_PRODUCTS = 'pos_cache_products';
         var POS_CACHE_CATEGORIES = 'pos_cache_categories';
+        var POS_PRODUCT_HTML_VER = 'pv5';
         var posSyncUrl = '{{ route("pos.sync") }}';
         var posCurrencySymbol = @json(Auth::user()->currencySymbol() ?? '');
         var posPrintSettings = @json(\App\Models\Utility::settings());
@@ -872,8 +874,18 @@
         function posCartItemSelector(selector) { return selector + ' [data-product-id]'; }
 
         function posProductCacheKey(warehouse, cat, search, type) {
-            return (warehouse || '0') + '|' + (cat || '0') + '|' + (search || '') + '|' + (type || 'name');
+            return POS_PRODUCT_HTML_VER + '|' + (warehouse || '0') + '|' + (cat || '0') + '|' + (search || '') + '|' + (type || 'name');
         }
+        (function posMigrateProductLocalCache() {
+            try {
+                var verKey = 'pos_product_html_ver';
+                if (localStorage.getItem(verKey) === POS_PRODUCT_HTML_VER) {
+                    return;
+                }
+                localStorage.removeItem(POS_CACHE_PRODUCTS);
+                localStorage.setItem(verKey, POS_PRODUCT_HTML_VER);
+            } catch (e) {}
+        })();
         function posGetCachedProducts(key) {
             try {
                 var o = JSON.parse(localStorage.getItem(POS_CACHE_PRODUCTS) || '{}');
@@ -2331,6 +2343,15 @@
                 function showOfflineNoProducts() {
                     renderProducts('<div class="card card-body col-12 text-center"><h5>{{ __("pos.offline_no_products") }}</h5><small>{{ __("pos.offline_load_first") }}</small></div>');
                 }
+                function showProductsLoadError(xhr) {
+                    var msg = '{{ __("pos.products_load_failed") }}';
+                    if (xhr && xhr.status === 419) {
+                        msg = '{{ __("pos.sync_refresh") }}';
+                    } else if (xhr && xhr.status >= 500) {
+                        msg = '{{ __("pos.sync_server_error") }}';
+                    }
+                    renderProducts('<div class="card card-body col-12 text-center"><h5 class="mb-2">' + msg + '</h5><button type="button" class="btn btn-sm btn-primary pos-retry-products">{{ __("pos.retry_load_products") }}</button></div>');
+                }
                 function maybeAddLoadMore(htmlStr) {
                     var $tmp = $('<div>').append($.parseHTML(htmlStr));
                     var count = $tmp.find('.toacart').length;
@@ -2350,7 +2371,9 @@
                 $.ajax({
                     type: 'GET',
                     url: url,
-                    data: { 'search': value, 'cat_id': cat_id, 'war_id': war_id, 'session_key': session_key, 'type': type, 'page': page },
+                    cache: false,
+                    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+                    data: { 'search': value, 'cat_id': cat_id, 'war_id': war_id, 'session_key': session_key, 'type': type, 'page': page, '_': Date.now() },
                     success: function(data) {
                         if (appendPage === true) {
                             posSearchPage = page;
@@ -2362,13 +2385,23 @@
                             maybeAddLoadMore(data);
                         }
                     },
-                    error: function() {
+                    error: function(xhr) {
+                        if (!navigator.onLine) {
+                            var cached = posGetCachedProducts(cacheKey);
+                            if (cached) renderProducts(cached);
+                            else showOfflineNoProducts();
+                            return;
+                        }
                         var cached = posGetCachedProducts(cacheKey);
                         if (cached) renderProducts(cached);
-                        else showOfflineNoProducts();
+                        else showProductsLoadError(xhr);
                     }
                 });
             }
+            $(document).on('click', '.pos-retry-products', function() {
+                var p = posLastSearchParams;
+                if (p.url) searchProducts(p.url, p.value, p.cat_id, p.war_id, p.type, p.targetId);
+            });
             $(document).on('click', '.pos-load-more-products', function() {
                 var p = posLastSearchParams;
                 if (p.url) searchProducts(p.url, p.value, p.cat_id, p.war_id, p.type, p.targetId, true);
