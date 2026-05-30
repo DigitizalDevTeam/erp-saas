@@ -119,7 +119,6 @@ use App\Http\Controllers\PosAuditLogController;
 use App\Http\Controllers\PosProductionController;
 use App\Http\Controllers\PosTableController;
 use App\Http\Controllers\ProductServiceCategoryController;
-use App\Http\Controllers\ProductRecipeController;
 use App\Http\Controllers\ProductServiceController;
 use App\Http\Controllers\ProductServiceUnitController;
 use App\Http\Controllers\ProductBatchMonitorController;
@@ -1636,9 +1635,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('report/restaurant/best-selling', [ReportController::class, 'posBestSellingReport'])->name('report.restaurant.best-selling')->middleware(['auth', 'XSS']);
     Route::get('report/restaurant/gross-profit', [ReportController::class, 'posGrossProfitReport'])->name('report.restaurant.gross-profit')->middleware(['auth', 'XSS']);
     Route::get('report/restaurant/cash-discrepancies', [ReportController::class, 'posCashDiscrepanciesReport'])->name('report.restaurant.cash-discrepancies')->middleware(['auth', 'XSS']);
-    Route::get('product-recipe', [ProductRecipeController::class, 'index'])->name('product-recipe.index')->middleware(['auth', 'XSS']);
-    Route::post('product-recipe', [ProductRecipeController::class, 'store'])->name('product-recipe.store')->middleware(['auth', 'XSS']);
-    Route::delete('product-recipe/{product_recipe}', [ProductRecipeController::class, 'destroy'])->name('product-recipe.destroy')->middleware(['auth', 'XSS']);
+    Route::redirect('product-recipe', '/productservice')->name('product-recipe.index')->middleware(['auth', 'XSS']);
 
     Route::get('reports-pos-vs-purchase', [ReportController::class, 'posVsPurchaseReport'])->name('report.pos.vs.purchase')->middleware(['auth', 'XSS']);
     Route::get('reports-pos-by-branch', [ReportController::class, 'posBranchReport'])->name('report.pos.branch')->middleware(['auth', 'XSS']);

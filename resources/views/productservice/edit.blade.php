@@ -196,34 +196,41 @@
         <div class="col-md-6">
             <div class="form-group">
                 <label class="d-block form-label">{{__('Type')}}</label>
-                <div class="row">
-                    <div class="col-md-4">
+                <div class="row g-2">
+                    <div class="col-md-3 col-6">
                         <div class="form-check form-check-inline">
                             <input type="radio" class="form-check-input type" id="customRadio5" name="type" value="product" @if($productService->type=='product') checked @endif >
                             <label class="custom-control-label form-label" for="customRadio5">{{__('Product')}}</label>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3 col-6">
                         <div class="form-check form-check-inline">
                             <input type="radio" class="form-check-input type" id="customRadio6" name="type" value="service" @if($productService->type=='service') checked @endif >
                             <label class="custom-control-label form-label" for="customRadio6">{{__('Service')}}</label>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3 col-6">
                         <div class="form-check form-check-inline">
                             <input type="radio" class="form-check-input type" id="customRadio7" name="type" value="kit" @if($productService->type=='kit') checked @endif >
                             <label class="custom-control-label form-label" for="customRadio7">{{__('Kit')}}</label>
                         </div>
                     </div>
+                    <div class="col-md-3 col-6">
+                        <div class="form-check form-check-inline">
+                            <input type="radio" class="form-check-input type" id="customRadioIngredient" name="type" value="ingredient" @if($productService->type=='ingredient') checked @endif >
+                            <label class="custom-control-label form-label" for="customRadioIngredient">{{ __('Ingredient') }}</label>
+                        </div>
+                    </div>
                 </div>
+                <small class="text-muted d-block mt-1">{{ __('Ingredients are for stock/recipes only and do not appear on POS.') }}</small>
             </div>
         </div>
-        <div class="form-group col-md-6">
+        <div class="form-group col-md-6 pos-only-field">
             {{ Form::label('print_zone', __('Print destination (Restaurant)'), ['class' => 'form-label']) }}
             {{ Form::select('print_zone', ['' => __('None'), 'kitchen' => __('Kitchen'), 'bar' => __('Bar'), 'both' => __('Both')], $productService->print_zone ?? '', ['class' => 'form-control select']) }}
             <small class="text-muted">{{ __('Where this product prints when sent to production (Kitchen/Bar slip).') }}</small>
         </div>
-        <div class="form-group col-md-6">
+        <div class="form-group col-md-6 pos-only-field">
             {{ Form::label('pos_printer_id', __('POS Printer'), ['class' => 'form-label']) }}
             <select name="pos_printer_id" class="form-control select">
                 <option value="">{{ __('Default (by zone)') }}</option>
@@ -244,7 +251,7 @@
             {{ Form::number('max_stock_threshold', $productService->max_stock_threshold, array('class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Optional'))) }}
             <small class="text-muted">{{ __('Alert when quantity is above this (optional).') }}</small>
         </div>
-        <div class="form-group col-md-12 quantity {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}">
+        <div class="form-group col-md-12 quantity product-stock-option {{in_array($productService->type, ['service','kit','ingredient']) ? 'd-none':''}}">
             <div class="form-check">
                 {{ Form::checkbox('does_not_affect_stock', '1', !($productService->affect_stock ?? true), ['class' => 'form-check-input', 'id' => 'does_not_affect_stock_edit']) }}
                 {{ Form::label('does_not_affect_stock', __('Does not affect stock (e.g. composite dish – components are deducted separately)'), ['class' => 'form-check-label', 'for' => 'does_not_affect_stock_edit']) }}
@@ -284,7 +291,7 @@
             </div>
         </div>
 
-        <div class="col-12 quantity {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}" id="product_variants_edit_section">
+        <div class="col-12 quantity {{in_array($productService->type, ['service','kit','ingredient']) ? 'd-none':''}}" id="product_variants_edit_section">
             <hr class="my-3">
             <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
                 <div>
@@ -458,6 +465,9 @@
 
             <small class="text-muted d-block mt-2">{{ __('After adding/removing components, click Update to save.') }}</small>
         </div>
+
+        @include('productservice.partials.product-recipes', ['mode' => 'edit', 'recipeItems' => $recipeItems ?? collect(), 'ingredientProducts' => $ingredientProducts ?? collect()])
+
         <div class="form-group  col-md-12">
             {{ Form::label('description', __('Description'),['class'=>'form-label']) }}
             {!! Form::textarea('description', null, ['class'=>'form-control','rows'=>'2']) !!}
@@ -481,23 +491,51 @@
         document.getElementById('image').src = src
     }
 
-    $(document).on('click', '.type', function ()
-    {
-        var type = $(this).val();
-        if (type == 'product') {
-            $('.quantity').removeClass('d-none')
-            $('.quantity').addClass('d-block');
+    function syncProductTypeFieldsEdit() {
+        var type = $('input[name="type"]:checked').val();
+        var isProduct = type === 'product';
+        var isIngredient = type === 'ingredient';
+        var isKit = type === 'kit';
+        var showStockExtras = isProduct || isIngredient;
+
+        if (showStockExtras) {
+            $('.quantity').removeClass('d-none').addClass('d-block');
         } else {
-            $('.quantity').addClass('d-none')
-            $('.quantity').removeClass('d-block');
+            $('.quantity').addClass('d-none').removeClass('d-block');
         }
 
-        if (type == 'kit') {
+        if (isKit) {
             $('#kit_components_edit_section').removeClass('d-none');
         } else {
             $('#kit_components_edit_section').addClass('d-none');
         }
-    });
+
+        if (isProduct) {
+            $('#product_recipes_edit_section').removeClass('d-none');
+            $('#product_options_edit_section').removeClass('d-none');
+            $('#product_variants_edit_section').removeClass('d-none');
+        } else {
+            $('#product_recipes_edit_section').addClass('d-none');
+            $('#product_options_edit_section').addClass('d-none');
+            if (!isIngredient) {
+                $('#product_variants_edit_section').addClass('d-none');
+            }
+        }
+
+        if (isIngredient) {
+            $('#product_variants_edit_section').addClass('d-none');
+            $('.pos-only-field').addClass('d-none');
+            $('.product-stock-option').addClass('d-none');
+            $('input[name="sale_price"]').prop('readonly', true);
+        } else {
+            $('.pos-only-field').removeClass('d-none');
+            $('.product-stock-option').toggle(isProduct);
+            $('input[name="sale_price"]').prop('readonly', false);
+        }
+    }
+
+    $(document).on('click', '.type', syncProductTypeFieldsEdit);
+    $(document).on('change', 'input[name="type"]', syncProductTypeFieldsEdit);
 
     (function () {
         let kitRowIdx = 0;
@@ -536,6 +574,44 @@
             $(this).closest('tr').remove();
         });
     })();
+
+    (function () {
+        let recipeRowIdx = 0;
+        $('#recipe_ingredient_edit_add_btn').on('click', function () {
+            const ingredientId = $('#recipe_ingredient_edit_select').val();
+            const ingredientText = $('#recipe_ingredient_edit_select option:selected').text();
+            const qty = parseFloat($('#recipe_ingredient_edit_qty').val() || '0');
+            if (!ingredientId || !qty || qty <= 0) return;
+
+            const $tbody = $('#product_recipes_edit_table tbody');
+            if ($tbody.find('tr').length === 1 && $tbody.find('tr').first().hasClass('text-muted')) {
+                $tbody.empty();
+            }
+
+            const safeText = $('<div>').text(ingredientText).html();
+            const row = `
+                <tr data-new-recipe-row="${recipeRowIdx}">
+                    <td>
+                        ${safeText}
+                        <input type="hidden" name="product_recipes[${recipeRowIdx}][ingredient_product_id]" value="${ingredientId}">
+                    </td>
+                    <td class="text-end">
+                        ${qty}
+                        <input type="hidden" name="product_recipes[${recipeRowIdx}][quantity]" value="${qty}">
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger recipe-row-remove"><i class="ti ti-trash"></i></button>
+                    </td>
+                </tr>`;
+            $tbody.append(row);
+            recipeRowIdx++;
+        });
+        $(document).on('click', '#product_recipes_edit_table .recipe-row-remove', function () {
+            $(this).closest('tr').remove();
+        });
+    })();
+
+    syncProductTypeFieldsEdit();
 
     $(document).on('change', '#identifier_tracking_edit', function () {
         $('#identifier_tracking_edit_fields').toggle(this.checked);

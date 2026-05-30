@@ -163,10 +163,21 @@ class ProductService extends Model
         return implode(',', $taxes);
     }
 
+    /** Products that may appear on POS (excludes ingredient-only stock items). */
+    public function scopeSellableOnPos($query)
+    {
+        return $query->whereIn('product_services.type', ['product', 'kit']);
+    }
+
+    public function isIngredient(): bool
+    {
+        return ($this->type ?? '') === 'ingredient';
+    }
+
     public static function getallproducts()
     {
         return ProductService::select('product_services.*', 'c.name as categoryname')
-            ->whereIn('product_services.type', ['product', 'kit'])
+            ->sellableOnPos()
             ->leftjoin('product_service_categories as c', 'c.id', '=', 'product_services.category_id')
             ->where('product_services.created_by', '=', Auth::user()->creatorId())
             ->orderBy('product_services.id', 'DESC');
@@ -193,7 +204,7 @@ class ProductService extends Model
             'product_services.affect_stock',
             'product_services.variants_enabled'
         )
-            ->whereIn('product_services.type', ['product', 'kit'])
+            ->sellableOnPos()
             ->where('product_services.created_by', Auth::user()->creatorId())
             ->orderBy('product_services.id', 'DESC');
     }

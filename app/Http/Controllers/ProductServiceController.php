@@ -19,6 +19,7 @@ use App\Models\WarehouseProduct;
 use App\Models\PriceLevel;
 use App\Models\PosPrinter;
 use App\Models\ProductKitItem;
+use App\Models\ProductRecipe;
 use App\Models\ProductVariant;
 use App\Models\PurchaseProduct;
 use App\Services\PosFefoDeductionService;
@@ -461,7 +462,7 @@ class ProductServiceController extends Controller
             $discountHtml = e($productService->price_level_name.' - '.$productService->price_level_type.' - '.$productService->price_level_value);
         }
 
-        $quantityHtml = in_array($productService->type, ['product', 'kit'], true)
+        $quantityHtml = in_array($productService->type, ['product', 'kit', 'ingredient'], true)
             ? e((string) $productService->quantity)
             : '-';
 
@@ -581,7 +582,13 @@ class ProductServiceController extends Controller
                 ->orderBy('name')
                 ->get();
 
-            return view('productservice.create', compact('category', 'unit', 'tax', 'customFields', 'incomeChartAccounts', 'incomeSubAccounts', 'expenseChartAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitComponents', 'optionProducts'));
+            $ingredientProducts = ProductService::where('created_by', \Auth::user()->creatorId())
+                ->where('type', 'ingredient')
+                ->orderBy('name')
+                ->get();
+            $recipeItems = collect();
+
+            return view('productservice.create', compact('category', 'unit', 'tax', 'customFields', 'incomeChartAccounts', 'incomeSubAccounts', 'expenseChartAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitComponents', 'optionProducts', 'ingredientProducts', 'recipeItems'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
@@ -603,8 +610,11 @@ class ProductServiceController extends Controller
                 'purchase_price' => 'required|numeric',
                 'category_id' => 'required',
                 'unit_id' => 'required',
-                'type' => ['required', Rule::in(['product', 'service', 'kit'])],
+                'type' => ['required', Rule::in(['product', 'service', 'kit', 'ingredient'])],
             ];
+            if ($request->type === 'ingredient') {
+                $rules['sale_price'] = 'nullable|numeric|min:0';
+            }
 
             $validator = \Validator::make($request->all(), $rules);
 
@@ -633,7 +643,14 @@ class ProductServiceController extends Controller
             $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
             $productService->low_stock_threshold         = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
             $productService->max_stock_threshold         = $request->filled('max_stock_threshold') ? (int) $request->max_stock_threshold : null;
-            $productService->affect_stock                = $request->type === 'kit' ? false : ! $request->boolean('does_not_affect_stock');
+            $productService->affect_stock                = match ($request->type) {
+                'kit' => false,
+                'ingredient' => true,
+                default => ! $request->boolean('does_not_affect_stock'),
+            };
+            if ($request->type === 'ingredient') {
+                $productService->sale_price = $request->filled('sale_price') ? $request->sale_price : 0;
+            }
             $productService->identifier_tracking          = $request->boolean('identifier_tracking');
             $productService->identifier_type              = in_array($request->identifier_type, ['serial', 'mac', 'both'], true) ? $request->identifier_type : 'serial';
             $productService->warranty_days                = $request->filled('warranty_days') ? (int) $request->warranty_days : null;
@@ -688,6 +705,7 @@ class ProductServiceController extends Controller
                 $this->syncProductVariants($productService, $request);
                 ProductOptionService::syncProductOptions($productService, $request);
             }
+            $this->syncProductRecipes($productService, $request);
 
             $this->bumpProductServiceDatatableCountCache(\Auth::user()->creatorId());
 
@@ -784,7 +802,20 @@ class ProductServiceController extends Controller
                     ->orderBy('name')
                     ->get();
 
-                return view('productservice.edit', compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'incomeSubAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitItems', 'kitComponents', 'optionItems', 'optionProducts'));
+                $ingredientProducts = ProductService::where('created_by', \Auth::user()->creatorId())
+                    ->where('type', 'ingredient')
+                    ->orderBy('name')
+                    ->get();
+                $recipeItems = collect();
+                if ($productService->type === 'product') {
+                    $recipeItems = ProductRecipe::where('product_id', $productService->id)
+                        ->where('created_by', \Auth::user()->creatorId())
+                        ->with(['ingredientProduct:id,name,sku'])
+                        ->orderBy('id')
+                        ->get();
+                }
+
+                return view('productservice.edit', compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'incomeSubAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitItems', 'kitComponents', 'optionItems', 'optionProducts', 'ingredientProducts', 'recipeItems'));
             } else {
                 return response()->json(['error' => __('Permission denied.')], 401);
             }
@@ -857,9 +888,12 @@ class ProductServiceController extends Controller
                     'purchase_price' => 'required|numeric',
                     'category_id' => 'required',
                     'unit_id' => 'required',
-                    'type' => ['required', Rule::in(['product', 'service', 'kit'])],
+                    'type' => ['required', Rule::in(['product', 'service', 'kit', 'ingredient'])],
 
                 ];
+                if ($request->type === 'ingredient') {
+                    $rules['sale_price'] = 'nullable|numeric|min:0';
+                }
 
                 $validator = \Validator::make($request->all(), $rules);
 
@@ -886,7 +920,14 @@ class ProductServiceController extends Controller
                 $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
                 $productService->low_stock_threshold        = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
                 $productService->max_stock_threshold        = $request->filled('max_stock_threshold') ? (int) $request->max_stock_threshold : null;
-                $productService->affect_stock                = $request->type === 'kit' ? false : ! $request->boolean('does_not_affect_stock');
+                $productService->affect_stock                = match ($request->type) {
+                'kit' => false,
+                'ingredient' => true,
+                default => ! $request->boolean('does_not_affect_stock'),
+            };
+            if ($request->type === 'ingredient') {
+                $productService->sale_price = $request->filled('sale_price') ? $request->sale_price : 0;
+            }
                 $productService->identifier_tracking          = $request->boolean('identifier_tracking');
                 $productService->identifier_type              = in_array($request->identifier_type, ['serial', 'mac', 'both'], true) ? $request->identifier_type : 'serial';
                 $productService->warranty_days                = $request->filled('warranty_days') ? (int) $request->warranty_days : null;
@@ -969,6 +1010,7 @@ class ProductServiceController extends Controller
                     ]);
                     $productService->save();
                 }
+                $this->syncProductRecipes($productService, $request);
 
                 $this->bumpProductServiceDatatableCountCache(\Auth::user()->creatorId());
 
@@ -1045,7 +1087,7 @@ class ProductServiceController extends Controller
                 $productService->sku = $row[$request['sku']];
                 $productService->sale_price = $row[$request['sale_price']];
                 $productService->purchase_price = $row[$request['purchase_price']];
-                $productService->quantity = (isset($row[$request['type']]) && $row[$request['type']] == 'product') ? $row[$request['quantity']] : 0;
+                $productService->quantity = (isset($row[$request['type']]) && in_array($row[$request['type']], ['product', 'ingredient'], true)) ? $row[$request['quantity']] : 0;
                 $productService->type = $row[$request['type']];
                 $productService->description = $row[$request['description']];
                 $productService->created_by = \Auth::user()->creatorId();
@@ -1230,7 +1272,7 @@ class ProductServiceController extends Controller
                         $opts = [];
                         foreach ($product->optionItems as $oi) {
                             $op = $oi->optionProduct;
-                            if (! $op || ($op->type ?? '') !== 'product' || ($op->options_enabled ?? false)) {
+                            if (! $op || ($op->type ?? '') !== 'product' || ($op->type ?? '') === 'ingredient' || ($op->options_enabled ?? false)) {
                                 continue;
                             }
                             $opts[] = [
@@ -1293,6 +1335,13 @@ class ProductServiceController extends Controller
                 }
             }
             $product = ProductService::with('category:id,name', 'posPrinter')->find($id);
+            if ($product && ($product->type ?? '') === 'ingredient') {
+                return response()->json([
+                    'code' => 422,
+                    'status' => 'Error',
+                    'error' => __('Ingredient products cannot be sold on POS.'),
+                ], 422);
+            }
             $productquantity = 0;
             $variantId = $request->filled('product_variant_id') ? (int) $request->product_variant_id : null;
             if ($variantId !== null && $variantId <= 0) {
@@ -1995,6 +2044,61 @@ class ProductServiceController extends Controller
             return redirect()->back()->with('error', __('Product removed from cart!'));
         } else {
             return redirect()->back()->with('error', __('This Product is not found!'));
+        }
+    }
+
+    protected function syncProductRecipes(ProductService $productService, Request $request): void
+    {
+        $creatorId = (int) Auth::user()->creatorId();
+
+        if ($productService->type !== 'product') {
+            ProductRecipe::where('product_id', $productService->id)->where('created_by', $creatorId)->delete();
+
+            return;
+        }
+
+        $removeIds = $request->input('remove_recipe_ids', []);
+        if (is_array($removeIds) && count($removeIds) > 0) {
+            ProductRecipe::where('product_id', $productService->id)
+                ->where('created_by', $creatorId)
+                ->whereIn('id', array_map('intval', $removeIds))
+                ->delete();
+        }
+
+        $rows = $request->input('product_recipes', []);
+        if (! is_array($rows)) {
+            return;
+        }
+
+        foreach ($rows as $row) {
+            $ingredientId = (int) ($row['ingredient_product_id'] ?? 0);
+            $qty = (float) ($row['quantity'] ?? 0);
+            if ($ingredientId <= 0 || $qty <= 0 || $ingredientId === (int) $productService->id) {
+                continue;
+            }
+
+            $ingredient = ProductService::where('id', $ingredientId)
+                ->where('created_by', $creatorId)
+                ->where('type', 'ingredient')
+                ->first();
+            if (! $ingredient) {
+                continue;
+            }
+
+            $exists = ProductRecipe::where('product_id', $productService->id)
+                ->where('ingredient_product_id', $ingredientId)
+                ->exists();
+            if ($exists) {
+                continue;
+            }
+
+            ProductRecipe::create([
+                'product_id' => (int) $productService->id,
+                'ingredient_product_id' => $ingredientId,
+                'quantity' => $qty,
+                'unit_id' => ! empty($row['unit_id']) ? (int) $row['unit_id'] : null,
+                'created_by' => $creatorId,
+            ]);
         }
     }
 

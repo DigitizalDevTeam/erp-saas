@@ -36,7 +36,7 @@ class PosRecipeDeductionService
                     continue;
                 }
                 $ingredient = $recipe->ingredientProduct;
-                if (!$ingredient) {
+                if (! $ingredient || ($ingredient->type ?? '') !== 'ingredient') {
                     continue;
                 }
                 self::deductProductQuantity($ingredient->id, $ingredientQty, $warehouseId, $creatorId, $posIdFormatted, $posId, '', null);

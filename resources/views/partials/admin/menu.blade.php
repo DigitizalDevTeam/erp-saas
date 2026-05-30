@@ -1541,11 +1541,6 @@
                                     </li>
                                     @endif
 
-                                    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager') || Gate::check('manage product & service'))
-                                    <li class="dash-item {{ Request::route()->getName() == 'product-recipe.index' ? 'active' : '' }}">
-                                        <a class="dash-link" href="{{ route('product-recipe.index') }}">{{ __('Recipes (BOM)') }}</a>
-                                    </li>
-                                    @endif
                                 </ul>
                             </li>
                             @endif
