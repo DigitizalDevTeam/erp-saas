@@ -71,15 +71,12 @@
                     { data: 3, name: 'purchase_price', orderable: true },
                     { data: 4, name: 'tax', orderable: false, searchable: false },
                     { data: 5, name: 'discount', orderable: false, searchable: false },
-                    { data: 6, name: 'category', orderable: false },
-                    { data: 7, name: 'unit', orderable: false },
+                    { data: 6, name: 'category', orderable: false, searchable: false },
+                    { data: 7, name: 'unit', orderable: false, searchable: false },
                     { data: 8, name: 'quantity', orderable: true },
                     { data: 9, name: 'location', orderable: false, searchable: false },
                     { data: 10, name: 'type', orderable: true },
                     { data: 11, name: 'action', orderable: false, searchable: false }
-                ],
-                columnDefs: [
-                    { targets: [4, 5, 9, 11], orderable: false }
                 ],
                 drawCallback: function () {
                     if (typeof feather !== 'undefined') {

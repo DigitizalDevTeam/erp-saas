@@ -1,0 +1,97 @@
+@php
+    $line = $line ?? (object) [];
+    $rowId = $rowId ?? ('product-id-r-' . ($line->cart_line_key ?? $line->id ?? '0'));
+    $rowClass = $rowClass ?? '';
+    $subtotal = (float) ($subtotal ?? 0);
+    $taxDisplay = $taxDisplay ?? '-';
+    $sessionKeyVal = $sessionKeyVal ?? '';
+    $deleteFormId = $deleteFormId ?? ('delete-form-r-' . preg_replace('/[^A-Za-z0-9_-]/', '-', (string) ($line->cart_line_key ?? $line->id ?? '0')));
+    $isSent = !empty($line->is_sent);
+    $statusText = $statusText ?? __('pos.status_not_sent');
+    $priceFmt = Auth::user()->priceFormat($line->price ?? 0);
+    $subFmt = Auth::user()->priceFormat($subtotal);
+    $qty = (int) ($line->quantity ?? 1);
+    $cartLineKey = $line->cart_line_key ?? $line->id ?? '';
+    $noteText = trim((string) ($line->description ?? ''));
+    $hasNote = $noteText !== '';
+    $isCancelled = ($line->status ?? '') === 'cancelled' || !empty($line->voided_at);
+@endphp
+<tr class="pos-cart-row-compact {{ $rowClass }} {{ $isSent ? 'pos-cart-row--sent' : 'pos-cart-row--draft' }}"
+    data-product-id="{{ $line->id ?? '' }}"
+    data-product-variant-id="{{ (int) ($line->product_variant_id ?? 0) }}"
+    data-cart-line-key="{{ $cartLineKey }}"
+    data-line-id="{{ $line->line_id ?? '' }}"
+    data-is-sent="{{ $isSent ? '1' : '0' }}"
+    data-status="{{ $line->status ?? 'not_sent' }}"
+    id="{{ $rowId }}"
+    data-name="{{ $line->name ?? '' }}"
+    data-price="{{ $line->price ?? 0 }}"
+    data-quantity="{{ $qty }}"
+    data-tax="{{ $line->tax ?? 0 }}"
+    data-subtotal="{{ $subtotal }}"
+    data-discount="0"
+    data-print-zone="{{ $line->print_zone ?? '' }}"
+    data-printer-id="{{ $line->pos_printer_id ?? '' }}"
+    data-printer-name="{{ $line->printer_name ?? '' }}">
+    <td class="pos-cart-line-cell p-0 border-0">
+        <div class="pos-cart-line">
+            <div class="pos-cart-line__row">
+                <div class="pos-cart-line__main min-w-0">
+                    <span class="pos-cart-line__name name">{{ $line->name ?? '' }}</span>
+                    <span class="pos-cart-line__badge badge pos-line-status">{{ $statusText }}</span>
+                </div>
+
+                @if($isSent)
+                    <span class="pos-cart-line__qty-label">{{ $qty }}×</span>
+                @else
+                    <span class="quantity buttons_added pos-cart-line__qty">
+                        <input type="button" value="-" class="minus" aria-label="-">
+                        <input type="number" step="1" min="1" name="quantity" class="input-number"
+                            data-url="{{ url('update-cart/') }}" data-id="{{ $cartLineKey }}" value="{{ $qty }}">
+                        <input type="button" value="+" class="plus" aria-label="+">
+                    </span>
+                @endif
+
+                <span class="pos-cart-line__total subtotal">{{ $subFmt }}</span>
+                <span class="d-none price">{{ $priceFmt }}</span>
+                <span class="d-none tax">{{ $taxDisplay }}</span>
+
+                <div class="pos-cart-line__action action-btn">
+                    @if($isSent)
+                        @if($isCancelled)
+                            <span class="pos-cart-line__voided">{{ __('pos.voided') }}</span>
+                        @elseif(!empty($canShowVoid) && !empty($line->line_id))
+                            <button type="button" class="btn btn-warning btn-sm pos-void-line pos-cart-line__void-btn"
+                                data-line-id="{{ $line->line_id }}" data-name="{{ $line->name ?? '' }}"
+                                title="{{ __('pos.void') }}">{{ __('pos.void') }}</button>
+                        @endif
+                    @else
+                        <a href="#" class="btn btn-danger btn-sm pos-cart-line__del-btn bs-pass-para-pos pos-remove-from-cart"
+                            data-confirm="{{ __('Are You Sure?') }}"
+                            data-text="{{ __('This action can not be undone. Do you want to continue?') }}"
+                            data-confirm-yes="{{ $deleteFormId }}"
+                            title="{{ __('Delete') }}"
+                            data-id="{{ $cartLineKey }}"><i class="ti ti-trash"></i></a>
+                        <form method="post" action="{{ url('remove-from-cart') }}" id="{{ $deleteFormId }}" class="d-none">
+                            @csrf
+                            @method('DELETE')
+                            <input type="hidden" name="session_key" value="pos-restaurant">
+                            <input type="hidden" name="id" value="{{ $cartLineKey }}">
+                            @if($sessionKeyVal !== '')
+                                <input type="hidden" name="cart_key" value="{{ $sessionKeyVal }}">
+                            @endif
+                        </form>
+                    @endif
+                </div>
+            </div>
+
+            @if($isSent && $hasNote)
+                <div class="pos-cart-line__note notes pos-item-note-readonly" title="{{ $noteText }}">{{ $noteText }}</div>
+            @elseif(!$isSent)
+                <textarea class="form-control form-control-sm notes pos-item-notes pos-cart-line__note-input"
+                    placeholder="{{ __('pos.note_placeholder') }}" maxlength="200" rows="1"
+                    title="{{ __('Note') }}">{{ $noteText }}</textarea>
+            @endif
+        </div>
+    </td>
+</tr>

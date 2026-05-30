@@ -137,32 +137,34 @@ class ProductServiceController extends Controller
         // Fast count without joins (cached); avoid recounting on every page click.
         $recordsTotal = $this->cachedProductServiceCount($creatorId, $categoryId);
 
-        $baseQuery = $this->productServiceListQuery($creatorId, $categoryId);
+        $filterQuery = $this->productServiceFilterQuery($creatorId, $categoryId, $hasSearch);
 
         if ($hasSearch) {
-            $this->applyProductServiceListSearch($baseQuery, $searchValue);
-            $recordsFiltered = (clone $baseQuery)->count('product_services.id');
+            $this->applyProductServiceListSearch($filterQuery, $searchValue);
+            $recordsFiltered = (clone $filterQuery)->distinct('product_services.id')->count('product_services.id');
         } else {
             $recordsFiltered = $recordsTotal;
         }
 
-        $orderColumnIndex = (int) $request->input('order.0.column', 0);
-        $orderDir = strtolower((string) $request->input('order.0.dir', 'asc')) === 'desc' ? 'desc' : 'asc';
-        $sortableColumns = [
-            0 => 'product_services.name',
-            1 => 'product_services.sku',
-            2 => 'product_services.sale_price',
-            3 => 'product_services.purchase_price',
-            8 => 'product_services.quantity',
-            10 => 'product_services.type',
-        ];
-        $orderBy = $sortableColumns[$orderColumnIndex] ?? 'product_services.name';
-        $baseQuery->orderBy($orderBy, $orderDir);
+        [$orderBy, $orderDir] = $this->resolveProductServiceDatatableOrder($request);
 
-        $products = (clone $baseQuery)
-            ->skip($start)
-            ->take($length)
-            ->get();
+        $idsQuery = (clone $filterQuery)->select('product_services.id');
+        if ($hasSearch) {
+            $idsQuery->groupBy('product_services.id');
+        }
+        $idsQuery->orderBy($orderBy, $orderDir)->orderBy('product_services.id', $orderDir);
+
+        $productIds = $idsQuery->skip($start)->take($length)->pluck('id');
+
+        if ($productIds->isEmpty()) {
+            $products = collect();
+        } else {
+            $ids = $productIds->map(fn ($id) => (int) $id)->values()->all();
+            $products = $this->productServiceListQuery($creatorId, $categoryId)
+                ->whereIn('product_services.id', $ids)
+                ->orderByRaw('FIELD(product_services.id, '.implode(',', $ids).')')
+                ->get();
+        }
 
         $canEdit = Gate::check('edit product & service');
         $canDelete = Gate::check('delete product & service');
@@ -197,6 +199,76 @@ class ProductServiceController extends Controller
             'recordsFiltered' => $recordsFiltered,
             'data' => $data,
         ]);
+    }
+
+    /**
+     * Filter query for counts / ID pagination (joins only when searching).
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<ProductService>
+     */
+    private function productServiceFilterQuery(int $creatorId, $categoryId = null, bool $withJoins = false)
+    {
+        $query = ProductService::query()
+            ->where('product_services.created_by', $creatorId);
+
+        if (! empty($categoryId)) {
+            $query->where('product_services.category_id', $categoryId);
+        }
+
+        if ($withJoins) {
+            $query->leftJoin('product_service_categories as psc', 'psc.id', '=', 'product_services.category_id')
+                ->leftJoin('product_service_units as psu', 'psu.id', '=', 'product_services.unit_id');
+        }
+
+        return $query;
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function resolveProductServiceDatatableOrder(Request $request): array
+    {
+        $order = $request->input('order', []);
+        $columns = $request->input('columns', []);
+
+        $columnIndex = 0;
+        $dir = 'asc';
+        if (is_array($order) && isset($order[0]['column'])) {
+            $columnIndex = (int) $order[0]['column'];
+            $dir = strtolower((string) ($order[0]['dir'] ?? 'asc')) === 'desc' ? 'desc' : 'asc';
+        }
+
+        $allowed = [
+            'name' => 'product_services.name',
+            'sku' => 'product_services.sku',
+            'sale_price' => 'product_services.sale_price',
+            'purchase_price' => 'product_services.purchase_price',
+            'quantity' => 'product_services.quantity',
+            'type' => 'product_services.type',
+        ];
+
+        $colName = null;
+        if (is_array($columns) && isset($columns[$columnIndex])) {
+            $col = $columns[$columnIndex];
+            $orderable = ($col['orderable'] ?? 'true') !== 'false' && ($col['orderable'] ?? true) !== false;
+            if ($orderable && ! empty($col['name'])) {
+                $colName = (string) $col['name'];
+            }
+        }
+
+        if ($colName === null || ! isset($allowed[$colName])) {
+            $indexMap = [
+                0 => 'name',
+                1 => 'sku',
+                2 => 'sale_price',
+                3 => 'purchase_price',
+                8 => 'quantity',
+                10 => 'type',
+            ];
+            $colName = $indexMap[$columnIndex] ?? 'name';
+        }
+
+        return [$allowed[$colName] ?? 'product_services.name', $dir];
     }
 
     /**
@@ -1173,7 +1245,7 @@ class ProductServiceController extends Controller
                     }
                     $dimUnit = $product->dimension_unit ?: ($product->unit->length_unit ?? 'cm');
                     $volDiv = $product->volumetric_divisor ?: ($product->unit->volumetric_divisor ?? '');
-                    $output .= '<div class="' . self::POS_PRODUCT_CARD_COL_CLASS . '"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\' data-options-enabled="' . $optionsEnabledAttr . '" data-options=\'' . $optionsPayload . '\' data-unit-type="' . e($product->unit_type ?? '') . '" data-dimension-unit="' . e($dimUnit) . '" data-volumetric-divisor="' . e((string) $volDiv) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body mt-2 p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Cart') . '</button></div></div></div></div></div>';
+                    $output .= '<div class="' . self::POS_PRODUCT_CARD_COL_CLASS . '"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\' data-options-enabled="' . $optionsEnabledAttr . '" data-options=\'' . $optionsPayload . '\' data-unit-type="' . e($product->unit_type ?? '') . '" data-dimension-unit="' . e($dimUnit) . '" data-volumetric-divisor="' . e((string) $volDiv) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded qty_badge">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Cart') . '</button></div></div></div></div></div>';
                 }
                 if ($cacheKey) {
                     Cache::put($cacheKey, $output, 90);
@@ -1428,18 +1500,32 @@ class ProductServiceController extends Controller
             $identifierTracking = (bool) ($product->identifier_tracking ?? false);
             if ($isPosSession) {
                 if ($request->get('restaurant') || $session_key === 'pos-restaurant') {
-                    $statusNotSent = __('pos.status_not_sent');
-                    $cartKeyVal = $tableKey !== null ? $tableKey : '';
-                    $carthtml .= '<tr data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" data-line-id="" data-is-sent="0" data-status="not_sent" data-discount="0" id="product-id-r-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '" data-measurement-json="' . $measurementJsonEsc . '" data-selected-options="' . $selectedOptionsAttr . '">
-                            <td class="name">' . e($displayName) . '</td>
-                            <td class="pos-note-cell"><textarea class="form-control form-control-sm notes pos-item-notes" placeholder="' . e(__('pos.note_placeholder')) . '" maxlength="200" rows="2" title="' . e(__('Note')) . '"></textarea></td>
-                            <td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" class="input-number" data-url="' . url('update-cart/') . '" data-id="' . e($cartLineKey) . '" value="1"><input type="button" value="+" class="plus"></span></td>
-                            <td class="tax">' . $taxDisplay . '</td>
-                            <td class="price">' . Auth::user()->priceFormat($productprice) . '</td>
-                            <td class="subtotal">' . Auth::user()->priceFormat($subtotal) . '</td>
-                            <td class="text-center"><span class="badge pos-line-status">' . e($statusNotSent) . '</span></td>
-                            <td class="action-btn"><a href="#" class="btn btn-sm bg-danger bs-pass-para-pos pos-remove-from-cart" data-confirm="' . e(__('Are You Sure?')) . '" data-text="' . e(__('This action can not be undone. Do you want to continue?')) . '" data-confirm-yes="' . $model_delete_id . '" title="' . __('Delete') . '" data-id="' . e($cartLineKey) . '"><i class="ti ti-trash text-white"></i></a><form method="post" action="' . url('remove-from-cart') . '" id="' . $model_delete_id . '"><input name="_method" type="hidden" value="DELETE"><input name="_token" type="hidden" value="' . csrf_token() . '"><input type="hidden" name="session_key" value="' . $session_key . '"><input type="hidden" name="id" value="' . e($cartLineKey) . '">' . ($tableKey !== null ? '<input type="hidden" name="cart_key" value="' . e($tableKey) . '">' : '') . '</form></td>
-                        </tr>';
+                    $line = (object) [
+                        'id' => $id,
+                        'cart_line_key' => $cartLineKey,
+                        'line_id' => '',
+                        'name' => $displayName,
+                        'quantity' => 1,
+                        'price' => $productprice,
+                        'tax' => $producttax,
+                        'description' => '',
+                        'is_sent' => false,
+                        'status' => 'not_sent',
+                        'print_zone' => $printZone,
+                        'pos_printer_id' => $printerId,
+                        'printer_name' => $product->posPrinter ? $product->posPrinter->name : '',
+                    ];
+                    $carthtml .= view('pos.partials.restaurant-cart-row', [
+                        'line' => $line,
+                        'rowId' => 'product-id-r-' . str_replace('_', '-', $cartLineKey),
+                        'rowClass' => '',
+                        'subtotal' => $subtotal,
+                        'taxDisplay' => $taxDisplay,
+                        'statusText' => __('pos.status_not_sent'),
+                        'sessionKeyVal' => $tableKey ?? '',
+                        'deleteFormId' => $model_delete_id,
+                        'canShowVoid' => false,
+                    ])->render();
                 } else {
                 $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" id="product-id-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '" data-measurement-json="' . $measurementJsonEsc . '">';
                 $carthtml .= '<div class="card-body p-2">';

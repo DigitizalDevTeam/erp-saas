@@ -7,7 +7,7 @@
     display: none !important;
 }
 #pos-restaurant-panel{
-    padding: 10px 35px;
+    padding: 10px;
 }
 
 /* ---- Layout & page ---- */
@@ -174,14 +174,13 @@
     object-fit: cover;
     display: block;
 }
-#pos-restaurant-panel #product-listing-restaurant .toacart .custom-card-body,
-#pos-restaurant-panel #product-listing-restaurant .toacart .card-body {
-    padding: 0.65rem 0.75rem !important;
+#pos-restaurant-panel #product-listing-restaurant .toacart .custom-card-body {
+    padding: 0px 0.65rem 0.75rem !important;
     background: #fff;
 }
 #pos-restaurant-panel #product-listing-restaurant .toacart .product-title-name {
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.7rem;
     line-height: 1.3;
     margin-bottom: 0.35rem !important;
     color: #212529 !important;
@@ -407,6 +406,150 @@
     font-style: italic;
 }
 
+/* Restaurant cart — tight rows, no horizontal scroll */
+.pos-cart-restaurant-wrap {
+    overflow-x: hidden !important;
+}
+.pos-cart-table--restaurant {
+    table-layout: fixed;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 2px;
+}
+.pos-cart-table--restaurant tbody tr.pos-cart-row-sent { background-color: rgba(255, 205, 210, 0.45) !important; }
+.pos-cart-table--restaurant tbody tr.pos-cart-row-preparation { background-color: rgba(255, 224, 178, 0.55) !important; }
+.pos-cart-table--restaurant tbody tr.pos-cart-row-ready { background-color: rgba(200, 230, 201, 0.55) !important; }
+.pos-cart-table--restaurant tbody tr.pos-cart-row-cancelled { background-color: rgba(238, 238, 238, 0.9) !important; }
+.pos-cart-table--restaurant .pos-cart-line-cell {
+    border: none !important;
+    vertical-align: top;
+    padding: 0 !important;
+}
+.pos-cart-line {
+    padding: 0.28rem 0.4rem;
+    border-radius: 4px;
+}
+.pos-cart-line__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    align-items: center;
+    column-gap: 0.35rem;
+    row-gap: 0.15rem;
+}
+.pos-cart-line__main {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+.pos-cart-line__name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #1e293b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+.pos-cart-table--restaurant .pos-cart-line__badge.pos-line-status {
+    display: inline-block;
+    font-size: 0.6rem !important;
+    font-weight: 600 !important;
+    line-height: 1.1 !important;
+    padding: 0.1rem 0.35rem !important;
+    border-radius: 3px !important;
+    background: #6fd943 !important;
+    color: #fff !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.pos-cart-row--sent .pos-cart-line__badge.pos-line-status { background: #64748b !important; }
+.pos-cart-row-preparation .pos-cart-line__badge.pos-line-status { background: #f59e0b !important; }
+.pos-cart-row-ready .pos-cart-line__badge.pos-line-status,
+.pos-cart-row-sent.pos-cart-row-ready .pos-cart-line__badge.pos-line-status { background: #22c55e !important; }
+.pos-cart-row-cancelled .pos-cart-line__badge.pos-line-status { background: #94a3b8 !important; }
+.pos-cart-line__qty-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #64748b;
+    white-space: nowrap;
+}
+.pos-cart-line__total {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f172a;
+    white-space: nowrap;
+    text-align: right;
+}
+.pos-cart-table--restaurant .quantity.buttons_added {
+    display: inline-flex;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+}
+.pos-cart-table--restaurant .quantity .minus,
+.pos-cart-table--restaurant .quantity .plus {
+    width: 20px;
+    height: 24px;
+    font-size: 0.8rem;
+    padding: 0;
+    line-height: 1;
+}
+.pos-cart-table--restaurant .quantity .input-number {
+    width: 1.75rem;
+    height: 24px;
+    font-size: 0.72rem;
+    padding: 0;
+}
+.pos-cart-line__action {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 2rem;
+}
+.pos-cart-line__void-btn {
+    font-size: 0.62rem !important;
+    font-weight: 600 !important;
+    padding: 0.12rem 0.35rem !important;
+    line-height: 1.1 !important;
+    white-space: nowrap;
+}
+.pos-cart-line__del-btn {
+    padding: 0.1rem 0.3rem !important;
+    line-height: 1 !important;
+}
+.pos-cart-line__del-btn i {
+    font-size: 0.85rem;
+}
+.pos-cart-line__voided {
+    font-size: 0.62rem;
+    color: #94a3b8;
+}
+.pos-cart-line__note {
+    grid-column: 1 / -1;
+    font-size: 0.68rem;
+    line-height: 1.25;
+    color: #475569;
+    padding: 0.12rem 0.35rem 0.05rem;
+    margin: 0;
+    border-left: 2px solid #94a3b8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pos-cart-line__note-input {
+    grid-column: 1 / -1;
+    min-height: 1.45rem !important;
+    max-height: 1.75rem;
+    font-size: 0.68rem !important;
+    padding: 0.15rem 0.35rem !important;
+    margin: 0.1rem 0 0 !important;
+    border-radius: 3px !important;
+    resize: none;
+}
+
 /* ---- Totals & actions ---- */
 .pos-totals {
     background: linear-gradient(180deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.04) 100%);
@@ -457,6 +600,165 @@
     font-weight: 500;
     padding: 0.4rem 0.75rem;
     border-radius: 0.35rem;
+}
+
+/* Restaurant cart totals (override global .input-group-text padding in POS page) */
+.pos-totals--restaurant {
+    padding: 0.6rem 0.65rem;
+    margin-top: 0.5rem;
+    border-radius: 0.4rem;
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+.pos-totals--restaurant .pos-totals__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+}
+.pos-totals--restaurant .pos-totals__row:last-child {
+    margin-bottom: 0;
+}
+.pos-totals--restaurant .pos-totals__label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+    flex-shrink: 0;
+}
+.pos-totals--restaurant .pos-totals__value {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #0f172a;
+    text-align: right;
+    white-space: nowrap;
+}
+.pos-totals--restaurant .pos-totals__value--total {
+    font-size: 0.9rem;
+    color: var(--bs-primary, #0d6efd);
+}
+.pos-totals--restaurant .pos-totals__row--discount {
+    align-items: center;
+}
+.pos-totals--restaurant .pos-totals__discount-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 1;
+    min-width: 0;
+    justify-content: flex-end;
+}
+.pos-totals--restaurant .pos-discount-type-restaurant {
+    width: 5.25rem !important;
+    min-width: 5.25rem;
+    max-width: 5.25rem;
+    flex: 0 0 5.25rem;
+    height: 2rem;
+    padding: 0.2rem 1.6rem 0.2rem 0.4rem;
+    font-size: 0.72rem;
+    line-height: 1.2;
+}
+.pos-totals--restaurant .pos-totals__discount-input {
+    width: 5.5rem;
+    max-width: 5.5rem;
+    flex: 0 0 5.5rem;
+    flex-wrap: nowrap;
+    align-items: stretch;
+}
+.pos-totals--restaurant .pos-totals__discount-input .input-group-text {
+    padding: 0.25rem 0.35rem !important;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2rem;
+    background: #f1f5f9 !important;
+    border-color: rgba(0, 0, 0, 0.12);
+}
+.pos-totals--restaurant .pos-totals__discount-input .form-control {
+    height: 2rem;
+    min-height: 2rem;
+    padding: 0.2rem 0.35rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    border-color: rgba(0, 0, 0, 0.12);
+    text-align: right;
+}
+.pos-cart-card .pos-totals--restaurant .input-group-text,
+#carthtml-restaurant .input-group-text {
+    padding: 0.25rem 0.35rem !important;
+}
+
+/* ---- Restaurant POS invoice toolbar ---- */
+.pos-invoice-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.pos-invoice-header__title {
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+}
+.pos-invoice-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    width: 100%;
+}
+.pos-invoice-actions__primary {
+    display: flex;
+    gap: 0.35rem;
+    align-items: stretch;
+}
+.pos-invoice-actions__primary .btn-success {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pos-invoice-actions__primary .pos-invoice-btn-icon {
+    flex: 0 0 2.5rem;
+    width: 2.5rem;
+    padding-left: 0;
+    padding-right: 0;
+}
+.pos-invoice-actions__primary .pos-invoice-btn-pay {
+    flex: 0 0 auto;
+    min-width: 4.5rem;
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+    letter-spacing: 0.04em;
+}
+.pos-invoice-actions__tools .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.35rem 0.2rem;
+    line-height: 1.15;
+    font-size: 0.65rem;
+    font-weight: 500;
+}
+.pos-invoice-actions__tools .btn i {
+    font-size: 1rem;
+    margin-bottom: 0.15rem;
+}
+.pos-invoice-tool-label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@media (max-width: 400px) {
+    .pos-invoice-btn-label {
+        font-size: 0.75rem;
+    }
+    .pos-invoice-tool-label {
+        font-size: 0.6rem;
+    }
 }
 
 /* ---- Legacy / compatibility ---- */

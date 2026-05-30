@@ -106,9 +106,9 @@
             top: 50%;
             transform: translateY(-50%);
             z-index: 2;
-            min-width: 2.75rem;
-            min-height: 2.75rem;
-            padding: 0.5rem 0.65rem;
+            /* min-width: 2.75rem;
+            min-height: 2.75rem; */
+            padding: 4px 5px;
             line-height: 1;
             display: inline-flex;
             align-items: center;

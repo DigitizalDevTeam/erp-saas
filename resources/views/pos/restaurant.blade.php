@@ -98,87 +98,64 @@
         <div class="col-lg-4 col-md-5 order-2 order-lg-1">
             <div id="pos-restaurant-order" class="d-none">
                 <div class="card border-0 shadow-sm pos-cart-card h-100">
-                    <div class="card-header py-2 d-flex justify-content-between align-items-center flex-wrap gap-2 bg-light">
-                        <span class="fw-semibold">{{ $tp('pos.pos_invoice', 'POS Invoice') }}</span>
-                        <div class="d-flex gap-1 flex-wrap">
-                            <button type="button" class="btn btn-sm btn-success" id="pos-send-to-production" title="{{ __('Send to production') }}"><i class="ti ti-send"></i> {{ __('Send to production') }}</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="pos-print-kitchen-slip" title="{{ __('pos.print_kitchen_slip') }}"><i class="ti ti-printer"></i></button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary pos-open-drawer-btn" title="{{ $tp('pos.open_drawer', 'Open Drawer') }}"><i class="ti ti-cash"></i> {{ $tp('pos.open_drawer', 'Open Drawer') }}</button>
-                            <button type="button" class="btn btn-sm btn-outline-info" id="pos-join-table-restaurant" title="{{ $tp('pos.join_table', 'Join Table') }}"><i class="ti ti-table-plus"></i> {{ $tp('pos.join_table', 'Join Table') }}</button>
-                            <button type="button" class="btn btn-sm btn-outline-warning" id="pos-split-bill-restaurant" title="{{ __('pos.split_bill') }}"><i class="ti ti-separator-horizontal"></i></button>
-                            <button type="button" class="btn btn-sm btn-outline-danger" id="pos-empty-cart-restaurant" title="{{ __('pos.empty_cart') }}"><i class="ti ti-trash"></i></button>
-                            <button type="button" id="pos-view-bill-restaurant" class="btn btn-sm btn-outline-secondary" title="{{ $tp('pos.view_bill', 'View Bill') }}"><i class="ti ti-file-invoice me-1"></i>{{ $tp('pos.view_bill', 'View Bill') }}</button>
-                            @if($canShowPayButton ?? true)
-                            <button type="button" id="pos-pay-btn-restaurant" class="btn btn-sm btn-primary" data-size="xl" data-url="{{ route('pos.create') }}" data-title="{{ $tp('pos.pos_invoice', 'POS Invoice') }}" disabled>{{ $tp('pos.pay', 'Pay') }}</button>
-                            @endif
+                    <div class="card-header p-2 pos-invoice-header bg-light">
+                        <div class="pos-invoice-actions">
+                            <div class="pos-invoice-actions__primary">
+                                <button type="button" class="btn btn-sm btn-success m-0" id="pos-send-to-production" title="{{ __('Send to production') }}">
+                                    <i class="ti ti-send me-1"></i><span class="pos-invoice-btn-label">{{ __('Send to production') }}</span>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary pos-invoice-btn-icon" id="pos-print-kitchen-slip" title="{{ __('pos.print_kitchen_slip') }}" aria-label="{{ __('pos.print_kitchen_slip') }}">
+                                    <i class="ti ti-printer"></i>
+                                </button>
+                                @if($canShowPayButton ?? true)
+                                <button type="button" id="pos-pay-btn-restaurant" class="btn btn-sm btn-success pos-invoice-btn-pay m-0" data-size="xl" data-url="{{ route('pos.create') }}" data-title="{{ $tp('pos.pos_invoice', 'POS Invoice') }}" disabled>{{ $tp('pos.pay', 'Pay') }}</button>
+                                @endif
+                            </div>
+                            <div class="btn-group btn-group-sm w-100 pos-invoice-actions__tools" role="group" aria-label="{{ $tp('pos.invoice_tools', 'Invoice tools') }}">
+                                <button type="button" class="btn btn-outline-secondary pos-open-drawer-btn" title="{{ $tp('pos.open_drawer', 'Open Drawer') }}">
+                                    <i class="ti ti-cash d-block"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-info" id="pos-join-table-restaurant" title="{{ $tp('pos.join_table', 'Join Table') }}">
+                                    <i class="ti ti-table d-block"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-warning" id="pos-split-bill-restaurant" title="{{ __('pos.split_bill') }}">
+                                    <i class="ti ti-separator-horizontal d-block"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" id="pos-empty-cart-restaurant" title="{{ __('pos.empty_cart') }}" aria-label="{{ __('pos.empty_cart') }}">
+                                    <i class="ti ti-trash d-block"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="pos-view-bill-restaurant" title="{{ $tp('pos.view_bill', 'View Bill') }}">
+                                    <i class="ti ti-file-invoice d-block"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div class="card-body p-2 carttable carttable-scroll" id="carthtml-restaurant" style="max-height: 55vh; overflow-y: auto;">
-                        <style>
-                            .pos-cart-table tbody tr.pos-cart-row-sent { background-color: #ffcdd2 !important; }
-                            .pos-cart-table tbody tr.pos-cart-row-preparation { background-color: #ffe0b2 !important; }
-                            .pos-cart-table tbody tr.pos-cart-row-ready { background-color: #c8e6c9 !important; }
-                            .pos-cart-table tbody tr.pos-cart-row-cancelled { background-color: #eeeeee !important; }
-                            .pos-item-notes {
-                                min-height: 2.25rem; font-size: 0.8125rem; border-radius: 6px;
-                                background-color: #f8fafc; border: 1px solid #e2e8f0;
-                                transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
-                                resize: none;
-                            }
-                            .pos-item-notes::placeholder { color: #94a3b8; }
-                            .pos-item-notes:hover { background-color: #f1f5f9; border-color: #cbd5e1; }
-                            .pos-item-notes:focus {
-                                background-color: #fff; border-color: var(--bs-primary, #0d6efd);
-                                box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
-                                outline: 0;
-                            }
-                            .pos-item-note-readonly {
-                                font-size: 0.8125rem; color: #475569; background: #f1f5f9;
-                                border-radius: 6px; padding: 0.35rem 0.5rem; min-height: 2rem;
-                                border-left: 3px solid var(--bs-primary, #0d6efd);
-                                line-height: 1.35; white-space: pre-wrap; word-break: break-word;
-                            }
-                            .pos-cart-table .pos-note-cell { vertical-align: middle; min-width: 140px; max-width: 180px; }
-                        </style>
-                        <div class="table-responsive">
-                            <table class="table table-sm pos-cart-table mb-0">
-                                <thead>
-                                    <tr>
-                                        <th class="text-left">{{ __('pos.name') }}</th>
-                                        <th class="text-left pos-note-cell"><span class="text-muted small">{{ __('Note') }}</span></th>
-                                        <th class="text-center">{{ __('pos.qty') }}</th>
-                                        <th>{{ __('pos.tax') }}</th>
-                                        <th class="text-center">{{ __('pos.price') }}</th>
-                                        <th class="text-center">{{ __('pos.sub_total') }}</th>
-                                        <th class="text-center">{{ __('pos.status') }}</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tbody-restaurant"></tbody>
-                            </table>
-                        </div>
-                        <div class="pos-totals mt-2 pt-2 border-top">
-                            <div class="d-flex justify-content-between mb-1">
-                                <span class="fw-semibold">{{ $tp('pos.sub_total', 'Sub Total') }}</span>
-                                <span id="pos-restaurant-subtotal" class="fw-semibold">0</span>
+                    <div class="card-body p-2 carttable carttable-scroll pos-cart-restaurant-wrap" id="carthtml-restaurant" style="max-height: 55vh; overflow-y: auto; overflow-x: hidden;">
+                        <table class="table table-sm pos-cart-table pos-cart-table--restaurant mb-0 w-100">
+                            <tbody id="tbody-restaurant"></tbody>
+                        </table>
+                        <div class="pos-totals pos-totals--restaurant mt-2 pt-2 border-top">
+                            <div class="pos-totals__row">
+                                <span class="pos-totals__label">{{ $tp('pos.sub_total', 'Sub Total') }}</span>
+                                <span id="pos-restaurant-subtotal" class="pos-totals__value">0</span>
                             </div>
-                            <div class="d-flex justify-content-between mb-1 align-items-center flex-wrap gap-1 discount-wrap-restaurant" data-currency-symbol="{{ \Auth::user()->currencySymbol() }}">
-                                <span class="fw-semibold">{{ $tp('pos.discount', 'Discount') }}</span>
-                                <div class="d-flex align-items-center gap-1 flex-nowrap">
-                                    <select class="form-select form-select-sm pos-discount-type-restaurant" id="pos_discount_type_restaurant" style="width: auto; min-width: 95px;">
+                            <div class="pos-totals__row pos-totals__row--discount discount-wrap-restaurant" data-currency-symbol="{{ \Auth::user()->currencySymbol() }}">
+                                <span class="pos-totals__label">{{ $tp('pos.discount', 'Discount') }}</span>
+                                <div class="pos-totals__discount-controls">
+                                    <select class="form-select form-select-sm pos-discount-type-restaurant" id="pos_discount_type_restaurant" aria-label="{{ __('pos.discount') }}">
                                         <option value="fixed">{{ __('Fixed') }}</option>
                                         <option value="percentage">{{ __('Percentage') }}</option>
                                     </select>
-                                    <div class="input-group input-group-sm" style="max-width: 100px;">
-                                        <span class="input-group-text bg-transparent pos-discount-prefix-restaurant">{{ \Auth::user()->currencySymbol() }}</span>
-                                        <input type="number" step="0.01" min="0" class="form-control form-control-sm pos-discount-value-restaurant" id="discount_restaurant" value="0" placeholder="0">
+                                    <div class="input-group input-group-sm pos-totals__discount-input">
+                                        <span class="input-group-text pos-discount-prefix-restaurant">{{ \Auth::user()->currencySymbol() }}</span>
+                                        <input type="number" step="0.01" min="0" class="form-control pos-discount-value-restaurant" id="discount_restaurant" value="0" placeholder="0" inputmode="decimal">
                                     </div>
                                 </div>
                             </div>
                             {{ Form::hidden('discount_hidden_restaurant', '0', ['id' => 'discount_hidden_restaurant']) }}
-                            <div class="d-flex justify-content-between">
-                                <span class="fw-semibold">{{ $tp('pos.total', 'Total') }}</span>
-                                <span id="pos-restaurant-total" class="fw-bold text-primary">0</span>
+                            <div class="pos-totals__row pos-totals__row--total">
+                                <span class="pos-totals__label">{{ $tp('pos.total', 'Total') }}</span>
+                                <span id="pos-restaurant-total" class="pos-totals__value pos-totals__value--total">0</span>
                             </div>
                         </div>
                     </div>
