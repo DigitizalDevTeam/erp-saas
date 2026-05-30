@@ -564,14 +564,25 @@ $(document).on('click', 'a[data-ajax-popup-over="true"], button[data-ajax-popup-
     var size_over = ($(this).data('size') == '') ? 'md' : $(this).data('size');
 
     var url = $(this).data('url');
+    var fetchUrl = url;
+    if (id) {
+        fetchUrl += (fetchUrl.indexOf('?') >= 0 ? '&' : '?') + 'id=' + encodeURIComponent(id);
+    }
     $("#commonModalOver .modal-title").html(title_over);
     $("#commonModalOver .modal-dialog").addClass('modal-' + size_over);
     $.ajax({
-        url: url + '?id=' + id,
+        url: fetchUrl,
         success: function (data) {
             $('#commonModalOver .modal-body').html(data);
             $("#commonModalOver").modal('show');
             taskCheckbox();
+            if (window._csvImportPreview) {
+                var preview = window._csvImportPreview;
+                window._csvImportPreview = null;
+                if (typeof SetDynamicData === 'function') {
+                    SetDynamicData(preview.output, preview.fields, preview.header || []);
+                }
+            }
         },
         error: function (data) {
             data = data.responseJSON;
@@ -611,5 +622,201 @@ $(document).ready(function() {
 
 //end input serach box
 
+/**
+ * Populate CSV import mapping modal (thead column selects + tbody preview rows).
+ */
+function SetDynamicData(outputHtml, fields, csvHeader) {
+    var $scope = $('#commonModalOver');
+    if (!$scope.length) {
+        $scope = $('#commonModal');
+    }
 
+    var $table = $scope.find('.import-data-table');
+    if (!$table.length) {
+        $table = $scope.find('table.table-bordered').first();
+    }
+
+    var $thead = $table.find('thead');
+    var $tbody = $table.find('tbody');
+    if (!$thead.length || !$tbody.length) {
+        return;
+    }
+
+    var fieldList = fields || [];
+    if (typeof fieldList === 'string') {
+        try {
+            fieldList = JSON.parse(fieldList);
+        } catch (e) {
+            fieldList = [];
+        }
+    }
+    if (!Array.isArray(fieldList)) {
+        fieldList = Object.values(fieldList);
+    }
+
+    var $sample = $('<table><tbody>' + (outputHtml || '') + '</tbody></table>');
+    var colCount = $sample.find('tr:first td').length;
+    if (colCount < 1 && Array.isArray(csvHeader)) {
+        colCount = csvHeader.length;
+    }
+
+    function fieldLabel(name) {
+        return String(name).replace(/_/g, ' ').replace(/\b\w/g, function (c) {
+            return c.toUpperCase();
+        });
+    }
+
+    function guessField(headerCell) {
+        var h = String(headerCell || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+        h = h.trim();
+        var map = {
+            'employee email': 'employee_email',
+            email: 'employee_email',
+            date: 'date',
+            'clock in': 'clock_in',
+            'clock out': 'clock_out',
+            'clockin': 'clock_in',
+            'clockout': 'clock_out'
+        };
+        if (map[h]) {
+            return map[h];
+        }
+        for (var i = 0; i < fieldList.length; i++) {
+            if (fieldLabel(fieldList[i]).toLowerCase() === h) {
+                return fieldList[i];
+            }
+        }
+        return '';
+    }
+
+    var headRow = '<tr>';
+    for (var col = 0; col < colCount; col++) {
+        var selected = '';
+        if (Array.isArray(csvHeader) && csvHeader[col] !== undefined) {
+            selected = guessField(csvHeader[col]);
+        }
+        headRow += '<th><select class="form-control form-control-sm set_column_data" data-column_number="' + col + '">';
+        headRow += '<option value="">Select field</option>';
+        for (var f = 0; f < fieldList.length; f++) {
+            var fname = fieldList[f];
+            headRow += '<option value="' + fname + '"' + (selected === fname ? ' selected' : '') + '>' + fieldLabel(fname) + '</option>';
+        }
+        headRow += '</select></th>';
+    }
+    headRow += '</tr>';
+    $thead.html(headRow);
+    $tbody.html(outputHtml || '');
+
+    initCsvImportModal($scope, fieldList);
+}
+
+window.SetDynamicData = SetDynamicData;
+
+window._csvImportPreview = window._csvImportPreview || null;
+window._csvImportColumnMap = window._csvImportColumnMap || {};
+
+function initCsvImportModal($scope, fieldList) {
+    if (!$scope || !$scope.length) {
+        $scope = $('#commonModalOver');
+    }
+
+    var $btn = $scope.find('#csv_import_submit');
+    if (!$btn.length) {
+        return;
+    }
+
+    var requiredCount = parseInt($btn.attr('data-required-count') || '0', 10);
+    if (!requiredCount && Array.isArray(fieldList)) {
+        requiredCount = fieldList.length;
+    }
+
+    function refreshCsvImportState() {
+        var column_data = {};
+        $scope.find('.set_column_data').each(function () {
+            var selected = $(this).val();
+            var col_num = $(this).data('column_number');
+            if (selected) {
+                column_data[selected] = col_num;
+            }
+        });
+
+        $scope.find('.set_column_data').each(function () {
+            var $select = $(this);
+            var col_num = $select.data('column_number');
+            $select.find('option').each(function () {
+                var option_value = $(this).val();
+                if (option_value !== '' && option_value in column_data && column_data[option_value] !== col_num) {
+                    $(this).prop('hidden', true);
+                } else {
+                    $(this).prop('hidden', false);
+                }
+            });
+        });
+
+        var mappedCount = Object.keys(column_data).length;
+        var ready = false;
+        if (Array.isArray(fieldList) && fieldList.length > 0) {
+            ready = fieldList.every(function (fieldName) {
+                return Object.prototype.hasOwnProperty.call(column_data, fieldName);
+            });
+        } else if (requiredCount > 0) {
+            ready = mappedCount >= requiredCount;
+        }
+        $btn.prop('disabled', !ready);
+        if (ready) {
+            window._csvImportColumnMap = column_data;
+        }
+    }
+
+    $scope.find('.set_column_data').off('change.csvimport').on('change.csvimport', refreshCsvImportState);
+    refreshCsvImportState();
+}
+
+$(document).on('click', '#csv_import_submit', function (event) {
+    event.preventDefault();
+    var $btn = $(this);
+    if ($btn.prop('disabled')) {
+        return;
+    }
+
+    var url = $btn.data('url');
+    $.ajax({
+        url: url,
+        method: 'POST',
+        data: {
+            data: window._csvImportColumnMap || {},
+            _token: $('meta[name="csrf-token"]').attr('content')
+        },
+        beforeSend: function () {
+            $btn.prop('disabled', true).text('Importing...');
+        },
+        success: function (response) {
+            $btn.prop('disabled', false).text('Import');
+            if ($('#upload_form').length) {
+                $('#upload_form')[0].reset();
+            }
+
+            if (response.html === true) {
+                $('#process_area').html(response.response);
+                $btn.hide();
+                $('.csv-import-cancel').hide();
+                show_toastr('Error', 'These data are not inserted', 'error');
+            } else {
+                $('#commonModalOver').modal('hide');
+                show_toastr('success', response.response, 'success');
+                setTimeout(function () {
+                    location.reload();
+                }, 800);
+            }
+        },
+        error: function () {
+            $btn.prop('disabled', false).text('Import');
+            show_toastr('Error', 'Import failed. Please try again.', 'error');
+        }
+    });
+});
+
+$(document).on('click', '.csv-import-cancel', function () {
+    $('#commonModalOver').modal('hide');
+});
 

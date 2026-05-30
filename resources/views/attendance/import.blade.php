@@ -49,14 +49,20 @@
                 {
                     show_toastr('Error',data.error, 'error');
                 } else {
-                    let url = "{{ route('csv.import.modal') }}";
+                    let url = "{{ route('csv.import.modal') }}?table=" + encodeURIComponent(table);
                     $('#commonModal').modal('hide');
-                    $(".import_modal_show").attr("data-url", url + "?&table=" + table + "&status=" + true);
-                    $(".import_modal_show").trigger( "click");
-                    setTimeout(function() {
-                        SetDynamicData(data.output, data.fields);
-                    }, 700);
+                    window._csvImportPreview = {
+                        output: data.output,
+                        fields: data.fields,
+                        header: data.header || []
+                    };
+                    $(".import_modal_show").attr("data-url", url);
+                    $(".import_modal_show").trigger("click");
                 }
+            },
+            error: function(xhr) {
+                var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : '{{ __("Upload failed. Please try again.") }}';
+                show_toastr('Error', msg, 'error');
             }
         });
 

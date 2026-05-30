@@ -6175,8 +6175,8 @@ class Utility extends Model
                 $tableFields = Schema::getColumnListing($input);
             } else {
                 return [
-                    'status' => true,
-                    'message' => 'Table name not found',
+                    'status' => false,
+                    'message' => 'Table "'.$input.'" not found',
                     'data' => null,
                 ];
             }

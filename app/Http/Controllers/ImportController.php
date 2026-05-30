@@ -9,6 +9,10 @@ class ImportController extends Controller
     public function getTableWiseFields($table)
     {
         $error = '';
+        $route = '';
+        $fields = [];
+        $tableFields = ['status' => false, 'message' => __('Something went wrong!'), 'data' => []];
+
         switch ($table) {
             case 'attendance_employees':
                 $extraFields = ['id', 'status', 'late', 'early_leaving', 'overtime', 'total_rest', 'created_by', 'created_at', 'updated_at'];
@@ -77,6 +81,7 @@ class ImportController extends Controller
 
         $fields = [];
         $route = '';
+        $file_header = [];
 
         if ($request->hasFile('file') && $request->file->getClientOriginalName() != '') {
             $file_array = explode(".", $request->file->getClientOriginalName());
@@ -113,26 +118,24 @@ class ImportController extends Controller
 
             $error = 'Please Select CSV File';
         }
-        $output = array(
+        return response()->json([
             'error' => $error,
             'output' => $html,
-            'fields' => $fields,
-        );
-
-        return json_encode($output);
+            'fields' => array_values($fields),
+            'header' => $file_header ?? [],
+        ]);
     }
 
     public function fileImportModal(Request $request)
     {
-        $fields = [];
-        $route  = '';
         $tableFields = $this->getTableWiseFields($request->table);
         if ($tableFields['error'] != '') {
-            $error = $tableFields['error'];
-        } else {
-            $fields = json_encode($tableFields['fields']);
-            $route = $tableFields['route'];
+            return response('<div class="p-4 text-danger">'.e($tableFields['error']).'</div>', 422);
         }
+
+        $fields = $tableFields['fields'] ?? [];
+        $route = $tableFields['route'] ?? '';
+
         return view('import.import_modal', compact('fields', 'route'));
     }
 }

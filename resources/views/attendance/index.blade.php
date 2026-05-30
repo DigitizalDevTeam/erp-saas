@@ -28,6 +28,20 @@
     <li class="breadcrumb-item">{{ __('Attendance') }}</li>
 @endsection
 
+@section('action-btn')
+    <div class="float-end">
+        @can('create attendance')
+            <a href="{{ route('attendanceemployee.bulkattendance') }}" class="btn btn-sm btn-secondary me-1" data-bs-toggle="tooltip" title="{{ __('Bulk Attendance') }}">
+                <i class="ti ti-users"></i>
+            </a>
+            <a href="#" data-size="lg" data-url="{{ route('attendanceemployee.create') }}" data-ajax-popup="true"
+               data-title="{{ __('Create Attendance') }}" class="btn btn-sm btn-primary" data-bs-toggle="tooltip" title="{{ __('Create Attendance') }}">
+                <i class="ti ti-plus"></i>
+            </a>
+        @endcan
+    </div>
+@endsection
+
 @section('content')
     <div class="row">
         <div class="col-sm-12">
@@ -157,7 +171,15 @@
                                             <td>{{ !empty($attendance->employee) ? $attendance->employee->name : '' }}</td>
                                         @endif
                                         <td>{{ \Auth::user()->dateFormat($attendance->date) }}</td>
-                                        <td>{{ $attendance->status }}</td>
+                                        <td>
+                                            @if (strtolower((string) $attendance->status) === 'absent')
+                                                <span class="badge bg-danger">{{ __('Absent') }}</span>
+                                            @elseif (strtolower((string) $attendance->status) === 'present')
+                                                <span class="badge bg-success">{{ __('Present') }}</span>
+                                            @else
+                                                {{ $attendance->status }}
+                                            @endif
+                                        </td>
                                         <td>{{ $attendance->clock_in != '00:00:00' ? \Auth::user()->timeFormat($attendance->clock_in) : '00:00' }}
                                         </td>
                                         <td>{{ $attendance->clock_out != '00:00:00' ? \Auth::user()->timeFormat($attendance->clock_out) : '00:00' }}
