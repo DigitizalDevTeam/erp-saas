@@ -127,9 +127,35 @@ class HotelDashboardController extends Controller
             'alerts' => $this->alertsFeed($creatorId, $today),
             'recentActivity' => $this->recentActivity($creatorId),
             'financial' => $this->financialSummary($creatorId, $today),
+            'checkoutUrl' => $this->checkoutQuickLink($creatorId, $today),
         ];
 
         return view('hotelmanagement::dashboard', compact('data'));
+    }
+
+    /**
+     * Dashboard "Check-out" shortcut: open checkout for a departing in-house guest, or frontdesk list.
+     */
+    private function checkoutQuickLink(int $creatorId, Carbon $today): string
+    {
+        $stay = HotelStay::where('created_by', $creatorId)
+            ->where('status', 'in_house')
+            ->whereDate('expected_check_out_at', $today->toDateString())
+            ->orderBy('expected_check_out_at')
+            ->first();
+
+        if (! $stay) {
+            $stay = HotelStay::where('created_by', $creatorId)
+                ->where('status', 'in_house')
+                ->orderByDesc('check_in_at')
+                ->first();
+        }
+
+        if ($stay?->hotel_reservation_id) {
+            return route('hotel.frontdesk.checkout', $stay->hotel_reservation_id);
+        }
+
+        return route('hotel.frontdesk.in-house');
     }
 
     /**

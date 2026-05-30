@@ -72,14 +72,14 @@
                                         @if($stay->folio && $folioPs !== 'paid')
                                             <a href="{{ route('hotel.folios.show', $stay->folio->id) }}" class="btn btn-sm btn-primary me-1">{{ __('Pay room bill') }}</a>
                                             @if($canForceCheckout ?? false)
-                                                {!! Form::open(['method' => 'POST', 'route' => ['hotel.frontdesk.check-out', $stay->id], 'class' => 'd-inline', 'onsubmit' => "return confirm('" . e(__('Confirm check-out with unpaid room bill?')) . "')"]) !!}
-                                                <button type="submit" class="btn btn-sm btn-outline-warning">{{ __('Check-out') }}</button>
-                                                {!! Form::close() !!}
+                                                <a href="{{ route('hotel.frontdesk.checkout', $stay->hotel_reservation_id) }}" class="btn btn-sm btn-outline-warning">
+                                                    <i class="ti ti-logout me-1"></i>{{ __('Check-out') }}
+                                                </a>
                                             @endif
                                         @else
-                                            {!! Form::open(['method' => 'POST', 'route' => ['hotel.frontdesk.check-out', $stay->id], 'class' => 'd-inline']) !!}
-                                            <button type="submit" class="btn btn-sm btn-warning">{{ __('Check-out') }}</button>
-                                            {!! Form::close() !!}
+                                            <a href="{{ route('hotel.frontdesk.checkout', $stay->hotel_reservation_id) }}" class="btn btn-sm btn-warning">
+                                                <i class="ti ti-logout me-1"></i>{{ __('Check-out') }}
+                                            </a>
                                         @endif
                                     @endif
                                     @else

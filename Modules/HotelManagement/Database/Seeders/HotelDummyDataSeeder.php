@@ -37,9 +37,9 @@ class HotelDummyDataSeeder extends Seeder
 
     public function run(): void
     {
-        $userId = (int) (env('HOTEL_SEED_USER_ID') ?: $this->resolveOwnerId());
+        $userId = $this->resolveSeedUserId();
         if ($userId <= 0) {
-            $this->command?->warn('No owner user found — skipping HotelDummyDataSeeder. Set HOTEL_SEED_USER_ID=<id> or create a user first.');
+            $this->command?->warn('No owner user found — skipping HotelDummyDataSeeder. Set HOTEL_SEED_USER_ID=<id>, HOTEL_SEED_EMAIL=<email>, or create a company user first.');
             return;
         }
 
@@ -55,6 +55,24 @@ class HotelDummyDataSeeder extends Seeder
         });
 
         $this->command?->info('Hotel dummy data seeded.');
+    }
+
+    protected function resolveSeedUserId(): int
+    {
+        $fromEnv = (int) env('HOTEL_SEED_USER_ID', 0);
+        if ($fromEnv > 0) {
+            return $fromEnv;
+        }
+
+        $email = trim((string) env('HOTEL_SEED_EMAIL', ''));
+        if ($email !== '') {
+            $user = User::where('email', $email)->first();
+            if ($user) {
+                return (int) $user->creatorId();
+            }
+        }
+
+        return $this->resolveOwnerId();
     }
 
     protected function resolveOwnerId(): int

@@ -93,6 +93,11 @@
                                         <button class="btn btn-sm btn-success">{{ __('Check-in') }}</button>
                                         {!! Form::close() !!}
                                     @endif
+                                    @if($r->status === 'checked_in')
+                                        <a href="{{ route('hotel.frontdesk.checkout', $r->id) }}" class="btn btn-sm btn-warning" title="{{ __('Check-out') }}">
+                                            <i class="ti ti-logout me-1"></i>{{ __('Check-out') }}
+                                        </a>
+                                    @endif
                                     @else
                                     <span class="text-muted small">{{ __('View only') }}</span>
                                     @endif

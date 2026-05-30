@@ -87,7 +87,7 @@
                             </a>
                         </div>
                         <div class="col-6 col-md-4 col-xl-2">
-                            <a href="{{ route('hotel.frontdesk.in-house') }}" class="btn btn-success w-100 d-flex align-items-center justify-content-center gap-2 py-2">
+                            <a href="{{ $data['checkoutUrl'] ?? route('hotel.frontdesk.in-house') }}" class="btn btn-success w-100 d-flex align-items-center justify-content-center gap-2 py-2">
                                 <i class="ti ti-logout fs-5"></i>
                                 <span class="text-start lh-sm small">
                                     <strong class="d-block">{{ __('Check-out') }}</strong>

@@ -49,6 +49,47 @@ class HotelFrontdeskController extends Controller
         return view('hotelmanagement::frontdesk.in_house', compact('stays', 'mapRooms', 'canManage', 'canForceCheckout'));
     }
 
+    /**
+     * Check-out screen (UI). Backend settlement is wired separately.
+     */
+    public function showCheckout(HotelReservation $reservation)
+    {
+        if (! $this->canView() || (int) $reservation->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $reservation->load(['guest', 'room.roomType', 'stay.folio.payments']);
+
+        return view('hotelmanagement::frontdesk.checkout', [
+            'reservation' => $reservation,
+            'canManage' => $this->canManage(),
+        ]);
+    }
+
+    /**
+     * Receipt / advance payment screen (UI).
+     */
+    public function showReceipt(HotelReservation $reservation)
+    {
+        if (! $this->canView() || (int) $reservation->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $reservation->load(['guest', 'room.roomType', 'stay.folio']);
+
+        $type = request('type', 'receipt');
+        $pageTitle = $type === 'invoice_receipt'
+            ? __('Invoice-receipt')
+            : __('Receive payment');
+
+        return view('hotelmanagement::frontdesk.receipt', [
+            'reservation' => $reservation,
+            'documentType' => $type,
+            'pageTitle' => $pageTitle,
+            'canManage' => $this->canManage(),
+        ]);
+    }
+
     public function checkIn(HotelReservation $reservation)
     {
         if ((! $this->canManage()) || (int) $reservation->created_by !== (int) Auth::user()->creatorId()) {

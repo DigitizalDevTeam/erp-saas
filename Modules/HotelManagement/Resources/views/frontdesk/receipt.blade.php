@@ -1,0 +1,523 @@
+@extends('layouts.admin')
+@section('page-title'){{ $pageTitle }}@endsection
+@section('breadcrumb')
+    <li class="breadcrumb-item"><a href="{{ route('hotel.dashboard') }}">{{ __('Hotel Management') }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('hotel.frontdesk.in-house') }}">{{ __('Frontdesk') }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('hotel.frontdesk.checkout', $reservation->id) }}">{{ __('Check-out') }}</a></li>
+    <li class="breadcrumb-item">{{ $pageTitle }}</li>
+@endsection
+
+@push('css-page')
+<style>
+    .hotel-receipt .info-chip {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.45rem 0.75rem;
+        text-align: center;
+        min-width: 88px;
+    }
+    .hotel-receipt .info-chip .label {
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        color: #64748b;
+    }
+    .hotel-receipt .info-chip .value {
+        font-weight: 700;
+        color: #2563eb;
+        font-size: 0.9rem;
+    }
+    .hotel-receipt .info-bar {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.5rem;
+    }
+    .hotel-receipt .guest-avatar {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        color: #64748b;
+    }
+    .hotel-receipt .balance-hint {
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.35);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+    }
+    .hotel-receipt .payment-method-card {
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 0.75rem 0.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+        height: 100%;
+    }
+    .hotel-receipt .payment-method-card:hover { border-color: #94a3b8; }
+    .hotel-receipt .payment-method-card.is-active {
+        border-color: var(--bs-primary);
+        background: rgba(var(--bs-primary-rgb), 0.06);
+    }
+    .hotel-receipt .payment-method-card i { font-size: 1.35rem; display: block; margin-bottom: 0.25rem; }
+    .hotel-receipt .payment-method-card span { font-size: 0.75rem; font-weight: 600; }
+    .hotel-receipt .receipt-preview-wrap .form-preview-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #10b981;
+        margin-bottom: 0.35rem;
+        display: block;
+    }
+    .hotel-receipt .receipt-preview {
+        position: relative;
+        border: 1px solid #a7e3cc;
+        border-radius: 10px;
+        background: #e8faf4;
+        padding: 1.5rem 1.25rem 1.25rem;
+        font-size: 0.82rem;
+        color: #1e293b;
+        min-height: 220px;
+    }
+    .hotel-receipt .receipt-preview .preview-corner-label {
+        position: absolute;
+        top: 10px;
+        left: 14px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #10b981;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+    .hotel-receipt .receipt-preview .receipt-preview-header {
+        text-align: center;
+        padding: 0.75rem 0 1rem;
+        margin-top: 0.25rem;
+    }
+    .hotel-receipt .receipt-preview .hotel-name {
+        font-weight: 800;
+        font-size: 1rem;
+        letter-spacing: 0.06em;
+        color: #0f172a;
+        text-transform: uppercase;
+        margin-bottom: 0.35rem;
+    }
+    .hotel-receipt .receipt-preview .doc-title {
+        font-weight: 800;
+        font-size: 0.8rem;
+        letter-spacing: 0.04em;
+        color: #0f172a;
+        text-transform: uppercase;
+        margin-bottom: 0;
+    }
+    .hotel-receipt .receipt-preview .receipt-preview-body {
+        margin-bottom: 1rem;
+    }
+    .hotel-receipt .receipt-preview .receipt-preview-body p {
+        margin-bottom: 0.45rem;
+        line-height: 1.45;
+    }
+    .hotel-receipt .receipt-preview .receipt-preview-body .line-label {
+        color: #334155;
+        font-weight: 500;
+    }
+    .hotel-receipt .receipt-preview .receipt-preview-body .line-value {
+        font-weight: 500;
+        color: #334155;
+    }
+    .hotel-receipt .receipt-preview .receipt-preview-body .line-value-amount {
+        font-weight: 600;
+        color: #334155;
+    }
+    .hotel-receipt .receipt-preview .receipt-preview-footer {
+        text-align: center;
+        font-weight: 700;
+        font-size: 0.85rem;
+        color: #0f172a;
+        padding-top: 0.5rem;
+        border-top: 1px dashed rgba(16, 185, 129, 0.35);
+        margin-top: 0.25rem;
+    }
+    .hotel-receipt .history-item {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.65rem 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+    .hotel-receipt .summary-total { color: #2563eb; }
+    .hotel-receipt .summary-paid { color: #10b981; }
+    .hotel-receipt .summary-balance { color: #2563eb; font-size: 1.1rem; }
+</style>
+@endpush
+
+@section('content')
+@php
+    $fmt = fn ($n) => Auth::user()->priceFormat($n);
+    $guest = $reservation->guest;
+    $room = $reservation->room;
+    $guestName = $guest ? trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? '')) : __('João Mateus');
+    $guestCode = $guest?->guest_code ?? $guest?->id ?? '000125';
+    $reservationNo = $reservation->reservation_no ?? ('R' . str_pad((string) $reservation->id, 6, '0', STR_PAD_LEFT));
+    $roomNo = $room?->room_no ?? '203';
+    $checkInDisplay = \Carbon\Carbon::parse($reservation->check_in_date)->format('d/m/Y');
+    $checkOutDisplay = \Carbon\Carbon::parse($reservation->check_out_date)->format('d/m/Y');
+    $nights = max(1, \Carbon\Carbon::parse($reservation->check_in_date)->diffInDays(\Carbon\Carbon::parse($reservation->check_out_date)));
+    $phone = $guest?->phone ?? '+258 84 123 4567';
+    $email = $guest?->email ?? 'guest@example.com';
+    $totalReservation = 19640;
+    $advancesReceived = 10000;
+    $pendingBalance = 9640;
+    $advanceAmount = 5000;
+    $balanceAfter = max(0, $pendingBalance - $advanceAmount);
+    $docType = $documentType ?? 'receipt';
+    $receiptNo = 'RA' . now()->format('ymd') . '-0003';
+    $previewDate = now()->format('d/m/Y H:i');
+    $defaultDocTitle = $docType === 'invoice_receipt'
+        ? strtoupper(__('Invoice-receipt'))
+        : ($docType === 'receipt' ? strtoupper(__('Payment receipt')) : strtoupper(__('Advance receipt')));
+@endphp
+
+<div class="hotel-receipt">
+    <div class="info-bar mb-3">
+        <div class="info-chip">
+            <div class="label">{{ __('Reservation') }}</div>
+            <div class="value">{{ $reservationNo }}</div>
+        </div>
+        <div class="info-chip">
+            <div class="label">{{ __('Guest') }}</div>
+            <div class="value text-truncate" style="max-width:120px;">{{ $guestName }}</div>
+        </div>
+        <div class="info-chip">
+            <div class="label">{{ __('Room') }}</div>
+            <div class="value">{{ $roomNo }}</div>
+        </div>
+        <div class="info-chip">
+            <div class="label">{{ __('Check-in') }}</div>
+            <div class="value">{{ $checkInDisplay }}</div>
+        </div>
+        <div class="info-chip">
+            <div class="label">{{ __('Check-out') }}</div>
+            <div class="value">{{ $checkOutDisplay }}</div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-header bg-transparent border-bottom py-3">
+                    <h6 class="mb-0 fw-semibold">{{ __('Guest / reservation data') }}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex gap-3 flex-wrap mb-3">
+                        <div class="guest-avatar"><i class="ti ti-user"></i></div>
+                        <div>
+                            <h5 class="mb-0">{{ $guestName }}</h5>
+                            <p class="text-muted small mb-0">{{ __('Guest') }}: {{ $guestCode }}</p>
+                        </div>
+                    </div>
+                    <div class="row g-2 small mb-3">
+                        <div class="col-4"><span class="text-muted d-block">{{ __('Check-in') }}</span><strong>{{ $checkInDisplay }}</strong></div>
+                        <div class="col-4"><span class="text-muted d-block">{{ __('Check-out') }}</span><strong>{{ $checkOutDisplay }}</strong></div>
+                        <div class="col-4"><span class="text-muted d-block">{{ __('Nights') }}</span><strong>{{ $nights }}</strong></div>
+                    </div>
+                    <p class="small mb-1"><i class="ti ti-phone me-1 text-primary"></i>{{ $phone }}</p>
+                    <p class="small mb-3"><i class="ti ti-mail me-1 text-primary"></i>{{ $email }}</p>
+                    <div class="row g-2 small">
+                        <div class="col-4"><span class="text-muted">{{ __('Adults') }}</span> <strong>{{ $reservation->adults ?? 2 }}</strong></div>
+                        <div class="col-4"><span class="text-muted">{{ __('Children') }}</span> <strong>{{ $reservation->children ?? 0 }}</strong></div>
+                        <div class="col-4"><span class="text-muted">{{ __('Agency') }}</span> <strong>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $reservation->source ?? 'individual'))) }}</strong></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-header bg-transparent border-bottom py-3">
+                    <h6 class="mb-0 fw-semibold">{{ __('Register payment / advance') }}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">{{ __('Payment amount') }}</label>
+                            <input type="text" class="form-control form-control-lg" id="receipt-amount" value="{{ number_format($advanceAmount, 2, '.', '') }}">
+                            <div class="balance-hint mt-2 small">
+                                <i class="ti ti-info-circle text-success me-1"></i>
+                                {{ __('Pending balance after this payment') }}:
+                                <strong class="text-success" id="balance-after-hint">{{ $fmt($balanceAfter) }}</strong>
+                            </div>
+                            <label class="form-label small fw-semibold mt-3">{{ __('Payment method') }}</label>
+                            <div class="row g-2">
+                                @foreach([
+                                    ['id' => 'cash', 'icon' => 'ti-cash', 'label' => __('Cash')],
+                                    ['id' => 'mpesa', 'icon' => 'ti-device-mobile', 'label' => 'M-Pesa'],
+                                    ['id' => 'card', 'icon' => 'ti-credit-card', 'label' => __('Card')],
+                                    ['id' => 'transfer', 'icon' => 'ti-building-bank', 'label' => __('Transfer')],
+                                    ['id' => 'account', 'icon' => 'ti-file-invoice', 'label' => __('Current account')],
+                                    ['id' => 'other', 'icon' => 'ti-dots', 'label' => __('Other')],
+                                ] as $i => $pm)
+                                    <div class="col-4 col-sm-4">
+                                        <div class="payment-method-card {{ $i === 0 ? 'is-active' : '' }}" data-method="{{ $pm['id'] }}">
+                                            <i class="ti {{ $pm['icon'] }} text-primary"></i>
+                                            <span>{{ $pm['label'] }}</span>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">{{ __('Reference / transaction no.') }} <span class="text-muted">({{ __('optional') }})</span></label>
+                            <input type="text" class="form-control" value="MP250512114233">
+                            <label class="form-label small fw-semibold mt-3">{{ __('Payment date') }}</label>
+                            <input type="datetime-local" class="form-control" id="receipt-payment-date" value="{{ now()->format('Y-m-d\TH:i') }}">
+                            <label class="form-label small fw-semibold mt-3">{{ __('Notes') }} <span class="text-muted">({{ __('optional') }})</span></label>
+                            <textarea class="form-control" rows="4" placeholder="{{ __('Add notes...') }}"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-header bg-transparent border-bottom py-3">
+                    <h6 class="mb-0 fw-semibold">{{ __('Document to be issued') }}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label small fw-semibold">{{ __('Document type') }}</label>
+                            <select class="form-select" id="receipt-doc-type">
+                                <option value="advance" {{ ! in_array($docType, ['receipt', 'invoice_receipt'], true) ? 'selected' : '' }}>{{ __('Advance receipt') }}</option>
+                                <option value="payment" {{ $docType === 'receipt' ? 'selected' : '' }}>{{ __('Payment receipt') }}</option>
+                                <option value="invoice_receipt" {{ $docType === 'invoice_receipt' ? 'selected' : '' }}>{{ __('Invoice-receipt') }}</option>
+                            </select>
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" id="send-email" checked>
+                                <label class="form-check-label small" for="send-email">{{ __('Send by email / WhatsApp') }}</label>
+                            </div>
+                        </div>
+                        <div class="col-md-7 receipt-preview-wrap">
+                            <div class="receipt-preview" id="receipt-preview">
+                                <span class="preview-corner-label">{{ __('Preview') }}</span>
+                                <div class="receipt-preview-header">
+                                    <div class="hotel-name">UTHARA HOTEL</div>
+                                    <div class="doc-title" id="preview-doc-title">{{ $defaultDocTitle }}</div>
+                                </div>
+                                <div class="row receipt-preview-body g-2">
+                                    <div class="col-sm-6">
+                                        <p class="mb-0">
+                                            <span class="line-label">{{ __('Receipt no.') }}:</span>
+                                            <span class="line-value" id="preview-receipt-no">{{ $receiptNo }}</span>
+                                        </p>
+                                        <p class="mb-0">
+                                            <span class="line-label">{{ __('Guest') }}:</span>
+                                            <span class="line-value" id="preview-guest">{{ $guestName }}</span>
+                                        </p>
+                                        <p class="mb-0">
+                                            <span class="line-label">{{ __('Reservation') }}:</span>
+                                            <span class="line-value">{{ $reservationNo }}</span>
+                                            <span class="line-label"> | {{ __('Room') }}:</span>
+                                            <span class="line-value">{{ $roomNo }}</span>
+                                        </p>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <p class="mb-0">
+                                            <span class="line-label">{{ __('Amount received') }}:</span>
+                                            <span class="line-value-amount" id="preview-amount">{{ $fmt($advanceAmount) }}</span>
+                                        </p>
+                                        <p class="mb-0">
+                                            <span class="line-label">{{ __('Date') }}:</span>
+                                            <span class="line-value" id="preview-date">{{ $previewDate }}</span>
+                                        </p>
+                                        <p class="mb-0">
+                                            <span class="line-label">{{ __('Payment method') }}:</span>
+                                            <span class="line-value" id="preview-method">{{ __('Cash') }}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="receipt-preview-footer">
+                                    {{ __('Thank you for your preference!') }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-header bg-transparent border-bottom py-3">
+                    <h6 class="mb-0 fw-semibold">{{ __('Reservation summary') }}</h6>
+                </div>
+                <div class="card-body small">
+                    <div class="d-flex justify-content-between mb-2"><span class="text-muted">{{ __('Rate / package') }}</span><span>{{ $fmt(15200) }}</span></div>
+                    <div class="d-flex justify-content-between mb-2"><span class="text-muted">{{ __('Additional services') }}</span><span>{{ $fmt(3200) }}</span></div>
+                    <div class="d-flex justify-content-between mb-3 pb-2 border-bottom"><span class="text-muted">{{ __('Taxes') }}</span><span>{{ $fmt(1240) }}</span></div>
+                    <div class="d-flex justify-content-between mb-2"><span class="fw-bold">{{ __('TOTAL RESERVATION') }}</span><span class="fw-bold summary-total">{{ $fmt($totalReservation) }}</span></div>
+                    <div class="d-flex justify-content-between mb-2"><span class="text-muted">{{ __('Payments received') }}</span><span class="fw-bold summary-paid">{{ $fmt($advancesReceived) }}</span></div>
+                    <div class="d-flex justify-content-between pt-2 border-top"><span class="fw-bold">{{ __('PENDING BALANCE') }}</span><span class="fw-bold summary-balance">{{ $fmt($pendingBalance) }}</span></div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-header bg-transparent border-bottom py-3">
+                    <h6 class="mb-0 fw-semibold">{{ __('Payment history') }}</h6>
+                </div>
+                <div class="card-body p-2">
+                    @foreach([
+                        ['date' => '10/05/2026 15:30', 'type' => __('Advance'), 'method' => 'M-Pesa', 'amount' => 5000, 'user' => 'Admin'],
+                        ['date' => '11/05/2026 09:15', 'type' => __('Payment'), 'method' => __('Cash'), 'amount' => 5000, 'user' => 'Admin'],
+                    ] as $h)
+                        <div class="history-item small">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>{{ $h['type'] }}</strong>
+                                    <span class="text-muted d-block">{{ $h['date'] }} · {{ $h['method'] }}</span>
+                                    <span class="text-muted">{{ __('By') }}: {{ $h['user'] }}</span>
+                                </div>
+                                <div class="text-end">
+                                    <span class="fw-bold text-success">{{ $fmt($h['amount']) }}</span>
+                                    <span class="badge bg-success d-block mt-1">{{ __('Received') }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-transparent border-bottom py-3">
+                    <h6 class="mb-0 fw-semibold">{{ __('Quick actions') }}</h6>
+                </div>
+                <div class="card-body d-grid gap-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm text-start"><i class="ti ti-receipt me-2"></i>{{ __('Issue receipt') }}</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm text-start"><i class="ti ti-file-invoice me-2"></i>{{ __('Issue invoice') }}</button>
+                    <a href="{{ route('hotel.reservations.edit', $reservation->id) }}" class="btn btn-outline-secondary btn-sm text-start"><i class="ti ti-calendar me-2"></i>{{ __('View reservation') }}</a>
+                    @if($reservation->stay?->folio)
+                        <a href="{{ route('hotel.folios.show', $reservation->stay->folio->id) }}" class="btn btn-outline-secondary btn-sm text-start"><i class="ti ti-wallet me-2"></i>{{ __('View account') }}</a>
+                    @endif
+                    <a href="{{ route('hotel.frontdesk.checkout', $reservation->id) }}" class="btn btn-outline-warning btn-sm text-start"><i class="ti ti-logout me-2"></i>{{ __('Back to check-out') }}</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mt-3">
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <a href="{{ route('hotel.frontdesk.checkout', $reservation->id) }}" class="btn btn-outline-danger w-100">
+                        <i class="ti ti-x me-1"></i>{{ __('Cancel') }}
+                    </a>
+                </div>
+                <div class="col-md-9">
+                    <button type="button" class="btn btn-primary w-100 btn-lg" id="btn-confirm-receipt">
+                        <i class="ti ti-check me-1"></i>{{ __('Confirm receipt') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection
+
+@push('script-page')
+<script>
+(function () {
+    var pendingBalance = {{ (float) $pendingBalance }};
+    var amountInput = document.getElementById('receipt-amount');
+    var balanceHint = document.getElementById('balance-after-hint');
+    var previewAmount = document.getElementById('preview-amount');
+    var previewMethod = document.getElementById('preview-method');
+    var docType = document.getElementById('receipt-doc-type');
+    var previewTitle = document.getElementById('preview-doc-title');
+
+    var docTitles = {
+        advance: @json(strtoupper(__('Advance receipt'))),
+        payment: @json(strtoupper(__('Payment receipt'))),
+        invoice_receipt: @json(strtoupper(__('Invoice-receipt')))
+    };
+    var previewDateInput = document.getElementById('receipt-payment-date');
+    var previewDateEl = document.getElementById('preview-date');
+    var formattedAmountTemplate = @json($fmt($advanceAmount));
+
+    var methodLabels = {
+        cash: @json(__('Cash')),
+        mpesa: 'M-Pesa',
+        card: @json(__('Card')),
+        transfer: @json(__('Transfer')),
+        account: @json(__('Current account')),
+        other: @json(__('Other'))
+    };
+
+    function parseAmount(val) {
+        var n = parseFloat(String(val).replace(/[^\d.-]/g, ''));
+        return isNaN(n) ? 0 : n;
+    }
+
+    function formatPreviewAmount(num) {
+        var parts = num.toFixed(2).split('.');
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        var symbol = formattedAmountTemplate.replace(/[\d,.\s]/g, '').trim() || '';
+        return parts.join('.') + (symbol ? ' ' + symbol : '');
+    }
+
+    function formatPreviewDate(isoVal) {
+        if (!isoVal) return '';
+        var d = new Date(isoVal);
+        if (isNaN(d.getTime())) return isoVal;
+        var pad = function (n) { return String(n).padStart(2, '0'); };
+        return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    function updateAmounts() {
+        var amt = parseAmount(amountInput ? amountInput.value : 0);
+        var after = Math.max(0, pendingBalance - amt);
+        if (balanceHint) balanceHint.textContent = after.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (previewAmount) previewAmount.textContent = formatPreviewAmount(amt);
+    }
+
+    if (amountInput) {
+        amountInput.addEventListener('input', updateAmounts);
+    }
+
+    if (previewDateInput && previewDateEl) {
+        previewDateInput.addEventListener('change', function () {
+            previewDateEl.textContent = formatPreviewDate(previewDateInput.value);
+        });
+        previewDateInput.addEventListener('input', function () {
+            previewDateEl.textContent = formatPreviewDate(previewDateInput.value);
+        });
+    }
+
+    document.querySelectorAll('.payment-method-card').forEach(function (card) {
+        card.addEventListener('click', function () {
+            document.querySelectorAll('.payment-method-card').forEach(function (c) { c.classList.remove('is-active'); });
+            card.classList.add('is-active');
+            var m = card.getAttribute('data-method');
+            if (previewMethod && methodLabels[m]) previewMethod.textContent = methodLabels[m];
+        });
+    });
+
+    if (docType && previewTitle) {
+        docType.addEventListener('change', function () {
+            previewTitle.textContent = docTitles[docType.value] || docTitles.payment;
+        });
+    }
+
+    updateAmounts();
+
+    var confirmBtn = document.getElementById('btn-confirm-receipt');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', function () {
+            if (typeof show_toastr === 'function') {
+                show_toastr('{{ __("Info") }}', '{{ __("Receipt UI only — connect backend to save.") }}', 'info');
+            }
+        });
+    }
+})();
+</script>
+@endpush
