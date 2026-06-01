@@ -62,24 +62,23 @@ class BranchSalesTargetController extends Controller
             return redirect()->back()->with('error', __('Invalid branch.'));
         }
 
-        $exists = BranchSalesTarget::where('branch_id', $request->branch_id)
-            ->where('period_type', $request->period_type)
-            ->where('period_value', $periodValue)
-            ->where('created_by', $creatorId)
-            ->exists();
-        if ($exists) {
-            return redirect()->back()->with('error', __('Target already exists for this branch and period.'));
-        }
+        $target = BranchSalesTarget::updateOrCreate(
+            [
+                'branch_id' => $request->branch_id,
+                'period_type' => $request->period_type,
+                'period_value' => $periodValue,
+                'created_by' => $creatorId,
+            ],
+            [
+                'target_amount' => $request->target_amount,
+            ]
+        );
 
-        BranchSalesTarget::create([
-            'branch_id' => $request->branch_id,
-            'period_type' => $request->period_type,
-            'period_value' => $periodValue,
-            'target_amount' => $request->target_amount,
-            'created_by' => $creatorId,
-        ]);
+        $message = $target->wasRecentlyCreated
+            ? __('Target created successfully.')
+            : __('Target updated successfully.');
 
-        return redirect()->route('branch-sales-targets.index')->with('success', __('Target created successfully.'));
+        return redirect()->route('branch-sales-targets.index')->with('success', $message);
     }
 
     /**

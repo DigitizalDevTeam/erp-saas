@@ -237,6 +237,78 @@ class PosController extends Controller
     }
 
     /**
+     * Open order total for a dine-in table (sent lines + unsent session cart).
+     */
+    protected function computeRestaurantTableCartTotal(Request $request, int $tableId, int $shiftId): float
+    {
+        if ($tableId <= 0 || $shiftId <= 0) {
+            return 0.0;
+        }
+        $creatorId = Auth::user()->creatorId();
+        $pos = Pos::where('table_id', $tableId)
+            ->where('shift_id', $shiftId)
+            ->where('created_by', $creatorId)
+            ->whereNull('cancelled_at')
+            ->whereDoesntHave('posPayments')
+            ->with('items')
+            ->first();
+
+        $lines = [];
+        if ($pos) {
+            foreach ($pos->items as $line) {
+                if ($line->voided_at) {
+                    continue;
+                }
+                $pid = (int) $line->product_id;
+                $lines[$pid] = (float) ($line->price * $line->quantity - $line->discount);
+            }
+        }
+
+        $tableKey = $tableId . '_' . $shiftId;
+        $allCarts = $request->session()->get('pos_restaurant_cart', []);
+        if (!empty($allCarts[$tableKey])) {
+            foreach ($allCarts[$tableKey] as $pid => $v) {
+                $v = (array) $v;
+                $pid = is_numeric($pid) ? (int) $pid : $pid;
+                $sub = (float) ($v['subtotal'] ?? 0);
+                if ($sub <= 0) {
+                    $qty = (int) ($v['quantity'] ?? 1);
+                    $price = (float) ($v['price'] ?? 0);
+                    $tax = (float) ($v['tax'] ?? 0);
+                    $sub = $price * $qty * (1 + $tax / 100);
+                }
+                if (isset($lines[$pid])) {
+                    $lines[$pid] += $sub;
+                } else {
+                    $lines[$pid] = $sub;
+                }
+            }
+        }
+
+        return array_sum($lines);
+    }
+
+    /**
+     * Map table model to layout JSON (customer, guests, cart total).
+     */
+    protected function mapRestaurantLayoutTable(Request $request, $t, int $shiftId): array
+    {
+        $tableId = (int) $t->id;
+        $cartTotal = $shiftId > 0 ? $this->computeRestaurantTableCartTotal($request, $tableId, $shiftId) : 0.0;
+
+        return [
+            'id' => $tableId,
+            'name' => $t->name,
+            'status' => $t->status,
+            'capacity' => $t->capacity,
+            'current_guests' => $t->current_guests,
+            'customer_name' => $t->customer_name,
+            'cart_total' => $cartTotal,
+            'cart_total_formatted' => Auth::user()->priceFormat($cartTotal),
+        ];
+    }
+
+    /**
      * Get restaurant layout data: areas with tables for a branch.
      */
     public function getRestaurantLayout(Request $request)
@@ -251,6 +323,7 @@ class PosController extends Controller
         if ($resp = $this->assertRestaurantPosActorBranch((int) $branchId)) {
             return $resp;
         }
+        $shiftId = (int) $request->get('shift_id', 0);
         $areas = PosArea::where('created_by', Auth::user()->creatorId())
             ->where('branch_id', $branchId)
             ->orderBy('sort_order')
@@ -281,17 +354,11 @@ class PosController extends Controller
         }
 
         $tables = $tablesQuery->orderBy('area_id')->orderBy('name')->get();
-        $result = $areas->map(function ($area) use ($tables) {
+        $result = $areas->map(function ($area) use ($tables, $request, $shiftId) {
             return [
                 'id' => $area->id,
                 'name' => $area->name,
-                'tables' => $tables->where('area_id', $area->id)->values()->map(fn ($t) => [
-                    'id' => $t->id,
-                    'name' => $t->name,
-                    'status' => $t->status,
-                    'capacity' => $t->capacity,
-                    'current_guests' => $t->current_guests,
-                ])->toArray(),
+                'tables' => $tables->where('area_id', $area->id)->values()->map(fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId))->toArray(),
             ];
         })->toArray();
         // Tables without area
@@ -300,13 +367,7 @@ class PosController extends Controller
             $result[] = [
                 'id' => 0,
                 'name' => __('Other'),
-                'tables' => $tablesNoArea->values()->map(fn ($t) => [
-                    'id' => $t->id,
-                    'name' => $t->name,
-                    'status' => $t->status,
-                    'capacity' => $t->capacity,
-                    'current_guests' => $t->current_guests,
-                ])->toArray(),
+                'tables' => $tablesNoArea->values()->map(fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId))->toArray(),
             ];
         }
         return response()->json(['areas' => $result]);
@@ -2370,13 +2431,18 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
      */
     public function voidRestaurantLine(Request $request, $line)
     {
-        $user = Auth::user();
-        if (!$user->canManagePos() || (!$user->can('pos restaurant full') && !$user->can('pos restaurant manager'))) {
+        if (! Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $actor = $this->restaurantPosActor();
+        if (! PosAuditLogService::canVoidRestaurantLine($actor)) {
             return response()->json(['error' => __('Only Manager can void items.')], 403);
         }
+
         $request->validate(['reason' => 'required|string|max:500']);
-        $posProduct = PosProduct::where('id', $line)->whereHas('pos', function ($q) use ($user) {
-            $q->where('created_by', $user->creatorId());
+        $posProduct = PosProduct::where('id', $line)->whereHas('pos', function ($q) use ($actor) {
+            $q->where('created_by', $actor->creatorId());
         })->with('pos')->first();
         if (!$posProduct) {
             return response()->json(['error' => __('Line not found.')], 404);
@@ -2394,7 +2460,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $posProduct->status = PosProduct::STATUS_CANCELLED;
         $posProduct->voided_at = now();
         $posProduct->void_reason = $request->reason;
-        $posProduct->voided_by = $user->id;
+        $posProduct->voided_by = $actor->id;
         $posProduct->save();
         PosAuditLogService::log(
             PosAuditLog::ACTION_VOID_LINE,
@@ -2403,6 +2469,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             __('Line voided: :reason', ['reason' => $request->reason]),
             ['pos_id' => $pos->id, 'line_id' => $posProduct->id]
         );
+
         return response()->json(['success' => true, 'message' => __('Line voided.')]);
     }
 

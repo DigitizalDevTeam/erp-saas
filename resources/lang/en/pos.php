@@ -53,6 +53,8 @@ return [
     'tip' => 'Tip',
     'by_writing' => 'by writing',
     'guest_name' => 'Customer Name',
+    'table_guests' => 'Guests',
+    'table_amount' => 'Amount',
     'guest_email' => 'Email',
     'guest_phone' => 'Phone',
     'customer_details_required' => 'Customer name, email and phone are required for delivery and takeaway.',

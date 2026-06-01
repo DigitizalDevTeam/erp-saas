@@ -540,7 +540,7 @@ class ProductServiceController extends Controller
             };
             $incomeChartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.' . $name_column . ') AS code_name, chart_of_accounts.id as id'))
                 ->leftjoin('chart_of_account_types', 'chart_of_account_types.id', 'chart_of_accounts.type')
-                ->where('chart_of_account_types.name_pt_br', 'Receita / Rendimento')
+                ->where('chart_of_account_types.name_pt_br', 'Rendimento')
                 ->where('parent', '=', 0)
                 ->where('chart_of_accounts.created_by', \Auth::user()->creatorId())->get()
                 ->pluck('code_name', 'id');
@@ -549,7 +549,7 @@ class ProductServiceController extends Controller
             $incomeSubAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.' . $name_column . ') AS code_name,chart_of_accounts.id, chart_of_accounts.code, chart_of_account_parents.account'));
             $incomeSubAccounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id');
             $incomeSubAccounts->leftjoin('chart_of_account_types', 'chart_of_account_types.id', 'chart_of_accounts.type');
-            $incomeSubAccounts->where('chart_of_account_types.name_pt_br', 'Receita / Rendimento');
+            $incomeSubAccounts->where('chart_of_account_types.name_pt_br', 'Rendimento');
             $incomeSubAccounts->where('chart_of_accounts.parent', '!=', 0);
             $incomeSubAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
             $incomeSubAccounts = $incomeSubAccounts->get()->toArray();
@@ -747,7 +747,7 @@ class ProductServiceController extends Controller
                 };
                 $incomeChartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.' . $name_column . ') AS code_name, chart_of_accounts.id as id'))
                     ->leftjoin('chart_of_account_types', 'chart_of_account_types.id', 'chart_of_accounts.type')
-                    ->where('chart_of_account_types.name_pt_br', 'Receita / Rendimento')
+                    ->where('chart_of_account_types.name_pt_br', 'Rendimento')
                     ->where('parent', '=', 0)
                     ->where('chart_of_accounts.created_by', \Auth::user()->creatorId())->get()
                     ->pluck('code_name', 'id');
@@ -757,7 +757,7 @@ class ProductServiceController extends Controller
                 $incomeSubAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.' . $name_column . ') AS code_name,chart_of_accounts.id, chart_of_accounts.code, chart_of_account_parents.account'));
                 $incomeSubAccounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id');
                 $incomeSubAccounts->leftjoin('chart_of_account_types', 'chart_of_account_types.id', 'chart_of_accounts.type');
-                $incomeSubAccounts->where('chart_of_account_types.name_pt_br', 'Receita / Rendimento');
+                $incomeSubAccounts->where('chart_of_account_types.name_pt_br', 'Rendimento');
                 $incomeSubAccounts->where('chart_of_accounts.parent', '!=', 0);
                 $incomeSubAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
                 $incomeSubAccounts = $incomeSubAccounts->get()->toArray();

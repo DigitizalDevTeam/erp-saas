@@ -184,9 +184,6 @@
     line-height: 1.3;
     margin-bottom: 0.35rem !important;
     color: #212529 !important;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 #pos-restaurant-panel .pos-products-card .card-body {
     padding: 1rem;
@@ -835,4 +832,47 @@
     .pos-page .container-fluid { padding-left: max(0.5rem, env(safe-area-inset-left)); padding-right: max(0.5rem, env(safe-area-inset-right)); }
     .pos-top-bar { padding-top: max(0.65rem, env(safe-area-inset-top)); }
     .pos-page .container-fluid { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+}
+
+/* Restaurant table grid cards */
+#pos-table-grid .pos-table-grid-inner {
+    align-items: stretch;
+}
+.pos-table-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+    min-width: 8.5rem;
+    max-width: 11rem;
+    padding: 0.45rem 0.55rem !important;
+    line-height: 1.25;
+    white-space: normal;
+}
+.pos-table-card__name {
+    font-weight: 600;
+    font-size: 0.82rem;
+    margin-bottom: 0.2rem;
+    display: block;
+}
+.pos-table-card__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.35rem;
+    font-size: 0.68rem;
+    margin-top: 0.12rem;
+}
+.pos-table-card__label {
+    color: rgba(0, 0, 0, 0.55);
+    flex-shrink: 0;
+}
+.btn-warning.pos-table-card .pos-table-card__label {
+    color: rgba(0, 0, 0, 0.65);
+}
+.pos-table-card__value {
+    font-weight: 500;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 5.5rem;
 }

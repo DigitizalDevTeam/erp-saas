@@ -174,7 +174,12 @@ class PosTableController extends Controller
         } elseif ($status === PosTable::STATUS_AVAILABLE) {
             PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_TABLE, 'pos_table', (int) $table->id, __('Table closed'), ['table_name' => $table->name]);
         }
-        return response()->json(['success' => true, 'status' => $table->status, 'current_guests' => $table->current_guests]);
+        return response()->json([
+            'success' => true,
+            'status' => $table->status,
+            'current_guests' => $table->current_guests,
+            'customer_name' => $table->customer_name,
+        ]);
     }
 
     /**

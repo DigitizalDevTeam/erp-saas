@@ -21,9 +21,9 @@ class WarehouseController extends Controller
     public function index()
     {
         $query = warehouse::with(['branch', 'assignedUsers'])->where('created_by', '=', \Auth::user()->creatorId());
-        if (\Auth::user()->type !== 'company' && !empty(\Auth::user()->warehouse_id)) {
-            $query->where('id', \Auth::user()->warehouse_id);
-        }
+        // if (\Auth::user()->type !== 'company' && !empty(\Auth::user()->warehouse_id)) {
+        //     $query->where('id', \Auth::user()->warehouse_id);
+        // }
         $warehouses = $query->get();
 
         return view('warehouse.index',compact('warehouses'));

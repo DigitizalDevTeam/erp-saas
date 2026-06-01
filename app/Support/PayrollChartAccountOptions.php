@@ -39,7 +39,7 @@ class PayrollChartAccountOptions
         $incomeType = ChartOfAccountType::where('created_by', $creatorId)
             ->where(function ($q) {
                 $q->where('name', 'Income')
-                    ->orWhere('name_pt_br', 'Receita / Rendimento');
+                    ->orWhere('name_pt_br', 'Rendimento');
             })
             ->first();
 

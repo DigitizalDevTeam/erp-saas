@@ -27,7 +27,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="{{ asset('pos-manifest.json') }}">
-    <link rel="stylesheet" href="{{ asset('css/pos.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/pos.css') }}?v=4">
     <title>
         {{ !empty($companySettings['header_text']) ? $companySettings['header_text']->value : config('app.name', 'ERP SaaS') }}
         - {{ __('POS Retail') }}</title>
@@ -59,7 +59,7 @@
     @endif
 
     <link rel="stylesheet" href="{{ asset('assets/css/customizer.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/custom.css') }}" id="main-style-link">
+    <link rel="stylesheet" href="{{ asset('css/custom.css') }}?v=4" id="main-style-link">
 
     <style>
         .main_div{
@@ -1570,7 +1570,6 @@
                     var bid = $('#pos-restaurant-branch').val();
                     $('#branch_id').val(bid || '');
                     if (bid) {
-                        loadRestaurantTables(bid);
                         loadBranchShifts(bid);
                     } else {
                         loadBranchShifts(null);
@@ -1592,6 +1591,9 @@
                             if (s.is_current_user) currentUserShiftId = s.id;
                         });
                         $('#pos_shift_id_hidden').val(currentUserShiftId || '');
+                        if (typeof loadRestaurantTables === 'function') {
+                            loadRestaurantTables(branchId);
+                        }
                     }
                 });
             }
@@ -1604,7 +1606,6 @@
                 $('#pos_table_id').val('');
                 $('#pos-selected-table').text('—');
                 if (branchId) {
-                    loadRestaurantTables(branchId);
                     loadBranchShifts(branchId);
                     $('#pos-restaurant-placeholder').addClass('d-none');
                     $('#pos-restaurant-order').removeClass('d-none');
@@ -1662,7 +1663,6 @@
                 var initRestBranch = $('#pos-restaurant-branch').val();
                 if (initRestBranch) {
                     loadBranchShifts(initRestBranch);
-                    loadRestaurantTables(initRestBranch);
                     $('#pos-restaurant-placeholder').addClass('d-none');
                     $('#pos-restaurant-order').removeClass('d-none');
                     $('#pos-restaurant-order-right').removeClass('d-none');
@@ -1687,14 +1687,30 @@
                 }
             }
 
+            function posEscapeHtml(str) {
+                return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
+            function renderRestaurantTableButton(t) {
+                var statusClass = t.status === 'occupied' ? 'btn-warning' : (t.status === 'reserved' ? 'btn-secondary' : 'btn-outline-primary');
+                var name = posEscapeHtml(t.name || ('Table ' + t.id));
+                var customer = (t.customer_name && String(t.customer_name).trim()) ? posEscapeHtml(t.customer_name) : '—';
+                var guestsVal = (t.current_guests != null && t.current_guests !== '') ? String(t.current_guests) : '—';
+                var amount = (t.cart_total_formatted && String(t.cart_total_formatted).trim()) ? posEscapeHtml(t.cart_total_formatted) : '—';
+                return '<button type="button" class="btn ' + statusClass + ' btn-sm pos-table-btn pos-table-card" data-id="' + t.id + '" data-name="' + posEscapeHtml(t.name || '') + '" data-status="' + (t.status || '') + '">' +
+                    '<span class="pos-table-card__name">' + name + '</span>' +
+                    '<span class="pos-table-card__row"><span class="pos-table-card__label">{{ __("pos.guest_name") }}</span><span class="pos-table-card__value">' + customer + '</span></span>' +
+                    '<span class="pos-table-card__row"><span class="pos-table-card__label">{{ __("pos.table_amount") }}</span><span class="pos-table-card__value">' + amount + '</span></span>' +
+                    '<span class="pos-table-card__row"><span class="pos-table-card__label">{{ __("pos.table_guests") }}</span><span class="pos-table-card__value">' + guestsVal + '</span></span>' +
+                    '</button>';
+            }
             function loadRestaurantTables(branchId) {
-                $.get(posRestaurantLayoutUrl, { branch_id: branchId }, function (res) {
+                var shiftId = $('#pos_shift_id_hidden').val() || '';
+                $.get(posRestaurantLayoutUrl, { branch_id: branchId, shift_id: shiftId }, function (res) {
                     var html = '';
                     (res.areas || []).forEach(function (area) {
-                        html += '<div class="mb-2"><small class="text-muted d-block mb-1">' + area.name + '</small><div class="d-flex flex-wrap gap-2">';
+                        html += '<div class="mb-2"><small class="text-muted d-block mb-1">' + area.name + '</small><div class="d-flex flex-wrap gap-2 pos-table-grid-inner">';
                         (area.tables || []).forEach(function (t) {
-                            var statusClass = t.status === 'occupied' ? 'btn-warning' : (t.status === 'reserved' ? 'btn-secondary' : 'btn-outline-primary');
-                            html += '<button type="button" class="btn ' + statusClass + ' btn-sm pos-table-btn" data-id="' + t.id + '" data-name="' + (t.name || '') + '">' + t.name + '</button>';
+                            html += renderRestaurantTableButton(t);
                         });
                         html += '</div></div>';
                     });
