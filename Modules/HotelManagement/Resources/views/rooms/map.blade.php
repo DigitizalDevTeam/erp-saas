@@ -12,7 +12,7 @@
         <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div>
                 <h5 class="mb-0">{{ __('Room map') }}</h5>
-                <small class="text-muted">{{ __('Click a room to open its folio, edit its reservation or create a new booking.') }}</small>
+                <small class="text-muted">{{ __('Click an occupied room to post minibar or extras; available rooms open a new booking.') }}</small>
             </div>
             <div class="d-flex align-items-center gap-2">
                 <a href="{{ route('hotel.rooms.index') }}" class="btn btn-sm btn-outline-secondary">

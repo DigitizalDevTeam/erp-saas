@@ -21,6 +21,7 @@ use Modules\HotelManagement\Http\Controllers\HotelPosIntegrationController;
 use Modules\HotelManagement\Http\Controllers\HotelRatePlanController;
 use Modules\HotelManagement\Http\Controllers\HotelReportController;
 use Modules\HotelManagement\Http\Controllers\HotelReservationController;
+use Modules\HotelManagement\Http\Controllers\HotelRoomConsumptionController;
 use Modules\HotelManagement\Http\Controllers\HotelRoomController;
 use Modules\HotelManagement\Http\Controllers\HotelRoomTypeController;
 
@@ -68,6 +69,10 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('hotel/folios/{folio}/lines', [HotelFolioController::class, 'storeLine'])->name('hotel.folios.lines.store');
 
             Route::get('hotel/rooms/map', [HotelRoomController::class, 'map'])->name('hotel.rooms.map');
+            Route::get('hotel/rooms/{room}/consumption', [HotelRoomConsumptionController::class, 'create'])->name('hotel.rooms.consumption');
+            Route::post('hotel/rooms/{room}/consumption', [HotelRoomConsumptionController::class, 'store'])->name('hotel.rooms.consumption.store');
+            Route::get('hotel/housekeeping/minibar', [HotelHousekeepingController::class, 'minibar'])->name('hotel.housekeeping.minibar');
+            Route::post('hotel/housekeeping/minibar', [HotelHousekeepingController::class, 'storeMinibar'])->name('hotel.housekeeping.minibar.store');
             Route::get('hotel/guests/map', [HotelGuestMapController::class, 'index'])->name('hotel.guests.map');
             Route::resource('hotel/floors', HotelFloorController::class)->except(['show'])->names('hotel.floors');
             Route::resource('hotel/rooms', HotelRoomController::class)->names('hotel.rooms');

@@ -21,6 +21,24 @@ class HotelPosChargeService
         return $this->addChargeLine($folio, $payload, $creatorId, 'misc_charge');
     }
 
+    public function addMinibarChargeToFolio(HotelFolio $folio, array $payload, int $creatorId): HotelFolioLine
+    {
+        if (empty($payload['revenue_channel'])) {
+            $payload['revenue_channel'] = 'misc';
+        }
+
+        return $this->addChargeLine($folio, $payload, $creatorId, 'minibar_charge');
+    }
+
+    public function addLaundryChargeToFolio(HotelFolio $folio, array $payload, int $creatorId): HotelFolioLine
+    {
+        if (empty($payload['revenue_channel'])) {
+            $payload['revenue_channel'] = 'laundry';
+        }
+
+        return $this->addChargeLine($folio, $payload, $creatorId, 'laundry_charge');
+    }
+
     private function addChargeLine(HotelFolio $folio, array $payload, int $creatorId, string $lineType): HotelFolioLine
     {
         $qty = max(1, (int) ($payload['quantity'] ?? 1));

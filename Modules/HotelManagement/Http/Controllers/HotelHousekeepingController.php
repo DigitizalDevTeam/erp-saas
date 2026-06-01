@@ -8,9 +8,18 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Modules\HotelManagement\Entities\HotelHousekeepingTask;
 use Modules\HotelManagement\Entities\HotelRoom;
+use Modules\HotelManagement\Entities\HotelRoomConsumptionLog;
+use Modules\HotelManagement\Entities\HotelStay;
+use Modules\HotelManagement\Services\HotelRoomConsumptionService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class HotelHousekeepingController extends Controller
 {
+    public function __construct(private readonly HotelRoomConsumptionService $consumptionService)
+    {
+    }
+
     private function canView(): bool
     {
         return Auth::user()->can('show hotel frontdesk') || Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
@@ -109,5 +118,101 @@ class HotelHousekeepingController extends Controller
             ->where('created_by', Auth::user()->creatorId())
             ->update(['status' => $request->status === 'done' ? HotelRoom::STATUS_AVAILABLE : HotelRoom::STATUS_CLEANING]);
         return redirect()->route('hotel.housekeeping.index')->with('success', __('Housekeeping task updated.'));
+    }
+
+    /**
+     * Daily minibar / consumption update for occupied rooms.
+     */
+    public function minibar()
+    {
+        if (! $this->canView()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $creatorId = (int) Auth::user()->creatorId();
+        $today = now()->toDateString();
+
+        $occupiedStays = HotelStay::query()
+            ->where('created_by', $creatorId)
+            ->where('status', 'in_house')
+            ->with(['reservation.guest', 'reservation.room', 'folio'])
+            ->get()
+            ->sortBy(fn ($stay) => $stay->reservation->room->room_no ?? '');
+
+        $todayLogs = collect();
+        if (Schema::hasTable('hotel_room_consumption_logs')) {
+            $todayLogs = HotelRoomConsumptionLog::query()
+                ->where('created_by', $creatorId)
+                ->whereDate('service_date', $today)
+                ->with('room')
+                ->orderByDesc('id')
+                ->limit(50)
+                ->get();
+        }
+
+        $minibarItems = $this->consumptionService->minibarCatalog($creatorId);
+
+        return view('hotelmanagement::housekeeping.minibar', [
+            'occupiedStays' => $occupiedStays,
+            'todayLogs' => $todayLogs,
+            'minibarItems' => $minibarItems,
+            'canManage' => $this->canManage(),
+            'today' => $today,
+        ]);
+    }
+
+    public function storeMinibar(Request $request)
+    {
+        if (! $this->canManage()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $request->validate([
+            'hotel_room_id' => 'required|exists:hotel_rooms,id',
+            'charge_type' => 'required|in:minibar,laundry,misc',
+            'description' => 'nullable|string|max:191',
+            'quantity' => 'nullable|integer|min:1',
+            'unit_price' => 'required|numeric|min:0',
+            'service_date' => 'nullable|date',
+            'notes' => 'nullable|string|max:500',
+            'minibar_item_id' => 'nullable|integer',
+        ]);
+
+        $room = HotelRoom::where('id', $request->hotel_room_id)
+            ->where('created_by', Auth::user()->creatorId())
+            ->firstOrFail();
+
+        try {
+            DB::transaction(function () use ($request, $room) {
+                $description = $request->description;
+                if ($request->filled('minibar_item_id') && $request->charge_type === 'minibar') {
+                    $item = $this->consumptionService->minibarCatalog((int) Auth::user()->creatorId())
+                        ->firstWhere('id', (int) $request->minibar_item_id);
+                    if ($item) {
+                        $description = $item->name;
+                        if (! $request->filled('unit_price')) {
+                            $request->merge(['unit_price' => $item->unit_price]);
+                        }
+                    }
+                }
+
+                $this->consumptionService->postConsumption(
+                    $room,
+                    (string) $request->charge_type,
+                    [
+                        'description' => $description,
+                        'quantity' => $request->quantity,
+                        'unit_price' => $request->unit_price,
+                        'service_date' => $request->service_date ?? now()->toDateString(),
+                        'notes' => $request->notes,
+                    ],
+                    (int) Auth::user()->creatorId()
+                );
+            });
+        } catch (\RuntimeException $e) {
+            return redirect()->back()->with('error', $e->getMessage())->withInput();
+        }
+
+        return redirect()->route('hotel.housekeeping.minibar')->with('success', __('Consumption posted to guest room bill.'));
     }
 }

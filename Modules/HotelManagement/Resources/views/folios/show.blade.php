@@ -47,8 +47,16 @@
             @if(Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel'))
             <hr>
             <h6>{{ __('Add charge to room bill') }}</h6>
-            <p class="text-muted small">{{ __('Restaurant, bar, laundry, or other charges post here (same running bill as POS).') }}</p>
+            <p class="text-muted small">{{ __('Minibar, laundry, restaurant, or other extras post here and appear on the final bill at checkout.') }}</p>
             {!! Form::open(['route' => ['hotel.folios.lines.store', $folio->id], 'method' => 'POST', 'class' => 'row g-2']) !!}
+            <div class="col-md-3">
+                {!! Form::label('charge_type', __('Charge type')) !!}
+                {!! Form::select('charge_type', [
+                    'minibar' => __('Minibar'),
+                    'laundry' => __('Laundry'),
+                    'misc' => __('Other extra'),
+                ], 'misc', ['class' => 'form-control']) !!}
+            </div>
             <div class="col-md-4">
                 {!! Form::label('description', __('Description')) !!}
                 {!! Form::text('description', null, ['class' => 'form-control', 'required', 'maxlength' => '191']) !!}

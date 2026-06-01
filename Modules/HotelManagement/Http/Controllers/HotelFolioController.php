@@ -89,6 +89,7 @@ class HotelFolioController extends Controller
             'tax_amount' => 'nullable|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
             'revenue_channel' => 'nullable|in:room,restaurant,laundry,misc',
+            'charge_type' => 'nullable|in:minibar,laundry,misc',
         ]);
 
         DB::transaction(function () use ($request, $folio, $chargeService) {
@@ -98,7 +99,13 @@ class HotelFolioController extends Controller
             if (empty($payload['revenue_channel'])) {
                 unset($payload['revenue_channel']);
             }
-            $chargeService->addMiscChargeToFolio($folio, $payload, (int) Auth::user()->creatorId());
+            $creatorId = (int) Auth::user()->creatorId();
+            $chargeType = (string) $request->get('charge_type', 'misc');
+            match ($chargeType) {
+                'minibar' => $chargeService->addMinibarChargeToFolio($folio, $payload, $creatorId),
+                'laundry' => $chargeService->addLaundryChargeToFolio($folio, $payload, $creatorId),
+                default => $chargeService->addMiscChargeToFolio($folio, $payload, $creatorId),
+            };
         });
 
         return redirect()->route('hotel.folios.show', $folio)->with('success', __('Charge added to room bill.'));

@@ -5,6 +5,7 @@
     <li class="breadcrumb-item">{{ __('Housekeeping') }}</li>
 @endsection
 @section('action-btn')
+<a href="{{ route('hotel.housekeeping.minibar') }}" class="btn btn-sm btn-outline-primary"><i class="ti ti-fridge"></i> {{ __('Daily minibar') }}</a>
 @if($canManage ?? false)
 <a href="{{ route('hotel.housekeeping.create') }}" class="btn btn-sm btn-primary"><i class="ti ti-plus"></i> {{ __('Add Task') }}</a>
 @endif

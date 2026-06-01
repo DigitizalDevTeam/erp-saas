@@ -97,23 +97,24 @@
         : (\Carbon\Carbon::parse($reservation->check_out_date)->format('d/m/Y') . ' 11:00');
     $nights = max(1, \Carbon\Carbon::parse($reservation->check_in_date)->diffInDays(\Carbon\Carbon::parse($reservation->check_out_date)));
     $departureDisplay = \Carbon\Carbon::parse($reservation->check_out_date)->format('d/m/Y');
-    $folio = $reservation->stay?->folio;
-    $paymentLabel = $folio ? __(ucfirst($folio->paymentStatusLabel())) : __('Partial');
+    $folio = $folio ?? $reservation->stay?->folio;
+    $paymentLabel = $folio ? __(ucfirst($folio->paymentStatusLabel())) : __('Pending');
     $paymentBadge = ($folio && $folio->paymentStatusLabel() === 'paid') ? 'success' : 'warning';
 
-    $consumptionLines = [
-        ['icon' => 'ti-bed', 'color' => '#3b82f6', 'bg' => '#eff6ff', 'desc' => __('Lodging'), 'detail' => __('Room') . ' ' . $roomNo . ' - ' . $nights . ' ' . __('Nights'), 'qty' => $nights, 'amount' => 12000],
-        ['icon' => 'ti-tools-kitchen-2', 'color' => '#10b981', 'bg' => '#ecfdf5', 'desc' => __('Restaurant'), 'detail' => __('Restaurant charges'), 'qty' => 1, 'amount' => 2500],
-        ['icon' => 'ti-wash', 'color' => '#8b5cf6', 'bg' => '#f5f3ff', 'desc' => __('Laundry'), 'detail' => __('Laundry services'), 'qty' => 1, 'amount' => 800],
-        ['icon' => 'ti-fridge', 'color' => '#f59e0b', 'bg' => '#fffbeb', 'desc' => __('Minibar'), 'detail' => __('Minibar charges'), 'qty' => 1, 'amount' => 1200],
-        ['icon' => 'ti-truck-delivery', 'color' => '#06b6d4', 'bg' => '#ecfeff', 'desc' => __('Room service'), 'detail' => __('Room service'), 'qty' => 1, 'amount' => 1000],
-    ];
-    $subtotal = 17500;
-    $discount = 500;
-    $tax = 2640;
-    $total = 19640;
-    $paid = 10000;
-    $balance = 9640;
+    $consumptionLines = $consumptionLines ?? [];
+    if ($folio && empty($consumptionLines)) {
+        $consumptionLines = app(\Modules\HotelManagement\Services\HotelRoomConsumptionService::class)
+            ->folioLinesForCheckout($folio);
+    }
+
+    $subtotal = $folio ? (float) $folio->sub_total : 0;
+    $discount = $folio ? (float) $folio->discount_total : 0;
+    $tax = $folio ? (float) $folio->tax_total : 0;
+    $total = $folio ? (float) $folio->grand_total : 0;
+    $paid = $folio ? (float) $folio->paid_total : 0;
+    $balance = max(0, $total - $paid);
+    $folioShowUrl = $folio ? route('hotel.folios.show', $folio->id) : null;
+    $finalBillUrl = $folio ? route('hotel.folios.final-bill', $folio->id) : null;
 @endphp
 
 <div class="hotel-checkout">
@@ -201,7 +202,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($consumptionLines as $line)
+                                @forelse($consumptionLines as $line)
                                     <tr>
                                         <td>
                                             <span class="consumption-icon" style="background:{{ $line['bg'] }};color:{{ $line['color'] }};">
@@ -213,15 +214,24 @@
                                         <td class="text-center">{{ $line['qty'] }}</td>
                                         <td class="text-end fw-semibold">{{ $fmt($line['amount']) }}</td>
                                     </tr>
-                                @endforeach
+                                @empty
+                                    <tr>
+                                        <td colspan="4" class="text-muted text-center py-3">{{ __('No folio charges yet. Room bill is created at check-in.') }}</td>
+                                    </tr>
+                                @endforelse
                             </tbody>
                         </table>
                     </div>
-                    <div class="p-3 border-top text-end">
-                        <button type="button" class="btn btn-sm btn-outline-primary">
+                    @if(($canManage ?? false) && $reservation->room)
+                    <div class="p-3 border-top text-end d-flex flex-wrap gap-2 justify-content-end">
+                        <a href="{{ route('hotel.rooms.consumption', $reservation->room->id) }}" class="btn btn-sm btn-outline-primary">
                             <i class="ti ti-plus me-1"></i>{{ __('Add consumption') }}
-                        </button>
+                        </a>
+                        @if($folioShowUrl)
+                            <a href="{{ $folioShowUrl }}" class="btn btn-sm btn-outline-secondary">{{ __('Room bill') }}</a>
+                        @endif
                     </div>
+                    @endif
                 </div>
             </div>
 
@@ -300,9 +310,25 @@
                         <span class="fw-bold text-success" id="checkout-change">{{ $fmt(0) }}</span>
                     </div>
                     @if($canManage ?? false)
-                        <button type="button" class="btn btn-primary w-100 mt-3" id="btn-complete-checkout">
-                            <i class="ti ti-logout me-1"></i>{{ __('Complete check-out') }}
-                        </button>
+                        @if($checkOutUrl ?? null)
+                            {!! Form::open(['url' => $checkOutUrl, 'method' => 'POST', 'id' => 'checkout-form', 'class' => 'mt-3']) !!}
+                            @csrf
+                            <button type="submit" class="btn btn-primary w-100" id="btn-complete-checkout"
+                                @if($folio && $folio->paymentStatusLabel() !== 'paid' && !($canForceCheckout ?? false)) disabled title="{{ __('Settle room bill before checkout') }}" @endif>
+                                <i class="ti ti-logout me-1"></i>{{ __('Complete check-out') }}
+                            </button>
+                            @if($folio && $folio->paymentStatusLabel() !== 'paid')
+                                <p class="small text-muted mt-2 mb-0">
+                                    <a href="{{ route('hotel.folios.show', $folio->id) }}">{{ __('Pay room bill') }}</a>
+                                    @if($canForceCheckout ?? false)
+                                        · {{ __('Or force checkout if permitted') }}
+                                    @endif
+                                </p>
+                            @endif
+                            {!! Form::close() !!}
+                        @else
+                            <p class="text-muted small mt-3 mb-0">{{ __('Guest must be checked in before checkout.') }}</p>
+                        @endif
                     @endif
                 </div>
             </div>
@@ -312,7 +338,9 @@
                     <h6 class="mb-0 fw-semibold">{{ __('Quick actions') }}</h6>
                 </div>
                 <div class="card-body d-grid gap-2">
-                    <button type="button" class="btn btn-primary quick-action-btn"><i class="ti ti-file-invoice me-2"></i>{{ __('Issue invoice') }}</button>
+                    @if($finalBillUrl ?? null)
+                    <a href="{{ $finalBillUrl }}" class="btn btn-primary quick-action-btn" target="_blank"><i class="ti ti-file-invoice me-2"></i>{{ __('Final bill') }}</a>
+                    @endif
                     <a href="{{ route('hotel.frontdesk.receipt', ['reservation' => $reservation->id, 'type' => 'receipt']) }}" class="btn btn-outline-primary quick-action-btn">
                         <i class="ti ti-receipt me-2"></i>{{ __('Issue receipt') }}
                     </a>
@@ -320,7 +348,9 @@
                         <i class="ti ti-file-text me-2"></i>{{ __('Invoice-receipt') }}
                     </a>
                     <button type="button" class="btn btn-outline-primary quick-action-btn"><i class="ti ti-printer me-2"></i>{{ __('Reprint document') }}</button>
-                    <button type="button" class="btn btn-outline-success quick-action-btn"><i class="ti ti-plus me-2"></i>{{ __('Add consumption') }}</button>
+                    @if($reservation->room && ($canManage ?? false))
+                    <a href="{{ route('hotel.rooms.consumption', $reservation->room->id) }}" class="btn btn-outline-success quick-action-btn"><i class="ti ti-plus me-2"></i>{{ __('Add consumption') }}</a>
+                    @endif
                     <button type="button" class="btn btn-outline-warning quick-action-btn"><i class="ti ti-calendar-plus me-2"></i>{{ __('Extend stay') }}</button>
                     <button type="button" class="btn btn-outline-secondary quick-action-btn" style="border-color:#8b5cf6;color:#7c3aed;"><i class="ti ti-arrows-exchange me-2"></i>{{ __('Change room') }}</button>
                 </div>
@@ -354,16 +384,6 @@
         updateChange();
     }
 
-    var completeBtn = document.getElementById('btn-complete-checkout');
-    if (completeBtn) {
-        completeBtn.addEventListener('click', function () {
-            if (typeof show_toastr === 'function') {
-                show_toastr('{{ __("Info") }}', '{{ __("Check-out UI only — connect backend to process.") }}', 'info');
-            } else {
-                alert('{{ __("Check-out UI only — connect backend to process.") }}');
-            }
-        });
-    }
 })();
 </script>
 @endpush

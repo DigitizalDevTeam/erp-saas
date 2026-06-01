@@ -30,6 +30,9 @@
         <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.housekeeping.') ? 'active' : '' }}">
             <a class="dash-link" href="{{ route('hotel.housekeeping.index') }}">{{ __('Housekeeping') }}</a>
         </li>
+        <li class="dash-item {{ Request::route()->getName() === 'hotel.housekeeping.minibar' ? 'active' : '' }}">
+            <a class="dash-link" href="{{ route('hotel.housekeeping.minibar') }}">{{ __('Daily minibar') }}</a>
+        </li>
         @endif
         @if (Gate::check('manage hotel') || Gate::check('manage hotel frontdesk') || Gate::check('show hotel frontdesk'))
         <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.night-audit.') ? 'active' : '' }}">

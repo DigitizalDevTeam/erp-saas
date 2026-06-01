@@ -87,8 +87,8 @@
 
                             $href = '#';
                             if ($interactive) {
-                                if ($status === 'occupied' && $reservation && $reservation->stay && $reservation->stay->folio) {
-                                    $href = route('hotel.folios.show', $reservation->stay->folio->id);
+                                if ($status === 'occupied' && $reservation && $reservation->stay) {
+                                    $href = route('hotel.rooms.consumption', $room->id);
                                 } elseif ($status === 'occupied') {
                                     $href = route('hotel.frontdesk.in-house');
                                 } elseif ($status === 'available') {

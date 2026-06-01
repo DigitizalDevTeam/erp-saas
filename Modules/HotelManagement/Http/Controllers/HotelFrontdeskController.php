@@ -14,13 +14,16 @@ use Modules\HotelManagement\Entities\HotelStay;
 use Modules\HotelManagement\Http\Controllers\Concerns\BuildsRoomMap;
 use Modules\HotelManagement\Services\HotelReservationPricingService;
 use Modules\HotelManagement\Services\HotelFolioAccountingService;
+use Modules\HotelManagement\Services\HotelRoomConsumptionService;
 
 class HotelFrontdeskController extends Controller
 {
     use BuildsRoomMap;
 
-    public function __construct(private readonly HotelReservationPricingService $pricingService)
-    {
+    public function __construct(
+        private readonly HotelReservationPricingService $pricingService,
+        private readonly HotelRoomConsumptionService $consumptionService,
+    ) {
     }
 
     private function canView(): bool
@@ -58,11 +61,21 @@ class HotelFrontdeskController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        $reservation->load(['guest', 'room.roomType', 'stay.folio.payments']);
+        $reservation->load(['guest', 'room.roomType', 'stay.folio.lines', 'stay.folio.payments']);
+
+        $folio = $reservation->stay?->folio;
+        $consumptionLines = $folio
+            ? $this->consumptionService->folioLinesForCheckout($folio)
+            : [];
+        $stay = $reservation->stay;
 
         return view('hotelmanagement::frontdesk.checkout', [
             'reservation' => $reservation,
+            'folio' => $folio,
+            'consumptionLines' => $consumptionLines,
             'canManage' => $this->canManage(),
+            'canForceCheckout' => Auth::user()->can('force hotel checkout') || Auth::user()->can('manage hotel'),
+            'checkOutUrl' => $stay ? route('hotel.frontdesk.check-out', $stay->id) : null,
         ]);
     }
 
