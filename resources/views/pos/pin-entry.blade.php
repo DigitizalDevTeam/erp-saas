@@ -50,10 +50,13 @@
             <div class="col-12">
                 <div class="pin-card card border-0 shadow-sm mx-auto">
                     <div class="card-body p-4 p-md-5">
+                        @if (session('info'))
+                            <div class="alert alert-info py-2 small mb-3">{{ session('info') }}</div>
+                        @endif
                         <div class="text-center mb-4">
                             <i class="ti ti-building-store text-success" style="font-size: 2.5rem;"></i>
                             <h5 class="mt-3 mb-1">{{ __('Enter your PIN') }}</h5>
-                            <p class="text-muted small mb-0">{{ __('Use the PIN assigned by your manager.') }}</p>
+                            <p class="text-muted small mb-0">{{ __('Use your own PIN on this terminal. If someone else was using POS, their session is cleared when you sign in.') }}</p>
                         </div>
                         <form id="pos-pin-form" method="post" action="{{ route('pos.restaurant.validate-pin') }}">
                             @csrf

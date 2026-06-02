@@ -81,7 +81,7 @@
 
             <div class="alert alert-light border small mb-3">
                 <i class="ti ti-info-circle me-1"></i>
-                {{ __('Night audit no longer marks unpaid room bills as settled. Close the day after departures and payments are complete.') }}
+                {{ __('Night audit closes the business day: open POS shifts are finalized, the day is locked, and summaries are saved. Suggested run time: :time.', ['time' => $nightAuditTime ?? '02:00']) }}
             </div>
 
             <div class="card shadow-sm border-0 mb-3 hotel-night-audit-filters">
@@ -149,9 +149,13 @@
                             <i class="ti ti-printer me-1"></i>{{ __('Print / Export all') }}
                         </button>
                         @if($canManage ?? false)
-                            <button type="button" class="btn btn-primary" id="btn-audit-confirm">
-                                <i class="ti ti-check me-1"></i>{{ __('Confirm audit') }}
-                            </button>
+                            <form method="post" action="{{ route('hotel.night-audit.run') }}" class="d-inline" id="night-audit-run-form" onsubmit="return confirm('{{ __('Run night audit? This locks the selected date and closes open POS shifts.') }}');">
+                                @csrf
+                                <input type="hidden" name="audit_date" id="night-audit-run-date" value="{{ $defaultDate ?? date('Y-m-d', strtotime('-1 day')) }}">
+                                <button type="submit" class="btn btn-primary" id="btn-audit-confirm">
+                                    <i class="ti ti-check me-1"></i>{{ __('Run night audit & lock day') }}
+                                </button>
+                            </form>
                         @endif
                     </div>
                 </div>
@@ -175,6 +179,7 @@
                                             <th>{{ __('Room revenue') }}</th>
                                             <th>{{ __('Service revenue') }}</th>
                                             <th>{{ __('Total revenue') }}</th>
+                                            <th>{{ __('POS payments') }}</th>
                                             <th>{{ __('Status') }}</th>
                                         </tr>
                                     </thead>
@@ -185,6 +190,7 @@
                                                 <td>{{ Auth::user()->priceFormat($audit->room_revenue) }}</td>
                                                 <td>{{ Auth::user()->priceFormat($audit->service_revenue) }}</td>
                                                 <td>{{ Auth::user()->priceFormat($audit->total_revenue) }}</td>
+                                                <td>{{ Auth::user()->priceFormat($audit->pos_payments_total ?? 0) }}</td>
                                                 <td>
                                                     <span class="badge bg-{{ $audit->status === 'closed' ? 'success' : 'warning' }}">
                                                         {{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $audit->status))) }}
@@ -260,18 +266,10 @@
     }
     showResults('generate');
 
-    if (btnConfirm) {
-        btnConfirm.addEventListener('click', function () {
-            root.classList.add('is-confirmed');
-            statusBadge.className = 'badge bg-success audit-status-badge';
-            statusText.textContent = '{{ __("Confirmed") }}';
-            btnConfirm.disabled = true;
-            var now = new Date();
-            var timeEl = document.getElementById('confirmed-time');
-            if (timeEl) {
-                timeEl.textContent = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-            }
-        });
+    var runDate = document.getElementById('night-audit-run-date');
+    if (dateInput && runDate) {
+        dateInput.addEventListener('change', function () { runDate.value = dateInput.value; });
+        runDate.value = dateInput.value;
     }
 })();
 </script>

@@ -1302,6 +1302,11 @@
                                     {{ Form::label('default_grace_minutes', __('Default grace (minutes)'), ['class' => 'form-label']) }}
                                     {{ Form::number('default_grace_minutes', $setting['default_grace_minutes'] ?? 0, ['class' => 'form-control', 'min' => 0, 'max' => 1440]) }}
                                 </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('night_audit_time', __('Night audit time (hotel)'), ['class' => 'form-label']) }}
+                                    {{ Form::time('night_audit_time', $setting['night_audit_time'] ?? '02:00', ['class' => 'form-control']) }}
+                                    <small class="text-muted">{{ __('Typical time to run daily closing (e.g. 02:00 AM). Operational POS shifts are separate.') }}</small>
+                                </div>
 
                                 <div class="form-group col-md-12">
                                     {{ Form::label('timezone', __('Timezone'), ['class' => 'form-label']) }}

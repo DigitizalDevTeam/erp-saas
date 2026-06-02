@@ -25,8 +25,15 @@ class PosShift extends Model
         'sales_count',
         'sales_total',
         'status',
+        'operational_shift',
         'created_by',
     ];
+
+    public const OP_MORNING = 'morning';
+
+    public const OP_AFTERNOON = 'afternoon';
+
+    public const OP_NIGHT = 'night';
 
     protected $casts = [
         'opened_at' => 'datetime',

@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\PosArea;
 use App\Models\PosAuditLog;
 use App\Models\PosTable;
+use App\Services\PosActorService;
 use App\Services\PosAuditLogService;
 use Illuminate\Http\Request;
 
@@ -187,15 +188,18 @@ class PosTableController extends Controller
      */
     public function closeTable($id)
     {
-        $user = \Auth::user();
-        if (!$user->canManagePos()) {
+        if (! \Auth::user()->canManagePos()) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
+        $actor = PosActorService::restaurantActor();
+        if (! $actor) {
+            return response()->json(['error' => __('pos.pin_sign_in_required')], 403);
+        }
         // Restrict to Cashier/Manager: must have full, manager, or global manage pos
-        if (!$user->can('pos restaurant full') && !$user->can('pos restaurant manager') && !$user->can('manage pos')) {
+        if (! $actor->can('pos restaurant full') && ! $actor->can('pos restaurant manager') && ! $actor->can('manage pos')) {
             return response()->json(['error' => __('Only Cashier or Manager can close tables.')], 403);
         }
-        $table = PosTable::where('id', $id)->where('created_by', $user->creatorId())->first();
+        $table = PosTable::where('id', $id)->where('created_by', $actor->creatorId())->first();
         if (!$table) {
             return response()->json(['error' => __('Table not found.')], 404);
         }

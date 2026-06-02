@@ -666,6 +666,14 @@
                         </div>
                         @endif
                         <div class="mb-3">
+                            <label class="form-label">{{ __('Operational shift') }}</label>
+                            <select name="operational_shift" class="form-select" required>
+                                @foreach(\App\Support\AttendanceShiftCatalog::operationalShiftOptions() as $code => $label)
+                                    <option value="{{ $code }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">{{ __('pos.opening_balance') }}</label>
                             <input type="number" name="opening_balance" class="form-control" min="0" step="0.01" value="0" placeholder="0">
                         </div>
@@ -2974,7 +2982,7 @@
                     $.ajax({
                         url: '{{ route("pos-shift.open-from-pos") }}',
                         method: 'POST',
-                        data: { branch_id: $form.find('[name=branch_id]').val(), opening_balance: $form.find('[name=opening_balance]').val() || 0, _token: $form.find('[name=_token]').val() },
+                        data: { branch_id: $form.find('[name=branch_id]').val(), operational_shift: $form.find('[name=operational_shift]').val(), opening_balance: $form.find('[name=opening_balance]').val() || 0, _token: $form.find('[name=_token]').val() },
                         headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'), 'Accept': 'application/json' },
                         success: function () {
                             if (typeof show_toastr === 'function') show_toastr('success', '{{ __("Shift opened successfully.") }}', 'success');

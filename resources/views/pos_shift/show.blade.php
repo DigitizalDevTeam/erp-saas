@@ -28,6 +28,9 @@
                     <div class="row">
                         <div class="col-md-6">
                             <p><strong>{{ __('Branch') }}:</strong> {{ $pos_shift->branch ? $pos_shift->branch->name : '-' }}</p>
+                            <p><strong>{{ __('Operational shift') }}:</strong>
+                                {{ $pos_shift->operational_shift ? (\App\Support\AttendanceShiftCatalog::operationalShiftOptions()[$pos_shift->operational_shift] ?? $pos_shift->operational_shift) : '—' }}
+                            </p>
                             <p><strong>{{ __('User') }}:</strong> {{ $pos_shift->user ? $pos_shift->user->name : '-' }}</p>
                             <p><strong>{{ __('Opened At') }}:</strong> {{ $pos_shift->opened_at ? $pos_shift->opened_at->format('Y-m-d H:i') : '-' }}</p>
                             <p><strong>{{ __('Opening Balance') }}:</strong> {{ Auth::user()->priceFormat($pos_shift->opening_balance) }}</p>

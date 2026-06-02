@@ -18,9 +18,9 @@ class EmployeeAttendanceScheduleService
     public const TYPE_FLEXIBLE = 'flexible_site';
 
     /**
-     * @return array{type: string, start: string, end: string, grace_minutes: int, flexible: bool}
+     * @return array{type: string, start: string, end: string, grace_minutes: int, flexible: bool, crosses_midnight?: bool}
      */
-    public static function resolveWindow(?Employee $employee, ?int $creatorId = null): array
+    public static function resolveWindow(?Employee $employee, ?int $creatorId = null, ?string $dateYmd = null): array
     {
         $creatorId = $creatorId ?? (int) (auth()->user()->creatorId() ?? 0);
         $settings = $creatorId ? Utility::settingsById($creatorId) : Utility::settings();
@@ -52,6 +52,31 @@ class EmployeeAttendanceScheduleService
                 'end' => $companyEnd,
                 'grace_minutes' => $grace,
                 'flexible' => true,
+                'crosses_midnight' => false,
+            ];
+        }
+
+        $dateYmd = $dateYmd ?: date('Y-m-d');
+        if ($type === self::TYPE_SHIFT) {
+            $roster = EmployeeWeeklyShiftService::windowForDate($employee, $dateYmd);
+            if ($roster) {
+                return [
+                    'type' => $type,
+                    'start' => self::normalizeTimeString($roster['start']),
+                    'end' => self::normalizeTimeString($roster['end']),
+                    'grace_minutes' => $grace,
+                    'flexible' => false,
+                    'crosses_midnight' => ! empty($roster['crosses_midnight']),
+                ];
+            }
+
+            return [
+                'type' => $type,
+                'start' => $companyStart,
+                'end' => $companyEnd,
+                'grace_minutes' => $grace,
+                'flexible' => true,
+                'crosses_midnight' => false,
             ];
         }
 
@@ -66,16 +91,26 @@ class EmployeeAttendanceScheduleService
                 'end' => $companyEnd,
                 'grace_minutes' => $grace,
                 'flexible' => false,
+                'crosses_midnight' => self::timesCrossMidnight($ws, $we),
             ];
         }
 
+        $start = self::normalizeTimeString($ws);
+        $end = self::normalizeTimeString($we);
+
         return [
             'type' => $type,
-            'start' => self::normalizeTimeString($ws),
-            'end' => self::normalizeTimeString($we),
+            'start' => $start,
+            'end' => $end,
             'grace_minutes' => $grace,
             'flexible' => false,
+            'crosses_midnight' => self::timesCrossMidnight($start, $end),
         ];
+    }
+
+    private static function timesCrossMidnight(string $start, string $end): bool
+    {
+        return strtotime($start) >= strtotime($end);
     }
 
     /**
@@ -131,8 +166,15 @@ class EmployeeAttendanceScheduleService
         $clockInTs = strtotime($dateYmd . ' ' . $in);
         $lateSeconds = max(0, $clockInTs - $expectedStartTs);
 
+        $crosses = ! empty($window['crosses_midnight']);
         $endTs = strtotime($dateYmd . ' ' . $window['end']);
+        if ($crosses) {
+            $endTs = strtotime($dateYmd . ' ' . $window['end'] . ' +1 day');
+        }
         $outTs = strtotime($dateYmd . ' ' . $out);
+        if ($crosses && strtotime($out) <= strtotime($window['start'])) {
+            $outTs = strtotime($dateYmd . ' ' . $out . ' +1 day');
+        }
 
         $earlySeconds = max(0, $endTs - $outTs);
         $otSeconds = max(0, $outTs - $endTs);

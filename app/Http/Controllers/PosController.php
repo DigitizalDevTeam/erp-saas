@@ -13,6 +13,8 @@ use App\Models\ProductVariant;
 use App\Models\Quotation;
 use App\Models\PosBalance;
 use App\Models\PosAuditLog;
+use App\Services\BusinessDayLockService;
+use App\Services\PosActorService;
 use App\Services\PosAuditLogService;
 use App\Services\InvoiceSaleDeductionService;
 use App\Services\PosKitDeductionService;
@@ -49,27 +51,33 @@ class PosController extends Controller
 {
     protected function isCompanyLogin(): bool
     {
-        $authUser = Auth::user();
-
-        return $authUser && $authUser->type === 'company';
+        return PosActorService::isCompanyLogin();
     }
 
     /**
-     * Restaurant PIN user when set and valid for this company; otherwise the logged-in user.
+     * Restaurant POS actor (PIN user on terminal, or company owner).
      */
     protected function restaurantPosActor(): User
     {
-        if ($this->isCompanyLogin()) {
-            return Auth::user();
+        $actor = PosActorService::restaurantActor();
+        if (! $actor) {
+            abort(403, __('pos.pin_sign_in_required'));
         }
 
-        $id = session('pos_pin_user_id', Auth::id());
-        $user = User::find($id);
-        if ($user && (int) $user->created_by === (int) Auth::user()->creatorId()) {
-            return $user;
+        return $actor;
+    }
+
+    /**
+     * @return \Illuminate\Http\JsonResponse|User
+     */
+    protected function restaurantPinActorOrJsonError()
+    {
+        $actor = PosActorService::restaurantActor();
+        if (! $actor) {
+            return response()->json(['error' => __('pos.pin_sign_in_required')], 403);
         }
 
-        return Auth::user();
+        return $actor;
     }
 
     /**
@@ -333,10 +341,14 @@ class PosController extends Controller
             ->where('branch_id', $branchId)
             ->with('area');
 
-        $posActorId = session('pos_pin_user_id', Auth::id());
-        $posActor = User::find($posActorId);
+        $pinCheck = $this->restaurantPinActorOrJsonError();
+        if ($pinCheck instanceof \Illuminate\Http\JsonResponse) {
+            return $pinCheck;
+        }
+        $posActor = $pinCheck;
+        $posActorId = $posActor->id;
         // Waiter sees only tables assigned to their current shift for this branch
-        if ($posActor && $posActor->can('pos restaurant waiter') && !$posActor->can('pos restaurant full') && !$posActor->can('pos restaurant manager')) {
+        if ($posActor->can('pos restaurant waiter') && ! $posActor->can('pos restaurant full') && ! $posActor->can('pos restaurant manager')) {
             $openShift = \App\Models\PosShift::where('branch_id', $branchId)
                 ->where('user_id', $posActorId)
                 ->where('status', \App\Models\PosShift::STATUS_OPEN)
@@ -381,6 +393,10 @@ class PosController extends Controller
     {
         if (!Auth::user()->canManagePos()) {
             return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $pinCheck = $this->restaurantPinActorOrJsonError();
+        if ($pinCheck instanceof \Illuminate\Http\JsonResponse) {
+            return $pinCheck;
         }
         $branchId = (int) $request->get('branch_id');
         $shiftId = (int) $request->get('shift_id');
@@ -430,7 +446,7 @@ class PosController extends Controller
         if ($resp = $this->assertRestaurantPosActorBranch($branchId)) {
             return $resp;
         }
-        $posActorId = session('pos_pin_user_id', Auth::id());
+        $posActorId = PosActorService::posActorId();
         $shift = \App\Models\PosShift::where('branch_id', $branchId)
             ->where('user_id', $posActorId)
             ->where('status', \App\Models\PosShift::STATUS_OPEN)
@@ -463,7 +479,7 @@ class PosController extends Controller
         if ($resp = $this->assertRestaurantPosActorBranch($branchId)) {
             return $resp;
         }
-        $currentUserId = session('pos_pin_user_id', Auth::id());
+        $currentUserId = PosActorService::posActorId();
         $shifts = \App\Models\PosShift::where('branch_id', $branchId)
             ->where('status', \App\Models\PosShift::STATUS_OPEN)
             ->where('created_by', Auth::user()->creatorId())
@@ -990,7 +1006,7 @@ class PosController extends Controller
         $shiftId = $request->pos_shift_id ?: null;
         if (!$shiftId && $branch_id) {
             $openShift = \App\Models\PosShift::where('branch_id', $branch_id)
-                ->where('user_id', session('pos_pin_user_id', Auth::id()))
+                ->where('user_id', PosActorService::posActorId())
                 ->where('status', \App\Models\PosShift::STATUS_OPEN)
                 ->where('created_by', Auth::user()->creatorId())
                 ->first();
@@ -1579,7 +1595,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $shiftId = $request->pos_shift_id ?: null;
                 if (!$shiftId && $branch_id) {
                     $openShift = \App\Models\PosShift::where('branch_id', $branch_id)
-                        ->where('user_id', session('pos_pin_user_id', Auth::id()))
+                        ->where('user_id', PosActorService::posActorId())
                         ->where('status', \App\Models\PosShift::STATUS_OPEN)
                         ->where('created_by', Auth::user()->creatorId())
                         ->first();
@@ -2073,6 +2089,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         if (!Auth::user()->canManagePos()) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
+        $pinCheck = $this->restaurantPinActorOrJsonError();
+        if ($pinCheck instanceof \Illuminate\Http\JsonResponse) {
+            return $pinCheck;
+        }
         $tableId = (int) $request->get('table_id');
         $shiftId = (int) $request->get('shift_id');
         $branchId = (int) $request->get('branch_id');
@@ -2228,6 +2248,14 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         if (!Auth::user()->canManagePos()) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
+        $pinCheck = $this->restaurantPinActorOrJsonError();
+        if ($pinCheck instanceof \Illuminate\Http\JsonResponse) {
+            return $pinCheck;
+        }
+        $creatorId = Auth::user()->creatorId();
+        if ($msg = BusinessDayLockService::assertNotLocked($creatorId, date('Y-m-d'))) {
+            return response()->json(['error' => $msg], 422);
+        }
 
         $orderType = $request->get('order_type');
         $allowedOrderTypes = [Pos::ORDER_TYPE_DINE_IN, Pos::ORDER_TYPE_TAKEAWAY, Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_KIOSK];
@@ -2269,7 +2297,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         if (!$branch) {
             return response()->json(['error' => __('Invalid branch.')], 422);
         }
-        $pinActor = $this->restaurantPosActor();
+        $pinActor = $pinCheck;
         if (! $pinActor->canAccessBranchForPos($branchId, 'restaurant')) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
@@ -2318,7 +2346,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $pos->pos_date = date('Y-m-d');
             $pos->payment_method = null;
             $pos->created_by = $creatorId;
-            $pos->pos_user_id = session('pos_pin_user_id', Auth::id());
+            $pos->pos_user_id = PosActorService::posActorId();
             if ($isNonDineIn) {
                 $pos->guest_name = $request->guest_name;
                 $pos->guest_email = $request->guest_email;
@@ -2340,6 +2368,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         }
 
         // Add only new lines (do not delete or change already-sent lines). Request items = unsent items to send.
+        $printLines = [];
         $now = now();
         foreach ($request->items as $item) {
             $product = ProductService::where('id', $item['id'])->where('created_by', $creatorId)->first();
@@ -2355,7 +2384,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             if ($variantId !== null && $variantId <= 0) {
                 $variantId = null;
             }
-            PosProduct::create([
+            $line = PosProduct::create([
                 'pos_id' => $pos->id,
                 'product_id' => $product->id,
                 'product_variant_id' => $variantId,
@@ -2372,6 +2401,14 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 'print_zone' => $printZone,
                 'pos_printer_id' => $product->pos_printer_id ?? null,
             ]);
+            $printLines[] = [
+                'line_id' => (int) $line->id,
+                'name' => (string) ($product->name ?? ''),
+                'qty' => (int) $line->quantity,
+                'note' => (string) ($line->description ?? ''),
+                'print_zone' => (string) $printZone,
+                'pos_printer_id' => $line->pos_printer_id ? (int) $line->pos_printer_id : null,
+            ];
         }
 
         // Clear session cart so UI loads from DB next time (skip when kitchen slip only).
@@ -2397,7 +2434,80 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'success' => true,
             'message' => __('Order sent to production.'),
             'pos_id' => $pos->id,
+            'print_jobs' => $this->buildProductionPrintJobs($branchId, $printLines),
         ]);
+    }
+
+    /**
+     * Build deterministic print jobs from newly-sent lines.
+     * This avoids mixed order routing issues (food+drinks) caused by relying on stale DOM rows.
+     */
+    protected function buildProductionPrintJobs(int $branchId, array $lines): array
+    {
+        if (empty($lines)) {
+            return [];
+        }
+
+        $printers = \App\Models\PosPrinter::where('branch_id', $branchId)
+            ->where('created_by', Auth::user()->creatorId())
+            ->get()
+            ->keyBy('id');
+        $jobs = [];
+
+        foreach ($lines as $line) {
+            $printerId = isset($line['pos_printer_id']) ? (int) $line['pos_printer_id'] : 0;
+            if ($printerId > 0) {
+                $pr = $printers->get($printerId);
+                $jobKey = 'printer_' . $printerId;
+                if (!isset($jobs[$jobKey])) {
+                    $jobs[$jobKey] = [
+                        'key' => $jobKey,
+                        'title' => $pr ? $pr->name : ('Printer ' . $printerId),
+                        'printer_id' => $printerId,
+                        'printer_type' => $pr->type ?? null,
+                        'rows' => [],
+                    ];
+                }
+                $jobs[$jobKey]['rows'][] = [
+                    'name' => (string) ($line['name'] ?? ''),
+                    'qty' => (int) ($line['qty'] ?? 0),
+                    'note' => (string) ($line['note'] ?? ''),
+                ];
+                continue;
+            }
+
+            $zone = (string) ($line['print_zone'] ?? PosProduct::PRINT_ZONE_KITCHEN);
+            $targets = [];
+            if ($zone === PosProduct::PRINT_ZONE_BOTH) {
+                $targets = ['kitchen', 'bar'];
+            } elseif ($zone === PosProduct::PRINT_ZONE_BAR) {
+                $targets = ['bar'];
+            } else {
+                $targets = ['kitchen'];
+            }
+
+            foreach ($targets as $target) {
+                $jobKey = 'zone_' . $target;
+                if (!isset($jobs[$jobKey])) {
+                    $jobs[$jobKey] = [
+                        'key' => $jobKey,
+                        'title' => $target === 'bar' ? __('pos.bar_slip') : __('pos.kitchen_slip'),
+                        'printer_id' => null,
+                        'printer_type' => $target,
+                        'rows' => [],
+                    ];
+                }
+                $jobs[$jobKey]['rows'][] = [
+                    'name' => (string) ($line['name'] ?? ''),
+                    'qty' => (int) ($line['qty'] ?? 0),
+                    'note' => (string) ($line['note'] ?? ''),
+                ];
+            }
+        }
+
+        return array_values(array_filter($jobs, function ($job) {
+            return !empty($job['rows']);
+        }));
     }
 
     /**
@@ -2435,7 +2545,11 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             return response()->json(['error' => __('Permission denied.')], 403);
         }
 
-        $actor = $this->restaurantPosActor();
+        $pinCheck = $this->restaurantPinActorOrJsonError();
+        if ($pinCheck instanceof \Illuminate\Http\JsonResponse) {
+            return $pinCheck;
+        }
+        $actor = $pinCheck;
         if (! PosAuditLogService::canVoidRestaurantLine($actor)) {
             return response()->json(['error' => __('Only Manager can void items.')], 403);
         }
@@ -2481,6 +2595,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
     {
         if (!Auth::user()->canManagePos()) {
             return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $pinCheck = $this->restaurantPinActorOrJsonError();
+        if ($pinCheck instanceof \Illuminate\Http\JsonResponse) {
+            return $pinCheck;
         }
         $request->validate([
             'branch_id' => 'required|exists:branches,id',
@@ -2533,7 +2651,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $targetPos->pos_date = date('Y-m-d');
             $targetPos->payment_method = null;
             $targetPos->created_by = $creatorId;
-            $targetPos->pos_user_id = session('pos_pin_user_id', Auth::id());
+            $targetPos->pos_user_id = PosActorService::posActorId();
             $targetPos->save();
         }
 
@@ -3448,7 +3566,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
     
     public function add_closing_balance()
     {
-        $userId = session('pos_pin_user_id', \Auth::id());
+        $userId = PosActorService::posActorId();
         $userOpenShift = \App\Models\PosShift::where('user_id', $userId)
             ->where('status', \App\Models\PosShift::STATUS_OPEN)
             ->where('created_by', \Auth::user()->creatorId())
@@ -3478,7 +3596,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'tips' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:1000',
         ]);
-        $userId = session('pos_pin_user_id', \Auth::id());
+        $userId = PosActorService::posActorId();
         $shiftId = $request->shift_id;
         $shift = $shiftId
             ? \App\Models\PosShift::where('id', $shiftId)->where('user_id', $userId)->where('created_by', \Auth::user()->creatorId())->where('status', \App\Models\PosShift::STATUS_OPEN)->first()
@@ -3573,7 +3691,19 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         if (!$user) {
             return response()->json(['success' => false, 'error' => __('Invalid PIN.')]);
         }
+        $previousPinId = session('pos_pin_user_id');
+        if ($previousPinId && (int) $previousPinId !== (int) $user->id) {
+            PosActorService::clearRestaurantTerminalSession();
+            PosAuditLogService::log(
+                PosAuditLog::ACTION_SWITCH_USER,
+                'user',
+                (int) $user->id,
+                __('POS user switched'),
+                ['from_user_id' => (int) $previousPinId, 'to_user_id' => (int) $user->id]
+            );
+        }
         $request->session()->put('pos_pin_user_id', $user->id);
+        PosActorService::clearRestaurantPinRequirement();
         $openShift = \App\Models\PosShift::where('user_id', $user->id)
             ->where('status', \App\Models\PosShift::STATUS_OPEN)
             ->where('created_by', $creatorId)
@@ -3592,8 +3722,21 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
      */
     public function logoutRestaurantPin(Request $request)
     {
-        $request->session()->forget('pos_pin_user_id');
-        return redirect()->route('pos.restaurant.index');
+        $previousPinId = session('pos_pin_user_id');
+        PosActorService::clearRestaurantTerminalSession();
+        PosActorService::requireRestaurantPinEntry();
+        if ($previousPinId) {
+            PosAuditLogService::log(
+                PosAuditLog::ACTION_SWITCH_USER,
+                'user',
+                (int) $previousPinId,
+                __('POS user signed out'),
+                ['from_user_id' => (int) $previousPinId]
+            );
+        }
+        $request->session()->regenerate();
+
+        return redirect()->route('pos.restaurant.index')->with('info', __('Enter PIN for the next user.'));
     }
 
     /**
@@ -3601,16 +3744,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
      */
     protected function getRestaurantPinUser()
     {
-        $id = session('pos_pin_user_id');
-        if (!$id) {
-            return null;
-        }
-        $user = User::find($id);
-        if (!$user || $user->created_by != Auth::user()->creatorId()) {
-            session()->forget('pos_pin_user_id');
-            return null;
-        }
-        return $user;
+        return PosActorService::restaurantActor();
     }
 
     public function indexRestaurant($id = 0)
@@ -3828,7 +3962,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $shift = \App\Models\PosShift::where('id', (int) $request->pos_shift_id)
                 ->where('created_by', Auth::user()->creatorId())
                 ->where('status', \App\Models\PosShift::STATUS_OPEN)
-                ->where('user_id', session('pos_pin_user_id', Auth::id()))
+                ->where('user_id', PosActorService::posActorId())
                 ->first();
             if ($shift) {
                 $posShiftId = $shift->id;

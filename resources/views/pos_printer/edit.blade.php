@@ -30,7 +30,7 @@
                         <div class="col-12 mt-3">
                             <div class="form-group">
                                 {{ Form::label('type', __('Type'), ['class' => 'form-label']) }} <x-required></x-required>
-                                {{ Form::select('type', ['kitchen' => __('Kitchen'), 'bar' => __('Bar')], null, ['class' => 'form-control select', 'required' => 'required']) }}
+                                {{ Form::select('type', ['kitchen' => __('Kitchen'), 'bar' => __('Bar'), 'restaurant' => __('Restaurant')], null, ['class' => 'form-control select', 'required' => 'required']) }}
                             </div>
                         </div>
                         <div class="col-12 mt-3">

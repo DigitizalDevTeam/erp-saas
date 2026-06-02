@@ -11,6 +11,7 @@ use App\Models\Designation;
 use App\Models\Document;
 use App\Models\Employee;
 use App\Services\EmployeeAttendanceScheduleService;
+use App\Services\EmployeeWeeklyShiftService;
 use App\Models\EmployeeDocument;
 use App\Models\ExperienceCertificate;
 use App\Models\JoiningLetter;
@@ -181,6 +182,7 @@ class EmployeeController extends Controller
                     'created_by' => \Auth::user()->creatorId(),
                 ]
             );
+            EmployeeWeeklyShiftService::syncFromRequest($employee, $request->input('weekly_shift', []), (int) \Auth::user()->creatorId());
             if($request->hasFile('document'))
             {
                 foreach($request->document as $key => $document)
@@ -370,6 +372,7 @@ class EmployeeController extends Controller
 
             $input = $request->all();
             $employee->fill($input)->save();
+            EmployeeWeeklyShiftService::syncFromRequest($employee, $request->input('weekly_shift', []), (int) \Auth::user()->creatorId());
             $employee = Employee::find($id);
             $user = User::where('id',$employee->user_id)->first();
             if(!empty($user)){

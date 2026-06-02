@@ -11,22 +11,11 @@ use Illuminate\Support\Facades\Hash;
 class PosAuditLogService
 {
     /**
-     * Restaurant POS actor: PIN user when set, otherwise the logged-in user.
+     * Restaurant POS actor (PIN user on terminal, or company login).
      */
     public static function restaurantPosActor(): ?User
     {
-        $user = Auth::user();
-        if (! $user) {
-            return null;
-        }
-
-        $id = session('pos_pin_user_id', $user->id);
-        $actor = User::find($id);
-        if ($actor && (int) $actor->created_by === (int) $user->creatorId()) {
-            return $actor;
-        }
-
-        return $user;
+        return PosActorService::restaurantActor();
     }
 
     /**
@@ -88,10 +77,10 @@ class PosAuditLogService
         array $meta = []
     ): PosAuditLog {
         $user = Auth::user();
-        $actor = self::restaurantPosActor();
+        $actor = PosActorService::restaurantActor() ?? $user;
         return PosAuditLog::create([
             'created_by' => $user ? $user->creatorId() : 0,
-            'user_id' => $actor ? $actor->id : ($user ? $user->id : 0),
+            'user_id' => $actor ? $actor->id : 0,
             'action' => $action,
             'subject_type' => $subjectType,
             'subject_id' => $subjectId,

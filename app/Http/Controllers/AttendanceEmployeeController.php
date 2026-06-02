@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\IpRestrict;
 use App\Models\User;
 use App\Models\Utility;
+use App\Services\BusinessDayLockService;
 use App\Services\EmployeeAttendanceScheduleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -225,6 +226,10 @@ class AttendanceEmployeeController extends Controller
                 return redirect()->back()->with('error', __('Attendance not found.'));
             }
 
+            if ($msg = BusinessDayLockService::assertNotLocked((int) \Auth::user()->creatorId(), $request->date)) {
+                return redirect()->back()->with('error', $msg);
+            }
+
             $duplicate = AttendanceEmployee::where('employee_id', $request->employee_id)
                 ->where('date', $request->date)
                 ->where('id', '!=', $id)
@@ -385,7 +390,7 @@ class AttendanceEmployeeController extends Controller
             $late = sprintf('%02d:%02d:%02d', $hours, $mins, $secs);
         } else {
             $emp = Employee::find($employeeId);
-            $window = EmployeeAttendanceScheduleService::resolveWindow($emp, (int) \Auth::user()->creatorId());
+            $window = EmployeeAttendanceScheduleService::resolveWindow($emp, (int) \Auth::user()->creatorId(), $date);
             $late = EmployeeAttendanceScheduleService::computeLateAtClockIn($date, $time, $window);
         }
 
@@ -668,7 +673,7 @@ class AttendanceEmployeeController extends Controller
     private function resolveEmployeeAttendanceMetrics(int $employeeId, string $dateYmd, string $clockIn, string $clockOut): array
     {
         $emp = Employee::find($employeeId);
-        $window = EmployeeAttendanceScheduleService::resolveWindow($emp, (int) (\Auth::user()->creatorId() ?? 0));
+        $window = EmployeeAttendanceScheduleService::resolveWindow($emp, (int) (\Auth::user()->creatorId() ?? 0), $dateYmd);
 
         return EmployeeAttendanceScheduleService::computeMetrics($dateYmd, $clockIn, $clockOut, $window);
     }

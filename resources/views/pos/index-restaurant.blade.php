@@ -262,12 +262,9 @@
                                 <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#payReceiptsModal"><i class="ti ti-receipt me-2"></i>{{ __('pos.pay_receipts') }}</a></li>
                                 @if(isset($posPinUser) && $posPinUser)
                                 <li>
-                                    <form method="post" action="{{ route('pos.restaurant.logout-pin') }}" class="m-0">
-                                        @csrf
-                                        <button type="submit" class="dropdown-item" title="{{ $tp('pos.switch_user', 'Switch User') }}">
-                                            <i class="ti ti-user me-2"></i>{{ $tp('pos.switch_user', 'Switch User') }}
-                                        </button>
-                                    </form>
+                                    <a class="dropdown-item" href="{{ route('pos.restaurant.switch-user') }}" title="{{ $tp('pos.switch_user', 'Switch User') }}">
+                                        <i class="ti ti-user me-2"></i>{{ $tp('pos.switch_user', 'Switch User') }}
+                                    </a>
                                 </li>
                                 @endif
                                 <li><hr class="dropdown-divider"></li>
@@ -683,6 +680,15 @@
                             </select>
                         </div>
                         @endif
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Operational shift') }}</label>
+                            <select name="operational_shift" class="form-select" required>
+                                @foreach(\App\Support\AttendanceShiftCatalog::operationalShiftOptions() as $code => $label)
+                                    <option value="{{ $code }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <small class="text-muted">{{ __('Morning / Afternoon / Night — sales are tracked per shift.') }}</small>
+                        </div>
                         <div class="mb-3">
                             <label class="form-label">{{ __('pos.opening_balance') }}</label>
                             <input type="number" name="opening_balance" class="form-control" min="0" step="0.01" value="0" placeholder="0">
@@ -1933,12 +1939,18 @@
                 });
             });
 
-            function posRestaurantGetKitchenBarRows() {
+            function posRestaurantOrderHasSentLines() {
+                return $('#tbody-restaurant tr[data-product-id][data-is-sent="1"]').length > 0;
+            }
+            function posRestaurantGetKitchenBarRows(unsentOnly) {
                 var kitchenRows = [], barRows = [];
                 var byPrinter = {};
                 $('#tbody-restaurant tr[data-product-id]').each(function () {
+                    if (unsentOnly && $(this).attr('data-is-sent') === '1') {
+                        return;
+                    }
                     var name = $(this).attr('data-name') || $(this).find('.name').text();
-                    var qty = parseInt($(this).find('input[name="quantity"]').val() || 1, 10);
+                    var qty = parseInt($(this).find('input[name="quantity"]').val() || $(this).attr('data-quantity') || 1, 10);
                     var $n = $(this).find('.notes');
                     var note = ($n.length && ($n.is('input') || $n.is('textarea'))) ? ($n.val() || '').trim() : ($n.text() || '').trim();
                     var zone = ($(this).attr('data-print-zone') || '').toLowerCase();
@@ -1954,16 +1966,30 @@
                 });
                 return { kitchen: kitchenRows, bar: barRows, byPrinter: byPrinter };
             }
-            function posRestaurantPrintSlips(tableName) {
-                var rows = posRestaurantGetKitchenBarRows();
-                var kitchenRows = rows.kitchen, barRows = rows.bar, byPrinter = rows.byPrinter || {};
+            function posRestaurantPrintSlips(tableName, options) {
+                options = options || {};
+                var unsentOnly = options.unsentOnly !== false;
+                var isAddon = options.isAddon === true || (options.isAddon !== false && unsentOnly && posRestaurantOrderHasSentLines());
+                var orderRef = options.orderRef || $('#pos_restaurant_pos_id').val() || '';
+                var jobs = Array.isArray(options.printJobs) ? options.printJobs : null;
+                var rows = jobs ? null : posRestaurantGetKitchenBarRows(unsentOnly);
+                var kitchenRows = rows ? rows.kitchen : [];
+                var barRows = rows ? rows.bar : [];
+                var byPrinter = rows ? (rows.byPrinter || {}) : {};
                 var delay = 0;
                 function printSlip(title, slipRows) {
                     if (slipRows.length === 0) return;
                     var w = window.open('', '_blank', 'width=380,height=400');
-                    w.document.write('<html><head><title>' + title + '</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note-bold{font-weight:bold;font-size:13px;margin-top:2px;}</style></head><body>');
+                    w.document.write('<html><head><title>' + title + '</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note-bold{font-weight:bold;font-size:13px;margin-top:2px;}.addon-banner{font-weight:bold;font-size:16px;margin:8px 0 4px;border:2px solid #000;padding:6px;text-align:center;}.addon-sub{font-size:12px;margin:0 0 8px;color:#333;}</style></head><body>');
                     w.document.write('<h3>' + title + '</h3>');
+                    if (isAddon) {
+                        w.document.write('<div class="addon-banner">{{ __("pos.kitchen_slip_addon") }}</div>');
+                        w.document.write('<p class="addon-sub">{{ __("pos.kitchen_slip_addon_subtitle") }}</p>');
+                    }
                     w.document.write('<p><strong>{{ __("pos.table") }}:</strong> ' + (tableName || '—') + '</p>');
+                    if (orderRef) {
+                        w.document.write('<p><strong>{{ __("pos.kitchen_slip_order_ref") }}</strong> ' + String(orderRef).replace(/</g, '&lt;') + '</p>');
+                    }
                     w.document.write('<p><strong>{{ __("pos.time_sent") }}:</strong> ' + new Date().toLocaleString() + '</p>');
                     w.document.write('<table><thead><tr><th>{{ __("pos.name") }}</th><th>{{ __("pos.qty") }}</th></tr></thead><tbody>');
                     slipRows.forEach(function(r) {
@@ -1977,6 +2003,17 @@
                     w.focus();
                     w.print();
                     w.close();
+                }
+                if (jobs && jobs.length) {
+                    jobs.forEach(function(job) {
+                        if (!job || !Array.isArray(job.rows) || job.rows.length === 0) return;
+                        var title = job.title || '{{ __("pos.kitchen_slip") }}';
+                        (function(jobTitle, jobRows, d) {
+                            setTimeout(function() { printSlip(jobTitle, jobRows); }, d);
+                        })(title, job.rows, delay);
+                        delay += 400;
+                    });
+                    return;
                 }
                 Object.keys(byPrinter).forEach(function(printerId) {
                     var p = byPrinter[printerId];
@@ -2050,7 +2087,12 @@
                         if (res.success) {
                             show_toastr('{{ __("Success") }}', res.message || '{{ __("Order sent to production.") }}', 'success');
                             var tableLabel = isNonDineIn ? (orderType === 'delivery' ? '{{ __("pos.delivery") }}' : '{{ __("pos.takeaway") }}') : $('#pos-selected-table').text();
-                            posRestaurantPrintSlips(tableLabel);
+                            posRestaurantPrintSlips(tableLabel, {
+                                unsentOnly: true,
+                                isAddon: posRestaurantOrderHasSentLines(),
+                                orderRef: res.pos_id || $('#pos_restaurant_pos_id').val() || '',
+                                printJobs: Array.isArray(res.print_jobs) ? res.print_jobs : null
+                            });
                             if (isNonDineIn) {
                                 if (res.pos_id) {
                                     $('#pos_restaurant_pos_id').val(res.pos_id);
@@ -2094,11 +2136,16 @@
                 });
                 var orderTypePrint = ($('#pos-restaurant-order-type').length ? $('#pos-restaurant-order-type').val() : '') || 'dine_in';
                 var isNonDineInPrint = (orderTypePrint === 'delivery' || orderTypePrint === 'takeaway');
-                var rows = posRestaurantGetKitchenBarRows();
+                var rows = posRestaurantGetKitchenBarRows(true);
                 if (rows.kitchen.length === 0 && rows.bar.length === 0 && Object.keys(rows.byPrinter || {}).every(function(k) { return !(rows.byPrinter[k].rows && rows.byPrinter[k].rows.length); })) {
                     show_toastr('{{ __("Error") }}', '{{ __("pos.no_data_found") }}', 'error');
                     return;
                 }
+                var printOpts = {
+                    unsentOnly: true,
+                    isAddon: posRestaurantOrderHasSentLines(),
+                    orderRef: $('#pos_restaurant_pos_id').val() || ''
+                };
                 var canPrint = items.length > 0 && branchId && shiftId && (isNonDineInPrint || tableId);
                 if (canPrint) {
                     var printData = { _token: '{{ csrf_token() }}', branch_id: branchId, shift_id: shiftId, order_type: orderTypePrint, items: items, kitchen_slip_only: 1 };
@@ -2115,7 +2162,9 @@
                         data: printData,
                         success: function (res) {
                             if (res.success) {
-                                posRestaurantPrintSlips(tableName);
+                                printOpts.orderRef = res.pos_id || printOpts.orderRef;
+                                printOpts.printJobs = Array.isArray(res.print_jobs) ? res.print_jobs : null;
+                                posRestaurantPrintSlips(tableName, printOpts);
                                 if (isNonDineInPrint) {
                                     loadRestaurantOrder(null, $('#pos_shift_id_hidden').val(), $('#pos-restaurant-branch').val(), orderTypePrint);
                                 } else {
@@ -2133,7 +2182,7 @@
                 } else if (items.length > 0) {
                     show_toastr('{{ __("Error") }}', '{{ __("pos.select_branch_first") }}', 'error');
                 } else {
-                    posRestaurantPrintSlips(tableName);
+                    posRestaurantPrintSlips(tableName, { unsentOnly: false, isAddon: false });
                 }
             });
             $(document).on('click', '.pos-open-drawer-btn', function () {
@@ -3301,7 +3350,7 @@
                     $.ajax({
                         url: '{{ route("pos-shift.open-from-pos") }}',
                         method: 'POST',
-                        data: { branch_id: $form.find('[name=branch_id]').val(), opening_balance: $form.find('[name=opening_balance]').val() || 0, _token: $form.find('[name=_token]').val() },
+                        data: { branch_id: $form.find('[name=branch_id]').val(), operational_shift: $form.find('[name=operational_shift]').val(), opening_balance: $form.find('[name=opening_balance]').val() || 0, _token: $form.find('[name=_token]').val() },
                         headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'), 'Accept': 'application/json' },
                         success: function () {
                             if (typeof show_toastr === 'function') show_toastr('success', '{{ __("Shift opened successfully.") }}', 'success');

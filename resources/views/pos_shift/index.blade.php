@@ -26,6 +26,7 @@
                             <thead>
                                 <tr>
                                     <th>{{ __('Branch') }}</th>
+                                    <th>{{ __('Shift') }}</th>
                                     <th>{{ __('User') }}</th>
                                     <th>{{ __('Opened At') }}</th>
                                     <th>{{ __('Closed At') }}</th>
@@ -39,6 +40,13 @@
                                 @foreach ($shifts as $shift)
                                     <tr>
                                         <td>{{ $shift->branch ? $shift->branch->name : '-' }}</td>
+                                        <td>
+                                            @if($shift->operational_shift)
+                                                {{ \App\Support\AttendanceShiftCatalog::operationalShiftOptions()[$shift->operational_shift] ?? ucfirst($shift->operational_shift) }}
+                                            @else
+                                                —
+                                            @endif
+                                        </td>
                                         <td>{{ $shift->user ? $shift->user->name : '-' }}</td>
                                         <td>{{ $shift->opened_at ? $shift->opened_at->format('Y-m-d H:i') : '-' }}</td>
                                         <td>{{ $shift->closed_at ? $shift->closed_at->format('Y-m-d H:i') : '-' }}</td>

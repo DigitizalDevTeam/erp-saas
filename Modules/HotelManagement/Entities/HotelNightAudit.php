@@ -15,7 +15,16 @@ class HotelNightAudit extends Model
         'room_revenue',
         'service_revenue',
         'total_revenue',
+        'pos_sales_total',
+        'pos_payments_total',
+        'summary_json',
         'status',
         'created_by',
+        'closed_by',
+    ];
+
+    protected $casts = [
+        'summary_json' => 'array',
+        'audit_date' => 'date',
     ];
 }

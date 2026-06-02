@@ -2270,9 +2270,10 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
     Route::get('pos/retail/{cid?}', [PosController::class, 'index'])->name('pos.index')->defaults('cid', null)->middleware(['auth', 'XSS', 'revalidate']);
-    Route::get('pos-restaurant', [PosController::class, 'indexRestaurant'])->name('pos.restaurant.index');
-    Route::post('pos-restaurant/validate-pin', [PosController::class, 'validateRestaurantPin'])->name('pos.restaurant.validate-pin');
-    Route::post('pos-restaurant/logout-pin', [PosController::class, 'logoutRestaurantPin'])->name('pos.restaurant.logout-pin');
+    Route::get('pos-restaurant', [PosController::class, 'indexRestaurant'])->name('pos.restaurant.index')->middleware(['auth', 'XSS']);
+    Route::post('pos-restaurant/validate-pin', [PosController::class, 'validateRestaurantPin'])->name('pos.restaurant.validate-pin')->middleware(['auth', 'XSS']);
+    Route::get('pos-restaurant/switch-user', [PosController::class, 'logoutRestaurantPin'])->name('pos.restaurant.switch-user')->middleware(['auth', 'XSS']);
+    Route::post('pos-restaurant/logout-pin', [PosController::class, 'logoutRestaurantPin'])->name('pos.restaurant.logout-pin')->middleware(['auth', 'XSS']);
     Route::post('pos-restaurant/void-line/{line}', [PosController::class, 'voidRestaurantLine'])->name('pos.restaurant.void-line');
     Route::post('pos-restaurant/join-tables', [PosController::class, 'joinRestaurantTables'])->name('pos.restaurant.join-tables');
     Route::get('pos/customer-balance', [PosController::class, 'getCustomerBalance'])->name('pos.customer.balance')->middleware(['auth', 'XSS']);

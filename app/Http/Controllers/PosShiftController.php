@@ -9,7 +9,10 @@ use App\Models\PosAuditLog;
 use App\Models\PosCashIn;
 use App\Models\PosCashDrop;
 use App\Models\PosPayment;
+use App\Services\PosActorService;
+use App\Services\BusinessDayLockService;
 use App\Services\PosAuditLogService;
+use App\Support\AttendanceShiftCatalog;
 use App\Services\PosShiftReportService;
 use App\Models\PosShift;
 use App\Models\PosTable;
@@ -36,12 +39,17 @@ class PosShiftController extends Controller
         $validator = \Validator::make($request->all(), [
             'branch_id' => 'required|exists:branches,id',
             'opening_balance' => 'nullable|numeric|min:0',
+            'operational_shift' => 'required|in:morning,afternoon,night',
         ]);
         if ($validator->fails()) {
             return response()->json(['error' => $validator->getMessageBag()->first()], 422);
         }
         $creatorId = \Auth::user()->creatorId();
-        $userId = session('pos_pin_user_id', \Auth::user()->id);
+        $actor = PosActorService::restaurantActor();
+        if (! $actor) {
+            return response()->json(['error' => __('pos.pin_sign_in_required')], 403);
+        }
+        $userId = $actor->id;
         $branchId = $request->branch_id;
         // Ensure branch belongs to company
         $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->where('is_active', true)->first();
@@ -53,6 +61,9 @@ class PosShiftController extends Controller
             return response()->json(['error' => __('You can only open a shift for an allowed branch.')], 422);
         }
         $today = date('Y-m-d');
+        if ($msg = BusinessDayLockService::assertNotLocked($creatorId, $today)) {
+            return response()->json(['error' => $msg], 422);
+        }
         $dayClosed = \App\Models\PosDayClosed::where('closed_date', $today)->where('created_by', $creatorId)->first();
         if ($dayClosed) {
             $isOwner = (\Auth::user()->creatorId() === \Auth::user()->id);
@@ -60,16 +71,19 @@ class PosShiftController extends Controller
                 return response()->json(['error' => __('Day is closed. Only an administrator can reopen.')], 422);
             }
         }
+        $opShift = $request->input('operational_shift');
         $existing = PosShift::where('branch_id', $branchId)
             ->where('user_id', $userId)
+            ->where('operational_shift', $opShift)
             ->where('status', PosShift::STATUS_OPEN)
             ->first();
         if ($existing) {
-            return response()->json(['error' => __('You already have an open shift for this branch.')], 422);
+            return response()->json(['error' => __('You already have an open :shift shift for this branch.', ['shift' => AttendanceShiftCatalog::operationalShiftOptions()[$opShift] ?? $opShift])], 422);
         }
         $shift = new PosShift();
         $shift->branch_id = $branchId;
         $shift->user_id = $userId;
+        $shift->operational_shift = $opShift;
         $shift->opened_at = now();
         $shift->opening_balance = (float) ($request->opening_balance ?? 0);
         $shift->status = PosShift::STATUS_OPEN;
@@ -168,7 +182,7 @@ class PosShiftController extends Controller
         $drop->shift_id = $pos_shift->id;
         $drop->amount = (float) $request->amount;
         $drop->reason = $request->reason ? trim($request->reason) : null;
-        $drop->user_id = \Auth::user()->id;
+        $drop->user_id = PosActorService::posActorId();
         $drop->created_by = \Auth::user()->creatorId();
         $drop->save();
         PosAuditLogService::log(PosAuditLog::ACTION_CASH_DROP, 'pos_cash_drop', (int) $drop->id, __('Cash drop'), ['shift_id' => $pos_shift->id, 'amount' => $drop->amount, 'reason' => $drop->reason]);
@@ -211,7 +225,7 @@ class PosShiftController extends Controller
                 $cashIn->reason = $request->reason ? trim($request->reason) : null;
                 $cashIn->source_account_id = $sourceId;
                 $cashIn->target_account_id = $targetId;
-                $cashIn->user_id = \Auth::id();
+                $cashIn->user_id = PosActorService::posActorId();
                 $cashIn->created_by = $creatorId;
                 $cashIn->save();
 
@@ -305,7 +319,7 @@ class PosShiftController extends Controller
                 $expense->payment_account_id = (int) $request->payment_account_id;
                 $expense->chart_account_id = (int) $request->chart_account_id;
                 $expense->status = Expense::STATUS_APPROVED;
-                $expense->user_id = \Auth::id();
+                $expense->user_id = PosActorService::posActorId();
                 $expense->created_by = $creatorId;
                 $expense->save();
 

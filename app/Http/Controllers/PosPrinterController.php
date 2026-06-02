@@ -54,7 +54,7 @@ class PosPrinterController extends Controller
         $validator = \Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'branch_id' => 'required|exists:branches,id',
-            'type' => 'required|in:kitchen,bar',
+            'type' => 'required|in:kitchen,bar,restaurant',
             'connection' => 'nullable|string|max:100',
             'sort_order' => 'nullable|integer|min:0',
         ]);
@@ -93,7 +93,7 @@ class PosPrinterController extends Controller
         $validator = \Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'branch_id' => 'required|exists:branches,id',
-            'type' => 'required|in:kitchen,bar',
+            'type' => 'required|in:kitchen,bar,restaurant',
             'connection' => 'nullable|string|max:100',
             'sort_order' => 'nullable|integer|min:0',
         ]);

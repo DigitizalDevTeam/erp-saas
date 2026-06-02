@@ -49,6 +49,7 @@
         </div>
     </div>
 </div>
+@include('employee.partials.weekly_shift_roster', ['employee' => $emp])
 @push('script-page')
 <script>
 (function () {

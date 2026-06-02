@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 @section('page-title')
-    {{ __('Kitchen / Bar Printers') }}
+    {{ __('Kitchen / Bar / Restaurant Printers') }}
 @endsection
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
@@ -41,7 +41,12 @@
                                 @forelse($printers as $p)
                                     <tr>
                                         <td>{{ $p->name }}</td>
-                                        <td><span class="badge {{ $p->type === 'kitchen' ? 'bg-primary' : 'bg-info' }}">{{ $p->type === 'kitchen' ? __('Kitchen') : __('Bar') }}</span></td>
+                                        @php
+                                            $typeLabels = ['kitchen' => __('Kitchen'), 'bar' => __('Bar'), 'restaurant' => __('Restaurant')];
+                                            $typeClasses = ['kitchen' => 'bg-primary', 'bar' => 'bg-info', 'restaurant' => 'bg-success'];
+                                            $typeKey = $p->type ?? 'kitchen';
+                                        @endphp
+                                        <td><span class="badge {{ $typeClasses[$typeKey] ?? 'bg-secondary' }}">{{ $typeLabels[$typeKey] ?? ucfirst($typeKey) }}</span></td>
                                         <td>{{ $p->connection === 'browser' ? __('Browser (print dialog)') : $p->connection }}</td>
                                         <td>{{ $p->sort_order }}</td>
                                         <td>
@@ -55,7 +60,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="text-center text-muted">{{ __('No printers for this branch. Add one to use kitchen/bar print.') }}</td>
+                                        <td colspan="5" class="text-center text-muted">{{ __('No printers for this branch. Add one to use kitchen/bar/restaurant print routing.') }}</td>
                                     </tr>
                                 @endforelse
                             </tbody>

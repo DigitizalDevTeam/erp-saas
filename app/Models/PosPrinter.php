@@ -8,6 +8,7 @@ class PosPrinter extends Model
 {
     const TYPE_KITCHEN = 'kitchen';
     const TYPE_BAR = 'bar';
+    const TYPE_RESTAURANT = 'restaurant';
     const CONNECTION_BROWSER = 'browser';
 
     protected $fillable = [
