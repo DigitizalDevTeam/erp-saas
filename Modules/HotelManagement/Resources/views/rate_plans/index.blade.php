@@ -5,9 +5,9 @@
     <li class="breadcrumb-item">{{ __('Rate Plans') }}</li>
 @endsection
 @section('action-btn')
-@if(Auth::user()->can('manage hotel room') || Auth::user()->can('manage hotel'))
+@can('hotel.manage.rooms')
 <a href="{{ route('hotel.rate-plans.create') }}" class="btn btn-sm btn-primary"><i class="ti ti-plus"></i> {{ __('Add Rate Plan') }}</a>
-@endif
+@endcan
 @endsection
 @section('content')
 <div class="card"><div class="card-body table-border-style"><div class="table-responsive">
@@ -23,14 +23,14 @@
             <td>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $plan->billing_mode))) }}</td>
             <td>{{ $plan->is_active ? __('Yes') : __('No') }}</td>
             <td>
-                @if(Auth::user()->can('manage hotel room') || Auth::user()->can('manage hotel'))
+                @can('hotel.manage.rooms')
                 <a class="btn btn-sm btn-info" href="{{ route('hotel.rate-plans.edit', $plan->id) }}"><i class="ti ti-pencil text-white"></i></a>
                 {!! Form::open(['method' => 'DELETE', 'route' => ['hotel.rate-plans.destroy', $plan->id], 'class' => 'd-inline']) !!}
                 <button class="btn btn-sm btn-danger" onclick="return confirm('{{ __('Are you sure?') }}')"><i class="ti ti-trash"></i></button>
                 {!! Form::close() !!}
                 @else
                 <span class="text-muted small">{{ __('View only') }}</span>
-                @endif
+                @endcan
             </td>
         </tr>
     @endforeach

@@ -263,16 +263,11 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Whether the user can access Hotel Management module.
+     * Whether the user can access Hotel Management module (any hotel permission).
      */
     public function canManageHotel(): bool
     {
-        return $this->can('manage hotel')
-            || $this->can('show hotel dashboard')
-            || $this->can('manage hotel room')
-            || $this->can('manage hotel reservation')
-            || $this->can('manage hotel frontdesk')
-            || $this->can('show hotel folio');
+        return \Modules\HotelManagement\Services\HotelAuthorization::canAccessModule($this);
     }
 
     /**

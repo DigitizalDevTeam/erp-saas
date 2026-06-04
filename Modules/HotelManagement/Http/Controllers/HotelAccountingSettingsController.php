@@ -7,6 +7,7 @@ use App\Models\BankAccount;
 use App\Support\PayrollChartAccountOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Modules\HotelManagement\Services\HotelAuthorization;
 use Illuminate\Validation\Rule;
 use Modules\HotelManagement\Entities\HotelAccountingSetting;
 
@@ -14,7 +15,7 @@ class HotelAccountingSettingsController extends Controller
 {
     private function canManage(): bool
     {
-        return Auth::user()->can('manage hotel') || Auth::user()->can('manage hotel frontdesk');
+        return HotelAuthorization::manageAccounting(Auth::user());
     }
 
     public function index()

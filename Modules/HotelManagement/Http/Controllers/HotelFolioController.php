@@ -10,13 +10,14 @@ use Illuminate\Support\Facades\Schema;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelFolioPayment;
 use Modules\HotelManagement\Services\HotelFolioAccountingService;
+use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Services\HotelPosChargeService;
 
 class HotelFolioController extends Controller
 {
     public function show(HotelFolio $folio)
     {
-        if ((! Auth::user()->can('show hotel folio') && ! Auth::user()->can('manage hotel frontdesk') && ! Auth::user()->can('manage hotel')) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
+        if (! HotelAuthorization::viewFolio(Auth::user()) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $folio->load(['stay.reservation.guest', 'lines', 'payments']);
@@ -34,7 +35,7 @@ class HotelFolioController extends Controller
 
     public function storePayment(Request $request, HotelFolio $folio)
     {
-        if ((!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
+        if (! HotelAuthorization::manageFolio(Auth::user()) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         if (!Schema::hasTable('hotel_folio_payments')) {
@@ -78,7 +79,7 @@ class HotelFolioController extends Controller
 
     public function storeLine(Request $request, HotelFolio $folio, HotelPosChargeService $chargeService)
     {
-        if ((! Auth::user()->can('manage hotel frontdesk') && ! Auth::user()->can('manage hotel')) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
+        if (! HotelAuthorization::manageFolio(Auth::user()) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -113,7 +114,7 @@ class HotelFolioController extends Controller
 
     public function finalBillPrint(HotelFolio $folio)
     {
-        if ((! Auth::user()->can('show hotel folio') && ! Auth::user()->can('manage hotel frontdesk') && ! Auth::user()->can('manage hotel')) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
+        if (! HotelAuthorization::viewFolio(Auth::user()) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $folio->load(['stay.reservation.guest', 'stay.reservation.room', 'lines', 'payments']);

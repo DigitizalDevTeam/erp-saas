@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Modules\HotelManagement\Entities\HotelRoom;
+use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Services\HotelRoomConsumptionService;
 
 class HotelRoomConsumptionController extends Controller
@@ -17,9 +18,7 @@ class HotelRoomConsumptionController extends Controller
 
     private function canManage(): bool
     {
-        return Auth::user()->can('manage hotel room')
-            || Auth::user()->can('manage hotel frontdesk')
-            || Auth::user()->can('manage hotel');
+        return HotelAuthorization::manageRoomConsumption(Auth::user());
     }
 
     public function create(HotelRoom $room)

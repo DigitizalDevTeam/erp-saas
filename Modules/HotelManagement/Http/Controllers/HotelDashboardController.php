@@ -12,6 +12,7 @@ use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelStay;
 use Modules\HotelManagement\Http\Controllers\Concerns\BuildsRoomMap;
+use Modules\HotelManagement\Services\HotelAuthorization;
 
 class HotelDashboardController extends Controller
 {
@@ -19,7 +20,7 @@ class HotelDashboardController extends Controller
 
     public function index()
     {
-        if (!Auth::user()->can('show hotel dashboard') && !Auth::user()->can('manage hotel')) {
+        if (! HotelAuthorization::viewDashboard(Auth::user())) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 

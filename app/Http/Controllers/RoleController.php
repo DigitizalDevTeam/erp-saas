@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\HotelPermissionCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Spatie\Permission\Models\Permission;
@@ -32,6 +33,8 @@ class RoleController extends Controller
     {
         if(\Auth::user()->can('create role'))
         {
+            HotelPermissionCatalog::ensurePermissionsExist();
+
             $user = \Auth::user();
             if($user->type == 'super admin' || $user->type == 'company')
             {
@@ -100,6 +103,7 @@ class RoleController extends Controller
     {
         if(\Auth::user()->can('edit role'))
         {
+            HotelPermissionCatalog::ensurePermissionsExist();
 
             $user = \Auth::user();
             if($user->type == 'super admin' || $user->type == 'company')

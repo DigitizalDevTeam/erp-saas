@@ -16,14 +16,13 @@ use Modules\HotelManagement\Entities\HotelGuest;
 use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Exports\SimpleSheetExport;
+use Modules\HotelManagement\Services\HotelAuthorization;
 
 class HotelReportController extends Controller
 {
     protected function authorizeReport(): void
     {
-        if (!Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel') && !Auth::user()->can('show hotel dashboard')) {
-            abort(403, __('Permission denied.'));
-        }
+        HotelAuthorization::abortUnless(HotelAuthorization::viewReports(Auth::user()));
     }
 
     protected function dateRange(Request $request): array

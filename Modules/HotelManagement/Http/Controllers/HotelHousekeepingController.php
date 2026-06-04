@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Modules\HotelManagement\Entities\HotelHousekeepingTask;
+use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelRoomConsumptionLog;
 use Modules\HotelManagement\Entities\HotelStay;
@@ -22,12 +23,12 @@ class HotelHousekeepingController extends Controller
 
     private function canView(): bool
     {
-        return Auth::user()->can('show hotel frontdesk') || Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::viewHousekeeping(Auth::user());
     }
 
     private function canManage(): bool
     {
-        return Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::manageHousekeeping(Auth::user());
     }
 
     public function index()

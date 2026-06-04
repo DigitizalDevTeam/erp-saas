@@ -3,7 +3,9 @@
 namespace Modules\HotelManagement\Providers;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Console\DailyOwnerSummaryCommand;
 use Modules\HotelManagement\Console\LowOccupancyAlertCommand;
 use Modules\HotelManagement\Console\OtaSyncCommand;
@@ -26,6 +28,7 @@ class HotelManagementServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->registerHotelGates();
         $this->registerTranslations();
         $this->registerConfig();
         $this->registerViews();
@@ -113,5 +116,33 @@ class HotelManagementServiceProvider extends ServiceProvider
         }
 
         return $paths;
+    }
+
+    protected function registerHotelGates(): void
+    {
+        $gates = [
+            'hotel.menu.module' => 'canAccessModule',
+            'hotel.menu.dashboard' => 'menuDashboard',
+            'hotel.menu.reservations' => 'menuReservations',
+            'hotel.menu.frontdesk' => 'menuFrontdesk',
+            'hotel.menu.guest_map' => 'menuGuestMap',
+            'hotel.menu.housekeeping' => 'menuHousekeeping',
+            'hotel.menu.night_audit' => 'menuNightAudit',
+            'hotel.menu.accounting' => 'menuAccounting',
+            'hotel.menu.reports' => 'menuReports',
+            'hotel.menu.calendar' => 'menuCalendar',
+            'hotel.menu.groups' => 'menuGroups',
+            'hotel.menu.ota' => 'menuOta',
+            'hotel.menu.rooms_setup' => 'menuRoomsSetup',
+            'hotel.manage.reservations' => 'manageReservations',
+            'hotel.manage.rooms' => 'manageRooms',
+            'hotel.manage.frontdesk' => 'manageFrontdesk',
+            'hotel.manage.folio' => 'manageFolio',
+            'hotel.view.folio' => 'viewFolio',
+        ];
+
+        foreach ($gates as $name => $method) {
+            Gate::define($name, fn ($user) => HotelAuthorization::{$method}($user));
+        }
     }
 }

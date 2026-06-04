@@ -43,6 +43,11 @@
                         <a class="nav-link" id="pills-account-tab" data-bs-toggle="pill" href="#pos" role="tab" aria-controls="pills-contact" aria-selected="false">{{__('POS')}}</a>
                     </li>
                 @endif
+                @if (\App\Services\HotelPermissionCatalog::hasAnyInPermissionMap($permissions ?? []))
+                    <li class="nav-item">
+                        <a class="nav-link" id="pills-hotel-tab" data-bs-toggle="pill" href="#hotel" role="tab" aria-controls="pills-hotel" aria-selected="false">{{ __('Hotel') }}</a>
+                    </li>
+                @endif
             </ul>
             <div class="tab-content" id="pills-tabContent">
                 <div class="tab-pane fade show active" id="staff" role="tabpanel" aria-labelledby="pills-home-tab">
@@ -1310,6 +1315,7 @@
                         </div>
                     </div>
                 </div>
+                @include('role.partials.hotel_permissions', ['permissions' => $permissions])
             </div>
         </div>
 
@@ -1342,6 +1348,9 @@
         });
         $("#pos_checkall").click(function(){
             $('.pos_checkall').not(this).prop('checked', this.checked);
+        });
+        $("#hotel_checkall").click(function(){
+            $('.hotel_checkall').not(this).prop('checked', this.checked);
         });
         $(".ischeck").click(function(){
             var ischeck = $(this).data('id');

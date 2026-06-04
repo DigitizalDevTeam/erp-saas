@@ -5,9 +5,9 @@
     <li class="breadcrumb-item">{{ __('Floors') }}</li>
 @endsection
 @section('action-btn')
-@if(Auth::user()->can('manage hotel room') || Auth::user()->can('manage hotel'))
+@can('hotel.manage.rooms')
 <a href="{{ route('hotel.floors.create') }}" class="btn btn-sm btn-primary"><i class="ti ti-plus"></i> {{ __('Add Floor') }}</a>
-@endif
+@endcan
 @endsection
 @section('content')
 <div class="card"><div class="card-body table-border-style"><div class="table-responsive">
@@ -21,14 +21,14 @@
             <td>{{ $floor->sort_order }}</td>
             <td>{{ $floor->is_active ? __('Active') : __('Inactive') }}</td>
             <td>
-                @if(Auth::user()->can('manage hotel room') || Auth::user()->can('manage hotel'))
+                @can('hotel.manage.rooms')
                 <a class="btn btn-sm btn-info" href="{{ route('hotel.floors.edit', $floor->id) }}"><i class="ti ti-pencil text-white"></i></a>
                 {!! Form::open(['method' => 'DELETE', 'route' => ['hotel.floors.destroy', $floor->id], 'class' => 'd-inline']) !!}
                 <button class="btn btn-sm btn-danger" onclick="return confirm('{{ __('Are you sure?') }}')"><i class="ti ti-trash"></i></button>
                 {!! Form::close() !!}
                 @else
                 <span class="text-muted small">{{ __('View only') }}</span>
-                @endif
+                @endcan
             </td>
         </tr>
     @endforeach

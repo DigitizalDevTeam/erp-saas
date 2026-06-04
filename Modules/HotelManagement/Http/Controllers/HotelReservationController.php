@@ -15,6 +15,7 @@ use Modules\HotelManagement\Entities\HotelGuest;
 use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelRoomType;
+use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Services\HotelReservationPricingService;
 use Modules\HotelManagement\Support\HotelNationalityOptions;
 
@@ -26,12 +27,12 @@ class HotelReservationController extends Controller
 
     private function canView(): bool
     {
-        return Auth::user()->can('show hotel reservation') || Auth::user()->can('manage hotel reservation') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::viewReservations(Auth::user());
     }
 
     private function canManage(): bool
     {
-        return Auth::user()->can('manage hotel reservation') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::manageReservations(Auth::user());
     }
 
     protected function roomHasConflict(int $roomId, Carbon $checkInAt, Carbon $checkOutAt, ?int $ignoreReservationId = null): bool

@@ -5,6 +5,7 @@ namespace Modules\HotelManagement\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Modules\HotelManagement\Services\HotelAuthorization;
 use Illuminate\Support\Facades\Schema;
 use Modules\HotelManagement\Entities\HotelOtaSetting;
 
@@ -12,7 +13,7 @@ class HotelOtaSettingsController extends Controller
 {
     public function index()
     {
-        if (!Auth::user()->can('manage hotel') && !Auth::user()->can('manage hotel reservation')) {
+        if (! HotelAuthorization::manageOta(Auth::user())) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         if (!Schema::hasTable('hotel_ota_settings')) {
@@ -33,7 +34,7 @@ class HotelOtaSettingsController extends Controller
 
     public function update(Request $request)
     {
-        if (!Auth::user()->can('manage hotel') && !Auth::user()->can('manage hotel reservation')) {
+        if (! HotelAuthorization::manageOta(Auth::user())) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         if (!Schema::hasTable('hotel_ota_settings')) {

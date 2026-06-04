@@ -44,7 +44,7 @@
                 </table>
             </div>
 
-            @if(Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel'))
+            @can('hotel.manage.folio')
             <hr>
             <h6>{{ __('Add charge to room bill') }}</h6>
             <p class="text-muted small">{{ __('Minibar, laundry, restaurant, or other extras post here and appear on the final bill at checkout.') }}</p>
@@ -91,7 +91,7 @@
                 <button type="submit" class="btn btn-secondary w-100">{{ __('Add') }}</button>
             </div>
             {!! Form::close() !!}
-            @endif
+            @endcan
 
             <h6 class="mt-4">{{ __('Payments') }}</h6>
             @if($folio->payments->isEmpty())
@@ -114,7 +114,7 @@
                 </div>
             @endif
 
-            @if(Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel'))
+            @can('hotel.manage.folio')
             <hr>
             <h6>{{ __('Record payment') }}</h6>
             {!! Form::open(['route' => ['hotel.folios.payments.store', $folio->id], 'method' => 'POST', 'class' => 'row g-2']) !!}
@@ -138,7 +138,7 @@
                 {!! Form::text('notes', null, ['class' => 'form-control']) !!}
             </div>
             {!! Form::close() !!}
-            @endif
+            @endcan
         </div></div>
     </div>
 </div>

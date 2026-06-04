@@ -14,6 +14,7 @@ use Modules\HotelManagement\Entities\HotelGroupMember;
 use Modules\HotelManagement\Entities\HotelGuest;
 use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelRoomType;
+use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Services\HotelReservationPricingService;
 
 class HotelGroupController extends Controller
@@ -24,12 +25,12 @@ class HotelGroupController extends Controller
 
     private function canView(): bool
     {
-        return Auth::user()->can('show hotel reservation') || Auth::user()->can('manage hotel reservation') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::viewGroups(Auth::user());
     }
 
     private function canManage(): bool
     {
-        return Auth::user()->can('manage hotel reservation') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::manageGroups(Auth::user());
     }
 
     public function index()

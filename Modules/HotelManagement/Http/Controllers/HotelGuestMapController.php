@@ -10,6 +10,7 @@ use Modules\HotelManagement\Entities\HotelGuest;
 use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelStay;
 use Modules\HotelManagement\Http\Controllers\Concerns\BuildsRoomMap;
+use Modules\HotelManagement\Services\HotelAuthorization;
 
 class HotelGuestMapController extends Controller
 {
@@ -17,13 +18,7 @@ class HotelGuestMapController extends Controller
 
     public function index()
     {
-        if (
-            !Auth::user()->can('manage hotel')
-            && !Auth::user()->can('manage hotel reservation')
-            && !Auth::user()->can('manage hotel frontdesk')
-            && !Auth::user()->can('show hotel reservation')
-            && !Auth::user()->can('show hotel frontdesk')
-        ) {
+        if (! HotelAuthorization::viewGuestMap(Auth::user())) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 

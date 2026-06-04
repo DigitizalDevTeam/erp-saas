@@ -10,6 +10,7 @@ use Modules\HotelManagement\Entities\HotelFloor;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelRoomType;
 use Modules\HotelManagement\Http\Controllers\Concerns\BuildsRoomMap;
+use Modules\HotelManagement\Services\HotelAuthorization;
 
 class HotelRoomController extends Controller
 {
@@ -17,12 +18,12 @@ class HotelRoomController extends Controller
 
     private function canView(): bool
     {
-        return Auth::user()->can('show hotel room') || Auth::user()->can('manage hotel room') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::viewRooms(Auth::user());
     }
 
     private function canManage(): bool
     {
-        return Auth::user()->can('manage hotel room') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::manageRooms(Auth::user());
     }
 
     protected function roomTypeOptions()

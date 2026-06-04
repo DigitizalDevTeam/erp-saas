@@ -14,6 +14,7 @@ use Modules\HotelManagement\Entities\HotelStay;
 use Modules\HotelManagement\Http\Controllers\Concerns\BuildsRoomMap;
 use Modules\HotelManagement\Services\HotelReservationPricingService;
 use Modules\HotelManagement\Services\HotelFolioAccountingService;
+use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Services\HotelRoomConsumptionService;
 
 class HotelFrontdeskController extends Controller
@@ -28,12 +29,12 @@ class HotelFrontdeskController extends Controller
 
     private function canView(): bool
     {
-        return Auth::user()->can('show hotel frontdesk') || Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::viewFrontdesk(Auth::user());
     }
 
     private function canManage(): bool
     {
-        return Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::manageFrontdesk(Auth::user());
     }
 
     public function inHouse()
@@ -47,7 +48,7 @@ class HotelFrontdeskController extends Controller
             ->get();
         $mapRooms = $this->roomsWithCurrentReservation((int) Auth::user()->creatorId());
         $canManage = $this->canManage();
-        $canForceCheckout = Auth::user()->can('force hotel checkout') || Auth::user()->can('manage hotel');
+        $canForceCheckout = HotelAuthorization::canForceCheckout(Auth::user());
 
         return view('hotelmanagement::frontdesk.in_house', compact('stays', 'mapRooms', 'canManage', 'canForceCheckout'));
     }
@@ -74,7 +75,7 @@ class HotelFrontdeskController extends Controller
             'folio' => $folio,
             'consumptionLines' => $consumptionLines,
             'canManage' => $this->canManage(),
-            'canForceCheckout' => Auth::user()->can('force hotel checkout') || Auth::user()->can('manage hotel'),
+            'canForceCheckout' => HotelAuthorization::canForceCheckout(Auth::user()),
             'checkOutUrl' => $stay ? route('hotel.frontdesk.check-out', $stay->id) : null,
         ]);
     }
@@ -168,7 +169,7 @@ class HotelFrontdeskController extends Controller
             $folio->refresh();
             $paid = $folio->paymentStatusLabel();
             if ($paid !== 'paid') {
-                $canForce = Auth::user()->can('force hotel checkout') || Auth::user()->can('manage hotel');
+                $canForce = HotelAuthorization::canForceCheckout(Auth::user());
                 if (! $canForce) {
                     return redirect()->back()->with(
                         'error',

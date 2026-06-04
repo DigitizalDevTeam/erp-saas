@@ -6,17 +6,18 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Modules\HotelManagement\Entities\HotelRoomType;
+use Modules\HotelManagement\Services\HotelAuthorization;
 
 class HotelRoomTypeController extends Controller
 {
     private function canView(): bool
     {
-        return Auth::user()->can('show hotel room') || Auth::user()->can('manage hotel room') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::viewRooms(Auth::user());
     }
 
     private function canManage(): bool
     {
-        return Auth::user()->can('manage hotel room') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::manageRooms(Auth::user());
     }
 
     public function index()

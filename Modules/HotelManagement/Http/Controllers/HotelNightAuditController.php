@@ -12,17 +12,18 @@ use Illuminate\Support\Facades\DB;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelNightAudit;
 use Modules\HotelManagement\Entities\HotelStay;
+use Modules\HotelManagement\Services\HotelAuthorization;
 
 class HotelNightAuditController extends Controller
 {
     private function canView(): bool
     {
-        return Auth::user()->can('show hotel frontdesk') || Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::viewNightAudit(Auth::user());
     }
 
     private function canManage(): bool
     {
-        return Auth::user()->can('manage hotel frontdesk') || Auth::user()->can('manage hotel');
+        return HotelAuthorization::manageNightAudit(Auth::user());
     }
 
     public function index()

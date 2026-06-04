@@ -7,12 +7,13 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Modules\HotelManagement\Entities\HotelReservation;
+use Modules\HotelManagement\Services\HotelAuthorization;
 
 class HotelCalendarController extends Controller
 {
     public function index()
     {
-        if (!Auth::user()->can('show hotel reservation') && !Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
+        if (! HotelAuthorization::viewCalendar(Auth::user())) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -21,7 +22,7 @@ class HotelCalendarController extends Controller
 
     public function events(Request $request)
     {
-        if (!Auth::user()->can('show hotel reservation') && !Auth::user()->can('manage hotel reservation') && !Auth::user()->can('manage hotel')) {
+        if (! HotelAuthorization::viewCalendar(Auth::user())) {
             return response()->json([], 403);
         }
         $creatorId = Auth::user()->creatorId();

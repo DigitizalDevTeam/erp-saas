@@ -5,6 +5,7 @@ namespace Modules\HotelManagement\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelStay;
 use Modules\HotelManagement\Services\HotelPosChargeService;
@@ -13,7 +14,7 @@ class HotelPosIntegrationController extends Controller
 {
     public function inHouseGuests(Request $request)
     {
-        if (!Auth::user()->canManagePos() && !Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) {
+        if (! HotelAuthorization::accessPosIntegration(Auth::user())) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
 
@@ -45,7 +46,7 @@ class HotelPosIntegrationController extends Controller
 
     public function charge(Request $request, HotelPosChargeService $service)
     {
-        if (!Auth::user()->canManagePos() && !Auth::user()->can('manage hotel frontdesk') && !Auth::user()->can('manage hotel')) {
+        if (! HotelAuthorization::accessPosIntegration(Auth::user())) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
 
