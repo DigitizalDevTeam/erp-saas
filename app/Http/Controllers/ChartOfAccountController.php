@@ -18,7 +18,9 @@ class ChartOfAccountController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        ChartOfAccountHierarchy::backfillLegacyParentLinks(\Auth::user()->creatorId());
+        $creatorId = \Auth::user()->creatorId();
+        ChartOfAccountHierarchy::backfillLegacyParentLinks($creatorId);
+        ChartOfAccountHierarchy::syncTypesFromParents($creatorId);
 
         $start = $request->start_date ?: date('Y-01-01');
         $end = $request->end_date ?: date('Y-m-d', strtotime('+1 day'));
@@ -41,7 +43,6 @@ class ChartOfAccountController extends Controller
             default => 'name',
         };
 
-        $creatorId = \Auth::user()->creatorId();
         $chartAccounts = [];
 
         foreach ($types as $type) {

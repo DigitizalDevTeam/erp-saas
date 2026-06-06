@@ -217,6 +217,7 @@ use App\Models\warehouse;
 use App\Models\ChartOfAccountType;
 use App\Models\ChartOfAccountParent;
 use App\Models\ChartOfAccountSubType;
+use App\Support\ChartOfAccountHierarchy;
 use Illuminate\Support\Facades\Hash;
 
 
@@ -262,6 +263,17 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
         return strtolower(trim(preg_replace('/\s+/', ' ', $raw ?? '')));
     };
 
+    $parseDepth = static function (string $level): int {
+        if ($level === 'parent account' || $level === 'main account') {
+            return 0;
+        }
+        if (!preg_match('/^(?:sub\s+)+account/', $level)) {
+            throw new \InvalidArgumentException("Unknown account structure level: {$level}");
+        }
+
+        return substr_count($level, 'sub');
+    };
+
     $findParentCode = static function (string $code, array $accountsByCode): ?string {
         for ($length = strlen($code) - 1; $length > 0; $length--) {
             $prefix = substr($code, 0, $length);
@@ -271,6 +283,41 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
         }
 
         return null;
+    };
+
+    $resolveParentCode = static function (string $code, int $depth, array $accountsByCode, array $stack) use ($findParentCode): ?string {
+        if ($depth === 0) {
+            return null;
+        }
+
+        $prefixParent = $findParentCode($code, $accountsByCode);
+
+        if ($depth >= 2 && isset($stack[$depth - 1]) && str_starts_with($code, $stack[$depth - 1]) && strlen($code) > strlen($stack[$depth - 1])) {
+            return $stack[$depth - 1];
+        }
+
+        if ($depth === 1 && isset($stack[0]) && str_starts_with($code, $stack[0]) && strlen($code) > strlen($stack[0])) {
+            if ($prefixParent !== null && isset($accountsByCode[$prefixParent]) && strlen($prefixParent) > strlen($stack[0])) {
+                $parentMeta = $accountsByCode[$prefixParent];
+                if (($parentMeta['can_have_children'] ?? false) || ($parentMeta['depth'] ?? 0) >= 2) {
+                    return $prefixParent;
+                }
+            }
+
+            return $stack[0];
+        }
+
+        if ($prefixParent !== null && isset($accountsByCode[$prefixParent])) {
+            $parentMeta = $accountsByCode[$prefixParent];
+            if ($depth === 1 && ($parentMeta['depth'] ?? 0) >= 1 && !($parentMeta['can_have_children'] ?? false)) {
+                $grandparentCode = $findParentCode($prefixParent, $accountsByCode);
+                if ($grandparentCode !== null) {
+                    return $grandparentCode;
+                }
+            }
+        }
+
+        return $prefixParent;
     };
 
     // Parse CSV once (skip 3 header rows)
@@ -351,11 +398,6 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
         foreach (ChartOfAccountSubType::where('created_by', $company->id)->get() as $st) {
             $subTypeCache[$st->type . '|' . $st->name] = $st;
         }
-        $mainAccountIds = ChartOfAccountParent::where('created_by', $company->id)
-            ->pluck('account')
-            ->flip()
-            ->all();
-
         $resolveType = static function (string $englishType, string $categoryPt, int $creatorId) use (&$typeCache) {
             if ($typeCache->has($englishType)) {
                 return $typeCache->get($englishType);
@@ -394,26 +436,17 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
                 $rows,
                 $resolveType,
                 $resolveSubType,
-                $mainAccountIds,
-                $findParentCode,
+                $parseDepth,
+                $resolveParentCode,
                 &$companyImported
             ) {
                 $accountsByCode = [];
-                $currentChartParentRecordId = null;
+                $depthStack = [];
 
-                foreach (ChartOfAccount::where('created_by', $company->id)->get(['id', 'code', 'parent']) as $existingRow) {
+                foreach (ChartOfAccount::where('created_by', $company->id)->get(['id', 'code']) as $existingRow) {
                     $accountsByCode[$existingRow->code] = [
                         'id' => $existingRow->id,
-                        'is_main' => (int) $existingRow->parent === 0 || isset($mainAccountIds[$existingRow->id]),
                     ];
-                    if ((int) $existingRow->parent === 0) {
-                        $parentLink = ChartOfAccountParent::where('account', $existingRow->id)
-                            ->where('created_by', $company->id)
-                            ->first();
-                        if ($parentLink) {
-                            $currentChartParentRecordId = $parentLink->id;
-                        }
-                    }
                 }
 
                 foreach ($rows as $row) {
@@ -421,6 +454,9 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
                     $englishName = $row['english_name'];
                     $englishTypeName = $row['english_type'];
                     $englishSubTypeName = $row['english_sub_type'];
+                    $accountLevel = $row['account_level'];
+                    $depth = $parseDepth($accountLevel);
+                    $canHaveChildren = str_contains($accountLevel, '- parent');
 
                     if ($englishName === '' || $englishTypeName === '' || $englishSubTypeName === '') {
                         throw new \Exception("Row {$row['row_index']} (code {$code}): missing name, category, or sub-category.");
@@ -441,8 +477,8 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
                         'created_by' => $company->id,
                     ];
 
-                    $parentCode = $findParentCode($code, $accountsByCode);
-                    $isTopParent = $parentCode === null;
+                    $parentCode = $resolveParentCode($code, $depth, $accountsByCode, $depthStack);
+                    $isTopParent = $depth === 0;
 
                     if ($isTopParent) {
                         $existing = ChartOfAccount::where('created_by', $company->id)->where('code', $code)->first();
@@ -455,7 +491,7 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
                             ]));
                         }
 
-                        $parentRecord = ChartOfAccountParent::firstOrCreate(
+                        ChartOfAccountParent::firstOrCreate(
                             ['account' => $account->id, 'created_by' => $company->id],
                             [
                                 'name' => $account->name,
@@ -465,35 +501,57 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
                             ]
                         );
 
-                        $currentChartParentRecordId = $parentRecord->id;
-                        $accountsByCode[$code] = ['id' => $account->id, 'is_main' => true];
+                        $accountsByCode[$code] = [
+                            'id' => $account->id,
+                            'depth' => 0,
+                            'can_have_children' => $canHaveChildren,
+                        ];
+                        $depthStack[0] = $code;
+                        foreach (array_keys($depthStack) as $stackDepth) {
+                            if ($stackDepth > 0) {
+                                unset($depthStack[$stackDepth]);
+                            }
+                        }
                         $companyImported++;
 
                         continue;
                     }
 
-                    if (!$currentChartParentRecordId) {
-                        throw new \Exception("Row {$row['row_index']} (code {$code}, {$englishName}): sub-account before any parent account.");
+                    if ($parentCode === null || !isset($accountsByCode[$parentCode]['id'])) {
+                        throw new \Exception("Row {$row['row_index']} (code {$code}, {$englishName}): could not resolve parent for level '{$accountLevel}'.");
                     }
 
-                    $parentAccountId = $accountsByCode[$parentCode]['is_main']
-                        ? null
-                        : $accountsByCode[$parentCode]['id'];
+                    $parentAccountId = (int) $accountsByCode[$parentCode]['id'];
+                    $parentAccount = ChartOfAccount::find($parentAccountId);
+                    if (! $parentAccount) {
+                        throw new \Exception("Row {$row['row_index']} (code {$code}, {$englishName}): parent account {$parentCode} not found.");
+                    }
+
+                    $legacyParentId = ChartOfAccountHierarchy::legacyParentRowId($parentAccountId);
+                    $accountPayload['type'] = $parentAccount->type;
+                    $accountPayload['sub_type'] = $parentAccount->sub_type;
 
                     $existing = ChartOfAccount::where('created_by', $company->id)->where('code', $code)->first();
                     if ($existing) {
                         $account = $existing;
                     } else {
                         $account = ChartOfAccount::create(array_merge($accountPayload, [
-                            'parent' => $currentChartParentRecordId,
+                            'parent' => $legacyParentId,
                             'parent_account_id' => $parentAccountId,
                         ]));
                     }
 
                     $accountsByCode[$code] = [
                         'id' => $account->id,
-                        'is_main' => isset($mainAccountIds[$account->id]),
+                        'depth' => $depth,
+                        'can_have_children' => $canHaveChildren,
                     ];
+                    $depthStack[$depth] = $code;
+                    foreach (array_keys($depthStack) as $stackDepth) {
+                        if ($stackDepth > $depth) {
+                            unset($depthStack[$stackDepth]);
+                        }
+                    }
                     $companyImported++;
                 }
             });

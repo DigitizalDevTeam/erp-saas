@@ -31,6 +31,17 @@ class PosActorService
     }
 
     /**
+     * Set the active restaurant terminal user (skips PIN screen on POS).
+     */
+    public static function establishPinActor(int $userId): void
+    {
+        session([
+            'pos_pin_user_id' => $userId,
+        ]);
+        self::clearRestaurantPinRequirement();
+    }
+
+    /**
      * Restaurant terminal actor: active PIN user when set; else company owner may use ERP login
      * until they switch user (then PIN is required for everyone).
      */

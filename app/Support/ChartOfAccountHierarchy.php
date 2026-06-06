@@ -125,8 +125,11 @@ class ChartOfAccountHierarchy
             return $node;
         };
 
-        $roots = $accounts->filter(static function (ChartOfAccount $account) {
-            return self::effectiveParentAccountId($account) === null;
+        $accountsById = $accounts->keyBy('id');
+        $roots = $accounts->filter(static function (ChartOfAccount $account) use ($accountsById) {
+            $parentId = self::effectiveParentAccountId($account);
+
+            return $parentId === null || ! $accountsById->has($parentId);
         })->sort($sorter)->values();
 
         return $roots->map($attach);
@@ -347,6 +350,41 @@ class ChartOfAccountHierarchy
         $collect($accountId);
 
         return $ids;
+    }
+
+    /**
+     * Align child type/sub_type with direct parent (matches manual create behaviour).
+     */
+    public static function syncTypesFromParents(?int $creatorId = null): int
+    {
+        $query = ChartOfAccount::query()->whereNotNull('parent_account_id');
+
+        if ($creatorId) {
+            $query->where('created_by', $creatorId);
+        }
+
+        $updated = 0;
+        $accounts = $query->get()->sortBy(static fn (ChartOfAccount $account) => strlen((string) $account->code));
+
+        foreach ($accounts as $account) {
+            $parent = ChartOfAccount::find((int) $account->parent_account_id);
+            if (! $parent) {
+                continue;
+            }
+
+            if ((int) $account->type === (int) $parent->type && (int) $account->sub_type === (int) $parent->sub_type) {
+                continue;
+            }
+
+            $account->type = $parent->type;
+            $account->sub_type = $parent->sub_type;
+            $account->save();
+            $updated++;
+        }
+
+        self::clearCache();
+
+        return $updated;
     }
 
     /**

@@ -25,6 +25,10 @@ Route::get('/login/{lang?}', [AuthenticatedSessionController::class, 'showLoginF
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])
                 ->middleware('guest');
 
+Route::post('/login/pos', [AuthenticatedSessionController::class, 'storePosLogin'])
+                ->middleware('guest')
+                ->name('login.pos');
+
 Route::get('/two-factor-challenge', [TwoFactorController::class, 'showChallenge'])
                 ->name('2fa.challenge');
 

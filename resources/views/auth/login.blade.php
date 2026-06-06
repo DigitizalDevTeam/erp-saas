@@ -237,6 +237,44 @@
             text-decoration: underline;
         }
 
+        .login-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .login-tab-btn {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 10px 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s;
+        }
+
+        .login-tab-btn.active {
+            color: #10a373;
+            border-bottom-color: #10a373;
+        }
+
+        .login-panel {
+            display: none;
+        }
+
+        .login-panel.active {
+            display: block;
+        }
+
+        .pos-pin-input {
+            letter-spacing: 0.35em;
+            font-weight: 600;
+        }
+
         /* Responsive Design */
         @media (max-width: 1024px) {
             .login-left {
@@ -348,8 +386,23 @@
                         @if (session('error'))
                             <div class="alert alert-danger py-2">{{ session('error') }}</div>
                         @endif
-    
+
+                        @php
+                            $activeLoginTab = old('login_mode', 'erp');
+                        @endphp
+
+                        <div class="login-tabs" role="tablist">
+                            <button type="button" class="login-tab-btn {{ $activeLoginTab === 'erp' ? 'active' : '' }}" data-login-tab="erp" role="tab">
+                                {{ __('ERP Login') }}
+                            </button>
+                            <button type="button" class="login-tab-btn {{ $activeLoginTab === 'pos' ? 'active' : '' }}" data-login-tab="pos" role="tab">
+                                {{ __('POS Login') }}
+                            </button>
+                        </div>
+
+                        <div id="login-panel-erp" class="login-panel {{ $activeLoginTab === 'erp' ? 'active' : '' }}">
                         {{ Form::open(['route' => 'login', 'method' => 'post', 'class'=>'needs-validation', 'novalidate']) }}
+                        {{ Form::hidden('login_mode', 'erp') }}
     
                         {{-- EMAIL --}}
                         <div class="form-group">
@@ -359,7 +412,9 @@
                                 'required'
                             ]) }}
                             @error('email')
-                                <small class="text-danger">{{ $message }}</small>
+                                @if(old('login_mode', 'erp') !== 'pos')
+                                    <small class="text-danger">{{ $message }}</small>
+                                @endif
                             @enderror
                         </div>
     
@@ -414,10 +469,87 @@
                         @endif
     
                         {{ Form::close() }}
+                        </div>
+
+                        <div id="login-panel-pos" class="login-panel {{ $activeLoginTab === 'pos' ? 'active' : '' }}">
+                        {{ Form::open(['route' => 'login.pos', 'method' => 'post', 'class'=>'needs-validation', 'novalidate', 'id' => 'pos-login-form']) }}
+                        {{ Form::hidden('login_mode', 'pos') }}
+
+                        <div class="form-group">
+                            {{ Form::email('email', old('email'), [
+                                'class' => 'form-control',
+                                'placeholder' => __('Email / User'),
+                                'required',
+                                'autocomplete' => 'username',
+                            ]) }}
+                            @error('email')
+                                @if(old('login_mode') === 'pos')
+                                    <small class="text-danger">{{ $message }}</small>
+                                @endif
+                            @enderror
+                        </div>
+
+                        <div class="form-group">
+                            {{ Form::password('pos_pin', [
+                                'class' => 'form-control pos-pin-input',
+                                'placeholder' => __('POS PIN (4-8 digits)'),
+                                'required',
+                                'maxlength' => 8,
+                                'minlength' => 4,
+                                'autocomplete' => 'off',
+                                'inputmode' => 'numeric',
+                                'pattern' => '[0-9]*',
+                            ]) }}
+                            @error('pos_pin')
+                                <small class="text-danger">{{ $message }}</small>
+                            @enderror
+                        </div>
+
+                        <div class="form-check mb-3">
+                            {{ Form::checkbox('remember', 1, true, ['class'=>'form-check-input','id'=>'rememberMePos']) }}
+                            <label class="form-check-label" for="rememberMePos">
+                                {{ __('Keep me logged in') }}
+                            </label>
+                        </div>
+
+                        @if ($settings['recaptcha_module'] == 'on')
+                            @if ($settings['google_recaptcha_version'] == 'v2-checkbox')
+                                {!! NoCaptcha::display(['id' => 'pos-recaptcha']) !!}
+                            @else
+                                <input type="hidden" name="g-recaptcha-response" class="g-recaptcha-response-pos">
+                            @endif
+                        @endif
+
+                        <button type="submit" class="btn btn-primary w-100">{{ __('Open Restaurant POS') }}</button>
+                        <p class="text-muted small mt-3 mb-0">{{ __('Sign in with your email and restaurant POS PIN. You will go directly to the POS screen.') }}</p>
+
+                        {{ Form::close() }}
+                        </div>
                     </div>
                 </div>
     
             </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var tabButtons = document.querySelectorAll('[data-login-tab]');
+            var panels = {
+                erp: document.getElementById('login-panel-erp'),
+                pos: document.getElementById('login-panel-pos'),
+            };
+
+            tabButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var tab = button.getAttribute('data-login-tab');
+                    tabButtons.forEach(function (btn) { btn.classList.remove('active'); });
+                    Object.keys(panels).forEach(function (key) {
+                        panels[key].classList.toggle('active', key === tab);
+                    });
+                    button.classList.add('active');
+                });
+            });
+        });
+    </script>
 @endsection

@@ -12,13 +12,16 @@ use  App\Models\User;
 use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\PosLoginRequest;
 use App\Providers\RouteServiceProvider;
+use App\Services\PosActorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use DateTime;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -266,6 +269,128 @@ class AuthenticatedSessionController extends Controller
         }
 
     }
+
+    /**
+     * POS tab login: email + restaurant PIN → direct restaurant POS (no second PIN screen).
+     */
+    public function storePosLogin(PosLoginRequest $request)
+    {
+        $settings = Utility::settings();
+        $validation = [];
+
+        if (isset($settings['recaptcha_module']) && $settings['recaptcha_module'] == 'on') {
+            if ($settings['google_recaptcha_version'] == 'v2-checkbox') {
+                $validation['g-recaptcha-response'] = 'required|captcha';
+            } elseif ($settings['google_recaptcha_version'] == 'v3') {
+                $result = event(new VerifyReCaptchaToken($request));
+
+                if (! isset($result[0]['status']) || $result[0]['status'] != true) {
+                    $key = 'g-recaptcha-response';
+                    $request->merge([$key => null]);
+                    $validation['g-recaptcha-response'] = 'required';
+                }
+            }
+        }
+
+        if ($validation !== []) {
+            $this->validate($request, $validation);
+        }
+
+        $request->ensureIsNotRateLimited();
+
+        $user = User::where('email', $request->email)->first();
+        $pin = $request->normalizedPin();
+
+        if (! $user || ! $user->pos_pin || $user->pos_pin !== $pin) {
+            $request->hitRateLimit();
+
+            throw ValidationException::withMessages([
+                'email' => __('Invalid email or PIN.'),
+            ]);
+        }
+
+        if (! $user->canManagePos()) {
+            $request->hitRateLimit();
+
+            throw ValidationException::withMessages([
+                'email' => __('This account does not have POS access.'),
+            ]);
+        }
+
+        $preLoginCompanyId = $this->resolveLoginCompanyId($user);
+        $companyUser = $preLoginCompanyId ? User::where('id', $preLoginCompanyId)->first() : null;
+
+        if ($user->is_disable == 0 && $user->type != 'company' && $user->type != 'super admin') {
+            return redirect()->back()->withInput($request->only('email', 'login_mode'))->with('status', __('Your Account is disable,please contact your Administrator.'));
+        }
+
+        $activeMembershipCount = $this->activeCompanyMembershipCount($user);
+        $isUserLoginDisabled = $user->type != 'super admin'
+            && $user->type != 'company'
+            && $activeMembershipCount <= 1
+            && (int) $user->is_enable_login === 0;
+
+        $isCompanyLoginDisabled = $user->type != 'super admin'
+            && $companyUser != null
+            && (int) $companyUser->is_enable_login === 0;
+
+        if ($isUserLoginDisabled || $isCompanyLoginDisabled) {
+            return redirect()->back()->withInput($request->only('email', 'login_mode'))->with('status', __('Your Account is disable from company.'));
+        }
+
+        User::defaultEmail();
+        $user->userDefaultDataRegister($user->id);
+
+        Auth::login($user, $request->boolean('remember'));
+        $request->session()->regenerate();
+
+        $resolvedCompanyId = $this->resolveLoginCompanyId($user);
+        if ($resolvedCompanyId) {
+            $request->session()->put('active_company_id', (int) $resolvedCompanyId);
+        } else {
+            $request->session()->forget('active_company_id');
+        }
+
+        $companyUser = $resolvedCompanyId ? User::find($resolvedCompanyId) : null;
+        $status = $companyUser ? $companyUser->delete_status : 1;
+
+        if ($user->delete_status == 0 || $status == 0) {
+            Auth::logout();
+
+            return redirect()->back()->withInput($request->only('email', 'login_mode'))->with('status', __('Your Account is deleted by admin,please contact your Administrator.'));
+        }
+
+        if ($user->is_active == 0) {
+            Auth::logout();
+
+            return redirect()->back()->withInput($request->only('email', 'login_mode'))->with('status', __('Your Account is deactive by admin,please contact your Administrator.'));
+        }
+
+        if ($companyUser && $companyUser->plan) {
+            $plan = Plan::find($companyUser->plan);
+            if ($plan && (int) $plan->pos !== 1) {
+                Auth::logout();
+
+                return redirect()->back()->withInput($request->only('email', 'login_mode'))->with('status', __('POS is not enabled on your plan.'));
+            }
+        }
+
+        PosActorService::establishPinActor((int) $user->id);
+        $request->session()->put('pos_login_via_tab', true);
+
+        $setting = Utility::settingsById($user->creatorId());
+        $timezone = $setting['timezone'] ? $setting['timezone'] : 'UTC';
+        date_default_timezone_set($timezone);
+
+        $user->update([
+            'last_login_at' => Carbon::now()->toDateTimeString(),
+        ]);
+
+        $request->clearRateLimit();
+
+        return redirect()->route('pos.restaurant.index');
+    }
+
     /**
      * Destroy an authenticated session.
      *

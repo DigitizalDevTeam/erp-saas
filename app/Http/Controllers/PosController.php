@@ -3703,7 +3703,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             );
         }
         $request->session()->put('pos_pin_user_id', $user->id);
-        PosActorService::clearRestaurantPinRequirement();
+        PosActorService::establishPinActor((int) $user->id);
         $openShift = \App\Models\PosShift::where('user_id', $user->id)
             ->where('status', \App\Models\PosShift::STATUS_OPEN)
             ->where('created_by', $creatorId)
