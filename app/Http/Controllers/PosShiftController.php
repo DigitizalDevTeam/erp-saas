@@ -24,7 +24,7 @@ use App\Models\BankAccount;
 use App\Models\Utility;
 use App\Mail\InternalOperationalAlertMail;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
+use App\Support\LoggedMail;
 
 class PosShiftController extends Controller
 {
@@ -676,7 +676,11 @@ class PosShiftController extends Controller
                     continue;
                 }
                 try {
-                    Mail::to($email)->send(new InternalOperationalAlertMail($subject, $body));
+                    LoggedMail::send($email, new InternalOperationalAlertMail($subject, $body), [
+                        'source' => 'pos_shift_report',
+                        'subject' => $subject,
+                        'created_by' => $creatorId,
+                    ]);
                 } catch (\Throwable $e) {
                 }
             }

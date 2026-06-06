@@ -15,8 +15,9 @@
     $noteText = trim((string) ($line->description ?? ''));
     $hasNote = $noteText !== '';
     $isCancelled = ($line->status ?? '') === 'cancelled' || !empty($line->voided_at);
+    $rowVoidClass = $isCancelled ? ' pos-cart-row--voided' : '';
 @endphp
-<tr class="pos-cart-row-compact {{ $rowClass }} {{ $isSent ? 'pos-cart-row--sent' : 'pos-cart-row--draft' }}"
+<tr class="pos-cart-row-compact {{ $rowClass }}{{ $rowVoidClass }} {{ $isSent ? 'pos-cart-row--sent' : 'pos-cart-row--draft' }}"
     data-product-id="{{ $line->id ?? '' }}"
     data-product-variant-id="{{ (int) ($line->product_variant_id ?? 0) }}"
     data-cart-line-key="{{ $cartLineKey }}"
@@ -59,7 +60,7 @@
                 <div class="pos-cart-line__action action-btn">
                     @if($isSent)
                         @if($isCancelled)
-                            <span class="pos-cart-line__voided">{{ __('pos.voided') }}</span>
+                            <span class="badge pos-cart-line__void-badge">{{ __('pos.voided') }}</span>
                         @elseif(!empty($canShowVoid) && !empty($line->line_id))
                             <button type="button" class="btn btn-warning btn-sm pos-void-line pos-cart-line__void-btn"
                                 data-line-id="{{ $line->line_id }}" data-name="{{ $line->name ?? '' }}"

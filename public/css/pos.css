@@ -466,7 +466,28 @@
 .pos-cart-row-preparation .pos-cart-line__badge.pos-line-status { background: #f59e0b !important; }
 .pos-cart-row-ready .pos-cart-line__badge.pos-line-status,
 .pos-cart-row-sent.pos-cart-row-ready .pos-cart-line__badge.pos-line-status { background: #22c55e !important; }
-.pos-cart-row-cancelled .pos-cart-line__badge.pos-line-status { background: #94a3b8 !important; }
+.pos-cart-row-cancelled .pos-cart-line__badge.pos-line-status { background: #dc2626 !important; color: #fff !important; }
+.pos-cart-row-compact.pos-cart-row-cancelled,
+.pos-cart-row-compact.pos-cart-row--voided {
+    background: rgba(220, 38, 38, 0.08) !important;
+}
+.pos-cart-row-compact.pos-cart-row-cancelled .pos-cart-line__name,
+.pos-cart-row-compact.pos-cart-row--voided .pos-cart-line__name {
+    text-decoration: line-through;
+    color: #991b1b;
+}
+.pos-cart-line__voided {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #dc2626;
+    text-transform: uppercase;
+}
+.pos-cart-line__void-badge {
+    font-size: 0.58rem;
+    font-weight: 700;
+    background: #dc2626 !important;
+    color: #fff !important;
+}
 .pos-cart-line__qty-label {
     font-size: 0.72rem;
     font-weight: 600;
@@ -519,10 +540,6 @@
 }
 .pos-cart-line__del-btn i {
     font-size: 0.85rem;
-}
-.pos-cart-line__voided {
-    font-size: 0.62rem;
-    color: #94a3b8;
 }
 .pos-cart-line__note {
     grid-column: 1 / -1;

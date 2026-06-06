@@ -27,12 +27,13 @@
     <div class="lang-dropdown-only-desk">
         <li class="dropdown dash-h-item drp-language">
             <a class="dash-head-link dropdown-toggle btn" href="#" data-bs-toggle="dropdown" aria-expanded="false">
-                <span class="drp-text"> {{ $languages[$lang] }}
+                <span class="drp-text"> {{ $languages[$lang] ?? strtoupper($lang) }}
                 </span>
             </a>
             <div class="dropdown-menu dash-h-dropdown dropdown-menu-end">
                 @foreach ($languages as $code => $language)
-                    <a href="{{ route('register', [$ref, $code]) }}" tabindex="0" class="dropdown-item ">
+                    <a href="{{ route('register', ['ref_id' => $ref, 'lang' => $code]) }}" tabindex="0"
+                        class="dropdown-item {{ $lang === $code ? 'text-primary' : '' }}">
                         <span>{{ Str::ucfirst($language) }}</span>
                     </a>
                 @endforeach
@@ -44,7 +45,7 @@
 @section('content')
     <div class="card-body" style="margin: 0px auto !important">
         <div>
-            <h1 class="mb-0 f-w-600 text-center text-uppercase">{{ __('Uthara') }}</h1>
+            <h1 class="mb-0 f-w-600 text-center text-uppercase">{{ __('UTHARA') }}</h1>
             <p class="mb-1 text-center">{{ str_replace('_', ' ', config('app.name')) }}</p>
             <p class="mb-3 text-center">{{ __('Intelligent management for modern companies') }}</p>
             <h2 class="mb-3 f-w-600 text-center">{{ __('Create your account') }}</h2>

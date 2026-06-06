@@ -18,7 +18,7 @@
 
     $SITE_RTL = $setting['SITE_RTL'] ?? '';
 
-    $lang = \App::getLocale('lang');
+    $lang = app()->getLocale();
     if ($lang == 'ar' || $lang == 'he') {
         $SITE_RTL = 'on';
     }

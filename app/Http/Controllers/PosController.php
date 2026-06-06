@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\DocumentVoidLog;
 use App\Models\Plan;
 use App\Models\Pos;
 use App\Models\PosPayment;
@@ -15,6 +16,7 @@ use App\Models\PosBalance;
 use App\Models\PosAuditLog;
 use App\Services\BusinessDayLockService;
 use App\Services\PosActorService;
+use App\Services\DocumentVoidService;
 use App\Services\PosAuditLogService;
 use App\Services\InvoiceSaleDeductionService;
 use App\Services\PosKitDeductionService;
@@ -2533,6 +2535,16 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $pos->save();
         PosProduct::where('pos_id', $pos->id)->update(['status' => PosProduct::STATUS_CANCELLED]);
         PosAuditLogService::log(PosAuditLog::ACTION_CANCEL_ORDER, 'pos', (int) $pos->id, __('Order cancelled'), ['pos_id' => $pos->pos_id, 'table_id' => $pos->table_id]);
+        DocumentVoidLog::create([
+            'created_by' => Auth::user()->creatorId(),
+            'user_id' => Auth::id(),
+            'document_type' => DocumentVoidLog::TYPE_POS,
+            'document_id' => $pos->id,
+            'document_number' => Auth::user()->posNumberFormat($pos->pos_id),
+            'reason' => $request->input('reason'),
+            'stock_restored' => false,
+            'accounting_note_created' => false,
+        ]);
         return response()->json(['success' => true, 'message' => __('Order cancelled.')]);
     }
 
@@ -2582,6 +2594,12 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             (int) $posProduct->id,
             __('Line voided: :reason', ['reason' => $request->reason]),
             ['pos_id' => $pos->id, 'line_id' => $posProduct->id]
+        );
+        DocumentVoidService::logPosLineVoid(
+            (int) $posProduct->id,
+            (int) $pos->id,
+            Auth::user()->posNumberFormat($pos->pos_id),
+            $request->reason
         );
 
         return response()->json(['success' => true, 'message' => __('Line voided.')]);

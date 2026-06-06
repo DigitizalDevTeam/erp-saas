@@ -5,7 +5,7 @@
 @php
     $logo = \App\Models\Utility::get_file('uploads/logo');
     $company_logo = Utility::getValByName('company_logo');
-    $lang = \App::getLocale('lang');
+    $lang = app()->getLocale();
 
 @endphp
 

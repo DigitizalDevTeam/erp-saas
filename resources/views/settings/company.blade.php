@@ -1030,6 +1030,35 @@
                                         </span>
                                     @enderror
                                 </div>
+                                <div class="col-md-12"><hr><h6 class="mb-3">{{ __('Void / Cancel Documents') }}</h6></div>
+                                <div class="form-group col-md-4">
+                                    {{ Form::label('document_void_restore_stock', __('Stock on void'), ['class' => 'form-label']) }}
+                                    {{ Form::select('document_void_restore_stock', [
+                                        'auto' => __('Automatic (restore when stock was deducted)'),
+                                        'manual' => __('Manual (select warehouse on void)'),
+                                        'off' => __('Do not restore stock'),
+                                    ], $setting['document_void_restore_stock'] ?? 'auto', ['class' => 'form-control']) }}
+                                    <small class="text-muted">{{ __('When invoice/bill is voided, return stock to warehouse if it was affected.') }}</small>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    {{ Form::label('document_void_default_warehouse_id', __('Default return warehouse'), ['class' => 'form-label']) }}
+                                    @php
+                                        $whOptions = ['' => __('None / global quantity only')];
+                                        foreach (\App\Models\warehouse::where('created_by', \Auth::user()->creatorId())->orderBy('name')->get() as $wh) {
+                                            $whOptions[$wh->id] = $wh->name;
+                                        }
+                                    @endphp
+                                    {{ Form::select('document_void_default_warehouse_id', $whOptions, $setting['document_void_default_warehouse_id'] ?? '', ['class' => 'form-control']) }}
+                                </div>
+                                <div class="form-group col-md-4">
+                                    {{ Form::label('document_void_credit_note', __('Accounting note on void'), ['class' => 'form-label']) }}
+                                    {{ Form::select('document_void_credit_note', [
+                                        'auto' => __('Automatic credit/debit note'),
+                                        'manual' => __('Ask on void (manual)'),
+                                        'off' => __('Do not create note'),
+                                    ], $setting['document_void_credit_note'] ?? 'auto', ['class' => 'form-control']) }}
+                                    <small class="text-muted">{{ __('Credit note for invoices, debit note for bills.') }}</small>
+                                </div>
                                 <div class="form-group col-md-6">
                                     {{ Form::label('stock_alerts_enabled', __('Stock Alerts (min / max)'), ['class' => 'form-label']) }}
                                     <div class=" form-switch form-switch-left">

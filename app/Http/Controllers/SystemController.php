@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Mail;
+use App\Support\LoggedMail;
 use Illuminate\Support\Facades\Storage;
 
 
@@ -1301,7 +1301,10 @@ class SystemController extends Controller
             ]);
             
             // dd(config('mail'));
-            Mail::to($request->email)->send(new TestMail());
+            LoggedMail::send($request->email, new TestMail(), [
+                'source' => 'test_mail',
+                'subject' => 'Mail send for testing purpose.',
+            ]);
         } catch (\Exception $e) {
             return response()->json(
                 [

@@ -93,7 +93,7 @@ class RegisteredUserController extends Controller
             'type' => 'company',
             'default_pipeline' => 1,
             'plan' => 1,
-            'lang' => Utility::getValByName('default_language'),
+            'lang' => app()->getLocale() ?: Utility::getValByName('default_language'),
             'avatar' => '',
             'referral_code'=> $code,
             'used_referral_code'=>$request->ref_code,
@@ -190,45 +190,38 @@ class RegisteredUserController extends Controller
 
     }
 
-    public function showRegistrationForm(Request $request, $ref = '0' , $lang = '')
+    public function showRegistrationForm(Request $request, $ref = '0', $lang = '')
     {
-        if($ref == 'en' || $ref == 'es' || $ref == 'fr' || $ref == 'zh' || $ref == 'pt')
-        {
+        $langList = Utility::languages()->toArray();
+
+        if ($ref !== '0' && $ref !== '' && array_key_exists($ref, $langList)) {
             $lang = $ref;
-            $ref = 0;
+            $ref = '0';
         }
+
+        $lang = Utility::resolveAuthLocale($lang);
+        \App::setLocale($lang);
+
         $settings = Utility::settings();
 
-        if($settings['enable_signup'] == 'on')
-        {
-            $langList = Utility::languages()->toArray();
-            $lang = array_key_exists($lang, $langList) ? $lang : 'en';
-
-            if($lang == '')
-            {
-                $lang = Utility::getValByName('default_language');
-            }
-            \App::setLocale($lang);
-            if($ref == '')
-            {
-                $ref = 0;
+        if ($settings['enable_signup'] == 'on') {
+            if ($ref == '') {
+                $ref = '0';
             }
 
-            $refCode = User::where('referral_code' , '=', $ref)->first();
-            if(isset($refCode) && $refCode->referral_code != $ref)
-            {
-                return redirect()->route('register',['ref_id' => 0 ,'lang'=> $lang ?? 'en']);
+            $refCode = User::where('referral_code', '=', $ref)->first();
+            if ($ref !== '0' && $ref !== '' && ! $refCode) {
+                return redirect()->route('register', ['ref_id' => '0', 'lang' => $lang]);
             }
 
             $plan = null;
-            if($request->plan){
+            if ($request->plan) {
                 $plan = $request->plan;
             }
-            return view('auth.register', compact('lang' , 'ref', 'plan'));
+
+            return view('auth.register', compact('lang', 'ref', 'plan'));
         }
-        else
-        {
-            return \Redirect::to('login');
-        }
+
+        return \Redirect::to('login/' . $lang);
     }
 }

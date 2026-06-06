@@ -17,10 +17,14 @@ class Bill extends Model
         'suppress_inventory',
         'category_id',
         'created_by',
+        'voided_at',
+        'voided_by',
+        'void_reason',
     ];
 
     protected $casts = [
         'suppress_inventory' => 'boolean',
+        'voided_at' => 'datetime',
     ];
 
     public static $statues = [

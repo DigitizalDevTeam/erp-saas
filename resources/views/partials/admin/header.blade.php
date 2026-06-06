@@ -7,8 +7,11 @@
         $lang = 'en';
     }
     $LangName = cache()->remember('full_language_data_' . $lang, now()->addHours(24), function () use ($lang) {
-    return \App\Models\Language::languageData($lang);
+        return \App\Models\Language::languageData($lang);
     });
+    if (empty($LangName)) {
+        $LangName = (object) ['full_name' => strtoupper($lang)];
+    }
 
     $setting = \App\Models\Utility::settings();
 

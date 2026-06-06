@@ -252,6 +252,43 @@ class ProductOptionService
     /**
      * @param  array<int, array{product_id: int, quantity: float, price: float}>  $selected
      */
+    public static function restoreOptionsForVoid(
+        array $selected,
+        float $lineQuantity,
+        int $warehouseId,
+        int $creatorId,
+        string $stockType,
+        string $descriptionPrefix,
+        int $typeId
+    ): void {
+        if ($lineQuantity <= 0 || $selected === []) {
+            return;
+        }
+
+        foreach ($selected as $row) {
+            $optId = (int) $row['product_id'];
+            $restoreQty = (float) ($row['quantity'] ?? 1) * $lineQuantity;
+            if ($restoreQty <= 0) {
+                continue;
+            }
+
+            $opt = ProductService::where('id', $optId)->where('created_by', $creatorId)->first();
+            if (! $opt || ! ($opt->affect_stock ?? true)) {
+                continue;
+            }
+
+            $original = (float) ($opt->quantity ?? 0);
+            ProductService::where('id', $optId)->update(['quantity' => $original + $restoreQty]);
+            if ($warehouseId > 0) {
+                Utility::warehouse_quantity('plus', $restoreQty, $optId, $warehouseId);
+            }
+            Utility::addProductStock($optId, $restoreQty, $stockType, $descriptionPrefix, $typeId);
+        }
+    }
+
+    /**
+     * @param  array<int, array{product_id: int, quantity: float, price: float}>  $selected
+     */
     public static function addOptionsForPurchase(
         array $selected,
         float $lineQuantity,

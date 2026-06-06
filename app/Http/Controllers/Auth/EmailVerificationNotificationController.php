@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Providers\RouteServiceProvider;
+use App\Services\EmailLogService;
 use Illuminate\Http\Request;
 use  App\Models\Utility;
 
@@ -38,7 +39,23 @@ class EmailVerificationNotificationController extends Controller
 
         try {
             $request->user()->sendEmailVerificationNotification();
+            EmailLogService::logSuccess(
+                $request->user()->email,
+                __('Email Verification'),
+                'email_verification',
+                $request->user()->creatorId(),
+                $request->user()->id
+            );
         } catch (\Throwable $th) {
+            EmailLogService::logFailure(
+                $request->user()->email,
+                __('Email Verification'),
+                'email_verification',
+                $th->getMessage(),
+                $request->user()->creatorId(),
+                $request->user()->id
+            );
+
             return redirect()->back()->with('error', __($th->getMessage()));
         }
 

@@ -148,7 +148,7 @@
                                                 class="status_badge badge bg-primary p-2 px-3 rounded">{{ __(\App\Models\Invoice::$statues[$invoice->status]) }}</span>
                                         @elseif($invoice->status == 5)
                                             <span
-                                                class="status_badge badge bg-dark p-2 px-3 rounded">{{ __(\App\Models\Invoice::$statues[$invoice->status]) }}</span>
+                                                class="status_badge badge bg-danger p-2 px-3 rounded">{{ __(\App\Models\Invoice::$statues[$invoice->status]) }}</span>
                                         @endif
                                     </td>
                                     @if (Gate::check('edit invoice') || Gate::check('delete invoice') || Gate::check('show invoice'))
@@ -197,14 +197,14 @@
                                                     @can('delete invoice')
                                                         @if((int) $invoice->status !== 5)
                                                             <div class="action-btn ">
-                                                                    {!! Form::open(['method' => 'DELETE', 'route' => ['invoice.destroy', $invoice->id], 'id' => 'delete-form-' . $invoice->id]) !!}
-                                                                        <a href="#" class="mx-3 btn btn-sm align-items-center bs-pass-para bg-danger " data-bs-toggle="tooltip" title="{{__('Delete')}}"
-                                                                           data-original-title="{{ __('Delete') }}"
-                                                                           data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}"
-                                                                           data-confirm-yes="document.getElementById('delete-form-{{ $invoice->id }}').submit();">
+                                                                    <a href="#" class="mx-3 btn btn-sm align-items-center bg-danger document-void-trigger"
+                                                                       data-action="{{ route('invoice.destroy', $invoice->id) }}"
+                                                                       data-document-label="{{ __('Invoice') }}: {{ \Auth::user()->invoiceNumberFormat($invoice->invoice_id) }}"
+                                                                       data-note-type="credit_note"
+                                                                       data-bs-toggle="tooltip" title="{{ __('Void / Cancel') }}"
+                                                                       data-original-title="{{ __('Void / Cancel') }}">
                                                                             <i class="ti ti-trash text-white"></i>
                                                                         </a>
-                                                                    {!! Form::close() !!}
                                                                 </div>
                                                         @endif
                                                     @endcan
@@ -220,4 +220,5 @@
             </div>
         </div>
     </div>
+    @include('partials.document_void_modal')
 @endsection

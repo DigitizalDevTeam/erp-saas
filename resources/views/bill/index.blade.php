@@ -123,7 +123,7 @@
                                         @elseif($bill->status == 4)
                                             <span class="status_badge badge bg-primary p-2 px-3 rounded">{{ __(\App\Models\Bill::$statues[$bill->status]) }}</span>
                                         @elseif($bill->status == 5)
-                                            <span class="status_badge badge bg-dark p-2 px-3 rounded">{{ __(\App\Models\Bill::$statues[$bill->status]) }}</span>
+                                            <span class="status_badge badge bg-danger p-2 px-3 rounded">{{ __(\App\Models\Bill::$statues[$bill->status]) }}</span>
                                         @endif
                                     </td>
                                     @if(Gate::check('edit bill') || Gate::check('delete bill') || Gate::check('show bill'))
@@ -158,11 +158,14 @@
                                                 @can('delete bill')
                                                     @if((int) $bill->status !== 5)
                                                         <div class="action-btn ">
-                                                            {!! Form::open(['method' => 'DELETE', 'route' => ['bill.destroy', $bill->id],'class'=>'delete-form-btn','id'=>'delete-form-'.$bill->id]) !!}
-                                                            <a href="#" class="mx-3 btn btn-sm align-items-center bs-pass-para bg-danger" data-bs-toggle="tooltip" title="{{__('Delete')}}" data-original-title="{{__('Delete')}}" data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}" data-confirm-yes="document.getElementById('delete-form-{{$bill->id}}').submit();">
+                                                            <a href="#" class="mx-3 btn btn-sm align-items-center bg-danger document-void-trigger"
+                                                               data-action="{{ route('bill.destroy', $bill->id) }}"
+                                                               data-document-label="{{ __('Bill') }}: {{ \Auth::user()->billNumberFormat($bill->bill_id) }}"
+                                                               data-note-type="debit_note"
+                                                               data-bs-toggle="tooltip" title="{{ __('Void / Cancel') }}"
+                                                               data-original-title="{{ __('Void / Cancel') }}">
                                                                 <i class="ti ti-trash text-white"></i>
                                                             </a>
-                                                            {!! Form::close() !!}
                                                         </div>
                                                     @endif
                                                 @endcan
@@ -178,5 +181,6 @@
             </div>
         </div>
     </div>
+    @include('partials.document_void_modal')
 @endsection
 

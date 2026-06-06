@@ -24,12 +24,12 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Utility;
 use App\Models\TransactionLines;
-use App\Services\InvoiceSaleDeductionService;
+use App\Services\DocumentVoidService;
 use App\Support\SalesPurchaseNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
+use App\Support\LoggedMail;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Models\CustomerBillingAddress;
@@ -593,43 +593,19 @@ class InvoiceController extends Controller
     {
         if (\Auth::user()->can('delete invoice')) {
             if ($invoice->created_by == \Auth::user()->creatorId()) {
-                if ((int) $invoice->status === 5) {
-                    return redirect()->route('invoice.index')->with('info', __('Invoice already cancelled.'));
+                try {
+                    DocumentVoidService::voidInvoice($invoice, [
+                        'reason' => $request->input('void_reason'),
+                        'warehouse_id' => $request->input('warehouse_id'),
+                        'create_credit_note' => $request->boolean('create_credit_note'),
+                        'stock_mode' => $request->input('stock_mode'),
+                        'accounting_mode' => $request->input('accounting_mode'),
+                    ]);
+                } catch (\Throwable $e) {
+                    return redirect()->back()->with('error', $e->getMessage());
                 }
 
-                foreach ($invoice->payments as $invoices) {
-                    Utility::bankAccountBalance($invoices->account_id, $invoices->amount, 'debit');
-
-                    $invoicepayment = InvoicePayment::find($invoices->id);
-                    $invoices->delete();
-                    $invoicepayment->delete();
-
-                }
-
-                if ($invoice->customer_id != 0 && $invoice->status != 0) {
-                    Utility::updateUserBalance('customer', $invoice->customer_id, $invoice->getDue(), 'debit');
-                }
-
-
-                TransactionLines::where('reference_id',$invoice->id)->where('reference','Invoice')->delete();
-                TransactionLines::where('reference_id',$invoice->id)->Where('reference','Invoice Payment')->delete();
-
-                $remainingCredit = $invoice->getTotal() - $invoice->invoiceTotalCreditNote();
-                if ($remainingCredit > 0) {
-                    $creditNote = new CreditNote();
-                    $creditNote->invoice = $invoice->id;
-                    $creditNote->customer = $invoice->customer_id;
-                    $creditNote->amount = $remainingCredit;
-                    $creditNote->date = date('Y-m-d');
-                    $creditNote->description = __('Auto-generated on document cancellation');
-                    $creditNote->created_by = \Auth::user()->creatorId();
-                    $creditNote->save();
-                }
-
-                $invoice->status = 5;
-                $invoice->save();
-
-                return redirect()->route('invoice.index')->with('success', __('Invoice cancelled and credit note generated.'));
+                return redirect()->route('invoice.index')->with('success', __('Invoice cancelled successfully.'));
             } else {
                 return redirect()->back()->with('error', __('Permission denied.'));
             }
@@ -1062,7 +1038,10 @@ class InvoiceController extends Controller
 
         try
         {
-            Mail::to($email)->send(new CustomerInvoiceSend($invoice));
+            LoggedMail::send($email, new CustomerInvoiceSend($invoice), [
+                'source' => 'customer_invoice',
+                'subject' => __('Invoice') . ' ' . ($invoice->invoice ?? ''),
+            ]);
         } catch (\Exception $e) {
             $smtp_error = __('E-Mail has been not sent due to SMTP configuration');
         }

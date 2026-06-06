@@ -5,7 +5,7 @@ namespace App\Support;
 use App\Mail\InternalOperationalAlertMail;
 use App\Models\Utility;
 use App\Services\OperationalMessagingService;
-use Illuminate\Support\Facades\Mail;
+use App\Support\LoggedMail;
 
 class InternalOperationalAlerts
 {
@@ -37,7 +37,11 @@ class InternalOperationalAlerts
                 foreach ($emails as $addr) {
                     if (filter_var($addr, FILTER_VALIDATE_EMAIL)) {
                         try {
-                            Mail::to($addr)->send(new InternalOperationalAlertMail($subjectLine, $plainBody));
+                            LoggedMail::send($addr, new InternalOperationalAlertMail($subjectLine, $plainBody), [
+                                'source' => 'internal_ops_' . $event,
+                                'subject' => $subjectLine,
+                                'created_by' => $companyCreatorId,
+                            ]);
                         } catch (\Throwable $e) {
                         }
                     }

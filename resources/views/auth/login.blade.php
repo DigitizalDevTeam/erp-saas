@@ -28,7 +28,7 @@
 <div class="lang-dropdown-only-desk">
     <li class="dropdown dash-h-item drp-language">
         <a class="dash-head-link dropdown-toggle btn" href="#" data-bs-toggle="dropdown">
-            <span class="drp-text">{{ $languages[$lang] }}</span>
+            <span class="drp-text">{{ $languages[$lang] ?? strtoupper($lang) }}</span>
         </a>
         <div class="dropdown-menu dash-h-dropdown dropdown-menu-end">
             @foreach ($languages as $code => $language)

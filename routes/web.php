@@ -52,6 +52,8 @@ use App\Http\Controllers\DesignationController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\DucumentUploadController;
 use App\Http\Controllers\EasebuzzController;
+use App\Http\Controllers\DocumentVoidLogController;
+use App\Http\Controllers\EmailLogController;
 use App\Http\Controllers\EmailTemplateController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EventController;
@@ -1494,6 +1496,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::any('email_template_store', [EmailTemplateController::class, 'updateStatus'])->name('status.email.language')->middleware(['auth']);
     Route::any('email_template_store/{pid}', [EmailTemplateController::class, 'storeEmailLang'])->name('store.email.language')->middleware(['auth']);
     Route::resource('email_template', EmailTemplateController::class)->middleware(['auth', 'XSS']);
+    Route::get('email-logs', [EmailLogController::class, 'index'])->name('email_logs.index')->middleware(['auth', 'XSS']);
+    Route::get('document-void-logs', [DocumentVoidLogController::class, 'index'])->name('document_void_logs.index')->middleware(['auth', 'XSS']);
     // End Email Templates
 
     // HRM

@@ -22,7 +22,7 @@ use App\Models\User;
 use App\Models\UserDeal;
 use App\Models\Utility;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
+use App\Support\LoggedMail;
 use App\Exports\DealExport;
 use App\Imports\DealImport;
 use Maatwebsite\Excel\Facades\Excel;
@@ -2041,7 +2041,10 @@ class DealController extends Controller
 
                 try
                 {
-                    Mail::to($request->to)->send(new SendDealEmail($dealEmail, $settings));
+                    LoggedMail::send($request->to, new SendDealEmail($dealEmail), [
+                        'source' => 'deal_email',
+                        'subject' => $request->subject,
+                    ]);
                 }
                 catch(\Exception $e)
                 {

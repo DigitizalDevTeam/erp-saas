@@ -22,7 +22,7 @@
     $company_logo = \App\Models\Utility::GetLogo();
     $SITE_RTL = isset($setting['SITE_RTL']) ? $setting['SITE_RTL'] : 'off';
 
-    $lang = \App::getLocale('lang');
+    $lang = app()->getLocale();
     if ($lang == 'ar' || $lang == 'he') {
         $SITE_RTL = 'on';
     }

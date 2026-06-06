@@ -27,7 +27,7 @@ use App\Models\UserLead;
 use App\Models\Utility;
 use App\Models\WebhookSetting;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
+use App\Support\LoggedMail;
 use Spatie\Permission\Models\Role;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\LeadExport;
@@ -1748,7 +1748,10 @@ class LeadController extends Controller
 
                 try
                 {
-                    Mail::to($request->to)->send(new SendLeadEmail($leadEmail, $settings));
+                    LoggedMail::send($request->to, new SendLeadEmail($leadEmail), [
+                        'source' => 'lead_email',
+                        'subject' => $request->subject,
+                    ]);
                 }
                 catch(\Exception $e)
                 {

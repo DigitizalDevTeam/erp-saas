@@ -1575,6 +1575,10 @@
                 var statusText = posStatusLabels[it.status] || it.status;
                 var statusRowClass = { 'pending': 'pos-cart-row-sent', 'not_sent': '', 'in_preparation': 'pos-cart-row-preparation', 'ready': 'pos-cart-row-ready', 'served': 'pos-cart-row-ready', 'cancelled': 'pos-cart-row-cancelled' };
                 var rowClass = statusRowClass[it.status] || '';
+                var isVoided = it.status === 'cancelled' || it.voided_at;
+                if (isVoided) {
+                    rowClass += ' pos-cart-row--voided';
+                }
                 var sentClass = it.is_sent ? 'pos-cart-row--sent' : 'pos-cart-row--draft';
                 var esc = function (s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
                 var priceFmt = typeof addCommas === 'function' ? addCommas(it.price) : it.price;
@@ -1594,8 +1598,8 @@
                 html += '<span class="pos-cart-line__total subtotal">' + subFmt + '</span><span class="d-none price">' + priceFmt + '</span><span class="d-none tax">' + taxDisplay + '</span>';
                 html += '<div class="pos-cart-line__action action-btn">';
                 if (it.is_sent) {
-                    if (it.status === 'cancelled' || it.voided_at) {
-                        html += '<span class="pos-cart-line__voided">{{ __("pos.voided") }}</span>';
+                    if (isVoided) {
+                        html += '<span class="badge pos-cart-line__void-badge">{{ __("pos.voided") }}</span>';
                     } else if (canShowVoid && it.line_id) {
                         html += '<button type="button" class="btn btn-warning btn-sm pos-void-line pos-cart-line__void-btn" data-line-id="' + it.line_id + '" data-name="' + esc(it.name) + '" title="{{ __("pos.void") }}">{{ __("pos.void") }}</button>';
                     }
@@ -1663,8 +1667,11 @@
                     } else {
                         var rows = '';
                         list.forEach(function (it, idx) {
+                            var isVoidedLine = it.status === 'cancelled' || it.voided_at;
                             var sub = (it.price * it.quantity * (1 + (it.tax || 0) / 100));
-                            total += sub;
+                            if (!isVoidedLine) {
+                                total += sub;
+                            }
                             rows += buildRestaurantCartRow(it, idx, { sub: sub, sessionKeyVal: sessionKeyVal });
                         });
                         tbody.html(rows);

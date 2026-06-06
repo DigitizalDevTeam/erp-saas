@@ -1856,6 +1856,20 @@
                         <span class="dash-mtext">{{ __('Email Template') }}</span>
                     </a>
                 </li>
+                @if (\Auth::user()->type == 'super admin' || \Auth::user()->type == 'company')
+                    <li class="dash-item dash-hasmenu {{ Request::route()->getName() == 'email_logs.index' ? ' active' : '' }}">
+                        <a href="{{ route('email_logs.index') }}" class="dash-link">
+                            <span class="dash-micon"><i class="ti ti-mail-check"></i></span>
+                            <span class="dash-mtext">{{ __('Email Logs') }}</span>
+                        </a>
+                    </li>
+                    <li class="dash-item dash-hasmenu {{ Request::route()->getName() == 'document_void_logs.index' ? ' active' : '' }}">
+                        <a href="{{ route('document_void_logs.index') }}" class="dash-link">
+                            <span class="dash-micon"><i class="ti ti-file-x"></i></span>
+                            <span class="dash-mtext">{{ __('Void Audit Log') }}</span>
+                        </a>
+                    </li>
+                @endif
 
                 @if (\Auth::user()->type == 'super admin')
                     @include('landingpage::menu.landingpage')

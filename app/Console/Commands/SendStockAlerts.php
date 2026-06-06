@@ -8,7 +8,7 @@ use App\Models\User;
 use App\Models\Utility;
 use App\Services\OperationalMessagingService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Mail;
+use App\Support\LoggedMail;
 
 class SendStockAlerts extends Command
 {
@@ -106,7 +106,11 @@ class SendStockAlerts extends Command
             $payload = ['min' => $minRows, 'max' => $maxRows];
 
             if ($sendEmail && count($recipients) > 0) {
-                Mail::to($recipients)->send(new StockAlertsMail($payload, $settings));
+                LoggedMail::send($recipients, new StockAlertsMail($payload, $settings), [
+                    'source' => 'stock_alerts',
+                    'subject' => __('Stock Alerts'),
+                    'created_by' => $company->id,
+                ]);
             }
 
             $companyName = (string) ($settings['company_name'] ?? '');

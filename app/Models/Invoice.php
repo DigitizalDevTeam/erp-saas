@@ -18,8 +18,14 @@ class Invoice extends Model
         'status',
         'category_id',
         'created_by',
+        'voided_at',
+        'voided_by',
+        'void_reason',
     ];
 
+    protected $casts = [
+        'voided_at' => 'datetime',
+    ];
     public function pos()
     {
         return $this->belongsTo(Pos::class, 'pos_id');

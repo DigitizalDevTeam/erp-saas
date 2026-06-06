@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use App\Mail\CommonEmailTemplate;
+use App\Services\EmailLogService;
+use App\Support\LoggedMail;
 use App\Models\TransactionLines;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Spatie\GoogleCalendar\Event as GoogleEvent;
 use Spatie\Permission\Models\Permission;
@@ -347,6 +348,10 @@ class Utility extends Model
             "stock_alerts_send_sms" => "off",
             "stock_alerts_send_whatsapp" => "off",
 
+            "document_void_restore_stock" => "auto",
+            "document_void_default_warehouse_id" => "",
+            "document_void_credit_note" => "auto",
+
             "operational_sms_enabled" => "off",
             "operational_whatsapp_enabled" => "off",
 
@@ -628,6 +633,10 @@ class Utility extends Model
             "stock_alerts_send_sms" => "off",
             "stock_alerts_send_whatsapp" => "off",
 
+            "document_void_restore_stock" => "auto",
+            "document_void_default_warehouse_id" => "",
+            "document_void_credit_note" => "auto",
+
             "operational_sms_enabled" => "off",
             "operational_whatsapp_enabled" => "off",
 
@@ -792,21 +801,40 @@ class Utility extends Model
     public static function languages()
     {
         if (self::$languageSetting == null) {
-            $languages = Utility::langList();
-
             if (\Schema::hasTable('languages')) {
                 $settings = Utility::settings();
-                if (!empty($settings['disable_lang'])) {
+                if (! empty($settings['disable_lang'])) {
                     $disabledlang = explode(',', $settings['disable_lang']);
-                    $languages = Language::whereNotIn('code', $disabledlang)->pluck('full_name', 'code');
+                    self::$languageSetting = Language::whereNotIn('code', $disabledlang)->pluck('full_name', 'code');
                 } else {
-                    $languages = Language::pluck('full_name', 'code');
+                    self::$languageSetting = Language::pluck('full_name', 'code');
                 }
-                self::$languageSetting = $languages;
+            }
+
+            if (empty(self::$languageSetting) || (self::$languageSetting instanceof \Illuminate\Support\Collection && self::$languageSetting->isEmpty())) {
+                self::$languageSetting = collect(self::langList());
             }
         }
 
         return self::$languageSetting;
+    }
+
+    public static function resolveAuthLocale(?string $lang = null): string
+    {
+        $langList = self::languages();
+        if ($langList instanceof \Illuminate\Support\Collection) {
+            $langList = $langList->toArray();
+        }
+
+        if (empty($lang) || ! array_key_exists($lang, $langList)) {
+            $lang = self::getValByName('default_language');
+        }
+
+        if (empty($lang) || ! array_key_exists($lang, $langList)) {
+            $lang = 'en';
+        }
+
+        return $lang;
     }
 
     public static function getValByName($key)
@@ -2845,9 +2873,13 @@ class Utility extends Model
                                 ]
                             );
 
-                            Mail::to($mailTo)->send(new CommonEmailTemplate($content, $settings));
+                            LoggedMail::send($mailTo, new CommonEmailTemplate($content, $settings), [
+                                'source' => $emailTemplate,
+                                'subject' => $content->subject ?? $emailTemplate,
+                                'created_by' => $usr->creatorId(),
+                                'user_id' => $usr->id,
+                            ]);
                         } catch (\Exception $e) {
-                            // $error = $e->getMessage();
                             $error = 'Mail not send!';
                         }
 
@@ -2863,6 +2895,14 @@ class Utility extends Model
                             ];
                         }
                     } else {
+                        EmailLogService::logFailure(
+                            implode(', ', array_filter($mailTo)),
+                            $content->subject ?? $emailTemplate,
+                            $emailTemplate,
+                            __('Mail not send, email is empty'),
+                            $usr->creatorId(),
+                            $usr->id
+                        );
                         $arReturn = [
                             'is_success' => false,
                             'error' => __('Mail not send, email is empty'),
@@ -2877,6 +2917,15 @@ class Utility extends Model
                     ];
                 }
             } else {
+                EmailLogService::logFailure(
+                    implode(', ', array_filter($mailTo)),
+                    $emailTemplate,
+                    $emailTemplate,
+                    __('Mail not send, email not found'),
+                    $usr->creatorId(),
+                    $usr->id
+                );
+
                 return [
                     'is_success' => false,
                     'error' => __('Mail not send, email not found'),
@@ -2923,7 +2972,12 @@ class Utility extends Model
                                 'mail.from.name' => $settings['mail_from_name'],
                             ]
                         );
-                        Mail::to($mailTo)->send(new CommonEmailTemplate($content, $settings));
+                        LoggedMail::send($mailTo, new CommonEmailTemplate($content, $settings), [
+                            'source' => $emailTemplate,
+                            'subject' => $content->subject ?? $emailTemplate,
+                            'created_by' => $usr->creatorId(),
+                            'user_id' => $usr->id,
+                        ]);
                     } catch (\Exception $e) {
                         $error = $e->getMessage();
                     }
@@ -2940,6 +2994,14 @@ class Utility extends Model
                         ];
                     }
                 } else {
+                    EmailLogService::logFailure(
+                        implode(', ', array_filter($mailTo)),
+                        $content->subject ?? $emailTemplate,
+                        $emailTemplate,
+                        __('Mail not send, email is empty'),
+                        $usr->creatorId(),
+                        $usr->id
+                    );
                     $arReturn = [
                         'is_success' => false,
                         'error' => __('Mail not send, email is empty'),
@@ -2954,6 +3016,15 @@ class Utility extends Model
                 ];
             }
         } else {
+            EmailLogService::logFailure(
+                implode(', ', array_filter($mailTo)),
+                $emailTemplate,
+                $emailTemplate,
+                __('Mail not send, email not found'),
+                $usr->creatorId(),
+                $usr->id
+            );
+
             return [
                 'is_success' => false,
                 'error' => __('Mail not send, email not found'),

@@ -21,7 +21,7 @@ use App\Models\User;
 use App\Models\Utility;
 use App\Models\Vender;
 use App\Models\TransactionLines;
-use App\Support\SalesPurchaseNotifier;
+use App\Services\DocumentVoidService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -614,58 +614,25 @@ class BillController extends Controller
         }
     }
 
-    public function destroy(Bill $bill)
+    public function destroy(Bill $bill, Request $request)
     {
         if(\Auth::user()->can('delete bill'))
         {
             if($bill->created_by == \Auth::user()->creatorId())
             {
-                if ((int) $bill->status === 5) {
-                    return redirect()->route('bill.index')->with('info', __('Bill already cancelled.'));
+                try {
+                    DocumentVoidService::voidBill($bill, [
+                        'reason' => $request->input('void_reason'),
+                        'warehouse_id' => $request->input('warehouse_id'),
+                        'create_debit_note' => $request->boolean('create_debit_note'),
+                        'stock_mode' => $request->input('stock_mode'),
+                        'accounting_mode' => $request->input('accounting_mode'),
+                    ]);
+                } catch (\Throwable $e) {
+                    return redirect()->back()->with('error', $e->getMessage());
                 }
 
-                $billpayments = $bill->payments;
-
-                foreach($billpayments as $key => $value)
-                {
-                    Utility::bankAccountBalance($value->account_id, $value->amount, 'credit');
-                    $transaction= Transaction::where('payment_id',$value->id)->first();
-                    if ($transaction) {
-                        $transaction->delete();
-                    }
-
-                    $billpayment = BillPayment::find($value->id);
-                    if ($billpayment) {
-                        $billpayment->delete();
-                    }
-                }
-
-                if($bill->vender_id != 0 && $bill->status!=0)
-                {
-                    Utility::updateUserBalance('vendor', $bill->vender_id, $bill->getDue(), 'credit');
-                }
-
-                TransactionLines::where('reference_id',$bill->id)->where('reference','Bill')->delete();
-                TransactionLines::where('reference_id',$bill->id)->where('reference','Bill Account')->delete();
-                TransactionLines::where('reference_id',$bill->id)->where('reference','Bill Payment')->delete();
-
-                $remainingCredit = $bill->getTotal() - $bill->billTotalCreditNote();
-                if ($remainingCredit > 0) {
-                    $debit = new DebitNote();
-                    $debit->bill = $bill->id;
-                    $debit->vendor = $bill->vender_id;
-                    $debit->date = date('Y-m-d');
-                    $debit->amount = $remainingCredit;
-                    $debit->description = __('Auto-generated on document cancellation');
-                    $debit->created_by = \Auth::user()->creatorId();
-                    $debit->is_credit = 1;
-                    $debit->save();
-                }
-
-                $bill->status = 5;
-                $bill->save();
-
-                return redirect()->route('bill.index')->with('success', __('Bill cancelled and credit note generated.'));
+                return redirect()->route('bill.index')->with('success', __('Bill cancelled successfully.'));
             }
             else
             {

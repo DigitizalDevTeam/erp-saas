@@ -8,7 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Mail;
+use App\Support\LoggedMail;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelFloor;
 use Modules\HotelManagement\Entities\HotelGuest;
@@ -600,10 +600,13 @@ class HotelReservationController extends Controller
 
         try {
             $rateDisplay = Auth::user()->priceFormat($reservation->rate_per_night) . ' / ' . __($reservation->billing_mode === 'monthly' ? 'month' : 'night');
-            Mail::to($guest->email)->send(new HotelReservationCreatedMail($reservation, [
+            LoggedMail::send($guest->email, new HotelReservationCreatedMail($reservation, [
                 'billing_mode' => $reservation->billing_mode,
                 'rate_display' => $rateDisplay,
-            ]));
+            ]), [
+                'source' => 'hotel_reservation',
+                'subject' => __('Hotel reservation confirmation'),
+            ]);
 
             $reservation->forceFill(['guest_email_sent_at' => now()])->save();
         } catch (\Throwable $e) {
