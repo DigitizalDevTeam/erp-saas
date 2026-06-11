@@ -48,6 +48,12 @@
                 {!! Form::label('pos_invoice_when_charge_to_room', __('Create POS invoice immediately when charging to room (override default: defer to folio checkout)'), ['class' => 'form-check-label', 'for' => 'pos_inv_room']) !!}
             </div>
         </div>
+        <div class="col-md-8 d-flex align-items-end">
+            <div class="form-check">
+                {!! Form::checkbox('require_minibar_scan_at_checkout', 1, $setting->require_minibar_scan_at_checkout ?? false, ['class' => 'form-check-input', 'id' => 'req_minibar_scan']) !!}
+                {!! Form::label('require_minibar_scan_at_checkout', __('Require minibar scan before checkout'), ['class' => 'form-check-label', 'for' => 'req_minibar_scan']) !!}
+            </div>
+        </div>
         <div class="col-12"><hr><h6>{{ __('Folio payment → bank account') }}</h6></div>
         @foreach($paymentMethods as $pm)
             <div class="col-md-4">

@@ -5,32 +5,37 @@ namespace Modules\HotelManagement\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelFolioPayment;
 use Modules\HotelManagement\Services\HotelFolioAccountingService;
+use Modules\HotelManagement\Services\HotelFolioInvoiceService;
+use Modules\HotelManagement\Services\HotelFolioPaymentService;
 use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Services\HotelPosChargeService;
 
 class HotelFolioController extends Controller
 {
+    public function __construct(
+        private readonly HotelFolioPaymentService $paymentService,
+        private readonly HotelFolioInvoiceService $folioInvoiceService,
+    ) {
+    }
+
     public function show(HotelFolio $folio)
     {
         if (! HotelAuthorization::viewFolio(Auth::user()) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
-        $folio->load(['stay.reservation.guest', 'lines', 'payments']);
-        $paymentMethods = [
-            'cash' => __('Cash'),
-            'mpesa' => __('M-Pesa'),
-            'card' => __('Card'),
-            'bank_transfer' => __('Bank Transfer'),
-            'e_mola' => __('e-Mola'),
-            'mkesh' => __('Mkesh'),
-        ];
+        $folio->load(['stay.reservation.guest', 'lines', 'payments', 'erpInvoice']);
+        $paymentMethods = HotelFolioPaymentService::paymentMethodOptions();
+        $taxInvoiceUrl = $folio->invoice_id
+            ? route('hotel.folios.tax-invoice', $folio->id)
+            : null;
 
-        return view('hotelmanagement::folios.show', compact('folio', 'paymentMethods'));
+        return view('hotelmanagement::folios.show', compact('folio', 'paymentMethods', 'taxInvoiceUrl'));
     }
 
     public function storePayment(Request $request, HotelFolio $folio)
@@ -43,35 +48,22 @@ class HotelFolioController extends Controller
         }
         $request->validate([
             'amount' => 'required|numeric|min:0.01',
-            'method' => 'required|in:cash,mpesa,card,bank_transfer,e_mola,mkesh',
+            'method' => 'required|in:cash,mpesa,card,bank_transfer,e_mola,mkesh,transfer,account,other',
             'reference' => 'nullable|string|max:191',
             'notes' => 'nullable|string|max:500',
         ]);
 
-        $newPaymentId = null;
-        DB::transaction(function () use ($request, $folio, &$newPaymentId) {
-            $payment = HotelFolioPayment::create([
-                'hotel_folio_id' => $folio->id,
-                'amount' => $request->amount,
-                'method' => $request->method,
-                'reference' => $request->reference,
-                'notes' => $request->notes,
-                'created_by' => Auth::user()->creatorId(),
-            ]);
-            $newPaymentId = $payment->id;
-            $folio->refresh();
-            $paid = (float) $folio->payments()->sum('amount');
-            $folio->update(['paid_total' => $paid]);
-            if ($paid >= (float) $folio->grand_total - 0.01 && $folio->status === 'open') {
-                $folio->update(['status' => 'settled']);
-            }
-        });
-
-        if ($newPaymentId) {
-            $payment = HotelFolioPayment::find($newPaymentId);
-            if ($payment) {
-                app(HotelFolioAccountingService::class)->postFolioPaymentJournalIfConfigured($payment);
-            }
+        try {
+            $this->paymentService->recordPayment(
+                $folio,
+                (float) $request->amount,
+                (string) $request->method,
+                (int) Auth::user()->creatorId(),
+                $request->reference,
+                $request->notes,
+            );
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
         }
 
         return redirect()->route('hotel.folios.show', $folio)->with('success', __('Payment recorded.'));
@@ -117,8 +109,49 @@ class HotelFolioController extends Controller
         if (! HotelAuthorization::viewFolio(Auth::user()) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
-        $folio->load(['stay.reservation.guest', 'stay.reservation.room', 'lines', 'payments']);
+        $folio->load(['stay.reservation.guest', 'stay.reservation.room', 'lines', 'payments', 'erpInvoice']);
 
-        return view('hotelmanagement::folios.final_bill_print', compact('folio'));
+        if (! $folio->invoice_id && $folio->stay?->status === 'checked_out') {
+            $this->folioInvoiceService->createInvoiceFromFolio($folio, (int) Auth::user()->creatorId());
+            $folio->refresh()->load('erpInvoice');
+        }
+
+        $settings = app(HotelFolioAccountingService::class)->settingsFor((int) Auth::user()->creatorId());
+        $vatRate = $settings ? (float) $settings->default_vat_rate_percent : 0;
+        $taxInvoiceUrl = $folio->invoice_id
+            ? route('hotel.folios.tax-invoice', $folio->id)
+            : null;
+
+        return view('hotelmanagement::folios.final_bill_print', compact('folio', 'vatRate', 'taxInvoiceUrl'));
+    }
+
+    public function taxInvoicePdf(HotelFolio $folio)
+    {
+        if (! HotelAuthorization::viewFolio(Auth::user()) || (int) $folio->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        if (! $folio->invoice_id) {
+            $invoice = $this->folioInvoiceService->createInvoiceFromFolio($folio, (int) Auth::user()->creatorId());
+            if (! $invoice) {
+                return redirect()->back()->with('error', __('Could not generate tax invoice for this folio.'));
+            }
+            $folio->refresh();
+        }
+
+        return redirect()->route('invoice.pdf', Crypt::encrypt($folio->invoice_id));
+    }
+
+    public function paymentReceiptPrint(HotelFolio $folio, HotelFolioPayment $payment)
+    {
+        if (! HotelAuthorization::viewFolio(Auth::user())
+            || (int) $folio->created_by !== (int) Auth::user()->creatorId()
+            || (int) $payment->hotel_folio_id !== (int) $folio->id) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $folio->load(['stay.reservation.guest', 'stay.reservation.room']);
+
+        return view('hotelmanagement::folios.payment_receipt_print', compact('folio', 'payment'));
     }
 }

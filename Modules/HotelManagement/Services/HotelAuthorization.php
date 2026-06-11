@@ -250,6 +250,18 @@ class HotelAuthorization
         return $user->can('manage hotel') || $user->can('manage hotel reservation');
     }
 
+    public static function manageBookingSite(User|null $user = null): bool
+    {
+        $user = self::user($user);
+
+        return $user->can('manage hotel') || $user->can('manage hotel reservation');
+    }
+
+    public static function menuBookingSite(User|null $user = null): bool
+    {
+        return self::manageBookingSite($user);
+    }
+
     public static function viewGroups(User|null $user = null): bool
     {
         return self::viewReservations($user);

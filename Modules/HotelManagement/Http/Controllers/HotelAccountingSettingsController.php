@@ -92,6 +92,7 @@ class HotelAccountingSettingsController extends Controller
             'chart_vat_payable_id' => ['nullable', 'integer', 'min:1', $chartAccountOwned],
             'default_vat_rate_percent' => 'nullable|numeric|min:0|max:100',
             'pos_invoice_when_charge_to_room' => 'nullable|boolean',
+            'require_minibar_scan_at_checkout' => 'nullable|boolean',
             'bank_map' => 'nullable|array',
             'bank_map.*' => 'nullable|integer|min:1',
         ]);
@@ -114,6 +115,7 @@ class HotelAccountingSettingsController extends Controller
                 'chart_vat_payable_id' => $request->input('chart_vat_payable_id') ?: null,
                 'default_vat_rate_percent' => $request->input('default_vat_rate_percent', 16),
                 'pos_invoice_when_charge_to_room' => $request->boolean('pos_invoice_when_charge_to_room'),
+                'require_minibar_scan_at_checkout' => $request->boolean('require_minibar_scan_at_checkout'),
                 'folio_payment_bank_map' => $map ?: null,
             ]
         );

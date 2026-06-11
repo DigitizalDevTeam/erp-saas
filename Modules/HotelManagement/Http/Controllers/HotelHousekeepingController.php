@@ -11,14 +11,20 @@ use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelRoomConsumptionLog;
 use Modules\HotelManagement\Entities\HotelStay;
+use Modules\HotelManagement\Entities\HotelRoomMinibarRestock;
+use Modules\HotelManagement\Services\HotelMinibarRestockService;
 use Modules\HotelManagement\Services\HotelRoomConsumptionService;
+use Modules\HotelManagement\Services\HotelRoomStatusService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class HotelHousekeepingController extends Controller
 {
-    public function __construct(private readonly HotelRoomConsumptionService $consumptionService)
-    {
+    public function __construct(
+        private readonly HotelRoomConsumptionService $consumptionService,
+        private readonly HotelMinibarRestockService $restockService,
+        private readonly HotelRoomStatusService $roomStatusService,
+    ) {
     }
 
     private function canView(): bool
@@ -78,9 +84,20 @@ class HotelHousekeepingController extends Controller
             'created_by' => Auth::user()->creatorId(),
         ]);
 
-        HotelRoom::where('id', $request->hotel_room_id)
+        $room = HotelRoom::where('id', $request->hotel_room_id)
             ->where('created_by', Auth::user()->creatorId())
-            ->update(['status' => $request->status === 'done' ? HotelRoom::STATUS_AVAILABLE : HotelRoom::STATUS_CLEANING]);
+            ->first();
+        if ($room) {
+            if ($request->status === 'done') {
+                try {
+                    $this->roomStatusService->markRoomReady($room, (int) Auth::user()->creatorId());
+                } catch (\InvalidArgumentException) {
+                    // Room may still need minibar restock; stays in cleaning.
+                }
+            } else {
+                $this->roomStatusService->markCleaning($room);
+            }
+        }
 
         return redirect()->route('hotel.housekeeping.index')->with('success', __('Housekeeping task created.'));
     }
@@ -115,9 +132,21 @@ class HotelHousekeepingController extends Controller
             'status' => $request->status,
             'notes' => $request->notes,
         ]);
-        HotelRoom::where('id', $request->hotel_room_id)
+        $room = HotelRoom::where('id', $request->hotel_room_id)
             ->where('created_by', Auth::user()->creatorId())
-            ->update(['status' => $request->status === 'done' ? HotelRoom::STATUS_AVAILABLE : HotelRoom::STATUS_CLEANING]);
+            ->first();
+        if ($room) {
+            if ($request->status === 'done') {
+                try {
+                    $this->roomStatusService->markRoomReady($room, (int) Auth::user()->creatorId());
+                } catch (\InvalidArgumentException) {
+                    // Room may still need minibar restock; stays in cleaning.
+                }
+            } else {
+                $this->roomStatusService->markCleaning($room);
+            }
+        }
+
         return redirect()->route('hotel.housekeeping.index')->with('success', __('Housekeeping task updated.'));
     }
 
@@ -153,13 +182,33 @@ class HotelHousekeepingController extends Controller
 
         $minibarItems = $this->consumptionService->minibarCatalog($creatorId);
 
+        $pendingRestocks = $this->restockService->pendingRestocks($creatorId);
+
         return view('hotelmanagement::housekeeping.minibar', [
             'occupiedStays' => $occupiedStays,
             'todayLogs' => $todayLogs,
             'minibarItems' => $minibarItems,
+            'pendingRestocks' => $pendingRestocks,
             'canManage' => $this->canManage(),
             'today' => $today,
         ]);
+    }
+
+    public function completeRestock(Request $request, HotelRoomMinibarRestock $restock)
+    {
+        if (! $this->canManage() || (int) $restock->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        if ($restock->status !== HotelRoomMinibarRestock::STATUS_PENDING) {
+            return redirect()->back()->with('error', __('Restock already completed.'));
+        }
+
+        $request->validate(['notes' => 'nullable|string|max:500']);
+
+        $this->restockService->completeRestock($restock, $request->notes);
+
+        return redirect()->route('hotel.housekeeping.minibar')->with('success', __('Minibar restock marked complete.'));
     }
 
     public function storeMinibar(Request $request)

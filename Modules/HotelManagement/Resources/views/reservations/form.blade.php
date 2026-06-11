@@ -10,6 +10,19 @@
     $roomsArray = is_object($rooms ?? null) && method_exists($rooms, 'toArray') ? $rooms->toArray() : (array) ($rooms ?? []);
     $floorsArray = is_object($floors ?? null) && method_exists($floors, 'toArray') ? $floors->toArray() : (array) ($floors ?? []);
     $nationalityArray = is_object($nationalityOptions ?? null) && method_exists($nationalityOptions, 'toArray') ? $nationalityOptions->toArray() : (array) ($nationalityOptions ?? []);
+    $addonsCatalog = $addonsCatalog ?? collect();
+    $selectedAddonRows = old('addons');
+    if ($selectedAddonRows === null && isset($reservation)) {
+        $selectedAddonRows = $reservation->reservationAddons
+            ?->filter(fn ($row) => ! $row->isPosted())
+            ->map(fn ($row) => ['addon_id' => $row->hotel_addon_id, 'qty' => $row->qty])
+            ->values()
+            ->all() ?? [];
+    }
+    if (! is_array($selectedAddonRows) || $selectedAddonRows === []) {
+        $selectedAddonRows = [['addon_id' => '', 'qty' => 1]];
+    }
+    $postedAddons = isset($reservation) ? $reservation->reservationAddons?->filter(fn ($row) => $row->isPosted()) : collect();
 @endphp
 <div class="row g-3">
     <div class="col-lg-9">
@@ -124,6 +137,53 @@
                 @endif
             </div>
         </div>
+
+        @if($addonsCatalog->isNotEmpty())
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0 text-uppercase text-muted small fw-bold">{{ __('Addons & extras') }}</h6>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn_add_addon_row"><i class="ti ti-plus me-1"></i>{{ __('Add row') }}</button>
+                </div>
+                <p class="text-muted small">{{ __('Extra bed is billed per night. Other addons follow their catalog billing mode.') }}</p>
+                <div id="addon_rows">
+                    @foreach($selectedAddonRows as $index => $row)
+                        <div class="row g-2 align-items-end addon-row mb-2">
+                            <div class="col-md-7">
+                                <label class="form-label small mb-1">{{ __('Addon') }}</label>
+                                <select name="addons[{{ $index }}][addon_id]" class="form-control addon-select">
+                                    <option value="">{{ __('Select addon') }}</option>
+                                    @foreach($addonsCatalog as $addon)
+                                        <option value="{{ $addon->id }}" data-price="{{ $addon->price }}" data-billing="{{ $addon->billing_mode }}" data-type="{{ $addon->type }}" @selected((string) ($row['addon_id'] ?? '') === (string) $addon->id)>
+                                            {{ $addon->name }} — {{ Auth::user()->priceFormat($addon->price) }}
+                                            ({{ \Modules\HotelManagement\Entities\HotelAddon::billingModeOptions()[$addon->billing_mode] ?? $addon->billing_mode }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-1">{{ __('Qty') }}</label>
+                                <input type="number" name="addons[{{ $index }}][qty]" class="form-control addon-qty" min="1" value="{{ $row['qty'] ?? 1 }}">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-outline-danger w-100 btn-remove-addon" title="{{ __('Remove') }}"><i class="ti ti-trash"></i></button>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+                @if($postedAddons && $postedAddons->isNotEmpty())
+                    <div class="mt-3 small">
+                        <strong>{{ __('Posted to room bill') }}:</strong>
+                        <ul class="mb-0 ps-3">
+                            @foreach($postedAddons as $posted)
+                                <li>{{ $posted->addon?->name }} × {{ $posted->qty }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+            </div>
+        </div>
+        @endif
     </div>
 
     <div class="col-lg-3">
@@ -135,6 +195,8 @@
                 <div class="d-flex justify-content-between mb-1"><span class="text-muted">{{ __('Subtotal') }}</span><span id="sum_sub">—</span></div>
                 <div class="d-flex justify-content-between mb-2"><span class="text-muted">{{ __('Discount') }}</span><span id="sum_disc">—</span></div>
                 <div class="d-flex justify-content-between mb-2"><span class="text-muted">{{ __('Rate source') }}</span><span id="sum_source">—</span></div>
+                <div class="d-flex justify-content-between mb-2"><span class="text-muted">{{ __('Addons & extras') }}</span><span id="sum_addons">—</span></div>
+                <div class="d-flex justify-content-between mb-2"><span class="text-muted">{{ __('Max guests') }}</span><span id="sum_capacity">—</span></div>
                 <hr class="my-2">
                 <div class="d-flex justify-content-between"><strong>{{ __('Estimated total') }}</strong><strong class="text-primary" id="sum_total">—</strong></div>
                 <p class="mb-0 small mt-2 text-muted" id="sum_status_msg">{{ __('Fill dates & room type to calculate.') }}</p>
@@ -169,18 +231,58 @@
             }
         }
 
+        function extraBedCount() {
+            var count = 0;
+            document.querySelectorAll('.addon-row').forEach(function (row) {
+                var select = row.querySelector('.addon-select');
+                var qtyInput = row.querySelector('.addon-qty');
+                if (!select || !select.value) return;
+                var opt = select.options[select.selectedIndex];
+                if ((opt.getAttribute('data-type') || '') !== 'extra_bed') return;
+                count += parseInt(qtyInput && qtyInput.value ? qtyInput.value : 1, 10) || 1;
+            });
+            return count;
+        }
+
+        function guestCount() {
+            var adults = parseInt(document.getElementById('adults') ? document.getElementById('adults').value : 1, 10) || 1;
+            var children = parseInt(document.getElementById('children') ? document.getElementById('children').value : 0, 10) || 0;
+            return Math.max(1, adults) + Math.max(0, children);
+        }
+
+        function maxGuestCapacity() {
+            if (!typeSelect) return null;
+            var meta = roomTypesMeta[String(typeSelect.value || '')] || {};
+            var base = parseInt(meta.max_occupancy || 2, 10) || 2;
+            return base + extraBedCount();
+        }
+
+        function updateCapacitySummary() {
+            var cap = maxGuestCapacity();
+            var guests = guestCount();
+            var el = document.getElementById('sum_capacity');
+            if (!el || cap == null) return;
+            el.textContent = guests + ' / ' + cap;
+            el.className = guests > cap ? 'text-danger fw-bold' : '';
+        }
+
         function renderRoomOptions() {
             if (!roomSelect || !typeSelect) return;
             var typeId = String(typeSelect.value || '');
             var list = roomsByType[typeId] || [];
             var html = '<option value="">{{ __("Select Unit") }}</option>';
             list.forEach(function (room) {
-                var selected = selectedRoomId && String(room.id) === String(selectedRoomId) ? ' selected' : '';
-                var status = room.status ? ' [' + room.status + ']' : '';
+                var isSelected = selectedRoomId && String(room.id) === String(selectedRoomId);
+                if (!isSelected && room.status && room.status !== 'available') {
+                    return;
+                }
+                var selected = isSelected ? ' selected' : '';
+                var status = room.status && room.status !== 'available' ? ' [' + room.status + ']' : '';
                 var floor = room.floor_name ? ' - ' + room.floor_name : '';
                 html += '<option value="' + room.id + '"' + selected + '>' + room.room_no + floor + status + '</option>';
             });
             roomSelect.innerHTML = html;
+            updateCapacitySummary();
         }
 
         function updateRateLabels(mode) {
@@ -191,6 +293,22 @@
             if (rateFieldLabel) rateFieldLabel.textContent = rateLabel;
             setSummaryText('sum_units_label', unitLabel);
             setSummaryText('sum_rate_label', summaryRateLabel);
+        }
+
+        function calcAddonTotal(units) {
+            var total = 0;
+            document.querySelectorAll('.addon-row').forEach(function (row) {
+                var select = row.querySelector('.addon-select');
+                var qtyInput = row.querySelector('.addon-qty');
+                if (!select || !select.value) return;
+                var opt = select.options[select.selectedIndex];
+                var price = parseFloat(opt.getAttribute('data-price') || 0) || 0;
+                var billing = opt.getAttribute('data-billing') || 'per_stay';
+                var qty = parseInt(qtyInput && qtyInput.value ? qtyInput.value : 1, 10) || 1;
+                var multiplier = billing === 'per_night' ? Math.max(1, units || 1) : 1;
+                total += price * qty * multiplier;
+            });
+            return total;
         }
 
         function refreshQuote() {
@@ -213,18 +331,29 @@
                     }
                     var discount = parseFloat(document.getElementById('discount_amount') ? document.getElementById('discount_amount').value : 0) || 0;
                     var subtotal = parseFloat(data.subtotal || 0) || 0;
-                    var total = Math.max(0, subtotal - discount);
+                    var roomTotal = Math.max(0, subtotal - discount);
+                    var addonTotal = calcAddonTotal(parseInt(data.units || 1, 10));
+                    var total = roomTotal + addonTotal;
                     setSummaryText('sum_nights', String(data.units || 1));
                     setSummaryText('sum_rate', (parseFloat(data.rate_amount || 0) || 0).toFixed(2));
                     setSummaryText('sum_sub', subtotal.toFixed(2));
                     setSummaryText('sum_disc', discount.toFixed(2));
+                    setSummaryText('sum_addons', addonTotal.toFixed(2));
                     setSummaryText('sum_total', total.toFixed(2));
                     setSummaryText('sum_source', String(data.rate_plan_name || data.source || '{{ __("setup") }}'));
 
                     var statusMsg = document.getElementById('sum_status_msg');
+                    updateCapacitySummary();
+                    var cap = maxGuestCapacity();
+                    var guests = guestCount();
                     if (statusMsg) {
-                        statusMsg.textContent = '{{ __("Ready") }}';
-                        statusMsg.className = 'mb-0 small mt-2 text-success';
+                        if (cap != null && guests > cap) {
+                            statusMsg.textContent = '{{ __("Guest count exceeds room capacity.") }}';
+                            statusMsg.className = 'mb-0 small mt-2 text-danger';
+                        } else {
+                            statusMsg.textContent = '{{ __("Ready") }}';
+                            statusMsg.className = 'mb-0 small mt-2 text-success';
+                        }
                     }
                 })
                 .catch(function () {});
@@ -369,6 +498,62 @@
                 }
             });
         }
+
+        var addonRows = document.getElementById('addon_rows');
+        var addAddonBtn = document.getElementById('btn_add_addon_row');
+        function reindexAddonRows() {
+            if (!addonRows) return;
+            addonRows.querySelectorAll('.addon-row').forEach(function (row, index) {
+                var select = row.querySelector('.addon-select');
+                var qty = row.querySelector('.addon-qty');
+                if (select) select.name = 'addons[' + index + '][addon_id]';
+                if (qty) qty.name = 'addons[' + index + '][qty]';
+            });
+        }
+        function bindAddonRowEvents(row) {
+            row.querySelectorAll('.addon-select, .addon-qty').forEach(function (el) {
+                el.addEventListener('change', refreshQuote);
+                el.addEventListener('input', refreshQuote);
+            });
+            var removeBtn = row.querySelector('.btn-remove-addon');
+            if (removeBtn) {
+                removeBtn.addEventListener('click', function () {
+                    if (addonRows.querySelectorAll('.addon-row').length <= 1) {
+                        row.querySelector('.addon-select').value = '';
+                        row.querySelector('.addon-qty').value = '1';
+                        refreshQuote();
+                        return;
+                    }
+                    row.remove();
+                    reindexAddonRows();
+                    refreshQuote();
+                });
+            }
+        }
+        if (addonRows) {
+            addonRows.querySelectorAll('.addon-row').forEach(bindAddonRowEvents);
+        }
+        if (addAddonBtn && addonRows) {
+            addAddonBtn.addEventListener('click', function () {
+                var first = addonRows.querySelector('.addon-row');
+                if (!first) return;
+                var clone = first.cloneNode(true);
+                clone.querySelector('.addon-select').value = '';
+                clone.querySelector('.addon-qty').value = '1';
+                addonRows.appendChild(clone);
+                reindexAddonRows();
+                bindAddonRowEvents(clone);
+                refreshQuote();
+            });
+        }
+
+        ['adults', 'children'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('change', refreshQuote);
+                el.addEventListener('input', refreshQuote);
+            }
+        });
 
         updateRateLabels(billingModeSelect ? billingModeSelect.value : 'nightly');
         showGuestAlerts({

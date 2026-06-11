@@ -5,6 +5,14 @@
     <li class="breadcrumb-item"><a href="{{ route('hotel.groups.index') }}">{{ __('Groups') }}</a></li>
     <li class="breadcrumb-item">{{ __('Detail') }}</li>
 @endsection
+@section('action-btn')
+@if($canManage ?? false)
+<a href="{{ route('hotel.groups.edit', $group->id) }}" class="btn btn-sm btn-primary"><i class="ti ti-pencil"></i> {{ __('Edit') }}</a>
+{!! Form::open(['method' => 'DELETE', 'route' => ['hotel.groups.destroy', $group->id], 'class' => 'd-inline', 'onsubmit' => "return confirm('".__('Cancel all open reservations in this group?')."')"]) !!}
+<button type="submit" class="btn btn-sm btn-danger"><i class="ti ti-ban"></i> {{ __('Cancel group') }}</button>
+{!! Form::close() !!}
+@endif
+@endsection
 @section('content')
 <div class="card shadow-sm mb-3"><div class="card-body">
     <h5>{{ $group->name }}</h5>
@@ -33,7 +41,8 @@
             </td>
             <td>
                 @if($canManage ?? false)
-                <a class="btn btn-sm btn-outline-primary" href="{{ route('hotel.reservations.edit', $r->id) }}">{{ __('Reservation') }}</a>
+                <a class="btn btn-sm btn-outline-primary" href="{{ route('hotel.reservations.show', $r->id) }}">{{ __('View') }}</a>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ route('hotel.reservations.edit', $r->id) }}">{{ __('Edit') }}</a>
                 @endif
                 @if($folio)
                     <a class="btn btn-sm btn-outline-secondary" href="{{ route('hotel.folios.show', $folio->id) }}">{{ __('Folio') }}</a>

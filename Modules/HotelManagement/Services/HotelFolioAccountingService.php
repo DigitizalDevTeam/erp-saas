@@ -232,6 +232,7 @@ class HotelFolioAccountingService
 
         return match ((string) $line->line_type) {
             'room_charge' => 'room',
+            'addon_charge' => 'room',
             'pos_charge' => 'restaurant',
             'laundry_charge', 'misc_charge' => 'laundry',
             'minibar_charge' => 'misc',

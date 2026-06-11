@@ -6,6 +6,8 @@
 |--------------------------------------------------------------------------
 */
 
+use Modules\HotelManagement\Http\Controllers\HotelBookingSiteController;
+use Modules\HotelManagement\Http\Controllers\HotelAddonController;
 use Modules\HotelManagement\Http\Controllers\HotelAccountingSettingsController;
 use Modules\HotelManagement\Http\Controllers\HotelCalendarController;
 use Modules\HotelManagement\Http\Controllers\HotelDashboardController;
@@ -13,8 +15,10 @@ use Modules\HotelManagement\Http\Controllers\HotelFolioController;
 use Modules\HotelManagement\Http\Controllers\HotelFloorController;
 use Modules\HotelManagement\Http\Controllers\HotelFrontdeskController;
 use Modules\HotelManagement\Http\Controllers\HotelGroupController;
+use Modules\HotelManagement\Http\Controllers\HotelGuestController;
 use Modules\HotelManagement\Http\Controllers\HotelGuestMapController;
 use Modules\HotelManagement\Http\Controllers\HotelHousekeepingController;
+use Modules\HotelManagement\Http\Controllers\HotelMinibarItemController;
 use Modules\HotelManagement\Http\Controllers\HotelNightAuditController;
 use Modules\HotelManagement\Http\Controllers\HotelOtaSettingsController;
 use Modules\HotelManagement\Http\Controllers\HotelPosIntegrationController;
@@ -39,6 +43,9 @@ Route::group(['middleware' => ['verified']], function () {
             ],
         ],
         function () {
+            Route::get('hotel/booking-site', [HotelBookingSiteController::class, 'edit'])->name('hotel.booking-site.edit');
+            Route::post('hotel/booking-site', [HotelBookingSiteController::class, 'update'])->name('hotel.booking-site.update');
+
             Route::get('hotel/accounting-settings', [HotelAccountingSettingsController::class, 'index'])->name('hotel.accounting-settings.index');
             Route::post('hotel/accounting-settings', [HotelAccountingSettingsController::class, 'update'])->name('hotel.accounting-settings.update');
 
@@ -57,7 +64,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('hotel/ota-settings', [HotelOtaSettingsController::class, 'index'])->name('hotel.ota-settings.index');
             Route::post('hotel/ota-settings', [HotelOtaSettingsController::class, 'update'])->name('hotel.ota-settings.update');
 
-            Route::resource('hotel/groups', HotelGroupController::class)->only(['index', 'create', 'store', 'show'])->names('hotel.groups');
+            Route::resource('hotel/groups', HotelGroupController::class)->names('hotel.groups');
 
             Route::get('hotel/reservations/guest-search', [HotelReservationController::class, 'guestSearch'])->name('hotel.reservations.guest-search');
             Route::get('hotel/reservations/rate-quote', [HotelReservationController::class, 'rateQuote'])->name('hotel.reservations.rate-quote');
@@ -66,14 +73,23 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('hotel/reservations/{reservation}/calendar-update', [HotelReservationController::class, 'calendarUpdate'])->name('hotel.reservations.calendar-update');
 
             Route::post('hotel/folios/{folio}/payments', [HotelFolioController::class, 'storePayment'])->name('hotel.folios.payments.store');
+            Route::get('hotel/folios/{folio}/payments/{payment}/receipt', [HotelFolioController::class, 'paymentReceiptPrint'])->name('hotel.folios.payments.receipt');
             Route::post('hotel/folios/{folio}/lines', [HotelFolioController::class, 'storeLine'])->name('hotel.folios.lines.store');
 
             Route::get('hotel/rooms/map', [HotelRoomController::class, 'map'])->name('hotel.rooms.map');
+            Route::post('hotel/rooms/bulk-status', [HotelRoomController::class, 'bulkStatus'])->name('hotel.rooms.bulk-status');
+            Route::post('hotel/rooms/{room}/mark-ready', [HotelRoomController::class, 'markReady'])->name('hotel.rooms.mark-ready');
             Route::get('hotel/rooms/{room}/consumption', [HotelRoomConsumptionController::class, 'create'])->name('hotel.rooms.consumption');
             Route::post('hotel/rooms/{room}/consumption', [HotelRoomConsumptionController::class, 'store'])->name('hotel.rooms.consumption.store');
             Route::get('hotel/housekeeping/minibar', [HotelHousekeepingController::class, 'minibar'])->name('hotel.housekeeping.minibar');
             Route::post('hotel/housekeeping/minibar', [HotelHousekeepingController::class, 'storeMinibar'])->name('hotel.housekeeping.minibar.store');
+            Route::post('hotel/housekeeping/minibar-restock/{restock}/complete', [HotelHousekeepingController::class, 'completeRestock'])->name('hotel.housekeeping.restock.complete');
+            Route::post('hotel/minibar-items/seed-defaults', [HotelMinibarItemController::class, 'seedDefaults'])->name('hotel.minibar-items.seed-defaults');
+            Route::resource('hotel/minibar-items', HotelMinibarItemController::class)->except(['show'])->names('hotel.minibar-items');
             Route::get('hotel/guests/map', [HotelGuestMapController::class, 'index'])->name('hotel.guests.map');
+            Route::post('hotel/guests/{guest}/sync-crm', [HotelGuestController::class, 'syncCrm'])->name('hotel.guests.sync-crm');
+            Route::resource('hotel/guests', HotelGuestController::class)->only(['index', 'show', 'edit', 'update'])->names('hotel.guests');
+            Route::resource('hotel/addons', HotelAddonController::class)->except(['show'])->names('hotel.addons');
             Route::resource('hotel/floors', HotelFloorController::class)->except(['show'])->names('hotel.floors');
             Route::resource('hotel/rooms', HotelRoomController::class)->names('hotel.rooms');
             Route::resource('hotel/room-types', HotelRoomTypeController::class)->except(['show'])->names('hotel.room-types');
@@ -83,11 +99,18 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('hotel/frontdesk/in-house', [HotelFrontdeskController::class, 'inHouse'])->name('hotel.frontdesk.in-house');
             Route::get('hotel/frontdesk/checkout/{reservation}', [HotelFrontdeskController::class, 'showCheckout'])->name('hotel.frontdesk.checkout');
             Route::get('hotel/frontdesk/receipt/{reservation}', [HotelFrontdeskController::class, 'showReceipt'])->name('hotel.frontdesk.receipt');
+            Route::post('hotel/frontdesk/receipt/{reservation}', [HotelFrontdeskController::class, 'storeReceiptPayment'])->name('hotel.frontdesk.receipt.store');
             Route::post('hotel/frontdesk/check-in/{reservation}', [HotelFrontdeskController::class, 'checkIn'])->name('hotel.frontdesk.check-in');
             Route::post('hotel/frontdesk/check-out/{stay}', [HotelFrontdeskController::class, 'checkOut'])->name('hotel.frontdesk.check-out');
+            Route::post('hotel/frontdesk/extend-stay/{reservation}', [HotelFrontdeskController::class, 'extendStay'])->name('hotel.frontdesk.extend-stay');
+            Route::post('hotel/frontdesk/change-room/{reservation}', [HotelFrontdeskController::class, 'changeRoom'])->name('hotel.frontdesk.change-room');
+            Route::post('hotel/frontdesk/verify-minibar/{stay}', [HotelFrontdeskController::class, 'verifyMinibar'])->name('hotel.frontdesk.verify-minibar');
             Route::get('hotel/folios/{folio}', [HotelFolioController::class, 'show'])->name('hotel.folios.show');
             Route::get('hotel/folios/{folio}/final-bill', [HotelFolioController::class, 'finalBillPrint'])->name('hotel.folios.final-bill');
+            Route::get('hotel/folios/{folio}/tax-invoice', [HotelFolioController::class, 'taxInvoicePdf'])->name('hotel.folios.tax-invoice');
             Route::get('hotel/night-audit', [HotelNightAuditController::class, 'index'])->name('hotel.night-audit.index');
+            Route::get('hotel/night-audit/preview', [HotelNightAuditController::class, 'previewJson'])->name('hotel.night-audit.preview');
+            Route::get('hotel/night-audit/export', [HotelNightAuditController::class, 'export'])->name('hotel.night-audit.export');
             Route::post('hotel/night-audit/run', [HotelNightAuditController::class, 'run'])->name('hotel.night-audit.run');
             Route::get('hotel/pos/in-house-guests', [HotelPosIntegrationController::class, 'inHouseGuests'])->name('hotel.pos.in-house-guests');
             Route::post('hotel/pos/charge', [HotelPosIntegrationController::class, 'charge'])->name('hotel.pos.charge');

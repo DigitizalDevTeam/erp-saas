@@ -39,6 +39,24 @@ class HotelPosChargeService
         return $this->addChargeLine($folio, $payload, $creatorId, 'laundry_charge');
     }
 
+    public function addAddonChargeToFolio(HotelFolio $folio, array $payload, int $creatorId): HotelFolioLine
+    {
+        if (empty($payload['revenue_channel'])) {
+            $payload['revenue_channel'] = 'misc';
+        }
+
+        return $this->addChargeLine($folio, $payload, $creatorId, 'addon_charge');
+    }
+
+    public function addRoomChargeToFolio(HotelFolio $folio, array $payload, int $creatorId): HotelFolioLine
+    {
+        if (empty($payload['revenue_channel'])) {
+            $payload['revenue_channel'] = 'room';
+        }
+
+        return $this->addChargeLine($folio, $payload, $creatorId, 'room_charge');
+    }
+
     private function addChargeLine(HotelFolio $folio, array $payload, int $creatorId, string $lineType): HotelFolioLine
     {
         $qty = max(1, (int) ($payload['quantity'] ?? 1));
@@ -63,6 +81,9 @@ class HotelPosChargeService
             $lineData['revenue_channel'] = isset($payload['revenue_channel']) && $payload['revenue_channel'] !== ''
                 ? (string) $payload['revenue_channel']
                 : null;
+        }
+        if (Schema::hasColumn('hotel_folio_lines', 'hotel_addon_id') && ! empty($payload['hotel_addon_id'])) {
+            $lineData['hotel_addon_id'] = (int) $payload['hotel_addon_id'];
         }
         $line = HotelFolioLine::create($lineData);
 

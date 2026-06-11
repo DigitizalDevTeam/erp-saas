@@ -13,7 +13,7 @@
 <div class="row g-3">
     <div class="col-xl-2 col-md-4 col-6">
         @include('hotelmanagement::partials.kpi_card', [
-            'title' => __('Reservas Hoje'),
+            'title' => __('Reservations Today'),
             'value' => $kpis['today'] ?? 0,
             'subtitle' => __('Today'),
             'accent' => '#3B82F6',
@@ -22,7 +22,7 @@
     </div>
     <div class="col-xl-2 col-md-4 col-6">
         @include('hotelmanagement::partials.kpi_card', [
-            'title' => __('Confirmadas'),
+            'title' => __('Confirmed'),
             'value' => $kpis['confirmed'] ?? 0,
             'subtitle' => __('Confirmed + Checked-in'),
             'accent' => '#10B981',
@@ -31,7 +31,7 @@
     </div>
     <div class="col-xl-2 col-md-4 col-6">
         @include('hotelmanagement::partials.kpi_card', [
-            'title' => __('Pendentes'),
+            'title' => __('Pending'),
             'value' => $kpis['pending'] ?? 0,
             'subtitle' => __('Awaiting confirmation'),
             'accent' => '#F59E0B',
@@ -49,7 +49,7 @@
     </div>
     <div class="col-xl-4 col-md-8 col-12">
         @include('hotelmanagement::partials.kpi_card', [
-            'title' => __('Receita das Reservas'),
+            'title' => __('Reservation Revenue'),
             'value' => Auth::user()->priceFormat($kpis['revenue'] ?? 0),
             'subtitle' => __('Confirmed/checked-in/-out folios'),
             'accent' => '#8B5CF6',
@@ -86,6 +86,7 @@
                                     @endif
                                 </td>
                                 <td>
+                                    <a class="btn btn-sm btn-outline-primary" href="{{ route('hotel.reservations.show', $r->id) }}" title="{{ __('View') }}"><i class="ti ti-eye"></i></a>
                                     @can('hotel.manage.reservations')
                                     <a class="btn btn-sm btn-info" href="{{ route('hotel.reservations.edit', $r->id) }}"><i class="ti ti-pencil text-white"></i></a>
                                     @if($r->status !== 'checked_in' && $r->status !== 'cancelled')
@@ -113,7 +114,7 @@
 
     <div class="col-lg-5">
         <div class="card shadow-sm border-0 h-100">
-            <div class="card-header"><h5 class="mb-0">{{ __('Reservas Recentes') }}</h5></div>
+            <div class="card-header"><h5 class="mb-0">{{ __('Recent Reservations') }}</h5></div>
             <div class="card-body p-0">
                 @if($recent->isEmpty())
                     <p class="text-muted small p-3 mb-0">{{ __('No reservations yet.') }}</p>
@@ -140,7 +141,7 @@
     </div>
     <div class="col-lg-4">
         <div class="card shadow-sm border-0 h-100">
-            <div class="card-header"><h5 class="mb-0">{{ __('Canais de Reserva') }}</h5></div>
+            <div class="card-header"><h5 class="mb-0">{{ __('Booking Channels') }}</h5></div>
             <div class="card-body">
                 @if($totalSource > 0)
                     <div id="hotel-channels-pie"></div>
@@ -152,7 +153,7 @@
     </div>
     <div class="col-lg-3">
         <div class="card shadow-sm border-0 h-100">
-            <div class="card-header"><h5 class="mb-0">{{ __('Resumo do Dia') }}</h5></div>
+            <div class="card-header"><h5 class="mb-0">{{ __('Day Summary') }}</h5></div>
             <div class="card-body">
                 <div class="d-flex justify-content-between mb-2"><span class="text-muted small"><i class="ti ti-login me-1"></i>{{ __('Check-ins') }}</span><strong>{{ $daySummary['check_ins'] }}</strong></div>
                 <div class="d-flex justify-content-between mb-2"><span class="text-muted small"><i class="ti ti-logout me-1"></i>{{ __('Check-outs') }}</span><strong>{{ $daySummary['check_outs'] }}</strong></div>

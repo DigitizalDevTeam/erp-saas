@@ -4,11 +4,34 @@ namespace Tests\Unit\HotelManagement;
 
 use Carbon\Carbon;
 use Modules\HotelManagement\Entities\HotelReservation;
+use Modules\HotelManagement\Entities\HotelRoomType;
 use Modules\HotelManagement\Services\HotelReservationPricingService;
 use Tests\TestCase;
 
 class HotelReservationPricingServiceTest extends TestCase
 {
+    public function test_quote_falls_back_to_base_price_when_nightly_rate_is_zero(): void
+    {
+        $type = new HotelRoomType([
+            'base_price' => 120,
+            'nightly_rate' => 0,
+            'default_billing_mode' => 'nightly',
+        ]);
+
+        $service = new class extends HotelReservationPricingService {
+            public function quoteType(HotelRoomType $type): float
+            {
+                $ref = new \ReflectionClass(HotelReservationPricingService::class);
+                $method = $ref->getMethod('resolveTypeDefaultRate');
+                $method->setAccessible(true);
+
+                return $method->invoke($this, $type, 'nightly');
+            }
+        };
+
+        $this->assertSame(120.0, $service->quoteType($type));
+    }
+
     public function test_calculate_units_supports_nightly_and_monthly_modes(): void
     {
         $service = new HotelReservationPricingService();

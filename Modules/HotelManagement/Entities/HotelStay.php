@@ -19,7 +19,12 @@ class HotelStay extends Model
         'status',
         'extra_charge',
         'notes',
+        'minibar_verified_at',
         'created_by',
+    ];
+
+    protected $casts = [
+        'minibar_verified_at' => 'datetime',
     ];
 
     public function reservation()

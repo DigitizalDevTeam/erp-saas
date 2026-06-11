@@ -12,12 +12,14 @@ class HotelMinibarItem extends Model
     protected $fillable = [
         'name',
         'unit_price',
+        'default_quantity',
         'is_active',
         'created_by',
     ];
 
     protected $casts = [
         'unit_price' => 'float',
+        'default_quantity' => 'integer',
         'is_active' => 'boolean',
     ];
 }

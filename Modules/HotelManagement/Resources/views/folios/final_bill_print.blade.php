@@ -13,7 +13,16 @@
 <div class="mb-3 d-flex flex-wrap gap-2">
     <a href="{{ route('hotel.folios.show', $folio) }}" class="btn btn-outline-secondary">{{ __('Back to room bill') }}</a>
     <button type="button" class="btn btn-primary" id="folio-final-bill-pdf">{{ __('Download PDF') }}</button>
+    @if($taxInvoiceUrl ?? null)
+        <a href="{{ $taxInvoiceUrl }}" class="btn btn-success" target="_blank">{{ __('Tax invoice PDF') }}</a>
+    @endif
 </div>
+@if(($vatRate ?? 0) > 0)
+    <p class="text-muted small mb-3">{{ __('VAT rate') }}: {{ number_format($vatRate, 2) }}% — {{ __('Line tax amounts and hotel accounting settings apply.') }}</p>
+@endif
+@if($folio->erpInvoice ?? null)
+    <p class="text-muted small mb-3">{{ __('ERP invoice') }} #{{ Auth::user()->invoiceNumberFormat($folio->erpInvoice->invoice_id) }}</p>
+@endif
 <div id="folio-final-bill" class="card shadow-sm">
     <div class="card-body p-4">
         <div class="text-center mb-4">

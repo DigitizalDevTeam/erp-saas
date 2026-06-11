@@ -84,11 +84,15 @@
     $guest = $reservation->guest;
     $room = $reservation->room;
     $roomType = $room?->roomType?->name ?? __('Deluxe');
-    $guestName = $guest ? trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? '')) : __('João Mateus');
-    $guestCode = $guest?->guest_code ?? $guest?->id ?? '000125';
-    $phone = $guest?->phone ?? '+258 84 123 4567';
-    $email = $guest?->email ?? 'joaomateus@email.com';
-    $roomNo = $room?->room_no ?? '203';
+    $guestName = $guest ? trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? '')) : __('Guest');
+    $guestCode = $guest?->guest_code ?? $guest?->id ?? '—';
+    $phone = $guest?->phone ?: '—';
+    $email = $guest?->email ?: '—';
+    $roomNo = $room?->room_no ?? '—';
+    $checkoutNotes = old('checkout_notes', $stay?->notes ?? '');
+    $paymentMethods = $paymentMethods ?? \Modules\HotelManagement\Services\HotelFolioPaymentService::paymentMethodOptions();
+    $isPaid = $folio && $folio->paymentStatusLabel() === 'paid';
+    $canCompleteCheckout = $checkOutUrl && ($isPaid || ($canForceCheckout ?? false));
     $checkInAt = $reservation->check_in_at
         ? \Carbon\Carbon::parse($reservation->check_in_at)->format('d/m/Y H:i')
         : (\Carbon\Carbon::parse($reservation->check_in_date)->format('d/m/Y') . ' 14:00');
@@ -115,6 +119,8 @@
     $balance = max(0, $total - $paid);
     $folioShowUrl = $folio ? route('hotel.folios.show', $folio->id) : null;
     $finalBillUrl = $folio ? route('hotel.folios.final-bill', $folio->id) : null;
+    $taxInvoiceUrl = $taxInvoiceUrl ?? ($folio && $folio->invoice_id ? route('hotel.folios.tax-invoice', $folio->id) : null);
+    $reprintUrl = $taxInvoiceUrl ?? $finalBillUrl;
 @endphp
 
 <div class="hotel-checkout">
@@ -197,6 +203,7 @@
                                 <tr>
                                     <th>{{ __('Description') }}</th>
                                     <th>{{ __('Details') }}</th>
+                                    <th>{{ __('Service date') }}</th>
                                     <th class="text-center">{{ __('Qty') }}</th>
                                     <th class="text-end">{{ __('Amount') }}</th>
                                 </tr>
@@ -211,19 +218,48 @@
                                             {{ $line['desc'] }}
                                         </td>
                                         <td class="text-muted small">{{ $line['detail'] }}</td>
+                                        <td class="small text-muted">{{ $line['service_date'] ?? '—' }}</td>
                                         <td class="text-center">{{ $line['qty'] }}</td>
                                         <td class="text-end fw-semibold">{{ $fmt($line['amount']) }}</td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="4" class="text-muted text-center py-3">{{ __('No folio charges yet. Room bill is created at check-in.') }}</td>
+                                        <td colspan="5" class="text-muted text-center py-3">{{ __('No folio charges yet. Room bill is created at check-in.') }}</td>
                                     </tr>
                                 @endforelse
                             </tbody>
                         </table>
                     </div>
+                    @if(($consumptionAuditLogs ?? collect())->isNotEmpty())
+                    <div class="p-3 border-top">
+                        <h6 class="small fw-semibold mb-2">{{ __('Consumption audit trail') }}</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <thead><tr><th>{{ __('Date') }}</th><th>{{ __('Type') }}</th><th>{{ __('Description') }}</th><th>{{ __('Qty') }}</th><th class="text-end">{{ __('Amount') }}</th></tr></thead>
+                                <tbody>
+                                @foreach($consumptionAuditLogs as $log)
+                                    <tr>
+                                        <td class="small">{{ $log->service_date?->format('Y-m-d') ?? '—' }}</td>
+                                        <td class="small">{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $log->charge_type))) }}</td>
+                                        <td class="small">{{ $log->description }}</td>
+                                        <td class="small">{{ $log->quantity }}</td>
+                                        <td class="small text-end">{{ $fmt($log->line_total) }}</td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    @endif
                     @if(($canManage ?? false) && $reservation->room)
                     <div class="p-3 border-top text-end d-flex flex-wrap gap-2 justify-content-end">
+                        @if(($requireMinibarScan ?? false) && !($minibarVerified ?? false) && $stay)
+                        {!! Form::open(['route' => ['hotel.frontdesk.verify-minibar', $stay->id], 'method' => 'POST', 'class' => 'd-inline']) !!}
+                        <button type="submit" class="btn btn-sm btn-warning"><i class="ti ti-fridge me-1"></i>{{ __('Record minibar scan') }}</button>
+                        {!! Form::close() !!}
+                        @elseif($minibarVerified ?? false)
+                        <span class="badge bg-success align-self-center me-2"><i class="ti ti-check me-1"></i>{{ __('Minibar scanned') }}</span>
+                        @endif
                         <a href="{{ route('hotel.rooms.consumption', $reservation->room->id) }}" class="btn btn-sm btn-outline-primary">
                             <i class="ti ti-plus me-1"></i>{{ __('Add consumption') }}
                         </a>
@@ -240,7 +276,7 @@
                     <h6 class="mb-0 fw-semibold">{{ __('Observations') }}</h6>
                 </div>
                 <div class="card-body">
-                    <textarea class="form-control" rows="4" placeholder="{{ __('Add observations...') }}"></textarea>
+                    <textarea class="form-control" name="checkout_notes" id="checkout-notes" rows="4" placeholder="{{ __('Add observations...') }}" form="checkout-form" {{ !($canManage ?? false) ? 'disabled' : '' }}>{{ $checkoutNotes }}</textarea>
                 </div>
             </div>
         </div>
@@ -280,55 +316,71 @@
                 </div>
             </div>
 
+            @if(($requireMinibarScan ?? false) && !($minibarVerified ?? false))
+            <div class="alert alert-warning small mb-3">{{ __('Record minibar scan before completing checkout.') }}</div>
+            @endif
+
             <div class="card shadow-sm border-0 mb-3">
                 <div class="card-header bg-transparent border-bottom py-3">
                     <h6 class="mb-0 fw-semibold">{{ __('Payment') }}</h6>
                 </div>
                 <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">{{ __('Payment method') }}</label>
-                        <select class="form-select" id="checkout-payment-method">
-                            <option value="mpesa" selected>{{ __('Mobile money') }} (M-Pesa)</option>
-                            <option value="cash">{{ __('Cash') }}</option>
-                            <option value="card">{{ __('Card') }}</option>
-                            <option value="transfer">{{ __('Transfer') }}</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">{{ __('Amount received') }}</label>
-                        <input type="text" class="form-control" id="checkout-amount-received" value="{{ number_format($balance, 2, '.', '') }}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">{{ __('Reference / Transaction no.') }}</label>
-                        <input type="text" class="form-control" value="MP250512114233" placeholder="{{ __('Reference') }}">
-                    </div>
-                    <div class="change-box d-flex align-items-center justify-content-between">
-                        <div>
-                            <i class="ti ti-check text-success me-1"></i>
-                            <span class="small fw-semibold">{{ __('Change') }}</span>
-                        </div>
-                        <span class="fw-bold text-success" id="checkout-change">{{ $fmt(0) }}</span>
-                    </div>
                     @if($canManage ?? false)
                         @if($checkOutUrl ?? null)
-                            {!! Form::open(['url' => $checkOutUrl, 'method' => 'POST', 'id' => 'checkout-form', 'class' => 'mt-3']) !!}
+                            {!! Form::open(['url' => $checkOutUrl, 'method' => 'POST', 'id' => 'checkout-form']) !!}
                             @csrf
+                            @if(!$isPaid && ($balance ?? 0) > 0)
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">{{ __('Payment method') }}</label>
+                                    <select class="form-select" name="payment_method" id="checkout-payment-method">
+                                        @foreach($paymentMethods as $methodKey => $methodLabel)
+                                            <option value="{{ $methodKey }}" @selected(old('payment_method', 'cash') === $methodKey)>{{ $methodLabel }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">{{ __('Amount received') }}</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" name="payment_amount" id="checkout-amount-received" value="{{ old('payment_amount', number_format($balance, 2, '.', '')) }}">
+                                    <div class="form-text">{{ __('Pending balance') }}: {{ $fmt($balance) }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">{{ __('Reference / Transaction no.') }}</label>
+                                    <input type="text" class="form-control" name="payment_reference" value="{{ old('payment_reference') }}" placeholder="{{ __('Reference') }}">
+                                </div>
+                                <div class="change-box d-flex align-items-center justify-content-between mb-3">
+                                    <div>
+                                        <i class="ti ti-check text-success me-1"></i>
+                                        <span class="small fw-semibold">{{ __('Change') }}</span>
+                                    </div>
+                                    <span class="fw-bold text-success" id="checkout-change">{{ $fmt(0) }}</span>
+                                </div>
+                            @else
+                                <input type="hidden" name="payment_amount" value="0">
+                                <p class="text-success small mb-3"><i class="ti ti-check me-1"></i>{{ __('Paid on folio') }}</p>
+                            @endif
+                            @if(($canForceCheckout ?? false) && !$isPaid && ($balance ?? 0) > 0)
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" name="force_checkout" value="1" id="force-checkout" @checked(old('force_checkout'))>
+                                    <label class="form-check-label small" for="force-checkout">{{ __('Or force checkout if permitted') }}</label>
+                                </div>
+                            @endif
                             <button type="submit" class="btn btn-primary w-100" id="btn-complete-checkout"
-                                @if($folio && $folio->paymentStatusLabel() !== 'paid' && !($canForceCheckout ?? false)) disabled title="{{ __('Settle room bill before checkout') }}" @endif>
+                                @if((($requireMinibarScan ?? false) && !($minibarVerified ?? false)) || (!$canCompleteCheckout && ($balance ?? 0) > 0)) disabled @endif
+                                @if(($requireMinibarScan ?? false) && !($minibarVerified ?? false)) title="{{ __('Record minibar scan before completing checkout.') }}" @elseif(!$canCompleteCheckout && ($balance ?? 0) > 0) title="{{ __('Settle room bill before checkout') }}" @endif>
                                 <i class="ti ti-logout me-1"></i>{{ __('Complete check-out') }}
                             </button>
-                            @if($folio && $folio->paymentStatusLabel() !== 'paid')
+                            @if($folio && !$isPaid)
                                 <p class="small text-muted mt-2 mb-0">
-                                    <a href="{{ route('hotel.folios.show', $folio->id) }}">{{ __('Pay room bill') }}</a>
-                                    @if($canForceCheckout ?? false)
-                                        · {{ __('Or force checkout if permitted') }}
-                                    @endif
+                                    <a href="{{ route('hotel.frontdesk.receipt', ['reservation' => $reservation->id, 'type' => 'receipt']) }}">{{ __('Register payment') }}</a>
+                                    · <a href="{{ route('hotel.folios.show', $folio->id) }}">{{ __('Room bill') }}</a>
                                 </p>
                             @endif
                             {!! Form::close() !!}
                         @else
-                            <p class="text-muted small mt-3 mb-0">{{ __('Guest must be checked in before checkout.') }}</p>
+                            <p class="text-muted small mb-0">{{ __('Guest must be checked in before checkout.') }}</p>
                         @endif
+                    @else
+                        <p class="text-muted small mb-0">{{ __('View only') }}</p>
                     @endif
                 </div>
             </div>
@@ -344,20 +396,90 @@
                     <a href="{{ route('hotel.frontdesk.receipt', ['reservation' => $reservation->id, 'type' => 'receipt']) }}" class="btn btn-outline-primary quick-action-btn">
                         <i class="ti ti-receipt me-2"></i>{{ __('Issue receipt') }}
                     </a>
+                    @if($taxInvoiceUrl ?? null)
+                    <a href="{{ $taxInvoiceUrl }}" class="btn btn-outline-primary quick-action-btn" target="_blank">
+                        <i class="ti ti-file-text me-2"></i>{{ __('Tax invoice PDF') }}
+                    </a>
+                    @else
                     <a href="{{ route('hotel.frontdesk.receipt', ['reservation' => $reservation->id, 'type' => 'invoice_receipt']) }}" class="btn btn-outline-primary quick-action-btn">
                         <i class="ti ti-file-text me-2"></i>{{ __('Invoice-receipt') }}
                     </a>
-                    <button type="button" class="btn btn-outline-primary quick-action-btn"><i class="ti ti-printer me-2"></i>{{ __('Reprint document') }}</button>
+                    @endif
+                    @if($reprintUrl ?? null)
+                    <a href="{{ $reprintUrl }}" class="btn btn-outline-primary quick-action-btn" target="_blank"><i class="ti ti-printer me-2"></i>{{ $taxInvoiceUrl ? __('Tax invoice PDF') : __('Reprint document') }}</a>
+                    @endif
                     @if($reservation->room && ($canManage ?? false))
                     <a href="{{ route('hotel.rooms.consumption', $reservation->room->id) }}" class="btn btn-outline-success quick-action-btn"><i class="ti ti-plus me-2"></i>{{ __('Add consumption') }}</a>
                     @endif
-                    <button type="button" class="btn btn-outline-warning quick-action-btn"><i class="ti ti-calendar-plus me-2"></i>{{ __('Extend stay') }}</button>
-                    <button type="button" class="btn btn-outline-secondary quick-action-btn" style="border-color:#8b5cf6;color:#7c3aed;"><i class="ti ti-arrows-exchange me-2"></i>{{ __('Change room') }}</button>
+                    @if(($canManage ?? false) && $reservation->status === \Modules\HotelManagement\Entities\HotelReservation::STATUS_CHECKED_IN)
+                    <button type="button" class="btn btn-outline-warning quick-action-btn" data-bs-toggle="modal" data-bs-target="#extendStayModal"><i class="ti ti-calendar-plus me-2"></i>{{ __('Extend stay') }}</button>
+                    <button type="button" class="btn btn-outline-secondary quick-action-btn" style="border-color:#8b5cf6;color:#7c3aed;" data-bs-toggle="modal" data-bs-target="#changeRoomModal"><i class="ti ti-arrows-exchange me-2"></i>{{ __('Change room') }}</button>
+                    @endif
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+@if(($canManage ?? false) && $reservation->status === \Modules\HotelManagement\Entities\HotelReservation::STATUS_CHECKED_IN)
+<div class="modal fade" id="extendStayModal" tabindex="-1" aria-labelledby="extendStayModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            {!! Form::open(['route' => ['hotel.frontdesk.extend-stay', $reservation->id], 'method' => 'POST']) !!}
+            <div class="modal-header">
+                <h5 class="modal-title" id="extendStayModalLabel">{{ __('Extend stay') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">{{ __('Current check-out') }}: <strong>{{ $reservation->check_out_date }}</strong></p>
+                {!! Form::label('check_out_at', __('New check-out date & time')) !!}
+                {!! Form::datetimeLocal('check_out_at', \Carbon\Carbon::parse($reservation->check_out_at ?: ($reservation->check_out_date . ' 12:00:00'))->addDay()->format('Y-m-d\TH:i'), ['class' => 'form-control', 'required']) !!}
+                <p class="small text-muted mt-2 mb-0">{{ __('Additional room nights will be posted to the room bill.') }}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                <button type="submit" class="btn btn-warning">{{ __('Extend stay') }}</button>
+            </div>
+            {!! Form::close() !!}
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="changeRoomModal" tabindex="-1" aria-labelledby="changeRoomModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            {!! Form::open(['route' => ['hotel.frontdesk.change-room', $reservation->id], 'method' => 'POST']) !!}
+            <div class="modal-header">
+                <h5 class="modal-title" id="changeRoomModalLabel">{{ __('Change room') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">{{ __('Current room') }}: <strong>{{ $reservation->room->room_no ?? '—' }}</strong></p>
+                {!! Form::label('hotel_room_id', __('New room')) !!}
+                <select name="hotel_room_id" id="hotel_room_id" class="form-control" required>
+                    <option value="">{{ __('Select room') }}</option>
+                    @foreach($availableRooms ?? [] as $room)
+                        <option value="{{ $room->id }}">
+                            {{ $room->room_no }} — {{ $room->roomType->name ?? '' }}
+                            @if($room->floor) ({{ $room->floor->name }}) @endif
+                        </option>
+                    @endforeach
+                </select>
+                @if(($availableRooms ?? collect())->isEmpty())
+                    <p class="small text-danger mt-2 mb-0">{{ __('No available rooms for the remaining stay.') }}</p>
+                @else
+                    <p class="small text-muted mt-2 mb-0">{{ __('Rate difference for remaining nights will be posted to the room bill.') }}</p>
+                @endif
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                <button type="submit" class="btn btn-primary" @if(($availableRooms ?? collect())->isEmpty()) disabled @endif>{{ __('Change room') }}</button>
+            </div>
+            {!! Form::close() !!}
+        </div>
+    </div>
+</div>
+@endif
 @endsection
 
 @push('script-page')
@@ -365,7 +487,10 @@
 (function () {
     var amountInput = document.getElementById('checkout-amount-received');
     var changeEl = document.getElementById('checkout-change');
+    var forceCheckout = document.getElementById('force-checkout');
+    var completeBtn = document.getElementById('btn-complete-checkout');
     var balanceDue = {{ (float) $balance }};
+    var isPaid = @json($isPaid ?? false);
 
     function parseAmount(val) {
         var n = parseFloat(String(val).replace(/[^\d.-]/g, ''));
@@ -379,10 +504,25 @@
         changeEl.textContent = change.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    function updateCheckoutButton() {
+        if (!completeBtn || isPaid) return;
+        var force = forceCheckout && forceCheckout.checked;
+        var received = amountInput ? parseAmount(amountInput.value) : 0;
+        var settled = balanceDue <= 0.01 || received >= balanceDue - 0.01;
+        completeBtn.disabled = !settled && !force;
+    }
+
     if (amountInput) {
-        amountInput.addEventListener('input', updateChange);
+        amountInput.addEventListener('input', function () {
+            updateChange();
+            updateCheckoutButton();
+        });
         updateChange();
     }
+    if (forceCheckout) {
+        forceCheckout.addEventListener('change', updateCheckoutButton);
+    }
+    updateCheckoutButton();
 
 })();
 </script>

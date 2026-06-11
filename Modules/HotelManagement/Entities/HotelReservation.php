@@ -39,6 +39,9 @@ class HotelReservation extends Model
         'discount_reason',
         'guest_email_sent_at',
         'notes',
+        'hotel_booking_site_id',
+        'online_payment_ref',
+        'confirmation_token',
         'created_by',
     ];
 
@@ -75,5 +78,15 @@ class HotelReservation extends Model
     public function stay()
     {
         return $this->hasOne(HotelStay::class);
+    }
+
+    public function bookingSite()
+    {
+        return $this->belongsTo(HotelBookingSite::class, 'hotel_booking_site_id');
+    }
+
+    public function reservationAddons()
+    {
+        return $this->hasMany(HotelReservationAddon::class);
     }
 }

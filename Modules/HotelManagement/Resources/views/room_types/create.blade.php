@@ -7,7 +7,7 @@
 @endsection
 @section('content')
 <div class="card shadow-sm"><div class="card-body">
-{!! Form::open(['route' => 'hotel.room-types.store']) !!}
+{!! Form::open(['route' => 'hotel.room-types.store', 'files' => true]) !!}
 @include('hotelmanagement::room_types.form', ['roomType' => null])
 <button class="btn btn-primary">{{ __('Save') }}</button>
 <a class="btn btn-secondary" href="{{ route('hotel.room-types.index') }}">{{ __('Cancel') }}</a>

@@ -11,10 +11,15 @@ use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelRoomType;
 use Modules\HotelManagement\Http\Controllers\Concerns\BuildsRoomMap;
 use Modules\HotelManagement\Services\HotelAuthorization;
+use Modules\HotelManagement\Services\HotelRoomStatusService;
 
 class HotelRoomController extends Controller
 {
     use BuildsRoomMap;
+
+    public function __construct(private readonly HotelRoomStatusService $roomStatusService)
+    {
+    }
 
     private function canView(): bool
     {
@@ -73,7 +78,59 @@ class HotelRoomController extends Controller
         }
         $rooms = $this->roomsWithCurrentReservation((int) Auth::user()->creatorId());
         $canManage = $this->canManage();
-        return view('hotelmanagement::rooms.map', compact('rooms', 'canManage'));
+        $statusLabels = $this->roomStatusService->statusLabels();
+
+        return view('hotelmanagement::rooms.map', compact('rooms', 'canManage', 'statusLabels'));
+    }
+
+    public function bulkStatus(Request $request)
+    {
+        if (! $this->canManage()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $request->validate([
+            'room_ids' => 'required|array|min:1',
+            'room_ids.*' => 'integer|exists:hotel_rooms,id',
+            'status' => 'required|in:available,occupied,cleaning,maintenance',
+        ]);
+
+        $creatorId = (int) Auth::user()->creatorId();
+        $result = $this->roomStatusService->bulkUpdate(
+            array_map('intval', $request->room_ids),
+            $request->status,
+            $creatorId
+        );
+
+        if ($result['updated'] === 0) {
+            $firstError = reset($result['errors']) ?: __('No rooms were updated.');
+
+            return redirect()->back()->with('error', $firstError);
+        }
+
+        $message = __(':count room(s) updated.', ['count' => $result['updated']]);
+        if ($result['errors'] !== []) {
+            $message .= ' ' . __('Some rooms could not be updated: :details', [
+                'details' => implode('; ', array_slice($result['errors'], 0, 3)),
+            ]);
+        }
+
+        return redirect()->route('hotel.rooms.map')->with('success', $message);
+    }
+
+    public function markReady(HotelRoom $room)
+    {
+        if ((! $this->canManage()) || (int) $room->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $this->roomStatusService->markRoomReady($room, (int) Auth::user()->creatorId());
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->back()->with('success', __('Room :room is ready for the next guest.', ['room' => $room->room_no]));
     }
 
     public function create()
@@ -158,15 +215,23 @@ class HotelRoomController extends Controller
         if ($validator->fails()) {
             return redirect()->back()->with('error', $validator->getMessageBag()->first());
         }
+        if ($request->status !== $room->status) {
+            try {
+                $this->roomStatusService->transition($room, $request->status, $creatorId, $request->notes);
+            } catch (\InvalidArgumentException $e) {
+                return redirect()->back()->withInput()->with('error', $e->getMessage());
+            }
+        }
+
         $room->update([
             'hotel_room_type_id' => $request->hotel_room_type_id,
             'hotel_floor_id' => $request->hotel_floor_id ?: null,
             'room_no' => $request->room_no,
             'override_price' => $request->override_price ?: null,
             'monthly_override_price' => $request->monthly_override_price ?: null,
-            'status' => $request->status,
             'notes' => $request->notes,
         ]);
+
         return redirect()->route('hotel.rooms.index')->with('success', __('Room updated successfully.'));
     }
 

@@ -38,6 +38,11 @@ class HotelFolio extends Model
         return $this->hasMany(HotelFolioPayment::class, 'hotel_folio_id');
     }
 
+    public function erpInvoice()
+    {
+        return $this->belongsTo(\App\Models\Invoice::class, 'invoice_id');
+    }
+
     /**
      * Payment status vs grand_total: pending | partial | paid
      */
@@ -46,7 +51,7 @@ class HotelFolio extends Model
         $paid = (float) $this->paid_total;
         $grand = (float) $this->grand_total;
         if ($grand <= 0) {
-            return 'pending';
+            return 'paid';
         }
         if ($paid >= $grand - 0.01) {
             return 'paid';

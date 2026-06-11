@@ -184,4 +184,61 @@ class HotelGroupController extends Controller
 
         return view('hotelmanagement::groups.show', compact('group', 'canManage'));
     }
+
+    public function edit(HotelGroup $group)
+    {
+        if (! $this->canManage() || (int) $group->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $group->load(['reservations.guest', 'reservations.room', 'reservations.roomType']);
+
+        return view('hotelmanagement::groups.edit', compact('group'));
+    }
+
+    public function update(Request $request, HotelGroup $group)
+    {
+        if (! $this->canManage() || (int) $group->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:191',
+            'company_name' => 'nullable|string|max:191',
+            'contact_name' => 'nullable|string|max:191',
+            'notes' => 'nullable|string|max:2000',
+        ]);
+
+        $group->update([
+            'name' => $request->name,
+            'company_name' => $request->company_name,
+            'contact_name' => $request->contact_name,
+            'notes' => $request->notes,
+        ]);
+
+        return redirect()->route('hotel.groups.show', $group->id)->with('success', __('Group updated successfully.'));
+    }
+
+    public function destroy(HotelGroup $group)
+    {
+        if (! $this->canManage() || (int) $group->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $active = $group->reservations()
+            ->whereIn('status', [HotelReservation::STATUS_CHECKED_IN])
+            ->exists();
+
+        if ($active) {
+            return redirect()->back()->with('error', __('Cannot cancel group while members are checked in.'));
+        }
+
+        DB::transaction(function () use ($group) {
+            $group->reservations()
+                ->whereNotIn('status', [HotelReservation::STATUS_CHECKED_OUT, HotelReservation::STATUS_CANCELLED])
+                ->update(['status' => HotelReservation::STATUS_CANCELLED]);
+        });
+
+        return redirect()->route('hotel.groups.index')->with('success', __('Group reservations cancelled.'));
+    }
 }

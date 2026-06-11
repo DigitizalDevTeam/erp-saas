@@ -21,6 +21,7 @@ class VerifyCsrfToken extends Middleware
             '/aamarpay*',
             'plan-easebuzz-payment-notify*',
             'invoice-easebuzz-payment-notify*',
+            'webhooks/hotel-stripe',
 
     ];
 }

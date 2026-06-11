@@ -3,6 +3,8 @@
     $interactive = $interactive ?? true;
     $compact = $compact ?? false;
     $showLegend = $showLegend ?? true;
+    $bulkSelect = $bulkSelect ?? false;
+    $canManage = $canManage ?? false;
 
     if (!($rooms instanceof \Illuminate\Support\Collection)) {
         $rooms = collect($rooms);
@@ -86,7 +88,7 @@
                             );
 
                             $href = '#';
-                            if ($interactive) {
+                            if ($interactive && ! $bulkSelect) {
                                 if ($status === 'occupied' && $reservation && $reservation->stay) {
                                     $href = route('hotel.rooms.consumption', $room->id);
                                 } elseif ($status === 'occupied') {
@@ -95,6 +97,10 @@
                                     $href = route('hotel.reservations.create') . '?room_id=' . $room->id;
                                 } elseif ($status === 'reserved' && $reservation) {
                                     $href = route('hotel.reservations.edit', $reservation->id);
+                                } elseif ($status === 'cleaning' && $canManage) {
+                                    $href = route('hotel.rooms.map') . '#room-' . $room->id;
+                                } elseif ($status === 'maintenance') {
+                                    $href = route('hotel.rooms.edit', $room->id);
                                 } else {
                                     $href = route('hotel.rooms.edit', $room->id);
                                 }
@@ -119,12 +125,18 @@
                             }
                         @endphp
 
-                        @if($interactive)
-                            <a href="{{ $href }}" class="floor-room text-decoration-none" title="{{ $tooltip }}" style="--rs:{{ $meta['color'] }};">
+                        @if($interactive && ! $bulkSelect)
+                            <a href="{{ $href }}" class="floor-room text-decoration-none" id="room-{{ $room->id }}" title="{{ $tooltip }}" style="--rs:{{ $meta['color'] }};">
                         @else
-                            <div class="floor-room" title="{{ $tooltip }}" style="--rs:{{ $meta['color'] }};">
+                            <div class="floor-room" id="room-{{ $room->id }}" title="{{ $tooltip }}" style="--rs:{{ $meta['color'] }};">
                         @endif
                             <div class="floor-room-inner">
+                                @if($bulkSelect)
+                                    <label class="room-bulk-checkbox d-none mb-1">
+                                        <input type="checkbox" class="form-check-input room-bulk-input me-1" value="{{ $room->id }}">
+                                        <span class="small text-muted">{{ __('Select') }}</span>
+                                    </label>
+                                @endif
                                 <div class="d-flex align-items-center justify-content-between">
                                     <span class="room-no">{{ $room->room_no }}</span>
                                     <span>
@@ -151,9 +163,15 @@
                                     @elseif($room->relationLoaded('roomType') && $room->roomType)
                                         <div class="text-muted small mt-1 text-truncate">{{ $room->roomType->name }}</div>
                                     @endif
+                                    @if($status === 'cleaning' && $canManage && ! $bulkSelect)
+                                        <form method="post" action="{{ route('hotel.rooms.mark-ready', $room->id) }}" class="mt-2" onclick="event.stopPropagation();">
+                                            @csrf
+                                            <button type="submit" class="btn btn-xs btn-sm btn-success w-100">{{ __('Mark ready') }}</button>
+                                        </form>
+                                    @endif
                                 @endif
                             </div>
-                        @if($interactive)
+                        @if($interactive && ! $bulkSelect)
                             </a>
                         @else
                             </div>
@@ -220,6 +238,8 @@
             }
             .hotel-floor-grid .room-guest { display: flex; align-items: center; }
             .hotel-floor-grid .floor-header h6 { letter-spacing: .04em; }
+            .hotel-floor-grid.bulk-select-mode a.floor-room { pointer-events: none; }
+            .hotel-floor-grid.bulk-select-mode .room-bulk-checkbox { pointer-events: auto; display: block !important; }
         </style>
     @endpush
 @endonce

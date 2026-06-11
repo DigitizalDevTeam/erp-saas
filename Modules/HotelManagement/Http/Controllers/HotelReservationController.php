@@ -9,20 +9,27 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Support\LoggedMail;
+use Illuminate\Support\Facades\Schema;
+use Modules\HotelManagement\Entities\HotelAddon;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelFloor;
 use Modules\HotelManagement\Entities\HotelGuest;
 use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelRoomType;
+use Modules\HotelManagement\Services\HotelAddonService;
 use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Services\HotelReservationPricingService;
+use Modules\HotelManagement\Services\HotelRoomStatusService;
 use Modules\HotelManagement\Support\HotelNationalityOptions;
 
 class HotelReservationController extends Controller
 {
-    public function __construct(private readonly HotelReservationPricingService $pricingService)
-    {
+    public function __construct(
+        private readonly HotelReservationPricingService $pricingService,
+        private readonly HotelAddonService $addonService,
+        private readonly HotelRoomStatusService $roomStatusService,
+    ) {
     }
 
     private function canView(): bool
@@ -103,12 +110,13 @@ class HotelReservationController extends Controller
             ->toArray();
 
         $roomTypesMeta = HotelRoomType::where('created_by', $creatorId)
-            ->get(['id', 'unit_category', 'nightly_rate', 'monthly_rate', 'default_billing_mode', 'base_price'])
+            ->get(['id', 'unit_category', 'nightly_rate', 'monthly_rate', 'default_billing_mode', 'base_price', 'max_occupancy'])
             ->mapWithKeys(fn ($type) => [$type->id => [
                 'unit_category' => $type->unit_category,
                 'nightly_rate' => (float) ($type->nightly_rate ?? $type->base_price ?? 0),
                 'monthly_rate' => (float) ($type->monthly_rate ?? 0),
                 'default_billing_mode' => $type->default_billing_mode ?? 'nightly',
+                'max_occupancy' => (int) ($type->max_occupancy ?? 2),
             ]])
             ->toArray();
 
@@ -121,6 +129,9 @@ class HotelReservationController extends Controller
             'floors' => $this->floorOptions(),
             'nationalityOptions' => HotelNationalityOptions::all(),
             'maxDiscountPercent' => $this->pricingService->maxDiscountPercentForCurrentUser(),
+            'addonsCatalog' => Schema::hasTable('hotel_addons')
+                ? HotelAddon::where('created_by', $creatorId)->where('is_active', true)->orderBy('type')->orderBy('name')->get()
+                : collect(),
         ];
     }
 
@@ -176,6 +187,114 @@ class HotelReservationController extends Controller
         return view('hotelmanagement::reservations.index', compact('reservations', 'kpis', 'sourceLabels', 'sourceSeries', 'totalSource', 'daySummary', 'recent'));
     }
 
+    public function show(HotelReservation $reservation)
+    {
+        if (! $this->canView() || (int) $reservation->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $reservation->load([
+            'guest.customer',
+            'room.roomType',
+            'roomType',
+            'ratePlan',
+            'group',
+            'reservationAddons.addon',
+            'stay.folio.lines',
+            'stay.folio.payments' => fn ($q) => $q->with('creator')->orderBy('id'),
+        ]);
+
+        $timeline = $this->buildReservationTimeline($reservation);
+        $canManage = $this->canManage();
+        $totals = $this->pricingService->reservationTotals($reservation);
+
+        return view('hotelmanagement::reservations.show', compact('reservation', 'timeline', 'canManage', 'totals'));
+    }
+
+    /**
+     * @return array<int, array{at: string, label: string, detail: string|null, icon: string}>
+     */
+    protected function buildReservationTimeline(HotelReservation $reservation): array
+    {
+        $events = [];
+
+        $events[] = [
+            'at' => $reservation->created_at?->format('Y-m-d H:i') ?? '',
+            'label' => __('Reservation created'),
+            'detail' => $reservation->reservation_no,
+            'icon' => 'ti-calendar-plus',
+        ];
+
+        if ($reservation->guest_email_sent_at) {
+            $events[] = [
+                'at' => $reservation->guest_email_sent_at->format('Y-m-d H:i'),
+                'label' => __('Confirmation email sent'),
+                'detail' => $reservation->guest->email ?? null,
+                'icon' => 'ti-mail',
+            ];
+        }
+
+        $stay = $reservation->stay;
+        if ($stay?->check_in_at) {
+            $events[] = [
+                'at' => Carbon::parse($stay->check_in_at)->format('Y-m-d H:i'),
+                'label' => __('Checked in'),
+                'detail' => $reservation->room ? __('Room') . ' ' . $reservation->room->room_no : null,
+                'icon' => 'ti-login',
+            ];
+        }
+
+        $folio = $stay?->folio;
+        if ($folio) {
+            $events[] = [
+                'at' => $folio->created_at?->format('Y-m-d H:i') ?? '',
+                'label' => __('Room bill opened'),
+                'detail' => $folio->folio_no,
+                'icon' => 'ti-receipt',
+            ];
+
+            foreach ($folio->lines as $line) {
+                $events[] = [
+                    'at' => $line->created_at?->format('Y-m-d H:i') ?? '',
+                    'label' => __('Charge posted'),
+                    'detail' => $line->description . ' — ' . Auth::user()->priceFormat($line->line_total),
+                    'icon' => 'ti-plus',
+                ];
+            }
+
+            foreach ($folio->payments as $payment) {
+                $events[] = [
+                    'at' => $payment->created_at?->format('Y-m-d H:i') ?? '',
+                    'label' => __('Payment received'),
+                    'detail' => Auth::user()->priceFormat($payment->amount) . ($payment->method ? ' (' . $payment->method . ')' : ''),
+                    'icon' => 'ti-cash',
+                ];
+            }
+        }
+
+        if ($stay?->checked_out_at) {
+            $events[] = [
+                'at' => Carbon::parse($stay->checked_out_at)->format('Y-m-d H:i'),
+                'label' => __('Checked out'),
+                'detail' => $stay->notes,
+                'icon' => 'ti-logout',
+            ];
+        }
+
+        if ($reservation->status === HotelReservation::STATUS_CANCELLED) {
+            $events[] = [
+                'at' => $reservation->updated_at?->format('Y-m-d H:i') ?? '',
+                'label' => __('Reservation cancelled'),
+                'detail' => null,
+                'icon' => 'ti-ban',
+            ];
+        }
+
+        usort($events, fn ($a, $b) => strcmp($a['at'], $b['at']));
+
+        return $events;
+    }
+
     public function create()
     {
         if (! $this->canManage()) {
@@ -221,6 +340,16 @@ class HotelReservationController extends Controller
             return redirect()->back()->withInput()->with('error', __('Selected room is not available for the chosen check-in/check-out time.'));
         }
 
+        if (! empty($request->hotel_room_id)) {
+            $assignRoom = HotelRoom::where('created_by', $creatorId)->find((int) $request->hotel_room_id);
+            if ($assignRoom) {
+                $block = $this->roomStatusService->assignmentBlockReason($assignRoom);
+                if ($block) {
+                    return redirect()->back()->withInput()->with('error', $block);
+                }
+            }
+        }
+
         $quote = $this->pricingService->quote(
             $creatorId,
             (int) $request->hotel_room_type_id,
@@ -237,6 +366,18 @@ class HotelReservationController extends Controller
         if (! $this->pricingService->validateDiscountAmount($discountAmount, (float) $quote['subtotal'])) {
             $maxPercent = rtrim(rtrim(number_format($this->pricingService->maxDiscountPercentForCurrentUser(), 2, '.', ''), '0'), '.');
             return redirect()->back()->withInput()->with('error', __('Discount exceeds your allowed limit of :percent%.', ['percent' => $maxPercent]));
+        }
+
+        $addonRows = $this->addonService->normalizeAddonInput($request->input('addons'));
+        $occupancyError = $this->addonService->validateOccupancyForBooking(
+            (int) $request->hotel_room_type_id,
+            (int) ($request->adults ?: 1),
+            (int) ($request->children ?: 0),
+            $addonRows,
+            $creatorId
+        );
+        if ($occupancyError) {
+            return redirect()->back()->withInput()->with('error', $occupancyError);
         }
 
         $preferredFloor = null;
@@ -300,7 +441,9 @@ class HotelReservationController extends Controller
             'created_by' => $creatorId,
         ]);
 
-        $reservation->load(['guest', 'roomType', 'room', 'ratePlan']);
+        $this->addonService->syncReservationAddons($reservation, $addonRows, $creatorId);
+
+        $reservation->load(['guest', 'roomType', 'room', 'ratePlan', 'reservationAddons']);
         $this->sendReservationEmail($reservation);
 
         return $reservation;
@@ -347,7 +490,7 @@ class HotelReservationController extends Controller
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
-        $reservation->load(['guest', 'ratePlan']);
+        $reservation->load(['guest', 'ratePlan', 'reservationAddons.addon']);
 
         return view('hotelmanagement::reservations.edit', array_merge(
             ['reservation' => $reservation],
@@ -388,6 +531,19 @@ class HotelReservationController extends Controller
             return redirect()->back()->withInput()->with('error', __('Selected room is not available for the chosen check-in/check-out time.'));
         }
 
+        if (! empty($request->hotel_room_id)) {
+            $assignRoom = HotelRoom::where('created_by', $creatorId)->find((int) $request->hotel_room_id);
+            if ($assignRoom) {
+                $block = $this->roomStatusService->assignmentBlockReason(
+                    $assignRoom,
+                    (int) $reservation->hotel_room_id === (int) $assignRoom->id ? (int) $assignRoom->id : null
+                );
+                if ($block) {
+                    return redirect()->back()->withInput()->with('error', $block);
+                }
+            }
+        }
+
         $quote = $this->pricingService->quote(
             $creatorId,
             (int) $request->hotel_room_type_id,
@@ -404,6 +560,18 @@ class HotelReservationController extends Controller
         if (! $this->pricingService->validateDiscountAmount($discountAmount, (float) $quote['subtotal'])) {
             $maxPercent = rtrim(rtrim(number_format($this->pricingService->maxDiscountPercentForCurrentUser(), 2, '.', ''), '0'), '.');
             return redirect()->back()->withInput()->with('error', __('Discount exceeds your allowed limit of :percent%.', ['percent' => $maxPercent]));
+        }
+
+        $addonRows = $this->addonService->normalizeAddonInput($request->input('addons'));
+        $occupancyError = $this->addonService->validateOccupancyForBooking(
+            (int) $request->hotel_room_type_id,
+            (int) ($request->adults ?: 1),
+            (int) ($request->children ?: 0),
+            $addonRows,
+            $creatorId
+        );
+        if ($occupancyError) {
+            return redirect()->back()->withInput()->with('error', $occupancyError);
         }
 
         $preferredFloor = null;
@@ -453,6 +621,19 @@ class HotelReservationController extends Controller
             'discount_reason' => $discountAmount > 0 ? $request->discount_reason : null,
             'notes' => $request->notes,
         ]);
+
+        $this->addonService->syncReservationAddons($reservation, $addonRows, $creatorId);
+
+        if ($reservation->status === HotelReservation::STATUS_CHECKED_IN) {
+            $reservation->load('stay.folio');
+            if ($reservation->stay?->folio) {
+                $this->addonService->postReservationAddonsToFolio(
+                    $reservation,
+                    $reservation->stay->folio,
+                    $creatorId
+                );
+            }
+        }
 
         return redirect()->route('hotel.reservations.index')->with('success', __('Reservation updated successfully.'));
     }
@@ -567,6 +748,19 @@ class HotelReservationController extends Controller
         $roomId = $request->filled('hotel_room_id') ? (int) $request->hotel_room_id : $reservation->hotel_room_id;
         if ($roomId && $this->roomHasConflict($roomId, $checkInAt, $checkOutAt, (int) $reservation->id)) {
             return response()->json(['error' => __('Room conflict for new dates.')], 422);
+        }
+
+        if ($roomId) {
+            $assignRoom = HotelRoom::where('created_by', Auth::user()->creatorId())->find($roomId);
+            if ($assignRoom) {
+                $block = $this->roomStatusService->assignmentBlockReason(
+                    $assignRoom,
+                    (int) $reservation->hotel_room_id === $roomId ? $roomId : null
+                );
+                if ($block) {
+                    return response()->json(['error' => $block], 422);
+                }
+            }
         }
 
         $quote = $this->pricingService->quote(

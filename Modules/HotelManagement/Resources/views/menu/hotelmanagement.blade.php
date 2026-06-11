@@ -16,12 +16,20 @@
             <a class="dash-link" href="{{ route('hotel.reservations.index') }}">{{ __('Reservations') }}</a>
         </li>
         @endcan
+        @can('hotel.menu.booking_site')
+        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.booking-site.') ? 'active' : '' }}">
+            <a class="dash-link" href="{{ route('hotel.booking-site.edit') }}">{{ __('Booking website') }}</a>
+        </li>
+        @endcan
         @can('hotel.menu.frontdesk')
         <li class="dash-item {{ Request::route()->getName() == 'hotel.frontdesk.in-house' || str_starts_with((string) Request::route()->getName(), 'hotel.folios.') ? 'active' : '' }}">
             <a class="dash-link" href="{{ route('hotel.frontdesk.in-house') }}">{{ __('Frontdesk') }}</a>
         </li>
         @endcan
         @can('hotel.menu.guest_map')
+        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.guests.') && Request::route()->getName() !== 'hotel.guests.map' ? 'active' : '' }}">
+            <a class="dash-link" href="{{ route('hotel.guests.index') }}">{{ __('Guests') }}</a>
+        </li>
         <li class="dash-item {{ Request::route()->getName() == 'hotel.guests.map' ? 'active' : '' }}">
             <a class="dash-link" href="{{ route('hotel.guests.map') }}">{{ __('Guest map') }}</a>
         </li>
@@ -73,6 +81,12 @@
         </li>
         <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.rate-plans.') ? 'active' : '' }}">
             <a class="dash-link" href="{{ route('hotel.rate-plans.index') }}">{{ __('Rate Plans') }}</a>
+        </li>
+        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.addons.') ? 'active' : '' }}">
+            <a class="dash-link" href="{{ route('hotel.addons.index') }}">{{ __('Addons & extras') }}</a>
+        </li>
+        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.minibar-items.') ? 'active' : '' }}">
+            <a class="dash-link" href="{{ route('hotel.minibar-items.index') }}">{{ __('Minibar catalog') }}</a>
         </li>
         <li class="dash-item {{ Request::route()->getName() === 'hotel.rooms.index' || (str_starts_with((string) Request::route()->getName(), 'hotel.rooms.') && Request::route()->getName() !== 'hotel.rooms.map') ? 'active' : '' }}">
             <a class="dash-link" href="{{ route('hotel.rooms.index') }}">{{ __('Rooms') }}</a>

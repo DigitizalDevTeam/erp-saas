@@ -6,10 +6,15 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Modules\HotelManagement\Entities\HotelAddon;
+use Modules\HotelManagement\Entities\HotelBookingSite;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelFolioLine;
 use Modules\HotelManagement\Entities\HotelFolioPayment;
 use Modules\HotelManagement\Entities\HotelGroup;
+use Modules\HotelManagement\Entities\HotelMinibarItem;
+use Modules\HotelManagement\Entities\HotelReservationAddon;
 use Modules\HotelManagement\Entities\HotelGroupMember;
 use Modules\HotelManagement\Entities\HotelGuest;
 use Modules\HotelManagement\Entities\HotelHousekeepingTask;
@@ -50,8 +55,11 @@ class HotelDummyDataSeeder extends Seeder
             $rooms = $this->seedRooms($userId, $types);
             $this->seedGroupReservations($userId, $types, $rooms);
             $this->seedSoloReservations($userId, $types, $rooms);
+            $this->seedAddonsAndMinibar($userId);
             $this->seedStaysAndFolios($userId);
+            $this->seedClientDemoFlow($userId, $types, $rooms);
             $this->seedHousekeepingTasks($userId, $rooms);
+            $this->seedBookingSite($userId);
         });
 
         $this->command?->info('Hotel dummy data seeded.');
@@ -100,10 +108,21 @@ class HotelDummyDataSeeder extends Seeder
         foreach ($defs as $d) {
             $type = HotelRoomType::updateOrCreate(
                 ['created_by' => $userId, 'name' => $d['name']],
-                array_merge($d, ['is_active' => true, 'created_by' => $userId])
+                array_merge($d, [
+                    'is_active' => true,
+                    'created_by' => $userId,
+                    'nightly_rate' => $d['base_price'],
+                    'unit_category' => 'room',
+                    'default_billing_mode' => 'nightly',
+                ])
             );
             $map[$d['name']] = $type;
         }
+
+        HotelRoomType::where('created_by', $userId)
+            ->where('nightly_rate', '<=', 0)
+            ->where('base_price', '>', 0)
+            ->update(['nightly_rate' => DB::raw('base_price')]);
 
         return $map;
     }
@@ -436,6 +455,194 @@ class HotelDummyDataSeeder extends Seeder
             ?? (clone $base)->orderBy('room_no')->first();
     }
 
+    protected function seedAddonsAndMinibar(int $userId): void
+    {
+        if (Schema::hasTable('hotel_addons')) {
+            $addons = [
+                ['name' => 'Extra bed', 'type' => HotelAddon::TYPE_EXTRA_BED, 'price' => 25, 'billing_mode' => HotelAddon::BILLING_PER_NIGHT],
+                ['name' => 'Breakfast buffet', 'type' => HotelAddon::TYPE_BREAKFAST, 'price' => 15, 'billing_mode' => HotelAddon::BILLING_PER_STAY],
+                ['name' => 'Parking', 'type' => HotelAddon::TYPE_PARKING, 'price' => 10, 'billing_mode' => HotelAddon::BILLING_PER_STAY],
+            ];
+            foreach ($addons as $row) {
+                HotelAddon::firstOrCreate(
+                    ['created_by' => $userId, 'name' => $row['name']],
+                    array_merge($row, ['is_active' => true, 'taxable' => true, 'created_by' => $userId])
+                );
+            }
+        }
+
+        if (Schema::hasTable('hotel_minibar_items')) {
+            foreach ([
+                ['name' => 'Water (500ml)', 'unit_price' => 3.5, 'default_quantity' => 2],
+                ['name' => 'Soft drink', 'unit_price' => 4.0, 'default_quantity' => 2],
+                ['name' => 'Snacks', 'unit_price' => 6.5, 'default_quantity' => 1],
+            ] as $item) {
+                HotelMinibarItem::firstOrCreate(
+                    ['created_by' => $userId, 'name' => $item['name']],
+                    array_merge($item, ['is_active' => true, 'created_by' => $userId])
+                );
+            }
+        }
+    }
+
+    /**
+     * Single reservation for client demo / e2e: in-house guest with addon + minibar + partial payment.
+     *
+     * @param array<string, HotelRoomType> $types
+     * @param \Illuminate\Support\Collection<int, HotelRoom> $rooms
+     */
+    protected function seedClientDemoFlow(int $userId, array $types, $rooms): void
+    {
+        if (HotelReservation::where('created_by', $userId)->where('reservation_no', 'RSV-DEMO-FLOW')->exists()) {
+            return;
+        }
+
+        $type = $types['Standard'] ?? reset($types);
+        if (! $type) {
+            return;
+        }
+
+        $room = $rooms->firstWhere('room_no', '101')
+            ?? $rooms->where('hotel_room_type_id', $type->id)->where('status', HotelRoom::STATUS_AVAILABLE)->first();
+
+        if (! $room) {
+            return;
+        }
+
+        $today = Carbon::today();
+        $checkIn = $today->copy()->setTime(14, 0);
+        $checkOut = $today->copy()->addDay()->setTime(11, 0);
+
+        $guest = HotelGuest::create([
+            'first_name' => 'Demo',
+            'last_name' => 'Flow',
+            'email' => 'demo.flow@hotel.example',
+            'phone' => '+258840199999',
+            'nationality' => 'Mozambican',
+            'is_vip' => true,
+            'preferred_room_type_id' => $type->id,
+            'created_by' => $userId,
+        ]);
+
+        $extraBed = Schema::hasTable('hotel_addons')
+            ? HotelAddon::where('created_by', $userId)->where('type', HotelAddon::TYPE_EXTRA_BED)->first()
+            : null;
+
+        $reservation = HotelReservation::create([
+            'reservation_no' => 'RSV-DEMO-FLOW',
+            'hotel_guest_id' => $guest->id,
+            'hotel_room_type_id' => $type->id,
+            'hotel_room_id' => $room->id,
+            'check_in_at' => $checkIn->format('Y-m-d H:i:s'),
+            'check_out_at' => $checkOut->format('Y-m-d H:i:s'),
+            'check_in_date' => $checkIn->toDateString(),
+            'check_out_date' => $checkOut->toDateString(),
+            'adults' => 2,
+            'children' => 1,
+            'source' => 'manual',
+            'status' => HotelReservation::STATUS_CHECKED_IN,
+            'rate_per_night' => (float) $type->base_price,
+            'discount_amount' => 0,
+            'notes' => 'Client demo — use for E2E walkthrough or hotelmanagement:e2e-demo --checkout',
+            'created_by' => $userId,
+        ]);
+
+        $room->update(['status' => HotelRoom::STATUS_OCCUPIED]);
+
+        $stay = HotelStay::create([
+            'hotel_reservation_id' => $reservation->id,
+            'hotel_guest_id' => $guest->id,
+            'hotel_room_id' => $room->id,
+            'check_in_at' => $checkIn->format('Y-m-d H:i:s'),
+            'expected_check_out_at' => $checkOut->format('Y-m-d H:i:s'),
+            'status' => 'in_house',
+            'minibar_verified_at' => Schema::hasColumn('hotel_stays', 'minibar_verified_at') ? now() : null,
+            'created_by' => $userId,
+        ]);
+
+        $nights = 1;
+        $rate = (float) $reservation->rate_per_night;
+        $roomCharge = $rate * $nights;
+        $addonTotal = 0.0;
+
+        $folio = HotelFolio::create([
+            'hotel_stay_id' => $stay->id,
+            'folio_no' => 'FOL-DEMO-FLOW',
+            'sub_total' => $roomCharge,
+            'grand_total' => $roomCharge,
+            'paid_total' => 0,
+            'status' => 'open',
+            'created_by' => $userId,
+        ]);
+
+        HotelFolioLine::create([
+            'hotel_folio_id' => $folio->id,
+            'line_type' => 'room_charge',
+            'description' => 'Room charge (1 night)',
+            'quantity' => $nights,
+            'unit_price' => $rate,
+            'line_total' => $roomCharge,
+            'created_by' => $userId,
+        ]);
+
+        if ($extraBed && Schema::hasTable('hotel_reservation_addons')) {
+            $addonQty = 1;
+            $addonLineTotal = (float) $extraBed->price * $nights * $addonQty;
+            $addonTotal += $addonLineTotal;
+
+            $addonLine = HotelFolioLine::create([
+                'hotel_folio_id' => $folio->id,
+                'line_type' => 'addon_charge',
+                'description' => $extraBed->name . ' (1 night)',
+                'quantity' => $nights,
+                'unit_price' => (float) $extraBed->price,
+                'line_total' => $addonLineTotal,
+                'hotel_addon_id' => $extraBed->id,
+                'created_by' => $userId,
+            ]);
+
+            HotelReservationAddon::create([
+                'hotel_reservation_id' => $reservation->id,
+                'hotel_addon_id' => $extraBed->id,
+                'qty' => $addonQty,
+                'unit_price' => (float) $extraBed->price,
+                'billing_mode' => $extraBed->billing_mode,
+                'hotel_folio_line_id' => $addonLine->id,
+                'created_by' => $userId,
+            ]);
+        }
+
+        $minibarTotal = 8.5;
+        HotelFolioLine::create([
+            'hotel_folio_id' => $folio->id,
+            'line_type' => 'misc_charge',
+            'description' => 'Minibar — Soft drink × 2',
+            'quantity' => 2,
+            'unit_price' => 4.25,
+            'line_total' => $minibarTotal,
+            'created_by' => $userId,
+        ]);
+
+        $grand = $roomCharge + $addonTotal + $minibarTotal;
+        $partial = round($grand * 0.4, 2);
+
+        $folio->update([
+            'sub_total' => $grand,
+            'grand_total' => $grand,
+        ]);
+
+        HotelFolioPayment::create([
+            'hotel_folio_id' => $folio->id,
+            'amount' => $partial,
+            'method' => 'mpesa',
+            'reference' => 'DEMO-FLOW-ADV',
+            'notes' => 'Advance payment — demo',
+            'created_by' => $userId,
+        ]);
+
+        $folio->update(['paid_total' => $partial]);
+    }
+
     /**
      * Build hotel_stays + hotel_folios + hotel_folio_lines + hotel_folio_payments for
      * checked_in / checked_out reservations seeded above.
@@ -445,6 +652,7 @@ class HotelDummyDataSeeder extends Seeder
         $reservations = HotelReservation::where('created_by', $userId)
             ->whereIn('status', [HotelReservation::STATUS_CHECKED_IN, HotelReservation::STATUS_CHECKED_OUT])
             ->whereNotNull('hotel_room_id')
+            ->where('reservation_no', '!=', 'RSV-DEMO-FLOW')
             ->get();
 
         $extraOptions = [
@@ -604,5 +812,39 @@ class HotelDummyDataSeeder extends Seeder
                 'created_by' => $userId,
             ]);
         }
+    }
+
+    protected function seedBookingSite(int $userId): void
+    {
+        if (! Schema::hasTable('hotel_booking_sites')) {
+            return;
+        }
+
+        if (HotelBookingSite::where('created_by', $userId)->exists()) {
+            return;
+        }
+
+        $company = User::find($userId);
+
+        HotelBookingSite::create([
+            'created_by' => $userId,
+            'slug' => 'demo-hotel',
+            'is_published' => true,
+            'display_name' => $company?->name ?? 'Demo Hotel',
+            'tagline' => __('Your perfect stay awaits'),
+            'description' => __('Book directly with us for the best rates and personalized service.'),
+            'accent_color' => '#0d9488',
+            'contact_email' => $company?->email,
+            'contact_phone' => '+258840000000',
+            'address' => 'Maputo, Mozambique',
+            'default_language' => 'en',
+            'check_in_time' => '14:00',
+            'check_out_time' => '11:00',
+            'cancellation_policy' => __('Free cancellation up to 24 hours before check-in.'),
+            'payment_mode' => HotelBookingSite::PAY_AT_HOTEL,
+            'amenities' => ['Wi-Fi', 'Parking', 'Restaurant', 'Air conditioning'],
+        ]);
+
+        $this->command?->info('Demo booking site: ' . url('/demo-hotel'));
     }
 }

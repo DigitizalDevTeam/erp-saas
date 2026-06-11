@@ -24,6 +24,9 @@
                     <p class="mb-0 mt-2"><strong>{{ __('Grand total') }}:</strong> {{ Auth::user()->priceFormat($folio->grand_total) }}</p>
                     <p class="mb-0"><strong>{{ __('Paid') }}:</strong> {{ Auth::user()->priceFormat($folio->paid_total) }}</p>
                     <a href="{{ route('hotel.folios.final-bill', $folio) }}" class="btn btn-sm btn-outline-primary mt-2">{{ __('Open final bill PDF') }}</a>
+                    @if($taxInvoiceUrl ?? null)
+                        <a href="{{ $taxInvoiceUrl }}" class="btn btn-sm btn-success mt-2" target="_blank">{{ __('Tax invoice PDF') }}</a>
+                    @endif
                 </div>
             </div>
             <hr>
@@ -99,7 +102,7 @@
             @else
                 <div class="table-responsive">
                     <table class="table table-sm">
-                        <thead><tr><th>{{ __('Date') }}</th><th>{{ __('Method') }}</th><th>{{ __('Amount') }}</th><th>{{ __('Reference') }}</th></tr></thead>
+                        <thead><tr><th>{{ __('Date') }}</th><th>{{ __('Method') }}</th><th>{{ __('Amount') }}</th><th>{{ __('Reference') }}</th><th></th></tr></thead>
                         <tbody>
                         @foreach($folio->payments as $p)
                             <tr>
@@ -107,6 +110,7 @@
                                 <td>{{ $paymentMethods[$p->method] ?? $p->method }}</td>
                                 <td>{{ Auth::user()->priceFormat($p->amount) }}</td>
                                 <td>{{ $p->reference ?? '—' }}</td>
+                                <td><a href="{{ route('hotel.folios.payments.receipt', [$folio->id, $p->id]) }}" class="btn btn-sm btn-outline-primary" target="_blank">{{ __('Receipt') }}</a></td>
                             </tr>
                         @endforeach
                         </tbody>

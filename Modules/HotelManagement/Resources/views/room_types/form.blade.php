@@ -13,7 +13,7 @@
     </div>
     <div class="col-md-4 form-group">
         {!! Form::label('nightly_rate', __('Nightly Rate')) !!}
-        {!! Form::number('nightly_rate', $roomType->nightly_rate ?? $roomType->base_price ?? 0, ['class' => 'form-control', 'step' => '0.01', 'min' => 0]) !!}
+        {!! Form::number('nightly_rate', $roomType->nightly_rate ?? $roomType->base_price ?? 0, ['class' => 'form-control', 'step' => '0.01', 'min' => 0, 'required']) !!}
     </div>
     <div class="col-md-4 form-group">
         {!! Form::label('monthly_rate', __('Monthly Rate')) !!}
@@ -25,7 +25,26 @@
     </div>
     <div class="col-md-12 form-group">
         {!! Form::label('description', __('Description')) !!}
-        {!! Form::text('description', $roomType->description ?? null, ['class' => 'form-control']) !!}
+        {!! Form::textarea('description', $roomType->description ?? null, ['class' => 'form-control', 'rows' => 3]) !!}
+    </div>
+    <div class="col-md-6 form-group">
+        <label class="form-label">{{ __('Cover image (booking website)') }}</label>
+        <input type="file" name="cover" class="form-control" accept="image/*">
+        @if(!empty($roomType?->coverImageUrl()))
+            <img src="{{ $roomType->coverImageUrl() }}" alt="" class="mt-2 rounded" style="max-height:120px;">
+        @endif
+        <small class="text-muted">{{ __('Shown on the public booking site room cards.') }}</small>
+    </div>
+    <div class="col-md-6 form-group">
+        <label class="form-label">{{ __('Gallery images') }}</label>
+        <input type="file" name="gallery[]" class="form-control" accept="image/*" multiple>
+        @if(!empty($roomType?->galleryImageUrls()))
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                @foreach($roomType->galleryImageUrls() as $url)
+                    <img src="{{ $url }}" alt="" class="rounded" style="height:64px;width:64px;object-fit:cover;">
+                @endforeach
+            </div>
+        @endif
     </div>
     <div class="col-md-12 form-group">
         <div class="form-check">

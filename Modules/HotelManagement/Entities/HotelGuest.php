@@ -47,4 +47,14 @@ class HotelGuest extends Model
     {
         return $this->hasMany(HotelReservation::class);
     }
+
+    public function customer()
+    {
+        return $this->belongsTo(\App\Models\Customer::class, 'customer_id');
+    }
+
+    public function fullName(): string
+    {
+        return trim($this->first_name . ' ' . ($this->last_name ?? ''));
+    }
 }

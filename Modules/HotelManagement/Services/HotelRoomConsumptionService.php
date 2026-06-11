@@ -116,36 +116,28 @@ class HotelRoomConsumptionService
             return collect();
         }
 
-        $items = HotelMinibarItem::query()
+        return HotelMinibarItem::query()
             ->where('created_by', $creatorId)
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
+    }
 
-        if ($items->isEmpty()) {
-            $defaults = [
-                ['name' => __('Water (500ml)'), 'unit_price' => 2.50],
-                ['name' => __('Soft drink'), 'unit_price' => 3.50],
-                ['name' => __('Beer'), 'unit_price' => 5.00],
-                ['name' => __('Wine (mini)'), 'unit_price' => 12.00],
-                ['name' => __('Snacks'), 'unit_price' => 4.00],
-            ];
-            foreach ($defaults as $row) {
-                HotelMinibarItem::create([
-                    'name' => $row['name'],
-                    'unit_price' => $row['unit_price'],
-                    'is_active' => true,
-                    'created_by' => $creatorId,
-                ]);
-            }
-            $items = HotelMinibarItem::query()
-                ->where('created_by', $creatorId)
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get();
+    /**
+     * @return \Illuminate\Support\Collection<int, HotelRoomConsumptionLog>
+     */
+    public function consumptionLogsForStay(int $stayId, int $creatorId)
+    {
+        if (! Schema::hasTable('hotel_room_consumption_logs')) {
+            return collect();
         }
 
-        return $items;
+        return HotelRoomConsumptionLog::query()
+            ->where('created_by', $creatorId)
+            ->where('hotel_stay_id', $stayId)
+            ->orderByDesc('service_date')
+            ->orderByDesc('id')
+            ->get();
     }
 
     /**
@@ -155,8 +147,20 @@ class HotelRoomConsumptionService
     {
         $folio->loadMissing('lines');
 
-        return $folio->lines->map(function (HotelFolioLine $line) {
+        $logsByLineId = collect();
+        if (Schema::hasTable('hotel_room_consumption_logs')) {
+            $logsByLineId = HotelRoomConsumptionLog::query()
+                ->where('hotel_folio_id', $folio->id)
+                ->get()
+                ->keyBy('hotel_folio_line_id');
+        }
+
+        return $folio->lines->map(function (HotelFolioLine $line) use ($logsByLineId) {
             $meta = $this->lineDisplayMeta($line);
+            $log = $logsByLineId->get($line->id);
+            $serviceDate = $log?->service_date?->format('Y-m-d')
+                ?? $line->created_at?->format('Y-m-d')
+                ?? '';
 
             return [
                 'icon' => $meta['icon'],
@@ -167,6 +171,8 @@ class HotelRoomConsumptionService
                 'qty' => $line->quantity,
                 'amount' => (float) $line->line_total,
                 'line_type' => $line->line_type,
+                'service_date' => $serviceDate,
+                'charge_type' => $log?->charge_type,
             ];
         })->values()->all();
     }
@@ -184,6 +190,9 @@ class HotelRoomConsumptionService
         }
         if ($type === 'laundry_charge' || $channel === 'laundry') {
             return ['icon' => 'ti-wash', 'color' => '#8b5cf6', 'bg' => '#f5f3ff', 'label' => __('Laundry')];
+        }
+        if ($type === 'addon_charge') {
+            return ['icon' => 'ti-bed', 'color' => '#6366f1', 'bg' => '#eef2ff', 'label' => __('Addons & extras')];
         }
         if ($type === 'room_charge' || $channel === 'room') {
             return ['icon' => 'ti-bed', 'color' => '#3b82f6', 'bg' => '#eff6ff', 'label' => __('Lodging')];

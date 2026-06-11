@@ -4,8 +4,10 @@ namespace Modules\HotelManagement\Services;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Modules\HotelManagement\Entities\HotelAddon;
 use Modules\HotelManagement\Entities\HotelRatePlan;
 use Modules\HotelManagement\Entities\HotelReservation;
+use Modules\HotelManagement\Entities\HotelReservationAddon;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelRoomType;
 
@@ -73,15 +75,36 @@ class HotelReservationPricingService
         $checkInAt = Carbon::parse($reservation->check_in_at ?: ($reservation->check_in_date . ' 12:00:00'));
         $checkOutAt = Carbon::parse($reservation->check_out_at ?: ($reservation->check_out_date . ' 12:00:00'));
         [$units, $unitLabel] = $this->calculateUnits($checkInAt, $checkOutAt, (string) ($reservation->billing_mode ?? 'nightly'));
-        $subTotal = round((float) $reservation->rate_per_night * $units, 2);
+        $roomSubTotal = round((float) $reservation->rate_per_night * $units, 2);
+        $addonSubTotal = $this->reservationAddonSubtotal($reservation, $units);
+        $subTotal = round($roomSubTotal + $addonSubTotal, 2);
         $discount = round((float) $reservation->discount_amount, 2);
 
         return [
             'units' => $units,
             'unit_label' => $unitLabel,
+            'room_sub_total' => $roomSubTotal,
+            'addon_sub_total' => $addonSubTotal,
             'sub_total' => $subTotal,
             'grand_total' => max(0, round($subTotal - $discount, 2)),
         ];
+    }
+
+    private function reservationAddonSubtotal(HotelReservation $reservation, int $units): float
+    {
+        $reservation->loadMissing('reservationAddons');
+        $total = 0.0;
+
+        foreach ($reservation->reservationAddons as $addonLine) {
+            if (! $addonLine instanceof HotelReservationAddon) {
+                continue;
+            }
+            $qty = max(1, (int) $addonLine->qty);
+            $multiplier = $addonLine->billing_mode === HotelAddon::BILLING_PER_NIGHT ? max(1, $units) : 1;
+            $total += $qty * (float) $addonLine->unit_price * $multiplier;
+        }
+
+        return round($total, 2);
     }
 
     public function maxDiscountPercentForCurrentUser(): float
@@ -175,11 +198,31 @@ class HotelReservationPricingService
         if ($ratePlan && (float) $ratePlan->rate > 0) {
             return round((float) $ratePlan->rate, 2);
         }
-        if ($type && (float) ($type->nightly_rate ?? $type->base_price) > 0) {
-            return round((float) ($type->nightly_rate ?? $type->base_price), 2);
+        $typeRate = $this->resolveTypeDefaultRate($type, $billingMode);
+        if ($typeRate > 0) {
+            return $typeRate;
         }
 
         return 0.0;
+    }
+
+    private function resolveTypeDefaultRate(?HotelRoomType $type, string $billingMode): float
+    {
+        if (! $type) {
+            return 0.0;
+        }
+
+        if ($billingMode === 'monthly') {
+            $monthly = (float) ($type->monthly_rate ?? 0);
+            if ($monthly > 0) {
+                return round($monthly, 2);
+            }
+        }
+
+        $nightly = (float) ($type->nightly_rate ?? 0);
+        $base = (float) ($type->base_price ?? 0);
+
+        return round($nightly > 0 ? $nightly : $base, 2);
     }
 
     private function resolveSource(?HotelRoom $room, ?HotelRatePlan $ratePlan, string $billingMode): string

@@ -48,4 +48,8 @@ return [
         'url' => 'https://sandbox.cashfree.com/pg/orders',
     ],
 
+    'stripe' => [
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+    ],
+
 ];

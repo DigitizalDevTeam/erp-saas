@@ -10,6 +10,10 @@
     {{ __('Housekeeping checks each occupied room daily, records minibar or laundry usage, and posts charges to the guest room folio. At checkout, all folio lines appear on the final bill.') }}
 </div>
 
+@if(($minibarItems ?? collect())->isEmpty())
+<div class="alert alert-info small">{{ __('No minibar items yet.') }} <a href="{{ route('hotel.minibar-items.index') }}">{{ __('Minibar catalog') }}</a></div>
+@endif
+
 @if($canManage ?? false)
 <div class="card shadow-sm mb-3">
     <div class="card-header"><h6 class="mb-0">{{ __('Post consumption') }}</h6></div>
@@ -112,6 +116,36 @@
         </div>
     </div>
 </div>
+
+@if(($pendingRestocks ?? collect())->isNotEmpty())
+<div class="card shadow-sm mt-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">{{ __('Minibar restock checklist') }}</h6>
+        <a href="{{ route('hotel.minibar-items.index') }}" class="btn btn-sm btn-outline-secondary">{{ __('Minibar catalog') }}</a>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small">{{ __('After checkout, rooms need minibar restocked to catalog default quantities.') }}</p>
+        @foreach($pendingRestocks as $restock)
+            <div class="border rounded p-3 mb-3">
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+                    <strong>{{ __('Room') }} {{ $restock->room->room_no ?? '—' }}</strong>
+                    @if($canManage ?? false)
+                    {!! Form::open(['route' => ['hotel.housekeeping.restock.complete', $restock->id], 'method' => 'POST', 'class' => 'd-flex gap-2 align-items-center']) !!}
+                    <input type="text" name="notes" class="form-control form-control-sm" placeholder="{{ __('Notes') }}" style="max-width:200px;">
+                    <button type="submit" class="btn btn-sm btn-success">{{ __('Mark restocked') }}</button>
+                    {!! Form::close() !!}
+                    @endif
+                </div>
+                <ul class="small mb-0 ps-3">
+                    @foreach($restock->lines as $line)
+                        <li>{{ $line->minibarItem->name ?? '—' }} × {{ $line->expected_qty }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endforeach
+    </div>
+</div>
+@endif
 @endsection
 
 @if($canManage && ($occupiedStays ?? collect())->isNotEmpty())

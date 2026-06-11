@@ -21,12 +21,14 @@ class HotelAccountingSetting extends Model
         'chart_vat_payable_id',
         'default_vat_rate_percent',
         'pos_invoice_when_charge_to_room',
+        'require_minibar_scan_at_checkout',
         'folio_payment_bank_map',
     ];
 
     protected $casts = [
         'folio_payment_bank_map' => 'array',
         'pos_invoice_when_charge_to_room' => 'boolean',
+        'require_minibar_scan_at_checkout' => 'boolean',
         'default_vat_rate_percent' => 'decimal:2',
     ];
 

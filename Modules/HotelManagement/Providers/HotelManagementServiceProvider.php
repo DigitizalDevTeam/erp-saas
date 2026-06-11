@@ -2,10 +2,16 @@
 
 namespace Modules\HotelManagement\Providers;
 
+use App\Models\Utility;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Modules\HotelManagement\Entities\HotelBookingSite;
+use Modules\HotelManagement\Http\Middleware\ResolveHotelBookingTenant;
 use Modules\HotelManagement\Services\HotelAuthorization;
+use Modules\HotelManagement\Console\HotelE2eDemoCommand;
 use Modules\HotelManagement\Console\DailyOwnerSummaryCommand;
 use Modules\HotelManagement\Console\LowOccupancyAlertCommand;
 use Modules\HotelManagement\Console\OtaSyncCommand;
@@ -29,6 +35,8 @@ class HotelManagementServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerHotelGates();
+        $this->registerPublicBookingRoutes();
+        $this->registerPublicBookingViewComposers();
         $this->registerTranslations();
         $this->registerConfig();
         $this->registerViews();
@@ -40,6 +48,7 @@ class HotelManagementServiceProvider extends ServiceProvider
                 OtaSyncCommand::class,
                 DailyOwnerSummaryCommand::class,
                 LowOccupancyAlertCommand::class,
+                HotelE2eDemoCommand::class,
             ]);
 
             $this->app->booted(function () {
@@ -118,6 +127,49 @@ class HotelManagementServiceProvider extends ServiceProvider
         return $paths;
     }
 
+    protected function registerPublicBookingViewComposers(): void
+    {
+        View::composer('hotelmanagement::public.*', function ($view) {
+            $site = $view->getData()['site'] ?? null;
+            if (! $site instanceof HotelBookingSite) {
+                return;
+            }
+
+            $accent = $site->accent_color ?? '#0d9488';
+            $tenantSettings = Utility::settingsById((int) $site->created_by);
+            $currencySymbol = $tenantSettings['site_currency_symbol'] ?? '$';
+            $currencyPos = $tenantSettings['site_currency_symbol_position'] ?? 'pre';
+            $decimals = (int) ($tenantSettings['decimal_number'] ?? 2);
+
+            $hbPrice = static function ($amount) use ($currencySymbol, $currencyPos, $decimals) {
+                $formatted = number_format((float) $amount, $decimals);
+                $space = ' ';
+
+                return $currencyPos === 'post'
+                    ? $formatted . $space . $currencySymbol
+                    : $currencySymbol . $formatted;
+            };
+
+            $view->with(compact('accent', 'hbPrice'));
+        });
+    }
+
+    protected function registerPublicBookingRoutes(): void
+    {
+        Route::aliasMiddleware('hotel.booking.tenant', ResolveHotelBookingTenant::class);
+
+        $this->app->booted(function () {
+            Route::middleware('web')
+                ->namespace('Modules\\HotelManagement\\Http\\Controllers')
+                ->group(module_path('HotelManagement', 'Routes/public_booking.php'));
+
+            Route::post('webhooks/hotel-stripe', [
+                \Modules\HotelManagement\Http\Controllers\HotelStripeWebhookController::class,
+                'handle',
+            ])->name('hotel.stripe.webhook');
+        });
+    }
+
     protected function registerHotelGates(): void
     {
         $gates = [
@@ -133,6 +185,7 @@ class HotelManagementServiceProvider extends ServiceProvider
             'hotel.menu.calendar' => 'menuCalendar',
             'hotel.menu.groups' => 'menuGroups',
             'hotel.menu.ota' => 'menuOta',
+            'hotel.menu.booking_site' => 'menuBookingSite',
             'hotel.menu.rooms_setup' => 'menuRoomsSetup',
             'hotel.manage.reservations' => 'manageReservations',
             'hotel.manage.rooms' => 'manageRooms',

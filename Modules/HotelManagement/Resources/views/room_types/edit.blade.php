@@ -7,7 +7,7 @@
 @endsection
 @section('content')
 <div class="card shadow-sm"><div class="card-body">
-{!! Form::model($roomType, ['route' => ['hotel.room-types.update', $roomType->id], 'method' => 'PUT']) !!}
+{!! Form::model($roomType, ['route' => ['hotel.room-types.update', $roomType->id], 'method' => 'PUT', 'files' => true]) !!}
 @include('hotelmanagement::room_types.form', ['roomType' => $roomType])
 <button class="btn btn-primary">{{ __('Update') }}</button>
 <a class="btn btn-secondary" href="{{ route('hotel.room-types.index') }}">{{ __('Cancel') }}</a>

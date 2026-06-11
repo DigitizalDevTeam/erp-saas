@@ -9,13 +9,17 @@ use App\Services\NightAuditOrchestratorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelNightAudit;
 use Modules\HotelManagement\Entities\HotelStay;
 use Modules\HotelManagement\Services\HotelAuthorization;
+use Modules\HotelManagement\Services\HotelNightAuditPreviewService;
 
 class HotelNightAuditController extends Controller
 {
+    public function __construct(private readonly HotelNightAuditPreviewService $previewService)
+    {
+    }
+
     private function canView(): bool
     {
         return HotelAuthorization::viewNightAudit(Auth::user());
@@ -26,15 +30,19 @@ class HotelNightAuditController extends Controller
         return HotelAuthorization::manageNightAudit(Auth::user());
     }
 
-    public function index()
+    public function index(Request $request)
     {
         if (! $this->canView()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        $creatorId = Auth::user()->creatorId();
+        $creatorId = (int) Auth::user()->creatorId();
+        $branchId = Auth::user()->activeBranchContextId();
+        $auditDate = $request->get('audit_date', date('Y-m-d', strtotime('-1 day')));
         $settings = Utility::settingsById($creatorId);
         $nightAuditTime = NightAuditOrchestratorService::configuredNightAuditTime($creatorId);
+
+        $preview = $this->previewService->build($creatorId, $auditDate, $branchId);
 
         $audits = HotelNightAudit::where('created_by', $creatorId)
             ->orderByDesc('audit_date')
@@ -42,7 +50,47 @@ class HotelNightAuditController extends Controller
             ->get();
         $canManage = $this->canManage();
 
-        return view('hotelmanagement::night_audit.index', compact('audits', 'canManage', 'nightAuditTime', 'settings'));
+        return view('hotelmanagement::night_audit.index', compact(
+            'audits',
+            'canManage',
+            'nightAuditTime',
+            'settings',
+            'preview',
+            'auditDate'
+        ));
+    }
+
+    public function previewJson(Request $request)
+    {
+        if (! $this->canView()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $request->validate(['audit_date' => 'required|date']);
+
+        $preview = $this->previewService->build(
+            (int) Auth::user()->creatorId(),
+            $request->audit_date,
+            Auth::user()->activeBranchContextId()
+        );
+
+        return response()->json($preview);
+    }
+
+    public function export(Request $request)
+    {
+        if (! $this->canView()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $auditDate = $request->get('audit_date', date('Y-m-d', strtotime('-1 day')));
+        $preview = $this->previewService->build(
+            (int) Auth::user()->creatorId(),
+            $auditDate,
+            Auth::user()->activeBranchContextId()
+        );
+
+        return view('hotelmanagement::night_audit.export_print', compact('preview'));
     }
 
     public function run(Request $request)
@@ -70,22 +118,23 @@ class HotelNightAuditController extends Controller
 
         $posResult = NightAuditOrchestratorService::closeBusinessDay($creatorId, $auditDate, $branchId, (int) Auth::id());
 
-        DB::transaction(function () use ($creatorId, $branchId, $auditDate, $posResult) {
-            $roomRevenue = (float) HotelFolio::where('created_by', $creatorId)
-                ->whereDate('created_at', $auditDate)
-                ->sum('grand_total');
-            $serviceRevenue = (float) HotelFolio::where('created_by', $creatorId)
-                ->whereDate('created_at', $auditDate)
-                ->withSum(['lines as service_lines_total' => function ($q) {
-                    $q->whereIn('line_type', ['pos_charge', 'misc_charge']);
-                }], 'line_total')
-                ->get()
-                ->sum('service_lines_total');
+        $preview = $this->previewService->build($creatorId, $auditDate, $branchId);
+
+        DB::transaction(function () use ($creatorId, $branchId, $auditDate, $posResult, $preview) {
+            $roomRevenue = (float) ($preview['revenue']['lodging'] ?? 0);
+            $serviceRevenue = round(
+                (float) ($preview['revenue']['services'] ?? 0)
+                + (float) ($preview['revenue']['laundry'] ?? 0)
+                + (float) ($preview['revenue']['minibar'] ?? 0)
+                + (float) ($preview['revenue']['other'] ?? 0),
+                2
+            );
 
             $summary = array_merge($posResult['summary'], [
                 'room_revenue' => $roomRevenue,
                 'service_revenue' => $serviceRevenue,
-                'hotel_total' => $roomRevenue + $serviceRevenue,
+                'hotel_total' => (float) ($preview['revenue']['total'] ?? 0),
+                'preview' => $preview,
             ]);
 
             HotelNightAudit::create([
@@ -108,7 +157,7 @@ class HotelNightAuditController extends Controller
                 ->update(['notes' => DB::raw("CONCAT(COALESCE(notes,''), ' | Audit closed')")]);
         });
 
-        return redirect()->route('hotel.night-audit.index')->with(
+        return redirect()->route('hotel.night-audit.index', ['audit_date' => $auditDate])->with(
             'success',
             __('Night audit completed. :count POS shift(s) closed. Day is locked.', ['count' => $posResult['shifts_closed']])
         );

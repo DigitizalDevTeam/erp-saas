@@ -20,6 +20,7 @@ class HotelFolioLine extends Model
         'discount_amount',
         'line_total',
         'source_pos_id',
+        'hotel_addon_id',
         'created_by',
     ];
 

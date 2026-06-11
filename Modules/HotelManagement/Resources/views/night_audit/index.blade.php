@@ -59,8 +59,9 @@
 
 @section('content')
 @php
-    $defaultDate = request('audit_date', date('Y-m-d'));
+    $defaultDate = $auditDate ?? request('audit_date', date('Y-m-d', strtotime('-1 day')));
     $displayDate = \Carbon\Carbon::parse($defaultDate)->format('d/m/Y');
+    $preview = $preview ?? [];
 @endphp
 
 <div class="hotel-night-audit" id="hotel-night-audit-root">
@@ -74,8 +75,8 @@
                 <div>
                     <p class="text-muted small mb-0 d-lg-none">{{ __('Procedure: Night Audit') }}</p>
                 </div>
-                <span class="badge bg-warning text-dark audit-status-badge" id="audit-status-badge">
-                    {{ __('Audit status') }}: <span id="audit-status-text">{{ __('Pending') }}</span>
+                <span class="badge bg-{{ ($preview['is_closed'] ?? false) ? 'success' : 'warning' }} {{ ($preview['is_closed'] ?? false) ? '' : 'text-dark' }} audit-status-badge" id="audit-status-badge">
+                    {{ __('Audit status') }}: <span id="audit-status-text">{{ ($preview['is_closed'] ?? false) ? __('Closed') : __('Pending') }}</span>
                 </span>
             </div>
 
@@ -125,6 +126,7 @@
                 @include('hotelmanagement::night_audit.partials._summary_general')
                 @include('hotelmanagement::night_audit.partials._summary_other')
                 @include('hotelmanagement::night_audit.partials._report_previews')
+                @include('hotelmanagement::night_audit.partials._checklist')
             </div>
 
             <div class="card shadow-sm border-0 hotel-night-audit-footer-actions">
@@ -145,9 +147,9 @@
                     </div>
 
                     <div class="d-flex flex-wrap gap-2 justify-content-end">
-                        <button type="button" class="btn btn-outline-secondary" id="btn-audit-print">
+                        <a href="{{ route('hotel.night-audit.export', ['audit_date' => $defaultDate]) }}" class="btn btn-outline-secondary" id="btn-audit-print" target="_blank">
                             <i class="ti ti-printer me-1"></i>{{ __('Print / Export all') }}
-                        </button>
+                        </a>
                         @if($canManage ?? false)
                             <form method="post" action="{{ route('hotel.night-audit.run') }}" class="d-inline" id="night-audit-run-form" onsubmit="return confirm('{{ __('Run night audit? This locks the selected date and closes open POS shifts.') }}');">
                                 @csrf
@@ -255,22 +257,30 @@
         }
     }
 
+    function reloadWithDate() {
+        if (!dateInput) return;
+        var url = new URL(window.location.href);
+        url.searchParams.set('audit_date', dateInput.value);
+        window.location.href = url.toString();
+    }
+
     if (btnPreview) {
-        btnPreview.addEventListener('click', function () { showResults('preview'); });
+        btnPreview.addEventListener('click', reloadWithDate);
     }
     if (btnGenerate) {
-        btnGenerate.addEventListener('click', function () { showResults('generate'); });
+        btnGenerate.addEventListener('click', reloadWithDate);
     }
-    if (btnPrint) {
-        btnPrint.addEventListener('click', function () { window.print(); });
-    }
-    showResults('generate');
 
     var runDate = document.getElementById('night-audit-run-date');
     if (dateInput && runDate) {
-        dateInput.addEventListener('change', function () { runDate.value = dateInput.value; });
+        dateInput.addEventListener('change', function () {
+            runDate.value = dateInput.value;
+            reloadWithDate();
+        });
         runDate.value = dateInput.value;
     }
+
+    showResults('generate');
 })();
 </script>
 @endpush

@@ -12,5 +12,9 @@ class HotelManagementDatabaseSeeder extends Seeder
         Model::unguard();
 
         $this->call(HotelDummyDataSeeder::class);
+
+        if (class_exists(\Spatie\Permission\Models\Role::class)) {
+            $this->call(HotelDemoRolesSeeder::class);
+        }
     }
 }

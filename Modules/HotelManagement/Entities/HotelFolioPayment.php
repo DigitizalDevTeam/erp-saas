@@ -23,4 +23,9 @@ class HotelFolioPayment extends Model
     {
         return $this->belongsTo(HotelFolio::class, 'hotel_folio_id');
     }
+
+    public function creator()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'created_by');
+    }
 }
