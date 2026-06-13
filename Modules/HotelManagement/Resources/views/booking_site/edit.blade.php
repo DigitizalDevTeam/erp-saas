@@ -168,12 +168,39 @@
                 @if($stripeConfigured ?? false)
                     <span class="badge bg-success mb-2">{{ __('Stripe ready') }}</span>
                 @else
-                    <span class="badge bg-warning text-dark mb-2">{{ __('Stripe not configured') }}</span>
+                    <span class="badge bg-warning text-dark mb-2">{{ __('Stripe not active yet') }}</span>
                 @endif
-                <p class="small text-muted">{{ __('Use company Stripe keys from') }} <a href="{{ route('settings') }}#payment-settings">{{ __('Settings → Payment') }}</a> {{ __('or override below.') }}</p>
-                @if($companyStripeEnabled ?? false)
-                    <p class="small text-success mb-2">{{ __('Company Stripe is enabled.') }}</p>
-                @endif
+
+                <ul class="list-unstyled small mb-3">
+                    <li class="mb-2">
+                        @if($stripeStatus['has_keys'] ?? false)
+                            <span class="text-success">✓</span> {{ __('API keys found') }}
+                            @if(!empty($stripeStatus['publishable']))
+                                <br><code class="text-muted">{{ Str::limit($stripeStatus['publishable'], 20, '…') }}</code>
+                                @if(($stripeStatus['keys_source'] ?? '') === 'company')
+                                    <span class="text-muted">({{ __('from company settings') }})</span>
+                                @elseif(($stripeStatus['keys_source'] ?? '') === 'booking_site')
+                                    <span class="text-muted">({{ __('booking site override') }})</span>
+                                @endif
+                            @endif
+                        @else
+                            <span class="text-danger">✗</span> {{ __('API keys missing') }}
+                            — <a href="{{ route('settings') }}">{{ __('Settings → Payment') }}</a>
+                        @endif
+                    </li>
+                    <li class="mb-2">
+                        @if($stripeStatus['is_prepay_mode'] ?? false)
+                            <span class="text-success">✓</span> {{ __('Payment mode: Stripe online payment') }}
+                        @else
+                            <span class="text-danger">✗</span> {{ __('Payment mode is still "Pay at hotel"') }}
+                            <br><span class="text-muted">{{ __('Change Payment mode above to "Stripe online payment" and save.') }}</span>
+                        @endif
+                    </li>
+                    @if($companyStripeEnabled ?? false)
+                        <li class="mb-0"><span class="text-success">✓</span> {{ __('Company Stripe toggle is on') }}</li>
+                    @endif
+                </ul>
+
                 <p class="small text-muted mb-0">{{ __('Webhook URL') }}:<br><code class="user-select-all">{{ $webhookUrl ?? '' }}</code></p>
                 <p class="small text-muted mt-1 mb-0">{{ __('Event') }}: <code>checkout.session.completed</code></p>
             </div>

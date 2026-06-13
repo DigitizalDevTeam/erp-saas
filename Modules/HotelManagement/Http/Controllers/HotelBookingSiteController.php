@@ -45,7 +45,10 @@ class HotelBookingSiteController extends Controller
 
         $publicUrl = $site->slug ? url('/' . $site->slug) : null;
         $stripeService = app(HotelStripePaymentService::class);
-        $stripeConfigured = $site->exists && $stripeService->isConfigured($site);
+        $stripeStatus = $site->exists
+            ? $stripeService->stripeStatus($site)
+            : ['has_keys' => false, 'is_prepay_mode' => false, 'is_ready' => false, 'publishable' => '', 'keys_source' => 'none'];
+        $stripeConfigured = (bool) ($stripeStatus['is_ready'] ?? false);
         $companyPayment = Utility::getCompanyPaymentSetting($creatorId);
         $companyStripeEnabled = ($companyPayment['is_stripe_enabled'] ?? 'off') === 'on';
         $webhookUrl = route('hotel.stripe.webhook');
@@ -54,6 +57,7 @@ class HotelBookingSiteController extends Controller
             'site',
             'publicUrl',
             'stripeConfigured',
+            'stripeStatus',
             'companyStripeEnabled',
             'companyPayment',
             'webhookUrl',

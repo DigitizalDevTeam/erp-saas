@@ -43,26 +43,7 @@ class UserController extends Controller
             if (\Auth::user()->type == 'super admin') {
                 $users = User::where('created_by', '=', $user->creatorId())->where('type', '=', 'company')->with(['currentPlan'])->get();
             } else {
-                $companyId = (int) $user->creatorId();
-                if (Schema::hasTable('company_user')) {
-                    $memberUserIds = DB::table('company_user')
-                        ->where('company_id', $companyId)
-                        ->where('status', 'active')
-                        ->pluck('user_id')
-                        ->map(fn ($id) => (int) $id)
-                        ->all();
-                    $users = User::where('type', '!=', 'client')
-                        ->where(function ($q) use ($companyId, $memberUserIds) {
-                            $q->where('created_by', $companyId);
-                            if (!empty($memberUserIds)) {
-                                $q->orWhereIn('id', $memberUserIds);
-                            }
-                        })
-                        ->with(['currentPlan'])
-                        ->get();
-                } else {
-                    $users = User::where('created_by', '=', $companyId)->where('type', '!=', 'client')->with(['currentPlan'])->get();
-                }
+                $users = $this->usersForCompany($this->resolveActiveCompanyId($user));
             }
 
             return view('user.index')->with('users', $users);
@@ -952,6 +933,9 @@ class UserController extends Controller
     {
         $user = User::find($id);
         if ($user && auth()->check()) {
+            if ($user->type === 'company') {
+                session(['active_company_id' => (int) $user->id]);
+            }
             Impersonate::take($request->user(), $user);
             return redirect('/account-dashboard');
         }
@@ -1105,6 +1089,55 @@ class UserController extends Controller
             'message' => __('User already exists. This user will be linked to your company, and password will remain unchanged.'),
             'type' => $user->type,
         ]);
+    }
+
+    private function resolveActiveCompanyId(User $user): int
+    {
+        if ($user->type === 'company') {
+            return (int) $user->id;
+        }
+
+        $companyId = (int) ($user->activeCompanyId() ?? 0);
+        if ($companyId > 0) {
+            return $companyId;
+        }
+
+        return (int) $user->creatorId();
+    }
+
+    private function usersForCompany(int $companyId)
+    {
+        if (Schema::hasTable('company_user')) {
+            $memberUserIds = DB::table('company_user')
+                ->where('company_id', $companyId)
+                ->where('status', 'active')
+                ->pluck('user_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            return User::where('type', '!=', 'client')
+                ->where(function ($q) use ($companyId) {
+                    $q->where('type', '!=', 'company')
+                        ->orWhere('id', $companyId);
+                })
+                ->where(function ($q) use ($companyId, $memberUserIds) {
+                    $q->where(function ($legacy) use ($companyId) {
+                        $legacy->where('created_by', $companyId)
+                            ->where('type', '!=', 'company');
+                    });
+                    if (! empty($memberUserIds)) {
+                        $q->orWhereIn('id', $memberUserIds);
+                    }
+                })
+                ->with(['currentPlan'])
+                ->get();
+        }
+
+        return User::where('created_by', '=', $companyId)
+            ->where('type', '!=', 'client')
+            ->where('type', '!=', 'company')
+            ->with(['currentPlan'])
+            ->get();
     }
 
     private function syncCompanyMembership(User $user, array $companyIds, ?int $defaultCompanyId = null): void

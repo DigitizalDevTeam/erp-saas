@@ -5,11 +5,62 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class MultiCompanyContextTest extends TestCase
 {
     use DatabaseTransactions;
+
+    public function test_company_user_index_excludes_other_company_accounts(): void
+    {
+        $companyA = User::factory()->create(['type' => 'company']);
+        $companyB = User::factory()->create(['type' => 'company']);
+        $employee = User::factory()->create([
+            'type' => 'Employee',
+            'created_by' => $companyA->id,
+        ]);
+
+        Permission::firstOrCreate(['name' => 'manage user', 'guard_name' => 'web']);
+        $companyA->givePermissionTo('manage user');
+
+        DB::table('company_user')->insert([
+            [
+                'company_id' => $companyA->id,
+                'user_id' => $companyA->id,
+                'status' => 'active',
+                'is_default' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'company_id' => $companyA->id,
+                'user_id' => $companyB->id,
+                'status' => 'active',
+                'is_default' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'company_id' => $companyA->id,
+                'user_id' => $employee->id,
+                'status' => 'active',
+                'is_default' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        session(['active_company_id' => $companyA->id]);
+        $this->actingAs($companyA);
+
+        $response = $this->get(route('users.index'));
+
+        $response->assertOk();
+        $response->assertSee($companyA->name, false);
+        $response->assertSee($employee->name, false);
+        $response->assertDontSee($companyB->name, false);
+    }
 
     public function test_user_uses_default_company_from_membership(): void
     {

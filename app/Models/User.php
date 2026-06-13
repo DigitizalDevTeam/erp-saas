@@ -86,6 +86,10 @@ class User extends Authenticatable implements MustVerifyEmail
             return $this->id;
         }
 
+        if ($this->type === 'company') {
+            return $this->activeCompanyId() ?? (int) $this->id;
+        }
+
         return $this->activeCompanyId() ?? $this->created_by;
     }
 

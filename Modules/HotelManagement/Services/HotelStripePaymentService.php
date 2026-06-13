@@ -28,13 +28,26 @@ class HotelStripePaymentService
 
     public function isConfigured(HotelBookingSite $site): bool
     {
-        if ($site->payment_mode !== HotelBookingSite::PAY_PREPAY) {
-            return false;
-        }
+        $status = $this->stripeStatus($site);
 
+        return $status['is_ready'];
+    }
+
+    /**
+     * @return array{has_keys: bool, is_prepay_mode: bool, is_ready: bool, publishable: string, keys_source: string}
+     */
+    public function stripeStatus(HotelBookingSite $site): array
+    {
         $keys = $this->resolveStripeKeys($site);
+        $hasKeys = $keys['publishable'] !== '' && $keys['secret'] !== '';
 
-        return $keys['enabled'] && $keys['secret'] !== '' && $keys['publishable'] !== '';
+        return [
+            'has_keys' => $hasKeys,
+            'is_prepay_mode' => $site->payment_mode === HotelBookingSite::PAY_PREPAY,
+            'is_ready' => $hasKeys && $site->payment_mode === HotelBookingSite::PAY_PREPAY,
+            'publishable' => $keys['publishable'],
+            'keys_source' => $keys['source'],
+        ];
     }
 
     /**
@@ -284,28 +297,33 @@ class HotelStripePaymentService
     }
 
     /**
-     * @return array{enabled: bool, publishable: string, secret: string, webhook_secret: ?string}
+     * @return array{enabled: bool, publishable: string, secret: string, webhook_secret: ?string, source: string}
      */
     public function resolveStripeKeys(HotelBookingSite $site): array
     {
         $config = $site->payment_config ?? [];
-
-        if (! empty($config['stripe_secret']) && ! empty($config['stripe_key'])) {
-            return [
-                'enabled' => true,
-                'publishable' => (string) $config['stripe_key'],
-                'secret' => (string) $config['stripe_secret'],
-                'webhook_secret' => $config['stripe_webhook_secret'] ?? null,
-            ];
-        }
-
         $company = Utility::getCompanyPaymentSetting((int) $site->created_by);
 
+        $publishable = trim((string) ($config['stripe_key'] ?? $company['stripe_key'] ?? ''));
+        $secret = trim((string) ($config['stripe_secret'] ?? $company['stripe_secret'] ?? ''));
+
+        $source = 'none';
+        if (! empty($config['stripe_key']) && ! empty($config['stripe_secret'])) {
+            $source = 'booking_site';
+        } elseif (! empty($config['stripe_key']) || ! empty($config['stripe_secret'])) {
+            $source = 'mixed';
+        } elseif (! empty($company['stripe_key']) && ! empty($company['stripe_secret'])) {
+            $source = 'company';
+        }
+
+        $hasKeys = $publishable !== '' && $secret !== '';
+
         return [
-            'enabled' => ($company['is_stripe_enabled'] ?? 'off') === 'on',
-            'publishable' => (string) ($company['stripe_key'] ?? ''),
-            'secret' => (string) ($company['stripe_secret'] ?? ''),
+            'enabled' => $hasKeys || ($company['is_stripe_enabled'] ?? 'off') === 'on',
+            'publishable' => $publishable,
+            'secret' => $secret,
             'webhook_secret' => $config['stripe_webhook_secret'] ?? config('services.stripe.webhook_secret'),
+            'source' => $source,
         ];
     }
 
