@@ -15,6 +15,7 @@ class Pos extends Model
         'branch_id',
         'order_type',
         'table_id',
+        'parent_pos_id',
         'shift_id',
         'customer_id',
         'guest_name',
@@ -85,6 +86,16 @@ class Pos extends Model
     public function items()
     {
         return $this->hasMany('App\Models\PosProduct', 'pos_id', 'id');
+    }
+
+    public function childChecks()
+    {
+        return $this->hasMany(self::class, 'parent_pos_id', 'id');
+    }
+
+    public function parentCheck()
+    {
+        return $this->belongsTo(self::class, 'parent_pos_id', 'id');
     }
     public function taxes()
     {

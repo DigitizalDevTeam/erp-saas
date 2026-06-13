@@ -55,6 +55,10 @@
                             <label class="form-label small text-muted mb-0">{{ $tp('pos.select_table', 'Select Table') }}</label>
                             <div id="pos-selected-table" class="fw-bold text-primary">—</div>
                         </div>
+                        <div id="pos-check-selector-wrap" class="d-none text-nowrap">
+                            <label class="form-label small text-muted mb-0">{{ __('pos.select_check') }}</label>
+                            <select class="form-select form-select-sm" id="pos-check-selector" style="min-width: 9rem;"></select>
+                        </div>
                         @if($canShowPayButton ?? true)
                         <button type="button" class="btn btn-sm btn-outline-danger d-none flex-shrink-0" id="pos-close-table-btn" title="{{ $tp('pos.close_table', 'Close Table') }} ({{ $tp('pos.manager_emergency', 'Manager Emergency') }})">
                             <i class="ti ti-door-exit"></i>
@@ -117,6 +121,9 @@
                                 </button>
                                 <button type="button" class="btn btn-outline-info" id="pos-join-table-restaurant" title="{{ $tp('pos.join_table', 'Join Table') }}">
                                     <i class="ti ti-table d-block"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-primary" id="pos-move-table-restaurant" title="{{ __('pos.move_table') }}">
+                                    <i class="ti ti-arrows-right d-block"></i>
                                 </button>
                                 <button type="button" class="btn btn-outline-warning" id="pos-split-bill-restaurant" title="{{ __('pos.split_bill') }}">
                                     <i class="ti ti-separator-horizontal d-block"></i>
@@ -253,6 +260,28 @@
     </div>
 </div>
 
+{{-- Move table modal --}}
+<div class="modal fade" id="posMoveTableModal" tabindex="-1" aria-labelledby="posMoveTableModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="posMoveTableModalLabel">{{ __('pos.move_table') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">{{ __('pos.move_table_hint') }}</p>
+                <p class="mb-2"><strong>{{ __('pos.from_table') }}:</strong> <span id="pos-move-from-table-name">—</span></p>
+                <label class="form-label">{{ __('pos.select_target_table') }}</label>
+                <div id="pos-move-table-list" class="border rounded p-2" style="max-height:220px;overflow-y:auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="pos-move-table-confirm">{{ __('pos.move_table') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- Join table modal --}}
 <div class="modal fade" id="posJoinTableModal" tabindex="-1" aria-labelledby="posJoinTableModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -276,24 +305,49 @@
 
 {{-- Split bill modal --}}
 <div class="modal fade" id="posSplitBillModal" tabindex="-1" aria-labelledby="posSplitBillModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="posSplitBillModalLabel">{{ __('pos.split_bill') }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label">{{ __('pos.total') }}</label>
-                    <div id="pos-split-total-display" class="fw-bold fs-5 text-primary">0</div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">{{ __('pos.split_into_parts') }}</label>
-                    <input type="number" id="pos-split-parts-input" class="form-control" min="2" value="2" step="1">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">{{ __('pos.amount_per_person') }}</label>
-                    <div id="pos-split-per-person" class="fw-bold text-success">0</div>
+                <ul class="nav nav-tabs mb-3" id="pos-split-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="pos-split-equal-tab" data-bs-toggle="tab" data-bs-target="#pos-split-equal-pane" type="button" role="tab">{{ __('pos.split_equal') }}</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="pos-split-items-tab" data-bs-toggle="tab" data-bs-target="#pos-split-items-pane" type="button" role="tab">{{ __('pos.split_by_items') }}</button>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="pos-split-equal-pane" role="tabpanel">
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('pos.total') }}</label>
+                            <div id="pos-split-total-display" class="fw-bold fs-5 text-primary">0</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('pos.split_into_parts') }}</label>
+                            <input type="number" id="pos-split-parts-input" class="form-control" min="2" value="2" step="1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('pos.amount_per_person') }}</label>
+                            <div id="pos-split-per-person" class="fw-bold text-success">0</div>
+                        </div>
+                        <p class="text-muted small mb-0">{{ __('pos.split_equal_hint') }}</p>
+                    </div>
+                    <div class="tab-pane fade" id="pos-split-items-pane" role="tabpanel">
+                        <p class="text-muted small">{{ __('pos.split_by_items_hint') }}</p>
+                        <div id="pos-split-items-list" class="border rounded p-2 mb-3" style="max-height:200px;overflow-y:auto;"></div>
+                        <div class="d-flex flex-wrap gap-2 align-items-end mb-2">
+                            <div class="flex-grow-1">
+                                <label class="form-label">{{ __('pos.guest_label') }}</label>
+                                <input type="text" id="pos-split-guest-label" class="form-control form-control-sm" placeholder="{{ __('pos.guest_label_placeholder') }}">
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="pos-split-add-guest">{{ __('pos.add_guest_check') }}</button>
+                        </div>
+                        <div id="pos-split-guest-groups" class="d-flex flex-column gap-2"></div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">

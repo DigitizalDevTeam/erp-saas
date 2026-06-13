@@ -255,22 +255,25 @@ class PosController extends Controller
             return 0.0;
         }
         $creatorId = Auth::user()->creatorId();
-        $pos = Pos::where('table_id', $tableId)
+        $posQuery = Pos::where('table_id', $tableId)
             ->where('shift_id', $shiftId)
             ->where('created_by', $creatorId)
             ->whereNull('cancelled_at')
-            ->whereDoesntHave('posPayments')
-            ->with('items')
-            ->first();
+            ->whereDoesntHave('posPayments');
+
+        $posRecords = (clone $posQuery)->with('items')->get();
+        if ($posRecords->isEmpty()) {
+            $posRecords = collect();
+        }
 
         $lines = [];
-        if ($pos) {
+        foreach ($posRecords as $pos) {
             foreach ($pos->items as $line) {
                 if ($line->voided_at) {
                     continue;
                 }
                 $pid = (int) $line->product_id;
-                $lines[$pid] = (float) ($line->price * $line->quantity - $line->discount);
+                $lines[$pid] = ($lines[$pid] ?? 0) + (float) ($line->price * $line->quantity - $line->discount);
             }
         }
 
@@ -296,6 +299,23 @@ class PosController extends Controller
         }
 
         return array_sum($lines);
+    }
+
+    protected function closeRestaurantTableIfFullyPaid(int $tableId, int $userId): void
+    {
+        $hasOpenChecks = Pos::where('table_id', $tableId)
+            ->where('created_by', $userId)
+            ->whereNull('cancelled_at')
+            ->whereDoesntHave('posPayments')
+            ->exists();
+
+        if (! $hasOpenChecks) {
+            PosTable::where('id', $tableId)->where('created_by', $userId)->update([
+                'status' => PosTable::STATUS_AVAILABLE,
+                'current_guests' => 0,
+                'customer_name' => null,
+            ]);
+        }
     }
 
     /**
@@ -591,11 +611,81 @@ class PosController extends Controller
             }
         }
 
-        // Restaurant: when paying delivery/takeaway order, load cart from Pos (by pos_id) or from session (new order)
+        // Restaurant: when paying delivery/takeaway or split dine-in check, load cart from Pos (by pos_id)
         $orderType = $request->get('pos_order_type');
         $posId = (int) $request->get('pos_id');
+        $tableIdForPay = (int) $request->get('pos_table_id');
         $sessEmpty = empty($sess) || !is_array($sess) || count($sess) === 0;
-        if (Auth::user()->canManagePos() && $sessEmpty && $shiftId && in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
+        if (Auth::user()->canManagePos() && $sessEmpty && $shiftId && $posId > 0) {
+            $creatorId = Auth::user()->creatorId();
+            $cartKey = 'pos_restaurant_cart';
+            $allCarts = $request->session()->get($cartKey, []);
+
+            $posQuery = Pos::where('id', $posId)
+                ->where('shift_id', $shiftId)
+                ->where('created_by', $creatorId)
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->with(['items.product']);
+
+            if (in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
+                $posQuery->whereNull('table_id')->where('order_type', $orderType);
+            } elseif ($tableIdForPay > 0) {
+                $posQuery->where('table_id', $tableIdForPay);
+            }
+
+            $pos = $posQuery->first();
+            if ($pos && $pos->items->isNotEmpty()) {
+                $sess = [];
+                foreach ($pos->items as $line) {
+                    if ($line->voided_at) {
+                        continue;
+                    }
+                    $product = $line->product;
+                    $price = (float) $line->price;
+                    $qty = (int) $line->quantity;
+                    $taxRate = 0;
+                    if ($product && !empty($product->tax_id)) {
+                        $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
+                        $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
+                        foreach ($taxModels as $t) {
+                            $taxRate += $t->rate ?? 0;
+                        }
+                    }
+                    $subtotal = $price * $qty;
+                    $taxAmount = ($subtotal * $taxRate) / 100;
+                    $sess[$line->product_id] = [
+                        'id' => $line->product_id,
+                        'name' => $product ? $product->name : __('Product'),
+                        'quantity' => $qty,
+                        'price' => $price,
+                        'tax' => $taxRate,
+                        'subtotal' => $subtotal + $taxAmount,
+                        'product_tax' => $taxRate ? $taxRate . '%' : '-',
+                    ];
+                }
+                $sessionCartKey = 'pos_' . $pos->id;
+                if (!empty($allCarts[$sessionCartKey])) {
+                    foreach ($allCarts[$sessionCartKey] as $pid => $v) {
+                        $pid = is_numeric($pid) ? (int) $pid : $pid;
+                        if (isset($sess[$pid])) {
+                            $sess[$pid]['quantity'] += (int) ($v['quantity'] ?? 0);
+                            $sess[$pid]['subtotal'] = ($sess[$pid]['price'] * $sess[$pid]['quantity']) * (1 + ($sess[$pid]['tax'] ?? 0) / 100);
+                        } else {
+                            $sess[$pid] = [
+                                'id' => $pid,
+                                'name' => $v['name'] ?? __('Product'),
+                                'quantity' => (int) ($v['quantity'] ?? 1),
+                                'price' => (float) ($v['price'] ?? 0),
+                                'tax' => (float) ($v['tax'] ?? 0),
+                                'subtotal' => (float) ($v['subtotal'] ?? 0),
+                                'product_tax' => $v['product_tax'] ?? '-',
+                            ];
+                        }
+                    }
+                }
+            }
+        } elseif (Auth::user()->canManagePos() && $sessEmpty && $shiftId && in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
             $creatorId = Auth::user()->creatorId();
             $cartKey = 'pos_restaurant_cart';
             $allCarts = $request->session()->get($cartKey, []);
@@ -1186,12 +1276,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $posPayment->save();
         }
 
-        // Phase 3: Close table after payment (restaurant flow)
+        // Phase 3: Close table after payment when all checks are paid (restaurant flow)
         if ($pos->table_id) {
-            PosTable::where('id', $pos->table_id)->where('created_by', $user_id)->update([
-                'status' => PosTable::STATUS_AVAILABLE,
-                'current_guests' => 0,
-            ]);
+            $this->closeRestaurantTableIfFullyPaid((int) $pos->table_id, $user_id);
         }
 
         $pos->load('items');
@@ -1237,13 +1324,16 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $orderType = $request->get('pos_order_type');
             $posIdParam = (int) $request->get('pos_id');
             if (($tableId && $shiftId) && (empty($sales) || !is_array($sales) || count($sales) === 0)) {
-                $existingPos = Pos::where('table_id', $tableId)
-                    ->where('shift_id', $shiftId)
-                    ->where('created_by', $user_id)
+                $existingPosQuery = Pos::where('created_by', $user_id)
                     ->whereNull('cancelled_at')
                     ->whereDoesntHave('posPayments')
-                    ->with(['items.product'])
-                    ->first();
+                    ->with(['items.product']);
+                if ($posIdParam > 0) {
+                    $existingPosQuery->where('id', $posIdParam)->where('table_id', $tableId)->where('shift_id', $shiftId);
+                } else {
+                    $existingPosQuery->where('table_id', $tableId)->where('shift_id', $shiftId);
+                }
+                $existingPos = $existingPosQuery->first();
                 if ($existingPos && $existingPos->items->isNotEmpty()) {
                     $sales = [];
                     foreach ($existingPos->items as $line) {
@@ -1381,8 +1471,22 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $useExistingPos = false;
                 $existingPos = null;
                 if ($tableId && $shiftId) {
-                    $existingPos = Pos::where('table_id', $tableId)
+                    $existingPosQuery = Pos::where('table_id', $tableId)
                         ->where('shift_id', $shiftId)
+                        ->where('created_by', $user_id)
+                        ->whereNull('cancelled_at')
+                        ->whereDoesntHave('posPayments')
+                        ->with('items');
+                    if ($posIdParam > 0) {
+                        $existingPosQuery->where('id', $posIdParam);
+                    }
+                    $existingPos = $existingPosQuery->first();
+                    if ($existingPos && $existingPos->items->isNotEmpty()) {
+                        $useExistingPos = true;
+                    }
+                }
+                if (! $useExistingPos && $posIdParam > 0 && $shiftId) {
+                    $existingPos = Pos::where('id', $posIdParam)
                         ->where('created_by', $user_id)
                         ->whereNull('cancelled_at')
                         ->whereDoesntHave('posPayments')
@@ -1392,7 +1496,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $useExistingPos = true;
                     }
                 }
-                if (!$useExistingPos && $posIdParam > 0 && $shiftId && in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
+                if (! $useExistingPos && $posIdParam > 0 && $shiftId && in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
                     $existingPos = Pos::where('id', $posIdParam)
                         ->whereNull('table_id')
                         ->where('order_type', $orderType)
@@ -1576,12 +1680,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         unset($allCarts[$sessionCartKeyToClear]);
                         session()->put($cartKey, $allCarts);
                     }
-                    // Table becomes available after payment so next click asks for guests
+                    // Table becomes available after all checks on table are paid
                     if ($pos->table_id) {
-                        PosTable::where('id', $pos->table_id)->where('created_by', $user_id)->update([
-                            'status' => PosTable::STATUS_AVAILABLE,
-                            'current_guests' => null,
-                        ]);
+                        $this->closeRestaurantTableIfFullyPaid((int) $pos->table_id, $user_id);
                     }
                     return response()->json([
                         'code' => 200,
@@ -2109,7 +2210,16 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         }
 
         if ($tableId && ($branchId || $shiftId)) {
-            if ($tableId && $branchId) {
+            if ($posId > 0) {
+                $pos = Pos::where('id', $posId)
+                    ->where('table_id', $tableId)
+                    ->where('created_by', $creatorId)
+                    ->whereNull('cancelled_at')
+                    ->whereDoesntHave('posPayments')
+                    ->with(['items.product.posPrinter', 'items.posPrinter'])
+                    ->first();
+            }
+            if (! $pos && $tableId && $branchId) {
                 $pos = Pos::where('table_id', $tableId)
                     ->where('branch_id', $branchId)
                     ->where('created_by', $creatorId)
@@ -2221,6 +2331,36 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             }
         }
         $sessionItems = array_values($sessionItems);
+
+        $checks = [];
+        if ($tableId && ($branchId || $shiftId)) {
+            $checkShiftId = $pos ? ($pos->shift_id ?? $shiftId) : $shiftId;
+            $openChecks = Pos::where('table_id', $tableId)
+                ->where('created_by', $creatorId)
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                ->when($checkShiftId, fn ($q) => $q->where('shift_id', $checkShiftId))
+                ->with('items')
+                ->get();
+            foreach ($openChecks as $check) {
+                $checkTotal = 0.0;
+                foreach ($check->items as $line) {
+                    if ($line->voided_at) {
+                        continue;
+                    }
+                    $checkTotal += (float) ($line->price * $line->quantity - $line->discount);
+                }
+                $checks[] = [
+                    'pos_id' => $check->id,
+                    'label' => $check->guest_name ?: ('Check #' . $check->pos_id),
+                    'total' => $checkTotal,
+                    'total_formatted' => Auth::user()->priceFormat($checkTotal),
+                    'line_count' => $check->items->whereNull('voided_at')->count(),
+                ];
+            }
+        }
+
         $payload = [
             'pos_id' => $pos ? $pos->id : null,
             'shift_id' => $pos ? $pos->shift_id : $shiftId,
@@ -2228,6 +2368,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'session_cart_key' => $sessionCartKey,
             'order_lines' => $orderLines,
             'session_items' => $sessionItems,
+            'checks' => $checks,
         ];
         if ($pos && in_array($pos->order_type, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
             $payload['guest_name'] = $pos->guest_name ?? null;
@@ -2725,6 +2866,304 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'success' => true,
             'message' => $movedCount > 0 ? __('Orders merged successfully.') : __('No orders to merge.'),
             'pos_id' => $targetPos->id,
+        ]);
+    }
+
+    /**
+     * Move table: transfer the current table's order (and session cart) to another table.
+     * Source table is released; target receives all items and guest info.
+     */
+    public function moveRestaurantTable(Request $request)
+    {
+        if (! Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $pinCheck = $this->restaurantPinActorOrJsonError();
+        if ($pinCheck instanceof \Illuminate\Http\JsonResponse) {
+            return $pinCheck;
+        }
+        $request->validate([
+            'branch_id' => 'required|exists:branches,id',
+            'source_table_id' => 'required|exists:pos_tables,id',
+            'target_table_id' => 'required|exists:pos_tables,id|different:source_table_id',
+            'shift_id' => 'required|exists:pos_shifts,id',
+        ]);
+
+        $creatorId = Auth::user()->creatorId();
+        $branchId = (int) $request->branch_id;
+        $sourceTableId = (int) $request->source_table_id;
+        $targetTableId = (int) $request->target_table_id;
+        $shiftId = (int) $request->shift_id;
+
+        $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->first();
+        if (! $branch) {
+            return response()->json(['error' => __('Invalid branch.')], 422);
+        }
+        if ($resp = $this->assertRestaurantPosActorBranch($branchId)) {
+            return $resp;
+        }
+
+        $sourceTable = \App\Models\PosTable::where('id', $sourceTableId)->where('created_by', $creatorId)->first();
+        $targetTable = \App\Models\PosTable::where('id', $targetTableId)->where('created_by', $creatorId)->first();
+        if (! $sourceTable || ! $targetTable) {
+            return response()->json(['error' => __('Table not found.')], 422);
+        }
+
+        $warehouse = warehouse::where('created_by', $creatorId)->where('branch_id', $branchId)->first()
+            ?: warehouse::where('created_by', $creatorId)->first();
+        if (! $warehouse) {
+            return response()->json(['error' => __('Please create or select a warehouse.')], 422);
+        }
+
+        $openShiftIds = \App\Models\PosShift::where('branch_id', $branchId)
+            ->where('status', \App\Models\PosShift::STATUS_OPEN)
+            ->where('created_by', $creatorId)
+            ->pluck('id');
+
+        $targetPos = Pos::where('table_id', $targetTableId)
+            ->where('branch_id', $branchId)
+            ->whereIn('shift_id', $openShiftIds)
+            ->where('created_by', $creatorId)
+            ->whereNull('cancelled_at')
+            ->whereDoesntHave('posPayments')
+            ->first();
+
+        if (! $targetPos) {
+            $targetPos = new Pos();
+            $targetPos->pos_id = $this->invoicePosNumber();
+            $targetPos->branch_id = $branchId;
+            $targetPos->order_type = Pos::ORDER_TYPE_DINE_IN;
+            $targetPos->table_id = $targetTableId;
+            $targetPos->shift_id = $shiftId;
+            $targetPos->customer_id = 0;
+            $targetPos->warehouse_id = $warehouse->id;
+            $targetPos->pos_date = date('Y-m-d');
+            $targetPos->payment_method = null;
+            $targetPos->created_by = $creatorId;
+            $targetPos->pos_user_id = PosActorService::posActorId();
+            $targetPos->save();
+        }
+
+        $movedCount = 0;
+        $sourcePosList = Pos::where('table_id', $sourceTableId)
+            ->where('branch_id', $branchId)
+            ->whereIn('shift_id', $openShiftIds)
+            ->where('created_by', $creatorId)
+            ->whereNull('cancelled_at')
+            ->whereDoesntHave('posPayments')
+            ->with('items')
+            ->get();
+
+        foreach ($sourcePosList as $sourcePos) {
+            if ($sourcePos->id === $targetPos->id) {
+                continue;
+            }
+            foreach ($sourcePos->items as $item) {
+                $item->pos_id = $targetPos->id;
+                $item->save();
+                $movedCount++;
+            }
+            $sourcePos->cancelled_at = now();
+            $sourcePos->save();
+        }
+
+        $cartKey = 'pos_restaurant_cart';
+        $allCarts = $request->session()->get($cartKey, []);
+        $sourceCartKey = $sourceTableId . '_' . $shiftId;
+        $targetCartKey = $targetTableId . '_' . $shiftId;
+        if (! empty($allCarts[$sourceCartKey])) {
+            if (empty($allCarts[$targetCartKey])) {
+                $allCarts[$targetCartKey] = $allCarts[$sourceCartKey];
+            } else {
+                foreach ($allCarts[$sourceCartKey] as $pid => $item) {
+                    if (isset($allCarts[$targetCartKey][$pid])) {
+                        $existing = (array) $allCarts[$targetCartKey][$pid];
+                        $incoming = (array) $item;
+                        $existingQty = (int) ($existing['quantity'] ?? 1);
+                        $incomingQty = (int) ($incoming['quantity'] ?? 1);
+                        $existing['quantity'] = $existingQty + $incomingQty;
+                        $existing['subtotal'] = (float) ($existing['subtotal'] ?? 0) + (float) ($incoming['subtotal'] ?? 0);
+                        $allCarts[$targetCartKey][$pid] = $existing;
+                    } else {
+                        $allCarts[$targetCartKey][$pid] = $item;
+                    }
+                }
+            }
+            unset($allCarts[$sourceCartKey]);
+        }
+        foreach ($openShiftIds as $sid) {
+            $legacyKey = $sourceTableId . '_' . $sid;
+            if ($legacyKey !== $sourceCartKey && isset($allCarts[$legacyKey])) {
+                unset($allCarts[$legacyKey]);
+            }
+        }
+        $request->session()->put($cartKey, $allCarts);
+
+        $mergedGuests = (int) ($sourceTable->current_guests ?? 0) + (int) ($targetTable->current_guests ?? 0);
+        $targetTable->update([
+            'status' => \App\Models\PosTable::STATUS_OCCUPIED,
+            'current_guests' => $mergedGuests > 0 ? $mergedGuests : (int) ($sourceTable->current_guests ?? 0),
+            'customer_name' => $sourceTable->customer_name ?: $targetTable->customer_name,
+        ]);
+        $sourceTable->update([
+            'status' => \App\Models\PosTable::STATUS_AVAILABLE,
+            'current_guests' => 0,
+            'customer_name' => null,
+        ]);
+
+        PosAuditLogService::log(
+            PosAuditLog::ACTION_SEND_ORDER,
+            'pos',
+            (int) $targetPos->id,
+            __('Table moved'),
+            [
+                'source_table_id' => $sourceTableId,
+                'target_table_id' => $targetTableId,
+                'items_moved' => $movedCount,
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => __('pos.table_moved_success'),
+            'pos_id' => $targetPos->id,
+            'target_table_id' => $targetTableId,
+            'target_table_name' => $targetTable->name,
+        ]);
+    }
+
+    /**
+     * Split bill by items: create separate checks (Pos records) per guest group.
+     */
+    public function splitRestaurantOrderByItems(Request $request)
+    {
+        if (! Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $pinCheck = $this->restaurantPinActorOrJsonError();
+        if ($pinCheck instanceof \Illuminate\Http\JsonResponse) {
+            return $pinCheck;
+        }
+        $request->validate([
+            'branch_id' => 'required|exists:branches,id',
+            'table_id' => 'required|exists:pos_tables,id',
+            'shift_id' => 'required|exists:pos_shifts,id',
+            'splits' => 'required|array|min:2',
+            'splits.*.label' => 'required|string|max:120',
+            'splits.*.line_ids' => 'required|array|min:1',
+            'splits.*.line_ids.*' => 'integer|exists:pos_products,id',
+        ]);
+
+        $creatorId = Auth::user()->creatorId();
+        $branchId = (int) $request->branch_id;
+        $tableId = (int) $request->table_id;
+        $shiftId = (int) $request->shift_id;
+
+        if ($resp = $this->assertRestaurantPosActorBranch($branchId)) {
+            return $resp;
+        }
+
+        $warehouse = warehouse::where('created_by', $creatorId)->where('branch_id', $branchId)->first()
+            ?: warehouse::where('created_by', $creatorId)->first();
+        if (! $warehouse) {
+            return response()->json(['error' => __('Please create or select a warehouse.')], 422);
+        }
+
+        $allLineIds = [];
+        foreach ($request->splits as $split) {
+            foreach ($split['line_ids'] as $lineId) {
+                $lineId = (int) $lineId;
+                if (in_array($lineId, $allLineIds, true)) {
+                    return response()->json(['error' => __('pos.split_line_assigned_twice')], 422);
+                }
+                $allLineIds[] = $lineId;
+            }
+        }
+
+        $sourcePosList = Pos::where('table_id', $tableId)
+            ->where('branch_id', $branchId)
+            ->where('shift_id', $shiftId)
+            ->where('created_by', $creatorId)
+            ->whereNull('cancelled_at')
+            ->whereDoesntHave('posPayments')
+            ->with('items')
+            ->get();
+
+        if ($sourcePosList->isEmpty()) {
+            return response()->json(['error' => __('pos.split_requires_sent_items')], 422);
+        }
+
+        $linePosMap = [];
+        foreach ($sourcePosList as $pos) {
+            foreach ($pos->items as $line) {
+                if ($line->voided_at) {
+                    continue;
+                }
+                $linePosMap[(int) $line->id] = $pos;
+            }
+        }
+
+        foreach ($allLineIds as $lineId) {
+            if (! isset($linePosMap[$lineId])) {
+                return response()->json(['error' => __('pos.split_invalid_line')], 422);
+            }
+        }
+
+        $parentPos = $sourcePosList->first();
+        $createdChecks = [];
+
+        foreach ($request->splits as $split) {
+            $label = trim((string) $split['label']);
+            $lineIds = array_map('intval', $split['line_ids']);
+
+            $checkPos = new Pos();
+            $checkPos->pos_id = $this->invoicePosNumber();
+            $checkPos->branch_id = $branchId;
+            $checkPos->order_type = Pos::ORDER_TYPE_DINE_IN;
+            $checkPos->table_id = $tableId;
+            $checkPos->parent_pos_id = $parentPos->id;
+            $checkPos->shift_id = $shiftId;
+            $checkPos->customer_id = 0;
+            $checkPos->guest_name = $label;
+            $checkPos->warehouse_id = $warehouse->id;
+            $checkPos->pos_date = date('Y-m-d');
+            $checkPos->payment_method = null;
+            $checkPos->created_by = $creatorId;
+            $checkPos->pos_user_id = PosActorService::posActorId();
+            $checkPos->save();
+
+            foreach ($lineIds as $lineId) {
+                \App\Models\PosProduct::where('id', $lineId)->update(['pos_id' => $checkPos->id]);
+            }
+
+            $createdChecks[] = [
+                'pos_id' => $checkPos->id,
+                'label' => $label,
+                'line_count' => count($lineIds),
+            ];
+        }
+
+        foreach ($sourcePosList as $pos) {
+            $pos->refresh();
+            $activeLines = $pos->items()->whereNull('voided_at')->count();
+            if ($activeLines === 0) {
+                $pos->cancelled_at = now();
+                $pos->save();
+            }
+        }
+
+        PosAuditLogService::log(
+            PosAuditLog::ACTION_SEND_ORDER,
+            'pos',
+            (int) $parentPos->id,
+            __('pos.split_bill_item_based'),
+            ['table_id' => $tableId, 'checks' => count($createdChecks)]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => __('pos.split_bill_success'),
+            'checks' => $createdChecks,
         ]);
     }
 

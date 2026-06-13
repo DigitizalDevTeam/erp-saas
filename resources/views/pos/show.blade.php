@@ -226,6 +226,20 @@
     togglePaymentFields();
     updateChange();
 
+    $(document).on('pos-apply-split-config', function (e, config) {
+        if (!config || config.mode !== 'equal' || !config.amounts || !config.amounts.length) {
+            return;
+        }
+        $('#payment_method').val('mixed').trigger('change');
+        $('#mixed_payment_rows').empty();
+        config.amounts.forEach(function (amt) {
+            addMixedRow();
+            var $rows = $('#mixed_payment_rows .mixed-row');
+            $rows.last().find('.mixed-amount').val(Number(amt).toFixed(2));
+        });
+        updateMixedTotals();
+    });
+
     function renderHotelFolioOptions(items) {
         var html = '<option value="">{{ __("Select In-house Room/Folio") }}</option>';
         (items || []).forEach(function (row) {

@@ -1627,6 +1627,7 @@
                     params.table_id = tableId;
                     if (branchId) params.branch_id = branchId;
                     if (shiftId) params.shift_id = shiftId;
+                    if (posId) params.pos_id = posId;
                 } else if (orderType && (orderType === 'delivery' || orderType === 'takeaway') && shiftId && branchId) {
                     params.order_type = orderType;
                     params.shift_id = shiftId;
@@ -1638,7 +1639,10 @@
                 $.get(posRestaurantOrderUrl, params, function (res) {
                     if (res.shift_id) $('#pos_shift_id_hidden').val(res.shift_id);
                     posRestaurantCartKey = res.session_cart_key || (tableId ? (tableId + '_' + (res.shift_id || shiftId)) : '');
-                    if (res.pos_id && (orderType === 'delivery' || orderType === 'takeaway')) $('#pos_restaurant_pos_id').val(res.pos_id || '');
+                    if (res.pos_id) {
+                        $('#pos_restaurant_pos_id').val(res.pos_id || '');
+                    }
+                    posRenderCheckSelector(res.checks || [], res.pos_id);
                     var orderLines = res.order_lines || [];
                     var sessionItems = res.session_items || [];
                     var list = [];
@@ -1860,6 +1864,9 @@
                 if ($('#pos_order_type_hidden').length) data['pos_order_type'] = $('#pos_order_type_hidden').val();
                 if ($('#pos_table_id_hidden').length) data['pos_table_id'] = $('#pos_table_id_hidden').val();
                 if ($('#pos_shift_id_hidden').length) data['pos_shift_id'] = $('#pos_shift_id_hidden').val();
+                if ($('#pos_restaurant_pos_id').length && $('#pos_restaurant_pos_id').val()) {
+                    data['pos_id'] = $('#pos_restaurant_pos_id').val();
+                }
                 if ($('#pos_restaurant_pos_id').length && (orderType === 'delivery' || orderType === 'takeaway')) {
                     var pid = $('#pos_restaurant_pos_id').val();
                     if (pid) data['pos_id'] = pid;
@@ -1876,6 +1883,12 @@
                         if (typeof common_bind === 'function') common_bind('#commonModal');
                         if (typeof validation === 'function') validation();
                         if (typeof commonLoader === 'function') commonLoader();
+                        if (window.posRestaurantSplitConfig && window.posRestaurantSplitConfig.mode === 'equal') {
+                            setTimeout(function () {
+                                $(document).trigger('pos-apply-split-config', [window.posRestaurantSplitConfig]);
+                                window.posRestaurantSplitConfig = null;
+                            }, 150);
+                        }
                     },
                     error: function (xhr) {
                         var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("pos.error") }}';
@@ -2264,6 +2277,96 @@
                 var pos = (typeof site_currency_symbol_position !== 'undefined') ? site_currency_symbol_position : 'pre';
                 return pos === 'pre' ? symbol + Number(v).toFixed(2) : Number(v).toFixed(2) + symbol;
             }
+            function posRenderCheckSelector(checks, activePosId) {
+                var $wrap = $('#pos-check-selector-wrap');
+                var $sel = $('#pos-check-selector');
+                if (!checks || checks.length <= 1) {
+                    $wrap.addClass('d-none');
+                    $sel.empty();
+                    return;
+                }
+                $wrap.removeClass('d-none');
+                var html = '';
+                checks.forEach(function (c) {
+                    html += '<option value="' + c.pos_id + '">' + posEscapeHtml(c.label) + ' (' + posEscapeHtml(c.total_formatted || c.total) + ')</option>';
+                });
+                $sel.html(html);
+                if (activePosId) {
+                    $sel.val(String(activePosId));
+                }
+            }
+            $(document).on('change', '#pos-check-selector', function () {
+                var posId = $(this).val();
+                var tableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                var shiftId = $('#pos_shift_id_hidden').val();
+                var branchId = $('#pos-restaurant-branch').val();
+                if (tableId && posId) {
+                    loadRestaurantOrder(tableId, shiftId, branchId, 'dine_in', posId);
+                }
+            });
+
+            window.posRestaurantSplitConfig = null;
+            var posSplitGuestGroups = [];
+
+            function posBuildSplitItemsList() {
+                var html = '';
+                var hasSent = false;
+                $('#tbody-restaurant tr[data-product-id]').each(function () {
+                    var lineId = $(this).attr('data-line-id');
+                    var isSent = $(this).attr('data-is-sent') === '1';
+                    if (!lineId || !isSent) return;
+                    hasSent = true;
+                    var name = $(this).attr('data-name') || $(this).find('.name').text();
+                    var sub = parseFloat($(this).attr('data-subtotal')) || 0;
+                    html += '<div class="form-check"><input class="form-check-input pos-split-item-cb" type="checkbox" value="' + lineId + '" data-name="' + posEscapeHtml(name) + '" data-subtotal="' + sub + '" id="splitline' + lineId + '"><label class="form-check-label" for="splitline' + lineId + '">' + posEscapeHtml(name) + ' <span class="text-muted">(' + posFormatAmount(sub) + ')</span></label></div>';
+                });
+                if (!hasSent) {
+                    html = '<p class="text-muted small mb-0">{{ __("pos.split_requires_sent_items") }}</p>';
+                }
+                $('#pos-split-items-list').html(html);
+                posSplitGuestGroups = [];
+                $('#pos-split-guest-groups').empty();
+            }
+
+            function posRenderSplitGuestGroups() {
+                var html = '';
+                posSplitGuestGroups.forEach(function (g, idx) {
+                    html += '<div class="border rounded p-2"><div class="d-flex justify-content-between align-items-center mb-1"><strong>' + posEscapeHtml(g.label) + '</strong><button type="button" class="btn btn-sm btn-outline-danger pos-split-remove-guest" data-idx="' + idx + '">&times;</button></div><ul class="small mb-0 ps-3">';
+                    (g.items || []).forEach(function (it) {
+                        html += '<li>' + posEscapeHtml(it.name) + '</li>';
+                    });
+                    html += '</ul></div>';
+                });
+                $('#pos-split-guest-groups').html(html || '<p class="text-muted small mb-0">{{ __("pos.no_guest_checks_yet") }}</p>');
+            }
+
+            $(document).on('click', '#pos-split-add-guest', function () {
+                var label = ($('#pos-split-guest-label').val() || '').trim();
+                if (!label) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.guest_label_required") }}', 'error');
+                    return;
+                }
+                var lineIds = [];
+                var items = [];
+                $('.pos-split-item-cb:checked').each(function () {
+                    lineIds.push(parseInt($(this).val(), 10));
+                    items.push({ line_id: parseInt($(this).val(), 10), name: $(this).data('name') || $(this).attr('data-name') });
+                });
+                if (lineIds.length === 0) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_items_for_guest") }}', 'error');
+                    return;
+                }
+                posSplitGuestGroups.push({ label: label, line_ids: lineIds, items: items });
+                $('.pos-split-item-cb:checked').prop('checked', false);
+                $('#pos-split-guest-label').val('');
+                posRenderSplitGuestGroups();
+            });
+            $(document).on('click', '.pos-split-remove-guest', function () {
+                var idx = parseInt($(this).data('idx'), 10);
+                posSplitGuestGroups.splice(idx, 1);
+                posRenderSplitGuestGroups();
+            });
+
             $(document).on('click', '#pos-split-bill-restaurant', function () {
                 var total = posGetRestaurantTotal();
                 if (total <= 0) {
@@ -2274,6 +2377,8 @@
                 $('#pos-split-parts-input').val(2).attr('data-total', total);
                 var n = 2;
                 $('#pos-split-per-person').text(posFormatAmount(total / n));
+                posBuildSplitItemsList();
+                posRenderSplitGuestGroups();
                 $('#posSplitBillModal').modal('show');
             });
             $(document).on('input change', '#pos-split-parts-input', function () {
@@ -2284,12 +2389,118 @@
                 $('#pos-split-per-person').text(posFormatAmount(total / n));
             });
             $(document).on('click', '#pos-split-apply-btn', function () {
-                var total = parseFloat($('#pos-split-parts-input').attr('data-total')) || 0;
-                var n = parseInt($('#pos-split-parts-input').val(), 10) || 2;
-                var perPart = total / n;
-                $('#posSplitBillModal').modal('hide');
-                var msg = '{{ __("pos.split_result") }}'.replace(':count', n).replace(':amount', posFormatAmount(perPart));
-                show_toastr('{{ __("pos.split_bill") }}', msg, 'success');
+                var activeTab = $('#pos-split-equal-tab').hasClass('active') ? 'equal' : 'items';
+                if (activeTab === 'equal') {
+                    var total = parseFloat($('#pos-split-parts-input').attr('data-total')) || 0;
+                    var n = parseInt($('#pos-split-parts-input').val(), 10) || 2;
+                    if (n < 2) n = 2;
+                    var perPart = total / n;
+                    var amounts = [];
+                    var running = 0;
+                    for (var i = 0; i < n; i++) {
+                        var amt = (i === n - 1) ? (total - running) : Math.round(perPart * 100) / 100;
+                        amounts.push(amt);
+                        running += amt;
+                    }
+                    window.posRestaurantSplitConfig = { mode: 'equal', parts: n, amounts: amounts, total: total };
+                    $('#posSplitBillModal').modal('hide');
+                    show_toastr('{{ __("pos.split_bill") }}', '{{ __("pos.split_equal_ready") }}', 'success');
+                    return;
+                }
+                if (posSplitGuestGroups.length < 2) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.split_min_two_guests") }}', 'error');
+                    return;
+                }
+                var tableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                var branchId = $('#pos-restaurant-branch').val();
+                var shiftId = $('#pos_shift_id_hidden').val();
+                if (!tableId || !branchId || !shiftId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_table_required") }}', 'error');
+                    return;
+                }
+                var splits = posSplitGuestGroups.map(function (g) {
+                    return { label: g.label, line_ids: g.line_ids };
+                });
+                $.ajax({
+                    url: '{{ route("pos.restaurant.split-order") }}',
+                    method: 'POST',
+                    data: { _token: $('meta[name="csrf-token"]').attr('content'), branch_id: branchId, table_id: tableId, shift_id: shiftId, splits: splits },
+                    success: function (data) {
+                        $('#posSplitBillModal').modal('hide');
+                        window.posRestaurantSplitConfig = null;
+                        posSplitGuestGroups = [];
+                        show_toastr('{{ __("Success") }}', data.message || '{{ __("pos.split_bill_success") }}', 'success');
+                        if (data.checks && data.checks.length) {
+                            loadRestaurantOrder(tableId, shiftId, branchId, 'dine_in', data.checks[0].pos_id);
+                        } else {
+                            loadRestaurantOrder(tableId, shiftId, branchId, 'dine_in');
+                        }
+                        if (branchId) loadRestaurantTables(branchId);
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("pos.error") }}';
+                        show_toastr('{{ __("Error") }}', msg, 'error');
+                    }
+                });
+            });
+
+            $(document).on('click', '#pos-move-table-restaurant', function () {
+                var sourceTableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                var branchId = $('#pos-restaurant-branch').val();
+                var shiftId = $('#pos_shift_id_hidden').val();
+                var sourceName = $('#pos_restaurant_table_name').val() || $('#pos-selected-table').text() || ('Table ' + sourceTableId);
+                if (!sourceTableId || !branchId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_table") }}', 'error');
+                    return;
+                }
+                if (!shiftId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.open_shift_required_for_branch") }}', 'error');
+                    return;
+                }
+                $('#pos-move-from-table-name').text(sourceName);
+                $('#posMoveTableModal').modal('show');
+                $('#pos-move-table-list').html('<p class="text-muted small mb-0">{{ __("Loading...") }}</p>');
+                $.get(posRestaurantLayoutUrl, { branch_id: branchId, shift_id: shiftId }, function (res) {
+                    var tblList = '';
+                    (res.areas || []).forEach(function (area) {
+                        (area.tables || []).forEach(function (t) {
+                            if (String(t.id) === String(sourceTableId)) return;
+                            tblList += '<div class="form-check"><input class="form-check-input pos-move-tbl" type="radio" name="pos_move_target" value="' + t.id + '" id="mt' + t.id + '"><label class="form-check-label" for="mt' + t.id + '">' + posEscapeHtml(t.name || ('Table ' + t.id)) + ' <span class="text-muted">(' + (t.status || '') + ')</span></label></div>';
+                        });
+                    });
+                    if (tblList === '') {
+                        tblList = '<p class="text-muted small mb-0">{{ __("pos.no_target_tables") }}</p>';
+                    }
+                    $('#pos-move-table-list').html(tblList);
+                }).fail(function () {
+                    $('#pos-move-table-list').html('<p class="text-muted small mb-0">{{ __("pos.error") }}</p>');
+                });
+            });
+            $(document).on('click', '#pos-move-table-confirm', function () {
+                var sourceTableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                var targetTableId = $('.pos-move-tbl:checked').val();
+                var branchId = $('#pos-restaurant-branch').val();
+                var shiftId = $('#pos_shift_id_hidden').val();
+                if (!sourceTableId || !targetTableId || !branchId || !shiftId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_target_table") }}', 'error');
+                    return;
+                }
+                $.ajax({
+                    url: '{{ route("pos.restaurant.move-table") }}',
+                    method: 'POST',
+                    data: { _token: $('meta[name="csrf-token"]').attr('content'), branch_id: branchId, source_table_id: sourceTableId, target_table_id: targetTableId, shift_id: shiftId },
+                    success: function (data) {
+                        $('#posMoveTableModal').modal('hide');
+                        show_toastr('{{ __("Success") }}', data.message || '{{ __("pos.table_moved_success") }}', 'success');
+                        var targetName = data.target_table_name || ('Table ' + data.target_table_id);
+                        selectRestaurantTable(data.target_table_id, targetName, 'occupied');
+                        if (branchId) loadRestaurantTables(branchId);
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("pos.error") }}';
+                        show_toastr('{{ __("Error") }}', msg, 'error');
+                    }
+                });
             });
 
             $(document).on('click', '#pos-join-table-restaurant', function () {
@@ -3249,13 +3460,16 @@
                 $('#commonModal').modal('hide');
                 var sk = $('#empty_cart').val() || sessionKey;
                 var emptyData = { session_key: sk };
+                var savedTableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                var savedTableName = $('#pos_restaurant_table_name').val() || $('#pos-selected-table').text();
+                var shiftId = $('#pos_shift_id_hidden').val();
+                var branchId = $('#pos-restaurant-branch').val();
                 if (sk === 'pos-restaurant') {
                     if (typeof posRestaurantCartKey !== 'undefined' && posRestaurantCartKey) {
                         emptyData.cart_key = posRestaurantCartKey;
-                    } else {
-                        var tid = $('#pos_table_id_hidden').val();
-                        var sid = $('#pos_shift_id_hidden').val();
-                        if (tid && sid) { emptyData.table_id = tid; emptyData.shift_id = sid; }
+                    } else if (savedTableId && shiftId) {
+                        emptyData.table_id = savedTableId;
+                        emptyData.shift_id = shiftId;
                     }
                 }
                 $.ajax({
@@ -3264,19 +3478,25 @@
                     data: emptyData,
                     success: function () {
                         $('#tbody').html('<tr class="text-center no-found"><td colspan="7">{{ __("pos.no_data_found") }}</td></tr>');
-                        $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="1">{{ __("pos.no_data_found") }}</td></tr>');
                         $('#displaytotal, .totalamount').text('0');
-                        updateRestaurantCartTotals(0);
                         $('#btn-pur button').attr('disabled', 'disabled');
                         $('.btn-empty button').removeClass('btn-clear-cart');
-                        $('#pos-pay-btn-restaurant').prop('disabled', true);
-                        var branchId = $('#pos-restaurant-branch').val();
-                        if (branchId) loadRestaurantTables(branchId);
-                        $('#pos_table_id_hidden').val('');
-                        $('#pos_restaurant_table_id').val('');
-                        $('#pos_restaurant_table_name').val('');
-                        $('#pos-selected-table').text('—');
-                        $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
+                        if (savedTableId && shiftId && branchId) {
+                            loadRestaurantOrder(savedTableId, shiftId, branchId, 'dine_in');
+                            if (branchId) loadRestaurantTables(branchId);
+                        } else {
+                            $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="1">{{ __("pos.no_data_found") }}</td></tr>');
+                            updateRestaurantCartTotals(0);
+                            $('#pos-pay-btn-restaurant').prop('disabled', true);
+                            if (branchId) loadRestaurantTables(branchId);
+                            $('#pos_table_id_hidden').val('');
+                            $('#pos_restaurant_table_id').val('');
+                            $('#pos_restaurant_table_name').val('');
+                            $('#pos_restaurant_pos_id').val('');
+                            $('#pos-selected-table').text('—');
+                            $('#pos-check-selector-wrap').addClass('d-none');
+                            $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
+                        }
                         if (data && data.pos_id) {
                             var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id + '&source=restaurant';
                             $.get(receiptUrl, function (html) {
@@ -3285,7 +3505,7 @@
                                 $('#commonModal .body').html(html);
                                 $('#commonModal').modal('show');
                             });
-                        } else {
+                        } else if (!savedTableId) {
                             if ($('#commonModal').length) $('#commonModal').modal('hide');
                         }
                     }
