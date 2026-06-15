@@ -47,6 +47,7 @@ class PublicHotelBookingController extends Controller
                 'name' => $type->name,
                 'description' => $type->description,
                 'image_url' => $type->displayImageUrl(),
+                'slider_urls' => $type->sliderImageUrls(),
                 'from_price' => $type->effectiveNightlyRate(),
                 'max_occupancy' => (int) $type->max_occupancy,
             ])

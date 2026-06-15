@@ -24,6 +24,7 @@ use Lab404\Impersonate\Impersonate;
 use Spatie\Permission\Models\Role;
 use App\Models\ReferralTransaction;
 use App\Models\ReferralSetting;
+use App\Services\CompanyUserRoleService;
 use App\Services\PosRestaurantRoleService;
 use App\Services\TotpService;
 use Illuminate\Validation\Rule;
@@ -188,9 +189,12 @@ class UserController extends Controller
                 $userpassword = $request->input('password');
                 if ($total_user < $plan->max_users || $plan->max_users == -1) {
                     $role_r = Role::findById($request->role);
+                    if (CompanyUserRoleService::isReservedSystemType($role_r->name)) {
+                        return redirect()->back()->with('error', __('This role name is reserved and cannot be assigned to users.'));
+                    }
                     $psw = $request->password;
                     $request['password'] = !empty($userpassword)?\Hash::make($userpassword) : null;
-                    $request['type'] = $role_r->name;
+                    $request['type'] = CompanyUserRoleService::userTypeFromRoleName($role_r->name);
                     $request['lang'] = !empty($default_language) ? $default_language->value : 'en';
                     $request['created_by'] = \Auth::user()->creatorId();
                     $request['email_verified_at'] = date('Y-m-d H:i:s');
@@ -208,23 +212,25 @@ class UserController extends Controller
                     $existingUser = User::where('email', $request->email)->first();
                     $linkedExistingUser = false;
                     if ($existingUser) {
-                        if (in_array($existingUser->type, ['super admin', 'client'], true)) {
+                        if (in_array($existingUser->type, ['super admin', 'client'], true)
+                            || CompanyUserRoleService::isForbiddenUserType((string) $existingUser->type)) {
                             return redirect()->back()->with('error', __('This email belongs to a super admin/client account and cannot be linked here.'));
                         }
                         $existingCompanyIds = DB::table('company_user')->where('user_id', $existingUser->id)->pluck('company_id')->map(fn ($cid) => (int) $cid)->all();
                         if ($existingUser->type === 'company') {
                             $existingCompanyIds[] = (int) $existingUser->id;
                         }
-                        $existingCompanyIds[] = (int) \Auth::user()->creatorId();
+                        $existingCompanyIds[] = $companyId;
                         $defaultCompanyId = !empty($existingUser->default_company_id)
                             ? (int) $existingUser->default_company_id
-                            : ($existingUser->type === 'company' ? (int) $existingUser->id : (int) \Auth::user()->creatorId());
-                        $this->syncCompanyMembership($existingUser, $existingCompanyIds, $defaultCompanyId);
-                        if ($existingUser->type !== 'company' && !$existingUser->hasRole($role_r->name)) {
-                            $existingUser->assignRole($role_r);
-                        }
+                            : ($existingUser->type === 'company' ? (int) $existingUser->id : $companyId);
+                        $this->syncCompanyMembership($existingUser, $existingCompanyIds, $defaultCompanyId, [
+                            $companyId => $role_r->name,
+                        ]);
                         if ($existingUser->type !== 'company') {
-                            $existingUser->fill($requestPayload)->save();
+                            $existingUser->fill(CompanyUserRoleService::linkableUserFields($requestPayload))->save();
+                            CompanyUserRoleService::applyRoleForCompany($existingUser, $defaultCompanyId);
+                            CompanyUserRoleService::refreshLoginEligibility($existingUser);
                             $existingUser->syncBranchesFromRequest($branchIdsForSync);
                         } else {
                             if (empty($existingUser->default_company_id)) {
@@ -236,8 +242,10 @@ class UserController extends Controller
                         $linkedExistingUser = true;
                     } else {
                         $user = User::create($requestPayload);
-                        $this->syncCompanyMembership($user, [(int) \Auth::user()->creatorId()], (int) \Auth::user()->creatorId());
-                        $user->assignRole($role_r);
+                        $this->syncCompanyMembership($user, [$companyId], $companyId, [
+                            $companyId => $role_r->name,
+                        ]);
+                        CompanyUserRoleService::applyRoleForCompany($user, $companyId);
                         $user->syncBranchesFromRequest($branchIdsForSync);
                         if ($request['type'] != 'client') {
                             \App\Models\Utility::employeeDetails($user->id, \Auth::user()->creatorId());
@@ -253,7 +261,7 @@ class UserController extends Controller
             if ($setings['new_user'] == 1 && (!isset($linkedExistingUser) || $linkedExistingUser === false)) {
 
                 $user->password = $psw;
-                $user->type = $role_r->name;
+                $user->type = CompanyUserRoleService::userTypeFromRoleName($role_r->name);
                 $user->userDefaultDataRegister($user->id);
 
                 $userArr = [
@@ -360,9 +368,12 @@ class UserController extends Controller
                 }
 
                 $role = Role::findById($request->role);
+                if (CompanyUserRoleService::isReservedSystemType($role->name)) {
+                    return redirect()->back()->with('error', __('This role name is reserved and cannot be assigned to users.'));
+                }
                 $companyId = (int) \Auth::user()->creatorId();
                 $input = $request->all();
-                $input['type'] = $role->name;
+                $input['type'] = CompanyUserRoleService::userTypeFromRoleName($role->name);
                 if ($redirect = PosRestaurantRoleService::applyPosBranchToUserInput($input, $request, $role, $companyId, (int) $user->id)) {
                     return $redirect;
                 }
@@ -377,12 +388,13 @@ class UserController extends Controller
                     $existingCompanyIds = [(int) \Auth::user()->creatorId()];
                 }
                 $defaultCompanyId = !empty($user->default_company_id) ? (int) $user->default_company_id : (int) $existingCompanyIds[0];
-                $this->syncCompanyMembership($user, $existingCompanyIds, $defaultCompanyId);
+                $this->syncCompanyMembership($user, $existingCompanyIds, $defaultCompanyId, [
+                    $companyId => $role->name,
+                ]);
+                CompanyUserRoleService::applyRoleForCompany($user, $defaultCompanyId);
                 Utility::employeeDetailsUpdate($user->id, \Auth::user()->creatorId());
                 CustomField::saveData($user, $request->customField);
 
-                $roles[] = $request->role;
-                $user->roles()->sync($roles);
                 $user->syncBranchesFromRequest($branchIdsForSync);
 
                 return redirect()->route('users.index')->with(
@@ -732,6 +744,9 @@ class UserController extends Controller
                 ->update(['is_default' => true, 'updated_at' => now()]);
         }
 
+        CompanyUserRoleService::normalizeDefaultCompany($user);
+        CompanyUserRoleService::applyRoleForCompany($user->fresh(), $companyId);
+
         Log::info('company_context_switched', ['user_id' => $user->id, 'company_id' => $companyId]);
 
         return redirect()->back()->with('success', __('Active company updated.'));
@@ -773,11 +788,24 @@ class UserController extends Controller
             $defaultCompanyId = (int) $companyIds[0];
         }
 
+        $existingRoles = DB::table('company_user')
+            ->where('user_id', $user->id)
+            ->pluck('role', 'company_id')
+            ->map(fn ($role) => $role ? (string) $role : null)
+            ->all();
+
         DB::table('company_user')->where('user_id', $user->id)->delete();
-        $this->syncCompanyMembership($user, $companyIds, $defaultCompanyId);
+
+        $rolesByCompany = [];
+        foreach ($companyIds as $cid) {
+            $rolesByCompany[(int) $cid] = ! empty($existingRoles[$cid]) ? (string) $existingRoles[$cid] : (string) $user->type;
+        }
+
+        $this->syncCompanyMembership($user, $companyIds, $defaultCompanyId, $rolesByCompany);
         $user->created_by = $defaultCompanyId;
         $user->default_company_id = $defaultCompanyId;
         $user->save();
+        CompanyUserRoleService::applyRoleForCompany($user->fresh(), $defaultCompanyId);
         Log::info('user_company_memberships_updated', ['actor_id' => $actor->id, 'user_id' => $user->id, 'default_company_id' => $defaultCompanyId]);
 
         return redirect()->back()->with('success', __('User company memberships updated.'));
@@ -1075,7 +1103,8 @@ class UserController extends Controller
             ]);
         }
 
-        if (in_array($user->type, ['super admin', 'client'], true)) {
+        if (in_array($user->type, ['super admin', 'client'], true)
+            || CompanyUserRoleService::isForbiddenUserType((string) $user->type)) {
             return response()->json([
                 'exists' => true,
                 'allowed' => false,
@@ -1140,7 +1169,7 @@ class UserController extends Controller
             ->get();
     }
 
-    private function syncCompanyMembership(User $user, array $companyIds, ?int $defaultCompanyId = null): void
+    private function syncCompanyMembership(User $user, array $companyIds, ?int $defaultCompanyId = null, array $rolesByCompany = []): void
     {
         if (! Schema::hasTable('company_user')) {
             return;
@@ -1165,10 +1194,17 @@ class UserController extends Controller
             : (int) $validCompanyIds[0];
 
         foreach ($validCompanyIds as $companyId) {
+            $existingRole = DB::table('company_user')
+                ->where('company_id', $companyId)
+                ->where('user_id', (int) $user->id)
+                ->value('role');
+
+            $roleName = $rolesByCompany[$companyId] ?? $existingRole;
+
             DB::table('company_user')->updateOrInsert(
                 ['company_id' => $companyId, 'user_id' => (int) $user->id],
                 [
-                    'role' => null,
+                    'role' => $roleName ? (string) $roleName : null,
                     'status' => 'active',
                     'is_default' => $companyId === $default,
                     'updated_at' => now(),

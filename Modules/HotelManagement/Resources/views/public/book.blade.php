@@ -132,9 +132,9 @@
 
         <aside class="hb-card hb-book-sidebar" style="padding:0;overflow:hidden;">
             @if($roomType ?? null)
-                <div style="height:180px;overflow:hidden;">
-                    @include('hotelmanagement::public.partials.room-image', [
-                        'imageUrl' => $roomType->displayImageUrl(),
+                <div style="height:200px;overflow:hidden;">
+                    @include('hotelmanagement::public.partials.room-slider', [
+                        'sliderUrls' => $roomType->sliderImageUrls(),
                         'roomName' => $roomType->name,
                         'alt' => $roomType->name,
                     ])

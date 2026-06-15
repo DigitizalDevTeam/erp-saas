@@ -11,8 +11,8 @@
 @endphp
 <article class="hb-room-card">
     <div class="hb-room-card__media">
-        @include('hotelmanagement::public.partials.room-image', [
-            'imageUrl' => $room['image_url'] ?? null,
+        @include('hotelmanagement::public.partials.room-slider', [
+            'sliderUrls' => $room['slider_urls'] ?? [],
             'roomName' => $room['name'],
             'alt' => $room['name'],
         ])

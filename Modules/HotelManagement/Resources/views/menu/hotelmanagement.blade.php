@@ -54,7 +54,7 @@
         @endcan
         @can('hotel.menu.reports')
         <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.reports.') ? 'active' : '' }}">
-            <a class="dash-link" href="{{ route('hotel.reports.operational') }}">{{ __('Hotel Reports') }}</a>
+            <a class="dash-link" href="{{ route('hotel.reports.index') }}">{{ __('Hotel Reports') }}</a>
         </li>
         @endcan
         @can('hotel.menu.calendar')

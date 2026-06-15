@@ -10,6 +10,8 @@ class HotelRoomType extends Model
 {
     use HasFactory;
 
+    public const MAX_SLIDER_IMAGES = 3;
+
     protected $fillable = [
         'name',
         'description',
@@ -74,6 +76,58 @@ class HotelRoomType extends Model
 
     public function displayImageUrl(): ?string
     {
-        return $this->coverImageUrl() ?: ($this->galleryImageUrls()[0] ?? null);
+        $slides = $this->sliderImageUrls();
+
+        return $slides[0] ?? null;
+    }
+
+    /**
+     * Up to 3 images for the public booking slider: feature + 2 extras.
+     *
+     * @return array<int, string>
+     */
+    public function sliderImageUrls(): array
+    {
+        $urls = [];
+
+        if ($cover = $this->coverImageUrl()) {
+            $urls[] = $cover;
+        }
+
+        foreach ($this->galleryImageUrls() as $url) {
+            if (in_array($url, $urls, true)) {
+                continue;
+            }
+            $urls[] = $url;
+            if (count($urls) >= self::MAX_SLIDER_IMAGES) {
+                break;
+            }
+        }
+
+        return array_slice($urls, 0, self::MAX_SLIDER_IMAGES);
+    }
+
+    public function slideTwoPath(): ?string
+    {
+        return ($this->gallery_images ?? [])[0] ?? null;
+    }
+
+    public function slideThreePath(): ?string
+    {
+        return ($this->gallery_images ?? [])[1] ?? null;
+    }
+
+    public function slideTwoUrl(): ?string
+    {
+        $path = $this->slideTwoPath();
+
+        return $path ? Storage::disk('public')->url($path) : null;
+    }
+
+    public function slideThreeUrl(): ?string
+    {
+        $path = $this->slideThreePath();
+
+        return $path ? Storage::disk('public')->url($path) : null;
     }
 }

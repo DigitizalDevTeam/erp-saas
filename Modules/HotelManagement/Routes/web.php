@@ -52,11 +52,16 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('hotel/calendar', [HotelCalendarController::class, 'index'])->name('hotel.calendar');
             Route::get('hotel/calendar/events', [HotelCalendarController::class, 'events'])->name('hotel.calendar.events');
 
+            Route::get('hotel/reports', [HotelReportController::class, 'index'])->name('hotel.reports.index');
             Route::get('hotel/reports/operational', [HotelReportController::class, 'operational'])->name('hotel.reports.operational');
             Route::get('hotel/reports/operational/pdf', [HotelReportController::class, 'operationalPdf'])->name('hotel.reports.operational.pdf');
             Route::get('hotel/reports/operational/export', [HotelReportController::class, 'operationalExport'])->name('hotel.reports.operational.export');
             Route::get('hotel/reports/financial', [HotelReportController::class, 'financial'])->name('hotel.reports.financial');
+            Route::get('hotel/reports/financial/pdf', [HotelReportController::class, 'financialPdf'])->name('hotel.reports.financial.pdf');
             Route::get('hotel/reports/financial/export', [HotelReportController::class, 'financialExport'])->name('hotel.reports.financial.export');
+            Route::get('hotel/reports/immigration', [HotelReportController::class, 'immigration'])->name('hotel.reports.immigration');
+            Route::get('hotel/reports/immigration/pdf', [HotelReportController::class, 'immigrationPdf'])->name('hotel.reports.immigration.pdf');
+            Route::get('hotel/reports/immigration/export', [HotelReportController::class, 'immigrationExport'])->name('hotel.reports.immigration.export');
             Route::get('hotel/reports/occupancy', [HotelReportController::class, 'occupancy'])->name('hotel.reports.occupancy');
             Route::get('hotel/reports/customers', [HotelReportController::class, 'customers'])->name('hotel.reports.customers');
             Route::get('hotel/reports/alerts', [HotelReportController::class, 'alerts'])->name('hotel.reports.alerts');

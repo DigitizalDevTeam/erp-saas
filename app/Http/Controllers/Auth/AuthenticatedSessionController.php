@@ -14,6 +14,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\PosLoginRequest;
 use App\Providers\RouteServiceProvider;
+use App\Services\CompanyUserRoleService;
 use App\Services\PosActorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -143,6 +144,9 @@ class AuthenticatedSessionController extends Controller
         $resolvedCompanyId = $this->resolveLoginCompanyId($user);
         if ($resolvedCompanyId) {
             $request->session()->put('active_company_id', (int) $resolvedCompanyId);
+            CompanyUserRoleService::normalizeDefaultCompany($user);
+            CompanyUserRoleService::applyRoleForCompany($user, (int) $resolvedCompanyId);
+            $user = Auth::user();
             Log::info('login_active_company_selected', ['user_id' => $user->id, 'company_id' => (int) $resolvedCompanyId]);
         } else {
             $request->session()->forget('active_company_id');
@@ -347,6 +351,9 @@ class AuthenticatedSessionController extends Controller
         $resolvedCompanyId = $this->resolveLoginCompanyId($user);
         if ($resolvedCompanyId) {
             $request->session()->put('active_company_id', (int) $resolvedCompanyId);
+            CompanyUserRoleService::normalizeDefaultCompany($user);
+            CompanyUserRoleService::applyRoleForCompany($user, (int) $resolvedCompanyId);
+            $user = Auth::user();
         } else {
             $request->session()->forget('active_company_id');
         }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\HotelPermissionCatalog;
+use App\Services\CompanyUserRoleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Spatie\Permission\Models\Permission;
@@ -78,6 +79,10 @@ class RoleController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
 
+            if (CompanyUserRoleService::isReservedSystemType((string) $request->name)) {
+                return redirect()->back()->with('error', __('This role name is reserved. Please choose another name.'));
+            }
+
             $name             = $request['name'];
             $role             = new Role();
             $role->name       = $name;
@@ -146,6 +151,10 @@ class RoleController extends Controller
                 $messages = $validator->getMessageBag();
 
                 return redirect()->back()->with('error', $messages->first());
+            }
+
+            if (CompanyUserRoleService::isReservedSystemType((string) $request->name)) {
+                return redirect()->back()->with('error', __('This role name is reserved. Please choose another name.'));
             }
 
             $input       = $request->except(['permissions']);

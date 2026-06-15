@@ -265,7 +265,35 @@
         .hb-room-card:hover { transform: translateY(-6px); box-shadow: var(--hb-shadow); }
         .hb-room-card__media { height: 240px; position: relative; overflow: hidden; background: #e7e5e4; }
         .hb-room-img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s ease; }
-        .hb-room-card:hover .hb-room-img { transform: scale(1.06); }
+        .hb-room-card:hover .hb-room-slider__slide.is-active .hb-room-img,
+        .hb-room-card:hover .hb-room-card__media > .hb-room-img { transform: scale(1.06); }
+        .hb-room-slider { position: relative; width: 100%; height: 100%; }
+        .hb-room-slider__viewport { position: relative; width: 100%; height: 100%; }
+        .hb-room-slider__slide {
+            position: absolute; inset: 0; opacity: 0; transition: opacity .45s ease;
+            pointer-events: none;
+        }
+        .hb-room-slider__slide.is-active { opacity: 1; pointer-events: auto; }
+        .hb-room-slider__nav {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            width: 34px; height: 34px; border: none; border-radius: 50%;
+            background: rgba(255,255,255,.92); color: var(--hb-text);
+            font-size: 1.35rem; line-height: 1; cursor: pointer; z-index: 3;
+            box-shadow: 0 4px 14px rgba(0,0,0,.15); opacity: 0; transition: opacity .2s;
+            display: flex; align-items: center; justify-content: center; padding: 0;
+        }
+        .hb-room-slider:hover .hb-room-slider__nav { opacity: 1; }
+        .hb-room-slider__nav--prev { left: .65rem; }
+        .hb-room-slider__nav--next { right: .65rem; }
+        .hb-room-slider__dots {
+            position: absolute; bottom: .75rem; left: 50%; transform: translateX(-50%);
+            display: flex; gap: .4rem; z-index: 3;
+        }
+        .hb-room-slider__dot {
+            width: 7px; height: 7px; border-radius: 50%; border: none; padding: 0;
+            background: rgba(255,255,255,.55); cursor: pointer; transition: transform .2s, background .2s;
+        }
+        .hb-room-slider__dot.is-active { background: #fff; transform: scale(1.2); }
         .hb-room-card__media::after {
             content: ''; position: absolute; inset: 0; pointer-events: none;
             background: linear-gradient(to top, rgba(0,0,0,.35), transparent 55%);
@@ -387,6 +415,33 @@
             </div>
         </div>
     </footer>
+    <script>
+    (function () {
+        function initHbRoomSlider(root) {
+            var slides = Array.prototype.slice.call(root.querySelectorAll('.hb-room-slider__slide'));
+            if (slides.length <= 1) return;
+            var idx = 0;
+            var dots = Array.prototype.slice.call(root.querySelectorAll('.hb-room-slider__dot'));
+            function go(next) {
+                idx = (next + slides.length) % slides.length;
+                slides.forEach(function (slide, n) { slide.classList.toggle('is-active', n === idx); });
+                dots.forEach(function (dot, n) { dot.classList.toggle('is-active', n === idx); });
+            }
+            var prev = root.querySelector('.hb-room-slider__nav--prev');
+            var next = root.querySelector('.hb-room-slider__nav--next');
+            if (prev) prev.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); go(idx - 1); });
+            if (next) next.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); go(idx + 1); });
+            dots.forEach(function (dot) {
+                dot.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    go(parseInt(dot.getAttribute('data-go-to'), 10));
+                });
+            });
+        }
+        document.querySelectorAll('[data-hb-slider]').forEach(initHbRoomSlider);
+    })();
+    </script>
     @stack('scripts')
 </body>
 </html>

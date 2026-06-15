@@ -57,6 +57,7 @@ class HotelPublicAvailabilityService
                 'name' => $type->name,
                 'description' => $type->description,
                 'image_url' => $type->displayImageUrl(),
+                'slider_urls' => $type->sliderImageUrls(),
                 'gallery_urls' => $type->galleryImageUrls(),
                 'max_occupancy' => $maxGuests,
                 'available_rooms' => $available,

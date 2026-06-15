@@ -2,11 +2,12 @@
 @section('page-title'){{ __('Hotel — Alerts') }}@endsection
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('hotel.dashboard') }}">{{ __('Hotel Management') }}</a></li>
-    <li class="breadcrumb-item">{{ __('Reports') }}</li>
+    <li class="breadcrumb-item"><a href="{{ route('hotel.reports.index') }}">{{ __('Reports') }}</a></li>
     <li class="breadcrumb-item">{{ __('Alerts') }}</li>
 @endsection
 @section('content')
 <div class="card shadow-sm"><div class="card-body">
+    @include('hotelmanagement::reports._nav')
     <div class="row g-2 mb-3">
         <div class="col-md-4"><div class="alert alert-warning mb-0">{{ __('Unassigned reservations (due today or past)') }}: <strong>{{ $unassignedToday }}</strong></div></div>
         <div class="col-md-4"><div class="alert alert-secondary mb-0">{{ __('Cancellations this month') }}: <strong>{{ $cancellations }}</strong></div></div>

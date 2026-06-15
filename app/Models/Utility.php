@@ -4397,8 +4397,8 @@ class Utility extends Model
                 $setting = DB::table('settings')->where('created_by', \Auth::user()->creatorId())->pluck('value', 'name')->toArray();
             }
         } else {
-            $user = User::where('type', 'super admin')->first();
-            $setting = DB::table('settings')->where('created_by', $user->id)->pluck('value', 'name')->toArray();
+            $creatorId = (int) (User::where('type', 'super admin')->value('id') ?? 1);
+            $setting = DB::table('settings')->where('created_by', $creatorId)->pluck('value', 'name')->toArray();
         }
 
         if (!isset($setting['color'])) {

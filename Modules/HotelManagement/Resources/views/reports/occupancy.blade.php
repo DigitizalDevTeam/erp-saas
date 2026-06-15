@@ -2,11 +2,12 @@
 @section('page-title'){{ __('Hotel — Occupancy report') }}@endsection
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('hotel.dashboard') }}">{{ __('Hotel Management') }}</a></li>
-    <li class="breadcrumb-item">{{ __('Reports') }}</li>
+    <li class="breadcrumb-item"><a href="{{ route('hotel.reports.index') }}">{{ __('Reports') }}</a></li>
     <li class="breadcrumb-item">{{ __('Occupancy') }}</li>
 @endsection
 @section('content')
 <div class="card shadow-sm"><div class="card-body">
+    @include('hotelmanagement::reports._nav')
     @include('hotelmanagement::reports._date_filter', ['from' => $from, 'to' => $to])
     <p class="text-muted small">{{ __('Rooms total') }}: {{ $roomsTotal }}</p>
     <div class="row">

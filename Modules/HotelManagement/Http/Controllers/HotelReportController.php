@@ -33,6 +33,13 @@ class HotelReportController extends Controller
         return [$from, $to];
     }
 
+    public function index()
+    {
+        $this->authorizeReport();
+
+        return view('hotelmanagement::reports.index');
+    }
+
     public function operational(Request $request)
     {
         $this->authorizeReport();
@@ -99,20 +106,7 @@ class HotelReportController extends Controller
         $fileName = 'hotel-operational-' . $from->format('Ymd') . '-' . $to->format('Ymd') . '.pdf';
         $html = view('hotelmanagement::reports.operational_pdf', compact('daily', 'from', 'to', 'roomsTotal', 'avgStay'))->render();
 
-        if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
-            return \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4', 'landscape')->download($fileName);
-        }
-
-        $pdfBinary = Browsershot::html($html)
-            ->showBackground()
-            ->format('A4')
-            ->landscape()
-            ->margins(12, 12, 16, 12)
-            ->pdf();
-
-        return response()->streamDownload(static function () use ($pdfBinary): void {
-            echo $pdfBinary;
-        }, $fileName, ['Content-Type' => 'application/pdf']);
+        return $this->downloadPdf($html, $fileName, 'landscape');
     }
 
     public function operationalExport(Request $request)
@@ -174,7 +168,66 @@ class HotelReportController extends Controller
                 ->pluck('total', 'method');
         }
 
-        return view('hotelmanagement::reports.financial', compact('folioByDay', 'discountTotal', 'methodTotals', 'from', 'to'));
+        $totalRevenue = (float) $folioByDay->sum('revenue');
+        $totalPaid = (float) $folioByDay->sum('paid');
+        $totalPending = max(0, $totalRevenue - $totalPaid);
+
+        return view('hotelmanagement::reports.financial', compact(
+            'folioByDay',
+            'discountTotal',
+            'methodTotals',
+            'totalRevenue',
+            'totalPaid',
+            'totalPending',
+            'from',
+            'to'
+        ));
+    }
+
+    public function financialPdf(Request $request)
+    {
+        $this->authorizeReport();
+        [$from, $to] = $this->dateRange($request);
+        $creatorId = Auth::user()->creatorId();
+
+        $folioByDay = HotelFolio::where('created_by', $creatorId)
+            ->whereBetween('created_at', [$from, $to])
+            ->selectRaw('DATE(created_at) as d, SUM(grand_total) as revenue, SUM(paid_total) as paid')
+            ->groupBy('d')
+            ->orderBy('d')
+            ->get();
+
+        $discountTotal = DB::table('hotel_folio_lines')
+            ->join('hotel_folios', 'hotel_folio_lines.hotel_folio_id', '=', 'hotel_folios.id')
+            ->where('hotel_folios.created_by', $creatorId)
+            ->whereBetween('hotel_folio_lines.created_at', [$from, $to])
+            ->sum('hotel_folio_lines.discount_amount');
+
+        $methodTotals = collect();
+        if (Schema::hasTable('hotel_folio_payments')) {
+            $methodTotals = DB::table('hotel_folio_payments')
+                ->join('hotel_folios', 'hotel_folio_payments.hotel_folio_id', '=', 'hotel_folios.id')
+                ->where('hotel_folios.created_by', $creatorId)
+                ->whereBetween('hotel_folio_payments.created_at', [$from, $to])
+                ->selectRaw('method, SUM(amount) as total')
+                ->groupBy('method')
+                ->pluck('total', 'method');
+        }
+
+        $totalRevenue = (float) $folioByDay->sum('revenue');
+        $totalPaid = (float) $folioByDay->sum('paid');
+        $fileName = 'hotel-financial-' . $from->format('Ymd') . '-' . $to->format('Ymd') . '.pdf';
+        $html = view('hotelmanagement::reports.financial_pdf', compact(
+            'folioByDay',
+            'discountTotal',
+            'methodTotals',
+            'totalRevenue',
+            'totalPaid',
+            'from',
+            'to'
+        ))->render();
+
+        return $this->downloadPdf($html, $fileName);
     }
 
     public function financialExport(Request $request)
@@ -193,7 +246,66 @@ class HotelReportController extends Controller
 
         return Excel::download(
             new SimpleSheetExport(['Date', 'Revenue', 'Paid'], $rows),
-            'hotel-financial-' . $from->format('Ymd') . '.xlsx'
+            'hotel-financial-' . $from->format('Ymd') . '-' . $to->format('Ymd') . '.xlsx'
+        );
+    }
+
+    public function immigration(Request $request)
+    {
+        $this->authorizeReport();
+        [$from, $to] = $this->dateRange($request);
+        $creatorId = Auth::user()->creatorId();
+        $rows = $this->immigrationRows($creatorId, $from, $to);
+
+        return view('hotelmanagement::reports.immigration', compact('rows', 'from', 'to'));
+    }
+
+    public function immigrationPdf(Request $request)
+    {
+        $this->authorizeReport();
+        [$from, $to] = $this->dateRange($request);
+        $creatorId = Auth::user()->creatorId();
+        $rows = $this->immigrationRows($creatorId, $from, $to);
+        $fileName = 'hotel-immigration-' . $from->format('Ymd') . '-' . $to->format('Ymd') . '.pdf';
+        $html = view('hotelmanagement::reports.immigration_pdf', compact('rows', 'from', 'to'))->render();
+
+        return $this->downloadPdf($html, $fileName, 'landscape');
+    }
+
+    public function immigrationExport(Request $request)
+    {
+        $this->authorizeReport();
+        [$from, $to] = $this->dateRange($request);
+        $creatorId = Auth::user()->creatorId();
+        $rows = $this->immigrationRows($creatorId, $from, $to)->map(fn (array $row) => [
+            $row['reservation_no'],
+            $row['full_name'],
+            $row['nationality'],
+            $row['id_type'],
+            $row['id_number'],
+            $row['birth_date'],
+            $row['check_in_date'],
+            $row['check_out_date'],
+            $row['room'],
+            $row['role'],
+            $row['status'],
+        ])->toArray();
+
+        return Excel::download(
+            new SimpleSheetExport([
+                __('Reservation'),
+                __('Full name'),
+                __('Nationality'),
+                __('ID type'),
+                __('ID / Passport'),
+                __('Birth date'),
+                __('Check-in'),
+                __('Check-out'),
+                __('Room'),
+                __('Role'),
+                __('Status'),
+            ], $rows),
+            'hotel-immigration-' . $from->format('Ymd') . '-' . $to->format('Ymd') . '.xlsx'
         );
     }
 
@@ -378,5 +490,82 @@ class HotelReportController extends Controller
         }
 
         return round($total / $rows->count(), 1);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    protected function immigrationRows(int $creatorId, Carbon $from, Carbon $to): \Illuminate\Support\Collection
+    {
+        $reservations = HotelReservation::where('created_by', $creatorId)
+            ->where('status', '!=', HotelReservation::STATUS_CANCELLED)
+            ->whereDate('check_in_date', '<=', $to->toDateString())
+            ->whereDate('check_out_date', '>=', $from->toDateString())
+            ->with(['guest', 'room', 'group.members.guest'])
+            ->orderBy('check_in_date')
+            ->orderBy('id')
+            ->get();
+
+        $rows = collect();
+
+        foreach ($reservations as $reservation) {
+            $roomLabel = $reservation->room?->room_no ?? '—';
+            $base = [
+                'reservation_no' => $reservation->reservation_no,
+                'check_in_date' => $reservation->check_in_date,
+                'check_out_date' => $reservation->check_out_date,
+                'room' => $roomLabel,
+                'status' => $reservation->status,
+            ];
+
+            if ($reservation->guest) {
+                $rows->push(array_merge($base, $this->guestImmigrationFields($reservation->guest, __('Main guest'))));
+            }
+
+            if ($reservation->group) {
+                foreach ($reservation->group->members as $member) {
+                    if (! $member->guest || (int) $member->hotel_guest_id === (int) $reservation->hotel_guest_id) {
+                        continue;
+                    }
+                    $rows->push(array_merge($base, $this->guestImmigrationFields($member->guest, $member->role)));
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function guestImmigrationFields(HotelGuest $guest, string $role): array
+    {
+        return [
+            'full_name' => $guest->fullName(),
+            'nationality' => $guest->nationality ?: '—',
+            'id_type' => $guest->id_type ?: '—',
+            'id_number' => $guest->id_number ?: '—',
+            'birth_date' => $guest->birth_date ?: '—',
+            'role' => $role,
+        ];
+    }
+
+    protected function downloadPdf(string $html, string $fileName, string $orientation = 'portrait')
+    {
+        if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4', $orientation);
+
+            return $pdf->download($fileName);
+        }
+
+        $shot = Browsershot::html($html)->showBackground()->format('A4')->margins(12, 12, 16, 12);
+        if ($orientation === 'landscape') {
+            $shot->landscape();
+        }
+        $pdfBinary = $shot->pdf();
+
+        return response()->streamDownload(static function () use ($pdfBinary): void {
+            echo $pdfBinary;
+        }, $fileName, ['Content-Type' => 'application/pdf']);
     }
 }

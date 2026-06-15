@@ -11,6 +11,8 @@ use Modules\HotelManagement\Services\HotelAuthorization;
 
 class HotelRoomTypeController extends Controller
 {
+    private const MAX_EXTRA_SLIDES = 2;
+
     private function canView(): bool
     {
         return HotelAuthorization::viewRooms(Auth::user());
@@ -57,7 +59,8 @@ class HotelRoomTypeController extends Controller
             'default_billing_mode' => 'required|in:nightly,monthly',
             'max_occupancy' => 'required|integer|min:1',
             'cover' => 'nullable|image|max:4096',
-            'gallery.*' => 'nullable|image|max:4096',
+            'slide_2' => 'nullable|image|max:4096',
+            'slide_3' => 'nullable|image|max:4096',
         ]);
         if ($validator->fails()) {
             return redirect()->back()->with('error', $validator->getMessageBag()->first());
@@ -83,11 +86,8 @@ class HotelRoomTypeController extends Controller
             $data['cover_image_path'] = $request->file('cover')->store('hotel-room-types/' . $creatorId, 'public');
         }
 
-        if ($request->hasFile('gallery')) {
-            $gallery = [];
-            foreach ($request->file('gallery') as $file) {
-                $gallery[] = $file->store('hotel-room-types/' . $creatorId, 'public');
-            }
+        $gallery = $this->storeSlideFiles($request, $creatorId);
+        if ($gallery !== []) {
             $data['gallery_images'] = $gallery;
         }
 
@@ -119,7 +119,8 @@ class HotelRoomTypeController extends Controller
             'default_billing_mode' => 'required|in:nightly,monthly',
             'max_occupancy' => 'required|integer|min:1',
             'cover' => 'nullable|image|max:4096',
-            'gallery.*' => 'nullable|image|max:4096',
+            'slide_2' => 'nullable|image|max:4096',
+            'slide_3' => 'nullable|image|max:4096',
         ]);
         if ($validator->fails()) {
             return redirect()->back()->with('error', $validator->getMessageBag()->first());
@@ -140,6 +141,11 @@ class HotelRoomTypeController extends Controller
             'is_active' => $request->has('is_active'),
         ];
 
+        if ($request->boolean('remove_cover') && $room_type->cover_image_path) {
+            Storage::disk('public')->delete($room_type->cover_image_path);
+            $data['cover_image_path'] = null;
+        }
+
         if ($request->hasFile('cover')) {
             if ($room_type->cover_image_path) {
                 Storage::disk('public')->delete($room_type->cover_image_path);
@@ -147,13 +153,35 @@ class HotelRoomTypeController extends Controller
             $data['cover_image_path'] = $request->file('cover')->store('hotel-room-types/' . $creatorId, 'public');
         }
 
-        if ($request->hasFile('gallery')) {
-            $gallery = $room_type->gallery_images ?? [];
-            foreach ($request->file('gallery') as $file) {
-                $gallery[] = $file->store('hotel-room-types/' . $creatorId, 'public');
-            }
-            $data['gallery_images'] = array_slice($gallery, -8);
+        $gallery = array_values($room_type->gallery_images ?? []);
+
+        if ($request->boolean('remove_slide_2') && isset($gallery[0])) {
+            Storage::disk('public')->delete($gallery[0]);
+            unset($gallery[0]);
+            $gallery = array_values($gallery);
         }
+
+        if ($request->boolean('remove_slide_3') && isset($gallery[1])) {
+            Storage::disk('public')->delete($gallery[1]);
+            unset($gallery[1]);
+            $gallery = array_values($gallery);
+        }
+
+        if ($request->hasFile('slide_2')) {
+            if (isset($gallery[0])) {
+                Storage::disk('public')->delete($gallery[0]);
+            }
+            $gallery[0] = $request->file('slide_2')->store('hotel-room-types/' . $creatorId, 'public');
+        }
+
+        if ($request->hasFile('slide_3')) {
+            if (isset($gallery[1])) {
+                Storage::disk('public')->delete($gallery[1]);
+            }
+            $gallery[1] = $request->file('slide_3')->store('hotel-room-types/' . $creatorId, 'public');
+        }
+
+        $data['gallery_images'] = array_slice(array_values($gallery), 0, self::MAX_EXTRA_SLIDES);
 
         $room_type->update($data);
 
@@ -170,8 +198,33 @@ class HotelRoomTypeController extends Controller
             return redirect()->back()->with('error', __('Room type is in use by rooms and cannot be deleted.'));
         }
 
+        if ($room_type->cover_image_path) {
+            Storage::disk('public')->delete($room_type->cover_image_path);
+        }
+        foreach ($room_type->gallery_images ?? [] as $path) {
+            Storage::disk('public')->delete($path);
+        }
+
         $room_type->delete();
 
         return redirect()->route('hotel.room-types.index')->with('success', __('Room type deleted successfully.'));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function storeSlideFiles(Request $request, int $creatorId): array
+    {
+        $gallery = [];
+
+        if ($request->hasFile('slide_2')) {
+            $gallery[] = $request->file('slide_2')->store('hotel-room-types/' . $creatorId, 'public');
+        }
+
+        if ($request->hasFile('slide_3')) {
+            $gallery[] = $request->file('slide_3')->store('hotel-room-types/' . $creatorId, 'public');
+        }
+
+        return array_slice($gallery, 0, self::MAX_EXTRA_SLIDES);
     }
 }
