@@ -19,8 +19,10 @@ class HotelRoomConsumptionService
 
     public const CHARGE_MISC = 'misc';
 
-    public function __construct(private readonly HotelPosChargeService $chargeService)
-    {
+    public function __construct(
+        private readonly HotelPosChargeService $chargeService,
+        private readonly HotelStockDeductionService $stockService,
+    ) {
     }
 
     /**
@@ -40,7 +42,7 @@ class HotelRoomConsumptionService
     /**
      * Post consumption to the guest folio and log for housekeeping audit.
      *
-     * @param  array{description?:string,quantity?:int,unit_price?:float,tax_amount?:float,discount_amount?:float,notes?:string,service_date?:string}  $payload
+     * @param  array{description?:string,quantity?:int,unit_price?:float,tax_amount?:float,discount_amount?:float,notes?:string,service_date?:string,product_id?:int,warehouse_id?:int}  $payload
      */
     public function postConsumption(
         HotelRoom $room,
@@ -54,9 +56,26 @@ class HotelRoomConsumptionService
         }
 
         $folio = $stay->folio;
+        $qty = max(1, (int) ($payload['quantity'] ?? 1));
+        $productId = isset($payload['product_id']) ? (int) $payload['product_id'] : 0;
+        $warehouseId = isset($payload['warehouse_id']) ? (int) $payload['warehouse_id'] : 0;
+        $unitPrice = (float) ($payload['unit_price'] ?? 0);
+        $taxAmount = (float) ($payload['tax_amount'] ?? 0);
+
+        // Product-backed consumable: resolve price/tax from the centralized catalog.
+        $product = null;
+        if ($chargeType === self::CHARGE_MINIBAR && $productId > 0) {
+            $product = $this->stockService->findProduct($productId, $creatorId);
+            if (! $product) {
+                throw new \RuntimeException(__('Selected product was not found.'));
+            }
+            $unitPrice = (float) $product->sale_price;
+            $taxAmount = round($unitPrice * $qty * $this->stockService->taxRateForProduct($product) / 100, 2);
+        }
+
         $description = (string) ($payload['description'] ?? '');
         if ($description === '') {
-            $description = match ($chargeType) {
+            $description = $product?->name ?: match ($chargeType) {
                 self::CHARGE_MINIBAR => __('Minibar'),
                 self::CHARGE_LAUNDRY => __('Laundry'),
                 default => __('Extra charge'),
@@ -65,9 +84,9 @@ class HotelRoomConsumptionService
 
         $linePayload = [
             'description' => $description,
-            'quantity' => $payload['quantity'] ?? 1,
-            'unit_price' => $payload['unit_price'] ?? 0,
-            'tax_amount' => $payload['tax_amount'] ?? 0,
+            'quantity' => $qty,
+            'unit_price' => $unitPrice,
+            'tax_amount' => $taxAmount,
             'discount_amount' => $payload['discount_amount'] ?? 0,
             'revenue_channel' => $this->revenueChannelFor($chargeType),
         ];
@@ -78,6 +97,15 @@ class HotelRoomConsumptionService
             default => $this->chargeService->addMiscChargeToFolio($folio, $linePayload, $creatorId),
         };
 
+        // Deduct centralized stock from the chosen warehouse, like a POS sale.
+        if ($product && $warehouseId > 0) {
+            $reference = __('Room :room minibar — folio :folio', [
+                'room' => $room->room_no,
+                'folio' => $folio->folio_no,
+            ]);
+            $this->stockService->deduct((int) $product->id, (float) $qty, $warehouseId, $creatorId, $reference, (int) $folio->id);
+        }
+
         if (Schema::hasTable('hotel_room_consumption_logs')) {
             HotelRoomConsumptionLog::create([
                 'hotel_room_id' => $room->id,
@@ -85,6 +113,8 @@ class HotelRoomConsumptionService
                 'hotel_folio_id' => $folio->id,
                 'hotel_folio_line_id' => $line->id,
                 'charge_type' => $chargeType,
+                'product_id' => $product?->id,
+                'warehouse_id' => $warehouseId ?: null,
                 'service_date' => $payload['service_date'] ?? Carbon::today()->toDateString(),
                 'description' => $description,
                 'quantity' => $line->quantity,
@@ -105,6 +135,24 @@ class HotelRoomConsumptionService
             self::CHARGE_MINIBAR => 'misc',
             default => 'misc',
         };
+    }
+
+    /**
+     * Centralized stockable products usable as room consumables.
+     *
+     * @return \Illuminate\Support\Collection<int, \App\Models\ProductService>
+     */
+    public function consumableProducts(int $creatorId)
+    {
+        return $this->stockService->consumableProducts($creatorId);
+    }
+
+    /**
+     * @return array<int, array{id:int, name:string, qty:float}>
+     */
+    public function warehousesForProduct(int $productId, int $creatorId): array
+    {
+        return $this->stockService->warehousesForProduct($productId, $creatorId);
     }
 
     /**

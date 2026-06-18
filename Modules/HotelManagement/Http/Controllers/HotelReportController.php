@@ -281,8 +281,11 @@ class HotelReportController extends Controller
             $row['reservation_no'],
             $row['full_name'],
             $row['nationality'],
+            $row['country'],
             $row['id_type'],
             $row['id_number'],
+            $row['passport_number'],
+            $row['visa_number'],
             $row['birth_date'],
             $row['check_in_date'],
             $row['check_out_date'],
@@ -296,11 +299,14 @@ class HotelReportController extends Controller
                 __('Reservation'),
                 __('Full name'),
                 __('Nationality'),
+                __('Country'),
                 __('ID type'),
-                __('ID / Passport'),
+                __('ID number'),
+                __('Passport number'),
+                __('Visa number'),
                 __('Birth date'),
-                __('Check-in'),
-                __('Check-out'),
+                __('Arrival date'),
+                __('Departure date'),
                 __('Room'),
                 __('Role'),
                 __('Status'),
@@ -501,7 +507,7 @@ class HotelReportController extends Controller
             ->where('status', '!=', HotelReservation::STATUS_CANCELLED)
             ->whereDate('check_in_date', '<=', $to->toDateString())
             ->whereDate('check_out_date', '>=', $from->toDateString())
-            ->with(['guest', 'room', 'group.members.guest'])
+            ->with(['guest', 'room', 'group.members.guest', 'stay'])
             ->orderBy('check_in_date')
             ->orderBy('id')
             ->get();
@@ -510,10 +516,16 @@ class HotelReportController extends Controller
 
         foreach ($reservations as $reservation) {
             $roomLabel = $reservation->room?->room_no ?? '—';
+            $arrival = $reservation->stay?->check_in_at
+                ? Carbon::parse($reservation->stay->check_in_at)->toDateString()
+                : $reservation->check_in_date;
+            $departure = $reservation->stay?->checked_out_at
+                ? Carbon::parse($reservation->stay->checked_out_at)->toDateString()
+                : $reservation->check_out_date;
             $base = [
                 'reservation_no' => $reservation->reservation_no,
-                'check_in_date' => $reservation->check_in_date,
-                'check_out_date' => $reservation->check_out_date,
+                'check_in_date' => $arrival,
+                'check_out_date' => $departure,
                 'room' => $roomLabel,
                 'status' => $reservation->status,
             ];
@@ -543,8 +555,11 @@ class HotelReportController extends Controller
         return [
             'full_name' => $guest->fullName(),
             'nationality' => $guest->nationality ?: '—',
+            'country' => $guest->country ?: '—',
             'id_type' => $guest->id_type ?: '—',
             'id_number' => $guest->id_number ?: '—',
+            'passport_number' => $guest->passport_number ?: '—',
+            'visa_number' => $guest->visa_number ?: '—',
             'birth_date' => $guest->birth_date ?: '—',
             'role' => $role,
         ];

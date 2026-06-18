@@ -180,14 +180,14 @@ class HotelHousekeepingController extends Controller
                 ->get();
         }
 
-        $minibarItems = $this->consumptionService->minibarCatalog($creatorId);
+        $products = $this->consumptionService->consumableProducts($creatorId);
 
         $pendingRestocks = $this->restockService->pendingRestocks($creatorId);
 
         return view('hotelmanagement::housekeeping.minibar', [
             'occupiedStays' => $occupiedStays,
             'todayLogs' => $todayLogs,
-            'minibarItems' => $minibarItems,
+            'products' => $products,
             'pendingRestocks' => $pendingRestocks,
             'canManage' => $this->canManage(),
             'today' => $today,
@@ -222,10 +222,11 @@ class HotelHousekeepingController extends Controller
             'charge_type' => 'required|in:minibar,laundry,misc',
             'description' => 'nullable|string|max:191',
             'quantity' => 'nullable|integer|min:1',
-            'unit_price' => 'required|numeric|min:0',
+            'unit_price' => 'nullable|numeric|min:0',
             'service_date' => 'nullable|date',
             'notes' => 'nullable|string|max:500',
-            'minibar_item_id' => 'nullable|integer',
+            'product_id' => 'required_if:charge_type,minibar|nullable|integer',
+            'warehouse_id' => 'required_if:charge_type,minibar|nullable|integer',
         ]);
 
         $room = HotelRoom::where('id', $request->hotel_room_id)
@@ -234,25 +235,15 @@ class HotelHousekeepingController extends Controller
 
         try {
             DB::transaction(function () use ($request, $room) {
-                $description = $request->description;
-                if ($request->filled('minibar_item_id') && $request->charge_type === 'minibar') {
-                    $item = $this->consumptionService->minibarCatalog((int) Auth::user()->creatorId())
-                        ->firstWhere('id', (int) $request->minibar_item_id);
-                    if ($item) {
-                        $description = $item->name;
-                        if (! $request->filled('unit_price')) {
-                            $request->merge(['unit_price' => $item->unit_price]);
-                        }
-                    }
-                }
-
                 $this->consumptionService->postConsumption(
                     $room,
                     (string) $request->charge_type,
                     [
-                        'description' => $description,
+                        'description' => $request->description,
                         'quantity' => $request->quantity,
                         'unit_price' => $request->unit_price,
+                        'product_id' => $request->product_id,
+                        'warehouse_id' => $request->warehouse_id,
                         'service_date' => $request->service_date ?? now()->toDateString(),
                         'notes' => $request->notes,
                     ],

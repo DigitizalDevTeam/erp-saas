@@ -19,6 +19,9 @@
     <div class="col-md-3">{!! Form::label('id_type', __('ID type')) !!}{!! Form::select('id_type', ['' => '—', 'id' => __('ID card'), 'passport' => __('Passport'), 'letter' => __('Letter')], null, ['class' => 'form-control']) !!}</div>
     <div class="col-md-3">{!! Form::label('id_number', __('ID number')) !!}{!! Form::text('id_number', null, ['class' => 'form-control']) !!}</div>
     <div class="col-md-3">{!! Form::label('nationality', __('Nationality')) !!}{!! Form::select('nationality', ['' => '—'] + $nationalityOptions, null, ['class' => 'form-control']) !!}</div>
+    <div class="col-md-3">{!! Form::label('passport_number', __('Passport number')) !!}{!! Form::text('passport_number', null, ['class' => 'form-control']) !!}</div>
+    <div class="col-md-3">{!! Form::label('visa_number', __('Visa number')) !!}{!! Form::text('visa_number', null, ['class' => 'form-control']) !!}</div>
+    <div class="col-md-3">{!! Form::label('country', __('Country')) !!}{!! Form::select('country', ['' => '—'] + $nationalityOptions, null, ['class' => 'form-control']) !!}</div>
     <div class="col-md-3">
         <div class="form-check mt-4">
             {!! Form::checkbox('is_vip', 1, null, ['class' => 'form-check-input', 'id' => 'is_vip']) !!}

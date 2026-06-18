@@ -15,6 +15,8 @@ class HotelRoomConsumptionLog extends Model
         'hotel_folio_id',
         'hotel_folio_line_id',
         'charge_type',
+        'product_id',
+        'warehouse_id',
         'service_date',
         'description',
         'quantity',

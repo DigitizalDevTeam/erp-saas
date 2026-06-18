@@ -30,7 +30,7 @@
                 @include('hotelmanagement::partials.consumption_form', [
                     'formAction' => route('hotel.rooms.consumption.store', $room->id),
                     'chargeTypes' => $chargeTypes,
-                    'minibarItems' => $minibarItems,
+                    'products' => $products,
                     'redirectTo' => 'folio',
                 ])
             </div>

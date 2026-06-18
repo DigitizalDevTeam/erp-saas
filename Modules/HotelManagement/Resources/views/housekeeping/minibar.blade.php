@@ -10,8 +10,8 @@
     {{ __('Housekeeping checks each occupied room daily, records minibar or laundry usage, and posts charges to the guest room folio. At checkout, all folio lines appear on the final bill.') }}
 </div>
 
-@if(($minibarItems ?? collect())->isEmpty())
-<div class="alert alert-info small">{{ __('No minibar items yet.') }} <a href="{{ route('hotel.minibar-items.index') }}">{{ __('Minibar catalog') }}</a></div>
+@if(($products ?? collect())->isEmpty())
+<div class="alert alert-info small">{{ __('No stockable products found. Add products in the Products module to record room consumption.') }}</div>
 @endif
 
 @if($canManage ?? false)
@@ -40,11 +40,11 @@
                         'formAction' => route('hotel.housekeeping.minibar.store'),
                         'roomId' => $firstRoom->id,
                         'chargeTypes' => [
-                            'minibar' => __('Minibar'),
+                            'minibar' => __('Minibar / Room consumable'),
                             'laundry' => __('Laundry'),
                             'misc' => __('Other extra'),
                         ],
-                        'minibarItems' => $minibarItems,
+                        'products' => $products,
                         'defaultDate' => $today,
                     ])
                 @endif

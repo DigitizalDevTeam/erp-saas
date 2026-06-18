@@ -32,14 +32,37 @@ class HotelRoomConsumptionController extends Controller
             return redirect()->back()->with('error', __('No in-house guest folio for this room.'));
         }
 
-        $minibarItems = $this->consumptionService->minibarCatalog((int) Auth::user()->creatorId());
+        $products = $this->consumptionService->consumableProducts((int) Auth::user()->creatorId());
 
         return view('hotelmanagement::rooms.consumption', [
             'room' => $room,
             'stay' => $stay,
             'folio' => $stay->folio,
-            'minibarItems' => $minibarItems,
+            'products' => $products,
             'chargeTypes' => $this->chargeTypeOptions(),
+        ]);
+    }
+
+    /**
+     * AJAX: price, tax rate and stocked warehouses for a chosen product.
+     */
+    public function productInfo(Request $request)
+    {
+        if (! $this->canManage()) {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
+        $creatorId = (int) Auth::user()->creatorId();
+        $product = $this->consumptionService->consumableProducts($creatorId)
+            ->firstWhere('id', (int) $request->get('product_id'));
+
+        if (! $product) {
+            return response()->json(['error' => __('Product not found.')], 404);
+        }
+
+        return response()->json([
+            'price' => (float) $product->sale_price,
+            'warehouses' => $this->consumptionService->warehousesForProduct((int) $product->id, $creatorId),
         ]);
     }
 
@@ -53,33 +76,24 @@ class HotelRoomConsumptionController extends Controller
             'charge_type' => 'required|in:minibar,laundry,misc',
             'description' => 'nullable|string|max:191',
             'quantity' => 'nullable|integer|min:1',
-            'unit_price' => 'required|numeric|min:0',
+            'unit_price' => 'nullable|numeric|min:0',
             'service_date' => 'nullable|date',
             'notes' => 'nullable|string|max:500',
-            'minibar_item_id' => 'nullable|integer',
+            'product_id' => 'required_if:charge_type,minibar|nullable|integer',
+            'warehouse_id' => 'required_if:charge_type,minibar|nullable|integer',
         ]);
 
         try {
             DB::transaction(function () use ($request, $room) {
-                $description = $request->description;
-                if ($request->filled('minibar_item_id') && $request->charge_type === 'minibar') {
-                    $item = $this->consumptionService->minibarCatalog((int) Auth::user()->creatorId())
-                        ->firstWhere('id', (int) $request->minibar_item_id);
-                    if ($item) {
-                        $description = $item->name;
-                        if (! $request->filled('unit_price')) {
-                            $request->merge(['unit_price' => $item->unit_price]);
-                        }
-                    }
-                }
-
                 $this->consumptionService->postConsumption(
                     $room,
                     (string) $request->charge_type,
                     [
-                        'description' => $description,
+                        'description' => $request->description,
                         'quantity' => $request->quantity,
                         'unit_price' => $request->unit_price,
+                        'product_id' => $request->product_id,
+                        'warehouse_id' => $request->warehouse_id,
                         'service_date' => $request->service_date,
                         'notes' => $request->notes,
                     ],

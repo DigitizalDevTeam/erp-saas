@@ -28,7 +28,10 @@
             <p class="mb-1"><strong>{{ __('Email') }}:</strong> {{ $guest->email ?? '—' }}</p>
             <p class="mb-1"><strong>{{ __('Phone') }}:</strong> {{ $guest->phone ?? '—' }}</p>
             <p class="mb-1"><strong>{{ __('Nationality') }}:</strong> {{ $guest->nationality ?? '—' }}</p>
+            <p class="mb-1"><strong>{{ __('Country') }}:</strong> {{ $guest->country ?? '—' }}</p>
             <p class="mb-1"><strong>{{ __('ID') }}:</strong> {{ $guest->id_type ? __(ucfirst($guest->id_type)) . ': ' . $guest->id_number : '—' }}</p>
+            <p class="mb-1"><strong>{{ __('Passport number') }}:</strong> {{ $guest->passport_number ?? '—' }}</p>
+            <p class="mb-1"><strong>{{ __('Visa number') }}:</strong> {{ $guest->visa_number ?? '—' }}</p>
             @if($guest->allergies)
                 <p class="mb-1"><strong>{{ __('Allergies') }}:</strong> {{ $guest->allergies }}</p>
             @endif

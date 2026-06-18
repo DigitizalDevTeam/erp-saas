@@ -11,6 +11,8 @@ use Modules\HotelManagement\Http\Controllers\HotelAddonController;
 use Modules\HotelManagement\Http\Controllers\HotelAccountingSettingsController;
 use Modules\HotelManagement\Http\Controllers\HotelCalendarController;
 use Modules\HotelManagement\Http\Controllers\HotelDashboardController;
+use Modules\HotelManagement\Http\Controllers\HotelFinancialReportController;
+use Modules\HotelManagement\Http\Controllers\HotelOperationReportController;
 use Modules\HotelManagement\Http\Controllers\HotelFolioController;
 use Modules\HotelManagement\Http\Controllers\HotelFloorController;
 use Modules\HotelManagement\Http\Controllers\HotelFrontdeskController;
@@ -66,6 +68,21 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('hotel/reports/customers', [HotelReportController::class, 'customers'])->name('hotel.reports.customers');
             Route::get('hotel/reports/alerts', [HotelReportController::class, 'alerts'])->name('hotel.reports.alerts');
 
+            // Financial reports (each supports ?export=pdf|excel)
+            Route::get('hotel/reports/financial/daily-revenue', [HotelFinancialReportController::class, 'dailyRevenue'])->name('hotel.reports.financial.daily-revenue');
+            Route::get('hotel/reports/financial/monthly-revenue', [HotelFinancialReportController::class, 'monthlyRevenue'])->name('hotel.reports.financial.monthly-revenue');
+            Route::get('hotel/reports/financial/payment-collection', [HotelFinancialReportController::class, 'paymentCollection'])->name('hotel.reports.financial.payment-collection');
+            Route::get('hotel/reports/financial/outstanding', [HotelFinancialReportController::class, 'outstanding'])->name('hotel.reports.financial.outstanding');
+            Route::get('hotel/reports/financial/cashier-closing', [HotelFinancialReportController::class, 'cashierClosing'])->name('hotel.reports.financial.cashier-closing');
+            Route::get('hotel/reports/financial/occupancy-revenue', [HotelFinancialReportController::class, 'occupancyRevenue'])->name('hotel.reports.financial.occupancy-revenue');
+
+            // Operation reports (each supports ?export=pdf|excel)
+            Route::get('hotel/reports/operations/reservations', [HotelOperationReportController::class, 'reservations'])->name('hotel.reports.ops.reservations');
+            Route::get('hotel/reports/operations/check-in', [HotelOperationReportController::class, 'checkIn'])->name('hotel.reports.ops.check-in');
+            Route::get('hotel/reports/operations/check-out', [HotelOperationReportController::class, 'checkOut'])->name('hotel.reports.ops.check-out');
+            Route::get('hotel/reports/operations/room-status', [HotelOperationReportController::class, 'roomStatus'])->name('hotel.reports.ops.room-status');
+            Route::get('hotel/reports/operations/housekeeping', [HotelOperationReportController::class, 'housekeeping'])->name('hotel.reports.ops.housekeeping');
+
             Route::get('hotel/ota-settings', [HotelOtaSettingsController::class, 'index'])->name('hotel.ota-settings.index');
             Route::post('hotel/ota-settings', [HotelOtaSettingsController::class, 'update'])->name('hotel.ota-settings.update');
 
@@ -84,6 +101,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('hotel/rooms/map', [HotelRoomController::class, 'map'])->name('hotel.rooms.map');
             Route::post('hotel/rooms/bulk-status', [HotelRoomController::class, 'bulkStatus'])->name('hotel.rooms.bulk-status');
             Route::post('hotel/rooms/{room}/mark-ready', [HotelRoomController::class, 'markReady'])->name('hotel.rooms.mark-ready');
+            Route::get('hotel/consumption/product-info', [HotelRoomConsumptionController::class, 'productInfo'])->name('hotel.consumption.product-info');
             Route::get('hotel/rooms/{room}/consumption', [HotelRoomConsumptionController::class, 'create'])->name('hotel.rooms.consumption');
             Route::post('hotel/rooms/{room}/consumption', [HotelRoomConsumptionController::class, 'store'])->name('hotel.rooms.consumption.store');
             Route::get('hotel/housekeeping/minibar', [HotelHousekeepingController::class, 'minibar'])->name('hotel.housekeeping.minibar');

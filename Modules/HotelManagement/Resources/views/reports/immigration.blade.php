@@ -21,11 +21,14 @@
                     <th>{{ __('Reservation') }}</th>
                     <th>{{ __('Full name') }}</th>
                     <th>{{ __('Nationality') }}</th>
+                    <th>{{ __('Country') }}</th>
                     <th>{{ __('ID type') }}</th>
-                    <th>{{ __('ID / Passport') }}</th>
+                    <th>{{ __('ID number') }}</th>
+                    <th>{{ __('Passport number') }}</th>
+                    <th>{{ __('Visa number') }}</th>
                     <th>{{ __('Birth date') }}</th>
-                    <th>{{ __('Check-in') }}</th>
-                    <th>{{ __('Check-out') }}</th>
+                    <th>{{ __('Arrival date') }}</th>
+                    <th>{{ __('Departure date') }}</th>
                     <th>{{ __('Room') }}</th>
                     <th>{{ __('Role') }}</th>
                     <th>{{ __('Status') }}</th>
@@ -37,8 +40,11 @@
                     <td>{{ $row['reservation_no'] }}</td>
                     <td>{{ $row['full_name'] }}</td>
                     <td>{{ $row['nationality'] }}</td>
+                    <td>{{ $row['country'] }}</td>
                     <td>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $row['id_type']))) }}</td>
                     <td>{{ $row['id_number'] }}</td>
+                    <td>{{ $row['passport_number'] }}</td>
+                    <td>{{ $row['visa_number'] }}</td>
                     <td>{{ $row['birth_date'] }}</td>
                     <td>{{ $row['check_in_date'] }}</td>
                     <td>{{ $row['check_out_date'] }}</td>
@@ -47,7 +53,7 @@
                     <td>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $row['status']))) }}</td>
                 </tr>
             @empty
-                <tr><td colspan="11" class="text-center text-muted py-4">{{ __('No guests found for this period.') }}</td></tr>
+                <tr><td colspan="14" class="text-center text-muted py-4">{{ __('No guests found for this period.') }}</td></tr>
             @endforelse
             </tbody>
         </table>

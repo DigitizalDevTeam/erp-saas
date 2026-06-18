@@ -1,6 +1,5 @@
-    <?php
-
-    namespace App\Models;
+<?php
+namespace App\Models;
 
     use App\Mail\CommonEmailTemplate;
     use App\Services\EmailLogService;

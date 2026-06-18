@@ -63,6 +63,17 @@
 
                     <div class="col-md-4">{!! Form::label('id_type', __('Document type'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('id_type', ['' => '—', 'id' => 'ID', 'passport' => __('Passport'), 'letter' => __('Letter')], old('id_type', $guest?->id_type), ['class' => 'form-control', 'id' => 'id_type']) !!}</div>
                     <div class="col-md-4">{!! Form::label('id_number', __('Document number'), ['class' => 'form-label small mb-1']) !!}{!! Form::text('id_number', old('id_number', $guest?->id_number), ['class' => 'form-control', 'id' => 'id_number']) !!}</div>
+                    <div class="col-md-4">{!! Form::label('passport_number', __('Passport number'), ['class' => 'form-label small mb-1']) !!}{!! Form::text('passport_number', old('passport_number', $guest?->passport_number), ['class' => 'form-control', 'id' => 'passport_number']) !!}</div>
+                    <div class="col-md-4">{!! Form::label('visa_number', __('Visa number'), ['class' => 'form-label small mb-1']) !!}{!! Form::text('visa_number', old('visa_number', $guest?->visa_number), ['class' => 'form-control', 'id' => 'visa_number']) !!}</div>
+                    <div class="col-md-4">
+                        {!! Form::label('country', __('Country'), ['class' => 'form-label small mb-1']) !!}
+                        {!! Form::text('country', old('country', $guest?->country), ['class' => 'form-control', 'id' => 'country', 'list' => 'hotel_country_list', 'placeholder' => __('Start typing country')]) !!}
+                        <datalist id="hotel_country_list">
+                            @foreach($nationalityArray as $nationality)
+                                <option value="{{ $nationality }}"></option>
+                            @endforeach
+                        </datalist>
+                    </div>
                     <div class="col-md-4">
                         {!! Form::label('company_name', __('Company'), ['class' => 'form-label small mb-1']) !!}
                         <div class="input-group">
@@ -390,6 +401,9 @@
             setFieldValue('nationality', g.nationality, true);
             setFieldValue('id_type', g.id_type, true);
             document.getElementById('id_number').value = g.id_number || '';
+            document.getElementById('passport_number').value = g.passport_number || '';
+            document.getElementById('visa_number').value = g.visa_number || '';
+            document.getElementById('country').value = g.country || '';
             document.getElementById('company_name').value = g.company_name || '';
             document.getElementById('is_vip').checked = !!g.is_vip;
             setFieldValue('preferred_room_type_id', g.preferred_room_type_id, true);

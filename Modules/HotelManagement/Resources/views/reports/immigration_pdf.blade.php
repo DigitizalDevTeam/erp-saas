@@ -19,11 +19,14 @@
             <th>{{ __('Reservation') }}</th>
             <th>{{ __('Full name') }}</th>
             <th>{{ __('Nationality') }}</th>
+            <th>{{ __('Country') }}</th>
             <th>{{ __('ID type') }}</th>
-            <th>{{ __('ID / Passport') }}</th>
+            <th>{{ __('ID number') }}</th>
+            <th>{{ __('Passport number') }}</th>
+            <th>{{ __('Visa number') }}</th>
             <th>{{ __('Birth date') }}</th>
-            <th>{{ __('Check-in') }}</th>
-            <th>{{ __('Check-out') }}</th>
+            <th>{{ __('Arrival date') }}</th>
+            <th>{{ __('Departure date') }}</th>
             <th>{{ __('Room') }}</th>
             <th>{{ __('Role') }}</th>
         </tr>
@@ -34,8 +37,11 @@
             <td>{{ $row['reservation_no'] }}</td>
             <td>{{ $row['full_name'] }}</td>
             <td>{{ $row['nationality'] }}</td>
+            <td>{{ $row['country'] }}</td>
             <td>{{ $row['id_type'] }}</td>
             <td>{{ $row['id_number'] }}</td>
+            <td>{{ $row['passport_number'] }}</td>
+            <td>{{ $row['visa_number'] }}</td>
             <td>{{ $row['birth_date'] }}</td>
             <td>{{ $row['check_in_date'] }}</td>
             <td>{{ $row['check_out_date'] }}</td>

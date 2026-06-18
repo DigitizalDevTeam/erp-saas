@@ -321,7 +321,10 @@ class HotelReservationController extends Controller
             'status' => 'required|in:pending,confirmed,checked_in,checked_out,cancelled',
             'billing_mode' => 'required|in:nightly,monthly',
             'id_type' => 'nullable|in:id,passport,letter',
+            'passport_number' => 'nullable|string|max:100',
+            'visa_number' => 'nullable|string|max:100',
             'nationality' => 'nullable|string|max:100',
+            'country' => 'nullable|string|max:100',
             'preferred_payment_method' => 'nullable|string|max:50',
             'credit_limit' => 'nullable|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
@@ -395,7 +398,10 @@ class HotelReservationController extends Controller
             'birth_date' => $request->birth_date,
             'id_type' => $request->id_type,
             'id_number' => $request->id_number,
+            'passport_number' => $request->passport_number,
+            'visa_number' => $request->visa_number,
             'nationality' => $request->nationality,
+            'country' => $request->country,
             'preferred_room_type_id' => $request->preferred_room_type_id ?: $request->hotel_room_type_id,
             'preferred_floor' => $preferredFloor?->name,
             'preferred_hotel_floor_id' => $preferredFloor?->id,
@@ -519,6 +525,9 @@ class HotelReservationController extends Controller
             'preferred_hotel_floor_id' => 'nullable|exists:hotel_floors,id',
             'estimated_arrival_time' => 'nullable|date_format:H:i',
             'id_type' => 'nullable|in:id,passport,letter',
+            'passport_number' => 'nullable|string|max:100',
+            'visa_number' => 'nullable|string|max:100',
+            'country' => 'nullable|string|max:100',
         ]);
         if ($validator->fails()) {
             return redirect()->back()->withInput()->with('error', $validator->getMessageBag()->first());
@@ -587,7 +596,10 @@ class HotelReservationController extends Controller
             'birth_date' => $request->birth_date,
             'id_type' => $request->id_type,
             'id_number' => $request->id_number,
+            'passport_number' => $request->passport_number,
+            'visa_number' => $request->visa_number,
             'nationality' => $request->nationality,
+            'country' => $request->country,
             'preferred_room_type_id' => $request->preferred_room_type_id ?: $request->hotel_room_type_id,
             'preferred_floor' => $preferredFloor?->name,
             'preferred_hotel_floor_id' => $preferredFloor?->id,
@@ -672,7 +684,8 @@ class HotelReservationController extends Controller
             ->limit(15)
             ->get([
                 'id', 'first_name', 'last_name', 'email', 'phone', 'birth_date', 'id_type', 'id_number',
-                'nationality', 'company_name', 'is_vip', 'preferred_room_type_id', 'preferred_floor',
+                'passport_number', 'visa_number', 'nationality', 'country', 'company_name', 'is_vip',
+                'preferred_room_type_id', 'preferred_floor',
                 'preferred_hotel_floor_id', 'preferred_payment_method', 'credit_limit', 'notes',
                 'allergies', 'preferences', 'drink_preferences',
             ]);
