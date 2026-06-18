@@ -38,6 +38,7 @@ use App\Models\Trainer;
 use App\Models\Training;
 use App\Models\User;
 use App\Models\Utility;
+use App\Services\CompanyUserRoleService;
 use App\Services\EmployeeAttendanceScheduleService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -304,9 +305,17 @@ class DashboardController extends Controller
 
         if (Auth::check()) {
 
+                if (CompanyUserRoleService::isPlatformSuperAdmin(Auth::user())) {
+                return redirect()->route('client.dashboard.view');
+            }
+
             if (\Auth::user()->can('show hrm dashboard')) {
 
                 $user = Auth::user();
+
+                if ($user->type == 'super admin') {
+                    return redirect()->route('client.dashboard.view');
+                }
 
                 if ($user->type != 'client' && $user->type != 'company') {
                     $emp = Employee::where('user_id', '=', $user->id)->first();

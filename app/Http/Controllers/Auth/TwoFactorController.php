@@ -7,6 +7,7 @@ use App\Models\LoginDetail;
 use App\Models\User;
 use App\Models\Utility;
 use App\Providers\RouteServiceProvider;
+use App\Services\CompanyUserRoleService;
 use App\Services\TotpService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -64,7 +65,11 @@ class TwoFactorController extends Controller
 
         $this->finalizeSuccessfulLogin(Auth::user());
 
-        if ($user->type == 'company' || $user->type == 'super admin' || $user->type == 'client') {
+        if (CompanyUserRoleService::isPlatformSuperAdmin($user)) {
+            return redirect()->route('client.dashboard.view');
+        }
+
+        if ($user->type == 'company' || $user->type == 'client') {
             return redirect()->intended(RouteServiceProvider::HOME);
         }
 

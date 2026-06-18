@@ -141,16 +141,21 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
         $user = Auth::user();
 
-        $resolvedCompanyId = $this->resolveLoginCompanyId($user);
-        if ($resolvedCompanyId) {
-            $request->session()->put('active_company_id', (int) $resolvedCompanyId);
-            CompanyUserRoleService::normalizeDefaultCompany($user);
-            CompanyUserRoleService::applyRoleForCompany($user, (int) $resolvedCompanyId);
-            $user = Auth::user();
-            Log::info('login_active_company_selected', ['user_id' => $user->id, 'company_id' => (int) $resolvedCompanyId]);
+        $resolvedCompanyId = null;
+        if (! CompanyUserRoleService::isPlatformSuperAdmin($user)) {
+            $resolvedCompanyId = $this->resolveLoginCompanyId($user);
+            if ($resolvedCompanyId) {
+                $request->session()->put('active_company_id', (int) $resolvedCompanyId);
+                CompanyUserRoleService::normalizeDefaultCompany($user);
+                CompanyUserRoleService::applyRoleForCompany($user, (int) $resolvedCompanyId);
+                $user = Auth::user();
+                Log::info('login_active_company_selected', ['user_id' => $user->id, 'company_id' => (int) $resolvedCompanyId]);
+            } else {
+                $request->session()->forget('active_company_id');
+                Log::warning('login_active_company_missing', ['user_id' => $user->id]);
+            }
         } else {
             $request->session()->forget('active_company_id');
-            Log::warning('login_active_company_missing', ['user_id' => $user->id]);
         }
 
         $companyUser = $resolvedCompanyId ? User::find($resolvedCompanyId) : null;
@@ -262,7 +267,11 @@ class AuthenticatedSessionController extends Controller
         }
         //end for user log
 
-        if($user->type =='company' || $user->type =='super admin' || $user->type =='client')
+        if (CompanyUserRoleService::isPlatformSuperAdmin($user)) {
+            return redirect()->route('client.dashboard.view');
+        }
+
+        if($user->type =='company' || $user->type =='client')
         {
             return redirect()->intended(RouteServiceProvider::HOME);
 
@@ -418,8 +427,8 @@ class AuthenticatedSessionController extends Controller
 
     private function resolveLoginCompanyId(User $user): ?int
     {
-        if ($user->type === 'super admin') {
-            return (int) $user->id;
+        if (CompanyUserRoleService::isPlatformSuperAdmin($user)) {
+            return null;
         }
 
         if (!empty($user->default_company_id) && $user->canAccessCompany((int) $user->default_company_id)) {
