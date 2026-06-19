@@ -9,8 +9,14 @@ class ProductOptionItem extends Model
     protected $fillable = [
         'parent_product_id',
         'option_product_id',
+        'option_group',
+        'is_required',
         'sort_order',
         'created_by',
+    ];
+
+    protected $casts = [
+        'is_required' => 'boolean',
     ];
 
     public function parent()

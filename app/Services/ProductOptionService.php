@@ -101,6 +101,8 @@ class ProductOptionService
                 'sku' => $op->sku,
                 'sale_price' => (float) ($op->sale_price ?? 0),
                 'purchase_price' => (float) ($op->purchase_price ?? 0),
+                'option_group' => $item->option_group ? (string) $item->option_group : null,
+                'is_required' => (bool) ($item->is_required ?? false),
             ];
         }
 
@@ -118,15 +120,77 @@ class ProductOptionService
             throw new \RuntimeException(__('This product does not have options.'));
         }
         if ($selected === []) {
+            $items = ProductOptionItem::query()
+                ->where('parent_product_id', $parentId)
+                ->where('created_by', $creatorId)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get();
+
+            $groups = [];
+            foreach ($items as $item) {
+                $groupName = trim((string) ($item->option_group ?? ''));
+                if ($groupName === '') {
+                    continue;
+                }
+                if (! isset($groups[$groupName])) {
+                    $groups[$groupName] = ['required' => false];
+                }
+                if ($item->is_required) {
+                    $groups[$groupName]['required'] = true;
+                }
+            }
+
+            foreach ($groups as $groupName => $groupMeta) {
+                if ($groupMeta['required']) {
+                    throw new \RuntimeException(__('Select one option for :group.', ['group' => $groupName]));
+                }
+            }
+
             throw new \RuntimeException(__('Select at least one product option.'));
         }
 
-        $allowed = ProductOptionItem::query()
+        $items = ProductOptionItem::query()
             ->where('parent_product_id', $parentId)
             ->where('created_by', $creatorId)
-            ->pluck('option_product_id')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        $allowed = $items->pluck('option_product_id')
             ->map(fn ($id) => (int) $id)
             ->all();
+
+        $groups = [];
+        foreach ($items as $item) {
+            $groupName = trim((string) ($item->option_group ?? ''));
+            if ($groupName === '') {
+                continue;
+            }
+            if (! isset($groups[$groupName])) {
+                $groups[$groupName] = [
+                    'required' => false,
+                    'product_ids' => [],
+                ];
+            }
+            $groups[$groupName]['product_ids'][] = (int) $item->option_product_id;
+            if ($item->is_required) {
+                $groups[$groupName]['required'] = true;
+            }
+        }
+
+        $selectedIds = array_map(fn ($row) => (int) $row['product_id'], $selected);
+        foreach ($groups as $groupName => $groupMeta) {
+            $allowedInGroup = $groupMeta['product_ids'];
+            $pickedInGroup = array_values(array_intersect($selectedIds, $allowedInGroup));
+            $count = count($pickedInGroup);
+            if ($groupMeta['required'] && $count !== 1) {
+                throw new \RuntimeException(__('Select one option for :group.', ['group' => $groupName]));
+            }
+            if (! $groupMeta['required'] && $count > 1) {
+                throw new \RuntimeException(__('Select at most one option for :group.', ['group' => $groupName]));
+            }
+        }
 
         $validated = [];
         foreach ($selected as $row) {
@@ -418,6 +482,8 @@ class ProductOptionService
                 [
                     'sort_order' => $sort,
                     'created_by' => $creatorId,
+                    'option_group' => ($group = trim((string) ($row['option_group'] ?? ''))) !== '' ? $group : null,
+                    'is_required' => filter_var($row['is_required'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 ]
             );
             $sort++;

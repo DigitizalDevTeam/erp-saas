@@ -1281,6 +1281,8 @@ class ProductServiceController extends Controller
                                 'sku' => $op->sku,
                                 'sale_price' => (float) ($op->sale_price ?? 0),
                                 'purchase_price' => (float) ($op->purchase_price ?? 0),
+                                'option_group' => $oi->option_group ? (string) $oi->option_group : null,
+                                'is_required' => (bool) ($oi->is_required ?? false),
                             ];
                         }
                         $optionsPayload = htmlspecialchars(json_encode($opts, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8');

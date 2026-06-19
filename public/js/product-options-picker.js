@@ -1,6 +1,6 @@
 /**
  * Product options picker modal (parent price + selected option prices).
- * Vanilla JS — expects #erpProductOptionsModal in DOM and window.ErpProductOptionsI18n.
+ * Supports grouped single-choice (radio) and ungrouped multi-select (checkbox).
  */
 (function () {
     'use strict';
@@ -22,6 +22,13 @@
         return div.innerHTML;
     }
 
+    function slugifyGroup(name) {
+        return String(name || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '') || 'group';
+    }
+
     function optionUnitPrice(opt, forPurchase) {
         return forPurchase
             ? (parseFloat(opt.purchase_price) || 0)
@@ -37,13 +44,36 @@
             : (parseFloat(item.product.sale_price) || 0);
     }
 
+    function groupOptions(options) {
+        var groups = {};
+        var ungrouped = [];
+
+        (options || []).forEach(function (opt) {
+            var groupName = (opt.option_group || '').trim();
+            if (groupName) {
+                if (!groups[groupName]) {
+                    groups[groupName] = { name: groupName, required: false, items: [] };
+                }
+                groups[groupName].items.push(opt);
+                if (opt.is_required) {
+                    groups[groupName].required = true;
+                }
+            } else {
+                ungrouped.push(opt);
+            }
+        });
+
+        return { groups: groups, ungrouped: ungrouped };
+    }
+
     function buildSelected(modalEl) {
         var selected = [];
         if (!modalEl) {
             return selected;
         }
-        modalEl.querySelectorAll('.erp-opt-check:checked').forEach(function (checkbox) {
-            var row = checkbox.closest('.erp-opt-row');
+
+        modalEl.querySelectorAll('.erp-opt-check:checked, .erp-opt-radio:checked').forEach(function (input) {
+            var row = input.closest('.erp-opt-row');
             if (!row) {
                 return;
             }
@@ -53,12 +83,50 @@
                 qty = 1;
             }
             selected.push({
-                product_id: parseInt(checkbox.value, 10),
+                product_id: parseInt(input.value, 10),
                 quantity: qty,
                 price: parseFloat(row.getAttribute('data-unit-price')) || 0,
             });
         });
+
         return selected;
+    }
+
+    function renderOptionRow(opt, inputType, inputName) {
+        var up = optionUnitPrice(opt, ctx.forPurchase);
+        var skuHtml = opt.sku
+            ? ' <small class="text-muted">(' + escapeHtml(opt.sku) + ')</small>'
+            : '';
+        var qtyHtml =
+            inputType === 'checkbox'
+                ? '<input type="number" class="form-control form-control-sm erp-opt-qty" style="width:4.5rem" min="0.0001" step="any" value="1" title="' +
+                  escapeHtml(t('qty', 'Qty')) +
+                  '">'
+                : '';
+
+        return (
+            '<label class="list-group-item erp-opt-row d-flex align-items-center gap-2 flex-wrap" data-unit-price="' +
+            up +
+            '">' +
+            '<input type="' +
+            inputType +
+            '" class="form-check-input ' +
+            (inputType === 'radio' ? 'erp-opt-radio' : 'erp-opt-check') +
+            '" name="' +
+            escapeHtml(inputName) +
+            '" value="' +
+            escapeHtml(String(opt.product_id)) +
+            '">' +
+            '<span class="flex-grow-1">' +
+            escapeHtml(opt.name) +
+            skuHtml +
+            '</span>' +
+            '<span class="text-muted small">' +
+            up.toFixed(2) +
+            '</span>' +
+            qtyHtml +
+            '</label>'
+        );
     }
 
     function calcTotal(item, selected, forPurchase) {
@@ -81,6 +149,10 @@
             bootstrap.Modal.getOrCreateInstance(modalEl).show();
             return;
         }
+        if (typeof $ !== 'undefined' && $.fn.modal) {
+            $(modalEl).modal('show');
+            return;
+        }
         modalEl.classList.add('show');
         modalEl.style.display = 'block';
         modalEl.setAttribute('aria-modal', 'true');
@@ -99,6 +171,10 @@
             }
             return;
         }
+        if (typeof $ !== 'undefined' && $.fn.modal) {
+            $(modalEl).modal('hide');
+            return;
+        }
         modalEl.classList.remove('show');
         modalEl.style.display = 'none';
         modalEl.setAttribute('aria-hidden', 'true');
@@ -112,6 +188,37 @@
         } else {
             alert(message);
         }
+    }
+
+    function validateSelection(options, selected) {
+        var grouped = groupOptions(options);
+        var groupNames = Object.keys(grouped.groups);
+
+        for (var i = 0; i < groupNames.length; i++) {
+            var groupName = groupNames[i];
+            var grp = grouped.groups[groupName];
+            var picked = selected.filter(function (s) {
+                return grp.items.some(function (item) {
+                    return parseInt(item.product_id, 10) === parseInt(s.product_id, 10);
+                });
+            });
+
+            if (grp.required && picked.length !== 1) {
+                notifyError(t('selectGroup', 'Select one option for') + ' ' + groupName);
+                return false;
+            }
+            if (!grp.required && picked.length > 1) {
+                notifyError(t('selectOneGroup', 'Select at most one option for') + ' ' + groupName);
+                return false;
+            }
+        }
+
+        if (!selected.length) {
+            notifyError(t('selectOne', 'Select at least one product option.'));
+            return false;
+        }
+
+        return true;
     }
 
     window.ErpProductOptions = {
@@ -143,32 +250,41 @@
                         '</div>'
                 );
             } else {
-                options.forEach(function (opt) {
-                    var up = optionUnitPrice(opt, ctx.forPurchase);
-                    var skuHtml = opt.sku
-                        ? ' <small class="text-muted">(' + escapeHtml(opt.sku) + ')</small>'
+                var grouped = groupOptions(options);
+
+                Object.keys(grouped.groups).forEach(function (groupName) {
+                    var grp = grouped.groups[groupName];
+                    var reqMark = grp.required
+                        ? ' <span class="text-danger">*</span>'
                         : '';
-                    listEl.insertAdjacentHTML(
-                        'beforeend',
-                        '<label class="list-group-item erp-opt-row d-flex align-items-center gap-2 flex-wrap" data-unit-price="' +
-                            up +
-                            '">' +
-                            '<input type="checkbox" class="form-check-input erp-opt-check" value="' +
-                            escapeHtml(String(opt.product_id)) +
-                            '">' +
-                            '<span class="flex-grow-1">' +
-                            escapeHtml(opt.name) +
-                            skuHtml +
-                            '</span>' +
-                            '<span class="text-muted small">' +
-                            up.toFixed(2) +
-                            '</span>' +
-                            '<input type="number" class="form-control form-control-sm erp-opt-qty" style="width:4.5rem" min="0.0001" step="any" value="1" title="' +
-                            escapeHtml(t('qty', 'Qty')) +
-                            '">' +
-                            '</label>'
-                    );
+                    var radioName = 'erp-opt-group-' + slugifyGroup(groupName);
+                    var html =
+                        '<div class="erp-opt-group mb-3">' +
+                        '<div class="fw-semibold small mb-1">' +
+                        escapeHtml(groupName) +
+                        reqMark +
+                        '</div>' +
+                        '<div class="list-group">';
+                    grp.items.forEach(function (opt) {
+                        html += renderOptionRow(opt, 'radio', radioName);
+                    });
+                    html += '</div></div>';
+                    listEl.insertAdjacentHTML('beforeend', html);
                 });
+
+                if (grouped.ungrouped.length) {
+                    var addOnHtml =
+                        '<div class="erp-opt-group mb-0">' +
+                        '<div class="fw-semibold small mb-1">' +
+                        escapeHtml(t('addOns', 'Add-ons')) +
+                        '</div>' +
+                        '<div class="list-group">';
+                    grouped.ungrouped.forEach(function (opt) {
+                        addOnHtml += renderOptionRow(opt, 'checkbox', 'erp-opt-addon-' + opt.product_id);
+                    });
+                    addOnHtml += '</div></div>';
+                    listEl.insertAdjacentHTML('beforeend', addOnHtml);
+                }
             }
 
             showModal(modalEl);
@@ -177,9 +293,9 @@
 
     function onConfirmClick() {
         var modalEl = getModalEl();
+        var options = ctx.item && ctx.item.options ? ctx.item.options : [];
         var selected = buildSelected(modalEl);
-        if (!selected.length) {
-            notifyError(t('selectOne', 'Select at least one product option.'));
+        if (!validateSelection(options, selected)) {
             return;
         }
         var total = calcTotal(ctx.item, selected, ctx.forPurchase);

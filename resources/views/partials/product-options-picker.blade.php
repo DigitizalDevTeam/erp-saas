@@ -23,6 +23,9 @@
         error: @json(__('Error')),
         noOptions: @json(__('No options configured for this product.')),
         selectOne: @json(__('Select at least one product option.')),
+        selectGroup: @json(__('Select one option for')),
+        selectOneGroup: @json(__('Select at most one option for')),
+        addOns: @json(__('Add-ons')),
         qty: @json(__('Qty')),
     };
 </script>

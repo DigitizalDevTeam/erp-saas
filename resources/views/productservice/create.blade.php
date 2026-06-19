@@ -347,7 +347,7 @@
             <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
                 <div>
                     <h6 class="mb-1">{{ __('Product options') }}</h6>
-                    <p class="text-muted small mb-0">{{ __('At sale time the user picks one or more linked products. Line price = this product price + selected option prices. Stock is deducted from options only.') }}</p>
+                    <p class="text-muted small mb-0">{{ __('At sale time the user picks linked products. Use a group name (e.g. Doneness, Ice) for single-choice modifiers; leave group empty for optional add-ons.') }}</p>
                 </div>
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="options_enabled" id="options_enabled_create" value="1">
@@ -360,16 +360,18 @@
                         <thead>
                             <tr>
                                 <th>{{ __('Option product') }}</th>
+                                <th>{{ __('Group') }}</th>
+                                <th>{{ __('Required') }}</th>
                                 <th width="60"></th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr class="text-muted"><td colspan="2">{{ __('No options added yet.') }}</td></tr>
+                            <tr class="text-muted"><td colspan="4">{{ __('No options added yet.') }}</td></tr>
                         </tbody>
                     </table>
                 </div>
                 <div class="row g-2 align-items-end">
-                    <div class="col-md-8">
+                    <div class="col-md-5">
                         <label class="form-label">{{ __('Product') }}</label>
                         <select class="form-select" id="product_option_create_select">
                             <option value="">{{ __('Select product') }}</option>
@@ -379,6 +381,18 @@
                         </select>
                     </div>
                     <div class="col-md-4">
+                        <label class="form-label">{{ __('Group') }}</label>
+                        <input type="text" class="form-control" id="product_option_create_group" placeholder="{{ __('e.g. Doneness, Ice') }}">
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label d-block">&nbsp;</label>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="product_option_create_required" value="1">
+                            <label class="form-check-label small" for="product_option_create_required">{{ __('Required') }}</label>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label d-block">&nbsp;</label>
                         <button type="button" class="btn btn-sm btn-primary w-100" id="product_option_create_add_btn"><i class="ti ti-plus"></i> {{ __('Add option') }}</button>
                     </div>
                 </div>
@@ -510,7 +524,7 @@
         function renderOptEmpty() {
             const $tbody = $('#product_options_create_table tbody');
             if ($tbody.find('tr[data-option-row]').length === 0) {
-                $tbody.html('<tr class="text-muted" data-empty-row><td colspan="2">{{ __("No options added yet.") }}</td></tr>');
+                $tbody.html('<tr class="text-muted" data-empty-row><td colspan="4">{{ __("No options added yet.") }}</td></tr>');
             }
         }
         function syncOptFields() {
@@ -523,14 +537,21 @@
         $('#product_option_create_add_btn').on('click', function () {
             const id = $('#product_option_create_select').val();
             const text = $('#product_option_create_select option:selected').text();
+            const group = ($('#product_option_create_group').val() || '').trim();
+            const required = $('#product_option_create_required').is(':checked') ? '1' : '0';
             if (!id) return;
             const $tbody = $('#product_options_create_table tbody');
             if ($tbody.find('tr[data-empty-row]').length) $tbody.empty();
             if ($tbody.find('input[value="' + id + '"]').length) return;
             $tbody.append('<tr data-option-row><td>' + $('<div>').text(text).html() +
                 '<input type="hidden" name="product_options[' + optIdx + '][option_product_id]" value="' + id + '"></td>' +
+                '<td><input type="text" class="form-control form-control-sm" name="product_options[' + optIdx + '][option_group]" value="' + $('<div>').text(group).html() + '" placeholder="{{ __("Group") }}"></td>' +
+                '<td><input type="hidden" name="product_options[' + optIdx + '][is_required]" value="0">' +
+                '<input type="checkbox" class="form-check-input" name="product_options[' + optIdx + '][is_required]" value="1"' + (required === '1' ? ' checked' : '') + '></td>' +
                 '<td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger product-option-remove"><i class="ti ti-trash"></i></button></td></tr>');
             optIdx++;
+            $('#product_option_create_group').val('');
+            $('#product_option_create_required').prop('checked', false);
         });
         $(document).on('click', '.product-option-remove', function () {
             $(this).closest('tr').remove();

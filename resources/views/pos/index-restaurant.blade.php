@@ -778,6 +778,7 @@
     @stack('script-page')
 
     <script src="{{ asset('js/jquery-ui.min.js') }}"></script>
+    <script src="{{ asset('js/pos-modal-idle.js') }}"></script>
 
     <script>
         var POS_PENDING_KEY = 'pos_pending_sales';
@@ -1563,6 +1564,7 @@
                     updateRestaurantCartTotals(0);
                     $('#pos-pay-btn-restaurant').prop('disabled', true);
                 }
+                posRestaurantToggleTableGridPanel(false);
             }
             var posStatusLabels = { 'pending': '{{ __("pos.status_pending") }}', 'in_preparation': '{{ __("pos.status_in_preparation") }}', 'ready': '{{ __("pos.status_ready") }}', 'served': '{{ __("pos.status_served") }}', 'cancelled': '{{ __("pos.status_cancelled") }}', 'not_sent': '{{ __("pos.status_not_sent") }}' };
             var canShowVoid = {{ ($canShowVoid ?? false) ? 'true' : 'false' }};
