@@ -14,6 +14,7 @@ class HotelStayOperationsService
         private readonly HotelReservationPricingService $pricingService,
         private readonly HotelPosChargeService $chargeService,
         private readonly HotelRoomStatusService $roomStatusService,
+        private readonly HotelHousekeepingService $housekeepingService,
     ) {
     }
 
@@ -162,7 +163,12 @@ class HotelStayOperationsService
             if ($oldRoomId) {
                 $oldRoom = HotelRoom::find($oldRoomId);
                 if ($oldRoom) {
-                    $this->roomStatusService->markCleaning($oldRoom);
+                    $this->housekeepingService->queueRoom(
+                        $oldRoom,
+                        $creatorId,
+                        HotelHousekeepingService::SOURCE_MANUAL,
+                        __('Queued after guest room change.')
+                    );
                 }
             }
             $newRoom->refresh();

@@ -30,7 +30,7 @@
                         $creditTotal = (float) \App\Models\PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
                         $cashDropsTotal = (float) \App\Models\PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');
                         $cashInsTotal = (float) \App\Models\PosCashIn::where('shift_id', $pos_shift->id)->sum('amount');
-                        $cashOutExpensesTotal = (float) \App\Models\Expense::where('pos_shift_id', $pos_shift->id)->where('created_by', \Auth::user()->creatorId())->where('status', \App\Models\Expense::STATUS_APPROVED)->sum('amount');
+                        $cashOutExpensesTotal = (float) \App\Models\Expense::where('pos_shift_id', $pos_shift->id)->where('created_by', \Auth::user()->creatorId())->cashOutPosted()->sum('amount');
                         $expectedCash = (float) ($pos_shift->opening_balance ?? 0) + $cashTotal + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
                     @endphp
                     <p><strong>{{ __('Sales (this shift)') }}:</strong> {{ $shiftSalesCount }} {{ __('transactions') }}, {{ \Auth::user()->priceFormat($shiftSalesTotal) }}</p>

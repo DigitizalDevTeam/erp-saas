@@ -92,7 +92,7 @@ class HotelRoomController extends Controller
         $request->validate([
             'room_ids' => 'required|array|min:1',
             'room_ids.*' => 'integer|exists:hotel_rooms,id',
-            'status' => 'required|in:available,occupied,cleaning,maintenance',
+            'status' => 'required|in:available,occupied,dirty,cleaning,maintenance',
         ]);
 
         $creatorId = (int) Auth::user()->creatorId();
@@ -159,7 +159,7 @@ class HotelRoomController extends Controller
             ],
             'hotel_room_type_id' => 'required|exists:hotel_room_types,id',
             'hotel_floor_id' => 'nullable|exists:hotel_floors,id',
-            'status' => 'required|in:available,occupied,cleaning,maintenance',
+            'status' => 'required|in:available,occupied,dirty,cleaning,maintenance',
             'override_price' => 'nullable|numeric|min:0',
             'monthly_override_price' => 'nullable|numeric|min:0',
         ]);
@@ -208,7 +208,7 @@ class HotelRoomController extends Controller
             ],
             'hotel_room_type_id' => 'required|exists:hotel_room_types,id',
             'hotel_floor_id' => 'nullable|exists:hotel_floors,id',
-            'status' => 'required|in:available,occupied,cleaning,maintenance',
+            'status' => 'required|in:available,occupied,dirty,cleaning,maintenance',
             'override_price' => 'nullable|numeric|min:0',
             'monthly_override_price' => 'nullable|numeric|min:0',
         ]);

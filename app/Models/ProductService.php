@@ -33,6 +33,7 @@ class ProductService extends Model
         'warranty_days',
         'expiry_alert_days',
         'batch_tracking',
+        'batch_consumption_method',
         'variants_enabled',
         'options_enabled',
         'variant_size_label',

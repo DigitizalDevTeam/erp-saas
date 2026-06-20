@@ -32,6 +32,7 @@ class HotelDashboardController extends Controller
         $roomsTotal = HotelRoom::where('created_by', $creatorId)->count();
         $roomsAvailable = HotelRoom::where('created_by', $creatorId)->where('status', HotelRoom::STATUS_AVAILABLE)->count();
         $roomsOccupied = HotelRoom::where('created_by', $creatorId)->where('status', HotelRoom::STATUS_OCCUPIED)->count();
+        $roomsDirty = HotelRoom::where('created_by', $creatorId)->where('status', HotelRoom::STATUS_DIRTY)->count();
         $roomsCleaning = HotelRoom::where('created_by', $creatorId)->where('status', HotelRoom::STATUS_CLEANING)->count();
         $roomsMaintenance = HotelRoom::where('created_by', $creatorId)->where('status', HotelRoom::STATUS_MAINTENANCE)->count();
         $occupancyRate = $roomsTotal > 0 ? round(($roomsOccupied / $roomsTotal) * 100, 1) : 0;
@@ -89,6 +90,7 @@ class HotelDashboardController extends Controller
             'roomsTotal' => $roomsTotal,
             'roomsAvailable' => $roomsAvailable,
             'roomsOccupied' => $roomsOccupied,
+            'roomsDirty' => $roomsDirty,
             'roomsCleaning' => $roomsCleaning,
             'roomsMaintenance' => $roomsMaintenance,
             'occupancyRate' => $occupancyRate,
@@ -205,6 +207,24 @@ class HotelDashboardController extends Controller
             ];
         }
 
+        $dirtyRooms = HotelRoom::where('created_by', $creatorId)
+            ->where('status', HotelRoom::STATUS_DIRTY)
+            ->orderBy('room_no')
+            ->limit(5)
+            ->get();
+
+        foreach ($dirtyRooms as $room) {
+            $alerts[] = [
+                'kind' => 'dirty',
+                'level' => 'warning',
+                'icon' => 'ti ti-bed',
+                'title' => __('Room needs cleaning'),
+                'description' => __('Room') . ' ' . $room->room_no,
+                'when' => null,
+                'href' => route('hotel.housekeeping.index'),
+            ];
+        }
+
         $cleaningRooms = HotelRoom::where('created_by', $creatorId)
             ->where('status', HotelRoom::STATUS_CLEANING)
             ->orderBy('room_no')
@@ -216,7 +236,7 @@ class HotelDashboardController extends Controller
                 'kind' => 'cleaning',
                 'level' => 'warning',
                 'icon' => 'ti ti-spray',
-                'title' => __('Room ready for cleaning'),
+                'title' => __('Cleaning in progress'),
                 'description' => __('Room') . ' ' . $room->room_no,
                 'when' => null,
                 'href' => route('hotel.housekeeping.index'),

@@ -121,7 +121,36 @@ class ExpenseRecordController extends Controller
 
     public function show(Expense $expense)
     {
-        return redirect()->route('expenses.index');
+        if (! \Auth::user()->can('manage expense')) {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+        if ($expense->created_by != \Auth::user()->creatorId()) {
+            return response()->json(['error' => __('Permission denied.')], 401);
+        }
+
+        $expense->load(['expenseCategory', 'branch', 'paymentBankAccount', 'chartAccount', 'executedByUser']);
+
+        return view('expenses.show', compact('expense'));
+    }
+
+    public function execute(Expense $expense)
+    {
+        if (! \Auth::user()->can('manage expense')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        if ($expense->created_by != \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        if ($expense->status != Expense::STATUS_APPROVED) {
+            return redirect()->back()->with('error', __('Only approved expenses can be executed.'));
+        }
+
+        $expense->status = Expense::STATUS_EXECUTED;
+        $expense->executed_at = now();
+        $expense->executed_by = \Auth::id();
+        $expense->save();
+
+        return redirect()->route('expenses.index')->with('success', __('Expense executed successfully.'));
     }
 
     public function edit(Expense $expense)
@@ -129,6 +158,9 @@ class ExpenseRecordController extends Controller
         if (\Auth::user()->can('edit expense')) {
             if ($expense->created_by != \Auth::user()->creatorId()) {
                 return response()->json(['error' => __('Permission denied.')], 401);
+            }
+            if (! $expense->isEditable()) {
+                return response()->json(['error' => __('Approved expenses must be executed before editing.')], 401);
             }
             $categories = ExpenseCategory::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $branches = Branch::where('created_by', \Auth::user()->creatorId())->where('is_active', true)->get()->pluck('name', 'id')->prepend(__('Select Branch'), 0);
@@ -146,6 +178,9 @@ class ExpenseRecordController extends Controller
         if (\Auth::user()->can('edit expense')) {
             if ($expense->created_by != \Auth::user()->creatorId()) {
                 return redirect()->back()->with('error', __('Permission denied.'));
+            }
+            if (! $expense->isEditable()) {
+                return redirect()->back()->with('error', __('Approved expenses must be executed before editing.'));
             }
 
             $validator = \Validator::make($request->all(), [
@@ -180,17 +215,17 @@ class ExpenseRecordController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
 
-            if ($expense->status === Expense::STATUS_APPROVED) {
+            if ($expense->status === Expense::STATUS_EXECUTED) {
                 $err = $this->accountingPrereqErrorMessage($request);
                 if ($err !== null) {
                     return redirect()->back()->with('error', $err);
                 }
                 if ((float) $request->amount <= 0) {
-                    return redirect()->back()->with('error', __('Amount must be greater than zero for an approved expense.'));
+                    return redirect()->back()->with('error', __('Amount must be greater than zero for an executed expense.'));
                 }
             }
 
-            $wasApproved = $expense->status === Expense::STATUS_APPROVED;
+            $wasPosted = $expense->isAccountingPosted();
             $prevAmount = (float) $expense->amount;
             $prevPaymentAccountId = (int) $expense->payment_account_id;
 
@@ -209,7 +244,7 @@ class ExpenseRecordController extends Controller
             }
 
             try {
-                DB::transaction(function () use ($request, $expense, $wasApproved, $prevAmount, $prevPaymentAccountId, $newAttachment) {
+                DB::transaction(function () use ($request, $expense, $wasPosted, $prevAmount, $prevPaymentAccountId, $newAttachment) {
                     $expense->name = $request->name;
                     $expense->date = $request->date;
                     $expense->description = $request->description;
@@ -223,7 +258,7 @@ class ExpenseRecordController extends Controller
                     }
                     $expense->save();
 
-                    if ($wasApproved) {
+                    if ($wasPosted) {
                         $this->reverseApprovedExpenseAccounting($expense->id, $prevAmount, $prevPaymentAccountId);
                         $this->postApprovedExpenseAccounting($expense->fresh());
                     }
@@ -296,7 +331,7 @@ class ExpenseRecordController extends Controller
                 $attachmentName = $expense->attachment;
                 try {
                     DB::transaction(function () use ($expense) {
-                        if ($expense->status === Expense::STATUS_APPROVED) {
+                        if ($expense->isAccountingPosted()) {
                             $this->reverseApprovedExpenseAccounting(
                                 $expense->id,
                                 (float) $expense->amount,

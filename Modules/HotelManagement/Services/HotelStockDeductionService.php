@@ -5,13 +5,13 @@ namespace Modules\HotelManagement\Services;
 use App\Models\ProductService;
 use App\Models\Utility;
 use App\Models\WarehouseProduct;
-use App\Services\PosFefoDeductionService;
+use App\Services\BatchLotDeductionService;
 use Illuminate\Support\Collection;
 
 /**
  * Deducts centralized ERP product stock when a hotel guest consumes a room
  * consumable (minibar). Mirrors the POS deduction path so warehouse stock,
- * aggregate product quantity, FEFO lots and the stock ledger all stay in sync.
+ * aggregate product quantity, batch lots (FEFO/FIFO/LIFO) and the stock ledger all stay in sync.
  */
 class HotelStockDeductionService
 {
@@ -106,16 +106,18 @@ class HotelStockDeductionService
             return;
         }
 
-        // Batch-tracked products: let FEFO handle lots + warehouse + aggregate + ledger.
+        // Batch-tracked products: deduct lots using product consumption method.
         if (($product->batch_tracking ?? false)
-            || PosFefoDeductionService::hasLots($productId, $warehouseId, $creatorId)) {
-            PosFefoDeductionService::deductForSale(
+            || BatchLotDeductionService::hasLots($productId, $warehouseId, $creatorId)) {
+            BatchLotDeductionService::deductForSale(
                 $productId,
                 $quantity,
                 $warehouseId,
                 $creatorId,
                 $reference,
-                $referenceId
+                $referenceId,
+                null,
+                'hotel'
             );
 
             return;

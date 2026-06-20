@@ -234,6 +234,7 @@ class HotelOperationReportController extends Controller
                 ['label' => __('Total rooms'), 'value' => $rooms->count(), 'tone' => 'primary'],
                 ['label' => __('Available'), 'value' => (int) ($byStatus['available'] ?? 0), 'tone' => 'success'],
                 ['label' => __('Occupied'), 'value' => (int) ($byStatus['occupied'] ?? 0), 'tone' => 'danger'],
+                ['label' => __('Dirty'), 'value' => (int) ($byStatus['dirty'] ?? 0), 'tone' => 'warning'],
                 ['label' => __('Cleaning / maintenance'), 'value' => (int) ($byStatus['cleaning'] ?? 0) + (int) ($byStatus['maintenance'] ?? 0), 'tone' => 'warning'],
             ],
             'columns' => [

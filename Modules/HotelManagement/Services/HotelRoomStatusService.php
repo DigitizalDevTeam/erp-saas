@@ -17,6 +17,7 @@ class HotelRoomStatusService
         return [
             HotelRoom::STATUS_AVAILABLE => __('Available'),
             HotelRoom::STATUS_OCCUPIED => __('Occupied'),
+            HotelRoom::STATUS_DIRTY => __('Dirty'),
             HotelRoom::STATUS_CLEANING => __('Cleaning'),
             HotelRoom::STATUS_MAINTENANCE => __('Maintenance'),
         ];
@@ -43,6 +44,10 @@ class HotelRoomStatusService
             return __('Room :room is out of order (maintenance).', ['room' => $room->room_no]);
         }
 
+        if ($room->status === HotelRoom::STATUS_DIRTY) {
+            return __('Room :room is dirty and waiting for housekeeping.', ['room' => $room->room_no]);
+        }
+
         if ($room->status === HotelRoom::STATUS_CLEANING) {
             return __('Room :room is being cleaned and cannot be assigned yet.', ['room' => $room->room_no]);
         }
@@ -62,6 +67,7 @@ class HotelRoomStatusService
         $allowed = [
             HotelRoom::STATUS_AVAILABLE,
             HotelRoom::STATUS_OCCUPIED,
+            HotelRoom::STATUS_DIRTY,
             HotelRoom::STATUS_CLEANING,
             HotelRoom::STATUS_MAINTENANCE,
         ];
@@ -76,7 +82,7 @@ class HotelRoomStatusService
 
         $inHouse = $this->hasInHouseStay($room, $creatorId);
 
-        if ($inHouse && in_array($newStatus, [HotelRoom::STATUS_AVAILABLE, HotelRoom::STATUS_MAINTENANCE, HotelRoom::STATUS_CLEANING], true)) {
+        if ($inHouse && in_array($newStatus, [HotelRoom::STATUS_AVAILABLE, HotelRoom::STATUS_MAINTENANCE, HotelRoom::STATUS_CLEANING, HotelRoom::STATUS_DIRTY], true)) {
             return __('Room :room has an in-house guest. Check out before changing status.', ['room' => $room->room_no]);
         }
 
@@ -112,6 +118,15 @@ class HotelRoomStatusService
         $room->update(['status' => HotelRoom::STATUS_OCCUPIED]);
     }
 
+    public function markDirty(HotelRoom $room): void
+    {
+        if ($room->status === HotelRoom::STATUS_OCCUPIED) {
+            throw new \InvalidArgumentException(__('Occupied rooms cannot be marked dirty.'));
+        }
+
+        $room->update(['status' => HotelRoom::STATUS_DIRTY]);
+    }
+
     public function markCleaning(HotelRoom $room): void
     {
         $room->update(['status' => HotelRoom::STATUS_CLEANING]);
@@ -132,8 +147,8 @@ class HotelRoomStatusService
      */
     public function markRoomReady(HotelRoom $room, int $creatorId): void
     {
-        if ($room->status !== HotelRoom::STATUS_CLEANING) {
-            throw new \InvalidArgumentException(__('Only rooms in cleaning status can be marked ready.'));
+        if (! in_array($room->status, [HotelRoom::STATUS_CLEANING, HotelRoom::STATUS_DIRTY], true)) {
+            throw new \InvalidArgumentException(__('Only dirty or in-progress cleaning rooms can be marked ready.'));
         }
 
         if ($this->hasPendingRestock((int) $room->id, $creatorId)) {

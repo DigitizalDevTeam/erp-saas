@@ -129,7 +129,7 @@ class PosShiftReportService
         $cashInsTotal = (float) PosCashIn::where('shift_id', $shift->id)->sum('amount');
         $cashOutExpensesTotal = (float) Expense::where('pos_shift_id', $shift->id)
             ->where('created_by', $creatorId)
-            ->where('status', Expense::STATUS_APPROVED)
+            ->cashOutPosted()
             ->sum('amount');
         $expectedCash = (float) ($shift->opening_balance ?? 0) + $cashTotal + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
         $voidedLines = PosProduct::whereIn('pos_id', $posIds)
@@ -245,7 +245,7 @@ class PosShiftReportService
         $cashIns = PosCashIn::whereIn('shift_id', $shiftIds)->with(['user', 'shift.branch'])->orderByDesc('created_at')->get();
         $expenses = Expense::whereIn('pos_shift_id', $shiftIds)
             ->where('created_by', $creatorId)
-            ->where('status', Expense::STATUS_APPROVED)
+            ->cashOutPosted()
             ->with(['shift.branch'])
             ->orderByDesc('date')
             ->get();

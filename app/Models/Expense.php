@@ -9,13 +9,15 @@ class Expense extends Model
     const STATUS_PENDING = 0;
     const STATUS_APPROVED = 1;
     const STATUS_REJECTED = 2;
+    const STATUS_EXECUTED = 3;
 
     public static function getStatuses()
     {
         return [
             self::STATUS_PENDING   => __('Pending'),
-            self::STATUS_APPROVED  => __('Approve'),
-            self::STATUS_REJECTED  => __('Reject'),
+            self::STATUS_APPROVED  => __('Approved'),
+            self::STATUS_REJECTED  => __('Rejected'),
+            self::STATUS_EXECUTED  => __('Executed'),
         ];
     }
 
@@ -32,6 +34,8 @@ class Expense extends Model
         'amount',
         'attachment',
         'status',
+        'executed_at',
+        'executed_by',
         'user_id',
         'expense_category_id',
         'branch_id',
@@ -44,6 +48,7 @@ class Expense extends Model
     protected $casts = [
         'date' => 'date',
         'amount' => 'decimal:2',
+        'executed_at' => 'datetime',
     ];
 
     public function expenseCategory()
@@ -74,5 +79,25 @@ class Expense extends Model
     public function createdByUser()
     {
         return $this->belongsTo(User::class, 'created_by', 'id');
+    }
+
+    public function executedByUser()
+    {
+        return $this->belongsTo(User::class, 'executed_by', 'id');
+    }
+
+    public function isEditable(): bool
+    {
+        return in_array((int) $this->status, [self::STATUS_PENDING, self::STATUS_REJECTED, self::STATUS_EXECUTED], true);
+    }
+
+    public function isAccountingPosted(): bool
+    {
+        return in_array((int) $this->status, [self::STATUS_APPROVED, self::STATUS_EXECUTED], true);
+    }
+
+    public function scopeCashOutPosted($query)
+    {
+        return $query->whereIn('status', [self::STATUS_APPROVED, self::STATUS_EXECUTED]);
     }
 }

@@ -152,6 +152,7 @@
                                 <tr>
                                     <th>{{ __('Product') }}</th>
                                     <th>{{ __('SKU') }}</th>
+                                    <th>{{ __('Method') }}</th>
                                     <th>{{ __('Batch') }}</th>
                                     <th>{{ __('Mfg') }}</th>
                                     <th>{{ __('Expiry') }}</th>
@@ -175,6 +176,13 @@
                                     <tr>
                                         <td>{{ $lot->product_name }}</td>
                                         <td>{{ $lot->product_sku ?: '—' }}</td>
+                                        <td>
+                                            @if($lot->batch_tracking ?? false)
+                                                <span class="badge bg-info text-uppercase">{{ strtoupper($lot->batch_consumption_method ?? 'fefo') }}</span>
+                                            @else
+                                                <span class="text-muted">—</span>
+                                            @endif
+                                        </td>
                                         <td>{{ $lot->batch_no ?: '—' }}</td>
                                         <td>{{ $lot->mfg_date ? \Carbon\Carbon::parse($lot->mfg_date)->format('Y-m-d') : '—' }}</td>
                                         <td>{{ $lot->expiry_date ? \Carbon\Carbon::parse($lot->expiry_date)->format('Y-m-d') : '—' }}</td>

@@ -160,6 +160,8 @@ class ProductBatchMonitorController extends Controller
             'l.created_at',
             'p.name as product_name',
             'p.sku as product_sku',
+            'p.batch_tracking',
+            'p.batch_consumption_method',
             'w.name as warehouse_name',
         ])->paginate($perPage)->withQueryString();
 

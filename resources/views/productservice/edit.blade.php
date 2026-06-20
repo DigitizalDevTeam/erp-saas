@@ -281,6 +281,25 @@
             <small class="text-muted d-block mt-1">{{ __('If enabled: stock-in and sales will require one unique identifier per unit (no duplicates).') }}</small>
         </div>
 
+        <div class="col-md-12 mt-2 product-batch-section">
+            <hr class="my-2">
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="batch_tracking" id="batch_tracking_edit" value="1" {{ ($productService->batch_tracking ?? false) ? 'checked' : '' }}>
+                <label class="form-check-label" for="batch_tracking_edit">{{ __('Enable batch / lot tracking') }}</label>
+            </div>
+            <div id="batch_consumption_edit_fields" class="row g-2" style="{{ ($productService->batch_tracking ?? false) ? '' : 'display:none;' }}">
+                <div class="col-md-6">
+                    <label class="form-label">{{ __('Consumption method') }}</label>
+                    <select name="batch_consumption_method" class="form-control select">
+                        @foreach(\App\Services\BatchLotDeductionService::methodLabels() as $value => $label)
+                            <option value="{{ $value }}" @selected(($productService->batch_consumption_method ?? 'fefo') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <small class="text-muted d-block mt-1">{{ __('Controls which batch is deducted on POS, invoice, and hotel consumption.') }}</small>
+                </div>
+            </div>
+        </div>
+
         <div class="col-md-12 mt-2">
             <div class="row">
                 <div class="col-md-4">
@@ -553,6 +572,8 @@
             $('.product-stock-option').toggle(isProduct);
             $('input[name="sale_price"]').prop('readonly', false);
         }
+
+        $('.product-batch-section').toggle(isProduct || isIngredient);
     }
 
     $(document).on('click', '.type', syncProductTypeFieldsEdit);
@@ -637,6 +658,13 @@
     $(document).on('change', '#identifier_tracking_edit', function () {
         $('#identifier_tracking_edit_fields').toggle(this.checked);
     });
+
+    function syncBatchFieldsEdit() {
+        var on = $('#batch_tracking_edit').is(':checked');
+        $('#batch_consumption_edit_fields').toggle(on);
+    }
+    $('#batch_tracking_edit').on('change', syncBatchFieldsEdit);
+    syncBatchFieldsEdit();
 
     function calcMeasuresByUnitTypeEdit() {
         var ut = ($('#unit_type_edit').val() || '').toString();

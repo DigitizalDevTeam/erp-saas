@@ -11,6 +11,7 @@ class HotelRoom extends Model
 
     const STATUS_AVAILABLE = 'available';
     const STATUS_OCCUPIED = 'occupied';
+    const STATUS_DIRTY = 'dirty';
     const STATUS_CLEANING = 'cleaning';
     const STATUS_MAINTENANCE = 'maintenance';
 

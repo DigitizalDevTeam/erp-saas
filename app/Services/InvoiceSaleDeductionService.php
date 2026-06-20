@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * Apply the same stock rules to Sales -> Invoice as POS:
  * - Kit: deduct components
- * - FEFO: deduct from product_expiry_lots by earliest expiry
+ * - Batch lots: FEFO / FIFO / LIFO per product setting
  * - Serial/MAC: validate identifiers and mark as sold
  *
  * Note: Invoices in this app do not store warehouse_id, so deductions are applied globally (warehouse_id = null/0).
@@ -122,10 +122,14 @@ class InvoiceSaleDeductionService
             return;
         }
 
-        // FEFO for batch/expiry tracked products (lots exist)
+        // Batch-tracked products: deduct lots using product consumption method (FEFO/FIFO/LIFO)
         if (($product->batch_tracking ?? false) || self::hasLots($productId, $creatorId)) {
-            self::deductFefoLots($productId, $quantity, $creatorId);
+            $remaining = \App\Services\BatchLotDeductionService::deductLots($productId, $quantity, $creatorId);
+            if ($remaining > 0) {
+                throw new \RuntimeException(__('This product is out of stock!'));
+            }
             self::deductSimpleProduct($productId, $quantity, $creatorId, $invoiceId, $invoiceNoFormatted, $idNote);
+
             return;
         }
 
@@ -209,57 +213,6 @@ class InvoiceSaleDeductionService
             ->where('product_id', $productId)
             ->where('quantity_remaining', '>', 0)
             ->exists();
-    }
-
-    protected static function deductFefoLots(int $productId, float $quantity, int $creatorId): void
-    {
-        $remaining = $quantity;
-        DB::transaction(function () use ($productId, $creatorId, &$remaining) {
-            $today = date('Y-m-d');
-            $base = DB::table('product_expiry_lots')
-                ->where('created_by', $creatorId)
-                ->where('product_id', $productId)
-                ->where('quantity_remaining', '>', 0);
-
-            $lots = (clone $base)
-                ->whereNotNull('expiry_date')
-                ->where('expiry_date', '>=', $today)
-                ->orderBy('expiry_date', 'asc')
-                ->orderBy('id', 'asc')
-                ->lockForUpdate()
-                ->get();
-
-            foreach ($lots as $lot) {
-                if ($remaining <= 0) break;
-                $take = min((float) $lot->quantity_remaining, $remaining);
-                DB::table('product_expiry_lots')->where('id', $lot->id)->update([
-                    'quantity_remaining' => max(0, (float) $lot->quantity_remaining - $take),
-                    'updated_at' => now(),
-                ]);
-                $remaining -= $take;
-            }
-
-            if ($remaining > 0) {
-                $noExpiry = (clone $base)
-                    ->whereNull('expiry_date')
-                    ->orderBy('id', 'asc')
-                    ->lockForUpdate()
-                    ->get();
-                foreach ($noExpiry as $lot) {
-                    if ($remaining <= 0) break;
-                    $take = min((float) $lot->quantity_remaining, $remaining);
-                    DB::table('product_expiry_lots')->where('id', $lot->id)->update([
-                        'quantity_remaining' => max(0, (float) $lot->quantity_remaining - $take),
-                        'updated_at' => now(),
-                    ]);
-                    $remaining -= $take;
-                }
-            }
-        });
-
-        if ($remaining > 0) {
-            throw new \RuntimeException(__('This product is out of stock!'));
-        }
     }
 }
 

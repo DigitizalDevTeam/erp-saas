@@ -14,6 +14,7 @@
         'available'   => ['color' => '#10B981', 'label' => __('Available')],
         'occupied'    => ['color' => '#EF4444', 'label' => __('Occupied')],
         'reserved'    => ['color' => '#F59E0B', 'label' => __('Reserved')],
+        'dirty'       => ['color' => '#F97316', 'label' => __('Dirty')],
         'cleaning'    => ['color' => '#3B82F6', 'label' => __('Cleaning')],
         'maintenance' => ['color' => '#6B7280', 'label' => __('Maintenance')],
     ];
@@ -22,6 +23,9 @@
         $reservation = $room->relationLoaded('currentReservation') ? $room->currentReservation : null;
         if ($room->status === 'occupied' || ($reservation && $reservation->status === 'checked_in')) {
             return 'occupied';
+        }
+        if ($room->status === 'dirty') {
+            return 'dirty';
         }
         if ($room->status === 'cleaning') {
             return 'cleaning';
@@ -97,8 +101,8 @@
                                     $href = route('hotel.reservations.create') . '?room_id=' . $room->id;
                                 } elseif ($status === 'reserved' && $reservation) {
                                     $href = route('hotel.reservations.edit', $reservation->id);
-                                } elseif ($status === 'cleaning' && $canManage) {
-                                    $href = route('hotel.rooms.map') . '#room-' . $room->id;
+                                } elseif (in_array($status, ['dirty', 'cleaning'], true) && $canManage) {
+                                    $href = route('hotel.housekeeping.index');
                                 } elseif ($status === 'maintenance') {
                                     $href = route('hotel.rooms.edit', $room->id);
                                 } else {

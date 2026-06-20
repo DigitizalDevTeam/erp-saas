@@ -136,9 +136,9 @@ class HotelE2eDemoCommand extends Command
                 if ($reservation->hotel_room_id) {
                     $room = HotelRoom::find($reservation->hotel_room_id);
                     $steps[] = $this->checkStep(
-                        'Room in cleaning after checkout',
-                        $room && $room->status === HotelRoom::STATUS_CLEANING,
-                        'Room status should be cleaning'
+                        'Room dirty after checkout',
+                        $room && $room->status === HotelRoom::STATUS_DIRTY,
+                        'Room status should be dirty'
                     );
                 }
 

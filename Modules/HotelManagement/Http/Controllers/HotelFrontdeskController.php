@@ -21,6 +21,7 @@ use Modules\HotelManagement\Services\HotelFolioPaymentService;
 use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Services\HotelRoomConsumptionService;
 use Modules\HotelManagement\Services\HotelFolioInvoiceService;
+use Modules\HotelManagement\Services\HotelHousekeepingService;
 use Modules\HotelManagement\Services\HotelMinibarRestockService;
 use Modules\HotelManagement\Services\HotelRoomStatusService;
 use Modules\HotelManagement\Services\HotelStayOperationsService;
@@ -38,6 +39,7 @@ class HotelFrontdeskController extends Controller
         private readonly HotelFolioInvoiceService $folioInvoiceService,
         private readonly HotelMinibarRestockService $minibarRestockService,
         private readonly HotelRoomStatusService $roomStatusService,
+        private readonly HotelHousekeepingService $housekeepingService,
     ) {
     }
 
@@ -431,7 +433,7 @@ class HotelFrontdeskController extends Controller
             if ($stay->hotel_room_id) {
                 $checkoutRoom = HotelRoom::find($stay->hotel_room_id);
                 if ($checkoutRoom) {
-                    $this->roomStatusService->markCleaning($checkoutRoom);
+                    $this->housekeepingService->queueRoomAfterCheckout($checkoutRoom, $creatorId);
                 }
             }
 

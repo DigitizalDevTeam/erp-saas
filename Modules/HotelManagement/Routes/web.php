@@ -118,6 +118,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::resource('hotel/room-types', HotelRoomTypeController::class)->except(['show'])->names('hotel.room-types');
             Route::resource('hotel/rate-plans', HotelRatePlanController::class)->except(['show'])->names('hotel.rate-plans');
             Route::resource('hotel/reservations', HotelReservationController::class)->names('hotel.reservations');
+            Route::post('hotel/housekeeping/{housekeeping}/action', [HotelHousekeepingController::class, 'executeAction'])->name('hotel.housekeeping.action');
             Route::resource('hotel/housekeeping', HotelHousekeepingController::class)->except(['show', 'destroy'])->names('hotel.housekeeping');
             Route::get('hotel/frontdesk/in-house', [HotelFrontdeskController::class, 'inHouse'])->name('hotel.frontdesk.in-house');
             Route::get('hotel/frontdesk/checkout/{reservation}', [HotelFrontdeskController::class, 'showCheckout'])->name('hotel.frontdesk.checkout');

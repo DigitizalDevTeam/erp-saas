@@ -12,6 +12,7 @@ use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelRoomConsumptionLog;
 use Modules\HotelManagement\Entities\HotelStay;
 use Modules\HotelManagement\Entities\HotelRoomMinibarRestock;
+use Modules\HotelManagement\Services\HotelHousekeepingService;
 use Modules\HotelManagement\Services\HotelMinibarRestockService;
 use Modules\HotelManagement\Services\HotelRoomConsumptionService;
 use Modules\HotelManagement\Services\HotelRoomStatusService;
@@ -24,6 +25,7 @@ class HotelHousekeepingController extends Controller
         private readonly HotelRoomConsumptionService $consumptionService,
         private readonly HotelMinibarRestockService $restockService,
         private readonly HotelRoomStatusService $roomStatusService,
+        private readonly HotelHousekeepingService $housekeepingService,
     ) {
     }
 
@@ -37,18 +39,39 @@ class HotelHousekeepingController extends Controller
         return HotelAuthorization::manageHousekeeping(Auth::user());
     }
 
-    public function index()
+    public function index(Request $request)
     {
         if (! $this->canView()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
-        $tasks = HotelHousekeepingTask::where('created_by', Auth::user()->creatorId())
-            ->with(['room', 'assignee'])
+
+        $creatorId = (int) Auth::user()->creatorId();
+        $showDone = $request->boolean('show_done');
+
+        $query = HotelHousekeepingTask::where('created_by', $creatorId)
+            ->with(['room.floor', 'room.roomType', 'assignee', 'completedByUser']);
+
+        if (! $showDone) {
+            $query->whereIn('status', ['pending', 'in_progress']);
+        }
+
+        $tasks = $query
             ->orderByRaw("FIELD(status, 'pending', 'in_progress', 'done')")
             ->orderByDesc('id')
             ->get();
-        $canManage = $this->canManage();
-        return view('hotelmanagement::housekeeping.index', compact('tasks', 'canManage'));
+
+        $stats = [
+            'pending' => HotelHousekeepingTask::where('created_by', $creatorId)->where('status', 'pending')->count(),
+            'in_progress' => HotelHousekeepingTask::where('created_by', $creatorId)->where('status', 'in_progress')->count(),
+            'dirty_rooms' => HotelRoom::where('created_by', $creatorId)->where('status', HotelRoom::STATUS_DIRTY)->count(),
+        ];
+
+        return view('hotelmanagement::housekeeping.index', [
+            'tasks' => $tasks,
+            'canManage' => $this->canManage(),
+            'showDone' => $showDone,
+            'stats' => $stats,
+        ]);
     }
 
     public function create()
@@ -76,27 +99,51 @@ class HotelHousekeepingController extends Controller
             return redirect()->back()->with('error', $validator->getMessageBag()->first());
         }
 
-        HotelHousekeepingTask::create([
-            'hotel_room_id' => $request->hotel_room_id,
-            'assigned_to' => $request->assigned_to ?: null,
-            'status' => $request->status,
-            'notes' => $request->notes,
-            'created_by' => Auth::user()->creatorId(),
-        ]);
-
+        $creatorId = (int) Auth::user()->creatorId();
         $room = HotelRoom::where('id', $request->hotel_room_id)
-            ->where('created_by', Auth::user()->creatorId())
-            ->first();
-        if ($room) {
+            ->where('created_by', $creatorId)
+            ->firstOrFail();
+
+        try {
             if ($request->status === 'done') {
-                try {
-                    $this->roomStatusService->markRoomReady($room, (int) Auth::user()->creatorId());
-                } catch (\InvalidArgumentException) {
-                    // Room may still need minibar restock; stays in cleaning.
+                $task = $this->housekeepingService->queueRoom($room, $creatorId, HotelHousekeepingService::SOURCE_MANUAL, $request->notes);
+                if (! $task) {
+                    $task = HotelHousekeepingTask::query()
+                        ->where('created_by', $creatorId)
+                        ->where('hotel_room_id', $room->id)
+                        ->whereIn('status', ['pending', 'in_progress'])
+                        ->first();
+                }
+                if ($task) {
+                    if ($task->status === 'pending') {
+                        $this->housekeepingService->startCleaning($task, $creatorId, $request->assigned_to ?: null);
+                        $task->refresh();
+                    }
+                    $this->housekeepingService->completeCleaning($task, $creatorId, $request->assigned_to ?: null);
+                }
+            } elseif ($request->status === 'in_progress') {
+                $task = $this->housekeepingService->queueRoom($room, $creatorId, HotelHousekeepingService::SOURCE_MANUAL, $request->notes);
+                if (! $task) {
+                    $task = HotelHousekeepingTask::query()
+                        ->where('created_by', $creatorId)
+                        ->where('hotel_room_id', $room->id)
+                        ->where('status', 'pending')
+                        ->first();
+                }
+                if ($task) {
+                    if ($request->assigned_to) {
+                        $task->update(['assigned_to' => $request->assigned_to]);
+                    }
+                    $this->housekeepingService->startCleaning($task, $creatorId, $request->assigned_to ?: null);
                 }
             } else {
-                $this->roomStatusService->markCleaning($room);
+                $task = $this->housekeepingService->queueRoom($room, $creatorId, HotelHousekeepingService::SOURCE_MANUAL, $request->notes);
+                if ($task && $request->assigned_to) {
+                    $task->update(['assigned_to' => $request->assigned_to]);
+                }
             }
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->back()->with('error', $e->getMessage())->withInput();
         }
 
         return redirect()->route('hotel.housekeeping.index')->with('success', __('Housekeeping task created.'));
@@ -106,6 +153,9 @@ class HotelHousekeepingController extends Controller
     {
         if ((! $this->canManage()) || (int) $housekeeping->created_by !== (int) Auth::user()->creatorId()) {
             return response()->json(['error' => __('Permission denied.')], 401);
+        }
+        if ($housekeeping->status === 'done') {
+            return redirect()->route('hotel.housekeeping.index')->with('error', __('Completed tasks cannot be edited.'));
         }
         $rooms = HotelRoom::where('created_by', Auth::user()->creatorId())->orderBy('room_no')->pluck('room_no', 'id');
         $staff = User::where('created_by', Auth::user()->creatorId())->orderBy('name')->pluck('name', 'id');
@@ -117,37 +167,62 @@ class HotelHousekeepingController extends Controller
         if ((! $this->canManage()) || (int) $housekeeping->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+        if ($housekeeping->status === 'done') {
+            return redirect()->route('hotel.housekeeping.index')->with('error', __('Completed tasks cannot be edited.'));
+        }
+
         $validator = \Validator::make($request->all(), [
-            'hotel_room_id' => 'required|exists:hotel_rooms,id',
             'assigned_to' => 'nullable|exists:users,id',
-            'status' => 'required|in:pending,in_progress,done',
             'notes' => 'nullable|string|max:1000',
         ]);
         if ($validator->fails()) {
             return redirect()->back()->with('error', $validator->getMessageBag()->first());
         }
+
         $housekeeping->update([
-            'hotel_room_id' => $request->hotel_room_id,
             'assigned_to' => $request->assigned_to ?: null,
-            'status' => $request->status,
             'notes' => $request->notes,
         ]);
-        $room = HotelRoom::where('id', $request->hotel_room_id)
-            ->where('created_by', Auth::user()->creatorId())
-            ->first();
-        if ($room) {
-            if ($request->status === 'done') {
-                try {
-                    $this->roomStatusService->markRoomReady($room, (int) Auth::user()->creatorId());
-                } catch (\InvalidArgumentException) {
-                    // Room may still need minibar restock; stays in cleaning.
-                }
-            } else {
-                $this->roomStatusService->markCleaning($room);
-            }
-        }
 
         return redirect()->route('hotel.housekeeping.index')->with('success', __('Housekeeping task updated.'));
+    }
+
+    public function executeAction(Request $request, HotelHousekeepingTask $housekeeping)
+    {
+        if (! $this->canManage() || (int) $housekeeping->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $request->validate([
+            'action' => 'required|in:start,complete,maintenance',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $creatorId = (int) Auth::user()->creatorId();
+        $userId = (int) Auth::id();
+
+        try {
+            match ($request->action) {
+                'start' => $this->housekeepingService->startCleaning($housekeeping, $creatorId, $userId),
+                'complete' => $this->housekeepingService->completeCleaning($housekeeping, $creatorId, $userId),
+                'maintenance' => $this->housekeepingService->sendToMaintenance(
+                    $housekeeping,
+                    $creatorId,
+                    $request->notes,
+                    $userId
+                ),
+            };
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        $messages = [
+            'start' => __('Cleaning started.'),
+            'complete' => __('Room marked clean and ready.'),
+            'maintenance' => __('Room sent to maintenance.'),
+        ];
+
+        return redirect()->route('hotel.housekeeping.index')->with('success', $messages[$request->action] ?? __('Updated.'));
     }
 
     /**

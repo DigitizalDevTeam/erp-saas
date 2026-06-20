@@ -12,12 +12,15 @@ use Illuminate\Support\Facades\DB;
 use Modules\HotelManagement\Entities\HotelNightAudit;
 use Modules\HotelManagement\Entities\HotelStay;
 use Modules\HotelManagement\Services\HotelAuthorization;
+use Modules\HotelManagement\Services\HotelHousekeepingService;
 use Modules\HotelManagement\Services\HotelNightAuditPreviewService;
 
 class HotelNightAuditController extends Controller
 {
-    public function __construct(private readonly HotelNightAuditPreviewService $previewService)
-    {
+    public function __construct(
+        private readonly HotelNightAuditPreviewService $previewService,
+        private readonly HotelHousekeepingService $housekeepingService,
+    ) {
     }
 
     private function canView(): bool
@@ -119,8 +122,9 @@ class HotelNightAuditController extends Controller
         $posResult = NightAuditOrchestratorService::closeBusinessDay($creatorId, $auditDate, $branchId, (int) Auth::id());
 
         $preview = $this->previewService->build($creatorId, $auditDate, $branchId);
+        $housekeepingResult = ['rooms_marked_dirty' => 0, 'tasks_created' => 0, 'tasks_skipped' => 0];
 
-        DB::transaction(function () use ($creatorId, $branchId, $auditDate, $posResult, $preview) {
+        DB::transaction(function () use ($creatorId, $branchId, $auditDate, $posResult, $preview, &$housekeepingResult) {
             $roomRevenue = (float) ($preview['revenue']['lodging'] ?? 0);
             $serviceRevenue = round(
                 (float) ($preview['revenue']['services'] ?? 0)
@@ -155,11 +159,20 @@ class HotelNightAuditController extends Controller
                 ->where('status', 'checked_out')
                 ->whereDate('checked_out_at', '<=', $auditDate)
                 ->update(['notes' => DB::raw("CONCAT(COALESCE(notes,''), ' | Audit closed')")]);
+
+            $housekeepingResult = $this->housekeepingService->queueDirtyRoomsAfterNightAudit(
+                (int) $creatorId,
+                $branchId ? (int) $branchId : null,
+                $auditDate
+            );
         });
 
         return redirect()->route('hotel.night-audit.index', ['audit_date' => $auditDate])->with(
             'success',
-            __('Night audit completed. :count POS shift(s) closed. Day is locked.', ['count' => $posResult['shifts_closed']])
+            __('Night audit completed. :count POS shift(s) closed. :rooms room(s) queued for housekeeping.', [
+                'count' => $posResult['shifts_closed'],
+                'rooms' => $housekeepingResult['rooms_marked_dirty'],
+            ])
         );
     }
 }

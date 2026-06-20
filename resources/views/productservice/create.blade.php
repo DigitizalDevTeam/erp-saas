@@ -283,6 +283,25 @@
             <small class="text-muted d-block mt-1">{{ __('If enabled: stock-in and sales will require one unique identifier per unit (no duplicates).') }}</small>
         </div>
 
+        <div class="col-md-12 mt-2 product-batch-section">
+            <hr class="my-2">
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="batch_tracking" id="batch_tracking_create" value="1" {{ old('batch_tracking') ? 'checked' : '' }}>
+                <label class="form-check-label" for="batch_tracking_create">{{ __('Enable batch / lot tracking') }}</label>
+            </div>
+            <div id="batch_consumption_create_fields" class="row g-2" style="{{ old('batch_tracking') ? '' : 'display:none;' }}">
+                <div class="col-md-6">
+                    <label class="form-label">{{ __('Consumption method') }}</label>
+                    <select name="batch_consumption_method" class="form-control select">
+                        @foreach(\App\Services\BatchLotDeductionService::methodLabels() as $value => $label)
+                            <option value="{{ $value }}" @selected(old('batch_consumption_method', 'fefo') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <small class="text-muted d-block mt-1">{{ __('Controls which batch is deducted on POS, invoice, and hotel consumption.') }}</small>
+                </div>
+            </div>
+        </div>
+
         <div class="col-md-12 mt-2">
             <div class="row">
                 <div class="col-md-4">
@@ -497,6 +516,8 @@
             }
         }
 
+        $('.product-batch-section').toggle(isProduct || isIngredient);
+
         if (isIngredient) {
             $('#product_variants_create_section').hide();
             $('.pos-only-field').addClass('d-none');
@@ -649,6 +670,13 @@
     $(document).on('change', '#identifier_tracking_create', function () {
         $('#identifier_tracking_create_fields').toggle(this.checked);
     });
+
+    function syncBatchFieldsCreate() {
+        var on = $('#batch_tracking_create').is(':checked');
+        $('#batch_consumption_create_fields').toggle(on);
+    }
+    $('#batch_tracking_create').on('change', syncBatchFieldsCreate);
+    syncBatchFieldsCreate();
 
     function calcMeasuresByUnitTypeCreate() {
         var ut = ($('#unit_type_create').val() || '').toString();

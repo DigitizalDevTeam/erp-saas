@@ -2516,6 +2516,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('expense-category', ExpenseCategoryController::class)->middleware(['auth', 'XSS']);
     Route::post('expenses/{expense}/approve', [ExpenseRecordController::class, 'approve'])->name('expenses.approve')->middleware(['auth', 'XSS']);
     Route::post('expenses/{expense}/reject', [ExpenseRecordController::class, 'reject'])->name('expenses.reject')->middleware(['auth', 'XSS']);
+    Route::post('expenses/{expense}/execute', [ExpenseRecordController::class, 'execute'])->name('expenses.execute')->middleware(['auth', 'XSS']);
     Route::resource('expenses', ExpenseRecordController::class)->middleware(['auth', 'XSS']);
 
     });

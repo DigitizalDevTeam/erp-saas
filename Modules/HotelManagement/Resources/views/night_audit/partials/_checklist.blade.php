@@ -53,7 +53,9 @@
             <div class="col-md-4">
                 <div class="border rounded p-3 h-100">
                     <h6 class="small fw-semibold">{{ __('Housekeeping') }}</h6>
+                    <p class="small text-muted mb-2">{{ __('After night audit, all non-occupied rooms are marked dirty and queued for cleaners.') }}</p>
                     <p class="small mb-1">{{ __('Pending minibar restocks') }}: <strong>{{ $checklist['pending_minibar_restocks'] ?? 0 }}</strong></p>
+                    <a href="{{ route('hotel.housekeeping.index') }}" class="btn btn-sm btn-outline-primary me-1">{{ __('Housekeeping board') }}</a>
                     @if(($checklist['pending_minibar_restocks'] ?? 0) > 0)
                         <a href="{{ route('hotel.housekeeping.minibar') }}" class="btn btn-sm btn-outline-primary">{{ __('Daily minibar') }}</a>
                     @endif

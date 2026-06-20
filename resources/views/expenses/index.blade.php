@@ -33,7 +33,7 @@
                                     <th>{{ __('Branch') }}</th>
                                     <th>{{ __('Amount') }}</th>
                                     <th>{{ __('Status') }}</th>
-                                    @if(Gate::check('edit expense') || Gate::check('delete expense') || Gate::check('approve expense') || Gate::check('reject expense'))
+                                    @if(Gate::check('manage expense') || Gate::check('edit expense') || Gate::check('delete expense') || Gate::check('approve expense') || Gate::check('reject expense'))
                                         <th>{{ __('Action') }}</th>
                                     @endif
                                 </tr>
@@ -61,12 +61,14 @@
                                             @if($expense->status == \App\Models\Expense::STATUS_PENDING)
                                                 <span class="badge bg-warning">{{ __('Pending') }}</span>
                                             @elseif($expense->status == \App\Models\Expense::STATUS_APPROVED)
-                                                <span class="badge bg-success">{{ __('Approve') }}</span>
+                                                <span class="badge bg-success">{{ __('Approved') }}</span>
+                                            @elseif($expense->status == \App\Models\Expense::STATUS_EXECUTED)
+                                                <span class="badge bg-primary">{{ __('Executed') }}</span>
                                             @else
-                                                <span class="badge bg-danger">{{ __('Reject') }}</span>
+                                                <span class="badge bg-danger">{{ __('Rejected') }}</span>
                                             @endif
                                         </td>
-                                        @if(Gate::check('edit expense') || Gate::check('delete expense') || Gate::check('approve expense') || Gate::check('reject expense'))
+                                        @if(Gate::check('manage expense') || Gate::check('edit expense') || Gate::check('delete expense') || Gate::check('approve expense') || Gate::check('reject expense'))
                                             <td>
                                                 @can('approve expense')
                                                     @if($expense->status == \App\Models\Expense::STATUS_PENDING)
@@ -82,17 +84,28 @@
                                                         {!! Form::close() !!}
                                                     @endif
                                                 @endcan
+                                                @can('manage expense')
+                                                    @if(in_array($expense->status, [\App\Models\Expense::STATUS_APPROVED, \App\Models\Expense::STATUS_EXECUTED]))
+                                                        <div class="action-btn me-2 d-inline">
+                                                            <a href="#" data-url="{{ route('expenses.show', $expense->id) }}" data-size="lg" data-ajax-popup="true" data-title="{{ __('View Expense') }}" class="mx-1 btn btn-sm align-items-center bg-secondary" data-bs-toggle="tooltip" title="{{ $expense->status == \App\Models\Expense::STATUS_APPROVED ? __('View & Execute') : __('View') }}"><i class="ti ti-eye text-white"></i></a>
+                                                        </div>
+                                                    @endif
+                                                @endcan
                                                 @can('edit expense')
-                                                    <div class="action-btn me-2 d-inline">
-                                                        <a href="#" data-url="{{ route('expenses.edit', $expense->id) }}" data-size="lg" data-ajax-popup="true" data-title="{{ __('Edit Expense') }}" class="mx-1 btn btn-sm align-items-center bg-info" data-bs-toggle="tooltip" title="{{ __('Edit') }}"><i class="ti ti-pencil text-white"></i></a>
-                                                    </div>
+                                                    @if($expense->isEditable())
+                                                        <div class="action-btn me-2 d-inline">
+                                                            <a href="#" data-url="{{ route('expenses.edit', $expense->id) }}" data-size="lg" data-ajax-popup="true" data-title="{{ __('Edit Expense') }}" class="mx-1 btn btn-sm align-items-center bg-info" data-bs-toggle="tooltip" title="{{ __('Edit') }}"><i class="ti ti-pencil text-white"></i></a>
+                                                        </div>
+                                                    @endif
                                                 @endcan
                                                 @can('delete expense')
-                                                    <div class="action-btn d-inline">
-                                                        {!! Form::open(['method' => 'DELETE', 'route' => ['expenses.destroy', $expense->id], 'id' => 'delete-form-' . $expense->id]) !!}
-                                                        <a href="#" class="mx-1 btn btn-sm align-items-center bs-pass-para bg-danger" data-bs-toggle="tooltip" title="{{ __('Delete') }}" data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}" data-confirm-yes="document.getElementById('delete-form-{{ $expense->id }}').submit();"><i class="ti ti-trash text-white"></i></a>
-                                                        {!! Form::close() !!}
-                                                    </div>
+                                                    @if($expense->status != \App\Models\Expense::STATUS_APPROVED)
+                                                        <div class="action-btn d-inline">
+                                                            {!! Form::open(['method' => 'DELETE', 'route' => ['expenses.destroy', $expense->id], 'id' => 'delete-form-' . $expense->id]) !!}
+                                                            <a href="#" class="mx-1 btn btn-sm align-items-center bs-pass-para bg-danger" data-bs-toggle="tooltip" title="{{ __('Delete') }}" data-confirm="{{ __('Are You Sure?') . '|' . __('This action can not be undone. Do you want to continue?') }}" data-confirm-yes="document.getElementById('delete-form-{{ $expense->id }}').submit();"><i class="ti ti-trash text-white"></i></a>
+                                                            {!! Form::close() !!}
+                                                        </div>
+                                                    @endif
                                                 @endcan
                                             </td>
                                         @endif

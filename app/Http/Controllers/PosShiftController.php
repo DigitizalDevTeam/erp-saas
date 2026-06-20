@@ -408,7 +408,7 @@ class PosShiftController extends Controller
             $creditTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
             $cashDropsTotal = (float) PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');
             $cashInsTotal = (float) PosCashIn::where('shift_id', $pos_shift->id)->sum('amount');
-            $cashOutExpensesTotal = (float) Expense::where('pos_shift_id', $pos_shift->id)->where('created_by', \Auth::user()->creatorId())->where('status', Expense::STATUS_APPROVED)->sum('amount');
+            $cashOutExpensesTotal = (float) Expense::where('pos_shift_id', $pos_shift->id)->where('created_by', \Auth::user()->creatorId())->cashOutPosted()->sum('amount');
             $closingBalance = (float) $request->closing_balance;
             $expectedCash = $pos_shift->opening_balance + $cashTotal + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
             $difference = $closingBalance - $expectedCash;

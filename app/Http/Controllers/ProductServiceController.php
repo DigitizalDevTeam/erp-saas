@@ -22,6 +22,7 @@ use App\Models\ProductKitItem;
 use App\Models\ProductRecipe;
 use App\Models\ProductVariant;
 use App\Models\PurchaseProduct;
+use App\Services\BatchLotDeductionService;
 use App\Services\PosFefoDeductionService;
 use App\Services\ProductOptionService;
 use App\Models\ProductOptionItem;
@@ -655,6 +656,7 @@ class ProductServiceController extends Controller
             $productService->identifier_type              = in_array($request->identifier_type, ['serial', 'mac', 'both'], true) ? $request->identifier_type : 'serial';
             $productService->warranty_days                = $request->filled('warranty_days') ? (int) $request->warranty_days : null;
             $productService->expiry_alert_days            = $request->filled('expiry_alert_days') ? (int) $request->expiry_alert_days : null;
+            self::syncBatchTrackingFields($productService, $request);
             $productService->sale_chartaccount_id       = $request->sale_chartaccount_id;
             $productService->expense_chartaccount_id    = $request->expense_chartaccount_id;
             $productService->category_id                = $request->category_id;
@@ -932,6 +934,7 @@ class ProductServiceController extends Controller
                 $productService->identifier_type              = in_array($request->identifier_type, ['serial', 'mac', 'both'], true) ? $request->identifier_type : 'serial';
                 $productService->warranty_days                = $request->filled('warranty_days') ? (int) $request->warranty_days : null;
                 $productService->expiry_alert_days            = $request->filled('expiry_alert_days') ? (int) $request->expiry_alert_days : null;
+                self::syncBatchTrackingFields($productService, $request);
                 $productService->sale_chartaccount_id       = $request->sale_chartaccount_id;
                 $productService->expense_chartaccount_id    = $request->expense_chartaccount_id;
                 $productService->category_id                = $request->category_id;
@@ -2239,5 +2242,22 @@ class ProductServiceController extends Controller
                 ];
             })->values(),
         ]);
+    }
+
+    private static function syncBatchTrackingFields(ProductService $productService, Request $request): void
+    {
+        $stockTypes = ['product', 'ingredient'];
+        if (! in_array($productService->type ?? $request->type, $stockTypes, true)) {
+            $productService->batch_tracking = false;
+            $productService->batch_consumption_method = BatchLotDeductionService::METHOD_FEFO;
+
+            return;
+        }
+
+        $productService->batch_tracking = $request->boolean('batch_tracking');
+        $method = BatchLotDeductionService::normalizeMethod($request->input('batch_consumption_method'));
+        $productService->batch_consumption_method = $productService->batch_tracking
+            ? $method
+            : BatchLotDeductionService::METHOD_FEFO;
     }
 }
