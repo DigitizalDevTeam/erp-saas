@@ -33,6 +33,12 @@
 
 
 
+        <div class="form-group col-md-12 pos-print-routing-field {{ $category->type == 'product & service' ? '' : 'd-none' }}">
+            {{ Form::label('print_zone', __('Default print destination (Restaurant)'), ['class' => 'form-label']) }}
+            {{ Form::select('print_zone', ['' => __('Inherit / none'), 'kitchen' => __('Kitchen'), 'bar' => __('Bar'), 'both' => __('Both')], $category->print_zone ?? '', ['class' => 'form-control select']) }}
+            <small class="text-muted">{{ __('Products in this category print here unless overridden on the product.') }}</small>
+        </div>
+
         <div class="form-group col-md-12">
             {{ Form::label('color', __('Category Color'),['class'=>'form-label']) }}<x-required></x-required>
             {{ Form::text('color', null, array('class' => 'form-control jscolor','required'=>'required')) }}
@@ -52,20 +58,23 @@
 
     //hide & show chartofaccount
 
-    $(document).on('click', '.cattype', function ()
-    {
-        var type = $(this).val();
+    function toggleCategoryTypeFields(type) {
         if (type != 'product & service') {
-            $('.account').removeClass('d-none')
-            $('.account').addClass('d-block');
+            $('.account').removeClass('d-none').addClass('d-block');
+            $('.pos-print-routing-field').addClass('d-none').removeClass('d-block');
         } else {
-            $('.account').addClass('d-none')
-            $('.account').removeClass('d-block');
+            $('.account').addClass('d-none').removeClass('d-block');
+            $('.pos-print-routing-field').removeClass('d-none').addClass('d-block');
         }
+    }
+
+    $(document).on('click', '.cattype', function () {
+        toggleCategoryTypeFields($(this).val());
     });
 
     $(document).on('change', '#type', function () {
         var type = $(this).val();
+        toggleCategoryTypeFields(type);
 
         // filter parent options by selected type
         $('#parent_id option').each(function () {

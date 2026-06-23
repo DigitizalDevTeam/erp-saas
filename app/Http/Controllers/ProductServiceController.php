@@ -24,6 +24,7 @@ use App\Models\ProductVariant;
 use App\Models\PurchaseProduct;
 use App\Services\BatchLotDeductionService;
 use App\Services\PosFefoDeductionService;
+use App\Services\PosPrintRoutingService;
 use App\Services\ProductOptionService;
 use App\Models\ProductOptionItem;
 use Google\Service\Dataproc\Session;
@@ -1198,6 +1199,7 @@ class ProductServiceController extends Controller
             $products = $runQuery();
             if ($isPos && $products->isNotEmpty()) {
                 $eager = [
+                    'category',
                     'variants' => fn ($q) => $q->orderBy('sort_order')->orderBy('id'),
                 ];
                 if (Schema::hasTable('product_option_items') && Schema::hasColumn('product_services', 'options_enabled')) {
@@ -1257,7 +1259,8 @@ class ProductServiceController extends Controller
                         $productprice = $product->sale_price != 0 ? $product->sale_price : $product->purchase_price;
                     }
                     $taxRate = $taxRateMap[$product->tax_id ?? ''] ?? 0;
-                    $printZone = $product->print_zone ?? '';
+                    $printZone = PosPrintRoutingService::resolvePrintZoneForProduct($product);
+                    $printerId = PosPrintRoutingService::resolvePosPrinterIdForProduct($product) ?? '';
                     $variantsPayload = '[]';
                     if ($isPos && ($product->variants_enabled ?? false) && $product->relationLoaded('variants') && $product->variants->isNotEmpty()) {
                         $variantsPayload = htmlspecialchars(json_encode($product->variants->map(function ($v) use ($product) {
@@ -1292,7 +1295,7 @@ class ProductServiceController extends Controller
                     }
                     $dimUnit = $product->dimension_unit ?: ($product->unit->length_unit ?? 'cm');
                     $volDiv = $product->volumetric_divisor ?: ($product->unit->volumetric_divisor ?? '');
-                    $output .= '<div class="' . self::POS_PRODUCT_CARD_COL_CLASS . '"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\' data-options-enabled="' . $optionsEnabledAttr . '" data-options=\'' . $optionsPayload . '\' data-unit-type="' . e($product->unit_type ?? '') . '" data-dimension-unit="' . e($dimUnit) . '" data-volumetric-divisor="' . e((string) $volDiv) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded qty_badge">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Cart') . '</button></div></div></div></div></div>';
+                    $output .= '<div class="' . self::POS_PRODUCT_CARD_COL_CLASS . '"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-product-printer-id="' . e((string) $printerId) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\' data-options-enabled="' . $optionsEnabledAttr . '" data-options=\'' . $optionsPayload . '\' data-unit-type="' . e($product->unit_type ?? '') . '" data-dimension-unit="' . e($dimUnit) . '" data-volumetric-divisor="' . e((string) $volDiv) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="">' . $priceFormatted($productprice) . '<small class="badge badge-danger mb-0 rounded qty_badge">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Cart') . '</button></div></div></div></div></div>';
                 }
                 if ($cacheKey) {
                     Cache::put($cacheKey, $output, 90);
@@ -1339,7 +1342,7 @@ class ProductServiceController extends Controller
                     }
                 }
             }
-            $product = ProductService::with('category:id,name', 'posPrinter')->find($id);
+            $product = ProductService::with(['category', 'posPrinter'])->find($id);
             if ($product && ($product->type ?? '') === 'ingredient') {
                 return response()->json([
                     'code' => 422,
@@ -1548,9 +1551,16 @@ class ProductServiceController extends Controller
             $sku = $product->sku ?? '';
             $catName = $product->category ? $product->category->name : '';
             $taxDisplay = str_replace("'", "&#39;", strip_tags($product_tax));
-            $printZone = $product->print_zone ?? '';
-            $printerId = $product->posPrinter ? $product->posPrinter->id : '';
-            $printerName = $product->posPrinter ? e($product->posPrinter->name) : '';
+            $printZone = PosPrintRoutingService::resolvePrintZoneForProduct($product);
+            $printerId = PosPrintRoutingService::resolvePosPrinterIdForProduct($product);
+            $printerName = '';
+            if ($printerId) {
+                $resolvedPrinter = PosPrinter::find($printerId);
+                $printerName = $resolvedPrinter ? e($resolvedPrinter->name) : '';
+            } elseif ($product->posPrinter) {
+                $printerId = $product->posPrinter->id;
+                $printerName = e($product->posPrinter->name);
+            }
             $identifierTracking = (bool) ($product->identifier_tracking ?? false);
             if ($isPosSession) {
                 if ($request->get('restaurant') || $session_key === 'pos-restaurant') {
@@ -1652,6 +1662,9 @@ class ProductServiceController extends Controller
                 'measurement_json' => is_string($measurementJson) ? $measurementJson : null,
                 'selected_options' => $selectedOptions,
                 'selected_options_json' => $selectedOptionsJson,
+                'print_zone' => $printZone,
+                'pos_printer_id' => $printerId ?: null,
+                'printer_name' => $printerName ? strip_tags(html_entity_decode($printerName)) : '',
             ];
 
             // if cart is empty then this the first product

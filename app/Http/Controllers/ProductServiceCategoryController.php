@@ -76,6 +76,7 @@ class ProductServiceCategoryController extends Controller
             $category->color = $request->color;
             $category->type = $request->type;
             $category->parent_id = $request->filled('parent_id') ? (int) $request->parent_id : null;
+            $category->print_zone = $request->type === 'product & service' ? ($request->print_zone ?: null) : null;
             $category->chart_account_id = !empty($request->chart_account) ? $request->chart_account : 0;
             $category->created_by = \Auth::user()->creatorId();
             $category->save();
@@ -130,6 +131,7 @@ class ProductServiceCategoryController extends Controller
                 $category->color = $request->color;
                 $category->type = $request->type;
                 $category->parent_id = $request->filled('parent_id') ? (int) $request->parent_id : null;
+                $category->print_zone = $request->type === 'product & service' ? ($request->print_zone ?: null) : null;
                 $category->chart_account_id = !empty($request->chart_account) ? $request->chart_account : 0;
                 $category->save();
 

@@ -23,6 +23,7 @@ use App\Services\PosKitDeductionService;
 use App\Services\ProductOptionService;
 use App\Services\PosFefoDeductionService;
 use App\Services\PosRecipeDeductionService;
+use App\Services\PosPrintRoutingService;
 use App\Services\PosRestaurantRoleService;
 use App\Services\PosToInvoiceService;
 use App\Models\QuotationProduct;
@@ -2311,21 +2312,35 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $allCarts = $request->session()->get($cartKey, []);
         $sessionItems = isset($allCarts[$sessionCartKey]) ? array_values($allCarts[$sessionCartKey]) : [];
         $productIds = array_unique(array_filter(array_merge(array_column($orderLines, 'id'), array_column($sessionItems, 'id'))));
-        $productsWithPrinter = $productIds ? ProductService::whereIn('id', $productIds)->where('created_by', $creatorId)->with('posPrinter')->get()->keyBy('id') : collect();
+        $productsWithPrinter = $productIds ? ProductService::whereIn('id', $productIds)->where('created_by', $creatorId)->with(['posPrinter', 'category'])->get()->keyBy('id') : collect();
         foreach ($orderLines as &$line) {
-            if (!isset($line['pos_printer_id']) && isset($productsWithPrinter[$line['id']])) {
-                $pr = $productsWithPrinter[$line['id']]->posPrinter;
-                $line['pos_printer_id'] = $pr ? $pr->id : null;
-                $line['printer_name'] = $pr ? $pr->name : null;
+            if (isset($productsWithPrinter[$line['id']])) {
+                $product = $productsWithPrinter[$line['id']];
+                if (empty($line['print_zone'])) {
+                    $line['print_zone'] = PosPrintRoutingService::resolvePrintZoneForProduct($product);
+                }
+                if (empty($line['pos_printer_id'])) {
+                    $pr = $product->posPrinter;
+                    $printerId = PosPrintRoutingService::resolvePosPrinterIdForProduct($product);
+                    if ($printerId) {
+                        $pr = \App\Models\PosPrinter::find($printerId);
+                    }
+                    $line['pos_printer_id'] = $pr ? $pr->id : null;
+                    $line['printer_name'] = $pr ? $pr->name : null;
+                }
             }
         }
         foreach ($sessionItems as &$item) {
             $item = (array) $item;
             if (isset($productsWithPrinter[$item['id'] ?? 0])) {
-                $pr = $productsWithPrinter[$item['id']]->posPrinter;
+                $product = $productsWithPrinter[$item['id']];
+                $item['print_zone'] = PosPrintRoutingService::resolvePrintZoneForProduct($product);
+                $printerId = PosPrintRoutingService::resolvePosPrinterIdForProduct($product);
+                $pr = $printerId ? \App\Models\PosPrinter::find($printerId) : $product->posPrinter;
                 $item['pos_printer_id'] = $pr ? $pr->id : null;
                 $item['printer_name'] = $pr ? $pr->name : null;
             } else {
+                $item['print_zone'] = $item['print_zone'] ?? '';
                 $item['pos_printer_id'] = null;
                 $item['printer_name'] = null;
             }
@@ -2513,15 +2528,17 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         // Add only new lines (do not delete or change already-sent lines). Request items = unsent items to send.
         $printLines = [];
         $now = now();
+        $itemProductIds = collect($request->items)->pluck('id')->filter()->unique()->values()->all();
+        $productsById = $itemProductIds
+            ? ProductService::whereIn('id', $itemProductIds)->where('created_by', $creatorId)->with('category')->get()->keyBy('id')
+            : collect();
         foreach ($request->items as $item) {
-            $product = ProductService::where('id', $item['id'])->where('created_by', $creatorId)->first();
+            $product = $productsById->get($item['id']);
             if (!$product) {
                 continue;
             }
-            $printZone = $product->print_zone ?? PosProduct::PRINT_ZONE_KITCHEN;
-            if ($printZone !== PosProduct::PRINT_ZONE_BAR && $printZone !== PosProduct::PRINT_ZONE_BOTH) {
-                $printZone = PosProduct::PRINT_ZONE_KITCHEN;
-            }
+            $printZone = PosPrintRoutingService::resolvePrintZoneForProduct($product);
+            $resolvedPrinterId = PosPrintRoutingService::resolvePosPrinterIdForProduct($product);
             $taxId = is_string($product->tax_id ?? null) ? $product->tax_id : ($product->tax_id ?? '0');
             $variantId = isset($item['product_variant_id']) ? (int) $item['product_variant_id'] : null;
             if ($variantId !== null && $variantId <= 0) {
@@ -2542,7 +2559,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 'status' => PosProduct::STATUS_PENDING,
                 'sent_at' => $now,
                 'print_zone' => $printZone,
-                'pos_printer_id' => $product->pos_printer_id ?? null,
+                'pos_printer_id' => $resolvedPrinterId,
             ]);
             $printLines[] = [
                 'line_id' => (int) $line->id,
@@ -2550,7 +2567,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 'qty' => (int) $line->quantity,
                 'note' => (string) ($line->description ?? ''),
                 'print_zone' => (string) $printZone,
-                'pos_printer_id' => $line->pos_printer_id ? (int) $line->pos_printer_id : null,
+                'pos_printer_id' => $resolvedPrinterId ? (int) $resolvedPrinterId : null,
             ];
         }
 
@@ -2577,80 +2594,16 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'success' => true,
             'message' => __('Order sent to production.'),
             'pos_id' => $pos->id,
-            'print_jobs' => $this->buildProductionPrintJobs($branchId, $printLines),
+            'print_jobs' => PosPrintRoutingService::buildProductionPrintJobs($branchId, $creatorId, $printLines),
         ]);
     }
 
     /**
-     * Build deterministic print jobs from newly-sent lines.
-     * This avoids mixed order routing issues (food+drinks) caused by relying on stale DOM rows.
+     * @deprecated Use PosPrintRoutingService::buildProductionPrintJobs()
      */
     protected function buildProductionPrintJobs(int $branchId, array $lines): array
     {
-        if (empty($lines)) {
-            return [];
-        }
-
-        $printers = \App\Models\PosPrinter::where('branch_id', $branchId)
-            ->where('created_by', Auth::user()->creatorId())
-            ->get()
-            ->keyBy('id');
-        $jobs = [];
-
-        foreach ($lines as $line) {
-            $printerId = isset($line['pos_printer_id']) ? (int) $line['pos_printer_id'] : 0;
-            if ($printerId > 0) {
-                $pr = $printers->get($printerId);
-                $jobKey = 'printer_' . $printerId;
-                if (!isset($jobs[$jobKey])) {
-                    $jobs[$jobKey] = [
-                        'key' => $jobKey,
-                        'title' => $pr ? $pr->name : ('Printer ' . $printerId),
-                        'printer_id' => $printerId,
-                        'printer_type' => $pr->type ?? null,
-                        'rows' => [],
-                    ];
-                }
-                $jobs[$jobKey]['rows'][] = [
-                    'name' => (string) ($line['name'] ?? ''),
-                    'qty' => (int) ($line['qty'] ?? 0),
-                    'note' => (string) ($line['note'] ?? ''),
-                ];
-                continue;
-            }
-
-            $zone = (string) ($line['print_zone'] ?? PosProduct::PRINT_ZONE_KITCHEN);
-            $targets = [];
-            if ($zone === PosProduct::PRINT_ZONE_BOTH) {
-                $targets = ['kitchen', 'bar'];
-            } elseif ($zone === PosProduct::PRINT_ZONE_BAR) {
-                $targets = ['bar'];
-            } else {
-                $targets = ['kitchen'];
-            }
-
-            foreach ($targets as $target) {
-                $jobKey = 'zone_' . $target;
-                if (!isset($jobs[$jobKey])) {
-                    $jobs[$jobKey] = [
-                        'key' => $jobKey,
-                        'title' => $target === 'bar' ? __('pos.bar_slip') : __('pos.kitchen_slip'),
-                        'printer_id' => null,
-                        'printer_type' => $target,
-                        'rows' => [],
-                    ];
-                }
-                $jobs[$jobKey]['rows'][] = [
-                    'name' => (string) ($line['name'] ?? ''),
-                    'qty' => (int) ($line['qty'] ?? 0),
-                    'note' => (string) ($line['note'] ?? ''),
-                ];
-            }
-        }
-
-        return array_values(array_filter($jobs, function ($job) {
-            return !empty($job['rows']);
-        }));
+        return PosPrintRoutingService::buildProductionPrintJobs($branchId, Auth::user()->creatorId(), $lines);
     }
 
     /**

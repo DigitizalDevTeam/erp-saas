@@ -228,7 +228,7 @@
         <div class="form-group col-md-6 pos-only-field">
             {{ Form::label('print_zone', __('Print destination (Restaurant)'), ['class' => 'form-label']) }}
             {{ Form::select('print_zone', ['' => __('None'), 'kitchen' => __('Kitchen'), 'bar' => __('Bar'), 'both' => __('Both')], $productService->print_zone ?? '', ['class' => 'form-control select']) }}
-            <small class="text-muted">{{ __('Where this product prints when sent to production (Kitchen/Bar slip).') }}</small>
+            <small class="text-muted">{{ __('Where this product prints when sent to production (Kitchen/Bar slip). Leave empty to use the category default.') }}</small>
         </div>
         <div class="form-group col-md-6 pos-only-field">
             {{ Form::label('pos_printer_id', __('POS Printer'), ['class' => 'form-label']) }}

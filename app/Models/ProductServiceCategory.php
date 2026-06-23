@@ -11,6 +11,7 @@ class ProductServiceCategory extends Model
         'name',
         'type',
         'parent_id',
+        'print_zone',
         'created_by',
     ];
 

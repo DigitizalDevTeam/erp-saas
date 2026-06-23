@@ -1584,7 +1584,9 @@
                 <!--------------------- End POs System ----------------------------------->
 
                 <!--------------------- Start Hotel Management ---------------------------->
+                @if (isset(app('view')->getFinder()->getHints()['hotelmanagement']))
                 @include('hotelmanagement::menu.hotelmanagement')
+                @endif
                 <!--------------------- End Hotel Management ------------------------------>
 
                 {{-- Expense Management --}}
