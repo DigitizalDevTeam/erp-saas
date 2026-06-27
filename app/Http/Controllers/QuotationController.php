@@ -13,6 +13,7 @@ use App\Models\ProductService;
 use App\Models\WarehouseProduct;
 use App\Models\warehouse;
 use App\Models\QuotationProduct;
+use App\Models\Vender;
 use Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
@@ -47,6 +48,9 @@ class QuotationController extends Controller
             $customers     = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $customers->prepend('Select Customer', '');
 
+            $venders = Vender::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $venders->prepend('Select Vendor', '');
+
             $warehouse     = warehouse::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $warehouse->prepend('Select Warehouse', '');
 
@@ -54,7 +58,7 @@ class QuotationController extends Controller
 
             $quotation_number = \Auth::user()->quotationNumberFormat($this->quotationNumber());
 
-            return view('quotation.create', compact('customers','warehouse' , 'quotation_number'));
+            return view('quotation.create', compact('customers', 'venders', 'warehouse' , 'quotation_number'));
         }
         else
         {
@@ -65,7 +69,8 @@ class QuotationController extends Controller
 
     public function quotationCreate(Request $request)
     {
-        $customer = Customer::find($request->customer_id);
+        $customer = $request->filled('customer_id') ? Customer::find($request->customer_id) : null;
+        $vender = $request->filled('vender_id') ? Vender::find($request->vender_id) : null;
         $warehouse = warehouse::find($request->warehouse_id);
         $quotation_date = $request->quotation_date;
         $quotation_number = $request->quotation_number;
@@ -75,7 +80,7 @@ class QuotationController extends Controller
         $product_services = ProductService::where('created_by', \Auth::user()->creatorId())->whereIn('id',$warehouseProducts)->where('type','!=', 'service')->get()->pluck('name', 'id');
         $product_services->prepend(' -- ', '');
 
-        return view('quotation.quotation_create', compact('customer','warehouse' ,'quotation_date' , 'quotation_number','product_services'));
+        return view('quotation.quotation_create', compact('customer', 'vender', 'warehouse' ,'quotation_date' , 'quotation_number','product_services'));
     }
     /**
      * Store a newly created resource in storage.

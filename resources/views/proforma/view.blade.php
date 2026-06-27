@@ -16,13 +16,17 @@
 
 @section('action-btn')
     <div class="float-end">
-        @if ((int) $proforma->is_invoice_converted === 0)
-            @can('create invoice')
-                <a href="{{ route('proforma.issue-invoice.form', \Crypt::encrypt($proforma->id)) }}" class="btn btn-primary">{{ __('Create invoice') }}</a>
-            @endcan
-        @else
+        @if ((int) $proforma->is_invoice_converted === 1)
             @can('show invoice')
                 <a href="{{ route('invoice.show', \Crypt::encrypt($proforma->converted_invoice_id)) }}" class="btn btn-primary">{{ __('View invoice') }}</a>
+            @endcan
+        @elseif ((int) $proforma->is_purchase_converted === 1)
+            @can('show purchase')
+                <a href="{{ route('purchase.show', \Crypt::encrypt($proforma->converted_purchase_id)) }}" class="btn btn-primary">{{ __('View purchase order') }}</a>
+            @endcan
+        @else
+            @can('create purchase')
+                <a href="{{ route('proforma.convert-purchase.form', \Crypt::encrypt($proforma->id)) }}" class="btn btn-primary">{{ __('Convert to purchase order') }}</a>
             @endcan
         @endif
     </div>

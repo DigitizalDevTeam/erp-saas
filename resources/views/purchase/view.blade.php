@@ -17,18 +17,38 @@
 @section('content')
 
     @can('create bill')
-        @if (empty($purchase->converted_bill_id))
-            <div class="row mb-3">
-                <div class="col-12 text-end">
-                    <a href="{{ route('purchase.convert-vendor-bill', \Crypt::encrypt($purchase->id)) }}" class="btn btn-sm btn-primary">{{ __('Create vendor bill (from PO)') }}</a>
+        @if (empty($purchase->proforma_id))
+            @if (empty($purchase->converted_bill_id))
+                <div class="row mb-3">
+                    <div class="col-12 text-end">
+                        <a href="{{ route('purchase.convert-vendor-bill', \Crypt::encrypt($purchase->id)) }}" class="btn btn-sm btn-primary">{{ __('Create vendor bill (from PO)') }}</a>
+                    </div>
                 </div>
-            </div>
-        @else
-            <div class="row mb-3">
-                <div class="col-12 text-end">
-                    <a href="{{ route('bill.show', \Crypt::encrypt($purchase->converted_bill_id)) }}" class="btn btn-sm btn-outline-primary">{{ __('View vendor bill') }}</a>
+            @else
+                <div class="row mb-3">
+                    <div class="col-12 text-end">
+                        <a href="{{ route('bill.show', \Crypt::encrypt($purchase->converted_bill_id)) }}" class="btn btn-sm btn-outline-primary">{{ __('View vendor bill') }}</a>
+                    </div>
                 </div>
-            </div>
+            @endif
+        @endif
+    @endcan
+
+    @can('create invoice')
+        @if (! empty($purchase->proforma_id))
+            @if ((int) $purchase->is_invoice_converted === 0)
+                <div class="row mb-3">
+                    <div class="col-12 text-end">
+                        <a href="{{ route('purchase.issue-invoice.form', \Crypt::encrypt($purchase->id)) }}" class="btn btn-sm btn-primary">{{ __('Create invoice (from PO)') }}</a>
+                    </div>
+                </div>
+            @else
+                <div class="row mb-3">
+                    <div class="col-12 text-end">
+                        <a href="{{ route('invoice.show', \Crypt::encrypt($purchase->converted_invoice_id)) }}" class="btn btn-sm btn-outline-primary">{{ __('View invoice') }}</a>
+                    </div>
+                </div>
+            @endif
         @endif
     @endcan
 

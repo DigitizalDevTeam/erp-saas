@@ -5,6 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\BankAccount;
 use App\Models\Bill;
 use App\Models\CustomField;
+use App\Models\Invoice;
+use App\Models\InvoiceProduct;
+use App\Models\Proforma;
+use App\Models\StockReport;
+use App\Services\InvoiceSaleDeductionService;
 use App\Models\ProductService;
 use App\Models\ProductServiceCategory;
 use App\Models\Purchase;
@@ -15,7 +20,6 @@ use App\Models\ProductExpiryLot;
 use App\Models\ProductVariant;
 use App\Models\PurchaseProduct;
 use App\Models\PurchasePayment;
-use App\Models\StockReport;
 use App\Models\Transaction;
 use App\Models\Vender;
 use App\Models\User;
@@ -204,6 +208,9 @@ class PurchaseController extends Controller
             if ($request->filled('purchase_quotation_id')) {
                 $purchase->purchase_quotation_id = (int) $request->purchase_quotation_id;
             }
+            if ($request->filled('proforma_id')) {
+                $purchase->proforma_id = (int) $request->proforma_id;
+            }
             $purchase->save();
 
             $products = $request->items;
@@ -360,6 +367,18 @@ class PurchaseController extends Controller
                     ]);
             }
 
+            if ($request->filled('proforma_id')) {
+                Proforma::where('id', (int) $request->proforma_id)
+                    ->where('created_by', (int) \Auth::user()->creatorId())
+                    ->update([
+                        'converted_purchase_id' => $purchase->id,
+                        'is_purchase_converted' => 1,
+                    ]);
+
+                return redirect()->route('purchase.show', Crypt::encrypt($purchase->id))
+                    ->with('success', __('Purchase order created from proforma.'));
+            }
+
             return redirect()->route('purchase.index', $purchase->id)->with('success', __('Purchase successfully created.'));
         }
         else
@@ -427,6 +446,180 @@ class PurchaseController extends Controller
         });
 
         return redirect()->route('bill.show', Crypt::encrypt($bill->id))->with('success', __('Vendor bill created from purchase. Send the bill to post accounting entries.'));
+    }
+
+    /**
+     * Proforma chain: Purchase order → Sales invoice (customer).
+     */
+    public function issueInvoiceFromPurchaseForm($encryptedId)
+    {
+        if (! \Auth::user()->can('create invoice')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $pid = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid purchase.'));
+        }
+
+        $purchase = Purchase::with(['items', 'sourceProforma.items', 'sourceProforma.customer'])
+            ->where('created_by', \Auth::user()->creatorId())
+            ->find($pid);
+        if (! $purchase || empty($purchase->proforma_id)) {
+            return redirect()->back()->with('error', __('This purchase is not linked to a proforma.'));
+        }
+        if ((int) $purchase->is_invoice_converted === 1) {
+            return redirect()->route('invoice.show', Crypt::encrypt($purchase->converted_invoice_id))
+                ->with('info', __('Invoice already created.'));
+        }
+
+        $proforma = $purchase->sourceProforma;
+        if (! $proforma) {
+            return redirect()->back()->with('error', __('Proforma not found.'));
+        }
+
+        return view('purchase.issue_invoice', compact('purchase', 'proforma'));
+    }
+
+    public function issueInvoiceFromPurchaseStore(Request $request, $encryptedId)
+    {
+        if (! \Auth::user()->can('create invoice')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $pid = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid purchase.'));
+        }
+
+        $purchase = Purchase::with(['sourceProforma.items'])
+            ->where('created_by', \Auth::user()->creatorId())
+            ->find($pid);
+        if (! $purchase || empty($purchase->proforma_id)) {
+            return redirect()->back()->with('error', __('This purchase is not linked to a proforma.'));
+        }
+        if ((int) $purchase->is_invoice_converted === 1) {
+            return redirect()->route('invoice.show', Crypt::encrypt($purchase->converted_invoice_id))
+                ->with('info', __('Invoice already created.'));
+        }
+
+        $proforma = $purchase->sourceProforma;
+        if (! $proforma) {
+            return redirect()->back()->with('error', __('Proforma not found.'));
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'issue_date' => 'required|date',
+            'due_date' => 'required|date',
+            'category_id' => 'required|integer',
+        ]);
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', $validator->getMessageBag()->first());
+        }
+
+        $products = [];
+        foreach ($proforma->items as $line) {
+            $products[] = [
+                'item' => $line->product_id,
+                'quantity' => $line->quantity,
+                'price' => $line->price,
+                'tax' => $line->tax,
+                'discount' => $line->discount,
+                'description' => $line->description,
+                'identifiers' => null,
+                'measurement_json' => null,
+            ];
+        }
+
+        foreach ($products as $p) {
+            try {
+                InvoiceSaleDeductionService::validateTrackedIdentifiersForLine(
+                    (int) $p['item'],
+                    (float) $p['quantity'],
+                    (int) \Auth::user()->creatorId(),
+                    $p['identifiers'] ?? null
+                );
+            } catch (\Throwable $e) {
+                return redirect()->back()->with('error', $e->getMessage());
+            }
+        }
+
+        try {
+            $invoice = DB::transaction(function () use ($request, $products, $proforma, $purchase) {
+                $latest = Invoice::where('created_by', '=', \Auth::user()->creatorId())->latest('id')->first();
+                $nextNum = $latest ? (int) $latest->invoice_id + 1 : 1;
+
+                $invoice = new Invoice();
+                $invoice->invoice_id = $nextNum;
+                $invoice->customer_id = $proforma->customer_id;
+                $invoice->status = 0;
+                $invoice->issue_date = $request->issue_date;
+                $invoice->due_date = $request->due_date;
+                $invoice->category_id = $request->category_id;
+                $invoice->ref_number = $request->ref_number;
+                $invoice->billing_address_id = $request->billing_address ?? null;
+                $invoice->shipping_address_id = $request->shipping_address ?? null;
+                $invoice->quotation_id = $proforma->quotation_id;
+                $invoice->proforma_id = $proforma->id;
+                $invoice->purchase_id = $purchase->id;
+                $invoice->created_by = \Auth::user()->creatorId();
+                $invoice->save();
+
+                CustomField::saveData($invoice, $request->input('customField'));
+
+                StockReport::where('type', '=', 'invoice')->where('type_id', '=', $invoice->id)->delete();
+
+                $settings = Utility::settings();
+                $timing = $settings['stock_deduction_timing'] ?? 'invoice';
+
+                foreach ($products as $row) {
+                    $invoiceProduct = new InvoiceProduct();
+                    $invoiceProduct->invoice_id = $invoice->id;
+                    $invoiceProduct->product_id = $row['item'];
+                    $invoiceProduct->quantity = $row['quantity'];
+                    $invoiceProduct->tax = $row['tax'];
+                    $invoiceProduct->discount = $row['discount'];
+                    $invoiceProduct->price = $row['price'];
+                    $invoiceProduct->description = $row['description'];
+                    $invoiceProduct->identifiers = $row['identifiers'];
+                    $invoiceProduct->measurement_json = $row['measurement_json'];
+                    $invoiceProduct->save();
+
+                    if ($timing === 'invoice') {
+                        InvoiceSaleDeductionService::deductLine(
+                            (int) $invoiceProduct->product_id,
+                            (float) $invoiceProduct->quantity,
+                            (int) \Auth::user()->creatorId(),
+                            (int) $invoice->id,
+                            (int) $invoiceProduct->id,
+                            (int) $invoice->customer_id,
+                            \Auth::user()->invoiceNumberFormat($invoice->invoice_id),
+                            $invoiceProduct->identifiers
+                        );
+                    }
+                }
+
+                if ($timing === 'invoice' && empty($invoice->stock_deducted_at)) {
+                    $invoice->stock_deducted_at = now();
+                    $invoice->stock_deducted_via = 'invoice';
+                    $invoice->save();
+                }
+
+                $proforma->is_invoice_converted = 1;
+                $proforma->converted_invoice_id = $invoice->id;
+                $proforma->save();
+
+                $purchase->is_invoice_converted = 1;
+                $purchase->converted_invoice_id = $invoice->id;
+                $purchase->save();
+
+                return $invoice->fresh();
+            });
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('invoice.show', Crypt::encrypt($invoice->id))->with('success', __('Invoice created from purchase.'));
     }
 
     protected function vendorBillNextNumber(): int

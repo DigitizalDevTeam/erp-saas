@@ -11,6 +11,7 @@ class Invoice extends Model
         'pos_id',
         'quotation_id',
         'proforma_id',
+        'purchase_id',
         'customer_id',
         'issue_date',
         'due_date',
@@ -39,6 +40,11 @@ class Invoice extends Model
     public function sourceProforma()
     {
         return $this->belongsTo(Proforma::class, 'proforma_id');
+    }
+
+    public function sourcePurchase()
+    {
+        return $this->belongsTo(Purchase::class, 'purchase_id');
     }
 
     public static $statues = [

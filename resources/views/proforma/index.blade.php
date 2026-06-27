@@ -31,7 +31,7 @@
                                     <th>{{ __('Date') }}</th>
                                     <th>{{ __('Customer') }}</th>
                                     <th>{{ __('Warehouse') }}</th>
-                                    @if (Gate::check('edit quotation') || Gate::check('delete quotation') || Gate::check('create invoice'))
+                                    @if (Gate::check('edit quotation') || Gate::check('delete quotation') || Gate::check('create purchase') || Gate::check('create invoice'))
                                         <th>{{ __('Action') }}</th>
                                     @endif
                                 </tr>
@@ -47,27 +47,39 @@
                                         <td>{{ ! empty($proforma->customer) ? $proforma->customer->name : '' }}</td>
                                         <td>{{ ! empty($proforma->warehouse) ? $proforma->warehouse->name : '' }}</td>
 
-                                        @if (Gate::check('edit quotation') || Gate::check('delete quotation') || Gate::check('create invoice'))
+                                        @if (Gate::check('edit quotation') || Gate::check('delete quotation') || Gate::check('create purchase') || Gate::check('create invoice'))
                                             <td class="Action">
                                                 <span>
-                                                    @if ((int) $proforma->is_invoice_converted === 0)
-                                                        @can('create invoice')
+                                                    @if ((int) $proforma->is_invoice_converted === 1)
+                                                        @can('show invoice')
                                                             <div class="action-btn me-2">
-                                                                <a href="{{ route('proforma.issue-invoice.form', \Crypt::encrypt($proforma->id)) }}"
+                                                                <a href="{{ route('invoice.show', \Crypt::encrypt($proforma->converted_invoice_id)) }}"
                                                                     class="mx-3 btn btn-sm align-items-center bg-warning"
-                                                                    data-bs-toggle="tooltip" title="{{ __('Create invoice') }}">
-                                                                    <i class="ti ti-file-invoice text-white"></i>
+                                                                    data-bs-toggle="tooltip" title="{{ __('View invoice') }}">
+                                                                    <i class="ti ti-file text-white"></i>
+                                                                </a>
+                                                            </div>
+                                                        @endcan
+                                                    @elseif ((int) $proforma->is_purchase_converted === 1)
+                                                        @can('show purchase')
+                                                            <div class="action-btn me-2">
+                                                                <a href="{{ route('purchase.show', \Crypt::encrypt($proforma->converted_purchase_id)) }}"
+                                                                    class="mx-3 btn btn-sm align-items-center bg-primary"
+                                                                    data-bs-toggle="tooltip" title="{{ __('View purchase order') }}">
+                                                                    <i class="ti ti-shopping-cart text-white"></i>
                                                                 </a>
                                                             </div>
                                                         @endcan
                                                     @else
-                                                        <div class="action-btn me-2">
-                                                            <a href="{{ route('invoice.show', \Crypt::encrypt($proforma->converted_invoice_id)) }}"
-                                                                class="mx-3 btn btn-sm align-items-center bg-warning"
-                                                                data-bs-toggle="tooltip" title="{{ __('View invoice') }}">
-                                                                <i class="ti ti-file text-white"></i>
-                                                            </a>
-                                                        </div>
+                                                        @can('create purchase')
+                                                            <div class="action-btn me-2">
+                                                                <a href="{{ route('proforma.convert-purchase.form', \Crypt::encrypt($proforma->id)) }}"
+                                                                    class="mx-3 btn btn-sm align-items-center bg-warning"
+                                                                    data-bs-toggle="tooltip" title="{{ __('Convert to purchase order') }}">
+                                                                    <i class="ti ti-exchange text-white"></i>
+                                                                </a>
+                                                            </div>
+                                                        @endcan
                                                     @endif
 
                                                     @can('edit quotation')
