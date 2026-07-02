@@ -25,6 +25,25 @@ class AuthServiceProvider extends ServiceProvider
     {
         $this->registerPolicies();
 
+        Gate::before(function ($user, string $ability) {
+            if (! $user) {
+                return null;
+            }
+
+            $manageGrantsApprove = [
+                'approve journal entry' => 'manage journal entry',
+                'reject journal entry' => 'manage journal entry',
+                'approve expense' => 'manage expense',
+                'reject expense' => 'manage expense',
+            ];
+
+            if (isset($manageGrantsApprove[$ability]) && $user->can($manageGrantsApprove[$ability])) {
+                return true;
+            }
+
+            return null;
+        });
+
         Gate::define('access-company', function ($user, int $companyId) {
             return method_exists($user, 'canAccessCompany') ? $user->canAccessCompany($companyId) : false;
         });

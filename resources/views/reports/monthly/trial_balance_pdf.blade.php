@@ -80,9 +80,9 @@
         @foreach ($totalAccounts as $type => $accounts)
             @foreach ($accounts as $record)
                 @php
-                    if (!in_array($record['account'], ['parent', 'subAccount'])) {
-                        $totalDebit += $record['totalDebit'];
-                        $totalCredit += $record['totalCredit'];
+                    if (!in_array($record['account'] ?? '', ['parent', 'subAccount'])) {
+                        $totalDebit += (float) ($record['totalDebit'] ?? 0);
+                        $totalCredit += (float) ($record['totalCredit'] ?? 0);
                     }
 
                     $saldoDevedor = (float) ($record['balanceDebit'] ?? 0);
@@ -106,8 +106,8 @@
                             {{ $record['account_name'] }}
                         @endif
                     </td>
-                    <td class="text-end {{ ($record['account'] ?? '') === 'parent' ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormatWithoutCurrency($record['totalDebit']) }}</td>
-                    <td class="text-end {{ ($record['account'] ?? '') === 'parent' ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormatWithoutCurrency($record['totalCredit']) }}</td>
+                    <td class="text-end {{ ($record['account'] ?? '') === 'parent' ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormatWithoutCurrency($record['totalDebit'] ?? 0) }}</td>
+                    <td class="text-end {{ ($record['account'] ?? '') === 'parent' ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormatWithoutCurrency($record['totalCredit'] ?? 0) }}</td>
                     <td class="text-end {{ ($record['account'] ?? '') === 'parent' ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormatWithoutCurrency($saldoDevedor) }}</td>
                     <td class="text-end {{ ($record['account'] ?? '') === 'parent' ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormatWithoutCurrency($saldoCredor) }}</td>
                 </tr>

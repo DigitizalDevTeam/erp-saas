@@ -91,7 +91,7 @@ class EmployeeAttendanceScheduleService
                 'end' => $companyEnd,
                 'grace_minutes' => $grace,
                 'flexible' => false,
-                'crosses_midnight' => self::timesCrossMidnight($ws, $we),
+                'crosses_midnight' => self::timesCrossMidnight($companyStart, $companyEnd),
             ];
         }
 

@@ -102,9 +102,9 @@
 
                                     @foreach ($accounts as $record)
                                         @php
-                                            if (!in_array($record['account'], ['parent', 'subAccount'])) {
-                                                $totalDebit += $record['totalDebit'];
-                                                $totalCredit += $record['totalCredit'];
+                                            if (!in_array($record['account'] ?? '', ['parent', 'subAccount'])) {
+                                                $totalDebit += (float) ($record['totalDebit'] ?? 0);
+                                                $totalCredit += (float) ($record['totalCredit'] ?? 0);
                                             }
                                         @endphp
 
@@ -117,8 +117,8 @@
                                                 @endif
                                             </td>
                                             <td class="text-center">{{ $record['account_code'] }}</td>
-                                            <td class="text-end">{{ \Auth::user()->priceFormat($record['totalDebit']) }}</td>
-                                            <td class="text-end">{{ \Auth::user()->priceFormat($record['totalCredit']) }}</td>
+                                            <td class="text-end">{{ \Auth::user()->priceFormat($record['totalDebit'] ?? 0) }}</td>
+                                            <td class="text-end">{{ \Auth::user()->priceFormat($record['totalCredit'] ?? 0) }}</td>
                                         </tr>
                                     @endforeach
                                 @endforeach

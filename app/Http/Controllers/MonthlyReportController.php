@@ -138,8 +138,8 @@ class MonthlyReportController extends Controller
                             'account_code' => $account['code'],
                             'account_name' => $account['name'],
                             'account' => 'parent',
-                            'totalCredit' => $account['totalCredit'],
-                            'totalDebit' => $account['totalDebit'],
+                            'totalCredit' => (float) ($account['totalCredit'] ?? 0),
+                            'totalDebit' => (float) ($account['totalDebit'] ?? 0),
                         ];
 
                         $parentAccountArray[] = $data;
@@ -153,8 +153,8 @@ class MonthlyReportController extends Controller
                             'account_code' => $account['code'],
                             'account_name' => $account['name'],
                             'account' => 'subAccount',
-                            'totalCredit' => $account['totalCredit'],
-                            'totalDebit' => $account['totalDebit'],
+                            'totalCredit' => (float) ($account['totalCredit'] ?? 0),
+                            'totalDebit' => (float) ($account['totalDebit'] ?? 0),
                         ];
 
                         $parentAccountArray[] = $data;
@@ -188,27 +188,30 @@ class MonthlyReportController extends Controller
             $accounts = $accounts->get()->toArray();
 
             $name = $type->name;
-            if (isset($totalAccount[$name])) {
-                $totalAccount[$name]["totalCredit"] += $accounts["totalCredit"];
-                $totalAccount[$name]["totalDebit"] += $accounts["totalDebit"];
-            } else {
-                $totalAccount[$name] = $accounts;
+            if (!isset($totalAccount[$name])) {
+                $totalAccount[$name] = [];
             }
 
-            if ($totalParentAccountArray != []) {
-                $totalAccount[$name] = array_merge_recursive($totalAccount[$name], $totalParentAccountArray[0]);
+            $totalAccount[$name] = array_merge($totalAccount[$name], $accounts);
+
+            foreach ($totalParentAccountArray as $parentGroup) {
+                $totalAccount[$name] = array_merge($totalAccount[$name], $parentGroup);
             }
         }
 
         foreach ($totalAccount as $category => $entries) {
             foreach ($entries as $entry) {
+                if (!is_array($entry) || !array_key_exists('account_name', $entry)) {
+                    continue;
+                }
+
                 $name = $entry['account_name'];
                 if (!isset($totalAccounts[$category][$name])) {
                     $totalAccounts[$category][$name] = [
-                        'account_id' => $entry['account_id'],
-                        'account_code' => $entry['account_code'],
+                        'account_id' => $entry['account_id'] ?? null,
+                        'account_code' => $entry['account_code'] ?? '',
                         'account_name' => $name,
-                        'account' => isset($entry['account']) ? $entry['account'] : '',
+                        'account' => $entry['account'] ?? '',
                         'totalDebit' => 0,
                         'totalCredit' => 0,
                     ];
