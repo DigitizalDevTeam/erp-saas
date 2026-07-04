@@ -2,237 +2,38 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ChartOfAccountParent;
-use App\Models\ChartOfAccountType;
-use App\Models\TransactionLines;
+use App\Services\TrialBalanceReportService;
 use Illuminate\Http\Request;
 use Spatie\Browsershot\Browsershot;
 
 class MonthlyReportController extends Controller
 {
-    /**
-     * Base balance logic used by trial balance style reports:
-     * A = totalDebit, B = totalCredit
-     * If A > B => debit balance, If B > A => credit balance, else zero.
-     */
-    private function applyBaseBalanceLogic(array $entry): array
-    {
-        $debit = (float) ($entry['totalDebit'] ?? 0);
-        $credit = (float) ($entry['totalCredit'] ?? 0);
-
-        $entry['totalDebit'] = $debit;
-        $entry['totalCredit'] = $credit;
-        $entry['balanceDebit'] = $debit > $credit ? ($debit - $credit) : 0.0;
-        $entry['balanceCredit'] = $credit > $debit ? ($credit - $debit) : 0.0;
-
-        return $entry;
-    }
-
     public function trialBalance(Request $request, $view = 'government')
     {
         if (!\Auth::user()->can('trial balance report')) {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 
-        $ulane = auth()->user()->lang ?? 'en';
-        $nameColumn = match ($ulane) {
-            'fr' => 'name_fr',
-            'zh' => 'name_zh',
-            'es' => 'name_es',
-            'pt' => 'name_pt_br',
-            default => 'name',
-        };
-        $nameExpr = "COALESCE(NULLIF(chart_of_accounts.{$nameColumn},''), chart_of_accounts.name)";
-
         if (!empty($request->start_date) && !empty($request->end_date)) {
             $start = $request->start_date;
             $end = $request->end_date;
         } else {
-            // Default: current year to today (inclusive)
             $start = date('Y-01-01');
             $end = date('Y-m-d');
         }
-        
-        $ulane = auth()->user()->lang ?? 'en';
-        $name_column = match ($ulane) {
-            'fr' => 'name_fr',
-            'zh' => 'name_zh',
-            'es' => 'name_es',
-            'pt' => 'name_pt_br',
-            default => 'name',
-        };
 
-        $types = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->get();
-        $totalAccounts = [];
-        $totalAccount = [];
+        $report = app(TrialBalanceReportService::class)->build(
+            (int) \Auth::user()->creatorId(),
+            $start,
+            $end,
+            'expand'
+        );
 
-        foreach ($types as $type) {
-            $parentAccounts = ChartOfAccountParent::where('type', $type->id)
-                ->where('created_by', \Auth::user()->creatorId())
-                ->get();
+        $filter = $report['filter'];
+        $totalAccounts = $report['totalAccounts'];
+        $grandTotalDebit = $report['grandTotalDebit'];
+        $grandTotalCredit = $report['grandTotalCredit'];
 
-            $totalParentAccountArray = [];
-
-            if ($parentAccounts->isNotEmpty()) {
-                foreach ($parentAccounts as $parentAccount) {
-                    $parentAccountArray = [];
-                    $parentAccountArrayTotal = [];
-
-                    $parentAccs = TransactionLines::select(
-                        'chart_of_accounts.id',
-                        'chart_of_accounts.code',
-                        \DB::raw("{$nameExpr} as name"),
-                        \DB::raw('sum(debit) as totalDebit'),
-                        \DB::raw('sum(credit) as totalCredit')
-                    );
-                    $parentAccs->leftjoin('chart_of_accounts', 'transaction_lines.account_id', 'chart_of_accounts.id');
-                    $parentAccs->leftjoin('chart_of_account_types', 'chart_of_accounts.type', 'chart_of_account_types.id');
-                    $parentAccs->where('chart_of_accounts.type', $type->id);
-                    $parentAccs->where('chart_of_accounts.name', $parentAccount->name);
-                    $parentAccs->where('transaction_lines.created_by', \Auth::user()->creatorId());
-                    $parentAccs->where('transaction_lines.date', '>=', $start);
-                    $parentAccs->where('transaction_lines.date', '<=', $end);
-                    $parentAccs->groupBy('account_id');
-                    $parentAccs = $parentAccs->get()->toArray();
-
-                    $accounts = TransactionLines::select(
-                        'chart_of_accounts.id',
-                        'chart_of_accounts.code',
-                        \DB::raw("{$nameExpr} as name"),
-                        \DB::raw('sum(debit) as totalDebit'),
-                        \DB::raw('sum(credit) as totalCredit')
-                    );
-                    $accounts->leftjoin('chart_of_accounts', 'transaction_lines.account_id', 'chart_of_accounts.id');
-                    $accounts->where('chart_of_accounts.type', $type->id);
-                    $accounts->where('chart_of_accounts.parent', $parentAccount->id);
-                    $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
-                    $accounts->where('transaction_lines.date', '>=', $start);
-                    $accounts->where('transaction_lines.date', '<=', $end);
-                    $accounts->groupBy('account_id');
-                    $accounts = $accounts->get()->toArray();
-
-                    if ($parentAccs == [] && $accounts != []) {
-                        // Keep behavior consistent with ReportController: show parent with zeros if it exists but has no direct txns
-                        $parentAccs = \App\Models\ChartOfAccount::select(
-                            'chart_of_accounts.id',
-                            'chart_of_accounts.code',
-                            \DB::raw("{$nameExpr} as name"),
-                            \DB::raw('0 as totalDebit'),
-                            \DB::raw('0 as totalCredit')
-                        );
-                        $parentAccs->leftjoin('chart_of_account_parents', 'chart_of_accounts.id', 'chart_of_account_parents.account');
-                        $parentAccs->where('chart_of_accounts.type', $type->id);
-                        $parentAccs->where('chart_of_accounts.name', $parentAccount->name);
-                        $parentAccs->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
-                        $parentAccs = $parentAccs->get()->toArray();
-                    } elseif ($parentAccs != [] && $accounts == []) {
-                        $parentAccs = [];
-                    }
-
-                    $parentcreditTotal = 0;
-                    $parenntdebitTotal = 0;
-
-                    foreach ($parentAccs as $account) {
-                        $data = [
-                            'account_id' => $account['id'],
-                            'account_code' => $account['code'],
-                            'account_name' => $account['name'],
-                            'account' => 'parent',
-                            'totalCredit' => (float) ($account['totalCredit'] ?? 0),
-                            'totalDebit' => (float) ($account['totalDebit'] ?? 0),
-                        ];
-
-                        $parentAccountArray[] = $data;
-                        $parentcreditTotal += $data['totalCredit'];
-                        $parenntdebitTotal += $data['totalDebit'];
-                    }
-
-                    foreach ($accounts as $account) {
-                        $data = [
-                            'account_id' => $account['id'],
-                            'account_code' => $account['code'],
-                            'account_name' => $account['name'],
-                            'account' => 'subAccount',
-                            'totalCredit' => (float) ($account['totalCredit'] ?? 0),
-                            'totalDebit' => (float) ($account['totalDebit'] ?? 0),
-                        ];
-
-                        $parentAccountArray[] = $data;
-                        $parentcreditTotal += $data['totalCredit'];
-                        $parenntdebitTotal += $data['totalDebit'];
-                    }
-
-                   
-
-                    if ($parentAccountArray != []) {
-                        $totalArray = array_merge($parentAccountArray, $parentAccountArrayTotal);
-                        $totalParentAccountArray[] = $totalArray;
-                    }
-                }
-            }
-
-            $accounts = TransactionLines::select(
-                'chart_of_accounts.id as account_id',
-                'chart_of_accounts.code as account_code',
-                        \DB::raw("{$nameExpr} as account_name"),
-                \DB::raw('sum(debit) as totalDebit'),
-                \DB::raw('sum(credit) as totalCredit')
-            );
-            $accounts->leftjoin('chart_of_accounts', 'transaction_lines.account_id', 'chart_of_accounts.id');
-            $accounts->leftjoin('chart_of_account_types', 'chart_of_accounts.type', 'chart_of_account_types.id');
-            $accounts->where('chart_of_accounts.type', $type->id);
-            $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
-            $accounts->where('transaction_lines.date', '>=', $start);
-            $accounts->where('transaction_lines.date', '<=', $end);
-            $accounts->groupBy('account_id');
-            $accounts = $accounts->get()->toArray();
-
-            $name = $type->name;
-            if (!isset($totalAccount[$name])) {
-                $totalAccount[$name] = [];
-            }
-
-            $totalAccount[$name] = array_merge($totalAccount[$name], $accounts);
-
-            foreach ($totalParentAccountArray as $parentGroup) {
-                $totalAccount[$name] = array_merge($totalAccount[$name], $parentGroup);
-            }
-        }
-
-        foreach ($totalAccount as $category => $entries) {
-            foreach ($entries as $entry) {
-                if (!is_array($entry) || !array_key_exists('account_name', $entry)) {
-                    continue;
-                }
-
-                $name = $entry['account_name'];
-                if (!isset($totalAccounts[$category][$name])) {
-                    $totalAccounts[$category][$name] = [
-                        'account_id' => $entry['account_id'] ?? null,
-                        'account_code' => $entry['account_code'] ?? '',
-                        'account_name' => $name,
-                        'account' => $entry['account'] ?? '',
-                        'totalDebit' => 0,
-                        'totalCredit' => 0,
-                    ];
-                }
-                $totalAccounts[$category][$name]['totalDebit'] += (float) ($entry['totalDebit'] ?? 0);
-                $totalAccounts[$category][$name]['totalCredit'] += (float) ($entry['totalCredit'] ?? 0);
-            }
-        }
-
-        foreach ($totalAccounts as $category => $entries) {
-            foreach ($entries as $name => $entry) {
-                $totalAccounts[$category][$name] = $this->applyBaseBalanceLogic($entry);
-            }
-        }
-
-        $filter = [
-            'startDateRange' => $start,
-            'endDateRange' => $end,
-        ];
-
-        // The "government" view is intentionally a separate Blade file so you can edit layout freely.
         $blade = $view === 'classic' ? 'report.trial_balance' : 'reports.monthly.trial_balance';
 
         if ($request->query('download') === 'pdf') {
@@ -245,12 +46,12 @@ class MonthlyReportController extends Controller
             if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
                 return \Barryvdh\DomPDF\Facade\Pdf::loadView(
                     'reports.monthly.trial_balance_pdf',
-                    compact('filter', 'totalAccounts', 'view')
+                    compact('filter', 'totalAccounts', 'view', 'grandTotalDebit', 'grandTotalCredit')
                 )->setPaper('a4')->download($fileName);
             }
 
             try {
-                $html = view('reports.monthly.trial_balance_pdf', compact('filter', 'totalAccounts', 'view'))->render();
+                $html = view('reports.monthly.trial_balance_pdf', compact('filter', 'totalAccounts', 'view', 'grandTotalDebit', 'grandTotalCredit'))->render();
                 $pdfBinary = Browsershot::html($html)
                     ->showBackground()
                     ->format('A4')
@@ -272,7 +73,16 @@ class MonthlyReportController extends Controller
             }
         }
 
-        return view($blade, compact('filter', 'totalAccounts', 'view'));
+        if ($view === 'classic') {
+            return view($blade, [
+                'filter' => $filter,
+                'totalAccounts' => $totalAccounts,
+                'grandTotalDebit' => $grandTotalDebit,
+                'grandTotalCredit' => $grandTotalCredit,
+                'view' => 'expand',
+            ]);
+        }
+
+        return view($blade, compact('filter', 'totalAccounts', 'view', 'grandTotalDebit', 'grandTotalCredit'));
     }
 }
-

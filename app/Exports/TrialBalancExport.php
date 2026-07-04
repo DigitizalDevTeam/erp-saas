@@ -24,12 +24,13 @@ class TrialBalancExport implements FromArray , WithHeadings , WithStyles, WithCu
     * @return \Illuminate\Support\Collection
     */
 
-    public function __construct($data , $startDate, $endDate, $companyName)
+    public function __construct($data , $startDate, $endDate, $companyName, ?float $grandTotalDebit = null, ?float $grandTotalCredit = null)
     {
 
         $formattedData = [];
-        $totalDebit = 0;
-        $totalCredit = 0;
+        $totalDebit = $grandTotalDebit ?? 0;
+        $totalCredit = $grandTotalCredit ?? 0;
+        $computeGrandTotal = $grandTotalDebit === null;
 
         foreach($data as $key => $type)
         {
@@ -49,29 +50,19 @@ class TrialBalancExport implements FromArray , WithHeadings , WithStyles, WithCu
 
             foreach($type as $account)
             {
-                if($account['account'] == 'parent' || $account['account'] == 'parentTotal')
-                {
-                    $formattedData[] = [
-                        'Account Name' => '  '.$account['account_name'],
-                        'Account No'   => $account['account_code'],
-                        'Debit'        => $account['totalDebit'],
-                        'Credit'       => $account['totalCredit'],
-                    ];
-                }
-                else
-                {
-                    $formattedData[] = [
-                        'Account Name' => '    ' . $account['account_name'],
-                        'Account No'   => $account['account_code'],
-                        'Debit'        => $account['totalDebit'],
-                        'Credit'       => $account['totalCredit'],
-                    ];
-                }
+                $role = $account['account'] ?? '';
+                $isParent = $role === 'parent' || $role === 'parentTotal';
 
-                if($account['account'] != 'parent' && $account['account'] != 'subAccount')
-                {
-                $totalDebit += $account['totalDebit'];
-                $totalCredit += $account['totalCredit'];
+                $formattedData[] = [
+                    'Account Name' => ($isParent ? '  ' : '    ') . $account['account_name'],
+                    'Account No'   => $account['account_code'],
+                    'Debit'        => $account['totalDebit'],
+                    'Credit'       => $account['totalCredit'],
+                ];
+
+                if ($computeGrandTotal && ! in_array($role, ['parent', 'subAccount'], true)) {
+                    $totalDebit += (float) ($account['totalDebit'] ?? 0);
+                    $totalCredit += (float) ($account['totalCredit'] ?? 0);
                 }
             }
 

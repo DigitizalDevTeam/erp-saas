@@ -12,6 +12,8 @@ use App\Exports\PosSalesByCategoryExport;
 use App\Exports\ReceivableExport;
 use App\Exports\SalesReportExport;
 use App\Exports\TrialBalancExport;
+use App\Services\BalanceSheetReportService;
+use App\Services\TrialBalanceReportService;
 use App\Models\AttendanceEmployee;
 use App\Models\BankAccount;
 use App\Models\Bill;
@@ -1247,55 +1249,12 @@ class ReportController extends Controller
 
         $currentStart = !empty($request->start_date) ? Carbon::parse($request->start_date) : Carbon::now()->startOfYear();
         $currentEnd = !empty($request->end_date) ? Carbon::parse($request->end_date) : Carbon::now();
-        if ($currentStart->gt($currentEnd)) {
-            [$currentStart, $currentEnd] = [$currentEnd->copy(), $currentStart->copy()];
-        }
 
-        $previousStart = $currentStart->copy()->subYear();
-        $previousEnd = $currentEnd->copy()->subYear();
-        $creatorId = \Auth::user()->creatorId();
-
-        $lineMappings = [
-            ['section' => 'Assets', 'label' => 'Fixed Assets', 'code_label' => '32', 'prefixes' => ['32']],
-            ['section' => 'Assets', 'label' => 'Intangible Assets', 'code_label' => '33', 'prefixes' => ['33']],
-            ['section' => 'Assets', 'label' => 'Inventory', 'code_label' => '21', 'prefixes' => ['21']],
-            ['section' => 'Assets', 'label' => 'Clients', 'code_label' => '411', 'prefixes' => ['411']],
-            ['section' => 'Assets', 'label' => 'Cash / Bank', 'code_label' => '11,12', 'prefixes' => ['11', '12']],
-            ['section' => 'Liabilities', 'label' => 'Tax Payable', 'code_label' => '4437', 'prefixes' => ['4437']],
-            ['section' => 'Equity', 'label' => 'Equity', 'code_label' => '59', 'prefixes' => ['59']],
-        ];
-
-        $rows = [];
-        foreach ($lineMappings as $mapping) {
-            $rows[] = [
-                'section' => $mapping['section'],
-                'label' => $mapping['label'],
-                'code_label' => $mapping['code_label'],
-                'current_year' => $this->sumBalanceByCodePrefixes($mapping['prefixes'], $currentStart, $currentEnd, $creatorId),
-                'previous_year' => $this->sumBalanceByCodePrefixes($mapping['prefixes'], $previousStart, $previousEnd, $creatorId),
-            ];
-        }
-
-        $assetsCurrent = collect($rows)->where('section', 'Assets')->sum('current_year');
-        $assetsPrevious = collect($rows)->where('section', 'Assets')->sum('previous_year');
-        $liabilitiesCurrent = collect($rows)->where('section', 'Liabilities')->sum('current_year');
-        $liabilitiesPrevious = collect($rows)->where('section', 'Liabilities')->sum('previous_year');
-        $equityCurrent = collect($rows)->where('section', 'Equity')->sum('current_year');
-        $equityPrevious = collect($rows)->where('section', 'Equity')->sum('previous_year');
-
-        $totals = [
-            'assets' => ['current' => $assetsCurrent, 'previous' => $assetsPrevious],
-            'liabilities' => ['current' => $liabilitiesCurrent, 'previous' => $liabilitiesPrevious],
-            'equity' => ['current' => $equityCurrent, 'previous' => $equityPrevious],
-            'equity_liabilities' => [
-                'current' => $equityCurrent + $liabilitiesCurrent,
-                'previous' => $equityPrevious + $liabilitiesPrevious,
-            ],
-            'difference' => [
-                'current' => $assetsCurrent - ($equityCurrent + $liabilitiesCurrent),
-                'previous' => $assetsPrevious - ($equityPrevious + $liabilitiesPrevious),
-            ],
-        ];
+        $report = app(BalanceSheetReportService::class)->build(
+            (int) \Auth::user()->creatorId(),
+            $currentStart,
+            $currentEnd
+        );
 
         $settings = Utility::settings();
         $header = [
@@ -1304,32 +1263,13 @@ class ReportController extends Controller
             'currency' => $settings['site_currency'] ?? 'USD',
         ];
 
-        $filter = [
-            'startDateRange' => $currentStart->format('Y-m-d'),
-            'endDateRange' => $currentEnd->format('Y-m-d'),
-            'previousStartDateRange' => $previousStart->format('Y-m-d'),
-            'previousEndDateRange' => $previousEnd->format('Y-m-d'),
-            'currentYear' => (string) Carbon::now()->year,
-            'previousYear' => (string) (Carbon::now()->year - 1),
-        ];
-
-        return view('report.balance_sheet', compact('filter', 'collapseview', 'rows', 'totals', 'header'));
-    }
-
-    private function sumBalanceByCodePrefixes(array $prefixes, Carbon $start, Carbon $end, int $creatorId): float
-    {
-        $query = TransactionLines::select(\DB::raw('COALESCE(SUM(transaction_lines.credit - transaction_lines.debit),0) as balance'))
-            ->join('chart_of_accounts', 'transaction_lines.account_id', '=', 'chart_of_accounts.id')
-            ->where('transaction_lines.created_by', $creatorId)
-            ->whereBetween('transaction_lines.date', [$start->toDateString(), $end->toDateString()]);
-
-        $query->where(function ($q) use ($prefixes) {
-            foreach ($prefixes as $prefix) {
-                $q->orWhere('chart_of_accounts.code', 'like', $prefix . '%');
-            }
-        });
-
-        return (float) ($query->value('balance') ?? 0);
+        return view('report.balance_sheet', [
+            'filter' => $report['filter'],
+            'collapseview' => $collapseview,
+            'rows' => $report['rows'],
+            'totals' => $report['totals'],
+            'header' => $header,
+        ]);
     }
 
     public function ledgerSummary(Request $request, $account = '')
@@ -1394,181 +1334,25 @@ class ReportController extends Controller
                 $start = date('Y-01-01');
                 $end = date('Y-m-d', strtotime('+1 day'));
             }
-            $types = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->get();
-            $totalAccounts = [];
-            $totalAccount = [];
-            foreach ($types as $type) {
 
-                // $type->id = 4;
-                $parentAccounts = ChartOfAccountParent::where('type', $type->id)->where('created_by', \Auth::user()->creatorId())->get();
-
-                $totalParentAccountArray = [];
-                if ($parentAccounts->isNotEmpty()) {
-                    foreach ($parentAccounts as $parentAccount) {
-                        $totalArray = [];
-                        $parentAccountArray = [];
-                        $parentAccountArrayTotal = [];
-
-                        $parentAccs = TransactionLines::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', \DB::raw('sum(debit) as totalDebit'), \DB::raw('sum(credit) as totalCredit'));
-                        $parentAccs->leftjoin('chart_of_accounts', 'transaction_lines.account_id', 'chart_of_accounts.id');
-                        $parentAccs->leftjoin('chart_of_account_types', 'chart_of_accounts.type', 'chart_of_account_types.id');
-                        $parentAccs->where('chart_of_accounts.type', $type->id);
-                        $parentAccs->where('chart_of_accounts.name', $parentAccount->name);
-                        $parentAccs->where('transaction_lines.created_by', \Auth::user()->creatorId());
-                        $parentAccs->where('transaction_lines.date', '>=', $start);
-                        $parentAccs->where('transaction_lines.date', '<=', $end);
-                        $parentAccs->groupBy('account_id');
-                        $parentAccs = $parentAccs->get()->toArray();
-
-                        $accounts = TransactionLines::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', \DB::raw('sum(debit) as totalDebit'), \DB::raw('sum(credit) as totalCredit'));
-                        $accounts->leftjoin('chart_of_accounts', 'transaction_lines.account_id', 'chart_of_accounts.id');
-                        $accounts->where('chart_of_accounts.type', $type->id);
-                        $accounts->where('chart_of_accounts.parent', $parentAccount->id);
-                        $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
-                        $accounts->where('transaction_lines.date', '>=', $start);
-                        $accounts->where('transaction_lines.date', '<=', $end);
-                        $accounts->groupBy('account_id');
-                        $accounts = $accounts->get()->toArray();
-
-                        if ($parentAccs == [] && $accounts != []) {
-
-                            $parentAccs = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', \DB::raw('0 as totalDebit'), \DB::raw('0 as totalCredit'));
-                            $parentAccs->leftjoin('chart_of_account_parents', 'chart_of_accounts.id', 'chart_of_account_parents.account');
-                            $parentAccs->where('chart_of_accounts.type', $type->id);
-                            $parentAccs->where('chart_of_accounts.name', $parentAccount->name);
-                            $parentAccs->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
-                            $parentAccs = $parentAccs->get()->toArray();
-                        } elseif ($parentAccs != [] && $accounts == []) {
-                            $parentAccs = [];
-
-                        }
-
-                        $parenttotalBalance = 0;
-                        $parentcreditTotal = 0;
-                        $parenntdebitTotal = 0;
-                        $parenttotalAmount = 0;
-
-                        foreach ($parentAccs as $account) {
-                            $Balance = $account['totalCredit'] - $account['totalDebit'];
-                            $parenttotalBalance += $Balance;
-
-                            $data = [
-                                'account_id' => $account['id'],
-                                'account_code' => $account['code'],
-                                'account_name' => $account['name'],
-                                'account' => 'parent',
-                                'totalCredit' => $account['totalCredit'],
-                                'totalDebit' => $account['totalDebit'],
-                            ];
-
-                            $parentAccountArray[] = $data;
-                            $parentcreditTotal += $data['totalCredit'];
-                            $parenntdebitTotal += $data['totalDebit'];
-                        }
-
-                        foreach ($accounts as $account) {
-                            $Balance = $account['totalCredit'] - $account['totalDebit'];
-
-                            if ($Balance != 0) {
-                                $data = [
-                                    'account_id' => $account['id'],
-                                    'account_code' => $account['code'],
-                                    'account_name' => $account['name'],
-                                    'account' => 'subAccount',
-                                    'totalCredit' => $account['totalCredit'],
-                                    'totalDebit' => $account['totalDebit'],
-                                ];
-
-                                $parentAccountArray[] = $data;
-                                $parentcreditTotal += $data['totalCredit'];
-                                $parenntdebitTotal += $data['totalDebit'];
-                            }
-                        }
-
-                        if (!empty($parentAccountArray)) {
-
-                            $dataTotal = [
-                                'account_id' => $parentAccount->account,
-                                'account_code' => '',
-                                'account' => 'parentTotal',
-                                'account_name' => 'Total ' . $parentAccount->name,
-                                'totalCredit' => $parentcreditTotal,
-                                'totalDebit' => $parenntdebitTotal,
-                            ];
-
-                            $parentAccountArrayTotal[] = $dataTotal;
-                        }
-
-                        if ($parentAccountArray != []) {
-                            $totalArray = array_merge($parentAccountArray, $parentAccountArrayTotal);
-                            $totalParentAccountArray[] = $totalArray;
-                        }
-                    }
-                }
-
-                if ($totalParentAccountArray != []) {
-                    $accounts = TransactionLines::select('chart_of_accounts.id as account_id', 'chart_of_accounts.code as account_code', 'chart_of_accounts.name as account_name', \DB::raw('sum(debit) as totalDebit'), \DB::raw('sum(credit) as totalCredit'));
-                    $accounts->leftjoin('chart_of_accounts', 'transaction_lines.account_id', 'chart_of_accounts.id');
-                    $accounts->leftjoin('chart_of_account_types', 'chart_of_accounts.type', 'chart_of_account_types.id');
-                    $accounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.name', 'chart_of_account_parents.name');
-                    $accounts->where('chart_of_accounts.type', $type->id);
-                    $accounts->where('chart_of_account_parents.account');
-                    $accounts->where('chart_of_accounts.parent', '=', 'chart_of_account_parents.id');
-                    $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
-                    $accounts->where('transaction_lines.date', '>=', $start);
-                    $accounts->where('transaction_lines.date', '<=', $end);
-                    $accounts->groupBy('account_id');
-                    $accounts = $accounts->get()->toArray();
-                } else {
-                    $accounts = TransactionLines::select('chart_of_accounts.id as account_id', 'chart_of_accounts.code as account_code', 'chart_of_accounts.name as account_name', \DB::raw('sum(debit) as totalDebit'), \DB::raw('sum(credit) as totalCredit'));
-                    $accounts->leftjoin('chart_of_accounts', 'transaction_lines.account_id', 'chart_of_accounts.id');
-                    $accounts->leftjoin('chart_of_account_types', 'chart_of_accounts.type', 'chart_of_account_types.id');
-                    $accounts->where('chart_of_accounts.type', $type->id);
-                    $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
-                    $accounts->where('transaction_lines.date', '>=', $start);
-                    $accounts->where('transaction_lines.date', '<=', $end);
-                    $accounts->groupBy('account_id');
-                    $accounts = $accounts->get()->toArray();
-                }
-
-                $name = $type->name;
-                if (isset($totalAccount[$name])) {
-                    $totalAccount[$name]["totalCredit"] += $accounts["totalCredit"];
-                    $totalAccount[$name]["totalDebit"] += $accounts["totalDebit"];
-                } else {
-                    $totalAccount[$name] = $accounts;
-                }
-                if ($totalParentAccountArray != []) {
-                    $totalAccount[$name] = array_merge_recursive($totalAccount[$name], $totalParentAccountArray[0]);
-                }
+            if (! in_array($view, ['collapse', 'expand'], true)) {
+                $view = 'expand';
             }
 
-            foreach ($totalAccount as $category => $entries) {
-                foreach ($entries as $entry) {
-                    $name = $entry['account_name'];
-                    if (!isset($totalAccounts[$category][$name])) {
-                        $totalAccounts[$category][$name] = [
-                            'account_id' => $entry['account_id'],
-                            'account_code' => $entry['account_code'],
-                            'account_name' => $name,
-                            'account' => isset($entry['account']) ? $entry['account'] : '',
-                            'totalDebit' => 0,
-                            'totalCredit' => 0,
-                        ];
-                    }
-                    if ($entry['totalDebit'] < 0) {
-                        $totalAccounts[$category][$name]['totalDebit'] += 0;
-                        $totalAccounts[$category][$name]['totalCredit'] += -$entry['totalDebit'];
-                    } else {
-                        $totalAccounts[$category][$name]['totalDebit'] += $entry['totalDebit'];
-                        $totalAccounts[$category][$name]['totalCredit'] += $entry['totalCredit'];
-                    }
-                }
-            }
+            $report = app(TrialBalanceReportService::class)->build(
+                (int) \Auth::user()->creatorId(),
+                $start,
+                $end,
+                $view
+            );
 
-            $filter['startDateRange'] = $start;
-            $filter['endDateRange'] = $end;
-            return view('report.trial_balance', compact('filter', 'totalAccounts', 'view'));
+            return view('report.trial_balance', [
+                'filter' => $report['filter'],
+                'totalAccounts' => $report['totalAccounts'],
+                'grandTotalDebit' => $report['grandTotalDebit'],
+                'grandTotalCredit' => $report['grandTotalCredit'],
+                'view' => $view,
+            ]);
         } else {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
@@ -4809,185 +4593,28 @@ class ReportController extends Controller
             $end = date('Y-m-t', strtotime('+1 day'));
         }
 
-        $types = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->get();
-        $chartAccounts = [];
+        $report = app(TrialBalanceReportService::class)->build(
+            (int) \Auth::user()->creatorId(),
+            $start,
+            $end,
+            'expand'
+        );
 
-        $totalAccounts = [];
-        $totalAccounts = [];
-
-        foreach ($types as $type) {
-
-            // $type->id = 4;
-            $parentAccounts = ChartOfAccountParent::where('type', $type->id)->where('created_by', \Auth::user()->creatorId())->get();
-
-            $totalParentAccountArray = [];
-            if ($parentAccounts->isNotEmpty()) {
-                foreach ($parentAccounts as $parentAccount) {
-                    $totalArray = [];
-                    $parentAccountArray = [];
-                    $parentAccountArrayTotal = [];
-
-                    $parentAccs = TransactionLines::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', \DB::raw('sum(debit) as totalDebit'), \DB::raw('sum(credit) as totalCredit'));
-                    $parentAccs->leftjoin('chart_of_accounts', 'transaction_lines.account_id', 'chart_of_accounts.id');
-                    $parentAccs->leftjoin('chart_of_account_types', 'chart_of_accounts.type', 'chart_of_account_types.id');
-                    $parentAccs->where('chart_of_accounts.type', $type->id);
-                    $parentAccs->where('chart_of_accounts.name', $parentAccount->name);
-                    $parentAccs->where('transaction_lines.created_by', \Auth::user()->creatorId());
-                    $parentAccs->where('transaction_lines.date', '>=', $start);
-                    $parentAccs->where('transaction_lines.date', '<=', $end);
-                    $parentAccs->groupBy('account_id');
-                    $parentAccs = $parentAccs->get()->toArray();
-
-                    $accounts = TransactionLines::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', \DB::raw('sum(debit) as totalDebit'), \DB::raw('sum(credit) as totalCredit'));
-                    $accounts->leftjoin('chart_of_accounts', 'transaction_lines.account_id', 'chart_of_accounts.id');
-                    $accounts->where('chart_of_accounts.type', $type->id);
-                    $accounts->where('chart_of_accounts.parent', $parentAccount->id);
-                    $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
-                    $accounts->where('transaction_lines.date', '>=', $start);
-                    $accounts->where('transaction_lines.date', '<=', $end);
-                    $accounts->groupBy('account_id');
-                    $accounts = $accounts->get()->toArray();
-
-                    if ($parentAccs == [] && $accounts != []) {
-
-                        $parentAccs = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', \DB::raw('0 as totalDebit'), \DB::raw('0 as totalCredit'));
-                        $parentAccs->leftjoin('chart_of_account_parents', 'chart_of_accounts.id', 'chart_of_account_parents.account');
-                        $parentAccs->where('chart_of_accounts.type', $type->id);
-                        $parentAccs->where('chart_of_accounts.name', $parentAccount->name);
-                        $parentAccs->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
-                        $parentAccs = $parentAccs->get()->toArray();
-                    } elseif ($parentAccs != [] && $accounts == []) {
-                        $parentAccs = [];
-
-                    }
-
-                    $parenttotalBalance = 0;
-                    $parentcreditTotal = 0;
-                    $parenntdebitTotal = 0;
-                    $parenttotalAmount = 0;
-
-                    foreach ($parentAccs as $account) {
-                        $Balance = $account['totalCredit'] - $account['totalDebit'];
-                        $parenttotalBalance += $Balance;
-
-                        $data = [
-                            'account_id' => $account['id'],
-                            'account_code' => $account['code'],
-                            'account_name' => $account['name'],
-                            'account' => 'parent',
-                            'totalCredit' => $account['totalCredit'],
-                            'totalDebit' => $account['totalDebit'],
-                        ];
-
-                        $parentAccountArray[] = $data;
-                        $parentcreditTotal += $data['totalCredit'];
-                        $parenntdebitTotal += $data['totalDebit'];
-                    }
-
-                    foreach ($accounts as $account) {
-                        $Balance = $account['totalCredit'] - $account['totalDebit'];
-
-                        if ($Balance != 0) {
-                            $data = [
-                                'account_id' => $account['id'],
-                                'account_code' => $account['code'],
-                                'account_name' => $account['name'],
-                                'account' => 'subAccount',
-                                'totalCredit' => $account['totalCredit'],
-                                'totalDebit' => $account['totalDebit'],
-                            ];
-
-                            $parentAccountArray[] = $data;
-                            $parentcreditTotal += $data['totalCredit'];
-                            $parenntdebitTotal += $data['totalDebit'];
-                        }
-                    }
-
-                    if (!empty($parentAccountArray)) {
-
-                        $dataTotal = [
-                            'account_id' => $parentAccount->account,
-                            'account_code' => '',
-                            'account' => 'parentTotal',
-                            'account_name' => 'Total ' . $parentAccount->name,
-                            'totalCredit' => $parentcreditTotal,
-                            'totalDebit' => $parenntdebitTotal,
-                        ];
-
-                        $parentAccountArrayTotal[] = $dataTotal;
-                    }
-
-                    if ($parentAccountArray != []) {
-                        $totalArray = array_merge($parentAccountArray, $parentAccountArrayTotal);
-                        $totalParentAccountArray[] = $totalArray;
-                    }
-                }
-            }
-
-            if ($totalParentAccountArray != []) {
-                $accounts = TransactionLines::select('chart_of_accounts.id as account_id', 'chart_of_accounts.code as account_code', 'chart_of_accounts.name as account_name', \DB::raw('sum(debit) as totalDebit'), \DB::raw('sum(credit) as totalCredit'));
-                $accounts->leftjoin('chart_of_accounts', 'transaction_lines.account_id', 'chart_of_accounts.id');
-                $accounts->leftjoin('chart_of_account_types', 'chart_of_accounts.type', 'chart_of_account_types.id');
-                $accounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.name', 'chart_of_account_parents.name');
-                $accounts->where('chart_of_accounts.type', $type->id);
-                $accounts->where('chart_of_account_parents.account');
-                $accounts->where('chart_of_accounts.parent', '=', 'chart_of_account_parents.id');
-                $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
-                $accounts->where('transaction_lines.date', '>=', $start);
-                $accounts->where('transaction_lines.date', '<=', $end);
-                $accounts->groupBy('account_id');
-                $accounts = $accounts->get()->toArray();
-            } else {
-                $accounts = TransactionLines::select('chart_of_accounts.id as account_id', 'chart_of_accounts.code as account_code', 'chart_of_accounts.name as account_name', \DB::raw('sum(debit) as totalDebit'), \DB::raw('sum(credit) as totalCredit'));
-                $accounts->leftjoin('chart_of_accounts', 'transaction_lines.account_id', 'chart_of_accounts.id');
-                $accounts->leftjoin('chart_of_account_types', 'chart_of_accounts.type', 'chart_of_account_types.id');
-                $accounts->where('chart_of_accounts.type', $type->id);
-                $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
-                $accounts->where('transaction_lines.date', '>=', $start);
-                $accounts->where('transaction_lines.date', '<=', $end);
-                $accounts->groupBy('account_id');
-                $accounts = $accounts->get()->toArray();
-            }
-
-            $name = $type->name;
-            if (isset($totalAccount[$name])) {
-                $totalAccount[$name]["totalCredit"] += $accounts["totalCredit"];
-                $totalAccount[$name]["totalDebit"] += $accounts["totalDebit"];
-            } else {
-                $totalAccount[$name] = $accounts;
-            }
-            if ($totalParentAccountArray != []) {
-                $totalAccount[$name] = array_merge_recursive($totalAccount[$name], $totalParentAccountArray[0]);
-            }
-        }
-
-        foreach ($totalAccount as $category => $entries) {
-            foreach ($entries as $entry) {
-                $name = $entry['account_name'];
-                if (!isset($totalAccounts[$category][$name])) {
-                    $totalAccounts[$category][$name] = [
-                        'account_id' => $entry['account_id'],
-                        'account_code' => $entry['account_code'],
-                        'account_name' => $name,
-                        'account' => isset($entry['account']) ? $entry['account'] : '',
-                        'totalDebit' => 0,
-                        'totalCredit' => 0,
-                    ];
-                }
-                if ($entry['totalDebit'] < 0) {
-                    $totalAccounts[$category][$name]['totalDebit'] += 0;
-                    $totalAccounts[$category][$name]['totalCredit'] += -$entry['totalDebit'];
-                } else {
-                    $totalAccounts[$category][$name]['totalDebit'] += $entry['totalDebit'];
-                    $totalAccounts[$category][$name]['totalCredit'] += $entry['totalCredit'];
-                }
-            }
-        }
         $companyName = User::where('id', \Auth::user()->creatorId())->first();
         $companyName = $companyName->name;
 
         $name = 'trial_balance_' . date('Y-m-d i:h:s');
-        $data = Excel::download(new TrialBalancExport($totalAccounts, $start, $end, $companyName), $name . '.xlsx');
+        $data = Excel::download(
+            new TrialBalancExport(
+                $report['totalAccounts'],
+                $start,
+                $end,
+                $companyName,
+                $report['grandTotalDebit'],
+                $report['grandTotalCredit']
+            ),
+            $name . '.xlsx'
+        );
         ob_end_clean();
 
         return $data;
@@ -4997,55 +4624,12 @@ class ReportController extends Controller
     {
         $currentStart = !empty($request->start_date) ? Carbon::parse($request->start_date) : Carbon::now()->startOfYear();
         $currentEnd = !empty($request->end_date) ? Carbon::parse($request->end_date) : Carbon::now();
-        if ($currentStart->gt($currentEnd)) {
-            [$currentStart, $currentEnd] = [$currentEnd->copy(), $currentStart->copy()];
-        }
 
-        $previousStart = $currentStart->copy()->subYear();
-        $previousEnd = $currentEnd->copy()->subYear();
-        $creatorId = \Auth::user()->creatorId();
-
-        $lineMappings = [
-            ['section' => 'Assets', 'label' => 'Fixed Assets', 'code_label' => '32', 'prefixes' => ['32']],
-            ['section' => 'Assets', 'label' => 'Intangible Assets', 'code_label' => '33', 'prefixes' => ['33']],
-            ['section' => 'Assets', 'label' => 'Inventory', 'code_label' => '21', 'prefixes' => ['21']],
-            ['section' => 'Assets', 'label' => 'Clients', 'code_label' => '411', 'prefixes' => ['411']],
-            ['section' => 'Assets', 'label' => 'Cash / Bank', 'code_label' => '11,12', 'prefixes' => ['11', '12']],
-            ['section' => 'Liabilities', 'label' => 'Tax Payable', 'code_label' => '4437', 'prefixes' => ['4437']],
-            ['section' => 'Equity', 'label' => 'Equity', 'code_label' => '59', 'prefixes' => ['59']],
-        ];
-
-        $rows = [];
-        foreach ($lineMappings as $mapping) {
-            $rows[] = [
-                'section' => $mapping['section'],
-                'label' => $mapping['label'],
-                'code_label' => $mapping['code_label'],
-                'current_year' => $this->sumBalanceByCodePrefixes($mapping['prefixes'], $currentStart, $currentEnd, $creatorId),
-                'previous_year' => $this->sumBalanceByCodePrefixes($mapping['prefixes'], $previousStart, $previousEnd, $creatorId),
-            ];
-        }
-
-        $assetsCurrent = collect($rows)->where('section', 'Assets')->sum('current_year');
-        $assetsPrevious = collect($rows)->where('section', 'Assets')->sum('previous_year');
-        $liabilitiesCurrent = collect($rows)->where('section', 'Liabilities')->sum('current_year');
-        $liabilitiesPrevious = collect($rows)->where('section', 'Liabilities')->sum('previous_year');
-        $equityCurrent = collect($rows)->where('section', 'Equity')->sum('current_year');
-        $equityPrevious = collect($rows)->where('section', 'Equity')->sum('previous_year');
-
-        $totals = [
-            'assets' => ['current' => $assetsCurrent, 'previous' => $assetsPrevious],
-            'liabilities' => ['current' => $liabilitiesCurrent, 'previous' => $liabilitiesPrevious],
-            'equity' => ['current' => $equityCurrent, 'previous' => $equityPrevious],
-            'equity_liabilities' => [
-                'current' => $equityCurrent + $liabilitiesCurrent,
-                'previous' => $equityPrevious + $liabilitiesPrevious,
-            ],
-            'difference' => [
-                'current' => $assetsCurrent - ($equityCurrent + $liabilitiesCurrent),
-                'previous' => $assetsPrevious - ($equityPrevious + $liabilitiesPrevious),
-            ],
-        ];
+        $report = app(BalanceSheetReportService::class)->build(
+            (int) \Auth::user()->creatorId(),
+            $currentStart,
+            $currentEnd
+        );
 
         $settings = Utility::settings();
         $header = [
@@ -5054,17 +4638,11 @@ class ReportController extends Controller
             'currency' => $settings['site_currency'] ?? 'USD',
         ];
 
-        $filter = [
-            'startDateRange' => $currentStart->format('Y-m-d'),
-            'endDateRange' => $currentEnd->format('Y-m-d'),
-            'previousStartDateRange' => $previousStart->format('Y-m-d'),
-            'previousEndDateRange' => $previousEnd->format('Y-m-d'),
-            'currentYear' => (string) Carbon::now()->year,
-            'previousYear' => (string) (Carbon::now()->year - 1),
-        ];
-
         $name = 'balance_sheet_' . date('Y-m-d_H-i-s');
-        $data = Excel::download(new BalanceSheetExport($rows, $totals, $header, $filter), $name . '.xlsx');
+        $data = Excel::download(
+            new BalanceSheetExport($report['rows'], $report['totals'], $header, $report['filter']),
+            $name . '.xlsx'
+        );
         ob_end_clean();
 
         return $data;

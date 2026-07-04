@@ -39,8 +39,8 @@
     $settings = \App\Models\Utility::settings();
     $companyName = $settings['company_name'] ?? ($user?->name ?? '');
     $taxNumber = $settings['vat_number'] ?? '';
-    $totalDebit = 0;
-    $totalCredit = 0;
+    $totalDebit = $grandTotalDebit ?? 0;
+    $totalCredit = $grandTotalCredit ?? 0;
     $generatedAt = now()->format('d/m/Y');
 @endphp
 
@@ -80,11 +80,6 @@
         @foreach ($totalAccounts as $type => $accounts)
             @foreach ($accounts as $record)
                 @php
-                    if (!in_array($record['account'] ?? '', ['parent', 'subAccount'])) {
-                        $totalDebit += (float) ($record['totalDebit'] ?? 0);
-                        $totalCredit += (float) ($record['totalCredit'] ?? 0);
-                    }
-
                     $saldoDevedor = (float) ($record['balanceDebit'] ?? 0);
                     $saldoCredor = (float) ($record['balanceCredit'] ?? 0);
 

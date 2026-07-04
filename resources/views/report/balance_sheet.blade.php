@@ -209,7 +209,7 @@
                                     <td class="text-end">{{ \Auth::user()->priceFormat($totals['equity_liabilities']['previous']) }}</td>
                                 </tr>
 
-                                @if (round($totals['difference']['current'], 2) != 0 || round($totals['difference']['previous'], 2) != 0)
+                                @if (abs($totals['difference']['current']) > 0.01 || abs($totals['difference']['previous']) > 0.01)
                                     <tr class="table-warning fw-bold">
                                         <td>{{ __('Balance Difference (Assets - Equity - Liabilities)') }}</td>
                                         <td></td>

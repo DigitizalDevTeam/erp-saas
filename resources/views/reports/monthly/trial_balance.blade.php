@@ -65,8 +65,8 @@
     @php
         $authUser = \Auth::user()->creatorId();
         $user = \App\Models\User::find($authUser);
-        $totalDebit = 0;
-        $totalCredit = 0;
+        $totalDebit = $grandTotalDebit ?? 0;
+        $totalCredit = $grandTotalCredit ?? 0;
     @endphp
 
     <div class="row justify-content-center" id="printableArea">
@@ -101,24 +101,19 @@
                                     </tr>
 
                                     @foreach ($accounts as $record)
-                                        @php
-                                            if (!in_array($record['account'] ?? '', ['parent', 'subAccount'])) {
-                                                $totalDebit += (float) ($record['totalDebit'] ?? 0);
-                                                $totalCredit += (float) ($record['totalCredit'] ?? 0);
-                                            }
-                                        @endphp
-
                                         <tr>
                                             <td>
-                                                @if ($record['account'] === 'parentTotal')
+                                                @if (($record['account'] ?? '') === 'parent')
                                                     <span class="fw-bold">{{ $record['account_name'] }}</span>
+                                                @elseif (($record['account'] ?? '') === 'subAccount')
+                                                    <span class="ps-3">{{ $record['account_name'] }}</span>
                                                 @else
                                                     {{ $record['account_name'] }}
                                                 @endif
                                             </td>
                                             <td class="text-center">{{ $record['account_code'] }}</td>
-                                            <td class="text-end">{{ \Auth::user()->priceFormat($record['totalDebit'] ?? 0) }}</td>
-                                            <td class="text-end">{{ \Auth::user()->priceFormat($record['totalCredit'] ?? 0) }}</td>
+                                            <td class="text-end {{ ($record['account'] ?? '') === 'parent' ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormat($record['totalDebit'] ?? 0) }}</td>
+                                            <td class="text-end {{ ($record['account'] ?? '') === 'parent' ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormat($record['totalCredit'] ?? 0) }}</td>
                                         </tr>
                                     @endforeach
                                 @endforeach

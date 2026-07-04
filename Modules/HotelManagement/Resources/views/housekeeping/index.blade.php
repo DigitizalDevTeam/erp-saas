@@ -162,19 +162,40 @@
 
 @push('script-page')
 <script>
-document.querySelectorAll('.hk-maint-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-        var taskId = btn.getAttribute('data-task-id');
+(function () {
+    var actionBase = @json(url('hotel/housekeeping'));
+
+    function showMaintenanceModal(taskId) {
         var form = document.getElementById('hk-maintenance-form');
-        if (!form || !taskId) return;
-        form.action = '{{ url('hotel/housekeeping') }}/' + taskId + '/action';
         var modal = document.getElementById('hkMaintenanceModal');
+        if (!form || !modal || !taskId) {
+            return;
+        }
+
+        form.action = actionBase + '/' + taskId + '/action';
+
+        var notes = form.querySelector('textarea[name="notes"]');
+        if (notes) {
+            notes.value = '';
+        }
+
         if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
             bootstrap.Modal.getOrCreateInstance(modal).show();
         } else if (typeof $ !== 'undefined') {
             $(modal).modal('show');
         }
+    }
+
+    // Delegated handler: simpleDatatables rebuilds the table and drops direct listeners.
+    document.addEventListener('click', function (event) {
+        var btn = event.target.closest('.hk-maint-btn');
+        if (!btn) {
+            return;
+        }
+
+        event.preventDefault();
+        showMaintenanceModal(btn.getAttribute('data-task-id'));
     });
-});
+})();
 </script>
 @endpush
