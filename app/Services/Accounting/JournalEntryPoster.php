@@ -28,9 +28,23 @@ class JournalEntryPoster
     ): JournalEntry {
         $totalDebit = 0.0;
         $totalCredit = 0.0;
+        $normalizedLines = [];
         foreach ($lines as $line) {
-            $totalDebit += (float) ($line['debit'] ?? 0);
-            $totalCredit += (float) ($line['credit'] ?? 0);
+            $debit = round((float) ($line['debit'] ?? 0), 2);
+            $credit = round((float) ($line['credit'] ?? 0), 2);
+            $net = round($debit - $credit, 2);
+            if (abs($net) < 0.0001) {
+                continue;
+            }
+            $normalized = [
+                'account' => (int) $line['account'],
+                'debit' => $net > 0 ? $net : 0.0,
+                'credit' => $net < 0 ? abs($net) : 0.0,
+                'description' => $line['description'] ?? null,
+            ];
+            $totalDebit += $normalized['debit'];
+            $totalCredit += $normalized['credit'];
+            $normalizedLines[] = $normalized;
         }
         if (round($totalDebit, 2) !== round($totalCredit, 2)) {
             throw new \InvalidArgumentException(__('Debit and credit totals must be equal.'));
@@ -45,12 +59,10 @@ class JournalEntryPoster
         $journal->accounting_period = $accountingPeriod;
         $journal->save();
 
-        foreach ($lines as $line) {
-            $debit = (float) ($line['debit'] ?? 0);
-            $credit = (float) ($line['credit'] ?? 0);
-            if (abs($debit) < 0.0001 && abs($credit) < 0.0001) {
-                continue;
-            }
+        foreach ($normalizedLines as $line) {
+            $debit = $line['debit'];
+            $credit = $line['credit'];
+
             $journalItem = new JournalItem;
             $journalItem->journal = $journal->id;
             $journalItem->account = (int) $line['account'];

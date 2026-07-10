@@ -415,6 +415,86 @@ class ChartOfAccountHierarchy
         return $updated;
     }
 
+    /**
+     * Re-link parents using longest numeric code prefix (PGC: 210 → 21, not 29).
+     * Fixes charts imported with "last parent" logic where 210 sat under 29.
+     *
+     * @return array{updated: int, cleared: int}
+     */
+    public static function repairParentsByCodePrefix(?int $creatorId = null): array
+    {
+        $query = ChartOfAccount::query();
+        if ($creatorId) {
+            $query->where('created_by', $creatorId);
+        }
+
+        $accounts = $query->get();
+        $byCreator = $accounts->groupBy(static fn (ChartOfAccount $a) => (int) $a->created_by);
+
+        $updated = 0;
+        $cleared = 0;
+
+        foreach ($byCreator as $creatorAccounts) {
+            /** @var Collection<int, ChartOfAccount> $creatorAccounts */
+            $byCode = [];
+            foreach ($creatorAccounts as $account) {
+                $code = preg_replace('/\D/', '', (string) $account->code);
+                if ($code === '') {
+                    continue;
+                }
+                $byCode[$code] = $account;
+            }
+
+            // Longer codes first so children are linked after parents exist in the map.
+            $codes = array_keys($byCode);
+            usort($codes, static function (string $a, string $b) {
+                return strlen($a) <=> strlen($b) ?: strcmp($a, $b);
+            });
+
+            foreach ($codes as $code) {
+                $account = $byCode[$code];
+                $parentCode = null;
+                for ($len = strlen($code) - 1; $len > 0; $len--) {
+                    $prefix = substr($code, 0, $len);
+                    if (isset($byCode[$prefix])) {
+                        $parentCode = $prefix;
+                        break;
+                    }
+                }
+
+                $newParentId = $parentCode !== null ? (int) $byCode[$parentCode]->id : null;
+                $currentParentId = self::effectiveParentAccountId($account);
+
+                if ($newParentId === $currentParentId
+                    || ($newParentId === null && empty($account->parent_account_id) && (int) $account->parent === 0)) {
+                    continue;
+                }
+
+                if ($newParentId !== null && self::isDescendantOf($byCode[$parentCode], (int) $account->id)) {
+                    continue;
+                }
+
+                $account->parent_account_id = $newParentId;
+                $account->parent = $newParentId ? self::legacyParentRowId($newParentId) : 0;
+
+                if ($newParentId !== null) {
+                    $parent = $byCode[$parentCode];
+                    $account->type = $parent->type;
+                    $account->sub_type = $parent->sub_type;
+                    $updated++;
+                } else {
+                    $cleared++;
+                }
+
+                $account->save();
+            }
+        }
+
+        self::clearCache();
+
+        return ['updated' => $updated, 'cleared' => $cleared];
+    }
+
     private static function parentRecordById(int $parentRowId): ?ChartOfAccountParent
     {
         if (! array_key_exists($parentRowId, self::$parentRecordCache)) {

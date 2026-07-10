@@ -26,6 +26,7 @@ class ChartAccountResolver
 
         return ChartOfAccount::where('created_by', $createdBy)
             ->whereRaw('CAST(code AS CHAR) LIKE ?', [$codeOrPrefix.'%'])
+            ->orderByRaw('LENGTH(CAST(code AS CHAR)) ASC')
             ->orderBy('code')
             ->value('id');
     }

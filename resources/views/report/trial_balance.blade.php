@@ -122,7 +122,7 @@
     @endphp
 
     <div class="row justify-content-center" id="printableArea">
-        <div class="col-md-8">
+        <div class="col-md-12">
             <div class="card">
                 <div class="card-body {{ $view == 'expand' ? 'collapse-view' : '' }}">
                     <div class="account-main-title">
@@ -131,15 +131,19 @@
                     </div>
                     <div
                         class="aacount-title d-flex align-items-center justify-content-between border-top border-bottom py-2">
-                        <h6 class="mb-0">{{ __('Account') }}</h6>
-                        <h6 class="mb-0 text-center">{{ _('Account Code') }}</h6>
-                        <h6 class="mb-0 text-end me-5">{{ __('Debit') }}</h6>
-                        <h6 class="mb-0 text-end">{{ __('Credit') }}</h6>
-
+                        <h6 class="mb-0" style="width:28%">{{ __('Account') }}</h6>
+                        <h6 class="mb-0 text-center" style="width:12%">{{ __('Account Code') }}</h6>
+                        <h6 class="mb-0 text-end" style="width:15%">{{ __('Debito') }}</h6>
+                        <h6 class="mb-0 text-end" style="width:15%">{{ __('Credito') }}</h6>
+                        <h6 class="mb-0 text-end" style="width:15%">{{ __('Saldo Devedor') }}</h6>
+                        <h6 class="mb-0 text-end" style="width:15%">{{ __('Saldo Credor') }}</h6>
                     </div>
                     @php
                         $totalDebit = $grandTotalDebit ?? 0;
                         $totalCredit = $grandTotalCredit ?? 0;
+                        $grandBalance = $totalDebit - $totalCredit;
+                        $grandDevedor = $grandBalance > 0 ? $grandBalance : 0;
+                        $grandCredor = $grandBalance < 0 ? abs($grandBalance) : 0;
                     @endphp
                     @foreach ($totalAccounts as $type => $accounts)
                         <div class="account-main-inner border-bottom py-2">
@@ -148,18 +152,21 @@
                                 @foreach ($accounts as $record)
                                     @if (in_array($record['account'] ?? '', ['parent', ''], true))
                                         <div class="account-inner d-flex align-items-center justify-content-between ps-3">
-                                            <div class="mb-2 account-arrow">
+                                            <div class="mb-2 account-arrow" style="width:28%">
                                                 <a href="{{ route('trial.balance', ['expand']) }}"><i
                                                         class="ti ti-chevron-down account-icon"></i></a>
                                                 <a href="{{ route('report.ledger', $record['account_id']) }}?account={{ $record['account_id'] }}"
                                                     class="text-primary fw-bold">{{ $record['account_name'] }}</a>
                                             </div>
-
-                                            <p class="mb-2 text-center">{{ $record['account_code'] }}</p>
-                                            <p class="text-primary fw-bold mb-2 text-end me-5">
+                                            <p class="mb-2 text-center" style="width:12%">{{ $record['account_code'] }}</p>
+                                            <p class="text-primary fw-bold mb-2 text-end" style="width:15%">
                                                 {{ \Auth::user()->priceFormat($record['totalDebit']) }}</p>
-                                            <p class="text-primary mb-2 fw-bold float-end text-end">
+                                            <p class="text-primary mb-2 fw-bold text-end" style="width:15%">
                                                 {{ \Auth::user()->priceFormat($record['totalCredit']) }}</p>
+                                            <p class="text-primary mb-2 fw-bold text-end" style="width:15%">
+                                                {{ \Auth::user()->priceFormat($record['balanceDebit'] ?? 0) }}</p>
+                                            <p class="text-primary mb-2 fw-bold text-end" style="width:15%">
+                                                {{ \Auth::user()->priceFormat($record['balanceCredit'] ?? 0) }}</p>
                                         </div>
                                     @endif
                                 @endforeach
@@ -167,42 +174,53 @@
                                 @foreach ($accounts as $record)
                                     @if ($record['account'] === 'parent')
                                         <div class="account-inner d-flex align-items-center justify-content-between ps-3">
-                                            <div class="mb-2 account-arrow">
+                                            <div class="mb-2 account-arrow" style="width:28%">
                                                 <a href="{{ route('trial.balance', ['collapse']) }}"><i
                                                         class="ti ti-chevron-down account-icon"></i></a>
                                                 <a href="{{ route('report.ledger', $record['account_id']) }}?account={{ $record['account_id'] }}"
                                                     class="text-primary fw-bold">{{ $record['account_name'] }}</a>
                                             </div>
-
-                                            <p class="mb-2 text-center">{{ $record['account_code'] }}</p>
-                                            <p class="text-primary fw-bold mb-2 text-end me-5">
+                                            <p class="mb-2 text-center" style="width:12%">{{ $record['account_code'] }}</p>
+                                            <p class="text-primary fw-bold mb-2 text-end" style="width:15%">
                                                 {{ \Auth::user()->priceFormat($record['totalDebit']) }}</p>
-                                            <p class="text-primary mb-2 fw-bold float-end text-end">
+                                            <p class="text-primary mb-2 fw-bold text-end" style="width:15%">
                                                 {{ \Auth::user()->priceFormat($record['totalCredit']) }}</p>
+                                            <p class="text-primary mb-2 fw-bold text-end" style="width:15%">
+                                                {{ \Auth::user()->priceFormat($record['balanceDebit'] ?? 0) }}</p>
+                                            <p class="text-primary mb-2 fw-bold text-end" style="width:15%">
+                                                {{ \Auth::user()->priceFormat($record['balanceCredit'] ?? 0) }}</p>
                                         </div>
                                     @elseif($record['account'] === 'subAccount')
                                         <div class="account-inner d-flex align-items-center justify-content-between ps-3">
-                                            <p class="mb-2 ms-4"><a
+                                            <p class="mb-2 ms-4" style="width:28%"><a
                                                     href="{{ route('report.ledger', $record['account_id']) }}?account={{ $record['account_id'] }}"
                                                     class="text-primary">{{ $record['account_name'] }}</a>
                                             </p>
-                                            <p class="mb-2 text-center">{{ $record['account_code'] }}</p>
-                                            <p class="text-primary mb-2 text-end me-5">
+                                            <p class="mb-2 text-center" style="width:12%">{{ $record['account_code'] }}</p>
+                                            <p class="text-primary mb-2 text-end" style="width:15%">
                                                 {{ \Auth::user()->priceFormat($record['totalDebit']) }}</p>
-                                            <p class="text-primary mb-2 float-end text-end">
+                                            <p class="text-primary mb-2 text-end" style="width:15%">
                                                 {{ \Auth::user()->priceFormat($record['totalCredit']) }}</p>
+                                            <p class="text-primary mb-2 text-end" style="width:15%">
+                                                {{ \Auth::user()->priceFormat($record['balanceDebit'] ?? 0) }}</p>
+                                            <p class="text-primary mb-2 text-end" style="width:15%">
+                                                {{ \Auth::user()->priceFormat($record['balanceCredit'] ?? 0) }}</p>
                                         </div>
                                     @else
                                         <div class="account-inner d-flex align-items-center justify-content-between ps-3">
-                                            <p class="mb-2 ms-3"><a
+                                            <p class="mb-2 ms-3" style="width:28%"><a
                                                     href="{{ route('report.ledger', $record['account_id']) }}?account={{ $record['account_id'] }}"
                                                     class="text-primary">{{ $record['account_name'] }}</a>
                                             </p>
-                                            <p class="mb-2 text-center">{{ $record['account_code'] }}</p>
-                                            <p class="text-primary mb-2 text-end me-5">
+                                            <p class="mb-2 text-center" style="width:12%">{{ $record['account_code'] }}</p>
+                                            <p class="text-primary mb-2 text-end" style="width:15%">
                                                 {{ \Auth::user()->priceFormat($record['totalDebit']) }}</p>
-                                            <p class="text-primary mb-2 float-end text-end">
+                                            <p class="text-primary mb-2 text-end" style="width:15%">
                                                 {{ \Auth::user()->priceFormat($record['totalCredit']) }}</p>
+                                            <p class="text-primary mb-2 text-end" style="width:15%">
+                                                {{ \Auth::user()->priceFormat($record['balanceDebit'] ?? 0) }}</p>
+                                            <p class="text-primary mb-2 text-end" style="width:15%">
+                                                {{ \Auth::user()->priceFormat($record['balanceCredit'] ?? 0) }}</p>
                                         </div>
                                     @endif
                                 @endforeach
@@ -213,11 +231,12 @@
                     @if ($totalAccounts != [])
                         <div
                             class="aacount-title d-flex align-items-center justify-content-between border-bottom py-2 px-2 pe-0">
-                            <h6 class="fw-bold mb-0">{{ 'Total' }}</h6>
-                            <h6 class="fw-bold mb-0">{{ '' }}</h6>
-                            <h6 class="fw-bold mb-0 text-end me-5">{{ \Auth::user()->priceFormat($totalDebit) }}</h6>
-                            <h6 class="fw-bold mb-0 text-end">{{ \Auth::user()->priceFormat($totalCredit) }}</h6>
-
+                            <h6 class="fw-bold mb-0" style="width:28%">{{ 'Total' }}</h6>
+                            <h6 class="fw-bold mb-0" style="width:12%">{{ '' }}</h6>
+                            <h6 class="fw-bold mb-0 text-end" style="width:15%">{{ \Auth::user()->priceFormat($totalDebit) }}</h6>
+                            <h6 class="fw-bold mb-0 text-end" style="width:15%">{{ \Auth::user()->priceFormat($totalCredit) }}</h6>
+                            <h6 class="fw-bold mb-0 text-end" style="width:15%">{{ \Auth::user()->priceFormat($grandDevedor) }}</h6>
+                            <h6 class="fw-bold mb-0 text-end" style="width:15%">{{ \Auth::user()->priceFormat($grandCredor) }}</h6>
                         </div>
                     @endif
                 </div>

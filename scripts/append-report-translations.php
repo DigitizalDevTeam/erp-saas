@@ -1,0 +1,480 @@
+<?php
+
+/**
+ * Append hotel report UI strings to hotel-i18n-dict.php
+ * Usage: php scripts/append-report-translations.php && php scripts/build-hotel-translations.php && php scripts/merge-hotel-translations.php
+ */
+
+$extra = [
+    'Operations' => [
+        'zh' => '运营',
+        'es' => 'Operaciones',
+        'fr' => 'Opérations',
+        'pt' => 'Operações',
+    ],
+    'Guests & compliance' => [
+        'zh' => '宾客与合规',
+        'es' => 'Huéspedes y cumplimiento',
+        'fr' => 'Clients et conformité',
+        'pt' => 'Hóspedes e conformidade',
+    ],
+    'Operational summary' => [
+        'zh' => '运营汇总',
+        'es' => 'Resumen operativo',
+        'fr' => 'Récapitulatif opérationnel',
+        'pt' => 'Resumo operacional',
+    ],
+    'Reservation Report' => [
+        'zh' => '预订报表',
+        'es' => 'Informe de reservas',
+        'fr' => 'Rapport des réservations',
+        'pt' => 'Relatório de reservas',
+    ],
+    'Check-in Report' => [
+        'zh' => '入住报表',
+        'es' => 'Informe de check-in',
+        'fr' => 'Rapport des arrivées',
+        'pt' => 'Relatório de check-in',
+    ],
+    'Check-out Report' => [
+        'zh' => '退房报表',
+        'es' => 'Informe de check-out',
+        'fr' => 'Rapport des départs',
+        'pt' => 'Relatório de check-out',
+    ],
+    'Occupancy Report' => [
+        'zh' => '入住率报表',
+        'es' => 'Informe de ocupación',
+        'fr' => 'Rapport d\'occupation',
+        'pt' => 'Relatório de ocupação',
+    ],
+    'Room Status Report' => [
+        'zh' => '房态报表',
+        'es' => 'Informe de estado de habitaciones',
+        'fr' => 'Rapport d\'état des chambres',
+        'pt' => 'Relatório de estado dos quartos',
+    ],
+    'Housekeeping Report' => [
+        'zh' => '客房清洁报表',
+        'es' => 'Informe de limpieza',
+        'fr' => 'Rapport d\'entretien',
+        'pt' => 'Relatório de housekeeping',
+    ],
+    'Daily Revenue Report' => [
+        'zh' => '日收入报表',
+        'es' => 'Informe de ingresos diarios',
+        'fr' => 'Rapport des revenus quotidiens',
+        'pt' => 'Relatório de receitas diárias',
+    ],
+    'Monthly Revenue Report' => [
+        'zh' => '月收入报表',
+        'es' => 'Informe de ingresos mensuales',
+        'fr' => 'Rapport des revenus mensuels',
+        'pt' => 'Relatório de receitas mensais',
+    ],
+    'Payment Collection Report' => [
+        'zh' => '收款报表',
+        'es' => 'Informe de cobros',
+        'fr' => 'Rapport des encaissements',
+        'pt' => 'Relatório de cobranças',
+    ],
+    'Outstanding Balance Report' => [
+        'zh' => '未结余额报表',
+        'es' => 'Informe de saldos pendientes',
+        'fr' => 'Rapport des soldes impayés',
+        'pt' => 'Relatório de saldos em dívida',
+    ],
+    'Cashier Closing Report' => [
+        'zh' => '收银结账报表',
+        'es' => 'Informe de cierre de caja',
+        'fr' => 'Rapport de clôture de caisse',
+        'pt' => 'Relatório de fecho de caixa',
+    ],
+    'Occupancy Revenue Report' => [
+        'zh' => '入住收入报表',
+        'es' => 'Informe de ingresos por ocupación',
+        'fr' => 'Rapport revenus / occupation',
+        'pt' => 'Relatório de receitas por ocupação',
+    ],
+    'Immigration Report' => [
+        'zh' => '出入境报表',
+        'es' => 'Informe de inmigración',
+        'fr' => 'Rapport immigration',
+        'pt' => 'Relatório de imigração',
+    ],
+    'Customer Report' => [
+        'zh' => '客户报表',
+        'es' => 'Informe de clientes',
+        'fr' => 'Rapport clients',
+        'pt' => 'Relatório de clientes',
+    ],
+    'Alerts & performance' => [
+        'zh' => '提醒与绩效',
+        'es' => 'Alertas y rendimiento',
+        'fr' => 'Alertes et performance',
+        'pt' => 'Alertas e desempenho',
+    ],
+    'Every report supports a date filter and can be exported to PDF and Excel.' => [
+        'zh' => '所有报表均支持日期筛选，并可导出为 PDF 和 Excel。',
+        'es' => 'Todos los informes admiten filtro de fechas y pueden exportarse a PDF y Excel.',
+        'fr' => 'Chaque rapport accepte un filtre de dates et peut être exporté en PDF et Excel.',
+        'pt' => 'Todos os relatórios suportam filtro de datas e podem ser exportados para PDF e Excel.',
+    ],
+    'Reservations active within the selected period.' => [
+        'zh' => '所选期间内的有效预订。',
+        'es' => 'Reservas activas en el período seleccionado.',
+        'fr' => 'Réservations actives sur la période sélectionnée.',
+        'pt' => 'Reservas activas no período seleccionado.',
+    ],
+    'Guests checked in during the period.' => [
+        'zh' => '期间内办理入住的宾客。',
+        'es' => 'Huéspedes registrados durante el período.',
+        'fr' => 'Clients enregistrés pendant la période.',
+        'pt' => 'Hóspedes com check-in no período.',
+    ],
+    'Guests checked out during the period.' => [
+        'zh' => '期间内办理退房的宾客。',
+        'es' => 'Huéspedes con salida durante el período.',
+        'fr' => 'Clients partis pendant la période.',
+        'pt' => 'Hóspedes com check-out no período.',
+    ],
+    'Live snapshot of every room and its current status.' => [
+        'zh' => '所有客房及当前状态的实时快照。',
+        'es' => 'Instantánea en vivo de cada habitación y su estado actual.',
+        'fr' => 'Instantané de chaque chambre et de son état actuel.',
+        'pt' => 'Instantâneo em tempo real de cada quarto e do seu estado actual.',
+    ],
+    'Housekeeping tasks created within the period.' => [
+        'zh' => '期间内创建的客房清洁任务。',
+        'es' => 'Tareas de limpieza creadas en el período.',
+        'fr' => 'Tâches d\'entretien créées pendant la période.',
+        'pt' => 'Tarefas de housekeeping criadas no período.',
+    ],
+    'Revenue by category for each day in the period.' => [
+        'zh' => '期间内每日按类别的收入。',
+        'es' => 'Ingresos por categoría para cada día del período.',
+        'fr' => 'Revenus par catégorie pour chaque jour de la période.',
+        'pt' => 'Receitas por categoria para cada dia do período.',
+    ],
+    'Revenue by category for each month in the period.' => [
+        'zh' => '期间内每月按类别的收入。',
+        'es' => 'Ingresos por categoría para cada mes del período.',
+        'fr' => 'Revenus par catégorie pour chaque mois de la période.',
+        'pt' => 'Receitas por categoria para cada mês do período.',
+    ],
+    'Payments received by day and method.' => [
+        'zh' => '按日及付款方式统计的收款。',
+        'es' => 'Pagos recibidos por día y método.',
+        'fr' => 'Paiements reçus par jour et par mode.',
+        'pt' => 'Pagamentos recebidos por dia e método.',
+    ],
+    'Open folios with an unpaid balance.' => [
+        'zh' => '有未结余额的开放账单。',
+        'es' => 'Folios abiertos con saldo pendiente.',
+        'fr' => 'Folios ouverts avec solde impayé.',
+        'pt' => 'Contas em aberto com saldo por liquidar.',
+    ],
+    'No outstanding balances. All folios are settled.' => [
+        'zh' => '无未结余额，所有账单已结清。',
+        'es' => 'Sin saldos pendientes. Todos los folios están liquidados.',
+        'fr' => 'Aucun solde impayé. Tous les folios sont réglés.',
+        'pt' => 'Sem saldos em dívida. Todas as contas estão liquidadas.',
+    ],
+    'Collections grouped by cashier and payment method for the period.' => [
+        'zh' => '期间内按收银员和付款方式分组的收款。',
+        'es' => 'Cobros agrupados por cajero y método de pago en el período.',
+        'fr' => 'Encaissements groupés par caissier et mode de paiement pour la période.',
+        'pt' => 'Cobranças agrupadas por caixa e método de pagamento no período.',
+    ],
+    'Rooms sold, occupancy %, room revenue, ADR and RevPAR per day.' => [
+        'zh' => '每日售出客房数、入住率、客房收入、ADR 和 RevPAR。',
+        'es' => 'Habitaciones vendidas, ocupación %, ingresos, ADR y RevPAR por día.',
+        'fr' => 'Chambres vendues, occupation %, revenus, ADR et RevPAR par jour.',
+        'pt' => 'Quartos vendidos, ocupação %, receita de quartos, ADR e RevPAR por dia.',
+    ],
+    'Guests staying during the selected period. Includes main guest and group members.' => [
+        'zh' => '所选期间内入住的宾客，含主宾和团队成员。',
+        'es' => 'Huéspedes alojados en el período seleccionado. Incluye titular y miembros del grupo.',
+        'fr' => 'Clients séjournant sur la période sélectionnée. Inclut le titulaire et les membres du groupe.',
+        'pt' => 'Hóspedes alojados no período seleccionado. Inclui hóspede principal e membros do grupo.',
+    ],
+    'No data found for this period.' => [
+        'zh' => '该期间无数据。',
+        'es' => 'No hay datos para este período.',
+        'fr' => 'Aucune donnée pour cette période.',
+        'pt' => 'Sem dados para este período.',
+    ],
+    'No guests found for this period.' => [
+        'zh' => '该期间未找到宾客。',
+        'es' => 'No se encontraron huéspedes para este período.',
+        'fr' => 'Aucun client trouvé pour cette période.',
+        'pt' => 'Nenhum hóspede encontrado para este período.',
+    ],
+    'Financial report' => [
+        'zh' => '财务报表',
+        'es' => 'Informe financiero',
+        'fr' => 'Rapport financier',
+        'pt' => 'Relatório financeiro',
+    ],
+    'Hotel financial report' => [
+        'zh' => '酒店财务报表',
+        'es' => 'Informe financiero del hotel',
+        'fr' => 'Rapport financier hôtel',
+        'pt' => 'Relatório financeiro do hotel',
+    ],
+    'Immigration report' => [
+        'zh' => '出入境报表',
+        'es' => 'Informe de inmigración',
+        'fr' => 'Rapport immigration',
+        'pt' => 'Relatório de imigração',
+    ],
+    'Hotel immigration / guest register' => [
+        'zh' => '酒店出入境 / 宾客登记',
+        'es' => 'Inmigración / registro de huéspedes del hotel',
+        'fr' => 'Immigration / registre des clients de l\'hôtel',
+        'pt' => 'Registo de imigração / hóspedes do hotel',
+    ],
+    'Hotel — Immigration report' => [
+        'zh' => '酒店 — 出入境报表',
+        'es' => 'Hotel — Informe de inmigración',
+        'fr' => 'Hôtel — Rapport immigration',
+        'pt' => 'Hotel — Relatório de imigração',
+    ],
+    'Immigration' => [
+        'zh' => '出入境',
+        'es' => 'Inmigración',
+        'fr' => 'Immigration',
+        'pt' => 'Imigração',
+    ],
+    'ADR' => [
+        'zh' => 'ADR',
+        'es' => 'ADR',
+        'fr' => 'ADR',
+        'pt' => 'ADR',
+    ],
+    'RevPAR' => [
+        'zh' => 'RevPAR',
+        'es' => 'RevPAR',
+        'fr' => 'RevPAR',
+        'pt' => 'RevPAR',
+    ],
+    'Addons' => [
+        'zh' => '附加服务',
+        'es' => 'Complementos',
+        'fr' => 'Suppléments',
+        'pt' => 'Complementos',
+    ],
+    'Age (days)' => [
+        'zh' => '账龄（天）',
+        'es' => 'Antigüedad (días)',
+        'fr' => 'Âge (jours)',
+        'pt' => 'Idade (dias)',
+    ],
+    'Arrival date' => [
+        'zh' => '到店日期',
+        'es' => 'Fecha de llegada',
+        'fr' => 'Date d\'arrivée',
+        'pt' => 'Data de chegada',
+    ],
+    'Avg ADR' => [
+        'zh' => '平均 ADR',
+        'es' => 'ADR promedio',
+        'fr' => 'ADR moyen',
+        'pt' => 'ADR médio',
+    ],
+    'Balance due' => [
+        'zh' => '应付余额',
+        'es' => 'Saldo pendiente',
+        'fr' => 'Solde dû',
+        'pt' => 'Saldo em dívida',
+    ],
+    'Cashier' => [
+        'zh' => '收银员',
+        'es' => 'Cajero',
+        'fr' => 'Caissier',
+        'pt' => 'Caixa',
+    ],
+    'Cashiers' => [
+        'zh' => '收银员',
+        'es' => 'Cajeros',
+        'fr' => 'Caissiers',
+        'pt' => 'Caixas',
+    ],
+    'Check-in time' => [
+        'zh' => '入住时间',
+        'es' => 'Hora de check-in',
+        'fr' => 'Heure d\'arrivée',
+        'pt' => 'Hora de check-in',
+    ],
+    'Check-out time' => [
+        'zh' => '退房时间',
+        'es' => 'Hora de check-out',
+        'fr' => 'Heure de départ',
+        'pt' => 'Hora de check-out',
+    ],
+    'Cleaning / maintenance' => [
+        'zh' => '清洁 / 维修',
+        'es' => 'Limpieza / mantenimiento',
+        'fr' => 'Nettoyage / maintenance',
+        'pt' => 'Limpeza / manutenção',
+    ],
+    'Current guest' => [
+        'zh' => '当前宾客',
+        'es' => 'Huésped actual',
+        'fr' => 'Client actuel',
+        'pt' => 'Hóspede actual',
+    ],
+    'Departure date' => [
+        'zh' => '离店日期',
+        'es' => 'Fecha de salida',
+        'fr' => 'Date de départ',
+        'pt' => 'Data de saída',
+    ],
+    'Dirty' => [
+        'zh' => '脏房',
+        'es' => 'Sucia',
+        'fr' => 'Sale',
+        'pt' => 'Sujo',
+    ],
+    'Discounts' => [
+        'zh' => '折扣',
+        'es' => 'Descuentos',
+        'fr' => 'Remises',
+        'pt' => 'Descontos',
+    ],
+    'Est. amount' => [
+        'zh' => '预估金额',
+        'es' => 'Importe est.',
+        'fr' => 'Montant est.',
+        'pt' => 'Valor est.',
+    ],
+    'Est. room amount' => [
+        'zh' => '预估房费',
+        'es' => 'Importe est. habitación',
+        'fr' => 'Montant chambre est.',
+        'pt' => 'Valor est. do quarto',
+    ],
+    'Excel' => [
+        'zh' => 'Excel',
+        'es' => 'Excel',
+        'fr' => 'Excel',
+        'pt' => 'Excel',
+    ],
+    'Expected check-out' => [
+        'zh' => '预计退房',
+        'es' => 'Salida prevista',
+        'fr' => 'Départ prévu',
+        'pt' => 'Check-out previsto',
+    ],
+    'Full name' => [
+        'zh' => '全名',
+        'es' => 'Nombre completo',
+        'fr' => 'Nom complet',
+        'pt' => 'Nome completo',
+    ],
+    'ID number' => [
+        'zh' => '证件号码',
+        'es' => 'Número de ID',
+        'fr' => 'Numéro d\'identité',
+        'pt' => 'Número de identificação',
+    ],
+    'ID type' => [
+        'zh' => '证件类型',
+        'es' => 'Tipo de ID',
+        'fr' => 'Type d\'identité',
+        'pt' => 'Tipo de identificação',
+    ],
+    'In progress' => [
+        'zh' => '进行中',
+        'es' => 'En curso',
+        'fr' => 'En cours',
+        'pt' => 'Em curso',
+    ],
+    'Passport number' => [
+        'zh' => '护照号码',
+        'es' => 'Número de pasaporte',
+        'fr' => 'Numéro de passeport',
+        'pt' => 'Número do passaporte',
+    ],
+    'Period' => [
+        'zh' => '期间',
+        'es' => 'Período',
+        'fr' => 'Période',
+        'pt' => 'Período',
+    ],
+    'Rows' => [
+        'zh' => '行数',
+        'es' => 'Filas',
+        'fr' => 'Lignes',
+        'pt' => 'Linhas',
+    ],
+    'Tax collected' => [
+        'zh' => '已收税费',
+        'es' => 'Impuestos cobrados',
+        'fr' => 'Taxes perçues',
+        'pt' => 'Impostos cobrados',
+    ],
+    'Total collected' => [
+        'zh' => '收款合计',
+        'es' => 'Total cobrado',
+        'fr' => 'Total encaissé',
+        'pt' => 'Total cobrado',
+    ],
+    'Total guests' => [
+        'zh' => '宾客总数',
+        'es' => 'Total de huéspedes',
+        'fr' => 'Total clients',
+        'pt' => 'Total de hóspedes',
+    ],
+    'Total outstanding' => [
+        'zh' => '未结合计',
+        'es' => 'Total pendiente',
+        'fr' => 'Total impayé',
+        'pt' => 'Total em dívida',
+    ],
+    'Total paid' => [
+        'zh' => '已付合计',
+        'es' => 'Total pagado',
+        'fr' => 'Total payé',
+        'pt' => 'Total pago',
+    ],
+    'Total rooms' => [
+        'zh' => '客房总数',
+        'es' => 'Total de habitaciones',
+        'fr' => 'Total chambres',
+        'pt' => 'Total de quartos',
+    ],
+    'Transactions' => [
+        'zh' => '交易笔数',
+        'es' => 'Transacciones',
+        'fr' => 'Transactions',
+        'pt' => 'Transacções',
+    ],
+    'Unspecified' => [
+        'zh' => '未指定',
+        'es' => 'Sin especificar',
+        'fr' => 'Non spécifié',
+        'pt' => 'Não especificado',
+    ],
+    'Updated' => [
+        'zh' => '已更新',
+        'es' => 'Actualizado',
+        'fr' => 'Mis à jour',
+        'pt' => 'Actualizado',
+    ],
+    'Visa number' => [
+        'zh' => '签证号码',
+        'es' => 'Número de visado',
+        'fr' => 'Numéro de visa',
+        'pt' => 'Número do visto',
+    ],
+];
+
+$dict = require __DIR__ . '/hotel-i18n-dict.php';
+foreach ($extra as $en => $locales) {
+    foreach ($locales as $locale => $value) {
+        $dict[$locale][$en] = $value;
+    }
+}
+file_put_contents(__DIR__ . '/hotel-i18n-dict.php', "<?php\n\nreturn " . var_export($dict, true) . ";\n");
+echo 'Appended ' . count($extra) . " report strings\n";

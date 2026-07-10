@@ -483,25 +483,30 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
                     $isTopParent = $depth === 0;
 
                     if ($isTopParent) {
-                        $existing = ChartOfAccount::where('created_by', $company->id)->where('code', $code)->first();
-                        if ($existing) {
-                            $account = $existing;
-                        } else {
-                            $account = ChartOfAccount::create(array_merge($accountPayload, [
-                                'parent' => 0,
-                                'parent_account_id' => null,
-                            ]));
-                        }
+                    $existing = ChartOfAccount::where('created_by', $company->id)->where('code', $code)->first();
+                    if ($existing) {
+                        $existing->fill(array_merge($accountPayload, [
+                            'parent' => 0,
+                            'parent_account_id' => null,
+                        ]));
+                        $existing->save();
+                        $account = $existing;
+                    } else {
+                        $account = ChartOfAccount::create(array_merge($accountPayload, [
+                            'parent' => 0,
+                            'parent_account_id' => null,
+                        ]));
+                    }
 
-                        ChartOfAccountParent::firstOrCreate(
-                            ['account' => $account->id, 'created_by' => $company->id],
-                            [
-                                'name' => $account->name,
-                                'name_pt_br' => $account->name_pt_br,
-                                'type' => $typeModel->id,
-                                'sub_type' => $subType->id,
-                            ]
-                        );
+                    ChartOfAccountParent::updateOrCreate(
+                        ['account' => $account->id, 'created_by' => $company->id],
+                        [
+                            'name' => $account->name,
+                            'name_pt_br' => $account->name_pt_br,
+                            'type' => $typeModel->id,
+                            'sub_type' => $subType->id,
+                        ]
+                    );
 
                         $accountsByCode[$code] = [
                             'id' => $account->id,
@@ -535,6 +540,11 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
 
                     $existing = ChartOfAccount::where('created_by', $company->id)->where('code', $code)->first();
                     if ($existing) {
+                        $existing->fill(array_merge($accountPayload, [
+                            'parent' => $legacyParentId,
+                            'parent_account_id' => $parentAccountId,
+                        ]));
+                        $existing->save();
                         $account = $existing;
                     } else {
                         $account = ChartOfAccount::create(array_merge($accountPayload, [
@@ -559,6 +569,8 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
             });
 
             $imported += $companyImported;
+            ChartOfAccountHierarchy::repairParentsByCodePrefix((int) $company->id);
+            ChartOfAccountHierarchy::syncTypesFromParents((int) $company->id);
             $companyResults[] = [
                 'company_id' => $company->id,
                 'company_name' => $company->name,

@@ -15,6 +15,7 @@ class FiscalYearClosingService
 
     /**
      * Net balance in "credit-positive" form: sum(credit) - sum(debit).
+     * Prefers transaction_lines (Trial Balance source) so year-end clearing matches the screen.
      *
      * @param  bool  $excludeFinalClosingPeriods  If true, ignore journals with accounting_period 14 or 15.
      */
@@ -25,6 +26,38 @@ class FiscalYearClosingService
         int $createdBy,
         bool $excludeFinalClosingPeriods = true
     ): float {
+        $excludedJournalIds = [];
+        if ($excludeFinalClosingPeriods) {
+            $excludedJournalIds = DB::table('journal_entries')
+                ->where('created_by', $createdBy)
+                ->whereNotNull('accounting_period')
+                ->where('accounting_period', '>=', 14)
+                ->pluck('id')
+                ->all();
+        }
+
+        $tl = DB::table('transaction_lines')
+            ->where('account_id', $accountId)
+            ->where('created_by', $createdBy)
+            ->whereBetween('date', [$fromDate, $toDate]);
+
+        if ($excludedJournalIds !== []) {
+            $tl->where(function ($w) use ($excludedJournalIds) {
+                $w->where('reference', '!=', 'Journal')
+                    ->orWhereNull('reference_id')
+                    ->orWhereNotIn('reference_id', $excludedJournalIds);
+            });
+        }
+
+        $tlNet = round((float) ($tl->selectRaw(
+            'COALESCE(SUM(credit),0) - COALESCE(SUM(debit),0) as net'
+        )->value('net') ?? 0), 2);
+
+        if (abs($tlNet) >= 0.0001) {
+            return $tlNet;
+        }
+
+        // Fallback when older journals never wrote transaction_lines.
         $q = DB::table('journal_items')
             ->join('journal_entries', 'journal_items.journal', '=', 'journal_entries.id')
             ->where('journal_items.account', $accountId)
@@ -38,11 +71,9 @@ class FiscalYearClosingService
             });
         }
 
-        $row = $q->selectRaw(
+        return round((float) ($q->selectRaw(
             'COALESCE(SUM(journal_items.credit),0) - COALESCE(SUM(journal_items.debit),0) as net'
-        )->first();
-
-        return round((float) ($row->net ?? 0), 2);
+        )->value('net') ?? 0), 2);
     }
 
     /**
@@ -408,13 +439,15 @@ class FiscalYearClosingService
         }
         $lines = [];
         foreach ($map as $accountId => $v) {
-            if (abs($v['debit']) < 0.0001 && abs($v['credit']) < 0.0001) {
+            // Net to a single side so journal_items and transaction_lines stay in sync.
+            $net = round($v['debit'] - $v['credit'], 2);
+            if (abs($net) < 0.0001) {
                 continue;
             }
             $lines[] = [
                 'account' => $accountId,
-                'debit' => round($v['debit'], 2),
-                'credit' => round($v['credit'], 2),
+                'debit' => $net > 0 ? $net : 0.0,
+                'credit' => $net < 0 ? abs($net) : 0.0,
                 'description' => $v['description'],
             ];
         }

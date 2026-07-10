@@ -28,7 +28,7 @@
 
 @section('content')
     <div class="row justify-content-center">
-        <div class="col-md-10">
+        <div class="col-md-12">
             <div class="card d-none" id="monthly_report_filter">
                 <div class="card-body">
                     {{ Form::open(['route' => ['monthly.reports.trial-balance'], 'method' => 'GET', 'id' => 'report_trial_balance']) }}
@@ -67,13 +67,15 @@
         $user = \App\Models\User::find($authUser);
         $totalDebit = $grandTotalDebit ?? 0;
         $totalCredit = $grandTotalCredit ?? 0;
+        $grandBalance = $totalDebit - $totalCredit;
+        $grandDevedor = $grandBalance > 0 ? $grandBalance : 0;
+        $grandCredor = $grandBalance < 0 ? abs($grandBalance) : 0;
     @endphp
 
     <div class="row justify-content-center" id="printableArea">
-        <div class="col-md-10">
+        <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    {{-- GOVERNMENT FORMAT AREA (EDIT THIS VIEW FREELY) --}}
                     <div class="text-center mb-4">
                         <div class="fw-bold" style="font-size: 16px;">{{ __('BALANCETE (Trial Balance)') }}</div>
                         <div style="font-size: 13px;">{{ $user?->name }}</div>
@@ -86,52 +88,53 @@
                         <table class="table table-sm" style="font-size: 12px;">
                             <thead>
                                 <tr>
-                                    <th style="width: 55%;">{{ __('Account') }}</th>
-                                    <th style="width: 15%;" class="text-center">{{ __('Code') }}</th>
-                                    <th style="width: 15%;" class="text-end">{{ __('Debit') }}</th>
-                                    <th style="width: 15%;" class="text-end">{{ __('Credit') }}</th>
+                                    <th style="width: 12%;" class="text-center">{{ __('Code') }}</th>
+                                    <th style="width: 28%;">{{ __('Account') }}</th>
+                                    <th style="width: 15%;" class="text-end">{{ __('Debito') }}</th>
+                                    <th style="width: 15%;" class="text-end">{{ __('Credito') }}</th>
+                                    <th style="width: 15%;" class="text-end">{{ __('Saldo Devedor') }}</th>
+                                    <th style="width: 15%;" class="text-end">{{ __('Saldo Credor') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach ($totalAccounts as $type => $accounts)
                                     <tr>
-                                        <td colspan="4" class="fw-bold" style="background: #f6f7f9;">
+                                        <td colspan="6" class="fw-bold" style="background: #f6f7f9;">
                                             {{ $type }}
                                         </td>
                                     </tr>
 
                                     @foreach ($accounts as $record)
+                                        @php
+                                            $isParent = ($record['account'] ?? '') === 'parent';
+                                            $isSub = ($record['account'] ?? '') === 'subAccount';
+                                        @endphp
                                         <tr>
-                                            <td>
-                                                @if (($record['account'] ?? '') === 'parent')
-                                                    <span class="fw-bold">{{ $record['account_name'] }}</span>
-                                                @elseif (($record['account'] ?? '') === 'subAccount')
-                                                    <span class="ps-3">{{ $record['account_name'] }}</span>
-                                                @else
-                                                    {{ $record['account_name'] }}
-                                                @endif
+                                            <td class="text-center {{ $isParent ? 'fw-bold' : '' }}">{{ $record['account_code'] }}</td>
+                                            <td class="{{ $isParent ? 'fw-bold' : '' }} {{ $isSub ? 'ps-4' : '' }}">
+                                                {{ $record['account_name'] }}
                                             </td>
-                                            <td class="text-center">{{ $record['account_code'] }}</td>
-                                            <td class="text-end {{ ($record['account'] ?? '') === 'parent' ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormat($record['totalDebit'] ?? 0) }}</td>
-                                            <td class="text-end {{ ($record['account'] ?? '') === 'parent' ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormat($record['totalCredit'] ?? 0) }}</td>
+                                            <td class="text-end {{ $isParent ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormat($record['totalDebit'] ?? 0) }}</td>
+                                            <td class="text-end {{ $isParent ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormat($record['totalCredit'] ?? 0) }}</td>
+                                            <td class="text-end {{ $isParent ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormat($record['balanceDebit'] ?? 0) }}</td>
+                                            <td class="text-end {{ $isParent ? 'fw-bold' : '' }}">{{ \Auth::user()->priceFormat($record['balanceCredit'] ?? 0) }}</td>
                                         </tr>
                                     @endforeach
                                 @endforeach
                             </tbody>
                             <tfoot>
                                 <tr class="fw-bold">
-                                    <td>{{ __('TOTAL') }}</td>
-                                    <td></td>
+                                    <td colspan="2">{{ __('TOTAL') }}</td>
                                     <td class="text-end">{{ \Auth::user()->priceFormat($totalDebit) }}</td>
                                     <td class="text-end">{{ \Auth::user()->priceFormat($totalCredit) }}</td>
+                                    <td class="text-end">{{ \Auth::user()->priceFormat($grandDevedor) }}</td>
+                                    <td class="text-end">{{ \Auth::user()->priceFormat($grandCredor) }}</td>
                                 </tr>
                             </tfoot>
                         </table>
                     </div>
-                    {{-- END GOVERNMENT FORMAT AREA --}}
                 </div>
             </div>
         </div>
     </div>
 @endsection
-
