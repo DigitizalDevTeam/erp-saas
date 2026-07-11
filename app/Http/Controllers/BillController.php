@@ -22,6 +22,7 @@ use App\Models\Utility;
 use App\Models\Vender;
 use App\Models\TransactionLines;
 use App\Services\DocumentVoidService;
+use App\Services\Accounting\DocumentLedgerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -564,6 +565,7 @@ class BillController extends Controller
 
                 TransactionLines::where('reference_id',$bill->id)->where('reference','Bill')->delete();
                 TransactionLines::where('reference_id',$bill->id)->where('reference','Bill Account')->delete();
+                TransactionLines::where('reference_id',$bill->id)->where('reference','Bill Payable')->delete();
 
                 $bill_products = BillProduct::where('bill_id', $bill->id)->get();
                 foreach ($bill_products as $bill_product) {
@@ -604,6 +606,15 @@ class BillController extends Controller
                     ];
                     Utility::addTransactionLines($data , 'edit');
                 }
+
+                app(DocumentLedgerService::class)->balanceDocumentLines(
+                    (int) \Auth::user()->creatorId(),
+                    (int) $bill->id,
+                    ['Bill', 'Bill Account'],
+                    'payable',
+                    'Bill Payable',
+                    (string) $bill->bill_date
+                );
 
                 return redirect()->route('bill.index')->with('success', __('Bill successfully updated.'));
             } else {
@@ -764,6 +775,15 @@ class BillController extends Controller
                 ];
                 Utility::addTransactionLines($data , 'create');
             }
+
+            app(DocumentLedgerService::class)->balanceDocumentLines(
+                (int) \Auth::user()->creatorId(),
+                (int) $bill->id,
+                ['Bill', 'Bill Account'],
+                'payable',
+                'Bill Payable',
+                (string) $bill->bill_date
+            );
 
             $resp = SalesPurchaseNotifier::vendorBillSent($vender, $vendorArr);
 
@@ -932,21 +952,15 @@ class BillController extends Controller
 
             Utility::bankAccountBalance($request->account_id, $request->amount, 'debit');
 
-            $billPayments = BillPayment::where('bill_id', $bill->id)->get();
-            foreach ($billPayments as $billPayment) {
-                $accountId = BankAccount::find($billPayment->account_id);
-
-                $data = [
-                    'account_id' => $accountId->chart_account_id,
-                    'transaction_type' => 'Debit',
-                    'transaction_amount' => $billPayment->amount,
-                    'reference' => 'Bill Payment',
-                    'reference_id' => $bill->id,
-                    'reference_sub_id' => $billPayment->id,
-                    'date' => $billPayment->date,
-                ];
-                Utility::addTransactionLines($data , 'create');
-            }
+            $accountId = BankAccount::find($request->account_id);
+            app(DocumentLedgerService::class)->postBillPayment(
+                (int) \Auth::user()->creatorId(),
+                (int) $bill->id,
+                (int) $billPayment->id,
+                (float) $request->amount,
+                (string) $request->date,
+                $accountId?->chart_account_id ? (int) $accountId->chart_account_id : null
+            );
 
             $billPaymentArr = [
                 'vender_name' => $vender->name,

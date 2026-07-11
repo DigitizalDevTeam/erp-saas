@@ -25,6 +25,7 @@ use App\Models\User;
 use App\Models\Utility;
 use App\Models\TransactionLines;
 use App\Services\DocumentVoidService;
+use App\Services\Accounting\DocumentLedgerService;
 use App\Support\SalesPurchaseNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -505,6 +506,7 @@ class InvoiceController extends Controller
                 Utility::updateUserBalance('customer', $request->customer_id, $updatePrice, 'credit');
 
                 TransactionLines::where('reference_id',$invoice->id)->where('reference','Invoice')->delete();
+                TransactionLines::where('reference_id',$invoice->id)->where('reference','Invoice Receivable')->delete();
 
                 $invoice_products = InvoiceProduct::where('invoice_id', $invoice->id)->get();
                 foreach ($invoice_products as $invoice_product) {
@@ -531,6 +533,15 @@ class InvoiceController extends Controller
                     ];
                     Utility::addTransactionLines($data , 'edit');
                 }
+
+                app(DocumentLedgerService::class)->balanceDocumentLines(
+                    (int) \Auth::user()->creatorId(),
+                    (int) $invoice->id,
+                    ['Invoice'],
+                    'receivable',
+                    'Invoice Receivable',
+                    (string) $invoice->issue_date
+                );
 
                 return redirect()->route('invoice.index')->with('success', __('Invoice successfully updated.'));
             } else {
@@ -743,6 +754,15 @@ class InvoiceController extends Controller
                     Utility::addTransactionLines($data , 'create');
                 }
 
+                app(DocumentLedgerService::class)->balanceDocumentLines(
+                    (int) \Auth::user()->creatorId(),
+                    (int) $invoice->id,
+                    ['Invoice'],
+                    'receivable',
+                    'Invoice Receivable',
+                    (string) $invoice->issue_date
+                );
+
                 $customerArr = [
 
                     'customer_name' => $customer->name,
@@ -890,21 +910,21 @@ class InvoiceController extends Controller
 
             Utility::bankAccountBalance($request->account_id, $request->amount, 'credit');
 
-            $invoicePayments = InvoicePayment::where('invoice_id', $invoice->id)->get();
-            foreach ($invoicePayments as $invoicePayment) {
+            $accountId = BankAccount::find($request->account_id);
+            // Remove prior one-sided payment lines for this payment id, then post balanced pair.
+            TransactionLines::where('reference_id', $invoice->id)
+                ->where('reference_sub_id', $invoicePayment->id)
+                ->whereIn('reference', ['Invoice Payment', 'Invoice Payment AR'])
+                ->delete();
 
-                $accountId = BankAccount::find($invoicePayment->account_id);
-                $data = [
-                    'account_id' => $accountId->chart_account_id,
-                    'transaction_type' => 'Debit',
-                    'transaction_amount' => $invoicePayment->amount,
-                    'reference' => 'Invoice Payment',
-                    'reference_id' => $invoice->id,
-                    'reference_sub_id' => $invoicePayment->id,
-                    'date' => $invoicePayment->date,
-                ];
-                Utility::addTransactionLines($data , 'create');
-            }
+            app(DocumentLedgerService::class)->postInvoicePayment(
+                (int) \Auth::user()->creatorId(),
+                (int) $invoice->id,
+                (int) $invoicePayment->id,
+                (float) $request->amount,
+                (string) $request->date,
+                $accountId?->chart_account_id ? (int) $accountId->chart_account_id : null
+            );
 
             $invoice_payment_method = InvoicePayment::where('invoice_id', $invoice->id)->orderBy('id', 'desc')->first();
             $invoicePaymentArr = [

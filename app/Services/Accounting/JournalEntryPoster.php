@@ -5,7 +5,8 @@ namespace App\Services\Accounting;
 use App\Models\BankAccount;
 use App\Models\JournalEntry;
 use App\Models\JournalItem;
-use App\Models\Utility;
+use App\Models\TransactionLines;
+
 class JournalEntryPoster
 {
     public function nextJournalId(int $createdBy): int
@@ -87,28 +88,22 @@ class JournalEntryPoster
                 }
             }
 
-            if ($debit > 0) {
-                $data = [
-                    'account_id' => $line['account'],
-                    'transaction_type' => 'Debit',
-                    'transaction_amount' => $debit,
-                    'reference' => 'Journal',
-                    'reference_id' => $journal->id,
-                    'reference_sub_id' => $journalItem->id,
-                    'date' => $journal->date,
-                ];
-            } else {
-                $data = [
-                    'account_id' => $line['account'],
-                    'transaction_type' => 'Credit',
-                    'transaction_amount' => $credit,
-                    'reference' => 'Journal',
-                    'reference_id' => $journal->id,
-                    'reference_sub_id' => $journalItem->id,
-                    'date' => $journal->date,
-                ];
-            }
-            Utility::addTransactionLines($data, 'create');
+            // Same company id as the journal — never Auth::creatorId() (can drift).
+            $tl = TransactionLines::query()
+                ->where('reference', 'Journal')
+                ->where('reference_id', $journal->id)
+                ->where('reference_sub_id', $journalItem->id)
+                ->first() ?? new TransactionLines();
+
+            $tl->account_id = (int) $line['account'];
+            $tl->reference = 'Journal';
+            $tl->reference_id = $journal->id;
+            $tl->reference_sub_id = $journalItem->id;
+            $tl->date = $journal->date;
+            $tl->debit = $debit > 0 ? $debit : 0;
+            $tl->credit = $credit > 0 ? $credit : 0;
+            $tl->created_by = $createdBy;
+            $tl->save();
         }
 
         return $journal;

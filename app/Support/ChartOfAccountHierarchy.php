@@ -416,13 +416,17 @@ class ChartOfAccountHierarchy
     }
 
     /**
-     * Re-link parents using longest numeric code prefix (PGC: 210 → 21, not 29).
-     * Fixes charts imported with "last parent" logic where 210 sat under 29.
+     * Re-link parents from chart_new_data.csv structure (PGC levels).
+     * Fixes cases like 4210 wrongly nested under 421 (should be under 42, after 429).
+     * Custom codes not in the CSV use longest-prefix with sibling-guard (+1 digit on non-parent nodes).
      *
-     * @return array{updated: int, cleared: int}
+     * @return array{updated: int, cleared: int, csv_links: int}
      */
     public static function repairParentsByCodePrefix(?int $creatorId = null): array
     {
+        $csvParents = self::csvParentMap();
+        $csvLevels = self::csvLevelMap();
+
         $query = ChartOfAccount::query();
         if ($creatorId) {
             $query->where('created_by', $creatorId);
@@ -433,6 +437,7 @@ class ChartOfAccountHierarchy
 
         $updated = 0;
         $cleared = 0;
+        $csvLinks = 0;
 
         foreach ($byCreator as $creatorAccounts) {
             /** @var Collection<int, ChartOfAccount> $creatorAccounts */
@@ -445,7 +450,6 @@ class ChartOfAccountHierarchy
                 $byCode[$code] = $account;
             }
 
-            // Longer codes first so children are linked after parents exist in the map.
             $codes = array_keys($byCode);
             usort($codes, static function (string $a, string $b) {
                 return strlen($a) <=> strlen($b) ?: strcmp($a, $b);
@@ -454,11 +458,40 @@ class ChartOfAccountHierarchy
             foreach ($codes as $code) {
                 $account = $byCode[$code];
                 $parentCode = null;
-                for ($len = strlen($code) - 1; $len > 0; $len--) {
-                    $prefix = substr($code, 0, $len);
-                    if (isset($byCode[$prefix])) {
+
+                if (array_key_exists($code, $csvParents)) {
+                    $parentCode = $csvParents[$code]; // may be null for top-level
+                    $csvLinks++;
+                } else {
+                    for ($len = strlen($code) - 1; $len > 0; $len--) {
+                        $prefix = substr($code, 0, $len);
+                        if (! isset($byCode[$prefix])) {
+                            continue;
+                        }
+                        $extra = substr($code, $len);
+                        $level = $csvLevels[$prefix] ?? '';
+                        // Guard: 4210 must not nest under 421 (same CSV "Sub Account" level, +1 digit).
+                        if (strlen($extra) === 1
+                            && $level !== ''
+                            && ! str_contains($level, 'parent')
+                            && $level !== 'parent account'
+                            && $level !== 'main account') {
+                            continue;
+                        }
                         $parentCode = $prefix;
                         break;
+                    }
+                }
+
+                if ($parentCode !== null && ! isset($byCode[$parentCode])) {
+                    // CSV parent missing in this company chart — fall back.
+                    $parentCode = null;
+                    for ($len = strlen($code) - 1; $len > 0; $len--) {
+                        $prefix = substr($code, 0, $len);
+                        if (isset($byCode[$prefix])) {
+                            $parentCode = $prefix;
+                            break;
+                        }
                     }
                 }
 
@@ -492,7 +525,141 @@ class ChartOfAccountHierarchy
 
         self::clearCache();
 
-        return ['updated' => $updated, 'cleared' => $cleared];
+        return ['updated' => $updated, 'cleared' => $cleared, 'csv_links' => $csvLinks];
+    }
+
+    /**
+     * @return array<string, string|null> code => parent code (null = root)
+     */
+    private static function csvParentMap(): array
+    {
+        $file = public_path('chart_new_data.csv');
+        if (! is_file($file)) {
+            return [];
+        }
+
+        $csv = array_map('str_getcsv', file($file));
+        $normalizeLevel = static function (?string $raw): string {
+            return strtolower(trim(preg_replace('/\s+/', ' ', $raw ?? '')));
+        };
+        $parseDepth = static function (string $level): int {
+            if ($level === 'parent account' || $level === 'main account') {
+                return 0;
+            }
+            if (! preg_match('/^(?:sub\s+)+account/', $level)) {
+                return -1;
+            }
+
+            return substr_count($level, 'sub');
+        };
+        $findParentCode = static function (string $code, array $accountsByCode): ?string {
+            for ($length = strlen($code) - 1; $length > 0; $length--) {
+                $prefix = substr($code, 0, $length);
+                if (isset($accountsByCode[$prefix])) {
+                    return $prefix;
+                }
+            }
+
+            return null;
+        };
+
+        $parents = [];
+        $accountsByCode = [];
+        $depthStack = [];
+
+        foreach ($csv as $rowIndex => $row) {
+            if ($rowIndex < 3) {
+                continue;
+            }
+            $code = trim($row[1] ?? '');
+            if ($code === '' || ! preg_match('/^\d+$/', $code)) {
+                continue;
+            }
+            $level = $normalizeLevel($row[9] ?? '');
+            $depth = $parseDepth($level);
+            if ($depth < 0) {
+                continue;
+            }
+            $canHaveChildren = str_contains($level, '- parent');
+
+            if ($depth === 0) {
+                $parents[$code] = null;
+                $accountsByCode[$code] = ['depth' => 0, 'can_have_children' => $canHaveChildren];
+                $depthStack = [0 => $code];
+                continue;
+            }
+
+            $prefixParent = $findParentCode($code, $accountsByCode);
+            $parentCode = null;
+
+            if ($depth >= 2 && isset($depthStack[$depth - 1]) && str_starts_with($code, $depthStack[$depth - 1]) && strlen($code) > strlen($depthStack[$depth - 1])) {
+                $parentCode = $depthStack[$depth - 1];
+            } elseif ($depth === 1 && isset($depthStack[0]) && str_starts_with($code, $depthStack[0]) && strlen($code) > strlen($depthStack[0])) {
+                if ($prefixParent !== null && isset($accountsByCode[$prefixParent]) && strlen($prefixParent) > strlen($depthStack[0])) {
+                    $parentMeta = $accountsByCode[$prefixParent];
+                    if (($parentMeta['can_have_children'] ?? false) || ($parentMeta['depth'] ?? 0) >= 2) {
+                        $parentCode = $prefixParent;
+                    } else {
+                        $parentCode = $depthStack[0];
+                    }
+                } else {
+                    $parentCode = $depthStack[0];
+                }
+            } else {
+                $parentCode = $prefixParent;
+            }
+
+            // Same-level Sub Accounts under a Parent (421, 429, 4210 → all under 42):
+            // prefer the depth-0 stack parent when prefix would nest under a sibling.
+            if ($depth === 1 && isset($depthStack[0])) {
+                $root = $depthStack[0];
+                if (str_starts_with($code, $root) && ($parentCode === null || ! str_starts_with($parentCode, $root) || strlen($parentCode) > strlen($root))) {
+                    // If longest prefix is another depth-1 sibling (e.g. 421 for 4210), use root.
+                    if ($parentCode !== null && isset($accountsByCode[$parentCode]) && ($accountsByCode[$parentCode]['depth'] ?? 0) === 1 && ! ($accountsByCode[$parentCode]['can_have_children'] ?? false)) {
+                        $parentCode = $root;
+                    }
+                }
+                if ($parentCode === null) {
+                    $parentCode = $root;
+                }
+            }
+
+            $parents[$code] = $parentCode;
+            $accountsByCode[$code] = ['depth' => $depth, 'can_have_children' => $canHaveChildren];
+            $depthStack[$depth] = $code;
+            foreach (array_keys($depthStack) as $stackDepth) {
+                if ($stackDepth > $depth) {
+                    unset($depthStack[$stackDepth]);
+                }
+            }
+        }
+
+        return $parents;
+    }
+
+    /**
+     * @return array<string, string> code => normalized level string
+     */
+    private static function csvLevelMap(): array
+    {
+        $file = public_path('chart_new_data.csv');
+        if (! is_file($file)) {
+            return [];
+        }
+        $csv = array_map('str_getcsv', file($file));
+        $map = [];
+        foreach ($csv as $rowIndex => $row) {
+            if ($rowIndex < 3) {
+                continue;
+            }
+            $code = trim($row[1] ?? '');
+            if ($code === '' || ! preg_match('/^\d+$/', $code)) {
+                continue;
+            }
+            $map[$code] = strtolower(trim(preg_replace('/\s+/', ' ', $row[9] ?? '')));
+        }
+
+        return $map;
     }
 
     private static function parentRecordById(int $parentRowId): ?ChartOfAccountParent

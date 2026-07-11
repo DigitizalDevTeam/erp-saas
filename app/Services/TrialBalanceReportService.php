@@ -89,6 +89,47 @@ class TrialBalanceReportService
             }
         }
 
+        // Include journal_items that never got transaction_lines (e.g. year-end closing
+        // posted while Auth::creatorId() drifted). Avoid double-counting journals that
+        // already have TL rows.
+        $journalOnly = DB::table('journal_items as ji')
+            ->join('journal_entries as je', 'ji.journal', '=', 'je.id')
+            ->where('je.created_by', $creatorId)
+            ->whereDate('je.date', '>=', $start)
+            ->whereDate('je.date', '<=', $end)
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('transaction_lines as tl')
+                    ->whereColumn('tl.reference_id', 'je.id')
+                    ->where('tl.reference', 'Journal');
+            })
+            ->groupBy('ji.account')
+            ->select(
+                'ji.account as account_id',
+                DB::raw('SUM(ji.debit) as totalDebit'),
+                DB::raw('SUM(ji.credit) as totalCredit')
+            )
+            ->get();
+
+        foreach ($journalOnly as $row) {
+            $accountId = (int) $row->account_id;
+            $normalized = $this->normalizeAmounts(
+                (float) $row->totalDebit,
+                (float) $row->totalCredit
+            );
+            if (! $this->hasActivity($normalized['totalDebit'], $normalized['totalCredit'])) {
+                continue;
+            }
+            if (! isset($balances[$accountId])) {
+                $balances[$accountId] = $normalized;
+            } else {
+                $balances[$accountId] = $this->normalizeAmounts(
+                    $balances[$accountId]['totalDebit'] + $normalized['totalDebit'],
+                    $balances[$accountId]['totalCredit'] + $normalized['totalCredit']
+                );
+            }
+        }
+
         return $balances;
     }
 
@@ -97,7 +138,7 @@ class TrialBalanceReportService
      */
     private function grandTotals(int $creatorId, string $start, string $end): array
     {
-        $totals = TransactionLines::query()
+        $tl = TransactionLines::query()
             ->select(
                 DB::raw('COALESCE(SUM(debit), 0) as totalDebit'),
                 DB::raw('COALESCE(SUM(credit), 0) as totalCredit')
@@ -107,9 +148,23 @@ class TrialBalanceReportService
             ->whereDate('date', '<=', $end)
             ->first();
 
+        $ji = DB::table('journal_items as ji')
+            ->join('journal_entries as je', 'ji.journal', '=', 'je.id')
+            ->where('je.created_by', $creatorId)
+            ->whereDate('je.date', '>=', $start)
+            ->whereDate('je.date', '<=', $end)
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('transaction_lines as tl')
+                    ->whereColumn('tl.reference_id', 'je.id')
+                    ->where('tl.reference', 'Journal');
+            })
+            ->selectRaw('COALESCE(SUM(ji.debit),0) as totalDebit, COALESCE(SUM(ji.credit),0) as totalCredit')
+            ->first();
+
         return $this->normalizeAmounts(
-            (float) ($totals->totalDebit ?? 0),
-            (float) ($totals->totalCredit ?? 0)
+            (float) ($tl->totalDebit ?? 0) + (float) ($ji->totalDebit ?? 0),
+            (float) ($tl->totalCredit ?? 0) + (float) ($ji->totalCredit ?? 0)
         );
     }
 
@@ -147,16 +202,25 @@ class TrialBalanceReportService
 
         $rows = [];
         $hasActiveChildren = $childRows !== [];
+        $hasDirect = $this->hasActivity($direct['totalDebit'], $direct['totalCredit']);
 
         if ($hasActiveChildren) {
+            // Parent line = sum of all sub-accounts (children + any direct postings on the parent).
             if ($view !== 'collapse' || $depth === 0) {
                 $rows[] = $this->makeRow($node, 'parent', $subtreeDebit, $subtreeCredit);
             }
 
             if ($view === 'expand') {
+                // Surface parent-own movements as a detail line so
+                // parent total == sum of visible sub-lines.
+                if ($hasDirect) {
+                    $own = $this->makeRow($node, 'subAccount', $direct['totalDebit'], $direct['totalCredit']);
+                    $own['account_name'] = $node->labelForLocale() . ' (' . __('own movements') . ')';
+                    $rows[] = $own;
+                }
                 $rows = array_merge($rows, $childRows);
             }
-        } elseif ($this->hasActivity($direct['totalDebit'], $direct['totalCredit'])) {
+        } elseif ($hasDirect) {
             $role = $depth === 0 ? '' : 'subAccount';
             $rows[] = $this->makeRow($node, $role, $direct['totalDebit'], $direct['totalCredit']);
         }
