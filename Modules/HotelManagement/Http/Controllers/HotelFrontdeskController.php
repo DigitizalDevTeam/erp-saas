@@ -15,6 +15,7 @@ use Modules\HotelManagement\Entities\HotelStay;
 use Modules\HotelManagement\Http\Controllers\Concerns\BuildsRoomMap;
 use Carbon\Carbon;
 use Modules\HotelManagement\Services\HotelAddonService;
+use Modules\HotelManagement\Services\HotelCheckInService;
 use Modules\HotelManagement\Services\HotelReservationPricingService;
 use Modules\HotelManagement\Services\HotelFolioAccountingService;
 use Modules\HotelManagement\Services\HotelFolioPaymentService;
@@ -40,6 +41,7 @@ class HotelFrontdeskController extends Controller
         private readonly HotelMinibarRestockService $minibarRestockService,
         private readonly HotelRoomStatusService $roomStatusService,
         private readonly HotelHousekeepingService $housekeepingService,
+        private readonly HotelCheckInService $checkInService,
     ) {
     }
 
@@ -58,13 +60,22 @@ class HotelFrontdeskController extends Controller
         if (! $this->canView()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
-        $stays = HotelStay::where('created_by', Auth::user()->creatorId())
+
+        $creatorId = (int) Auth::user()->creatorId();
+        $heal = $this->checkInService->healOccupancyMismatches($creatorId);
+
+        $stays = HotelStay::where('created_by', $creatorId)
+            ->where('status', 'in_house')
             ->with(['reservation.guest', 'reservation.room', 'folio.payments'])
             ->orderByDesc('id')
             ->get();
-        $mapRooms = $this->roomsWithCurrentReservation((int) Auth::user()->creatorId());
+        $mapRooms = $this->roomsWithCurrentReservation($creatorId);
         $canManage = $this->canManage();
         $canForceCheckout = HotelAuthorization::canForceCheckout(Auth::user());
+
+        if (($heal['stays_created'] ?? 0) > 0 || ($heal['rooms_released'] ?? 0) > 0) {
+            session()->flash('success', __('Room status synced with in-house guests.'));
+        }
 
         return view('hotelmanagement::frontdesk.in_house', compact('stays', 'mapRooms', 'canManage', 'canForceCheckout'));
     }
@@ -73,6 +84,14 @@ class HotelFrontdeskController extends Controller
     {
         if (! $this->canView() || (int) $reservation->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        if ($reservation->status === HotelReservation::STATUS_CHECKED_IN && ! $reservation->stay) {
+            try {
+                $this->checkInService->ensureStayAndFolio($reservation, (int) Auth::user()->creatorId(), false);
+            } catch (\InvalidArgumentException $e) {
+                return redirect()->route('hotel.frontdesk.in-house')->with('error', $e->getMessage());
+            }
         }
 
         $reservation->load(['guest', 'room.roomType', 'stay.folio.lines', 'stay.folio.payments', 'stay.folio.erpInvoice']);
@@ -193,12 +212,22 @@ class HotelFrontdeskController extends Controller
 
         $reservation->load(['guest', 'room.roomType', 'stay.folio.lines', 'stay.folio.payments' => fn ($q) => $q->with('creator'), 'stay.folio.erpInvoice']);
 
+        $folio = $reservation->stay?->folio;
+        if (! $folio && $reservation->status === HotelReservation::STATUS_CHECKED_IN) {
+            try {
+                $this->checkInService->ensureStayAndFolio($reservation, (int) Auth::user()->creatorId(), false);
+                $reservation->load('stay.folio');
+                $folio = $reservation->stay?->folio;
+            } catch (\InvalidArgumentException $e) {
+                return redirect()->back()->with('error', $e->getMessage());
+            }
+        }
+
         $type = request('type', 'receipt');
         $pageTitle = $type === 'invoice_receipt'
             ? __('Invoice-receipt')
             : __('Receive payment');
 
-        $folio = $reservation->stay?->folio;
         $paymentMethods = HotelFolioPaymentService::paymentMethodOptions();
         $taxInvoiceUrl = $folio?->invoice_id
             ? route('hotel.folios.tax-invoice', $folio->id)
@@ -267,28 +296,18 @@ class HotelFrontdeskController extends Controller
         if (!$reservation->hotel_room_id) {
             return redirect()->back()->with('error', __('Assign room before check-in.'));
         }
-        if ($reservation->status === HotelReservation::STATUS_CHECKED_IN) {
+        if ($reservation->status === HotelReservation::STATUS_CHECKED_IN && $reservation->stay?->status === 'in_house') {
             return redirect()->back()->with('error', __('Reservation is already checked in.'));
         }
 
         $reservation->load('reservationAddons');
-
-        $room = HotelRoom::where('created_by', Auth::user()->creatorId())->find($reservation->hotel_room_id);
-        if (! $room) {
-            return redirect()->back()->with('error', __('Room not found.'));
-        }
-
-        $block = $this->roomStatusService->assignmentBlockReason($room);
-        if ($block) {
-            return redirect()->back()->with('error', $block);
-        }
 
         $occupancyError = $this->addonService->validateOccupancy(
             $reservation,
             $this->addonService->normalizeAddonInput(
                 $reservation->reservationAddons->map(fn ($ra) => [
                     'addon_id' => $ra->hotel_addon_id,
-                    'qty' => $ra->quantity,
+                    'qty' => $ra->qty,
                 ])->all()
             ),
             (int) Auth::user()->creatorId()
@@ -297,46 +316,11 @@ class HotelFrontdeskController extends Controller
             return redirect()->back()->with('error', $occupancyError);
         }
 
-        DB::transaction(function () use ($reservation, $room) {
-            $stay = HotelStay::create([
-                'hotel_reservation_id' => $reservation->id,
-                'hotel_guest_id' => $reservation->hotel_guest_id,
-                'hotel_room_id' => $reservation->hotel_room_id,
-                'check_in_at' => now(),
-                'expected_check_out_at' => $reservation->check_out_at ?: ($reservation->check_out_date . ' 12:00:00'),
-                'status' => 'in_house',
-                'created_by' => Auth::user()->creatorId(),
-            ]);
-
-            $totals = $this->pricingService->reservationTotals($reservation);
-            $unitLabel = strtolower($totals['unit_label']);
-            $folio = HotelFolio::create([
-                'hotel_stay_id' => $stay->id,
-                'folio_no' => 'FOL-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5)),
-                'sub_total' => $totals['sub_total'],
-                'grand_total' => $totals['grand_total'],
-                'created_by' => Auth::user()->creatorId(),
-            ]);
-
-            HotelFolioLine::create([
-                'hotel_folio_id' => $folio->id,
-                'line_type' => 'room_charge',
-                'description' => ucfirst($unitLabel) . ' charge (' . $totals['units'] . ' ' . $unitLabel . ')',
-                'quantity' => $totals['units'],
-                'unit_price' => $reservation->rate_per_night,
-                'discount_amount' => $reservation->discount_amount,
-                'line_total' => $totals['grand_total'],
-                'created_by' => Auth::user()->creatorId(),
-            ]);
-
-            $reservation->update(['status' => HotelReservation::STATUS_CHECKED_IN]);
-            $room->refresh();
-            $this->roomStatusService->markOccupied($room, (int) Auth::user()->creatorId());
-
-            $reservation->refresh();
-            $reservation->load('reservationAddons');
-            $this->addonService->postReservationAddonsToFolio($reservation, $folio, (int) Auth::user()->creatorId());
-        });
+        try {
+            $this->checkInService->ensureStayAndFolio($reservation, (int) Auth::user()->creatorId());
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('hotel.frontdesk.in-house')->with('success', __('Guest checked in successfully.'));
     }

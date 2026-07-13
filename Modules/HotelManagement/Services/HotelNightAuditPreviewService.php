@@ -7,6 +7,7 @@ use App\Models\PosPayment;
 use App\Services\BusinessDayLockService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
+use Modules\HotelManagement\Entities\HotelCashierShift;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelFolioLine;
 use Modules\HotelManagement\Entities\HotelFolioPayment;
@@ -44,6 +45,7 @@ class HotelNightAuditPreviewService
 
         $cashReceived = (float) ($payments['by_method']['cash'] ?? 0) + (float) ($pos['cash_payments'] ?? 0);
         $openFolioBalance = (float) $checklist['open_folios_balance'];
+        $executive = $this->executiveSummary($creatorId, $date);
 
         return [
             'audit_date' => $date,
@@ -66,6 +68,106 @@ class HotelNightAuditPreviewService
             ],
             'other' => $other,
             'checklist' => $checklist,
+            'executive' => $executive,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function executiveSummary(int $creatorId, string $date): array
+    {
+        $tomorrow = Carbon::parse($date)->addDay()->toDateString();
+
+        $checkInsCompleted = (int) HotelStay::where('created_by', $creatorId)
+            ->whereDate('check_in_at', $date)
+            ->count();
+
+        $checkOutsCompleted = (int) HotelStay::where('created_by', $creatorId)
+            ->whereDate('checked_out_at', $date)
+            ->count();
+
+        $arrivalsTomorrow = (int) HotelReservation::where('created_by', $creatorId)
+            ->whereDate('check_in_date', $tomorrow)
+            ->whereNotIn('status', [HotelReservation::STATUS_CANCELLED])
+            ->count();
+
+        $departuresTomorrow = (int) HotelReservation::where('created_by', $creatorId)
+            ->whereDate('check_out_date', $tomorrow)
+            ->whereIn('status', [
+                HotelReservation::STATUS_CHECKED_IN,
+                HotelReservation::STATUS_CONFIRMED,
+                HotelReservation::STATUS_CHECKED_OUT,
+            ])
+            ->count();
+
+        $guestsInHouse = HotelStay::where('created_by', $creatorId)
+            ->where('status', 'in_house')
+            ->with(['reservation.guest', 'reservation.room'])
+            ->orderBy('id')
+            ->get()
+            ->map(function (HotelStay $stay) {
+                $guest = $stay->reservation?->guest;
+                $name = trim(($guest->first_name ?? '') . ' ' . ($guest->last_name ?? ''));
+
+                return [
+                    'guest' => $name !== '' ? $name : '—',
+                    'nationality' => $guest->nationality ?? ($guest->country ?? '—'),
+                    'room_no' => $stay->reservation?->room?->room_no ?? '—',
+                    'check_in' => $stay->check_in_at
+                        ? Carbon::parse($stay->check_in_at)->toDateString()
+                        : ($stay->reservation?->check_in_date
+                            ? Carbon::parse($stay->reservation->check_in_date)->toDateString()
+                            : null),
+                    'check_out' => $stay->expected_check_out_at
+                        ? Carbon::parse($stay->expected_check_out_at)->toDateString()
+                        : ($stay->reservation?->check_out_date
+                            ? Carbon::parse($stay->reservation->check_out_date)->toDateString()
+                            : null),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $shifts = [];
+        if (Schema::hasTable('hotel_cashier_shifts')) {
+            $shifts = HotelCashierShift::where('created_by', $creatorId)
+                ->where('status', HotelCashierShift::STATUS_CLOSED)
+                ->where(function ($q) use ($date) {
+                    $q->whereDate('closed_at', $date)
+                        ->orWhereDate('opened_at', $date);
+                })
+                ->with('user')
+                ->orderBy('opened_at')
+                ->get()
+                ->map(function (HotelCashierShift $shift) {
+                    return [
+                        'id' => $shift->id,
+                        'cashier' => $shift->user->name ?? '—',
+                        'operational_shift' => $shift->operational_shift,
+                        'opened_at' => optional($shift->opened_at)->format('Y-m-d H:i'),
+                        'closed_at' => optional($shift->closed_at)->format('Y-m-d H:i'),
+                        'opening_float' => (float) $shift->opening_float,
+                        'cash_collected' => (float) $shift->cash_collected,
+                        'card_collected' => (float) $shift->card_collected,
+                        'other_collected' => (float) $shift->other_collected,
+                        'expected_cash' => (float) $shift->expected_cash,
+                        'closing_cash' => (float) $shift->closing_cash,
+                        'difference' => (float) $shift->difference,
+                        'cash_handover' => (float) $shift->cash_handover,
+                        'handed_to' => $shift->handed_to,
+                    ];
+                })
+                ->all();
+        }
+
+        return [
+            'check_ins_completed' => $checkInsCompleted,
+            'check_outs_completed' => $checkOutsCompleted,
+            'arrivals_tomorrow' => $arrivalsTomorrow,
+            'departures_tomorrow' => $departuresTomorrow,
+            'guests_in_house' => $guestsInHouse,
+            'shifts' => $shifts,
         ];
     }
 

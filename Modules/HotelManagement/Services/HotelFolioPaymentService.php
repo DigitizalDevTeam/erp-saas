@@ -2,6 +2,7 @@
 
 namespace Modules\HotelManagement\Services;
 
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Modules\HotelManagement\Entities\HotelFolio;
@@ -70,14 +71,18 @@ class HotelFolioPaymentService
         $payment = null;
 
         DB::transaction(function () use ($folio, $amount, $method, $creatorId, $reference, $notes, &$payment) {
-            $payment = HotelFolioPayment::create([
+            $payload = [
                 'hotel_folio_id' => $folio->id,
                 'amount' => $amount,
                 'method' => $method,
                 'reference' => $reference,
                 'notes' => $notes,
                 'created_by' => $creatorId,
-            ]);
+            ];
+            if (Schema::hasColumn('hotel_folio_payments', 'recorded_by')) {
+                $payload['recorded_by'] = Auth::id();
+            }
+            $payment = HotelFolioPayment::create($payload);
 
             $this->refreshFolioPaidTotal($folio);
         });

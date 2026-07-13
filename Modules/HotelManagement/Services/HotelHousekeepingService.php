@@ -30,15 +30,19 @@ class HotelHousekeepingService
         HotelRoom $room,
         int $creatorId,
         string $source = self::SOURCE_MANUAL,
-        ?string $notes = null
+        ?string $notes = null,
+        bool $allowFromOccupied = false
     ): ?HotelHousekeepingTask {
+        $releaseOccupied = $allowFromOccupied
+            || in_array($source, [self::SOURCE_CHECKOUT, self::SOURCE_MANUAL], true);
+
         if ($this->hasOpenTask((int) $room->id, $creatorId)) {
-            $this->roomStatusService->markDirty($room);
+            $this->roomStatusService->markDirty($room, $releaseOccupied && $room->status === HotelRoom::STATUS_OCCUPIED);
 
             return null;
         }
 
-        $this->roomStatusService->markDirty($room);
+        $this->roomStatusService->markDirty($room, $releaseOccupied && $room->status === HotelRoom::STATUS_OCCUPIED);
 
         return HotelHousekeepingTask::create([
             'hotel_room_id' => $room->id,

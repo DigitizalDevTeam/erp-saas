@@ -19,6 +19,7 @@ use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelRoomType;
 use Modules\HotelManagement\Services\HotelAddonService;
 use Modules\HotelManagement\Services\HotelAuthorization;
+use Modules\HotelManagement\Services\HotelCheckInService;
 use Modules\HotelManagement\Services\HotelReservationPricingService;
 use Modules\HotelManagement\Services\HotelRoomStatusService;
 use Modules\HotelManagement\Support\HotelNationalityOptions;
@@ -29,6 +30,7 @@ class HotelReservationController extends Controller
         private readonly HotelReservationPricingService $pricingService,
         private readonly HotelAddonService $addonService,
         private readonly HotelRoomStatusService $roomStatusService,
+        private readonly HotelCheckInService $checkInService,
     ) {
     }
 
@@ -328,12 +330,24 @@ class HotelReservationController extends Controller
             'preferred_payment_method' => 'nullable|string|max:50',
             'credit_limit' => 'nullable|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
+            'discount_percent' => 'nullable|numeric|min:0|max:100',
             'discount_reason' => 'nullable|string|max:1000',
             'preferred_hotel_floor_id' => 'nullable|exists:hotel_floors,id',
             'estimated_arrival_time' => 'nullable|date_format:H:i',
+            'meal_plan' => 'nullable|in:room_only,breakfast,half_board,full_board,all_inclusive',
+            'booking_guarantee' => 'nullable|in:none,card,deposit,voucher',
+            'payment_method' => 'nullable|string|max:50',
+            'infants' => 'nullable|integer|min:0',
+            'special_requests' => 'nullable|array',
+            'special_requests.*' => 'string|max:64',
+            'internal_notes' => 'nullable|string|max:5000',
         ]);
         if ($validator->fails()) {
             return redirect()->back()->withInput()->with('error', $validator->getMessageBag()->first());
+        }
+
+        if ($request->status === HotelReservation::STATUS_CHECKED_IN) {
+            $request->merge(['status' => HotelReservation::STATUS_CONFIRMED]);
         }
 
         $creatorId = Auth::user()->creatorId();
@@ -437,13 +451,20 @@ class HotelReservationController extends Controller
             'check_out_date' => $checkOutAt->toDateString(),
             'adults' => (int) ($request->adults ?: 1),
             'children' => (int) ($request->children ?: 0),
+            'infants' => (int) ($request->infants ?: 0),
             'source' => $request->source,
             'status' => $status,
             'billing_mode' => $quote['billing_mode'],
+            'meal_plan' => $request->meal_plan,
+            'booking_guarantee' => $request->booking_guarantee,
+            'payment_method' => $request->payment_method,
             'rate_per_night' => $quote['rate_amount'],
             'discount_amount' => $discountAmount,
+            'discount_percent' => $request->filled('discount_percent') ? (float) $request->discount_percent : null,
             'discount_reason' => $discountAmount > 0 ? $request->discount_reason : null,
             'notes' => $request->notes,
+            'special_requests' => array_values(array_filter((array) $request->input('special_requests', []))),
+            'internal_notes' => $request->internal_notes,
             'created_by' => $creatorId,
         ]);
 
@@ -510,6 +531,14 @@ class HotelReservationController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
+        $isAdmin = HotelAuthorization::hasFullAccess(Auth::user());
+        $wasCheckedIn = $reservation->status === HotelReservation::STATUS_CHECKED_IN;
+        $wasCheckedOut = $reservation->status === HotelReservation::STATUS_CHECKED_OUT;
+
+        if ($wasCheckedOut && ! $isAdmin) {
+            return redirect()->back()->with('error', __('Checked-out reservations are locked. Only an administrator can make corrections.'));
+        }
+
         $validator = \Validator::make($request->all(), [
             'first_name' => 'required|string|max:100',
             'last_name' => 'nullable|string|max:100',
@@ -521,6 +550,7 @@ class HotelReservationController extends Controller
             'status' => 'required|in:pending,confirmed,checked_in,checked_out,cancelled',
             'billing_mode' => 'required|in:nightly,monthly',
             'discount_amount' => 'nullable|numeric|min:0',
+            'discount_percent' => 'nullable|numeric|min:0|max:100',
             'discount_reason' => 'nullable|string|max:1000',
             'preferred_hotel_floor_id' => 'nullable|exists:hotel_floors,id',
             'estimated_arrival_time' => 'nullable|date_format:H:i',
@@ -528,20 +558,62 @@ class HotelReservationController extends Controller
             'passport_number' => 'nullable|string|max:100',
             'visa_number' => 'nullable|string|max:100',
             'country' => 'nullable|string|max:100',
+            'meal_plan' => 'nullable|in:room_only,breakfast,half_board,full_board,all_inclusive',
+            'booking_guarantee' => 'nullable|in:none,card,deposit,voucher',
+            'payment_method' => 'nullable|string|max:50',
+            'infants' => 'nullable|integer|min:0',
+            'special_requests' => 'nullable|array',
+            'special_requests.*' => 'string|max:64',
+            'internal_notes' => 'nullable|string|max:5000',
         ]);
         if ($validator->fails()) {
             return redirect()->back()->withInput()->with('error', $validator->getMessageBag()->first());
         }
 
+        if ($wasCheckedOut && $isAdmin) {
+            $reservation->guest->update([
+                'first_name' => $request->first_name,
+                'last_name' => $request->last_name,
+                'id_type' => $request->id_type,
+                'id_number' => $request->id_number,
+                'passport_number' => $request->passport_number,
+                'visa_number' => $request->visa_number,
+                'nationality' => $request->nationality,
+                'country' => $request->country,
+            ]);
+            $reservation->update([
+                'internal_notes' => $request->internal_notes,
+                'notes' => $request->notes,
+            ]);
+
+            return redirect()->route('hotel.reservations.index')->with('success', __('Administrator correction saved. Stay, rates and payments were not changed.'));
+        }
+
         $creatorId = Auth::user()->creatorId();
         $checkInAt = Carbon::parse($request->check_in_at);
         $checkOutAt = Carbon::parse($request->check_out_at);
-        if (! empty($request->hotel_room_id) && $this->roomHasConflict((int) $request->hotel_room_id, $checkInAt, $checkOutAt, (int) $reservation->id)) {
+
+        $requestedStatus = (string) $request->status;
+        $requestedRoomId = $request->filled('hotel_room_id') ? (int) $request->hotel_room_id : null;
+
+        if ($wasCheckedIn) {
+            // Booking channel / source stays locked after check-in.
+            $request->merge(['source' => $reservation->source]);
+            if (in_array($requestedStatus, [HotelReservation::STATUS_PENDING, HotelReservation::STATUS_CONFIRMED], true)) {
+                return redirect()->back()->withInput()->with('error', __('Cannot move a checked-in reservation back to pending/confirmed. Use check-out or cancel via operations.'));
+            }
+            if ($requestedRoomId && $requestedRoomId !== (int) $reservation->hotel_room_id) {
+                return redirect()->back()->withInput()->with('error', __('After check-in, change the room from Frontdesk → Change room.'));
+            }
+            $requestedRoomId = (int) $reservation->hotel_room_id;
+        }
+
+        if (! empty($requestedRoomId) && $this->roomHasConflict((int) $requestedRoomId, $checkInAt, $checkOutAt, (int) $reservation->id)) {
             return redirect()->back()->withInput()->with('error', __('Selected room is not available for the chosen check-in/check-out time.'));
         }
 
-        if (! empty($request->hotel_room_id)) {
-            $assignRoom = HotelRoom::where('created_by', $creatorId)->find((int) $request->hotel_room_id);
+        if (! empty($requestedRoomId) && ! $wasCheckedIn) {
+            $assignRoom = HotelRoom::where('created_by', $creatorId)->find((int) $requestedRoomId);
             if ($assignRoom) {
                 $block = $this->roomStatusService->assignmentBlockReason(
                     $assignRoom,
@@ -556,7 +628,7 @@ class HotelReservationController extends Controller
         $quote = $this->pricingService->quote(
             $creatorId,
             (int) $request->hotel_room_type_id,
-            $request->filled('hotel_room_id') ? (int) $request->hotel_room_id : null,
+            $requestedRoomId,
             $checkInAt,
             $checkOutAt,
             (string) $request->billing_mode
@@ -613,9 +685,14 @@ class HotelReservationController extends Controller
             'is_vip' => $request->has('is_vip'),
         ]);
 
+        $newStatus = $requestedStatus;
+        if ($wasCheckedIn && $newStatus === HotelReservation::STATUS_CHECKED_IN) {
+            $newStatus = HotelReservation::STATUS_CHECKED_IN;
+        }
+
         $reservation->update([
             'hotel_room_type_id' => $request->hotel_room_type_id,
-            'hotel_room_id' => $request->hotel_room_id,
+            'hotel_room_id' => $requestedRoomId,
             'hotel_rate_plan_id' => $quote['rate_plan_id'] ?? null,
             'check_in_at' => $checkInAt->format('Y-m-d H:i:s'),
             'check_out_at' => $checkOutAt->format('Y-m-d H:i:s'),
@@ -625,18 +702,30 @@ class HotelReservationController extends Controller
             'check_out_date' => $checkOutAt->toDateString(),
             'adults' => (int) ($request->adults ?: 1),
             'children' => (int) ($request->children ?: 0),
-            'source' => $request->source,
-            'status' => $request->status,
+            'infants' => (int) ($request->infants ?: 0),
+            'source' => $wasCheckedIn ? $reservation->source : $request->source,
+            'status' => $newStatus,
             'billing_mode' => $quote['billing_mode'],
+            'meal_plan' => $request->meal_plan,
+            'booking_guarantee' => $request->booking_guarantee,
+            'payment_method' => $request->payment_method,
             'rate_per_night' => $quote['rate_amount'],
             'discount_amount' => $discountAmount,
+            'discount_percent' => $request->filled('discount_percent') ? (float) $request->discount_percent : null,
             'discount_reason' => $discountAmount > 0 ? $request->discount_reason : null,
             'notes' => $request->notes,
+            'special_requests' => array_values(array_filter((array) $request->input('special_requests', []))),
+            'internal_notes' => $request->internal_notes,
         ]);
 
         $this->addonService->syncReservationAddons($reservation, $addonRows, $creatorId);
 
         if ($reservation->status === HotelReservation::STATUS_CHECKED_IN) {
+            try {
+                $this->checkInService->ensureStayAndFolio($reservation->fresh(), (int) $creatorId, false);
+            } catch (\InvalidArgumentException $e) {
+                return redirect()->back()->withInput()->with('error', $e->getMessage());
+            }
             $reservation->load('stay.folio');
             if ($reservation->stay?->folio) {
                 $this->addonService->postReservationAddonsToFolio(
@@ -654,6 +743,10 @@ class HotelReservationController extends Controller
     {
         if ((! $this->canManage()) || (int) $reservation->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        if (in_array($reservation->status, [HotelReservation::STATUS_CHECKED_IN, HotelReservation::STATUS_CHECKED_OUT], true)) {
+            return redirect()->back()->with('error', __('Checked-in or checked-out reservations cannot be deleted.'));
         }
 
         $reservation->delete();

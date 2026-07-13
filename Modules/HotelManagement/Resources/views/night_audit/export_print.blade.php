@@ -19,6 +19,7 @@
         @include('hotelmanagement::night_audit.partials._summary_general')
         @include('hotelmanagement::night_audit.partials._summary_other')
         @include('hotelmanagement::night_audit.partials._report_previews')
+        @include('hotelmanagement::night_audit.partials._executive_report')
         @include('hotelmanagement::night_audit.partials._checklist')
     </div>
 </div>
@@ -27,18 +28,25 @@
 <script>
 (function () {
     var btn = document.getElementById('night-audit-pdf-btn');
-    if (!btn) return;
-    btn.addEventListener('click', function () {
-        var el = document.getElementById('night-audit-export');
-        if (!el || typeof html2pdf === 'undefined') return;
-        html2pdf().set({
-            margin: [0.3, 0.3, 0.3, 0.3],
-            filename: 'night-audit-{{ $preview['audit_date'] ?? 'report' }}.pdf',
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-        }).from(el).save();
+    if (btn) {
+        btn.addEventListener('click', function () {
+            var el = document.getElementById('night-audit-export');
+            if (!el || typeof html2pdf === 'undefined') return;
+            html2pdf().set({
+                margin: [0.3, 0.3, 0.3, 0.3],
+                filename: 'night-audit-{{ $preview['audit_date'] ?? 'report' }}.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            }).from(el).save();
+        });
+    }
+
+    @if(request()->boolean('autoprint'))
+    window.addEventListener('load', function () {
+        setTimeout(function () { window.print(); }, 400);
     });
+    @endif
 })();
 </script>
 @endpush

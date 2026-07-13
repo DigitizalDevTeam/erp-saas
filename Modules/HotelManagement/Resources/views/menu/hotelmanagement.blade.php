@@ -47,6 +47,14 @@
             <a class="dash-link" href="{{ route('hotel.night-audit.index') }}">{{ __('Night Audit') }}</a>
         </li>
         @endcan
+        @can('hotel.menu.frontdesk')
+        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.cashier-shifts.') ? 'active' : '' }}">
+            <a class="dash-link" href="{{ route('hotel.cashier-shifts.index') }}">{{ __('Cashier shifts') }}</a>
+        </li>
+        <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.expenses.') ? 'active' : '' }}">
+            <a class="dash-link" href="{{ route('hotel.expenses.index') }}">{{ __('Hotel expenses') }}</a>
+        </li>
+        @endcan
         @can('hotel.menu.accounting')
         <li class="dash-item {{ str_starts_with((string) Request::route()->getName(), 'hotel.accounting-settings') ? 'active' : '' }}">
             <a class="dash-link" href="{{ route('hotel.accounting-settings.index') }}">{{ __('Hotel accounting (COA)') }}</a>

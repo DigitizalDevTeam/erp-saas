@@ -126,6 +126,7 @@
                 @include('hotelmanagement::night_audit.partials._summary_general')
                 @include('hotelmanagement::night_audit.partials._summary_other')
                 @include('hotelmanagement::night_audit.partials._report_previews')
+                @include('hotelmanagement::night_audit.partials._executive_report')
                 @include('hotelmanagement::night_audit.partials._checklist')
             </div>
 

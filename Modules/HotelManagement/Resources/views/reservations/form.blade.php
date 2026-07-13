@@ -112,24 +112,55 @@
             <div class="card-body py-3">
                 <h6 class="mb-3 text-uppercase text-muted small fw-bold">{{ __('Stay & Unit') }}</h6>
                 <div class="row g-3">
-                    <div class="col-md-4">{!! Form::label('hotel_room_type_id', __('Room Type'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('hotel_room_type_id', $roomTypes, $selectedRoomType, ['class' => 'form-control', 'id' => 'hotel_room_type_id', 'required']) !!}</div>
+                    <div class="col-md-4">{!! Form::label('hotel_room_type_id', __('Room Type'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('hotel_room_type_id', $roomTypes, $selectedRoomType, ['class' => 'form-control', 'id' => 'hotel_room_type_id', 'required', isset($reservation) && $reservation->status === 'checked_in' ? 'disabled' : false]) !!}
+                        @if(isset($reservation) && $reservation->status === 'checked_in')
+                            <input type="hidden" name="hotel_room_type_id" value="{{ $reservation->hotel_room_type_id }}">
+                        @endif
+                    </div>
                     <div class="col-md-4">
                         {!! Form::label('hotel_room_id', __('Room / Apartment'), ['class' => 'form-label small mb-1']) !!}
                         <div class="input-group">
-                            {!! Form::select('hotel_room_id', ['' => __('Select Unit')] + $roomsArray, $selectedRoom, ['class' => 'form-control', 'id' => 'hotel_room_id']) !!}
+                            {!! Form::select('hotel_room_id', ['' => __('Select Unit')] + $roomsArray, $selectedRoom, ['class' => 'form-control', 'id' => 'hotel_room_id', isset($reservation) && $reservation->status === 'checked_in' ? 'disabled' : false]) !!}
+                            @if(!isset($reservation) || $reservation->status !== 'checked_in')
                             <button type="button" class="btn btn-outline-primary" id="btn_suggest_room" title="{{ __('Suggest available room') }}"><i class="ti ti-wand"></i></button>
+                            @endif
                         </div>
+                        @if(isset($reservation) && $reservation->status === 'checked_in')
+                            <input type="hidden" name="hotel_room_id" value="{{ $reservation->hotel_room_id }}">
+                            <small class="text-muted">{{ __('Use Frontdesk → Change room.') }}</small>
+                        @endif
                     </div>
-                    <div class="col-md-4">{!! Form::label('source', __('Source'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('source', ['manual' => __('Manual'), 'walkin' => __('Walk-in'), 'online' => __('Online'), 'ota' => __('OTA')], old('source', $reservation?->source ?? 'manual'), ['class' => 'form-control']) !!}</div>
+                    <div class="col-md-4">
+                        {!! Form::label('source', __('Booking channel'), ['class' => 'form-label small mb-1']) !!}
+                        @if(isset($reservation) && $reservation->status === 'checked_in')
+                            <input type="text" class="form-control" value="{{ __(ucfirst(str_replace('_', ' ', $reservation->source ?? 'manual'))) }}" disabled>
+                            <input type="hidden" name="source" value="{{ $reservation->source }}">
+                        @else
+                            {!! Form::select('source', ['manual' => __('Manual'), 'walkin' => __('Walk-in'), 'online' => __('Online'), 'ota' => __('OTA')], old('source', $reservation?->source ?? 'manual'), ['class' => 'form-control']) !!}
+                        @endif
+                    </div>
 
                     <div class="col-md-3">{!! Form::label('billing_mode', __('Billing mode'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('billing_mode', ['nightly' => __('Nightly'), 'monthly' => __('Monthly')], $selectedBillingMode, ['class' => 'form-control', 'id' => 'billing_mode']) !!}</div>
                     <div class="col-md-3">{!! Form::label('check_in_at', __('Check-in'), ['class' => 'form-label small mb-1']) !!}<input type="datetime-local" name="check_in_at" id="check_in_at" value="{{ $checkInAtValue }}" class="form-control" required></div>
                     <div class="col-md-3">{!! Form::label('check_out_at', __('Check-out'), ['class' => 'form-label small mb-1']) !!}<input type="datetime-local" name="check_out_at" id="check_out_at" value="{{ $checkOutAtValue }}" class="form-control" required></div>
                     <div class="col-md-3">{!! Form::label('estimated_arrival_time', __('ETA'), ['class' => 'form-label small mb-1']) !!}<input type="time" name="estimated_arrival_time" id="estimated_arrival_time" value="{{ $etaValue }}" class="form-control"></div>
 
-                    <div class="col-md-3">{!! Form::label('status', __('Status'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('status', ['pending' => __('Pending'), 'confirmed' => __('Confirmed'), 'checked_in' => __('Checked In'), 'checked_out' => __('Checked Out'), 'cancelled' => __('Cancelled')], old('status', $reservation?->status ?? 'pending'), ['class' => 'form-control', 'id' => 'reservation_status']) !!}</div>
-                    <div class="col-md-3">{!! Form::label('adults', __('Adults'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('adults', old('adults', $reservation?->adults ?? 1), ['class' => 'form-control', 'min' => 1]) !!}</div>
-                    <div class="col-md-3">{!! Form::label('children', __('Children'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('children', old('children', $reservation?->children ?? 0), ['class' => 'form-control', 'min' => 0]) !!}</div>
+                    <div class="col-md-3">{!! Form::label('status', __('Status'), ['class' => 'form-label small mb-1']) !!}
+                        @php
+                            $statusLocked = isset($reservation) && in_array($reservation->status, ['checked_in', 'checked_out'], true);
+                            $statusOptions = ['pending' => __('Pending'), 'confirmed' => __('Confirmed'), 'checked_in' => __('Checked In'), 'checked_out' => __('Checked Out'), 'cancelled' => __('Cancelled')];
+                            if (isset($reservation) && $reservation->status === 'checked_in') {
+                                $statusOptions = ['checked_in' => __('Checked In'), 'checked_out' => __('Checked Out'), 'cancelled' => __('Cancelled')];
+                            }
+                        @endphp
+                        {!! Form::select('status', $statusOptions, old('status', $reservation?->status ?? 'pending'), ['class' => 'form-control', 'id' => 'reservation_status', $statusLocked && $reservation?->status === 'checked_out' ? 'disabled' : false]) !!}
+                        @if(isset($reservation) && $reservation->status === 'checked_in')
+                            <small class="text-muted">{{ __('After check-in use Frontdesk for room change, extend stay and checkout.') }}</small>
+                        @endif
+                    </div>
+                    <div class="col-md-2">{!! Form::label('adults', __('Adults'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('adults', old('adults', $reservation?->adults ?? 1), ['class' => 'form-control', 'min' => 1]) !!}</div>
+                    <div class="col-md-2">{!! Form::label('children', __('Children'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('children', old('children', $reservation?->children ?? 0), ['class' => 'form-control', 'min' => 0]) !!}</div>
+                    <div class="col-md-2">{!! Form::label('infants', __('Infants'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('infants', old('infants', $reservation?->infants ?? 0), ['class' => 'form-control', 'min' => 0]) !!}</div>
                     <div class="col-md-3 d-flex align-items-end">
                         <div class="form-check">
                             {!! Form::checkbox('parking_requested', 1, old('parking_requested', $reservation?->parking_requested), ['class' => 'form-check-input', 'id' => 'parking_requested']) !!}
@@ -137,12 +168,38 @@
                         </div>
                     </div>
 
+                    <div class="col-md-4">{!! Form::label('meal_plan', __('Meal plan'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('meal_plan', ['' => '—'] + \Modules\HotelManagement\Entities\HotelReservation::mealPlanOptions(), old('meal_plan', $reservation?->meal_plan), ['class' => 'form-control']) !!}</div>
+                    <div class="col-md-4">{!! Form::label('booking_guarantee', __('Booking guarantee'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('booking_guarantee', ['' => '—'] + \Modules\HotelManagement\Entities\HotelReservation::bookingGuaranteeOptions(), old('booking_guarantee', $reservation?->booking_guarantee), ['class' => 'form-control']) !!}</div>
+                    <div class="col-md-4">{!! Form::label('payment_method', __('Payment method'), ['class' => 'form-label small mb-1']) !!}{!! Form::select('payment_method', ['' => '—', 'cash' => __('Cash'), 'card' => __('Card'), 'bank_transfer' => __('Transfer'), 'company_account' => __('Company account'), 'voucher' => __('Voucher')], old('payment_method', $reservation?->payment_method), ['class' => 'form-control']) !!}</div>
+
                     <div class="col-md-4">{!! Form::label('rate_per_night', __('Derived Rate'), ['class' => 'form-label small mb-1', 'id' => 'rate_label']) !!}{!! Form::number('rate_per_night', old('rate_per_night', $reservation?->rate_per_night ?? null), ['class' => 'form-control', 'step' => '0.01', 'required', 'id' => 'rate_per_night', 'readonly']) !!}<small class="text-muted">{{ __('Rate comes from room/apartment setup and active rate plans.') }}</small></div>
-                    <div class="col-md-4">{!! Form::label('discount_amount', __('Discount amount'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('discount_amount', old('discount_amount', $reservation?->discount_amount ?? 0), ['class' => 'form-control', 'step' => '0.01', 'id' => 'discount_amount']) !!}<small class="text-muted">{{ __('Your limit: :percent%', ['percent' => rtrim(rtrim(number_format($maxDiscountPercent ?? 0, 2, '.', ''), '0'), '.')]) }}</small></div>
-                    <div class="col-md-4">{!! Form::label('discount_reason', __('Discount justification'), ['class' => 'form-label small mb-1']) !!}{!! Form::text('discount_reason', old('discount_reason', $reservation?->discount_reason), ['class' => 'form-control', 'id' => 'discount_reason', 'placeholder' => __('Required when discount is entered')]) !!}</div>
+                    <div class="col-md-2">{!! Form::label('discount_percent', __('Discount %'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('discount_percent', old('discount_percent', $reservation?->discount_percent), ['class' => 'form-control', 'step' => '0.01', 'min' => 0, 'max' => 100, 'id' => 'discount_percent']) !!}</div>
+                    <div class="col-md-3">{!! Form::label('discount_amount', __('Discount amount'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('discount_amount', old('discount_amount', $reservation?->discount_amount ?? 0), ['class' => 'form-control', 'step' => '0.01', 'id' => 'discount_amount']) !!}<small class="text-muted">{{ __('Your limit: :percent%', ['percent' => rtrim(rtrim(number_format($maxDiscountPercent ?? 0, 2, '.', ''), '0'), '.')]) }}</small></div>
+                    <div class="col-md-3">{!! Form::label('discount_reason', __('Discount justification'), ['class' => 'form-label small mb-1']) !!}{!! Form::text('discount_reason', old('discount_reason', $reservation?->discount_reason), ['class' => 'form-control', 'id' => 'discount_reason', 'placeholder' => __('Required when discount is entered')]) !!}</div>
 
                     <div class="col-12">{!! Form::label('notes', __('Reservation notes'), ['class' => 'form-label small mb-1']) !!}{!! Form::text('notes', old('notes', $reservation?->notes ?? null), ['class' => 'form-control', 'placeholder' => __('Special requests, late arrival, parking details, etc.')]) !!}</div>
+
+                    <div class="col-12">
+                        <label class="form-label small mb-1">{{ __('Special requests') }}</label>
+                        <div class="d-flex flex-wrap gap-3">
+                            @php $selectedRequests = old('special_requests', $reservation?->special_requests ?? []); @endphp
+                            @foreach(\Modules\HotelManagement\Entities\HotelReservation::specialRequestOptions() as $reqKey => $reqLabel)
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="special_requests[]" value="{{ $reqKey }}" id="sr_{{ $reqKey }}" @checked(in_array($reqKey, (array) $selectedRequests, true))>
+                                    <label class="form-check-label small" for="sr_{{ $reqKey }}">{{ $reqLabel }}</label>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    <div class="col-12">{!! Form::label('internal_notes', __('Internal notes'), ['class' => 'form-label small mb-1']) !!}{!! Form::textarea('internal_notes', old('internal_notes', $reservation?->internal_notes), ['class' => 'form-control', 'rows' => 2, 'placeholder' => __('Visible only to staff')]) !!}</div>
                 </div>
+                @if(isset($reservation))
+                    <div class="row g-2 mt-3 small text-muted">
+                        <div class="col-md-4"><strong>{{ __('Reservation No') }}:</strong> {{ $reservation->reservation_no }}</div>
+                        <div class="col-md-4"><strong>{{ __('Created') }}:</strong> {{ $reservation->created_at }}</div>
+                        <div class="col-md-4"><strong>{{ __('Channel') }}:</strong> {{ __(ucfirst($reservation->source ?? 'manual')) }}</div>
+                    </div>
+                @endif
                 @if(isset($reservation) && $reservation->hotel_group_id)
                     <input type="hidden" name="hotel_group_id" value="{{ $reservation->hotel_group_id }}">
                 @endif

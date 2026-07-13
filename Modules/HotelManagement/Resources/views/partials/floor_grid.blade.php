@@ -93,8 +93,8 @@
 
                             $href = '#';
                             if ($interactive && ! $bulkSelect) {
-                                if ($status === 'occupied' && $reservation && $reservation->stay) {
-                                    $href = route('hotel.rooms.consumption', $room->id);
+                                if ($status === 'occupied' && $reservation) {
+                                    $href = route('hotel.frontdesk.checkout', $reservation->id);
                                 } elseif ($status === 'occupied') {
                                     $href = route('hotel.frontdesk.in-house');
                                 } elseif ($status === 'available') {

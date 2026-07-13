@@ -10,7 +10,9 @@ use Modules\HotelManagement\Http\Controllers\HotelBookingSiteController;
 use Modules\HotelManagement\Http\Controllers\HotelAddonController;
 use Modules\HotelManagement\Http\Controllers\HotelAccountingSettingsController;
 use Modules\HotelManagement\Http\Controllers\HotelCalendarController;
+use Modules\HotelManagement\Http\Controllers\HotelCashierShiftController;
 use Modules\HotelManagement\Http\Controllers\HotelDashboardController;
+use Modules\HotelManagement\Http\Controllers\HotelExpenseController;
 use Modules\HotelManagement\Http\Controllers\HotelFinancialReportController;
 use Modules\HotelManagement\Http\Controllers\HotelOperationReportController;
 use Modules\HotelManagement\Http\Controllers\HotelFolioController;
@@ -136,6 +138,15 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('hotel/night-audit/preview', [HotelNightAuditController::class, 'previewJson'])->name('hotel.night-audit.preview');
             Route::get('hotel/night-audit/export', [HotelNightAuditController::class, 'export'])->name('hotel.night-audit.export');
             Route::post('hotel/night-audit/run', [HotelNightAuditController::class, 'run'])->name('hotel.night-audit.run');
+
+            Route::get('hotel/cashier-shifts', [HotelCashierShiftController::class, 'index'])->name('hotel.cashier-shifts.index');
+            Route::post('hotel/cashier-shifts/open', [HotelCashierShiftController::class, 'open'])->name('hotel.cashier-shifts.open');
+            Route::get('hotel/cashier-shifts/{shift}', [HotelCashierShiftController::class, 'show'])->name('hotel.cashier-shifts.show');
+            Route::get('hotel/cashier-shifts/{shift}/close', [HotelCashierShiftController::class, 'closeForm'])->name('hotel.cashier-shifts.close-form');
+            Route::post('hotel/cashier-shifts/{shift}/close', [HotelCashierShiftController::class, 'close'])->name('hotel.cashier-shifts.close');
+
+            Route::resource('hotel/expenses', HotelExpenseController::class)->names('hotel.expenses')->except(['show']);
+
             Route::get('hotel/pos/in-house-guests', [HotelPosIntegrationController::class, 'inHouseGuests'])->name('hotel.pos.in-house-guests');
             Route::post('hotel/pos/charge', [HotelPosIntegrationController::class, 'charge'])->name('hotel.pos.charge');
         }

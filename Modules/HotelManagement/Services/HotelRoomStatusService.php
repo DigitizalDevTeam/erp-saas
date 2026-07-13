@@ -118,13 +118,21 @@ class HotelRoomStatusService
         $room->update(['status' => HotelRoom::STATUS_OCCUPIED]);
     }
 
-    public function markDirty(HotelRoom $room): void
+    public function markDirty(HotelRoom $room, bool $allowFromOccupied = false): void
     {
-        if ($room->status === HotelRoom::STATUS_OCCUPIED) {
+        if ($room->status === HotelRoom::STATUS_OCCUPIED && ! $allowFromOccupied) {
             throw new \InvalidArgumentException(__('Occupied rooms cannot be marked dirty.'));
         }
 
         $room->update(['status' => HotelRoom::STATUS_DIRTY]);
+    }
+
+    /**
+     * Release an occupied room to dirty (checkout / room change).
+     */
+    public function releaseOccupiedToDirty(HotelRoom $room): void
+    {
+        $this->markDirty($room, true);
     }
 
     public function markCleaning(HotelRoom $room): void

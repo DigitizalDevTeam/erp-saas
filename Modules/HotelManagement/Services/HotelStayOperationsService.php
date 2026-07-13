@@ -167,7 +167,8 @@ class HotelStayOperationsService
                         $oldRoom,
                         $creatorId,
                         HotelHousekeepingService::SOURCE_MANUAL,
-                        __('Queued after guest room change.')
+                        __('Queued after guest room change.'),
+                        true
                     );
                 }
             }

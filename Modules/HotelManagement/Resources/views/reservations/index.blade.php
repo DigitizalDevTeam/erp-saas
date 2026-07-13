@@ -98,6 +98,9 @@
                                         <a href="{{ route('hotel.frontdesk.checkout', $r->id) }}" class="btn btn-sm btn-warning" title="{{ __('Check-out') }}">
                                             <i class="ti ti-logout me-1"></i>{{ __('Check-out') }}
                                         </a>
+                                        <a href="{{ route('hotel.frontdesk.receipt', $r->id) }}" class="btn btn-sm btn-outline-success" title="{{ __('Payment') }}">
+                                            <i class="ti ti-cash me-1"></i>{{ __('Payment') }}
+                                        </a>
                                     @endif
                                     @else
                                     <span class="text-muted small">{{ __('View only') }}</span>

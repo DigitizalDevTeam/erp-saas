@@ -17,6 +17,7 @@ class HotelFolioPayment extends Model
         'notes',
         'accounting_payment_journal_id',
         'created_by',
+        'recorded_by',
     ];
 
     public function folio()

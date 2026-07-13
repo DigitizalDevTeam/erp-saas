@@ -167,12 +167,14 @@ class HotelNightAuditController extends Controller
             );
         });
 
-        return redirect()->route('hotel.night-audit.index', ['audit_date' => $auditDate])->with(
-            'success',
-            __('Night audit completed. :count POS shift(s) closed. :rooms room(s) queued for housekeeping.', [
-                'count' => $posResult['shifts_closed'],
-                'rooms' => $housekeepingResult['rooms_marked_dirty'],
-            ])
-        );
+        return redirect()
+            ->route('hotel.night-audit.export', ['audit_date' => $auditDate, 'autoprint' => 1])
+            ->with(
+                'success',
+                __('Night audit completed. :count POS shift(s) closed. :rooms room(s) queued for housekeeping.', [
+                    'count' => $posResult['shifts_closed'],
+                    'rooms' => $housekeepingResult['rooms_marked_dirty'],
+                ])
+            );
     }
 }
