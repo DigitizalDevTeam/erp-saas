@@ -92,7 +92,7 @@ class HotelRoomController extends Controller
         $request->validate([
             'room_ids' => 'required|array|min:1',
             'room_ids.*' => 'integer|exists:hotel_rooms,id',
-            'status' => 'required|in:available,occupied,dirty,cleaning,maintenance',
+            'status' => 'required|in:available,occupied,dirty,cleaning,maintenance,blocked',
         ]);
 
         $creatorId = (int) Auth::user()->creatorId();
@@ -133,6 +133,44 @@ class HotelRoomController extends Controller
         return redirect()->back()->with('success', __('Room :room is ready for the next guest.', ['room' => $room->room_no]));
     }
 
+    public function block(Request $request, HotelRoom $room)
+    {
+        if ((! $this->canManage()) || (int) $room->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $request->validate([
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $this->roomStatusService->blockRoom(
+                $room,
+                (int) Auth::user()->creatorId(),
+                $request->notes ?: __('Room blocked.')
+            );
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->back()->with('success', __('Room :room is blocked.', ['room' => $room->room_no]));
+    }
+
+    public function unblock(HotelRoom $room)
+    {
+        if ((! $this->canManage()) || (int) $room->created_by !== (int) Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $this->roomStatusService->unblockRoom($room, (int) Auth::user()->creatorId());
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->back()->with('success', __('Room :room is available again.', ['room' => $room->room_no]));
+    }
+
     public function create()
     {
         if (! $this->canManage()) {
@@ -159,7 +197,7 @@ class HotelRoomController extends Controller
             ],
             'hotel_room_type_id' => 'required|exists:hotel_room_types,id',
             'hotel_floor_id' => 'nullable|exists:hotel_floors,id',
-            'status' => 'required|in:available,occupied,dirty,cleaning,maintenance',
+            'status' => 'required|in:available,occupied,dirty,cleaning,maintenance,blocked',
             'override_price' => 'nullable|numeric|min:0',
             'monthly_override_price' => 'nullable|numeric|min:0',
         ]);
@@ -208,7 +246,7 @@ class HotelRoomController extends Controller
             ],
             'hotel_room_type_id' => 'required|exists:hotel_room_types,id',
             'hotel_floor_id' => 'nullable|exists:hotel_floors,id',
-            'status' => 'required|in:available,occupied,dirty,cleaning,maintenance',
+            'status' => 'required|in:available,occupied,dirty,cleaning,maintenance,blocked',
             'override_price' => 'nullable|numeric|min:0',
             'monthly_override_price' => 'nullable|numeric|min:0',
         ]);

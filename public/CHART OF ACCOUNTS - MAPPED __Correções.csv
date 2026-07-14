@@ -1,7 +1,7 @@
 ,,,,,,,,,,,,
 ,,,,A,,B,,C,,,D,
 ,PGC MOZ - Code,Conta PGC - Portuguese,ERP Technical Name - English,Categoria ERP,Category ERP,,Sub-Category ERP,,Structure,,Notes,Notes
-,210,Adiantamento por conta de compras,Advance payment on account of purchases,Ativos,Assets,Ativos Correntes,Current Asset,,Sub Account,,Activo corrente/ pagamento antecipado ao fornecedor antes de receber os bens ou serviços.,Current assets/advance payment to the supplier before receiving the goods or services.
+,210,Adiantamento por conta de compras,Advance payment on account of purchases,Ativos,Assets,Ativos Correntes,Current Asset,,Parent Account,,Activo corrente/ pagamento antecipado ao fornecedor antes de receber os bens ou serviços.,Current assets/advance payment to the supplier before receiving the goods or services.
 ,443,Imposto sobre o valor acrescentado ( IVA),Value Added Tax (VAT),Ativos,Assets,Ativos Correntes,Current Asset,,Sub Account - Parent,,Responsabilidade Corrente / IVA a Pagar,Current Liability / VAT Payable
 ,4431,IVA suportado,Input VAT,Ativos,Assets,Ativos Correntes,Current Asset,,Sub sub Account - Parent,,Ativo Corrente / IVA Recuperável nas Compras,Current Asset / Recoverable VAT on Purchases
 ,44311,Inventários,Inventories,Ativos,Assets,Ativos Correntes,Current Asset,,Sub sub sub Account,,Ativo Corrente / Estoque de Bens e Materiais,Current Asset / Stock of Goods & Materials

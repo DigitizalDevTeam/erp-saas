@@ -103,6 +103,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('hotel/rooms/map', [HotelRoomController::class, 'map'])->name('hotel.rooms.map');
             Route::post('hotel/rooms/bulk-status', [HotelRoomController::class, 'bulkStatus'])->name('hotel.rooms.bulk-status');
             Route::post('hotel/rooms/{room}/mark-ready', [HotelRoomController::class, 'markReady'])->name('hotel.rooms.mark-ready');
+            Route::post('hotel/rooms/{room}/block', [HotelRoomController::class, 'block'])->name('hotel.rooms.block');
+            Route::post('hotel/rooms/{room}/unblock', [HotelRoomController::class, 'unblock'])->name('hotel.rooms.unblock');
             Route::get('hotel/consumption/product-info', [HotelRoomConsumptionController::class, 'productInfo'])->name('hotel.consumption.product-info');
             Route::get('hotel/rooms/{room}/consumption', [HotelRoomConsumptionController::class, 'create'])->name('hotel.rooms.consumption');
             Route::post('hotel/rooms/{room}/consumption', [HotelRoomConsumptionController::class, 'store'])->name('hotel.rooms.consumption.store');

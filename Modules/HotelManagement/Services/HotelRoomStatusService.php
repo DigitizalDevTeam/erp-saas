@@ -14,13 +14,7 @@ class HotelRoomStatusService
      */
     public function statusLabels(): array
     {
-        return [
-            HotelRoom::STATUS_AVAILABLE => __('Available'),
-            HotelRoom::STATUS_OCCUPIED => __('Occupied'),
-            HotelRoom::STATUS_DIRTY => __('Dirty'),
-            HotelRoom::STATUS_CLEANING => __('Cleaning'),
-            HotelRoom::STATUS_MAINTENANCE => __('Maintenance'),
-        ];
+        return HotelRoom::statusOptions();
     }
 
     public function hasInHouseStay(HotelRoom $room, int $creatorId): bool
@@ -38,6 +32,10 @@ class HotelRoomStatusService
     {
         if ((int) $room->id === (int) $ignoreReservationRoomId) {
             return null;
+        }
+
+        if ($room->status === HotelRoom::STATUS_BLOCKED) {
+            return __('Room :room is blocked and cannot be assigned.', ['room' => $room->room_no]);
         }
 
         if ($room->status === HotelRoom::STATUS_MAINTENANCE) {
@@ -64,13 +62,7 @@ class HotelRoomStatusService
      */
     public function validateTransition(HotelRoom $room, string $newStatus, int $creatorId): ?string
     {
-        $allowed = [
-            HotelRoom::STATUS_AVAILABLE,
-            HotelRoom::STATUS_OCCUPIED,
-            HotelRoom::STATUS_DIRTY,
-            HotelRoom::STATUS_CLEANING,
-            HotelRoom::STATUS_MAINTENANCE,
-        ];
+        $allowed = array_keys(HotelRoom::statusOptions());
 
         if (! in_array($newStatus, $allowed, true)) {
             return __('Invalid room status.');
@@ -82,7 +74,13 @@ class HotelRoomStatusService
 
         $inHouse = $this->hasInHouseStay($room, $creatorId);
 
-        if ($inHouse && in_array($newStatus, [HotelRoom::STATUS_AVAILABLE, HotelRoom::STATUS_MAINTENANCE, HotelRoom::STATUS_CLEANING, HotelRoom::STATUS_DIRTY], true)) {
+        if ($inHouse && in_array($newStatus, [
+            HotelRoom::STATUS_AVAILABLE,
+            HotelRoom::STATUS_MAINTENANCE,
+            HotelRoom::STATUS_BLOCKED,
+            HotelRoom::STATUS_CLEANING,
+            HotelRoom::STATUS_DIRTY,
+        ], true)) {
             return __('Room :room has an in-house guest. Check out before changing status.', ['room' => $room->room_no]);
         }
 
@@ -124,6 +122,10 @@ class HotelRoomStatusService
             throw new \InvalidArgumentException(__('Occupied rooms cannot be marked dirty.'));
         }
 
+        if (in_array($room->status, [HotelRoom::STATUS_BLOCKED, HotelRoom::STATUS_MAINTENANCE], true)) {
+            throw new \InvalidArgumentException(__('Blocked or maintenance rooms cannot be marked dirty.'));
+        }
+
         $room->update(['status' => HotelRoom::STATUS_DIRTY]);
     }
 
@@ -148,6 +150,20 @@ class HotelRoomStatusService
     public function markMaintenance(HotelRoom $room, int $creatorId, ?string $notes = null): void
     {
         $this->transition($room, HotelRoom::STATUS_MAINTENANCE, $creatorId, $notes);
+    }
+
+    public function blockRoom(HotelRoom $room, int $creatorId, ?string $reason = null): void
+    {
+        $this->transition($room, HotelRoom::STATUS_BLOCKED, $creatorId, $reason);
+    }
+
+    public function unblockRoom(HotelRoom $room, int $creatorId): void
+    {
+        if ($room->status !== HotelRoom::STATUS_BLOCKED) {
+            throw new \InvalidArgumentException(__('Room :room is not blocked.', ['room' => $room->room_no]));
+        }
+
+        $this->transition($room, HotelRoom::STATUS_AVAILABLE, $creatorId);
     }
 
     /**

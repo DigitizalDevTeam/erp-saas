@@ -17,10 +17,14 @@
         'dirty'       => ['color' => '#F97316', 'label' => __('Dirty')],
         'cleaning'    => ['color' => '#3B82F6', 'label' => __('Cleaning')],
         'maintenance' => ['color' => '#6B7280', 'label' => __('Maintenance')],
+        'blocked'     => ['color' => '#111827', 'label' => __('Blocked')],
     ];
 
     $resolveStatus = function ($room) {
         $reservation = $room->relationLoaded('currentReservation') ? $room->currentReservation : null;
+        if ($room->status === 'blocked') {
+            return 'blocked';
+        }
         if ($room->status === 'occupied' || ($reservation && $reservation->status === 'checked_in')) {
             return 'occupied';
         }
@@ -103,7 +107,7 @@
                                     $href = route('hotel.reservations.edit', $reservation->id);
                                 } elseif (in_array($status, ['dirty', 'cleaning'], true) && $canManage) {
                                     $href = route('hotel.housekeeping.index');
-                                } elseif ($status === 'maintenance') {
+                                } elseif (in_array($status, ['maintenance', 'blocked'], true)) {
                                     $href = route('hotel.rooms.edit', $room->id);
                                 } else {
                                     $href = route('hotel.rooms.edit', $room->id);
@@ -124,6 +128,8 @@
                                 $tooltip = ($guest ? trim(($guest->first_name ?? '').' '.($guest->last_name ?? '')) . ' • ' : '')
                                     . __('Reserved') . ': ' . $fmtDate($reservation->check_in_date)
                                     . ' → ' . $fmtDate($reservation->check_out_date);
+                            } elseif ($status === 'blocked') {
+                                $tooltip = __('Blocked') . ($room->notes ? ' — ' . $room->notes : '');
                             } else {
                                 $tooltip = $meta['label'];
                             }
@@ -171,6 +177,12 @@
                                         <form method="post" action="{{ route('hotel.rooms.mark-ready', $room->id) }}" class="mt-2" onclick="event.stopPropagation();">
                                             @csrf
                                             <button type="submit" class="btn btn-xs btn-sm btn-success w-100">{{ __('Mark ready') }}</button>
+                                        </form>
+                                    @endif
+                                    @if($status === 'blocked' && $canManage && ! $bulkSelect)
+                                        <form method="post" action="{{ route('hotel.rooms.unblock', $room->id) }}" class="mt-2" onclick="event.stopPropagation();">
+                                            @csrf
+                                            <button type="submit" class="btn btn-xs btn-sm btn-success w-100">{{ __('Unblock') }}</button>
                                         </form>
                                     @endif
                                 @endif

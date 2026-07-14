@@ -14,6 +14,27 @@ class HotelRoom extends Model
     const STATUS_DIRTY = 'dirty';
     const STATUS_CLEANING = 'cleaning';
     const STATUS_MAINTENANCE = 'maintenance';
+    const STATUS_BLOCKED = 'blocked';
+
+    /**
+     * @return array<string, string>
+     */
+    public static function statusOptions(): array
+    {
+        return [
+            self::STATUS_AVAILABLE => __('Available'),
+            self::STATUS_OCCUPIED => __('Occupied'),
+            self::STATUS_DIRTY => __('Dirty'),
+            self::STATUS_CLEANING => __('Cleaning'),
+            self::STATUS_MAINTENANCE => __('Maintenance'),
+            self::STATUS_BLOCKED => __('Blocked'),
+        ];
+    }
+
+    public function isBlocked(): bool
+    {
+        return $this->status === self::STATUS_BLOCKED;
+    }
 
     protected $fillable = [
         'hotel_room_type_id',

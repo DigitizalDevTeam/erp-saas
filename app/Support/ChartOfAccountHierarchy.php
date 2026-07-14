@@ -105,10 +105,10 @@ class ChartOfAccountHierarchy
         }
 
         $sorter = static function (ChartOfAccount $a, ChartOfAccount $b) use ($nameColumn) {
-            $codeA = (int) ($a->code ?? 0);
-            $codeB = (int) ($b->code ?? 0);
-            if ($codeA !== $codeB) {
-                return $codeA <=> $codeB;
+            $orderCmp = self::displayOrderKey((string) ($a->code ?? ''))
+                <=> self::displayOrderKey((string) ($b->code ?? ''));
+            if ($orderCmp !== 0) {
+                return $orderCmp;
             }
 
             return strcmp((string) ($a->{$nameColumn} ?? $a->name ?? ''), (string) ($b->{$nameColumn} ?? $b->name ?? ''));
@@ -228,10 +228,10 @@ class ChartOfAccountHierarchy
             if ($depthCmp !== 0) {
                 return $depthCmp;
             }
-            $codeA = (int) ($a->code ?? 0);
-            $codeB = (int) ($b->code ?? 0);
-            if ($codeA !== $codeB) {
-                return $codeA <=> $codeB;
+            $orderCmp = self::displayOrderKey((string) ($a->code ?? ''))
+                <=> self::displayOrderKey((string) ($b->code ?? ''));
+            if ($orderCmp !== 0) {
+                return $orderCmp;
             }
 
             return strcmp($a->labelForLocale(), $b->labelForLocale());
@@ -526,6 +526,58 @@ class ChartOfAccountHierarchy
         self::clearCache();
 
         return ['updated' => $updated, 'cleared' => $cleared, 'csv_links' => $csvLinks];
+    }
+
+    /**
+     * Stable chart display order: CSV sequence first (so 210 sits after 29, before 31),
+     * then numeric code for custom accounts not present in the master CSV.
+     */
+    public static function displayOrderKey(string $code): float
+    {
+        $code = preg_replace('/\D/', '', $code) ?? '';
+        if ($code === '') {
+            return PHP_FLOAT_MAX;
+        }
+
+        $csvOrder = self::csvCodeOrderMap();
+        if (isset($csvOrder[$code])) {
+            return (float) $csvOrder[$code];
+        }
+
+        // Keep custom codes after master-chart rows, still roughly numeric.
+        return 100000.0 + (float) (int) $code;
+    }
+
+    /**
+     * @return array<string, int> code => 0-based index in chart_new_data.csv
+     */
+    private static function csvCodeOrderMap(): array
+    {
+        static $map = null;
+        if ($map !== null) {
+            return $map;
+        }
+
+        $map = [];
+        $file = public_path('chart_new_data.csv');
+        if (! is_file($file)) {
+            return $map;
+        }
+
+        $csv = array_map('str_getcsv', file($file));
+        $index = 0;
+        foreach ($csv as $rowIndex => $row) {
+            if ($rowIndex < 3) {
+                continue;
+            }
+            $code = trim($row[1] ?? '');
+            if ($code === '' || ! preg_match('/^\d+$/', $code) || isset($map[$code])) {
+                continue;
+            }
+            $map[$code] = $index++;
+        }
+
+        return $map;
     }
 
     /**

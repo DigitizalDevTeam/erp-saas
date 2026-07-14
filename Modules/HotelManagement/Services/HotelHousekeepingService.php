@@ -68,7 +68,11 @@ class HotelHousekeepingService
         }
 
         $rooms = $query
-            ->whereNotIn('status', [HotelRoom::STATUS_OCCUPIED, HotelRoom::STATUS_MAINTENANCE])
+            ->whereNotIn('status', [
+                HotelRoom::STATUS_OCCUPIED,
+                HotelRoom::STATUS_MAINTENANCE,
+                HotelRoom::STATUS_BLOCKED,
+            ])
             ->orderBy('room_no')
             ->get();
 
