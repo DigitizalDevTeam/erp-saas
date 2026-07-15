@@ -28,8 +28,9 @@
             </div>
             <div class="col-md-6">
                 <table class="table table-sm table-bordered mb-0">
-                    <tr><td>{{ __('Opening float') }}</td><td class="text-end">{{ $fmt($shift->opening_float) }}</td></tr>
+                    <tr><td>{{ __('Opening float (petty cash)') }}</td><td class="text-end">{{ $fmt($shift->opening_float) }}</td></tr>
                     <tr><td>{{ __('Cash collected') }}</td><td class="text-end">{{ $fmt($shift->cash_collected) }}</td></tr>
+                    <tr><td>{{ __('Petty cash expenses') }}</td><td class="text-end text-danger">− {{ $fmt($shift->expenses_total ?? 0) }}</td></tr>
                     <tr><td>{{ __('Card collected') }}</td><td class="text-end">{{ $fmt($shift->card_collected) }}</td></tr>
                     <tr><td>{{ __('Other collected') }}</td><td class="text-end">{{ $fmt($shift->other_collected) }}</td></tr>
                     <tr><td>{{ __('Expected cash') }}</td><td class="text-end">{{ $fmt($shift->expected_cash) }}</td></tr>

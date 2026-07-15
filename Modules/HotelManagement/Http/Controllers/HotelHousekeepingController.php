@@ -12,6 +12,7 @@ use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Entities\HotelRoomConsumptionLog;
 use Modules\HotelManagement\Entities\HotelStay;
 use Modules\HotelManagement\Entities\HotelRoomMinibarRestock;
+use Modules\HotelManagement\Services\HotelCheckInService;
 use Modules\HotelManagement\Services\HotelHousekeepingService;
 use Modules\HotelManagement\Services\HotelMinibarRestockService;
 use Modules\HotelManagement\Services\HotelRoomConsumptionService;
@@ -26,6 +27,7 @@ class HotelHousekeepingController extends Controller
         private readonly HotelMinibarRestockService $restockService,
         private readonly HotelRoomStatusService $roomStatusService,
         private readonly HotelHousekeepingService $housekeepingService,
+        private readonly HotelCheckInService $checkInService,
     ) {
     }
 
@@ -46,19 +48,49 @@ class HotelHousekeepingController extends Controller
         }
 
         $creatorId = (int) Auth::user()->creatorId();
-        $showDone = $request->boolean('show_done');
+        $this->checkInService->healOccupancyMismatches($creatorId);
+        $showAll = $request->boolean('show_all');
 
-        $query = HotelHousekeepingTask::where('created_by', $creatorId)
-            ->with(['room.floor', 'room.roomType', 'assignee', 'completedByUser']);
+        $inHouseRoomIds = HotelStay::where('created_by', $creatorId)
+            ->where('status', 'in_house')
+            ->pluck('hotel_room_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
-        if (! $showDone) {
-            $query->whereIn('status', ['pending', 'in_progress']);
+        $roomsQuery = HotelRoom::where('created_by', $creatorId)
+            ->with(['floor', 'roomType']);
+
+        if (! $showAll) {
+            $roomsQuery->where(function ($q) use ($inHouseRoomIds) {
+                $q->where('status', HotelRoom::STATUS_OCCUPIED);
+                if ($inHouseRoomIds !== []) {
+                    $q->orWhereIn('id', $inHouseRoomIds);
+                }
+            });
         }
 
-        $tasks = $query
+        $rooms = $roomsQuery->orderBy('room_no')->get();
+
+        $tasksByRoom = HotelHousekeepingTask::where('created_by', $creatorId)
+            ->whereIn('hotel_room_id', $rooms->pluck('id')->all() ?: [0])
+            ->with(['assignee', 'completedByUser'])
             ->orderByRaw("FIELD(status, 'pending', 'in_progress', 'done')")
             ->orderByDesc('id')
-            ->get();
+            ->get()
+            ->groupBy('hotel_room_id');
+
+        $rows = $rooms->map(function (HotelRoom $room) use ($tasksByRoom) {
+            $tasks = $tasksByRoom->get($room->id, collect());
+            $openTask = $tasks->first(fn ($t) => in_array($t->status, ['pending', 'in_progress'], true));
+            $task = $openTask ?? $tasks->first();
+
+            return (object) [
+                'room' => $room,
+                'task' => $task,
+            ];
+        });
 
         $stats = [
             'pending' => HotelHousekeepingTask::where('created_by', $creatorId)->where('status', 'pending')->count(),
@@ -67,21 +99,23 @@ class HotelHousekeepingController extends Controller
         ];
 
         return view('hotelmanagement::housekeeping.index', [
-            'tasks' => $tasks,
+            'rows' => $rows,
             'canManage' => $this->canManage(),
-            'showDone' => $showDone,
+            'showAll' => $showAll,
             'stats' => $stats,
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
         if (! $this->canManage()) {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
         $rooms = HotelRoom::where('created_by', Auth::user()->creatorId())->orderBy('room_no')->pluck('room_no', 'id');
         $staff = User::where('created_by', Auth::user()->creatorId())->orderBy('name')->pluck('name', 'id');
-        return view('hotelmanagement::housekeeping.create', compact('rooms', 'staff'));
+        $selectedRoomId = $request->integer('hotel_room_id') ?: null;
+
+        return view('hotelmanagement::housekeeping.create', compact('rooms', 'staff', 'selectedRoomId'));
     }
 
     public function store(Request $request)
@@ -235,6 +269,7 @@ class HotelHousekeepingController extends Controller
         }
 
         $creatorId = (int) Auth::user()->creatorId();
+        $this->checkInService->healOccupancyMismatches($creatorId);
         $today = now()->toDateString();
 
         $occupiedStays = HotelStay::query()

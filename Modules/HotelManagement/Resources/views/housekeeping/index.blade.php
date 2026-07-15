@@ -18,6 +18,7 @@
         'available' => 'bg-success',
         'occupied' => 'bg-danger',
         'maintenance' => 'bg-secondary',
+        'blocked' => 'bg-dark',
     ];
     $taskStatusBadges = [
         'pending' => 'bg-warning text-dark',
@@ -59,10 +60,10 @@
 </div>
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-    <p class="text-muted small mb-0">{{ __('Rooms queued after night audit or checkout appear here. Cleaners start work, mark ready, or send rooms to maintenance.') }}</p>
+    <p class="text-muted small mb-0">{{ __('When Show all is off, only occupied / in-house rooms appear. Turn it on to see every hotel room.') }}</p>
     <div class="form-check form-switch mb-0">
-        <input class="form-check-input" type="checkbox" id="hk-show-done" @checked($showDone ?? false) onchange="window.location='{{ route('hotel.housekeeping.index') }}' + (this.checked ? '?show_done=1' : '')">
-        <label class="form-check-label small" for="hk-show-done">{{ __('Show completed') }}</label>
+        <input class="form-check-input" type="checkbox" id="hk-show-all" @checked($showAll ?? false) onchange="window.location='{{ route('hotel.housekeeping.index') }}' + (this.checked ? '?show_all=1' : '')">
+        <label class="form-check-label small" for="hk-show-all">{{ __('Show all') }}</label>
     </div>
 </div>
 
@@ -83,9 +84,10 @@
                     </tr>
                 </thead>
                 <tbody>
-                @forelse($tasks as $task)
+                @forelse($rows as $row)
                     @php
-                        $room = $task->room;
+                        $room = $row->room;
+                        $task = $row->task;
                         $roomStatus = $room->status ?? '';
                         $roomBadge = $roomStatusBadges[$roomStatus] ?? 'bg-light text-dark';
                     @endphp
@@ -93,32 +95,46 @@
                         <td class="fw-semibold">{{ $room->room_no ?? '-' }}</td>
                         <td>{{ $room->floor->name ?? '—' }}</td>
                         <td><span class="badge {{ $roomBadge }}">{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $roomStatus))) }}</span></td>
-                        <td><span class="badge {{ $taskStatusBadges[$task->status] ?? 'bg-light text-dark' }}">{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $task->status))) }}</span></td>
-                        <td>{{ $sourceLabels[$task->source] ?? ($task->source ? ucfirst($task->source) : '—') }}</td>
-                        <td>{{ $task->assignee->name ?? __('Unassigned') }}</td>
-                        <td class="small text-muted">{{ \Illuminate\Support\Str::limit($task->notes, 80) }}</td>
+                        <td>
+                            @if($task)
+                                <span class="badge {{ $taskStatusBadges[$task->status] ?? 'bg-light text-dark' }}">{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $task->status))) }}</span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if($task)
+                                {{ $sourceLabels[$task->source] ?? ($task->source ? ucfirst($task->source) : '—') }}
+                            @else
+                                —
+                            @endif
+                        </td>
+                        <td>{{ $task->assignee->name ?? ($task ? __('Unassigned') : '—') }}</td>
+                        <td class="small text-muted">{{ $task ? \Illuminate\Support\Str::limit($task->notes, 80) : '—' }}</td>
                         <td>
                             <div class="d-flex flex-wrap gap-1">
                                 @if($canManage ?? false)
-                                    @if($task->status === 'pending')
+                                    @if($task && $task->status === 'pending')
                                         {!! Form::open(['route' => ['hotel.housekeeping.action', $task->id], 'method' => 'POST', 'class' => 'd-inline']) !!}
                                             <input type="hidden" name="action" value="start">
                                             <button type="submit" class="btn btn-sm btn-success" title="{{ __('Start cleaning') }}"><i class="ti ti-player-play"></i></button>
                                         {!! Form::close() !!}
                                         <button type="button" class="btn btn-sm btn-warning hk-maint-btn" data-task-id="{{ $task->id }}" title="{{ __('Send to maintenance') }}"><i class="ti ti-tool"></i></button>
                                         <a class="btn btn-sm btn-info" href="{{ route('hotel.housekeeping.edit', $task->id) }}" title="{{ __('Edit') }}"><i class="ti ti-pencil text-white"></i></a>
-                                    @elseif($task->status === 'in_progress')
+                                    @elseif($task && $task->status === 'in_progress')
                                         {!! Form::open(['route' => ['hotel.housekeeping.action', $task->id], 'method' => 'POST', 'class' => 'd-inline']) !!}
                                             <input type="hidden" name="action" value="complete">
                                             <button type="submit" class="btn btn-sm btn-success" title="{{ __('Mark clean & ready') }}"><i class="ti ti-check"></i></button>
                                         {!! Form::close() !!}
                                         <button type="button" class="btn btn-sm btn-warning hk-maint-btn" data-task-id="{{ $task->id }}" title="{{ __('Send to maintenance') }}"><i class="ti ti-tool"></i></button>
                                         <a class="btn btn-sm btn-info" href="{{ route('hotel.housekeeping.edit', $task->id) }}" title="{{ __('Edit') }}"><i class="ti ti-pencil text-white"></i></a>
-                                    @else
+                                    @elseif($task && $task->status === 'done')
                                         <span class="btn btn-sm btn-outline-secondary disabled" title="{{ __('Completed') }}"><i class="ti ti-eye"></i></span>
                                         @if($task->completed_at)
                                             <span class="small text-muted align-self-center">{{ $task->completed_at->format('Y-m-d H:i') }}</span>
                                         @endif
+                                    @else
+                                        <a class="btn btn-sm btn-outline-primary" href="{{ route('hotel.housekeeping.create', ['hotel_room_id' => $room->id]) }}" title="{{ __('Queue cleaning') }}"><i class="ti ti-plus"></i></a>
                                     @endif
                                 @else
                                     <span class="text-muted small">{{ __('View only') }}</span>
@@ -128,7 +144,13 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-4">{{ __('No housekeeping tasks. Run night audit to queue dirty rooms.') }}</td>
+                        <td colspan="8" class="text-center text-muted py-4">
+                            @if($showAll ?? false)
+                                {{ __('No rooms found.') }}
+                            @else
+                                {{ __('No occupied / in-house rooms. Turn on Show all to see every hotel room.') }}
+                            @endif
+                        </td>
                     </tr>
                 @endforelse
                 </tbody>

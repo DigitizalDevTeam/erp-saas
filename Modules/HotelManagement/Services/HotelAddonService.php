@@ -239,6 +239,10 @@ class HotelAddonService
             return $base . ' (' . $reservationAddon->qty . ' × ' . $units . ' ' . __('Nights') . ')';
         }
 
+        if ($reservationAddon->billing_mode === HotelAddon::BILLING_PER_UNIT) {
+            return $base . ' (' . $reservationAddon->qty . ' ' . __('units') . ')';
+        }
+
         return $base . ($reservationAddon->qty > 1 ? ' × ' . $reservationAddon->qty : '');
     }
 
@@ -247,6 +251,7 @@ class HotelAddonService
         return match ($addon->type) {
             HotelAddon::TYPE_BREAKFAST => 'restaurant',
             HotelAddon::TYPE_EXTRA_BED => 'room',
+            HotelAddon::TYPE_LAUNDRY => 'laundry',
             default => 'misc',
         };
     }

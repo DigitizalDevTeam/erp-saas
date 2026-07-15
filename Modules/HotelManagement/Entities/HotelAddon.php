@@ -15,11 +15,15 @@ class HotelAddon extends Model
 
     public const TYPE_PARKING = 'parking';
 
+    public const TYPE_LAUNDRY = 'laundry';
+
     public const TYPE_OTHER = 'other';
 
     public const BILLING_PER_NIGHT = 'per_night';
 
     public const BILLING_PER_STAY = 'per_stay';
+
+    public const BILLING_PER_UNIT = 'per_unit';
 
     protected $fillable = [
         'name',
@@ -44,6 +48,7 @@ class HotelAddon extends Model
             self::TYPE_EXTRA_BED => __('Extra bed'),
             self::TYPE_BREAKFAST => __('Breakfast'),
             self::TYPE_PARKING => __('Parking'),
+            self::TYPE_LAUNDRY => __('Laundry'),
             self::TYPE_OTHER => __('Other'),
         ];
     }
@@ -53,6 +58,7 @@ class HotelAddon extends Model
         return [
             self::BILLING_PER_NIGHT => __('Per night'),
             self::BILLING_PER_STAY => __('Per stay'),
+            self::BILLING_PER_UNIT => __('Per unit'),
         ];
     }
 

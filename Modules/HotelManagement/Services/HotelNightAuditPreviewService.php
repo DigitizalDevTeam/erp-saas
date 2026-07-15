@@ -18,6 +18,11 @@ use Modules\HotelManagement\Entities\HotelStay;
 
 class HotelNightAuditPreviewService
 {
+    public function __construct(
+        private readonly HotelPettyCashService $pettyCashService,
+    ) {
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -44,6 +49,7 @@ class HotelNightAuditPreviewService
                 ->exists();
 
         $cashReceived = (float) ($payments['by_method']['cash'] ?? 0) + (float) ($pos['cash_payments'] ?? 0);
+        $cashOutflows = $this->pettyCashService->cashExpensesForDate($creatorId, $date);
         $openFolioBalance = (float) $checklist['open_folios_balance'];
         $executive = $this->executiveSummary($creatorId, $date);
 
@@ -58,8 +64,8 @@ class HotelNightAuditPreviewService
             'cash_register' => [
                 'opening_balance' => 0.0,
                 'cash_inflows' => round($cashReceived, 2),
-                'cash_outflows' => 0.0,
-                'closing_balance' => round($cashReceived, 2),
+                'cash_outflows' => $cashOutflows,
+                'closing_balance' => round($cashReceived - $cashOutflows, 2),
             ],
             'advances' => [
                 'received' => round((float) $payments['total'], 2),

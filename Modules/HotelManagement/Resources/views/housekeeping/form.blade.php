@@ -1,5 +1,5 @@
 <div class="row">
-    <div class="col-md-4 form-group">{!! Form::label('hotel_room_id', __('Room')) !!}{!! Form::select('hotel_room_id', $rooms, $housekeeping->hotel_room_id ?? null, ['class' => 'form-control', 'required', 'disabled' => (bool) $housekeeping]) !!}
+    <div class="col-md-4 form-group">{!! Form::label('hotel_room_id', __('Room')) !!}{!! Form::select('hotel_room_id', $rooms, $housekeeping->hotel_room_id ?? ($selectedRoomId ?? null), ['class' => 'form-control', 'required', 'disabled' => (bool) $housekeeping]) !!}
         @if($housekeeping)
             <input type="hidden" name="hotel_room_id" value="{{ $housekeeping->hotel_room_id }}">
         @endif

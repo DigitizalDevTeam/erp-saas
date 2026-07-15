@@ -19,7 +19,7 @@
     <div class="card-header"><h6 class="mb-0">{{ __('Post consumption') }}</h6></div>
     <div class="card-body">
         @if(($occupiedStays ?? collect())->isEmpty())
-            <p class="text-muted mb-0">{{ __('No in-house guests today.') }}</p>
+            <p class="text-muted mb-0">{{ __('No in-house guests.') }}</p>
         @else
             <div class="mb-2">
                 <label class="form-label small fw-semibold">{{ __('Room') }}</label>

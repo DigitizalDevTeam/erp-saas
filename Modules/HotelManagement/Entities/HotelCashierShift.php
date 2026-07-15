@@ -20,6 +20,7 @@ class HotelCashierShift extends Model
         'opened_at',
         'closed_at',
         'opening_float',
+        'expenses_total',
         'closing_cash',
         'expected_cash',
         'cash_collected',
@@ -38,6 +39,7 @@ class HotelCashierShift extends Model
         'opened_at' => 'datetime',
         'closed_at' => 'datetime',
         'opening_float' => 'decimal:2',
+        'expenses_total' => 'decimal:2',
         'closing_cash' => 'decimal:2',
         'expected_cash' => 'decimal:2',
         'cash_collected' => 'decimal:2',
@@ -46,6 +48,11 @@ class HotelCashierShift extends Model
         'difference' => 'decimal:2',
         'cash_handover' => 'decimal:2',
     ];
+
+    public function expenses()
+    {
+        return $this->hasMany(HotelExpense::class, 'hotel_cashier_shift_id');
+    }
 
     public static function operationalShiftOptions(): array
     {

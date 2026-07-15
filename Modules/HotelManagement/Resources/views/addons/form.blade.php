@@ -20,7 +20,7 @@
     <div class="col-md-4 form-group">
         {!! Form::label('billing_mode', __('Billing mode')) !!}
         {!! Form::select('billing_mode', $billingOptions, old('billing_mode', $addon->billing_mode ?? HotelAddon::BILLING_PER_STAY), ['class' => 'form-control', 'required', 'id' => 'addon_billing_mode']) !!}
-        <small class="text-muted" id="addon_billing_hint">{{ __('Extra bed is always billed per night.') }}</small>
+        <small class="text-muted" id="addon_billing_hint">{{ __('Extra bed is always billed per night. Per unit is for qty-based items (e.g. ironing pants).') }}</small>
     </div>
     <div class="col-md-4 form-group d-flex align-items-end">
         <div class="form-check mb-2">

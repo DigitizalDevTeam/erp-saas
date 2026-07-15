@@ -23,9 +23,9 @@ class HotelCheckInService
 
     /**
      * Ensure a checked-in reservation has an in-house stay and folio.
-     * Used by frontdesk check-in and to heal data mismatches.
+     * When $healMode is true, dirty/cleaning room status does not block repair.
      */
-    public function ensureStayAndFolio(HotelReservation $reservation, int $creatorId, bool $setCheckedInStatus = true): HotelStay
+    public function ensureStayAndFolio(HotelReservation $reservation, int $creatorId, bool $setCheckedInStatus = true, bool $healMode = false): HotelStay
     {
         $reservation->loadMissing(['reservationAddons', 'stay.folio', 'room']);
 
@@ -33,7 +33,7 @@ class HotelCheckInService
             if ($reservation->hotel_room_id) {
                 $room = HotelRoom::where('created_by', $creatorId)->find($reservation->hotel_room_id);
                 if ($room && $room->status !== HotelRoom::STATUS_OCCUPIED) {
-                    $this->roomStatusService->markOccupied($room, $creatorId);
+                    $this->syncRoomOccupied($room, $creatorId, $healMode);
                 }
             }
 
@@ -49,14 +49,14 @@ class HotelCheckInService
             throw new \InvalidArgumentException(__('Room not found.'));
         }
 
-        if (! $reservation->stay) {
+        if (! $reservation->stay && ! $healMode) {
             $block = $this->roomStatusService->assignmentBlockReason($room);
             if ($block && $room->status !== HotelRoom::STATUS_OCCUPIED) {
                 throw new \InvalidArgumentException($block);
             }
         }
 
-        return DB::transaction(function () use ($reservation, $room, $creatorId, $setCheckedInStatus) {
+        return DB::transaction(function () use ($reservation, $room, $creatorId, $setCheckedInStatus, $healMode) {
             $stay = $reservation->stay;
             if (! $stay) {
                 $stay = HotelStay::create([
@@ -105,7 +105,7 @@ class HotelCheckInService
             }
 
             $room->refresh();
-            $this->roomStatusService->markOccupied($room, $creatorId);
+            $this->syncRoomOccupied($room, $creatorId, $healMode);
 
             $reservation->refresh();
             $reservation->load('reservationAddons');
@@ -116,7 +116,7 @@ class HotelCheckInService
     }
 
     /**
-     * Heal checked-in reservations missing stays, and occupied rooms without guests.
+     * Heal checked-in reservations missing or non-in-house stays, and occupied rooms without guests.
      *
      * @return array{stays_created: int, rooms_released: int}
      */
@@ -125,15 +125,20 @@ class HotelCheckInService
         $staysCreated = 0;
         $roomsReleased = 0;
 
-        $checkedInMissingStay = HotelReservation::where('created_by', $creatorId)
+        $checkedInNeedingStay = HotelReservation::where('created_by', $creatorId)
             ->where('status', HotelReservation::STATUS_CHECKED_IN)
-            ->whereDoesntHave('stay')
             ->whereNotNull('hotel_room_id')
+            ->where(function ($q) {
+                $q->whereDoesntHave('stay')
+                    ->orWhereHas('stay', function ($stayQuery) {
+                        $stayQuery->where('status', '!=', 'in_house');
+                    });
+            })
             ->get();
 
-        foreach ($checkedInMissingStay as $reservation) {
+        foreach ($checkedInNeedingStay as $reservation) {
             try {
-                $this->ensureStayAndFolio($reservation, $creatorId, false);
+                $this->ensureStayAndFolio($reservation, $creatorId, false, true);
                 $staysCreated++;
             } catch (\Throwable) {
                 // Skip rooms that cannot be healed automatically.
@@ -160,7 +165,7 @@ class HotelCheckInService
 
             if ($activeReservation) {
                 try {
-                    $this->ensureStayAndFolio($activeReservation, $creatorId, false);
+                    $this->ensureStayAndFolio($activeReservation, $creatorId, false, true);
                     $staysCreated++;
                     continue;
                 } catch (\Throwable) {
@@ -176,5 +181,21 @@ class HotelCheckInService
             'stays_created' => $staysCreated,
             'rooms_released' => $roomsReleased,
         ];
+    }
+
+    private function syncRoomOccupied(HotelRoom $room, int $creatorId, bool $healMode): void
+    {
+        if ($room->status === HotelRoom::STATUS_OCCUPIED) {
+            return;
+        }
+
+        if ($healMode) {
+            // Already checked-in guest takes priority over dirty/cleaning housekeeping status.
+            $room->update(['status' => HotelRoom::STATUS_OCCUPIED]);
+
+            return;
+        }
+
+        $this->roomStatusService->markOccupied($room, $creatorId);
     }
 }

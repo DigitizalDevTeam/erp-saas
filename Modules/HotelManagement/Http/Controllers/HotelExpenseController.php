@@ -10,9 +10,15 @@ use Modules\HotelManagement\Entities\HotelExpense;
 use Modules\HotelManagement\Entities\HotelRoom;
 use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Services\HotelFolioPaymentService;
+use Modules\HotelManagement\Services\HotelPettyCashService;
 
 class HotelExpenseController extends Controller
 {
+    public function __construct(
+        private readonly HotelPettyCashService $pettyCashService,
+    ) {
+    }
+
     private function canView(): bool
     {
         return HotelAuthorization::viewFrontdesk(Auth::user());
@@ -110,13 +116,13 @@ class HotelExpenseController extends Controller
             }
         }
 
-        HotelExpense::create([
+        $expense = HotelExpense::create([
             'branch_id' => Auth::user()->activeBranchContextId(),
             'category' => $request->category,
             'title' => $request->title,
             'amount' => (float) $request->amount,
             'expense_date' => $request->expense_date,
-            'payment_method' => $request->payment_method,
+            'payment_method' => $request->payment_method ?: 'cash',
             'vendor' => $request->vendor,
             'reference' => $request->reference,
             'hotel_room_id' => $request->hotel_room_id ?: null,
@@ -125,9 +131,18 @@ class HotelExpenseController extends Controller
             'recorded_by' => Auth::id(),
         ]);
 
+        $this->pettyCashService->syncExpenseToShift($expense, $creatorId, (int) Auth::id());
+
+        $message = __('Expense recorded successfully.');
+        if ($this->pettyCashService->isCashMethod($expense->payment_method) && $expense->fresh()->hotel_cashier_shift_id) {
+            $message = __('Expense recorded and deducted from petty cash (open cashier shift).');
+        } elseif ($this->pettyCashService->isCashMethod($expense->payment_method)) {
+            $message = __('Expense recorded. Open a cashier shift to deduct cash from petty cash float.');
+        }
+
         return redirect()
             ->route('hotel.expenses.index', ['category' => $request->category])
-            ->with('success', __('Expense recorded successfully.'));
+            ->with('success', $message);
     }
 
     public function edit(HotelExpense $expense)
@@ -187,12 +202,14 @@ class HotelExpenseController extends Controller
             'title' => $request->title,
             'amount' => (float) $request->amount,
             'expense_date' => $request->expense_date,
-            'payment_method' => $request->payment_method,
+            'payment_method' => $request->payment_method ?: 'cash',
             'vendor' => $request->vendor,
             'reference' => $request->reference,
             'hotel_room_id' => $request->hotel_room_id ?: null,
             'notes' => $request->notes,
         ]);
+
+        $this->pettyCashService->syncExpenseToShift($expense->fresh(), $creatorId, (int) Auth::id());
 
         return redirect()
             ->route('hotel.expenses.index', ['category' => $expense->category])
@@ -206,6 +223,8 @@ class HotelExpenseController extends Controller
         }
 
         $category = $expense->category;
+        $creatorId = (int) Auth::user()->creatorId();
+        $this->pettyCashService->detachExpense($expense, $creatorId);
         $expense->delete();
 
         return redirect()

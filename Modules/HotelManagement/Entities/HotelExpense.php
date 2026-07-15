@@ -23,6 +23,7 @@ class HotelExpense extends Model
         'reference',
         'hotel_reservation_id',
         'hotel_room_id',
+        'hotel_cashier_shift_id',
         'notes',
         'created_by',
         'recorded_by',
@@ -52,6 +53,11 @@ class HotelExpense extends Model
     public function room()
     {
         return $this->belongsTo(HotelRoom::class, 'hotel_room_id');
+    }
+
+    public function cashierShift()
+    {
+        return $this->belongsTo(HotelCashierShift::class, 'hotel_cashier_shift_id');
     }
 
     public function recorder()

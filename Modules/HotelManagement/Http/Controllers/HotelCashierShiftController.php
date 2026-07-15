@@ -9,9 +9,15 @@ use Illuminate\Support\Facades\Schema;
 use Modules\HotelManagement\Entities\HotelCashierShift;
 use Modules\HotelManagement\Entities\HotelFolioPayment;
 use Modules\HotelManagement\Services\HotelAuthorization;
+use Modules\HotelManagement\Services\HotelPettyCashService;
 
 class HotelCashierShiftController extends Controller
 {
+    public function __construct(
+        private readonly HotelPettyCashService $pettyCashService,
+    ) {
+    }
+
     private function canView(): bool
     {
         return HotelAuthorization::viewFrontdesk(Auth::user());
@@ -112,10 +118,18 @@ class HotelCashierShiftController extends Controller
         }
 
         $totals = $this->collectPaymentTotals($shift);
-        $expectedCash = round((float) $shift->opening_float + $totals['cash'], 2);
+        $expensesTotal = $this->pettyCashService->refreshShiftExpensesTotal((int) $shift->id, (int) $shift->created_by);
+        $shift->refresh();
+        $expectedCash = round((float) $shift->opening_float + $totals['cash'] - $expensesTotal, 2);
         $canManage = $this->canManage();
 
-        return view('hotelmanagement::cashier_shifts.close', compact('shift', 'totals', 'expectedCash', 'canManage'));
+        return view('hotelmanagement::cashier_shifts.close', compact(
+            'shift',
+            'totals',
+            'expectedCash',
+            'expensesTotal',
+            'canManage'
+        ));
     }
 
     public function close(Request $request, HotelCashierShift $shift)
@@ -139,14 +153,16 @@ class HotelCashierShiftController extends Controller
         }
 
         $totals = $this->collectPaymentTotals($shift);
+        $expensesTotal = $this->pettyCashService->refreshShiftExpensesTotal((int) $shift->id, (int) $shift->created_by);
         $closingCash = (float) $request->closing_cash;
-        $expectedCash = round((float) $shift->opening_float + $totals['cash'], 2);
+        $expectedCash = round((float) $shift->opening_float + $totals['cash'] - $expensesTotal, 2);
         $difference = round($closingCash - $expectedCash, 2);
 
         $shift->update([
             'closed_at' => now(),
             'closing_cash' => $closingCash,
             'expected_cash' => $expectedCash,
+            'expenses_total' => $expensesTotal,
             'cash_collected' => $totals['cash'],
             'card_collected' => $totals['card'],
             'other_collected' => $totals['other'],

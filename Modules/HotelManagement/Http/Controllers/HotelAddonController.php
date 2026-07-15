@@ -56,9 +56,9 @@ class HotelAddonController extends Controller
 
         $validator = \Validator::make($request->all(), [
             'name' => 'required|string|max:191',
-            'type' => 'required|in:extra_bed,breakfast,parking,other',
+            'type' => 'required|in:extra_bed,breakfast,parking,laundry,other',
             'price' => 'required|numeric|min:0',
-            'billing_mode' => 'required|in:per_night,per_stay',
+            'billing_mode' => 'required|in:per_night,per_stay,per_unit',
             'description' => 'nullable|string|max:500',
         ]);
         if ($validator->fails()) {
@@ -101,9 +101,9 @@ class HotelAddonController extends Controller
 
         $validator = \Validator::make($request->all(), [
             'name' => 'required|string|max:191',
-            'type' => 'required|in:extra_bed,breakfast,parking,other',
+            'type' => 'required|in:extra_bed,breakfast,parking,laundry,other',
             'price' => 'required|numeric|min:0',
-            'billing_mode' => 'required|in:per_night,per_stay',
+            'billing_mode' => 'required|in:per_night,per_stay,per_unit',
             'description' => 'nullable|string|max:500',
         ]);
         if ($validator->fails()) {

@@ -55,6 +55,10 @@ Route::group(['middleware' => ['verified']], function () {
 
             Route::get('hotel/calendar', [HotelCalendarController::class, 'index'])->name('hotel.calendar');
             Route::get('hotel/calendar/events', [HotelCalendarController::class, 'events'])->name('hotel.calendar.events');
+            Route::get('hotel/calendar/room-board', [HotelCalendarController::class, 'roomBoard'])->name('hotel.calendar.room-board');
+            Route::post('hotel/calendar/reservations/{reservation}/extend-stay', [HotelCalendarController::class, 'extendStay'])->name('hotel.calendar.extend-stay');
+            Route::post('hotel/calendar/reservations/{reservation}/change-room', [HotelCalendarController::class, 'changeRoom'])->name('hotel.calendar.change-room');
+            Route::post('hotel/calendar/rooms/{room}/status', [HotelCalendarController::class, 'changeRoomStatus'])->name('hotel.calendar.room-status');
 
             Route::get('hotel/reports', [HotelReportController::class, 'index'])->name('hotel.reports.index');
             Route::get('hotel/reports/operational', [HotelReportController::class, 'operational'])->name('hotel.reports.operational');
