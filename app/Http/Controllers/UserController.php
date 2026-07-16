@@ -212,8 +212,7 @@ class UserController extends Controller
                     $existingUser = User::where('email', $request->email)->first();
                     $linkedExistingUser = false;
                     if ($existingUser) {
-                        if (in_array($existingUser->type, ['super admin', 'client'], true)
-                            || CompanyUserRoleService::isForbiddenUserType((string) $existingUser->type)) {
+                        if (in_array($existingUser->type, ['super admin', 'client'], true)) {
                             return redirect()->back()->with('error', __('This email belongs to a super admin/client account and cannot be linked here.'));
                         }
                         $existingCompanyIds = DB::table('company_user')->where('user_id', $existingUser->id)->pluck('company_id')->map(fn ($cid) => (int) $cid)->all();
@@ -1103,8 +1102,7 @@ class UserController extends Controller
             ]);
         }
 
-        if (in_array($user->type, ['super admin', 'client'], true)
-            || CompanyUserRoleService::isForbiddenUserType((string) $user->type)) {
+        if (in_array($user->type, ['super admin', 'client'], true)) {
             return response()->json([
                 'exists' => true,
                 'allowed' => false,
@@ -1145,15 +1143,12 @@ class UserController extends Controller
                 ->all();
 
             return User::where('type', '!=', 'client')
-                ->where(function ($q) use ($companyId) {
-                    $q->where('type', '!=', 'company')
-                        ->orWhere('id', $companyId);
-                })
                 ->where(function ($q) use ($companyId, $memberUserIds) {
                     $q->where(function ($legacy) use ($companyId) {
                         $legacy->where('created_by', $companyId)
                             ->where('type', '!=', 'company');
                     });
+                    $q->orWhere('id', $companyId);
                     if (! empty($memberUserIds)) {
                         $q->orWhereIn('id', $memberUserIds);
                     }
