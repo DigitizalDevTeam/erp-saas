@@ -43,31 +43,15 @@ class ChartOfAccountController extends Controller
             default => 'name',
         };
 
-        $chartAccounts = [];
+        $chartTree = ChartOfAccountHierarchy::buildMasterTree($creatorId, $name_column);
 
-        foreach ($types as $type) {
-            $accounts = ChartOfAccountHierarchy::accountsForCreator($creatorId, (int) $type->id)
-                ->load('subType');
-
-            $tree = ChartOfAccountHierarchy::buildTree($accounts, $name_column);
-
-            if ($search !== '') {
-                $tree = $tree->filter(function ($root) use ($search, $name_column) {
-                    return ChartOfAccountHierarchy::pruneTreeForSearch($root, $search, $name_column);
-                })->values();
-            }
-
-            if ($tree->isEmpty()) {
-                continue;
-            }
-
-            // Duplicate type names (re-import) must not overwrite a populated section with an empty one.
-            if (! isset($chartAccounts[$type->name]) || $chartAccounts[$type->name]->isEmpty()) {
-                $chartAccounts[$type->name] = $tree;
-            }
+        if ($search !== '') {
+            $chartTree = $chartTree->filter(function ($root) use ($search, $name_column) {
+                return ChartOfAccountHierarchy::pruneTreeForSearch($root, $search, $name_column);
+            })->values();
         }
 
-        return view('chartOfAccount.index', compact('chartAccounts', 'types', 'filter', 'name_column'));
+        return view('chartOfAccount.index', compact('chartTree', 'types', 'filter', 'name_column'));
     }
 
     public function create()

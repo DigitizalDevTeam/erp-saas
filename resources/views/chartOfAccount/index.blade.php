@@ -157,42 +157,41 @@
     </div>
 </div>
     <div class="row">
-        @foreach ($chartAccounts as $type => $accounts)
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h6>{{ $type }}</h6>
-                    </div>
-                    <div class="card-body table-border-style">
-                        <div class="table-responsive">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th width="10%"> {{ __('Code') }}</th>
-                                        <th width="30%"> {{ __('Name') }}</th>
-                                        <th width="20%"> {{ __('Type') }}</th>
-                                        <!--<th width="20%"> {{ __('Parent Account Name') }}</th>-->
-                                        <th width="20%"> {{ __('Balance') }}</th>
-                                        <th width="10%"> {{ __('Status') }}</th>
-                                        <th width="10%"> {{ __('Action') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-@foreach ($accounts as $rootAccount)
-    @include('chartOfAccount.partials.account_row', [
-        'account' => $rootAccount,
-        'filter' => $filter,
-        'name_column' => $name_column,
-        'depth' => 0,
-    ])
-@endforeach
-</tbody>
-
-                            </table>
-                        </div>
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6>{{ __('Chart of Accounts') }}</h6>
+                    <p class="text-muted small mb-0">{{ __('Ordered by account code (PGC numbering). Type is shown for reference only.') }}</p>
+                </div>
+                <div class="card-body table-border-style">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th width="10%"> {{ __('Code') }}</th>
+                                    <th width="30%"> {{ __('Name') }}</th>
+                                    <th width="20%"> {{ __('Type') }}</th>
+                                    <th width="20%"> {{ __('Balance') }}</th>
+                                    <th width="10%"> {{ __('Status') }}</th>
+                                    <th width="10%"> {{ __('Action') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @forelse ($chartTree as $rootAccount)
+                                @include('chartOfAccount.partials.account_row', [
+                                    'account' => $rootAccount,
+                                    'filter' => $filter,
+                                    'name_column' => $name_column,
+                                    'depth' => 0,
+                                ])
+                            @empty
+                                <tr><td colspan="6" class="text-muted text-center">{{ __('No accounts found.') }}</td></tr>
+                            @endforelse
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
-        @endforeach
+        </div>
     </div>
 @endsection

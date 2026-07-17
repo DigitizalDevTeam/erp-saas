@@ -3,6 +3,11 @@
     $padding = 20 + ($depth * 24);
     $isRoot = $depth === 0;
     $displayName = $account->{$name_column} ?? $account->labelForLocale();
+    $mainType = $account->types?->{$name_column} ?? $account->types?->name ?? '';
+    $subType = $account->subType?->{$name_column} ?? $account->subType?->name ?? '';
+    $typeLabel = $mainType !== '' && $subType !== '' && $mainType !== $subType
+        ? $mainType . ' / ' . $subType
+        : ($mainType ?: ($subType ?: '-'));
     $balance = App\Models\Utility::getAccountBalance($account->id, $filter['startDateRange'], $filter['endDateRange']);
     $children = $account->tree_children ?? collect();
 @endphp
@@ -15,7 +20,7 @@
             <a href="{{ route('report.ledger', $account->id) }}?account={{ $account->id }}">{{ $displayName }}</a>
         @endif
     </td>
-    <td>{{ $account->subType?->{$name_column} ?? '-' }}</td>
+    <td>{{ $typeLabel }}</td>
     <td>
         @if (!empty($balance))
             {{ \Auth::user()->priceFormat($balance) }}

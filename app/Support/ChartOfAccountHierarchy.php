@@ -136,6 +136,18 @@ class ChartOfAccountHierarchy
         return $roots->map($attach);
     }
 
+    /**
+     * Full company chart as one tree ordered by account code (PGC numbering), not by type section.
+     *
+     * @return Collection<int, ChartOfAccount>
+     */
+    public static function buildMasterTree(int $creatorId, string $nameColumn = 'name'): Collection
+    {
+        $accounts = self::accountsForCreator($creatorId)->load(['subType', 'types']);
+
+        return self::buildTree($accounts, $nameColumn);
+    }
+
     public static function accountMatchesSearch(ChartOfAccount $account, string $search, string $nameColumn = 'name'): bool
     {
         if ($search === '') {
