@@ -32,7 +32,7 @@ class ChartOfAccountController extends Controller
             'search' => $search,
         ];
 
-        $types = ChartOfAccountType::where('created_by', \Auth::user()->creatorId())->get();
+        $types = ChartOfAccountType::where('created_by', $creatorId)->orderBy('id')->get();
 
         $ulane = auth()->user()->lang ?? 'en';
         $name_column = match ($ulane) {
@@ -57,7 +57,14 @@ class ChartOfAccountController extends Controller
                 })->values();
             }
 
-            $chartAccounts[$type->name] = $tree;
+            if ($tree->isEmpty()) {
+                continue;
+            }
+
+            // Duplicate type names (re-import) must not overwrite a populated section with an empty one.
+            if (! isset($chartAccounts[$type->name]) || $chartAccounts[$type->name]->isEmpty()) {
+                $chartAccounts[$type->name] = $tree;
+            }
         }
 
         return view('chartOfAccount.index', compact('chartAccounts', 'types', 'filter', 'name_column'));

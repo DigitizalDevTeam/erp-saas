@@ -29,5 +29,15 @@ class TrialBalanceReportServiceTest extends TestCase
         $this->assertFalse($method->invoke($service, 0.0, 0.0));
         $this->assertTrue($method->invoke($service, 10.0, 0.0));
         $this->assertTrue($method->invoke($service, 0.0, 10.0));
+        $this->assertFalse($method->invoke($service, 100.0, 100.0));
+        $this->assertTrue($method->invoke($service, 100.0, 50.0));
+    }
+
+    public function test_default_date_range_covers_full_fiscal_year(): void
+    {
+        $range = TrialBalanceReportService::defaultDateRange(2026);
+
+        $this->assertSame('2026-01-01', $range['start']);
+        $this->assertSame('2026-12-31', $range['end']);
     }
 }

@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\ChartOfAccount;
 use App\Models\ChartOfAccountParent;
 use App\Models\ChartOfAccountSubType;
+use App\Models\ChartOfAccountType;
 use Illuminate\Support\Collection;
 
 class ChartOfAccountHierarchy
@@ -357,16 +358,23 @@ class ChartOfAccountHierarchy
      */
     public static function syncTypesFromParents(?int $creatorId = null): int
     {
+        $updated = self::applyCsvCategories($creatorId);
+
         $query = ChartOfAccount::query()->whereNotNull('parent_account_id');
 
         if ($creatorId) {
             $query->where('created_by', $creatorId);
         }
 
-        $updated = 0;
+        $csvMap = self::csvCategoryMap();
         $accounts = $query->get()->sortBy(static fn (ChartOfAccount $account) => strlen((string) $account->code));
 
         foreach ($accounts as $account) {
+            $code = preg_replace('/\D/', '', (string) $account->code) ?? '';
+            if ($code !== '' && isset($csvMap[$code])) {
+                continue;
+            }
+
             $parent = ChartOfAccount::find((int) $account->parent_account_id);
             if (! $parent) {
                 continue;
@@ -378,6 +386,62 @@ class ChartOfAccountHierarchy
 
             $account->type = $parent->type;
             $account->sub_type = $parent->sub_type;
+            $account->save();
+            $updated++;
+        }
+
+        self::clearCache();
+
+        return $updated;
+    }
+
+    /**
+     * Apply category/sub-category from chart_new_data.csv to existing accounts.
+     */
+    public static function applyCsvCategories(?int $creatorId = null): int
+    {
+        $csvMap = self::csvCategoryMap();
+        if ($csvMap === []) {
+            return 0;
+        }
+
+        $query = ChartOfAccount::query();
+        if ($creatorId) {
+            $query->where('created_by', $creatorId);
+        }
+
+        $updated = 0;
+        $typeCache = [];
+        $subTypeCache = [];
+
+        foreach ($query->get() as $account) {
+            $code = preg_replace('/\D/', '', (string) $account->code) ?? '';
+            if ($code === '' || ! isset($csvMap[$code])) {
+                continue;
+            }
+
+            $meta = $csvMap[$code];
+            $companyId = (int) $account->created_by;
+            $typeId = self::resolveOrCreateTypeId(
+                $companyId,
+                $meta['type'],
+                $meta['category_pt'],
+                $typeCache
+            );
+            $subTypeId = self::resolveOrCreateSubTypeId(
+                $companyId,
+                $typeId,
+                $meta['sub_type'],
+                $meta['sub_category_pt'],
+                $subTypeCache
+            );
+
+            if ((int) $account->type === $typeId && (int) $account->sub_type === $subTypeId) {
+                continue;
+            }
+
+            $account->type = $typeId;
+            $account->sub_type = $subTypeId;
             $account->save();
             $updated++;
         }
@@ -413,6 +477,166 @@ class ChartOfAccountHierarchy
         self::clearCache();
 
         return $updated;
+    }
+
+    /**
+     * PGC codes whose parent cannot be inferred reliably from numeric prefix alone.
+     *
+     * @return array<string, string|null>
+     */
+    public static function csvParentOverrides(): array
+    {
+        return [
+            '44324' => '4432',
+            '44341' => '4432',
+            '4461' => '443',
+        ];
+    }
+
+    /**
+     * @return array<string, array{
+     *     english_name: string,
+     *     portuguese_name: string,
+     *     english_type: string,
+     *     english_sub_type: string,
+     *     category_pt: string,
+     *     sub_category_pt: string,
+     *     description_en: string,
+     *     description_pt: string,
+     *     account_level: string
+     * }>
+     */
+    public static function csvAccountRows(): array
+    {
+        static $rows = null;
+        if ($rows !== null) {
+            return $rows;
+        }
+
+        $rows = [];
+        $file = public_path('chart_new_data.csv');
+        if (! is_file($file)) {
+            return $rows;
+        }
+
+        $csv = array_map('str_getcsv', file($file));
+        foreach ($csv as $rowIndex => $row) {
+            if ($rowIndex < 3) {
+                continue;
+            }
+
+            $code = trim($row[1] ?? '');
+            if ($code === '' || ! preg_match('/^\d+$/', $code)) {
+                continue;
+            }
+
+            $englishName = trim($row[3] ?? '');
+            $englishType = trim($row[5] ?? '');
+            $englishSubType = trim($row[7] ?? '');
+            if ($englishName === '' || $englishType === '' || $englishSubType === '') {
+                continue;
+            }
+
+            $rows[$code] = [
+                'english_name' => $englishName,
+                'portuguese_name' => trim($row[2] ?? ''),
+                'english_type' => $englishType,
+                'english_sub_type' => $englishSubType,
+                'category_pt' => trim($row[4] ?? ''),
+                'sub_category_pt' => trim($row[6] ?? ''),
+                'description_en' => trim($row[12] ?? ''),
+                'description_pt' => trim($row[11] ?? ''),
+                'account_level' => strtolower(trim(preg_replace('/\s+/', ' ', $row[9] ?? ''))),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Create chart rows that exist in chart_new_data.csv but not yet in a company chart.
+     */
+    public static function syncMissingAccountsFromCsv(?int $creatorId = null): int
+    {
+        $rows = self::csvAccountRows();
+        if ($rows === []) {
+            return 0;
+        }
+
+        $parentMap = self::csvParentMap();
+        $creatorIds = $creatorId
+            ? [(int) $creatorId]
+            : ChartOfAccount::query()->distinct()->pluck('created_by')->map(static fn ($id) => (int) $id)->filter(static fn (int $id) => $id > 0)->all();
+
+        $created = 0;
+        $typeCache = [];
+        $subTypeCache = [];
+
+        foreach ($creatorIds as $companyId) {
+            $existingCodes = [];
+            foreach (ChartOfAccount::where('created_by', $companyId)->get(['code']) as $account) {
+                $normalized = preg_replace('/\D/', '', (string) $account->code) ?? '';
+                if ($normalized !== '') {
+                    $existingCodes[$normalized] = true;
+                }
+            }
+
+            foreach ($rows as $code => $row) {
+                if (isset($existingCodes[$code])) {
+                    continue;
+                }
+
+                $typeId = self::resolveOrCreateTypeId(
+                    $companyId,
+                    $row['english_type'],
+                    $row['category_pt'],
+                    $typeCache
+                );
+                $subTypeId = self::resolveOrCreateSubTypeId(
+                    $companyId,
+                    $typeId,
+                    $row['english_sub_type'],
+                    $row['sub_category_pt'],
+                    $subTypeCache
+                );
+
+                $parentCode = $parentMap[$code] ?? null;
+                $parentAccountId = null;
+                $legacyParentId = 0;
+
+                if ($parentCode !== null) {
+                    $parentAccount = ChartOfAccount::where('created_by', $companyId)
+                        ->where('code', $parentCode)
+                        ->first();
+                    if (! $parentAccount) {
+                        continue;
+                    }
+                    $parentAccountId = (int) $parentAccount->id;
+                    $legacyParentId = self::legacyParentRowId($parentAccountId);
+                }
+
+                ChartOfAccount::create([
+                    'code' => $code,
+                    'name' => $row['english_name'],
+                    'name_pt_br' => $row['portuguese_name'] !== '' ? $row['portuguese_name'] : $row['english_name'],
+                    'type' => $typeId,
+                    'sub_type' => $subTypeId,
+                    'parent' => $legacyParentId,
+                    'parent_account_id' => $parentAccountId,
+                    'description' => $row['description_en'],
+                    'description_pt_br' => $row['description_pt'] !== '' ? $row['description_pt'] : $row['description_en'],
+                    'is_enabled' => 1,
+                    'created_by' => $companyId,
+                ]);
+
+                $existingCodes[$code] = true;
+                $created++;
+            }
+        }
+
+        self::clearCache();
+
+        return $created;
     }
 
     /**
@@ -511,9 +735,6 @@ class ChartOfAccountHierarchy
                 $account->parent = $newParentId ? self::legacyParentRowId($newParentId) : 0;
 
                 if ($newParentId !== null) {
-                    $parent = $byCode[$parentCode];
-                    $account->type = $parent->type;
-                    $account->sub_type = $parent->sub_type;
                     $updated++;
                 } else {
                     $cleared++;
@@ -524,6 +745,7 @@ class ChartOfAccountHierarchy
         }
 
         self::clearCache();
+        self::applyCsvCategories($creatorId);
 
         return ['updated' => $updated, 'cleared' => $cleared, 'csv_links' => $csvLinks];
     }
@@ -546,6 +768,92 @@ class ChartOfAccountHierarchy
 
         // Keep custom codes after master-chart rows, still roughly numeric.
         return 100000.0 + (float) (int) $code;
+    }
+
+    /**
+     * @return array<string, array{type: string, sub_type: string, category_pt: string, sub_category_pt: string}>
+     */
+    public static function csvCategoryMap(): array
+    {
+        static $map = null;
+        if ($map !== null) {
+            return $map;
+        }
+
+        $map = [];
+        $file = public_path('chart_new_data.csv');
+        if (! is_file($file)) {
+            return $map;
+        }
+
+        $csv = array_map('str_getcsv', file($file));
+        foreach ($csv as $rowIndex => $row) {
+            if ($rowIndex < 3) {
+                continue;
+            }
+
+            $code = trim($row[1] ?? '');
+            if ($code === '' || ! preg_match('/^\d+$/', $code)) {
+                continue;
+            }
+
+            $englishType = trim($row[5] ?? '');
+            $englishSubType = trim($row[7] ?? '');
+            if ($englishType === '' || $englishSubType === '') {
+                continue;
+            }
+
+            $map[$code] = [
+                'type' => $englishType,
+                'sub_type' => $englishSubType,
+                'category_pt' => trim($row[4] ?? ''),
+                'sub_category_pt' => trim($row[6] ?? ''),
+            ];
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param  array<string, ChartOfAccountType>  $typeCache
+     */
+    private static function resolveOrCreateTypeId(int $creatorId, string $englishType, string $categoryPt, array &$typeCache): int
+    {
+        if (isset($typeCache[$creatorId . '|' . $englishType])) {
+            return (int) $typeCache[$creatorId . '|' . $englishType]->id;
+        }
+
+        $type = ChartOfAccountType::firstOrCreate(
+            ['name' => $englishType, 'created_by' => $creatorId],
+            ['name_pt_br' => $categoryPt !== '' ? $categoryPt : $englishType]
+        );
+        $typeCache[$creatorId . '|' . $englishType] = $type;
+
+        return (int) $type->id;
+    }
+
+    /**
+     * @param  array<string, ChartOfAccountSubType>  $subTypeCache
+     */
+    private static function resolveOrCreateSubTypeId(
+        int $creatorId,
+        int $typeId,
+        string $englishSubType,
+        string $subCategoryPt,
+        array &$subTypeCache
+    ): int {
+        $cacheKey = $creatorId . '|' . $typeId . '|' . $englishSubType;
+        if (isset($subTypeCache[$cacheKey])) {
+            return (int) $subTypeCache[$cacheKey]->id;
+        }
+
+        $subType = ChartOfAccountSubType::firstOrCreate(
+            ['name' => $englishSubType, 'type' => $typeId, 'created_by' => $creatorId],
+            ['name_pt_br' => $subCategoryPt !== '' ? $subCategoryPt : $englishSubType]
+        );
+        $subTypeCache[$cacheKey] = $subType;
+
+        return (int) $subType->id;
     }
 
     /**
@@ -683,6 +991,12 @@ class ChartOfAccountHierarchy
                 if ($stackDepth > $depth) {
                     unset($depthStack[$stackDepth]);
                 }
+            }
+        }
+
+        foreach (self::csvParentOverrides() as $code => $parentCode) {
+            if (array_key_exists($code, $parents)) {
+                $parents[$code] = $parentCode;
             }
         }
 

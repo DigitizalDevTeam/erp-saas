@@ -14,12 +14,17 @@ class MonthlyReportController extends Controller
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 
-        if (!empty($request->start_date) && !empty($request->end_date)) {
+        if (! empty($request->start_date) && ! empty($request->end_date)) {
             $start = $request->start_date;
             $end = $request->end_date;
+        } elseif ($request->query('range') === 'ytd') {
+            $range = TrialBalanceReportService::yearToDateRange();
+            $start = $range['start'];
+            $end = $range['end'];
         } else {
-            $start = date('Y-01-01');
-            $end = date('Y-m-d');
+            $range = TrialBalanceReportService::defaultDateRange();
+            $start = $range['start'];
+            $end = $range['end'];
         }
 
         $report = app(TrialBalanceReportService::class)->build(

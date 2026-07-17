@@ -103,6 +103,10 @@
                                                 <span class="btn-inner--icon"><i
                                                         class="ti ti-refresh text-white-off "></i></span>
                                             </a>
+                                            <a href="{{ route('trial.balance', ['view' => 'expand', 'range' => 'ytd']) }}"
+                                                class="btn btn-sm btn-outline-secondary">
+                                                {{ __('Year to date') }}
+                                            </a>
 
                                         </div>
                                     </div>

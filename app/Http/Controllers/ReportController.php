@@ -1327,12 +1327,17 @@ class ReportController extends Controller
     {
         if (\Auth::user()->can('trial balance report')) {
 
-            if (!empty($request->start_date) && !empty($request->end_date)) {
+            if (! empty($request->start_date) && ! empty($request->end_date)) {
                 $start = $request->start_date;
                 $end = $request->end_date;
+            } elseif ($request->query('range') === 'ytd') {
+                $range = TrialBalanceReportService::yearToDateRange();
+                $start = $range['start'];
+                $end = $range['end'];
             } else {
-                $start = date('Y-01-01');
-                $end = date('Y-m-d', strtotime('+1 day'));
+                $range = TrialBalanceReportService::defaultDateRange();
+                $start = $range['start'];
+                $end = $range['end'];
             }
 
             if (! in_array($view, ['collapse', 'expand'], true)) {
@@ -4585,12 +4590,13 @@ class ReportController extends Controller
 
     public function trialBalanceExport(Request $request)
     {
-        if (!empty($request->start_date) && !empty($request->end_date)) {
+        if (! empty($request->start_date) && ! empty($request->end_date)) {
             $start = $request->start_date;
             $end = $request->end_date;
         } else {
-            $start = date('Y-m-01');
-            $end = date('Y-m-t', strtotime('+1 day'));
+            $range = TrialBalanceReportService::defaultDateRange();
+            $start = $range['start'];
+            $end = $range['end'];
         }
 
         $report = app(TrialBalanceReportService::class)->build(

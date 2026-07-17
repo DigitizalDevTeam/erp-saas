@@ -53,6 +53,10 @@
                                 <a href="{{ route('monthly.reports.trial-balance') }}" class="btn btn-sm btn-danger">
                                     <i class="ti ti-refresh"></i> {{ __('Reset') }}
                                 </a>
+                                <a href="{{ route('monthly.reports.trial-balance', ['range' => 'ytd']) }}"
+                                    class="btn btn-sm btn-outline-secondary">
+                                    {{ __('Year to date') }}
+                                </a>
                             </div>
                         </div>
                     </div>

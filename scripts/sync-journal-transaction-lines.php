@@ -68,6 +68,15 @@ foreach ($companies as $company) {
             if (! $tl) {
                 $tl = new TransactionLines();
                 $created++;
+            } elseif (
+                (int) $tl->account_id === (int) $item->account
+                && (float) $tl->debit === ($debit > 0 ? $debit : 0.0)
+                && (float) $tl->credit === ($credit > 0 ? $credit : 0.0)
+                && (int) $tl->created_by === (int) $company->id
+                && (string) $tl->date === (string) $journal->date
+            ) {
+                $skipped++;
+                continue;
             } else {
                 $updated++;
             }

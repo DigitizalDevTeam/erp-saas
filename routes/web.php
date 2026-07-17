@@ -292,6 +292,11 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
             return null;
         }
 
+        $overrides = ChartOfAccountHierarchy::csvParentOverrides();
+        if (array_key_exists($code, $overrides)) {
+            return $overrides[$code];
+        }
+
         $prefixParent = $findParentCode($code, $accountsByCode);
 
         if ($depth >= 2 && isset($stack[$depth - 1]) && str_starts_with($code, $stack[$depth - 1]) && strlen($code) > strlen($stack[$depth - 1])) {
@@ -319,7 +324,9 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
             }
         }
 
-        return $prefixParent;
+        $parentCode = $prefixParent;
+
+        return $parentCode;
     };
 
     // Parse CSV once (skip 3 header rows)
@@ -535,8 +542,6 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
                     }
 
                     $legacyParentId = ChartOfAccountHierarchy::legacyParentRowId($parentAccountId);
-                    $accountPayload['type'] = $parentAccount->type;
-                    $accountPayload['sub_type'] = $parentAccount->sub_type;
 
                     $existing = ChartOfAccount::where('created_by', $company->id)->where('code', $code)->first();
                     if ($existing) {
@@ -569,6 +574,7 @@ Route::get('/insert_new_data', function (\Illuminate\Http\Request $request) {
             });
 
             $imported += $companyImported;
+            ChartOfAccountHierarchy::syncMissingAccountsFromCsv((int) $company->id);
             ChartOfAccountHierarchy::repairParentsByCodePrefix((int) $company->id);
             ChartOfAccountHierarchy::syncTypesFromParents((int) $company->id);
             $companyResults[] = [

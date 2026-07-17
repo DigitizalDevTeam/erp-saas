@@ -12,6 +12,38 @@ use Illuminate\Support\Facades\DB;
 class TrialBalanceReportService
 {
     /**
+     * Default TB window: full calendar/fiscal year so year-end closing (dated 31-Dec) is included.
+     *
+     * @return array{start: string, end: string}
+     */
+    public static function defaultDateRange(?int $year = null): array
+    {
+        $year = $year ?? (int) date('Y');
+
+        return [
+            'start' => sprintf('%04d-01-01', $year),
+            'end' => sprintf('%04d-12-31', $year),
+        ];
+    }
+
+    /**
+     * Year-to-date through today (excludes future-dated closing entries).
+     *
+     * @return array{start: string, end: string}
+     */
+    public static function yearToDateRange(?int $year = null): array
+    {
+        $year = $year ?? (int) date('Y');
+        $today = date('Y-m-d');
+        $end = str_starts_with($today, (string) $year) ? $today : sprintf('%04d-12-31', $year);
+
+        return [
+            'start' => sprintf('%04d-01-01', $year),
+            'end' => $end,
+        ];
+    }
+
+    /**
      * Build trial balance rows grouped by account type.
      *
      * @return array{
@@ -278,6 +310,6 @@ class TrialBalanceReportService
 
     private function hasActivity(float $totalDebit, float $totalCredit): bool
     {
-        return abs($totalDebit) > 0.00001 || abs($totalCredit) > 0.00001;
+        return abs($totalDebit - $totalCredit) > 0.00001;
     }
 }
