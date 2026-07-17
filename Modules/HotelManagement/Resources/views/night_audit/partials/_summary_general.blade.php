@@ -72,8 +72,10 @@
                     <h6 class="mb-0">{{ __('Cash register') }}</h6>
                 </div>
                 <ul class="list-unstyled small mb-0 summary-lines">
+                    <li class="d-flex justify-content-between"><span>{{ __('Opening float') }}</span><span>{{ $fmt($cash['opening_balance'] ?? 0) }}</span></li>
                     <li class="d-flex justify-content-between"><span>{{ __('Cash inflows') }}</span><span>{{ $fmt($cash['cash_inflows'] ?? 0) }}</span></li>
                     <li class="d-flex justify-content-between"><span>{{ __('POS cash') }}</span><span>{{ $fmt($preview['pos']['cash_payments'] ?? 0) }}</span></li>
+                    <li class="d-flex justify-content-between text-danger"><span>{{ __('Cash outflows (expenses)') }}</span><span>− {{ $fmt($cash['cash_outflows'] ?? 0) }}</span></li>
                     <li class="d-flex justify-content-between fw-bold border-top pt-2 mt-2"><span>{{ __('Cash total') }}</span><span>{{ $fmt($cash['closing_balance'] ?? 0) }}</span></li>
                 </ul>
             </div>

@@ -54,12 +54,22 @@ class HotelExpenseController extends Controller
         $expenses = $query->limit(200)->get();
         $categoryOptions = HotelExpense::categoryOptions();
         $canManage = $this->canManage();
+        $openShift = $this->pettyCashService->resolveShiftForExpense(
+            $creatorId,
+            (int) Auth::id(),
+            Auth::user()->activeBranchContextId()
+        );
+        $pettyCashSummary = $openShift
+            ? $this->pettyCashService->buildLiveShiftSummary($openShift)
+            : null;
 
         return view('hotelmanagement::expenses.index', compact(
             'expenses',
             'category',
             'categoryOptions',
-            'canManage'
+            'canManage',
+            'openShift',
+            'pettyCashSummary'
         ));
     }
 
@@ -76,11 +86,23 @@ class HotelExpenseController extends Controller
             ->orderBy('room_no')
             ->pluck('room_no', 'id');
 
+        $creatorId = (int) Auth::user()->creatorId();
+        $openShift = $this->pettyCashService->resolveShiftForExpense(
+            $creatorId,
+            (int) Auth::id(),
+            Auth::user()->activeBranchContextId()
+        );
+        $pettyCashSummary = $openShift
+            ? $this->pettyCashService->buildLiveShiftSummary($openShift)
+            : null;
+
         return view('hotelmanagement::expenses.create', compact(
             'category',
             'categoryOptions',
             'paymentMethods',
-            'rooms'
+            'rooms',
+            'openShift',
+            'pettyCashSummary'
         ));
     }
 
@@ -122,7 +144,7 @@ class HotelExpenseController extends Controller
             'title' => $request->title,
             'amount' => (float) $request->amount,
             'expense_date' => $request->expense_date,
-            'payment_method' => $request->payment_method ?: 'cash',
+            'payment_method' => HotelFolioPaymentService::normalizeMethod($request->payment_method ?: 'cash'),
             'vendor' => $request->vendor,
             'reference' => $request->reference,
             'hotel_room_id' => $request->hotel_room_id ?: null,
@@ -157,11 +179,23 @@ class HotelExpenseController extends Controller
             ->orderBy('room_no')
             ->pluck('room_no', 'id');
 
+        $creatorId = (int) Auth::user()->creatorId();
+        $openShift = $this->pettyCashService->resolveShiftForExpense(
+            $creatorId,
+            (int) Auth::id(),
+            Auth::user()->activeBranchContextId()
+        );
+        $pettyCashSummary = $openShift
+            ? $this->pettyCashService->buildLiveShiftSummary($openShift)
+            : null;
+
         return view('hotelmanagement::expenses.edit', compact(
             'expense',
             'categoryOptions',
             'paymentMethods',
-            'rooms'
+            'rooms',
+            'openShift',
+            'pettyCashSummary'
         ));
     }
 
@@ -202,7 +236,7 @@ class HotelExpenseController extends Controller
             'title' => $request->title,
             'amount' => (float) $request->amount,
             'expense_date' => $request->expense_date,
-            'payment_method' => $request->payment_method ?: 'cash',
+            'payment_method' => HotelFolioPaymentService::normalizeMethod($request->payment_method ?: 'cash'),
             'vendor' => $request->vendor,
             'reference' => $request->reference,
             'hotel_room_id' => $request->hotel_room_id ?: null,

@@ -78,6 +78,8 @@
                         <tbody>
                             <tr><td>{{ __('Folio cash payments') }}</td><td class="text-end">{{ $fmt($preview['payments']['by_method']['cash'] ?? 0) }}</td></tr>
                             <tr><td>{{ __('POS cash') }}</td><td class="text-end">{{ $fmt($preview['pos']['cash_payments'] ?? 0) }}</td></tr>
+                            <tr><td>{{ __('Opening float') }}</td><td class="text-end">{{ $fmt($preview['cash_register']['opening_balance'] ?? 0) }}</td></tr>
+                            <tr><td>{{ __('Cash outflows (expenses)') }}</td><td class="text-end text-danger">− {{ $fmt($preview['cash_register']['cash_outflows'] ?? 0) }}</td></tr>
                             <tr class="fw-bold table-light"><td>{{ __('Cash total') }}</td><td class="text-end">{{ $fmt($preview['cash_register']['closing_balance'] ?? 0) }}</td></tr>
                         </tbody>
                     </table>

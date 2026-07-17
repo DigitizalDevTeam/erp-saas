@@ -21,11 +21,12 @@
                 <hr>
                 <ul class="list-unstyled mb-0 small">
                     <li class="d-flex justify-content-between"><span>{{ __('Opening float (petty cash)') }}</span><span>{{ $fmt($shift->opening_float) }}</span></li>
-                    <li class="d-flex justify-content-between"><span>{{ __('Cash collected') }}</span><span>{{ $fmt($totals['cash'] ?? 0) }}</span></li>
                     <li class="d-flex justify-content-between text-danger"><span>{{ __('Petty cash expenses') }}</span><span>− {{ $fmt($expensesTotal ?? 0) }}</span></li>
-                    <li class="d-flex justify-content-between"><span>{{ __('Expected cash') }}</span><strong>{{ $fmt($expectedCash) }}</strong></li>
+                    <li class="d-flex justify-content-between fw-semibold"><span>{{ __('Remaining petty cash') }}</span><span>{{ $fmt($remainingPettyCash ?? 0) }}</span></li>
+                    <li class="d-flex justify-content-between"><span>{{ __('Cash collected') }}</span><span>{{ $fmt($totals['cash'] ?? 0) }}</span></li>
+                    <li class="d-flex justify-content-between"><span>{{ __('Expected cash in drawer') }}</span><strong>{{ $fmt($expectedCash) }}</strong></li>
                     <li class="text-muted mt-2">{{ __('Opened') }}: {{ optional($shift->opened_at)->format('Y-m-d H:i') }}</li>
-                    <li class="text-muted">{{ __('Expected = opening float + cash collected − expenses.') }}</li>
+                    <li class="text-muted">{{ __('Expected cash = opening float + cash collected − petty cash expenses.') }}</li>
                 </ul>
             </div>
         </div>

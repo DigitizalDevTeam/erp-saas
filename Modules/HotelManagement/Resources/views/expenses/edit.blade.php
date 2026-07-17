@@ -6,6 +6,7 @@
     <li class="breadcrumb-item">{{ __('Edit') }}</li>
 @endsection
 @section('content')
+@include('hotelmanagement::expenses._petty_cash_banner')
 {!! Form::model($expense, ['route' => ['hotel.expenses.update', $expense->id], 'method' => 'PUT']) !!}
 <div class="card shadow-sm border-0">
     <div class="card-body">

@@ -14,24 +14,15 @@ class MonthlyReportController extends Controller
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 
-        if (! empty($request->start_date) && ! empty($request->end_date)) {
-            $start = $request->start_date;
-            $end = $request->end_date;
-        } elseif ($request->query('range') === 'ytd') {
-            $range = TrialBalanceReportService::yearToDateRange();
-            $start = $range['start'];
-            $end = $range['end'];
-        } else {
-            $range = TrialBalanceReportService::defaultDateRange();
-            $start = $range['start'];
-            $end = $range['end'];
-        }
+        $resolved = TrialBalanceReportService::resolveFilter($request->all());
 
         $report = app(TrialBalanceReportService::class)->build(
             (int) \Auth::user()->creatorId(),
-            $start,
-            $end,
-            'expand'
+            $resolved['start'],
+            $resolved['end'],
+            'expand',
+            $resolved['accountingPeriod'],
+            $resolved['fiscalYear']
         );
 
         $filter = $report['filter'];
@@ -70,10 +61,12 @@ class MonthlyReportController extends Controller
                 report($e);
 
                 return redirect()
-                    ->route('monthly.reports.trial-balance', [
+                    ->route('monthly.reports.trial-balance', array_filter([
                         'start_date' => $filter['startDateRange'],
                         'end_date' => $filter['endDateRange'],
-                    ])
+                        'fiscal_year' => $filter['fiscalYear'] ?? null,
+                        'accounting_period' => $filter['accountingPeriod'] ?? null,
+                    ], static fn ($v) => $v !== null && $v !== ''))
                     ->with('error', __('PDF generation is not available on this server. Please install Node.js for Browsershot or enable DomPDF.'));
             }
         }

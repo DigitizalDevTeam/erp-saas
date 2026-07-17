@@ -1327,28 +1327,19 @@ class ReportController extends Controller
     {
         if (\Auth::user()->can('trial balance report')) {
 
-            if (! empty($request->start_date) && ! empty($request->end_date)) {
-                $start = $request->start_date;
-                $end = $request->end_date;
-            } elseif ($request->query('range') === 'ytd') {
-                $range = TrialBalanceReportService::yearToDateRange();
-                $start = $range['start'];
-                $end = $range['end'];
-            } else {
-                $range = TrialBalanceReportService::defaultDateRange();
-                $start = $range['start'];
-                $end = $range['end'];
-            }
-
             if (! in_array($view, ['collapse', 'expand'], true)) {
                 $view = 'expand';
             }
 
+            $resolved = TrialBalanceReportService::resolveFilter($request->all());
+
             $report = app(TrialBalanceReportService::class)->build(
                 (int) \Auth::user()->creatorId(),
-                $start,
-                $end,
-                $view
+                $resolved['start'],
+                $resolved['end'],
+                $view,
+                $resolved['accountingPeriod'],
+                $resolved['fiscalYear']
             );
 
             return view('report.trial_balance', [
@@ -4590,20 +4581,15 @@ class ReportController extends Controller
 
     public function trialBalanceExport(Request $request)
     {
-        if (! empty($request->start_date) && ! empty($request->end_date)) {
-            $start = $request->start_date;
-            $end = $request->end_date;
-        } else {
-            $range = TrialBalanceReportService::defaultDateRange();
-            $start = $range['start'];
-            $end = $range['end'];
-        }
+        $resolved = TrialBalanceReportService::resolveFilter($request->all());
 
         $report = app(TrialBalanceReportService::class)->build(
             (int) \Auth::user()->creatorId(),
-            $start,
-            $end,
-            'expand'
+            $resolved['start'],
+            $resolved['end'],
+            'expand',
+            $resolved['accountingPeriod'],
+            $resolved['fiscalYear']
         );
 
         $companyName = User::where('id', \Auth::user()->creatorId())->first();
@@ -4613,8 +4599,8 @@ class ReportController extends Controller
         $data = Excel::download(
             new TrialBalancExport(
                 $report['totalAccounts'],
-                $start,
-                $end,
+                $resolved['start'],
+                $resolved['end'],
                 $companyName,
                 $report['grandTotalDebit'],
                 $report['grandTotalCredit']

@@ -38,8 +38,10 @@
 
     <div class="float-end me-2">
         {{ Form::open(['route' => ['trial.balance.export']]) }}
-        <input type="hidden" name="start_date" class="start_date">
-        <input type="hidden" name="end_date" class="end_date">
+        <input type="hidden" name="start_date" class="start_date" value="{{ $filter['startDateRange'] }}">
+        <input type="hidden" name="end_date" class="end_date" value="{{ $filter['endDateRange'] }}">
+        <input type="hidden" name="fiscal_year" value="{{ $filter['fiscalYear'] ?? '' }}">
+        <input type="hidden" name="accounting_period" value="{{ $filter['accountingPeriod'] ?? '' }}">
         <button type="submit" class="btn btn-sm btn-secondary" data-bs-toggle="tooltip" title="{{ __('Export') }}"
             data-original-title="{{ __('Export') }}"><i class="ti ti-file-export"></i></button>
         {{ Form::close() }}
@@ -75,20 +77,7 @@
                                 </div>
                                 <div class="col-xl-9">
                                     <div class="row justify-content-end align-items-center">
-                                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
-                                            <div class="btn-box">
-                                                {{ Form::label('start_date', __('Start Date'), ['class' => 'form-label']) }}
-                                                {{ Form::date('start_date', $filter['startDateRange'], ['class' => 'startDate form-control']) }}
-                                            </div>
-                                        </div>
-
-                                        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
-                                            <div class="btn-box">
-                                                {{ Form::label('end_date', __('End Date'), ['class' => 'form-label']) }}
-                                                {{ Form::date('end_date', $filter['endDateRange'], ['class' => 'endDate form-control']) }}
-                                            </div>
-                                        </div>
-
+                                        @include('reports.partials.trial_balance_filter_fields')
                                         <div class="col-auto mt-4">
                                             <a href="#" class="btn btn-sm btn-primary"
                                                 onclick="document.getElementById('report_trial_balance').submit(); return false;"
@@ -132,6 +121,7 @@
                     <div class="account-main-title">
                         <h5 class="mb-3">{{ 'Trial Balance of ' . $user->name . ' as of ' . $filter['startDateRange'] . ' to ' . $filter['endDateRange'] }}
                             </h5>
+                        @include('reports.partials.trial_balance_period_banner')
                     </div>
                     <div
                         class="aacount-title d-flex align-items-center justify-content-between border-top border-bottom py-2">

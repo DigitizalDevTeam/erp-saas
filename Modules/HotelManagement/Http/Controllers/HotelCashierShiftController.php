@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Modules\HotelManagement\Entities\HotelCashierShift;
-use Modules\HotelManagement\Entities\HotelFolioPayment;
 use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Services\HotelPettyCashService;
 
@@ -48,10 +47,20 @@ class HotelCashierShiftController extends Controller
             ->limit(100)
             ->get();
 
-        $openShift = HotelCashierShift::where('created_by', $creatorId)
-            ->where('user_id', $userId)
-            ->where('status', HotelCashierShift::STATUS_OPEN)
-            ->first();
+        $openShift = $this->pettyCashService->resolveShiftForExpense(
+            $creatorId,
+            $userId,
+            Auth::user()->activeBranchContextId()
+        );
+
+        if ($openShift) {
+            $openShift->loadMissing('user');
+        }
+
+        $openShiftSummary = null;
+        if ($openShift) {
+            $openShiftSummary = $this->pettyCashService->buildLiveShiftSummary($openShift);
+        }
 
         $canManage = $this->canManage();
         $operationalShiftOptions = HotelCashierShift::operationalShiftOptions();
@@ -59,6 +68,7 @@ class HotelCashierShiftController extends Controller
         return view('hotelmanagement::cashier_shifts.index', compact(
             'shifts',
             'openShift',
+            'openShiftSummary',
             'canManage',
             'operationalShiftOptions'
         ));
@@ -94,7 +104,7 @@ class HotelCashierShiftController extends Controller
             return redirect()->back()->with('error', __('You already have an open cashier shift.'));
         }
 
-        HotelCashierShift::create([
+        $shift = HotelCashierShift::create([
             'branch_id' => Auth::user()->activeBranchContextId(),
             'user_id' => $userId,
             'operational_shift' => $request->operational_shift,
@@ -104,7 +114,15 @@ class HotelCashierShiftController extends Controller
             'created_by' => $creatorId,
         ]);
 
-        return redirect()->route('hotel.cashier-shifts.index')->with('success', __('Cashier shift opened.'));
+        $linked = $this->pettyCashService->linkOrphanCashExpensesToShift($shift);
+        $this->pettyCashService->buildLiveShiftSummary($shift->fresh());
+
+        $message = __('Cashier shift opened.');
+        if ($linked > 0) {
+            $message = __('Cashier shift opened. :count cash expense(s) linked to petty cash.', ['count' => $linked]);
+        }
+
+        return redirect()->route('hotel.cashier-shifts.index')->with('success', $message);
     }
 
     public function closeForm(HotelCashierShift $shift)
@@ -117,10 +135,11 @@ class HotelCashierShiftController extends Controller
             return redirect()->route('hotel.cashier-shifts.show', $shift)->with('error', __('Shift is already closed.'));
         }
 
-        $totals = $this->collectPaymentTotals($shift);
-        $expensesTotal = $this->pettyCashService->refreshShiftExpensesTotal((int) $shift->id, (int) $shift->created_by);
-        $shift->refresh();
-        $expectedCash = round((float) $shift->opening_float + $totals['cash'] - $expensesTotal, 2);
+        $summary = $this->pettyCashService->buildLiveShiftSummary($shift);
+        $totals = $this->pettyCashService->collectPaymentTotals($shift);
+        $expensesTotal = $summary['expenses_total'];
+        $expectedCash = $summary['expected_cash'];
+        $remainingPettyCash = $summary['remaining_petty_cash'];
         $canManage = $this->canManage();
 
         return view('hotelmanagement::cashier_shifts.close', compact(
@@ -128,6 +147,7 @@ class HotelCashierShiftController extends Controller
             'totals',
             'expectedCash',
             'expensesTotal',
+            'remainingPettyCash',
             'canManage'
         ));
     }
@@ -152,10 +172,11 @@ class HotelCashierShiftController extends Controller
             return redirect()->back()->withInput()->with('error', $validator->getMessageBag()->first());
         }
 
-        $totals = $this->collectPaymentTotals($shift);
-        $expensesTotal = $this->pettyCashService->refreshShiftExpensesTotal((int) $shift->id, (int) $shift->created_by);
+        $summary = $this->pettyCashService->buildLiveShiftSummary($shift, persistOpenShift: false);
+        $totals = $this->pettyCashService->collectPaymentTotals($shift);
+        $expensesTotal = $summary['expenses_total'];
         $closingCash = (float) $request->closing_cash;
-        $expectedCash = round((float) $shift->opening_float + $totals['cash'] - $expensesTotal, 2);
+        $expectedCash = $summary['expected_cash'];
         $difference = round($closingCash - $expectedCash, 2);
 
         $shift->update([
@@ -185,58 +206,26 @@ class HotelCashierShiftController extends Controller
 
         $shift->load(['user', 'closedByUser']);
 
-        return view('hotelmanagement::cashier_shifts.show', compact('shift'));
+        $summary = null;
+        if ($shift->status === HotelCashierShift::STATUS_OPEN) {
+            $summary = $this->pettyCashService->buildLiveShiftSummary($shift);
+            $shift->refresh();
+        } else {
+            $summary = [
+                'expenses_total' => $this->pettyCashService->expensesTotalForShift($shift),
+                'cash_collected' => round((float) $shift->cash_collected, 2),
+                'card_collected' => round((float) $shift->card_collected, 2),
+                'other_collected' => round((float) $shift->other_collected, 2),
+                'expected_cash' => round((float) $shift->expected_cash, 2),
+                'remaining_petty_cash' => round(max(0, (float) $shift->opening_float - (float) $shift->expenses_total), 2),
+            ];
+        }
+
+        return view('hotelmanagement::cashier_shifts.show', compact('shift', 'summary'));
     }
 
     private function ownsShift(HotelCashierShift $shift): bool
     {
         return (int) $shift->created_by === (int) Auth::user()->creatorId();
-    }
-
-    /**
-     * @return array{cash: float, card: float, other: float, total: float}
-     */
-    private function collectPaymentTotals(HotelCashierShift $shift): array
-    {
-        $cash = 0.0;
-        $card = 0.0;
-        $other = 0.0;
-
-        if (! Schema::hasTable('hotel_folio_payments')) {
-            return ['cash' => 0.0, 'card' => 0.0, 'other' => 0.0, 'total' => 0.0];
-        }
-
-        $creatorId = (int) $shift->created_by;
-        $userId = (int) $shift->user_id;
-        $openedAt = $shift->opened_at;
-        $endedAt = $shift->closed_at ?? now();
-
-        $query = HotelFolioPayment::query()
-            ->where('created_by', $creatorId)
-            ->where('created_at', '>=', $openedAt)
-            ->where('created_at', '<=', $endedAt);
-
-        if (Schema::hasColumn('hotel_folio_payments', 'recorded_by')) {
-            $query->where('recorded_by', $userId);
-        }
-
-        foreach ($query->get(['amount', 'method']) as $payment) {
-            $amount = (float) $payment->amount;
-            $method = strtolower(trim((string) $payment->method));
-            if ($method === 'cash') {
-                $cash += $amount;
-            } elseif ($method === 'card') {
-                $card += $amount;
-            } else {
-                $other += $amount;
-            }
-        }
-
-        return [
-            'cash' => round($cash, 2),
-            'card' => round($card, 2),
-            'other' => round($other, 2),
-            'total' => round($cash + $card + $other, 2),
-        ];
     }
 }

@@ -32,20 +32,9 @@
             <div class="card d-none" id="monthly_report_filter">
                 <div class="card-body">
                     {{ Form::open(['route' => ['monthly.reports.trial-balance'], 'method' => 'GET', 'id' => 'report_trial_balance']) }}
-                    <div class="row align-items-end">
-                        <div class="col-md-4">
-                            <div class="btn-box">
-                                {{ Form::label('start_date', __('Start Date'), ['class' => 'form-label']) }}
-                                {{ Form::date('start_date', $filter['startDateRange'], ['class' => 'form-control']) }}
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="btn-box">
-                                {{ Form::label('end_date', __('End Date'), ['class' => 'form-label']) }}
-                                {{ Form::date('end_date', $filter['endDateRange'], ['class' => 'form-control']) }}
-                            </div>
-                        </div>
-                        <div class="col-md-4">
+                    <div class="row align-items-start">
+                        @include('reports.partials.trial_balance_filter_fields')
+                        <div class="col-md-12 mt-2">
                             <div class="d-flex gap-2">
                                 <button type="submit" class="btn btn-sm btn-primary">
                                     <i class="ti ti-search"></i> {{ __('Apply') }}
@@ -86,6 +75,7 @@
                         <div style="font-size: 12px;">
                             {{ __('Period') }}: {{ $filter['startDateRange'] }} {{ __('to') }} {{ $filter['endDateRange'] }}
                         </div>
+                        @include('reports.partials.trial_balance_period_banner')
                     </div>
 
                     <div class="table-responsive">

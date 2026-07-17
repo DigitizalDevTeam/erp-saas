@@ -12,6 +12,7 @@
 @endif
 @endsection
 @section('content')
+@include('hotelmanagement::expenses._petty_cash_banner')
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body py-2">
         <form method="get" class="row g-2 align-items-end">

@@ -50,6 +50,7 @@ class HotelNightAuditPreviewService
 
         $cashReceived = (float) ($payments['by_method']['cash'] ?? 0) + (float) ($pos['cash_payments'] ?? 0);
         $cashOutflows = $this->pettyCashService->cashExpensesForDate($creatorId, $date);
+        $openingBalance = $this->pettyCashService->openingFloatForDate($creatorId, $date);
         $openFolioBalance = (float) $checklist['open_folios_balance'];
         $executive = $this->executiveSummary($creatorId, $date);
 
@@ -62,10 +63,10 @@ class HotelNightAuditPreviewService
             'payments' => $payments,
             'pos' => $pos,
             'cash_register' => [
-                'opening_balance' => 0.0,
+                'opening_balance' => $openingBalance,
                 'cash_inflows' => round($cashReceived, 2),
                 'cash_outflows' => $cashOutflows,
-                'closing_balance' => round($cashReceived - $cashOutflows, 2),
+                'closing_balance' => round($openingBalance + $cashReceived - $cashOutflows, 2),
             ],
             'advances' => [
                 'received' => round((float) $payments['total'], 2),
@@ -154,6 +155,7 @@ class HotelNightAuditPreviewService
                         'opened_at' => optional($shift->opened_at)->format('Y-m-d H:i'),
                         'closed_at' => optional($shift->closed_at)->format('Y-m-d H:i'),
                         'opening_float' => (float) $shift->opening_float,
+                        'expenses_total' => (float) $shift->expenses_total,
                         'cash_collected' => (float) $shift->cash_collected,
                         'card_collected' => (float) $shift->card_collected,
                         'other_collected' => (float) $shift->other_collected,

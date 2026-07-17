@@ -16,8 +16,32 @@
                 @if($openShift)
                     <div class="alert alert-success border-0 small mb-3">
                         <i class="ti ti-check me-1"></i>
-                        {{ __('You have an open shift since :time.', ['time' => optional($openShift->opened_at)->format('Y-m-d H:i')]) }}
+                        @if((int) $openShift->user_id === (int) Auth::id())
+                            {{ __('You have an open shift since :time.', ['time' => optional($openShift->opened_at)->format('Y-m-d H:i')]) }}
+                        @else
+                            {{ __('Open shift #:id (:cashier) since :time.', [
+                                'id' => $openShift->id,
+                                'cashier' => $openShift->user->name ?? __('Cashier'),
+                                'time' => optional($openShift->opened_at)->format('Y-m-d H:i'),
+                            ]) }}
+                        @endif
                     </div>
+                    @if($openShiftSummary ?? null)
+                        <div class="border rounded p-3 mb-3 small bg-light">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>{{ __('Opening float') }}</span>
+                                <span>{{ Auth::user()->priceFormat($openShift->opening_float) }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1 text-danger">
+                                <span>{{ __('Petty cash expenses') }}</span>
+                                <span>− {{ Auth::user()->priceFormat($openShiftSummary['expenses_total'] ?? 0) }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between fw-bold border-top pt-2">
+                                <span>{{ __('Remaining petty cash') }}</span>
+                                <span>{{ Auth::user()->priceFormat($openShiftSummary['remaining_petty_cash'] ?? 0) }}</span>
+                            </div>
+                        </div>
+                    @endif
                     <a href="{{ route('hotel.cashier-shifts.close-form', $openShift) }}" class="btn btn-primary w-100">
                         <i class="ti ti-lock me-1"></i>{{ __('Close my shift') }}
                     </a>

@@ -6,7 +6,16 @@
     <li class="breadcrumb-item">#{{ $shift->id }}</li>
 @endsection
 @section('content')
-@php $fmt = fn ($n) => Auth::user()->priceFormat($n); @endphp
+@php
+    $fmt = fn ($n) => Auth::user()->priceFormat($n);
+    $summary = $summary ?? [];
+    $expensesTotal = $summary['expenses_total'] ?? ($shift->expenses_total ?? 0);
+    $cashCollected = $summary['cash_collected'] ?? ($shift->cash_collected ?? 0);
+    $cardCollected = $summary['card_collected'] ?? ($shift->card_collected ?? 0);
+    $otherCollected = $summary['other_collected'] ?? ($shift->other_collected ?? 0);
+    $expectedCash = $summary['expected_cash'] ?? ($shift->expected_cash ?? 0);
+    $remainingPettyCash = $summary['remaining_petty_cash'] ?? max(0, (float) $shift->opening_float - (float) $expensesTotal);
+@endphp
 <div class="card shadow-sm border-0">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h6 class="mb-0">{{ __('Shift summary') }}</h6>
@@ -29,15 +38,21 @@
             <div class="col-md-6">
                 <table class="table table-sm table-bordered mb-0">
                     <tr><td>{{ __('Opening float (petty cash)') }}</td><td class="text-end">{{ $fmt($shift->opening_float) }}</td></tr>
-                    <tr><td>{{ __('Cash collected') }}</td><td class="text-end">{{ $fmt($shift->cash_collected) }}</td></tr>
-                    <tr><td>{{ __('Petty cash expenses') }}</td><td class="text-end text-danger">− {{ $fmt($shift->expenses_total ?? 0) }}</td></tr>
-                    <tr><td>{{ __('Card collected') }}</td><td class="text-end">{{ $fmt($shift->card_collected) }}</td></tr>
-                    <tr><td>{{ __('Other collected') }}</td><td class="text-end">{{ $fmt($shift->other_collected) }}</td></tr>
-                    <tr><td>{{ __('Expected cash') }}</td><td class="text-end">{{ $fmt($shift->expected_cash) }}</td></tr>
-                    <tr><td>{{ __('Closing cash') }}</td><td class="text-end">{{ $fmt($shift->closing_cash) }}</td></tr>
-                    <tr class="fw-bold"><td>{{ __('Difference') }}</td><td class="text-end">{{ $fmt($shift->difference) }}</td></tr>
-                    <tr><td>{{ __('Cash handover') }}</td><td class="text-end">{{ $fmt($shift->cash_handover) }}</td></tr>
+                    <tr><td>{{ __('Petty cash expenses') }}</td><td class="text-end text-danger">− {{ $fmt($expensesTotal) }}</td></tr>
+                    <tr class="table-warning"><td><strong>{{ __('Remaining petty cash') }}</strong></td><td class="text-end"><strong>{{ $fmt($remainingPettyCash) }}</strong></td></tr>
+                    <tr><td>{{ __('Cash collected') }}</td><td class="text-end">{{ $fmt($cashCollected) }}</td></tr>
+                    <tr><td>{{ __('Card collected') }}</td><td class="text-end">{{ $fmt($cardCollected) }}</td></tr>
+                    <tr><td>{{ __('Other collected') }}</td><td class="text-end">{{ $fmt($otherCollected) }}</td></tr>
+                    <tr class="table-light"><td>{{ __('Expected cash in drawer') }}</td><td class="text-end fw-semibold">{{ $fmt($expectedCash) }}</td></tr>
+                    @if($shift->status !== 'open')
+                        <tr><td>{{ __('Closing cash') }}</td><td class="text-end">{{ $fmt($shift->closing_cash) }}</td></tr>
+                        <tr class="fw-bold"><td>{{ __('Difference') }}</td><td class="text-end">{{ $fmt($shift->difference) }}</td></tr>
+                        <tr><td>{{ __('Cash handover') }}</td><td class="text-end">{{ $fmt($shift->cash_handover) }}</td></tr>
+                    @endif
                 </table>
+                @if($shift->status === 'open')
+                    <p class="small text-muted mb-0 mt-2">{{ __('Expected cash = opening float + cash collected − petty cash expenses.') }}</p>
+                @endif
             </div>
         </div>
         @if($shift->notes)

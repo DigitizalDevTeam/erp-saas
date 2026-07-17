@@ -6,6 +6,7 @@
     <li class="breadcrumb-item">{{ __('Create') }}</li>
 @endsection
 @section('content')
+@include('hotelmanagement::expenses._petty_cash_banner')
 {!! Form::open(['route' => 'hotel.expenses.store', 'method' => 'POST']) !!}
 <div class="card shadow-sm border-0">
     <div class="card-body">

@@ -91,6 +91,8 @@
                             <th>{{ __('Shift') }}</th>
                             <th>{{ __('Opened') }}</th>
                             <th>{{ __('Closed') }}</th>
+                            <th class="text-end">{{ __('Float') }}</th>
+                            <th class="text-end">{{ __('Expenses') }}</th>
                             <th class="text-end">{{ __('Cash') }}</th>
                             <th class="text-end">{{ __('Card') }}</th>
                             <th class="text-end">{{ __('Expected') }}</th>
@@ -106,6 +108,8 @@
                             <td>{{ $shiftLabels[$shift['operational_shift'] ?? ''] ?? ($shift['operational_shift'] ?: '—') }}</td>
                             <td>{{ $shift['opened_at'] ?? '—' }}</td>
                             <td>{{ $shift['closed_at'] ?? '—' }}</td>
+                            <td class="text-end">{{ $fmt($shift['opening_float'] ?? 0) }}</td>
+                            <td class="text-end text-danger">− {{ $fmt($shift['expenses_total'] ?? 0) }}</td>
                             <td class="text-end">{{ $fmt($shift['cash_collected'] ?? 0) }}</td>
                             <td class="text-end">{{ $fmt($shift['card_collected'] ?? 0) }}</td>
                             <td class="text-end">{{ $fmt($shift['expected_cash'] ?? 0) }}</td>
@@ -114,7 +118,7 @@
                             <td>{{ $shift['handed_to'] ?? '—' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="10" class="text-muted text-center">{{ __('No closed cashier shifts for this date.') }}</td></tr>
+                        <tr><td colspan="12" class="text-muted text-center">{{ __('No closed cashier shifts for this date.') }}</td></tr>
                     @endforelse
                     </tbody>
                 </table>
