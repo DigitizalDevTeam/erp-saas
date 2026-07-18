@@ -1362,6 +1362,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('fiscal-year-closing', [FiscalYearClosingController::class, 'index'])->name('fiscal-year-closing.index');
             Route::post('fiscal-year-closing', [FiscalYearClosingController::class, 'runClosing'])->name('fiscal-year-closing.run');
             Route::post('fiscal-year-closing/opening', [FiscalYearClosingController::class, 'postOpeningBalances'])->name('fiscal-year-closing.opening');
+            Route::post('fiscal-year-closing/opening/manual', [FiscalYearClosingController::class, 'postManualOpeningBalances'])->name('fiscal-year-closing.opening.manual');
             Route::post('fiscal-year-closing/vat', [FiscalYearClosingController::class, 'runVat'])->name('fiscal-year-closing.vat');
             Route::get('bank-reconciliation', [BankReconciliationController::class, 'index'])->name('bank-reconciliation.index');
             Route::get('bank-reconciliation/create', [BankReconciliationController::class, 'create'])->name('bank-reconciliation.create');
@@ -2235,10 +2236,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('quotation/pdf/{id}', [QuotationController::class, 'quotation'])->name('quotation.pdf')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::get('proforma/from-quotation/{id}', [ProformaController::class, 'createFromQuotation'])->name('proforma.create-from-quotation')->middleware(['auth', 'XSS', 'revalidate']);
-    Route::get('proforma/{id}/convert-purchase', [ProformaController::class, 'convertToPurchaseForm'])->name('proforma.convert-purchase.form')->middleware(['auth', 'XSS', 'revalidate']);
-    Route::post('proforma/{id}/convert-purchase', [ProformaController::class, 'convertToPurchaseStore'])->name('proforma.convert-purchase.store')->middleware(['auth', 'XSS', 'revalidate']);
-    Route::get('proforma/{id}/issue-invoice', [ProformaController::class, 'issueInvoiceForm'])->name('proforma.issue-invoice.form')->middleware(['auth', 'XSS', 'revalidate']);
-    Route::post('proforma/{id}/issue-invoice', [ProformaController::class, 'issueInvoiceStore'])->name('proforma.issue-invoice.store')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('proforma/{id}/convert-bill', [ProformaController::class, 'convertToBillForm'])->name('proforma.convert-bill.form')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('proforma/{id}/convert-bill', [ProformaController::class, 'convertToBillStore'])->name('proforma.convert-bill.store')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('proforma/items', [ProformaController::class, 'items'])->name('proforma.items')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('proforma/product', [ProformaController::class, 'product'])->name('proforma.product')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('proforma/product/destroy', [ProformaController::class, 'productDestroy'])->name('proforma.product.destroy')->middleware(['auth', 'XSS', 'revalidate']);
@@ -2277,8 +2276,6 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('purchase/{id}/sent', [PurchaseController::class, 'sent'])->name('purchase.sent');
             Route::get('purchase/{id}/resent', [PurchaseController::class, 'resent'])->name('purchase.resent');
             Route::get('purchase/convert-vendor-bill/{id}', [PurchaseController::class, 'convertToVendorBill'])->name('purchase.convert-vendor-bill');
-            Route::get('purchase/{id}/issue-invoice', [PurchaseController::class, 'issueInvoiceFromPurchaseForm'])->name('purchase.issue-invoice.form');
-            Route::post('purchase/{id}/issue-invoice', [PurchaseController::class, 'issueInvoiceFromPurchaseStore'])->name('purchase.issue-invoice.store');
         }
 
     );

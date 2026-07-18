@@ -180,6 +180,9 @@ class ProformaController extends Controller
         if ((int) $proforma->is_invoice_converted === 1) {
             return redirect()->back()->with('error', __('This proforma is already converted to an invoice and cannot be edited.'));
         }
+        if ((int) $proforma->is_bill_converted === 1) {
+            return redirect()->back()->with('error', __('This proforma is already converted to a supplier bill and cannot be edited.'));
+        }
         if ((int) $proforma->is_purchase_converted === 1) {
             return redirect()->back()->with('error', __('This proforma is already converted to a purchase order and cannot be edited.'));
         }
@@ -235,6 +238,9 @@ class ProformaController extends Controller
         }
         if ((int) $proforma->is_invoice_converted === 1) {
             return redirect()->back()->with('error', __('Cannot delete a proforma that was converted to an invoice.'));
+        }
+        if ((int) $proforma->is_bill_converted === 1) {
+            return redirect()->back()->with('error', __('Cannot delete a proforma linked to a supplier bill.'));
         }
         if ((int) $proforma->is_purchase_converted === 1) {
             return redirect()->back()->with('error', __('Cannot delete a proforma linked to a purchase order.'));
@@ -353,11 +359,11 @@ class ProformaController extends Controller
     }
 
     /**
-     * Proforma → Purchase order (stock in).
+     * Proforma → Supplier invoice (Bill) → Payment (on bill).
      */
-    public function convertToPurchaseForm($encryptedId)
+    public function convertToBillForm($encryptedId)
     {
-        if (! Auth::user()->can('create purchase')) {
+        if (! Auth::user()->can('create bill')) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         try {
@@ -370,13 +376,9 @@ class ProformaController extends Controller
         if (! $proforma) {
             return redirect()->back()->with('error', __('Proforma not found.'));
         }
-        if ((int) $proforma->is_purchase_converted === 1) {
-            return redirect()->route('purchase.show', Crypt::encrypt($proforma->converted_purchase_id))
-                ->with('info', __('Purchase order already exists.'));
-        }
-        if ((int) $proforma->is_invoice_converted === 1) {
-            return redirect()->route('invoice.show', Crypt::encrypt($proforma->converted_invoice_id))
-                ->with('info', __('Invoice already created.'));
+        if ((int) $proforma->is_bill_converted === 1) {
+            return redirect()->route('bill.show', Crypt::encrypt($proforma->converted_bill_id))
+                ->with('info', __('Supplier bill already exists.'));
         }
 
         $venders = Vender::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
@@ -384,12 +386,12 @@ class ProformaController extends Controller
         $category = ProductServiceCategory::where('created_by', Auth::user()->creatorId())
             ->where('type', 'expense')->orderBy('id')->first();
 
-        return view('proforma.convert_purchase', compact('proforma', 'venders', 'category'));
+        return view('proforma.convert_bill', compact('proforma', 'venders', 'category'));
     }
 
-    public function convertToPurchaseStore(Request $request, $encryptedId)
+    public function convertToBillStore(Request $request, $encryptedId)
     {
-        if (! Auth::user()->can('create purchase')) {
+        if (! Auth::user()->can('create bill')) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         try {
@@ -402,15 +404,16 @@ class ProformaController extends Controller
         if (! $proforma) {
             return redirect()->back()->with('error', __('Proforma not found.'));
         }
-        if ((int) $proforma->is_purchase_converted === 1) {
-            return redirect()->route('purchase.show', Crypt::encrypt($proforma->converted_purchase_id))
-                ->with('info', __('Purchase order already exists.'));
+        if ((int) $proforma->is_bill_converted === 1) {
+            return redirect()->route('bill.show', Crypt::encrypt($proforma->converted_bill_id))
+                ->with('info', __('Supplier bill already exists.'));
         }
 
         $validator = \Validator::make($request->all(), [
             'vender_id' => 'required|integer',
             'category_id' => 'required|integer',
-            'purchase_date' => 'required|date',
+            'bill_date' => 'required|date',
+            'due_date' => 'required|date',
         ]);
         if ($validator->fails()) {
             return redirect()->back()->with('error', $validator->getMessageBag()->first());
@@ -430,71 +433,23 @@ class ProformaController extends Controller
                 'tax' => $row->tax,
                 'discount' => $row->discount,
                 'description' => $row->description,
-                'product_variant_id' => '',
-                'row_no' => '',
-                'shelf_no' => '',
-                'expiry_date' => '',
-                'batch_no' => '',
-                'mfg_date' => '',
-                'identifiers' => '',
             ];
         }
 
-        $req = Request::create('/purchase', 'POST', [
+        $req = Request::create('/bill', 'POST', [
             'vender_id' => $request->vender_id,
-            'warehouse_id' => $proforma->warehouse_id,
-            'purchase_date' => $request->purchase_date,
+            'bill_date' => $request->bill_date,
+            'due_date' => $request->due_date,
             'category_id' => $request->category_id,
-            'purchase_number' => 0,
+            'order_number' => 0,
             'items' => $items,
             'proforma_id' => $proforma->id,
+            'suppress_inventory' => 0,
             '_token' => csrf_token(),
         ]);
         $req->setUserResolver(fn () => Auth::user());
 
-        return app(PurchaseController::class)->store($req);
-    }
-
-    public function issueInvoiceForm($encryptedId)
-    {
-        if (! Auth::user()->can('create invoice')) {
-            return redirect()->back()->with('error', __('Permission denied.'));
-        }
-        try {
-            $id = Crypt::decrypt($encryptedId);
-        } catch (\Throwable $e) {
-            return redirect()->back()->with('error', __('Invalid proforma.'));
-        }
-        $proforma = Proforma::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
-        if (! $proforma) {
-            return redirect()->back()->with('error', __('Proforma not found.'));
-        }
-        if ((int) $proforma->is_invoice_converted === 1) {
-            return redirect()->route('invoice.show', Crypt::encrypt($proforma->converted_invoice_id))
-                ->with('info', __('Invoice already created.'));
-        }
-        if ((int) $proforma->is_purchase_converted !== 1 || empty($proforma->converted_purchase_id)) {
-            return redirect()->route('proforma.convert-purchase.form', Crypt::encrypt($proforma->id))
-                ->with('error', __('Convert to purchase order before creating an invoice.'));
-        }
-
-        return redirect()->route('purchase.issue-invoice.form', Crypt::encrypt($proforma->converted_purchase_id));
-    }
-
-    public function issueInvoiceStore(Request $request, $encryptedId)
-    {
-        try {
-            $id = Crypt::decrypt($encryptedId);
-        } catch (\Throwable $e) {
-            return redirect()->back()->with('error', __('Invalid proforma.'));
-        }
-
-        $proforma = Proforma::where('created_by', Auth::user()->creatorId())->find($id);
-        if (! $proforma || empty($proforma->converted_purchase_id)) {
-            return redirect()->back()->with('error', __('Convert to purchase order first.'));
-        }
-
-        return redirect()->route('purchase.issue-invoice.form', Crypt::encrypt($proforma->converted_purchase_id));
+        return app(BillController::class)->store($req);
     }
 
     protected function nextProformaNumber(): int

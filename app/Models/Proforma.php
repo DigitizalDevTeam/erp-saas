@@ -18,6 +18,8 @@ class Proforma extends Model
         'is_invoice_converted',
         'converted_purchase_id',
         'is_purchase_converted',
+        'converted_bill_id',
+        'is_bill_converted',
         'created_by',
     ];
 
@@ -25,6 +27,7 @@ class Proforma extends Model
         'proforma_date' => 'date',
         'is_invoice_converted' => 'boolean',
         'is_purchase_converted' => 'boolean',
+        'is_bill_converted' => 'boolean',
     ];
 
     public function customer()
@@ -55,6 +58,11 @@ class Proforma extends Model
     public function purchase()
     {
         return $this->belongsTo(Purchase::class, 'converted_purchase_id');
+    }
+
+    public function bill()
+    {
+        return $this->belongsTo(Bill::class, 'converted_bill_id');
     }
 
     public function getSubTotal()

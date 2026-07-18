@@ -24,7 +24,7 @@ class JournalEntryController extends Controller
         }
     }
 
-    public function create()
+    public function create(Request $request)
     {
         if (\Auth::user()->can('create journal entry')) {
             $ulane = auth()->user()->lang ?? 'en';
@@ -62,8 +62,17 @@ class JournalEntryController extends Controller
             $subAccounts = $subAccounts->get()->toArray();
 
             $journalId = $this->journalNumber();
+            $defaultAccountingPeriod = $request->query('accounting_period', '');
+            $defaultDate = $request->query('date');
 
-            return view('journalEntry.create', compact('chartAccounts', 'subAccounts', 'journalId','name_column'));
+            return view('journalEntry.create', compact(
+                'chartAccounts',
+                'subAccounts',
+                'journalId',
+                'name_column',
+                'defaultAccountingPeriod',
+                'defaultDate',
+            ));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }

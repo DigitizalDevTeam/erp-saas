@@ -14,6 +14,7 @@ class Bill extends Model
         'bill_id',
         'order_number',
         'purchase_id',
+        'proforma_id',
         'suppress_inventory',
         'category_id',
         'created_by',
@@ -71,6 +72,11 @@ class Bill extends Model
     public function payments()
     {
         return $this->hasMany('App\Models\BillPayment', 'bill_id', 'id');
+    }
+
+    public function sourceProforma()
+    {
+        return $this->belongsTo(Proforma::class, 'proforma_id');
     }
 
 

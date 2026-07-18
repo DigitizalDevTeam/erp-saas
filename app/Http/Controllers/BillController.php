@@ -15,6 +15,7 @@ use App\Models\CustomField;
 use App\Models\DebitNote;
 use App\Models\ProductService;
 use App\Models\ProductServiceCategory;
+use App\Models\Proforma;
 use App\Models\StockReport;
 use App\Models\Transaction;
 use App\Models\User;
@@ -173,9 +174,19 @@ class BillController extends Controller
             $bill->category_id    = !empty($request->category_id) ? $request->category_id :0;
             $bill->order_number   = !empty($request->order_number) ? $request->order_number : 0;
             $bill->purchase_id = $request->filled('purchase_id') ? (int) $request->purchase_id : null;
+            $bill->proforma_id = $request->filled('proforma_id') ? (int) $request->proforma_id : null;
             $bill->suppress_inventory = $request->boolean('suppress_inventory');
             $bill->created_by     = \Auth::user()->creatorId();
             $bill->save();
+
+            if ($request->filled('proforma_id')) {
+                Proforma::where('id', (int) $request->proforma_id)
+                    ->where('created_by', (int) \Auth::user()->creatorId())
+                    ->update([
+                        'converted_bill_id' => $bill->id,
+                        'is_bill_converted' => 1,
+                    ]);
+            }
 
             CustomField::saveData($bill, $request->customField);
             $products = $request->items;
@@ -281,6 +292,10 @@ class BillController extends Controller
 
                 if($status == true)
                 {
+                    if ($request->filled('proforma_id')) {
+                        return redirect()->route('bill.show', Crypt::encrypt($bill->id))->with('success', __('Supplier bill created from proforma. Add payment when ready.'));
+                    }
+
                     return redirect()->route('bill.index', $bill->id)->with('success', __('Bill successfully created.'));
                 }
                 else
@@ -289,6 +304,9 @@ class BillController extends Controller
                 }
             }
 
+            if ($request->filled('proforma_id')) {
+                return redirect()->route('bill.show', Crypt::encrypt($bill->id))->with('success', __('Supplier bill created from proforma. Add payment when ready.'));
+            }
 
             return redirect()->route('bill.index', $bill->id)->with('success', __('Bill successfully created.'));
         }

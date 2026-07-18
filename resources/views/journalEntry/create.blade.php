@@ -169,7 +169,7 @@
                         <div class="col-lg-4 col-md-4">
                             <div class="form-group">
                                 {{ Form::label('date', __('Transaction Date'), ['class' => 'form-label']) }}<x-required></x-required>
-                                {{ Form::date('date', null, ['class' => 'form-control', 'required' => 'required']) }}
+                                {{ Form::date('date', $defaultDate ?? null, ['class' => 'form-control', 'required' => 'required']) }}
                             </div>
                         </div>
                         <div class="col-lg-4 col-md-4">
@@ -182,7 +182,7 @@
                                     5 => __('5 — May'), 6 => __('6 — June'), 7 => __('7 — July'), 8 => __('8 — August'),
                                     9 => __('9 — September'), 10 => __('10 — October'), 11 => __('11 — November'), 12 => __('12 — December'),
                                     13 => __('13 — Year-end adjustments'), 14 => __('14 — Post-audit'), 15 => __('15 — Final closing'),
-                                ], '', ['class' => 'form-control']) }}
+                                ], $defaultAccountingPeriod ?? '', ['class' => 'form-control']) }}
                             </div>
                         </div>
                         <div class="col-lg-4 col-md-4">

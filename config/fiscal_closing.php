@@ -53,4 +53,6 @@ return [
 
     'opening_reference_prefix' => 'OPEN',
 
+    'manual_opening_reference_prefix' => 'OPEN-MAN',
+
 ];
