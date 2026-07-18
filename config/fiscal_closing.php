@@ -43,4 +43,14 @@ return [
         'vat_deductible_services' => '44323',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Period 0 — opening balances (carry-forward from prior year)
+    |--------------------------------------------------------------------------
+    | First digit of account code = balance-sheet class carried to the new year.
+    */
+    'opening_balance_class_digits' => [1, 2, 3, 4, 5],
+
+    'opening_reference_prefix' => 'OPEN',
+
 ];

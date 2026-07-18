@@ -352,7 +352,7 @@
 
         })
 
-        var vendorId = '{{ $customer->id }}';
+        var vendorId = '{{ $customer->id ?? 0 }}';
         if (vendorId > 0) {
             $('#vender').val(vendorId).change();
         }
@@ -391,8 +391,8 @@
                         <div class="col-md-6">
                             <div class="form-group" id="vender-box">
                                 {{ Form::label('vender_id', __('Vendor'),['class'=>'form-label']) }}
-                                {{ Form::hidden('vender_id', $customer->id) }}
-                                {{ Form::text('vender_display', $customer->name, array('class' => 'form-control','required'=>'required','readonly' => 'readonly')) }}
+                                {{ Form::hidden('vender_id', $customer->id ?? '') }}
+                                {{ Form::text('vender_display', $customer->name ?? '', array('class' => 'form-control','required'=>'required','readonly' => 'readonly')) }}
                             </div>
                             <div id="vender_detail" class="d-none">
                             </div>
@@ -403,8 +403,8 @@
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         {{ Form::label('warehouse_id', __('Warehouse'),['class'=>'form-label']) }}
-                                        {{ Form::hidden('warehouse_id', $warehouse->id) }}
-                                        {{ Form::text('warehouse_display', $warehouse->name, array('class' => 'form-control warehouse_id','required'=>'required','readonly' => 'readonly')) }}
+                                        {{ Form::hidden('warehouse_id', $warehouse->id ?? '') }}
+                                        {{ Form::text('warehouse_display', $warehouse->name ?? '', array('class' => 'form-control warehouse_id','required'=>'required','readonly' => 'readonly')) }}
                                     </div>
                                 </div>
                                 <div class="col-md-6">

@@ -45,15 +45,23 @@ class PurchaseQuotationController extends Controller
         return view('vendor_quote.create', compact('venders', 'warehouse', 'quote_number'));
     }
 
-    public function quoteCreate(Request $request)
+    public function quoteCreate(Request $request, $cid = 0)
     {
-        $vender = Vender::find($request->vender_id);
-        $wh = warehouse::find($request->warehouse_id);
+        if (! Auth::user()->can('create purchase')) {
+            return redirect()->route('vendor-quote.index')->with('error', __('Permission denied.'));
+        }
+
+        $vender = $request->filled('vender_id') ? Vender::find($request->vender_id) : null;
+        $wh = $request->filled('warehouse_id') ? warehouse::find($request->warehouse_id) : null;
         $quote_date = $request->quote_date;
         $quote_number = $request->quote_number ?? Auth::user()->vendorQuoteNumberFormat($this->nextQuoteNumber());
 
+        if (! $vender || ! $wh) {
+            return redirect()->route('vendor-quote.index')->with('error', __('Please select vendor and warehouse.'));
+        }
+
         $warehouseProducts = WarehouseProduct::where('created_by', '=', Auth::user()->creatorId())
-            ->where('warehouse_id', $request->warehouse_id)->get()->pluck('product_id')->toArray();
+            ->where('warehouse_id', $wh->id)->get()->pluck('product_id')->toArray();
         $product_services = ProductService::where('created_by', Auth::user()->creatorId())
             ->whereIn('id', $warehouseProducts)->where('type', '!=', 'service')->get()->pluck('name', 'id');
         $product_services->prepend(' -- ', '');

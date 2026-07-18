@@ -19,6 +19,7 @@ class TrialBalanceReportService
     {
         return [
             '' => __('All operational (Jan–Dec)'),
+            0 => __('0 — Opening balances'),
             1 => __('1 — January'),
             2 => __('2 — February'),
             3 => __('3 — March'),
@@ -111,6 +112,9 @@ class TrialBalanceReportService
             $range = self::dateRangeForMonth($fiscalYear, $accountingPeriod);
             $start = $range['start'];
             $end = $range['end'];
+        } elseif ($accountingPeriod === 0) {
+            $start = sprintf('%04d-01-01', $fiscalYear);
+            $end = sprintf('%04d-12-31', $fiscalYear);
         } elseif ($accountingPeriod !== null && $accountingPeriod >= 13) {
             $start = sprintf('%04d-01-01', $fiscalYear);
             $end = sprintf('%04d-12-31', $fiscalYear);
@@ -343,14 +347,29 @@ class TrialBalanceReportService
             return;
         }
 
-        $closingIds = $this->closingJournalIdsQuery($creatorId, null, $fiscalYear, $start, $end);
+        if ($accountingPeriod === 0) {
+            $query->where('reference', 'Journal')
+                ->whereIn('reference_id', $this->openingJournalIdsQuery($creatorId, $fiscalYear));
 
-        $query->where(function ($w) use ($closingIds, $accountingPeriod) {
+            return;
+        }
+
+        $closingIds = $this->closingJournalIdsQuery($creatorId, null, $fiscalYear, $start, $end)
+            ->pluck('id')
+            ->map(static fn ($id) => (int) $id)
+            ->all();
+        $openingIds = $this->openingJournalIdsQuery($creatorId, $fiscalYear, $start, $end);
+        $excludedIds = array_values(array_unique(array_merge($closingIds, $openingIds)));
+
+        $query->where(function ($w) use ($excludedIds, $accountingPeriod) {
             $w->where('reference', '!=', 'Journal')
                 ->orWhereNull('reference_id')
-                ->orWhere(function ($journal) use ($closingIds, $accountingPeriod) {
-                    $journal->where('reference', 'Journal')
-                        ->whereNotIn('reference_id', $closingIds);
+                ->orWhere(function ($journal) use ($excludedIds, $accountingPeriod) {
+                    $journal->where('reference', 'Journal');
+
+                    if ($excludedIds !== []) {
+                        $journal->whereNotIn('reference_id', $excludedIds);
+                    }
 
                     if ($accountingPeriod !== null && $accountingPeriod >= 1 && $accountingPeriod <= 12) {
                         $journal->whereIn('reference_id', function ($sub) use ($accountingPeriod) {
@@ -358,7 +377,6 @@ class TrialBalanceReportService
                                 ->from('journal_entries')
                                 ->where(function ($periods) use ($accountingPeriod) {
                                     $periods->whereNull('accounting_period')
-                                        ->orWhere('accounting_period', 0)
                                         ->orWhere('accounting_period', $accountingPeriod);
                                 });
                         });
@@ -379,10 +397,16 @@ class TrialBalanceReportService
             return;
         }
 
+        if ($accountingPeriod === 0) {
+            $query->where('je.accounting_period', 0)
+                ->whereYear('je.date', $fiscalYear);
+
+            return;
+        }
+
         if ($accountingPeriod !== null && $accountingPeriod >= 1 && $accountingPeriod <= 12) {
             $query->where(function ($w) use ($accountingPeriod) {
                 $w->whereNull('je.accounting_period')
-                    ->orWhere('je.accounting_period', 0)
                     ->orWhere('je.accounting_period', $accountingPeriod);
             });
 
@@ -391,9 +415,27 @@ class TrialBalanceReportService
 
         $query->where(function ($w) {
             $w->whereNull('je.accounting_period')
-                ->orWhere('je.accounting_period', 0)
-                ->orWhere('je.accounting_period', '<', 13);
+                ->orWhereBetween('je.accounting_period', [1, 12]);
         });
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function openingJournalIdsQuery(int $creatorId, int $fiscalYear, ?string $start = null, ?string $end = null): array
+    {
+        $query = DB::table('journal_entries')
+            ->select('id')
+            ->where('created_by', $creatorId)
+            ->where('accounting_period', 0)
+            ->whereYear('date', $fiscalYear);
+
+        if ($start !== null && $end !== null) {
+            $query->whereDate('date', '>=', $start)
+                ->whereDate('date', '<=', $end);
+        }
+
+        return $query->pluck('id')->map(static fn ($id) => (int) $id)->all();
     }
 
     /**

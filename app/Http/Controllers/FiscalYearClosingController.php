@@ -3,20 +3,27 @@
 namespace App\Http\Controllers;
 
 use App\Services\Accounting\FiscalYearClosingService;
+use App\Services\Accounting\OpeningBalanceCarryForwardService;
 use App\Services\Accounting\VatSettlementService;
 use Illuminate\Http\Request;
 
 class FiscalYearClosingController extends Controller
 {
-    public function index()
+    public function index(Request $request, OpeningBalanceCarryForwardService $openingService)
     {
         if (! \Auth::user()->can('manage journal entry')) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
         $defaultYear = (int) date('Y');
+        $openingTargetYear = (int) ($request->query('opening_target_year') ?: ($defaultYear + 1));
+        $openingPreview = null;
 
-        return view('fiscalYearClosing.index', compact('defaultYear'));
+        if ($request->has('opening_target_year')) {
+            $openingPreview = $openingService->preview((int) \Auth::user()->creatorId(), $openingTargetYear);
+        }
+
+        return view('fiscalYearClosing.index', compact('defaultYear', 'openingTargetYear', 'openingPreview'));
     }
 
     public function runClosing(Request $request, FiscalYearClosingService $service)
@@ -28,7 +35,7 @@ class FiscalYearClosingController extends Controller
         $validated = $request->validate([
             'fiscal_year' => 'required|integer|min:2000|max:2100',
             'closing_date' => 'required|date',
-            'accounting_period' => 'required|integer|min:0|max:15',
+            'accounting_period' => 'required|integer|in:13,14,15',
             'allow_duplicate' => 'sometimes|boolean',
         ]);
 
@@ -48,6 +55,34 @@ class FiscalYearClosingController extends Controller
         }
 
         return redirect()->back()->with('success', implode(' ', $result['messages']));
+    }
+
+    public function postOpeningBalances(Request $request, OpeningBalanceCarryForwardService $openingService)
+    {
+        if (! \Auth::user()->can('manage journal entry')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $validated = $request->validate([
+            'opening_target_year' => 'required|integer|min:2001|max:2100',
+            'allow_duplicate_opening' => 'sometimes|boolean',
+        ]);
+
+        $result = $openingService->post(
+            (int) \Auth::user()->creatorId(),
+            (int) $validated['opening_target_year'],
+            ! $request->boolean('allow_duplicate_opening')
+        );
+
+        $redirect = redirect()->route('fiscal-year-closing.index', [
+            'opening_target_year' => (int) $validated['opening_target_year'],
+        ]);
+
+        if (! $result['success']) {
+            return $redirect->with('error', implode(' ', $result['messages']));
+        }
+
+        return $redirect->with('success', implode(' ', $result['messages']));
     }
 
     public function runVat(Request $request, VatSettlementService $service)

@@ -64,4 +64,16 @@ class TrialBalanceReportServiceTest extends TestCase
         $this->assertSame('2026-12-31', $resolved['end']);
         $this->assertSame(15, $resolved['accountingPeriod']);
     }
+
+    public function test_resolve_filter_uses_full_year_for_opening_period(): void
+    {
+        $resolved = TrialBalanceReportService::resolveFilter([
+            'fiscal_year' => 2027,
+            'accounting_period' => 0,
+        ]);
+
+        $this->assertSame('2027-01-01', $resolved['start']);
+        $this->assertSame('2027-12-31', $resolved['end']);
+        $this->assertSame(0, $resolved['accountingPeriod']);
+    }
 }

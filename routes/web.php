@@ -1361,6 +1361,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('journal-entry/{journalEntry}/reject', [JournalEntryController::class, 'reject'])->name('journal-entry.reject');
             Route::get('fiscal-year-closing', [FiscalYearClosingController::class, 'index'])->name('fiscal-year-closing.index');
             Route::post('fiscal-year-closing', [FiscalYearClosingController::class, 'runClosing'])->name('fiscal-year-closing.run');
+            Route::post('fiscal-year-closing/opening', [FiscalYearClosingController::class, 'postOpeningBalances'])->name('fiscal-year-closing.opening');
             Route::post('fiscal-year-closing/vat', [FiscalYearClosingController::class, 'runVat'])->name('fiscal-year-closing.vat');
             Route::get('bank-reconciliation', [BankReconciliationController::class, 'index'])->name('bank-reconciliation.index');
             Route::get('bank-reconciliation/create', [BankReconciliationController::class, 'create'])->name('bank-reconciliation.create');
