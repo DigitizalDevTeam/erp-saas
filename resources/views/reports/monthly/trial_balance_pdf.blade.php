@@ -62,11 +62,18 @@
             <div class="fw-bold"><span>{{ __('Type') }}:</span> {{ __('Periodical') }}</div>
             <div class="mb-6 fw-bold" style="white-space: nowrap;"><span class="">{{ __('Date') }}:</span> {{ $filter['startDateRange'] }} {{ __('to') }} {{ $filter['endDateRange'] }}</div>
             @php
-                $periodOptions = \App\Services\TrialBalanceReportService::accountingPeriodOptions();
-                $selectedPeriod = $filter['accountingPeriod'] ?? null;
+                $periodOptions = \App\Services\TrialBalanceReportService::accountingPeriodRangeOptions();
+                $from = $filter['accountingPeriodFrom'] ?? null;
+                $to = $filter['accountingPeriodTo'] ?? null;
+                $periodLabel = null;
+                if ($from !== null && $to !== null) {
+                    $periodLabel = ((int) $from === (int) $to)
+                        ? ($periodOptions[$from] ?? $from)
+                        : (($periodOptions[$from] ?? $from) . ' → ' . ($periodOptions[$to] ?? $to));
+                }
             @endphp
-            @if($selectedPeriod !== null && $selectedPeriod !== '' && isset($periodOptions[$selectedPeriod]))
-                <div class="mb-6"><span class="fw-bold">{{ __('Accounting period') }}:</span> {{ $periodOptions[$selectedPeriod] }}</div>
+            @if($periodLabel)
+                <div class="mb-6"><span class="fw-bold">{{ __('Accounting period') }}:</span> {{ $periodLabel }}</div>
             @endif
         </td>
     </tr>

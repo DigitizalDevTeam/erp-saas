@@ -39,6 +39,19 @@ class TrialBalanceReportService
     }
 
     /**
+     * Month / period options for range selectors (0–15 only, no “all”).
+     *
+     * @return array<int, string>
+     */
+    public static function accountingPeriodRangeOptions(): array
+    {
+        $options = self::accountingPeriodOptions();
+        unset($options['']);
+
+        return $options;
+    }
+
+    /**
      * Default TB window: operational months only (excludes periods 13–15).
      *
      * @return array{start: string, end: string}
@@ -90,7 +103,9 @@ class TrialBalanceReportService
      *     start: string,
      *     end: string,
      *     fiscalYear: int,
-     *     accountingPeriod: int|null
+     *     accountingPeriod: int|null,
+     *     accountingPeriodFrom: int|null,
+     *     accountingPeriodTo: int|null
      * }
      */
     public static function resolveFilter(array $input): array
@@ -99,25 +114,16 @@ class TrialBalanceReportService
             ? (int) $input['fiscal_year']
             : (int) date('Y');
 
-        $accountingPeriod = null;
-        if (isset($input['accounting_period']) && $input['accounting_period'] !== '' && $input['accounting_period'] !== null) {
-            $accountingPeriod = (int) $input['accounting_period'];
-        }
-
         if (! empty($input['start_date'])) {
             $fiscalYear = (int) date('Y', strtotime((string) $input['start_date']));
         }
 
-        if ($accountingPeriod !== null && $accountingPeriod >= 1 && $accountingPeriod <= 12) {
-            $range = self::dateRangeForMonth($fiscalYear, $accountingPeriod);
+        [$periodFrom, $periodTo] = self::normalizePeriodRange($input);
+
+        if ($periodFrom !== null && $periodTo !== null) {
+            $range = self::dateRangeForPeriodSpan($fiscalYear, $periodFrom, $periodTo);
             $start = $range['start'];
             $end = $range['end'];
-        } elseif ($accountingPeriod === 0) {
-            $start = sprintf('%04d-01-01', $fiscalYear);
-            $end = sprintf('%04d-12-31', $fiscalYear);
-        } elseif ($accountingPeriod !== null && $accountingPeriod >= 13) {
-            $start = sprintf('%04d-01-01', $fiscalYear);
-            $end = sprintf('%04d-12-31', $fiscalYear);
         } elseif (! empty($input['start_date']) && ! empty($input['end_date'])) {
             $start = (string) $input['start_date'];
             $end = (string) $input['end_date'];
@@ -135,7 +141,77 @@ class TrialBalanceReportService
             'start' => $start,
             'end' => $end,
             'fiscalYear' => $fiscalYear,
-            'accountingPeriod' => $accountingPeriod,
+            'accountingPeriod' => ($periodFrom !== null && $periodFrom === $periodTo) ? $periodFrom : null,
+            'accountingPeriodFrom' => $periodFrom,
+            'accountingPeriodTo' => $periodTo,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     * @return array{0: int|null, 1: int|null}
+     */
+    public static function normalizePeriodRange(array $input): array
+    {
+        $fromRaw = $input['accounting_period_from'] ?? null;
+        $toRaw = $input['accounting_period_to'] ?? null;
+        $legacy = $input['accounting_period'] ?? null;
+
+        $from = ($fromRaw !== '' && $fromRaw !== null) ? (int) $fromRaw : null;
+        $to = ($toRaw !== '' && $toRaw !== null) ? (int) $toRaw : null;
+
+        if ($from === null && $to === null && $legacy !== '' && $legacy !== null) {
+            $from = $to = (int) $legacy;
+        }
+
+        if ($from === null && $to !== null) {
+            $from = $to;
+        }
+        if ($to === null && $from !== null) {
+            $to = $from;
+        }
+
+        if ($from === null || $to === null) {
+            return [null, null];
+        }
+
+        $from = max(0, min(15, $from));
+        $to = max(0, min(15, $to));
+
+        if ($from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        return [$from, $to];
+    }
+
+    /**
+     * @return array{start: string, end: string}
+     */
+    public static function dateRangeForPeriodSpan(int $year, int $periodFrom, int $periodTo): array
+    {
+        $ops = [];
+        for ($p = $periodFrom; $p <= $periodTo; $p++) {
+            if ($p >= 1 && $p <= 12) {
+                $ops[] = $p;
+            }
+        }
+
+        if ($ops !== []) {
+            $first = min($ops);
+            $last = max($ops);
+            $startRange = self::dateRangeForMonth($year, $first);
+            $endRange = self::dateRangeForMonth($year, $last);
+
+            return [
+                'start' => $startRange['start'],
+                'end' => $endRange['end'],
+            ];
+        }
+
+        return [
+            'start' => sprintf('%04d-01-01', $year),
+            'end' => sprintf('%04d-12-31', $year),
         ];
     }
 
@@ -150,7 +226,9 @@ class TrialBalanceReportService
      *         startDateRange: string,
      *         endDateRange: string,
      *         fiscalYear: int,
-     *         accountingPeriod: int|null
+     *         accountingPeriod: int|null,
+     *         accountingPeriodFrom: int|null,
+     *         accountingPeriodTo: int|null
      *     }
      * }
      */
@@ -160,13 +238,21 @@ class TrialBalanceReportService
         string $end,
         string $view = 'expand',
         ?int $accountingPeriod = null,
-        ?int $fiscalYear = null
+        ?int $fiscalYear = null,
+        ?int $accountingPeriodFrom = null,
+        ?int $accountingPeriodTo = null
     ): array {
         ChartOfAccountHierarchy::backfillLegacyParentLinks($creatorId);
 
         $fiscalYear = $fiscalYear ?? (int) date('Y', strtotime($start));
-        $balances = $this->accountBalances($creatorId, $start, $end, $accountingPeriod, $fiscalYear);
-        $grandTotals = $this->grandTotals($creatorId, $start, $end, $accountingPeriod, $fiscalYear);
+
+        if ($accountingPeriodFrom === null && $accountingPeriodTo === null && $accountingPeriod !== null) {
+            $accountingPeriodFrom = $accountingPeriod;
+            $accountingPeriodTo = $accountingPeriod;
+        }
+
+        $balances = $this->accountBalances($creatorId, $start, $end, $accountingPeriodFrom, $accountingPeriodTo, $fiscalYear);
+        $grandTotals = $this->grandTotals($creatorId, $start, $end, $accountingPeriodFrom, $accountingPeriodTo, $fiscalYear);
 
         $sections = [];
         $types = ChartOfAccountType::where('created_by', $creatorId)->orderBy('id')->get();
@@ -198,7 +284,11 @@ class TrialBalanceReportService
                 'startDateRange' => $start,
                 'endDateRange' => $end,
                 'fiscalYear' => $fiscalYear,
-                'accountingPeriod' => $accountingPeriod,
+                'accountingPeriod' => ($accountingPeriodFrom !== null && $accountingPeriodFrom === $accountingPeriodTo)
+                    ? $accountingPeriodFrom
+                    : null,
+                'accountingPeriodFrom' => $accountingPeriodFrom,
+                'accountingPeriodTo' => $accountingPeriodTo,
             ],
         ];
     }
@@ -210,7 +300,8 @@ class TrialBalanceReportService
         int $creatorId,
         string $start,
         string $end,
-        ?int $accountingPeriod,
+        ?int $periodFrom,
+        ?int $periodTo,
         int $fiscalYear
     ): array {
         $query = TransactionLines::query()
@@ -223,7 +314,7 @@ class TrialBalanceReportService
             ->whereDate('date', '>=', $start)
             ->whereDate('date', '<=', $end);
 
-        $this->applyTransactionLinePeriodFilter($query, $creatorId, $start, $end, $accountingPeriod, $fiscalYear);
+        $this->applyTransactionLinePeriodFilter($query, $creatorId, $start, $end, $periodFrom, $periodTo, $fiscalYear);
 
         $rows = $query->groupBy('account_id')->get();
 
@@ -250,7 +341,7 @@ class TrialBalanceReportService
                     ->where('tl.reference', 'Journal');
             });
 
-        $this->applyJournalEntryPeriodFilter($journalOnly, $accountingPeriod, $fiscalYear);
+        $this->applyJournalEntryPeriodFilter($journalOnly, $periodFrom, $periodTo, $fiscalYear);
 
         $journalOnlyRows = $journalOnly
             ->groupBy('ji.account')
@@ -290,7 +381,8 @@ class TrialBalanceReportService
         int $creatorId,
         string $start,
         string $end,
-        ?int $accountingPeriod,
+        ?int $periodFrom,
+        ?int $periodTo,
         int $fiscalYear
     ): array {
         $tlQuery = TransactionLines::query()
@@ -302,7 +394,7 @@ class TrialBalanceReportService
             ->whereDate('date', '>=', $start)
             ->whereDate('date', '<=', $end);
 
-        $this->applyTransactionLinePeriodFilter($tlQuery, $creatorId, $start, $end, $accountingPeriod, $fiscalYear);
+        $this->applyTransactionLinePeriodFilter($tlQuery, $creatorId, $start, $end, $periodFrom, $periodTo, $fiscalYear);
         $tl = $tlQuery->first();
 
         $jiQuery = DB::table('journal_items as ji')
@@ -317,7 +409,7 @@ class TrialBalanceReportService
                     ->where('tl.reference', 'Journal');
             });
 
-        $this->applyJournalEntryPeriodFilter($jiQuery, $accountingPeriod, $fiscalYear);
+        $this->applyJournalEntryPeriodFilter($jiQuery, $periodFrom, $periodTo, $fiscalYear);
 
         $ji = $jiQuery
             ->selectRaw('COALESCE(SUM(ji.debit),0) as totalDebit, COALESCE(SUM(ji.credit),0) as totalCredit')
@@ -330,6 +422,18 @@ class TrialBalanceReportService
     }
 
     /**
+     * @return list<int>
+     */
+    private function periodsInRange(?int $periodFrom, ?int $periodTo): array
+    {
+        if ($periodFrom === null || $periodTo === null) {
+            return [];
+        }
+
+        return range($periodFrom, $periodTo);
+    }
+
+    /**
      * @param  \Illuminate\Database\Eloquent\Builder|Builder  $query
      */
     private function applyTransactionLinePeriodFilter(
@@ -337,85 +441,144 @@ class TrialBalanceReportService
         int $creatorId,
         string $start,
         string $end,
-        ?int $accountingPeriod,
+        ?int $periodFrom,
+        ?int $periodTo,
         int $fiscalYear
     ): void {
-        if ($accountingPeriod !== null && $accountingPeriod >= 13) {
-            $query->where('reference', 'Journal')
-                ->whereIn('reference_id', $this->closingJournalIdsQuery($creatorId, $accountingPeriod, $fiscalYear));
+        $periods = $this->periodsInRange($periodFrom, $periodTo);
+
+        if ($periods === []) {
+            $closingIds = $this->closingJournalIdsQuery($creatorId, null, $fiscalYear, $start, $end)
+                ->pluck('id')
+                ->map(static fn ($id) => (int) $id)
+                ->all();
+            $openingIds = $this->openingJournalIdsQuery($creatorId, $fiscalYear, $start, $end);
+            $excludedIds = array_values(array_unique(array_merge($closingIds, $openingIds)));
+
+            $query->where(function ($w) use ($excludedIds) {
+                $w->where('reference', '!=', 'Journal')
+                    ->orWhereNull('reference_id')
+                    ->orWhere(function ($journal) use ($excludedIds) {
+                        $journal->where('reference', 'Journal');
+                        if ($excludedIds !== []) {
+                            $journal->whereNotIn('reference_id', $excludedIds);
+                        }
+                    });
+            });
 
             return;
         }
 
-        if ($accountingPeriod === 0) {
-            $query->where('reference', 'Journal')
-                ->whereIn('reference_id', $this->openingJournalIdsQuery($creatorId, $fiscalYear));
+        $hasOpening = in_array(0, $periods, true);
+        $ops = array_values(array_filter($periods, static fn ($p) => $p >= 1 && $p <= 12));
+        $closing = array_values(array_filter($periods, static fn ($p) => $p >= 13));
 
-            return;
-        }
-
-        $closingIds = $this->closingJournalIdsQuery($creatorId, null, $fiscalYear, $start, $end)
-            ->pluck('id')
-            ->map(static fn ($id) => (int) $id)
-            ->all();
-        $openingIds = $this->openingJournalIdsQuery($creatorId, $fiscalYear, $start, $end);
-        $excludedIds = array_values(array_unique(array_merge($closingIds, $openingIds)));
-
-        $query->where(function ($w) use ($excludedIds, $accountingPeriod) {
-            $w->where('reference', '!=', 'Journal')
-                ->orWhereNull('reference_id')
-                ->orWhere(function ($journal) use ($excludedIds, $accountingPeriod) {
-                    $journal->where('reference', 'Journal');
-
-                    if ($excludedIds !== []) {
-                        $journal->whereNotIn('reference_id', $excludedIds);
-                    }
-
-                    if ($accountingPeriod !== null && $accountingPeriod >= 1 && $accountingPeriod <= 12) {
-                        $journal->whereIn('reference_id', function ($sub) use ($accountingPeriod) {
-                            $sub->select('id')
-                                ->from('journal_entries')
-                                ->where(function ($periods) use ($accountingPeriod) {
-                                    $periods->whereNull('accounting_period')
-                                        ->orWhere('accounting_period', $accountingPeriod);
-                                });
-                        });
+        $query->where(function ($outer) use ($creatorId, $fiscalYear, $hasOpening, $ops, $closing, $start, $end) {
+            if ($hasOpening) {
+                $openingIds = $this->openingJournalIdsQuery($creatorId, $fiscalYear);
+                $outer->orWhere(function ($w) use ($openingIds) {
+                    $w->where('reference', 'Journal');
+                    if ($openingIds !== []) {
+                        $w->whereIn('reference_id', $openingIds);
+                    } else {
+                        $w->whereRaw('1 = 0');
                     }
                 });
+            }
+
+            if ($closing !== []) {
+                $closingIds = $this->closingJournalIdsQuery($creatorId, null, $fiscalYear)
+                    ->whereIn('accounting_period', $closing)
+                    ->pluck('id')
+                    ->map(static fn ($id) => (int) $id)
+                    ->all();
+                $outer->orWhere(function ($w) use ($closingIds) {
+                    $w->where('reference', 'Journal');
+                    if ($closingIds !== []) {
+                        $w->whereIn('reference_id', $closingIds);
+                    } else {
+                        $w->whereRaw('1 = 0');
+                    }
+                });
+            }
+
+            if ($ops !== []) {
+                $excludedClosing = $this->closingJournalIdsQuery($creatorId, null, $fiscalYear, $start, $end)
+                    ->pluck('id')
+                    ->map(static fn ($id) => (int) $id)
+                    ->all();
+                $excludedOpening = $this->openingJournalIdsQuery($creatorId, $fiscalYear, $start, $end);
+                // When opening is also selected in the range, do not exclude it from operational branch
+                // (opening is already handled above). Still exclude opening from ops branch to avoid double-count
+                // when 0 is NOT in range; when 0 IS in range, opening is only via opening branch.
+                $excludedIds = array_values(array_unique(array_merge($excludedClosing, $excludedOpening)));
+
+                $outer->orWhere(function ($w) use ($excludedIds, $ops) {
+                    $w->where(function ($nonJournal) {
+                        $nonJournal->where('reference', '!=', 'Journal')
+                            ->orWhereNull('reference_id');
+                    })->orWhere(function ($journal) use ($excludedIds, $ops) {
+                        $journal->where('reference', 'Journal');
+
+                        if ($excludedIds !== []) {
+                            $journal->whereNotIn('reference_id', $excludedIds);
+                        }
+
+                        $journal->whereIn('reference_id', function ($sub) use ($ops) {
+                            $sub->select('id')
+                                ->from('journal_entries')
+                                ->where(function ($periods) use ($ops) {
+                                    $periods->whereNull('accounting_period')
+                                        ->orWhereIn('accounting_period', $ops);
+                                });
+                        });
+                    });
+                });
+            }
         });
     }
 
     /**
      * @param  Builder  $query
      */
-    private function applyJournalEntryPeriodFilter($query, ?int $accountingPeriod, int $fiscalYear): void
+    private function applyJournalEntryPeriodFilter($query, ?int $periodFrom, ?int $periodTo, int $fiscalYear): void
     {
-        if ($accountingPeriod !== null && $accountingPeriod >= 13) {
-            $query->where('je.accounting_period', $accountingPeriod)
-                ->whereYear('je.date', $fiscalYear);
+        $periods = $this->periodsInRange($periodFrom, $periodTo);
 
-            return;
-        }
-
-        if ($accountingPeriod === 0) {
-            $query->where('je.accounting_period', 0)
-                ->whereYear('je.date', $fiscalYear);
-
-            return;
-        }
-
-        if ($accountingPeriod !== null && $accountingPeriod >= 1 && $accountingPeriod <= 12) {
-            $query->where(function ($w) use ($accountingPeriod) {
+        if ($periods === []) {
+            $query->where(function ($w) {
                 $w->whereNull('je.accounting_period')
-                    ->orWhere('je.accounting_period', $accountingPeriod);
+                    ->orWhereBetween('je.accounting_period', [1, 12]);
             });
 
             return;
         }
 
-        $query->where(function ($w) {
-            $w->whereNull('je.accounting_period')
-                ->orWhereBetween('je.accounting_period', [1, 12]);
+        $hasOpening = in_array(0, $periods, true);
+        $ops = array_values(array_filter($periods, static fn ($p) => $p >= 1 && $p <= 12));
+        $closing = array_values(array_filter($periods, static fn ($p) => $p >= 13));
+
+        $query->where(function ($outer) use ($hasOpening, $ops, $closing, $fiscalYear) {
+            if ($hasOpening) {
+                $outer->orWhere(function ($w) use ($fiscalYear) {
+                    $w->where('je.accounting_period', 0)
+                        ->whereYear('je.date', $fiscalYear);
+                });
+            }
+
+            if ($closing !== []) {
+                $outer->orWhere(function ($w) use ($closing, $fiscalYear) {
+                    $w->whereIn('je.accounting_period', $closing)
+                        ->whereYear('je.date', $fiscalYear);
+                });
+            }
+
+            if ($ops !== []) {
+                $outer->orWhere(function ($w) use ($ops) {
+                    $w->whereNull('je.accounting_period')
+                        ->orWhereIn('je.accounting_period', $ops);
+                });
+            }
         });
     }
 

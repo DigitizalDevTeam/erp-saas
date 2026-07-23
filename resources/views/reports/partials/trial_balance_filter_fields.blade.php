@@ -1,12 +1,10 @@
 @php
-    $periodOptions = \App\Services\TrialBalanceReportService::accountingPeriodOptions();
-    $selectedPeriod = $filter['accountingPeriod'] ?? null;
+    $periodRangeOptions = ['' => __('—')] + \App\Services\TrialBalanceReportService::accountingPeriodRangeOptions();
+    $selectedFrom = $filter['accountingPeriodFrom'] ?? null;
+    $selectedTo = $filter['accountingPeriodTo'] ?? null;
     $fiscalYear = $filter['fiscalYear'] ?? (int) date('Y', strtotime($filter['startDateRange'] ?? date('Y-01-01')));
-    $periodLabel = $selectedPeriod !== null && $selectedPeriod !== ''
-        ? ($periodOptions[$selectedPeriod] ?? $selectedPeriod)
-        : $periodOptions[''];
 @endphp
-<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
+<div class="col-xl-2 col-lg-3 col-md-6 col-sm-12 col-12">
     <div class="btn-box">
         {{ Form::label('fiscal_year', __('Fiscal year'), ['class' => 'form-label']) }}
         {{ Form::number('fiscal_year', old('fiscal_year', $fiscalYear), [
@@ -16,13 +14,21 @@
         ]) }}
     </div>
 </div>
-<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
+<div class="col-xl-2 col-lg-3 col-md-6 col-sm-12 col-12">
     <div class="btn-box">
-        {{ Form::label('accounting_period', __('Accounting period'), ['class' => 'form-label']) }}
-        {{ Form::select('accounting_period', $periodOptions, old('accounting_period', $selectedPeriod), [
+        {{ Form::label('accounting_period_from', __('Month from'), ['class' => 'form-label']) }}
+        {{ Form::select('accounting_period_from', $periodRangeOptions, old('accounting_period_from', $selectedFrom), [
             'class' => 'form-control',
         ]) }}
-        <small class="text-muted">{{ __('Use 13–15 for year-end closing. Operational view excludes those periods.') }}</small>
+    </div>
+</div>
+<div class="col-xl-2 col-lg-3 col-md-6 col-sm-12 col-12">
+    <div class="btn-box">
+        {{ Form::label('accounting_period_to', __('Month to'), ['class' => 'form-label']) }}
+        {{ Form::select('accounting_period_to', $periodRangeOptions, old('accounting_period_to', $selectedTo), [
+            'class' => 'form-control',
+        ]) }}
+        <small class="text-muted">{{ __('Range 0–15 (e.g. 0→1, 0→12, 13→14). Leave blank for Jan–Dec operational.') }}</small>
     </div>
 </div>
 <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">

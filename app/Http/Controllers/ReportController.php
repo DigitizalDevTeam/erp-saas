@@ -1339,7 +1339,9 @@ class ReportController extends Controller
                 $resolved['end'],
                 $view,
                 $resolved['accountingPeriod'],
-                $resolved['fiscalYear']
+                $resolved['fiscalYear'],
+                $resolved['accountingPeriodFrom'],
+                $resolved['accountingPeriodTo']
             );
 
             return view('report.trial_balance', [
@@ -4589,7 +4591,9 @@ class ReportController extends Controller
             $resolved['end'],
             'expand',
             $resolved['accountingPeriod'],
-            $resolved['fiscalYear']
+            $resolved['fiscalYear'],
+            $resolved['accountingPeriodFrom'],
+            $resolved['accountingPeriodTo']
         );
 
         $companyName = User::where('id', \Auth::user()->creatorId())->first();

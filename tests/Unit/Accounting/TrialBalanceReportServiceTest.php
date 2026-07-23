@@ -51,6 +51,8 @@ class TrialBalanceReportServiceTest extends TestCase
         $this->assertSame('2026-03-01', $resolved['start']);
         $this->assertSame('2026-03-31', $resolved['end']);
         $this->assertSame(3, $resolved['accountingPeriod']);
+        $this->assertSame(3, $resolved['accountingPeriodFrom']);
+        $this->assertSame(3, $resolved['accountingPeriodTo']);
     }
 
     public function test_resolve_filter_uses_full_year_for_closing_period(): void
@@ -75,5 +77,60 @@ class TrialBalanceReportServiceTest extends TestCase
         $this->assertSame('2027-01-01', $resolved['start']);
         $this->assertSame('2027-12-31', $resolved['end']);
         $this->assertSame(0, $resolved['accountingPeriod']);
+    }
+
+    public function test_resolve_filter_supports_period_range_0_to_1(): void
+    {
+        $resolved = TrialBalanceReportService::resolveFilter([
+            'fiscal_year' => 2026,
+            'accounting_period_from' => 0,
+            'accounting_period_to' => 1,
+        ]);
+
+        $this->assertSame('2026-01-01', $resolved['start']);
+        $this->assertSame('2026-01-31', $resolved['end']);
+        $this->assertSame(0, $resolved['accountingPeriodFrom']);
+        $this->assertSame(1, $resolved['accountingPeriodTo']);
+        $this->assertNull($resolved['accountingPeriod']);
+    }
+
+    public function test_resolve_filter_supports_period_range_0_to_12(): void
+    {
+        $resolved = TrialBalanceReportService::resolveFilter([
+            'fiscal_year' => 2026,
+            'accounting_period_from' => 0,
+            'accounting_period_to' => 12,
+        ]);
+
+        $this->assertSame('2026-01-01', $resolved['start']);
+        $this->assertSame('2026-12-31', $resolved['end']);
+        $this->assertSame(0, $resolved['accountingPeriodFrom']);
+        $this->assertSame(12, $resolved['accountingPeriodTo']);
+    }
+
+    public function test_resolve_filter_supports_period_range_13_to_14(): void
+    {
+        $resolved = TrialBalanceReportService::resolveFilter([
+            'fiscal_year' => 2026,
+            'accounting_period_from' => 13,
+            'accounting_period_to' => 14,
+        ]);
+
+        $this->assertSame('2026-01-01', $resolved['start']);
+        $this->assertSame('2026-12-31', $resolved['end']);
+        $this->assertSame(13, $resolved['accountingPeriodFrom']);
+        $this->assertSame(14, $resolved['accountingPeriodTo']);
+        $this->assertNull($resolved['accountingPeriod']);
+    }
+
+    public function test_normalize_period_range_swaps_inverted_bounds(): void
+    {
+        [$from, $to] = TrialBalanceReportService::normalizePeriodRange([
+            'accounting_period_from' => 14,
+            'accounting_period_to' => 13,
+        ]);
+
+        $this->assertSame(13, $from);
+        $this->assertSame(14, $to);
     }
 }

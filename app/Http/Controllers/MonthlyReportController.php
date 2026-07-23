@@ -22,7 +22,9 @@ class MonthlyReportController extends Controller
             $resolved['end'],
             'expand',
             $resolved['accountingPeriod'],
-            $resolved['fiscalYear']
+            $resolved['fiscalYear'],
+            $resolved['accountingPeriodFrom'],
+            $resolved['accountingPeriodTo']
         );
 
         $filter = $report['filter'];
@@ -65,7 +67,8 @@ class MonthlyReportController extends Controller
                         'start_date' => $filter['startDateRange'],
                         'end_date' => $filter['endDateRange'],
                         'fiscal_year' => $filter['fiscalYear'] ?? null,
-                        'accounting_period' => $filter['accountingPeriod'] ?? null,
+                        'accounting_period_from' => $filter['accountingPeriodFrom'] ?? null,
+                        'accounting_period_to' => $filter['accountingPeriodTo'] ?? null,
                     ], static fn ($v) => $v !== null && $v !== ''))
                     ->with('error', __('PDF generation is not available on this server. Please install Node.js for Browsershot or enable DomPDF.'));
             }
