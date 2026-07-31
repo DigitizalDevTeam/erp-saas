@@ -28,7 +28,7 @@
             'required' => 'required',
             'id' => 'journal_month',
         ]) }}
-        <small class="text-muted">{{ __('0–15 (opening / months / closing)') }}</small>
+        <small class="text-muted">{{ __('0, 13–15 = 31 days; 1–12 = normal calendar days') }}</small>
     </div>
 </div>
 <div class="col-lg-2 col-md-4">
@@ -51,6 +51,7 @@
         </div>
     </div>
 </div>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 
 <script>
 (function () {
@@ -62,9 +63,12 @@
     function daysInPeriod(year, month) {
         month = parseInt(month, 10);
         year = parseInt(year, 10) || new Date().getFullYear();
-        if (month === 0 || month >= 13) {
+        // Special accounting periods: always 31 days
+        if (month === 0 || month === 13 || month === 14 || month === 15) {
             return 31;
         }
+        // Months 1–12: real calendar length (Feb 28/29, Apr 30, etc.)
+        // JS Date month is 0-based; day 0 of next month = last day of selected month
         return new Date(year, month, 0).getDate();
     }
 

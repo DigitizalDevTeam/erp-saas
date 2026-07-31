@@ -15,6 +15,23 @@ class AccountingPeriodDateTest extends TestCase
         $this->assertSame(31, AccountingPeriodDate::daysInPeriod(2026, 15));
     }
 
+    public function test_operational_months_use_normal_calendar_days(): void
+    {
+        $this->assertSame(31, AccountingPeriodDate::daysInPeriod(2026, 1));  // January
+        $this->assertSame(28, AccountingPeriodDate::daysInPeriod(2026, 2));  // February (non-leap)
+        $this->assertSame(29, AccountingPeriodDate::daysInPeriod(2024, 2));  // February (leap)
+        $this->assertSame(31, AccountingPeriodDate::daysInPeriod(2026, 3));  // March
+        $this->assertSame(30, AccountingPeriodDate::daysInPeriod(2026, 4));  // April
+        $this->assertSame(31, AccountingPeriodDate::daysInPeriod(2026, 5));  // May
+        $this->assertSame(30, AccountingPeriodDate::daysInPeriod(2026, 6));  // June
+        $this->assertSame(31, AccountingPeriodDate::daysInPeriod(2026, 7));  // July
+        $this->assertSame(31, AccountingPeriodDate::daysInPeriod(2026, 8));  // August
+        $this->assertSame(30, AccountingPeriodDate::daysInPeriod(2026, 9));  // September
+        $this->assertSame(31, AccountingPeriodDate::daysInPeriod(2026, 10)); // October
+        $this->assertSame(30, AccountingPeriodDate::daysInPeriod(2026, 11)); // November
+        $this->assertSame(31, AccountingPeriodDate::daysInPeriod(2026, 12)); // December
+    }
+
     public function test_compose_date_for_operational_month(): void
     {
         $this->assertSame('2026-02-28', AccountingPeriodDate::composeDate(2026, 2, 31));
