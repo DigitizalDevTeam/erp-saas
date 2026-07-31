@@ -8,6 +8,7 @@ use App\Models\JournalEntry;
 use App\Models\JournalItem;
 use App\Models\TransactionLines;
 use App\Models\Utility;
+use App\Support\AccountingPeriodDate;
 use Illuminate\Http\Request;
 
 class JournalEntryController extends Controller
@@ -84,9 +85,10 @@ class JournalEntryController extends Controller
         if (\Auth::user()->can('create journal entry')) {
             $validator = \Validator::make(
                 $request->all(), [
-                    'date' => 'required',
+                    'journal_year' => 'required|integer|min:2000|max:2100',
+                    'journal_month' => 'required|integer|min:0|max:15',
+                    'journal_day' => 'required|integer|min:1|max:31',
                     'accounts' => 'required',
-                    'accounting_period' => 'nullable|integer|min:0|max:15',
                 ]
             );
             if ($validator->fails()) {
@@ -111,14 +113,16 @@ class JournalEntryController extends Controller
                 return redirect()->back()->with('error', __('Debit and Credit must be Equal.'));
             }
 
+            $periodDate = AccountingPeriodDate::fromRequest($request->all());
+
             $journal = new JournalEntry();
             $journal->journal_id = $this->journalNumber();
-            $journal->date = $request->date;
+            $journal->date = $periodDate['date'];
             $journal->reference = $request->reference;
             $journal->description = $request->description;
             $journal->status = JournalEntry::STATUS_PENDING;
             $journal->created_by = \Auth::user()->creatorId();
-            $journal->accounting_period = $request->filled('accounting_period') ? (int) $request->accounting_period : null;
+            $journal->accounting_period = $periodDate['accounting_period'];
             $journal->save();
 
             for ($i = 0; $i < count($accounts); $i++) {
@@ -227,9 +231,10 @@ class JournalEntryController extends Controller
             if ($journalEntry->created_by == \Auth::user()->creatorId()) {
                 $validator = \Validator::make(
                     $request->all(), [
-                        'date' => 'required',
+                        'journal_year' => 'required|integer|min:2000|max:2100',
+                        'journal_month' => 'required|integer|min:0|max:15',
+                        'journal_day' => 'required|integer|min:1|max:31',
                         'accounts' => 'required',
-                        'accounting_period' => 'nullable|integer|min:0|max:15',
                     ]
                 );
                 if ($validator->fails()) {
@@ -253,11 +258,13 @@ class JournalEntryController extends Controller
                     return redirect()->back()->with('error', __('Debit and Credit must be Equal.'));
                 }
 
-                $journalEntry->date = $request->date;
+                $periodDate = AccountingPeriodDate::fromRequest($request->all());
+
+                $journalEntry->date = $periodDate['date'];
                 $journalEntry->reference = $request->reference;
                 $journalEntry->description = $request->description;
                 $journalEntry->created_by = \Auth::user()->creatorId();
-                $journalEntry->accounting_period = $request->filled('accounting_period') ? (int) $request->accounting_period : null;
+                $journalEntry->accounting_period = $periodDate['accounting_period'];
                 $journalEntry->save();
 
                 for ($i = 0; $i < count($accounts); $i++) {

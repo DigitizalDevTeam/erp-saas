@@ -141,7 +141,9 @@
                     @endphp
                     @foreach ($totalAccounts as $type => $accounts)
                         <div class="account-main-inner border-bottom py-2">
-                            <p class="fw-bold ps-2 mb-2">{{ $type }}</p>
+                            @if ($type !== '' && $type !== null)
+                                <p class="fw-bold ps-2 mb-2">{{ $type }}</p>
+                            @endif
                             @if ($view == 'collapse')
                                 @foreach ($accounts as $record)
                                     @if (in_array($record['account'] ?? '', ['parent', ''], true))

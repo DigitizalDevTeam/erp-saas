@@ -13,8 +13,7 @@ class CreateUserLeadsTable extends Migration
      */
     public function up()
     {
-        Schema::create(
-            'user_leads', function (Blueprint $table){
+        Schema::create('user_leads', function (Blueprint $table){
             $table->bigIncrements('id');
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('lead_id');

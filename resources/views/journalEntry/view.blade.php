@@ -51,6 +51,20 @@
                                         <strong>{{__('Journal Date')}} :</strong>
                                         {{\Auth::user()->dateFormat($journalEntry->date)}}
                                     </small>
+                                    @if($journalEntry->accounting_period !== null && $journalEntry->accounting_period !== '')
+                                        @php
+                                            $periodOpts = \App\Support\AccountingPeriodDate::monthOptions();
+                                            $p = (int) $journalEntry->accounting_period;
+                                            $day = (int) \Carbon\Carbon::parse($journalEntry->date)->format('j');
+                                            $year = (int) \Carbon\Carbon::parse($journalEntry->date)->format('Y');
+                                        @endphp
+                                        <br>
+                                        <small>
+                                            <strong>{{__('Accounting period')}} :</strong>
+                                            {{ sprintf('%02d-%02d / %04d', $day, $p, $year) }}
+                                            ({{ $periodOpts[$p] ?? $p }})
+                                        </small>
+                                    @endif
                                 </div>
                             </div>
 

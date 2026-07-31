@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\ChartOfAccount;
-use App\Models\ChartOfAccountType;
 use App\Models\TransactionLines;
 use App\Support\ChartOfAccountHierarchy;
 use Illuminate\Database\Query\Builder;
@@ -254,27 +253,15 @@ class TrialBalanceReportService
         $balances = $this->accountBalances($creatorId, $start, $end, $accountingPeriodFrom, $accountingPeriodTo, $fiscalYear);
         $grandTotals = $this->grandTotals($creatorId, $start, $end, $accountingPeriodFrom, $accountingPeriodTo, $fiscalYear);
 
-        $sections = [];
-        $types = ChartOfAccountType::where('created_by', $creatorId)->orderBy('id')->get();
-
-        foreach ($types as $type) {
-            $accounts = ChartOfAccountHierarchy::accountsForCreator($creatorId, (int) $type->id);
-            if ($accounts->isEmpty()) {
-                continue;
-            }
-
-            $tree = ChartOfAccountHierarchy::buildTree($accounts);
-            $rows = [];
-
-            foreach ($tree as $root) {
-                $result = $this->rowsForNode($root, $balances, $view, 0);
-                $rows = array_merge($rows, $result['rows']);
-            }
-
-            if ($rows !== []) {
-                $sections[$type->name] = $rows;
-            }
+        // Same ordering as Chart of Accounts (PGC / CSV code order), not grouped by account type.
+        $tree = ChartOfAccountHierarchy::buildMasterTree($creatorId);
+        $rows = [];
+        foreach ($tree as $root) {
+            $result = $this->rowsForNode($root, $balances, $view, 0);
+            $rows = array_merge($rows, $result['rows']);
         }
+
+        $sections = $rows !== [] ? ['' => $rows] : [];
 
         return [
             'totalAccounts' => $sections,

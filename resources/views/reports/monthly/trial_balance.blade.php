@@ -92,11 +92,13 @@
                             </thead>
                             <tbody>
                                 @foreach ($totalAccounts as $type => $accounts)
-                                    <tr>
-                                        <td colspan="6" class="fw-bold" style="background: #f6f7f9;">
-                                            {{ $type }}
-                                        </td>
-                                    </tr>
+                                    @if ($type !== '' && $type !== null)
+                                        <tr>
+                                            <td colspan="6" class="fw-bold" style="background: #f6f7f9;">
+                                                {{ $type }}
+                                            </td>
+                                        </tr>
+                                    @endif
 
                                     @foreach ($accounts as $record)
                                         @php

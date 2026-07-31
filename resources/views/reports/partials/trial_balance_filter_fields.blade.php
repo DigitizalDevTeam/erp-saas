@@ -4,7 +4,7 @@
     $selectedTo = $filter['accountingPeriodTo'] ?? null;
     $fiscalYear = $filter['fiscalYear'] ?? (int) date('Y', strtotime($filter['startDateRange'] ?? date('Y-01-01')));
 @endphp
-<div class="col-xl-2 col-lg-3 col-md-6 col-sm-12 col-12">
+<div class="col-xl-3 col-lg-4 col-md-6 col-sm-12 col-12">
     <div class="btn-box">
         {{ Form::label('fiscal_year', __('Fiscal year'), ['class' => 'form-label']) }}
         {{ Form::number('fiscal_year', old('fiscal_year', $fiscalYear), [
@@ -14,7 +14,7 @@
         ]) }}
     </div>
 </div>
-<div class="col-xl-2 col-lg-3 col-md-6 col-sm-12 col-12">
+<div class="col-xl-3 col-lg-4 col-md-6 col-sm-12 col-12">
     <div class="btn-box">
         {{ Form::label('accounting_period_from', __('Month from'), ['class' => 'form-label']) }}
         {{ Form::select('accounting_period_from', $periodRangeOptions, old('accounting_period_from', $selectedFrom), [
@@ -22,24 +22,12 @@
         ]) }}
     </div>
 </div>
-<div class="col-xl-2 col-lg-3 col-md-6 col-sm-12 col-12">
+<div class="col-xl-3 col-lg-4 col-md-6 col-sm-12 col-12">
     <div class="btn-box">
         {{ Form::label('accounting_period_to', __('Month to'), ['class' => 'form-label']) }}
         {{ Form::select('accounting_period_to', $periodRangeOptions, old('accounting_period_to', $selectedTo), [
             'class' => 'form-control',
         ]) }}
         <small class="text-muted">{{ __('Range 0–15 (e.g. 0→1, 0→12, 13→14). Leave blank for Jan–Dec operational.') }}</small>
-    </div>
-</div>
-<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
-    <div class="btn-box">
-        {{ Form::label('start_date', __('Start Date'), ['class' => 'form-label']) }}
-        {{ Form::date('start_date', $filter['startDateRange'], ['class' => 'startDate form-control']) }}
-    </div>
-</div>
-<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
-    <div class="btn-box">
-        {{ Form::label('end_date', __('End Date'), ['class' => 'form-label']) }}
-        {{ Form::date('end_date', $filter['endDateRange'], ['class' => 'endDate form-control']) }}
     </div>
 </div>
