@@ -12,6 +12,7 @@ use App\Models\CustomField;
 use App\Models\Invoice;
 use App\Models\InvoiceBankTransfer;
 use App\Models\Proforma;
+use App\Models\Purchase;
 use App\Models\Quotation;
 use App\Models\InvoicePayment;
 use App\Models\InvoiceProduct;
@@ -274,6 +275,17 @@ class InvoiceController extends Controller
                             $invoice->quotation_id = $q->id;
                         }
                     }
+                    if ($request->filled('source_purchase_id')) {
+                        $purchase = Purchase::where('id', (int) $request->input('source_purchase_id'))
+                            ->where('created_by', $creatorId)
+                            ->first();
+                        if ($purchase) {
+                            $invoice->purchase_id = $purchase->id;
+                            if (empty($invoice->proforma_id) && ! empty($purchase->proforma_id)) {
+                                $invoice->proforma_id = $purchase->proforma_id;
+                            }
+                        }
+                    }
                     $invoice->save();
                     CustomField::saveData($invoice, $request->input('customField'));
 
@@ -321,6 +333,23 @@ class InvoiceController extends Controller
                         $invoice->save();
                     }
 
+                    if ($request->filled('source_purchase_id') && ! empty($invoice->purchase_id)) {
+                        Purchase::where('id', (int) $invoice->purchase_id)
+                            ->where('created_by', $creatorId)
+                            ->update([
+                                'converted_invoice_id' => $invoice->id,
+                                'is_invoice_converted' => 1,
+                            ]);
+                    }
+                    if (! empty($invoice->proforma_id)) {
+                        Proforma::where('id', (int) $invoice->proforma_id)
+                            ->where('created_by', $creatorId)
+                            ->update([
+                                'converted_invoice_id' => $invoice->id,
+                                'is_invoice_converted' => 1,
+                            ]);
+                    }
+
                     return $invoice->fresh();
                 });
             } catch (\Throwable $e) {
@@ -355,10 +384,15 @@ class InvoiceController extends Controller
                 $parameter = json_encode($invoice);
                 $status = Utility::WebhookCall($webhook['url'], $parameter, $webhook['method']);
                 if ($status == true) {
-                    return redirect()->route('invoice.index', $invoice->id)->with('success', __('Invoice successfully created.'));
+                    return redirect()->route('invoice.show', Crypt::encrypt($invoice->id))->with('success', __('Invoice successfully created.'));
                 } else {
                     return redirect()->back()->with('error', __('Invoice successfully created, Webhook call failed.'));
                 }
+            }
+
+            if ($request->filled('source_purchase_id')) {
+                return redirect()->route('invoice.show', Crypt::encrypt($invoice->id))
+                    ->with('success', __('Sales invoice created from purchase order. Send the invoice to post accounting entries.'));
             }
 
             return redirect()->route('invoice.index', $invoice->id)->with('success', __('Invoice successfully created.'));

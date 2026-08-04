@@ -31,7 +31,7 @@
                                     <th>{{ __('Date') }}</th>
                                     <th>{{ __('Customer') }}</th>
                                     <th>{{ __('Warehouse') }}</th>
-                                    @if (Gate::check('edit quotation') || Gate::check('delete quotation') || Gate::check('create bill'))
+                                    @if (Gate::check('edit quotation') || Gate::check('delete quotation') || Gate::check('create purchase') || Gate::check('create bill'))
                                         <th>{{ __('Action') }}</th>
                                     @endif
                                 </tr>
@@ -47,10 +47,20 @@
                                         <td>{{ ! empty($proforma->customer) ? $proforma->customer->name : '' }}</td>
                                         <td>{{ ! empty($proforma->warehouse) ? $proforma->warehouse->name : '' }}</td>
 
-                                        @if (Gate::check('edit quotation') || Gate::check('delete quotation') || Gate::check('create bill'))
+                                        @if (Gate::check('edit quotation') || Gate::check('delete quotation') || Gate::check('create purchase') || Gate::check('create bill'))
                                             <td class="Action">
                                                 <span>
-                                                    @if ((int) $proforma->is_bill_converted === 1)
+                                                    @if ((int) $proforma->is_purchase_converted === 1 && ! empty($proforma->converted_purchase_id))
+                                                        @can('show purchase')
+                                                            <div class="action-btn me-2">
+                                                                <a href="{{ route('purchase.show', \Crypt::encrypt($proforma->converted_purchase_id)) }}"
+                                                                    class="mx-3 btn btn-sm align-items-center bg-warning"
+                                                                    data-bs-toggle="tooltip" title="{{ __('View purchase order') }}">
+                                                                    <i class="ti ti-shopping-cart text-white"></i>
+                                                                </a>
+                                                            </div>
+                                                        @endcan
+                                                    @elseif ((int) $proforma->is_bill_converted === 1)
                                                         @can('show bill')
                                                             <div class="action-btn me-2">
                                                                 <a href="{{ route('bill.show', \Crypt::encrypt($proforma->converted_bill_id)) }}"
@@ -61,11 +71,11 @@
                                                             </div>
                                                         @endcan
                                                     @else
-                                                        @can('create bill')
+                                                        @can('create purchase')
                                                             <div class="action-btn me-2">
-                                                                <a href="{{ route('proforma.convert-bill.form', \Crypt::encrypt($proforma->id)) }}"
+                                                                <a href="{{ route('proforma.convert-purchase.form', \Crypt::encrypt($proforma->id)) }}"
                                                                     class="mx-3 btn btn-sm align-items-center bg-warning"
-                                                                    data-bs-toggle="tooltip" title="{{ __('Convert to supplier bill') }}">
+                                                                    data-bs-toggle="tooltip" title="{{ __('Convert to purchase order') }}">
                                                                     <i class="ti ti-exchange text-white"></i>
                                                                 </a>
                                                             </div>

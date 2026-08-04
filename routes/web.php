@@ -2236,6 +2236,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('quotation/pdf/{id}', [QuotationController::class, 'quotation'])->name('quotation.pdf')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::get('proforma/from-quotation/{id}', [ProformaController::class, 'createFromQuotation'])->name('proforma.create-from-quotation')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('proforma/{id}/convert-purchase', [ProformaController::class, 'convertToPurchaseForm'])->name('proforma.convert-purchase.form')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('proforma/{id}/convert-purchase', [ProformaController::class, 'convertToPurchaseStore'])->name('proforma.convert-purchase.store')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('proforma/{id}/convert-bill', [ProformaController::class, 'convertToBillForm'])->name('proforma.convert-bill.form')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('proforma/{id}/convert-bill', [ProformaController::class, 'convertToBillStore'])->name('proforma.convert-bill.store')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('proforma/items', [ProformaController::class, 'items'])->name('proforma.items')->middleware(['auth', 'XSS', 'revalidate']);
@@ -2276,6 +2278,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('purchase/{id}/sent', [PurchaseController::class, 'sent'])->name('purchase.sent');
             Route::get('purchase/{id}/resent', [PurchaseController::class, 'resent'])->name('purchase.resent');
             Route::get('purchase/convert-vendor-bill/{id}', [PurchaseController::class, 'convertToVendorBill'])->name('purchase.convert-vendor-bill');
+            Route::get('purchase/convert-invoice/{id}', [PurchaseController::class, 'convertToInvoiceForm'])->name('purchase.convert-invoice.form');
+            Route::post('purchase/convert-invoice/{id}', [PurchaseController::class, 'convertToInvoiceStore'])->name('purchase.convert-invoice.store');
         }
 
     );

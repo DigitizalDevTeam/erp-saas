@@ -445,6 +445,124 @@ class PurchaseController extends Controller
         return redirect()->route('bill.show', Crypt::encrypt($bill->id))->with('success', __('Vendor bill created from purchase. Send the bill to post accounting entries.'));
     }
 
+    /**
+     * Purchase order → Sales invoice (Quote → Proforma → PO → Invoice).
+     */
+    public function convertToInvoiceForm($encryptedId)
+    {
+        if (! \Auth::user()->can('create invoice')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $pid = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid purchase.'));
+        }
+
+        $purchase = Purchase::with(['items', 'sourceProforma'])->where('created_by', \Auth::user()->creatorId())->find($pid);
+        if (! $purchase) {
+            return redirect()->back()->with('error', __('Purchase not found.'));
+        }
+        if ((int) $purchase->is_invoice_converted === 1 && ! empty($purchase->converted_invoice_id)) {
+            return redirect()->route('invoice.show', Crypt::encrypt($purchase->converted_invoice_id))
+                ->with('info', __('Sales invoice already exists for this purchase.'));
+        }
+
+        $customers = \App\Models\Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $customers->prepend(__('Select Customer'), '');
+        $defaultCustomerId = $purchase->sourceProforma?->customer_id;
+        $category = ProductServiceCategory::where('created_by', \Auth::user()->creatorId())
+            ->where(function ($q) {
+                $q->where('type', 'income')->orWhere('type', 1);
+            })
+            ->orderBy('id')
+            ->first();
+
+        return view('purchase.convert_invoice', compact('purchase', 'customers', 'defaultCustomerId', 'category'));
+    }
+
+    public function convertToInvoiceStore(Request $request, $encryptedId)
+    {
+        if (! \Auth::user()->can('create invoice')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $pid = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid purchase.'));
+        }
+
+        $purchase = Purchase::with(['items', 'sourceProforma.items'])->where('created_by', \Auth::user()->creatorId())->find($pid);
+        if (! $purchase) {
+            return redirect()->back()->with('error', __('Purchase not found.'));
+        }
+        if ((int) $purchase->is_invoice_converted === 1 && ! empty($purchase->converted_invoice_id)) {
+            return redirect()->route('invoice.show', Crypt::encrypt($purchase->converted_invoice_id))
+                ->with('info', __('Sales invoice already exists for this purchase.'));
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'customer_id' => 'required|integer',
+            'issue_date' => 'required|date',
+            'due_date' => 'required|date',
+            'category_id' => 'required|integer',
+        ]);
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', $validator->getMessageBag()->first())->withInput();
+        }
+
+        $proformaPrices = [];
+        if ($purchase->sourceProforma) {
+            foreach ($purchase->sourceProforma->items as $pfItem) {
+                $proformaPrices[(int) $pfItem->product_id] = (float) $pfItem->price;
+            }
+        }
+
+        $items = [];
+        foreach ($purchase->items as $line) {
+            $product = ProductService::find($line->product_id);
+            $salePrice = $product && (float) ($product->sale_price ?? 0) > 0
+                ? (float) $product->sale_price
+                : null;
+            $price = $proformaPrices[(int) $line->product_id]
+                ?? $salePrice
+                ?? (float) $line->price;
+
+            $items[] = [
+                'item' => $line->product_id,
+                'quantity' => $line->quantity,
+                'price' => $price,
+                'tax' => $line->tax,
+                'discount' => $line->discount,
+                'description' => $line->description,
+                'identifiers' => '',
+            ];
+        }
+
+        if ($items === []) {
+            return redirect()->back()->with('error', __('Purchase has no line items.'));
+        }
+
+        $payload = [
+            'customer_id' => $request->customer_id,
+            'issue_date' => $request->issue_date,
+            'due_date' => $request->due_date,
+            'category_id' => $request->category_id,
+            'ref_number' => $request->ref_number ?: (\Auth::user()->purchaseNumberFormat($purchase->purchase_id)),
+            'items' => $items,
+            'source_purchase_id' => $purchase->id,
+            '_token' => csrf_token(),
+        ];
+        if (! empty($purchase->proforma_id)) {
+            $payload['source_proforma_id'] = $purchase->proforma_id;
+        }
+
+        $req = Request::create('/invoice', 'POST', $payload);
+        $req->setUserResolver(fn () => \Auth::user());
+
+        return app(InvoiceController::class)->store($req);
+    }
+
     protected function vendorBillNextNumber(): int
     {
         $latest = Bill::where('created_by', '=', \Auth::user()->creatorId())->latest('id')->first();

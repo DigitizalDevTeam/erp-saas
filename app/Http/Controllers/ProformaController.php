@@ -359,7 +359,113 @@ class ProformaController extends Controller
     }
 
     /**
-     * Proforma → Supplier invoice (Bill) → Payment (on bill).
+     * Proforma → Purchase order (stock) → Bill → Payment.
+     */
+    public function convertToPurchaseForm($encryptedId)
+    {
+        if (! Auth::user()->can('create purchase')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid proforma.'));
+        }
+
+        $proforma = Proforma::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $proforma) {
+            return redirect()->back()->with('error', __('Proforma not found.'));
+        }
+        if ((int) $proforma->is_purchase_converted === 1 && ! empty($proforma->converted_purchase_id)) {
+            return redirect()->route('purchase.show', Crypt::encrypt($proforma->converted_purchase_id))
+                ->with('info', __('Purchase order already exists.'));
+        }
+
+        $venders = Vender::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $venders->prepend(__('Select Vendor'), '');
+        $warehouses = warehouse::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $warehouses->prepend(__('Select Warehouse'), '');
+        $category = ProductServiceCategory::where('created_by', Auth::user()->creatorId())
+            ->where('type', 'expense')->orderBy('id')->first();
+
+        return view('proforma.convert_purchase', compact('proforma', 'venders', 'warehouses', 'category'));
+    }
+
+    public function convertToPurchaseStore(Request $request, $encryptedId)
+    {
+        if (! Auth::user()->can('create purchase')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid proforma.'));
+        }
+
+        $proforma = Proforma::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $proforma) {
+            return redirect()->back()->with('error', __('Proforma not found.'));
+        }
+        if ((int) $proforma->is_purchase_converted === 1 && ! empty($proforma->converted_purchase_id)) {
+            return redirect()->route('purchase.show', Crypt::encrypt($proforma->converted_purchase_id))
+                ->with('info', __('Purchase order already exists.'));
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'vender_id' => 'required|integer',
+            'warehouse_id' => 'required|integer',
+            'purchase_date' => 'required|date',
+            'category_id' => 'required|integer',
+        ]);
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', $validator->getMessageBag()->first())->withInput();
+        }
+
+        $items = [];
+        foreach ($proforma->items as $row) {
+            $product = ProductService::find($row->product_id);
+            $price = $product && (float) $product->purchase_price > 0
+                ? (float) $product->purchase_price
+                : (float) $row->price;
+
+            $items[] = [
+                'item' => $row->product_id,
+                'quantity' => $row->quantity,
+                'price' => $price,
+                'tax' => $row->tax,
+                'discount' => $row->discount,
+                'description' => $row->description,
+                'product_variant_id' => '',
+                'row_no' => '',
+                'shelf_no' => '',
+                'expiry_date' => '',
+                'batch_no' => '',
+                'mfg_date' => '',
+                'identifiers' => '',
+            ];
+        }
+
+        if ($items === []) {
+            return redirect()->back()->with('error', __('Proforma has no line items.'));
+        }
+
+        $req = Request::create('/purchase', 'POST', [
+            'vender_id' => $request->vender_id,
+            'warehouse_id' => $request->warehouse_id,
+            'purchase_date' => $request->purchase_date,
+            'category_id' => $request->category_id,
+            'purchase_number' => 0,
+            'items' => $items,
+            'proforma_id' => $proforma->id,
+            '_token' => csrf_token(),
+        ]);
+        $req->setUserResolver(fn () => Auth::user());
+
+        return app(PurchaseController::class)->store($req);
+    }
+
+    /**
+     * Legacy: Proforma → Supplier bill (prefer Proforma → PO → Bill).
      */
     public function convertToBillForm($encryptedId)
     {
@@ -375,6 +481,10 @@ class ProformaController extends Controller
         $proforma = Proforma::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
         if (! $proforma) {
             return redirect()->back()->with('error', __('Proforma not found.'));
+        }
+        if ((int) $proforma->is_purchase_converted === 1 && ! empty($proforma->converted_purchase_id)) {
+            return redirect()->route('purchase.show', Crypt::encrypt($proforma->converted_purchase_id))
+                ->with('info', __('Convert the purchase order to a vendor bill instead.'));
         }
         if ((int) $proforma->is_bill_converted === 1) {
             return redirect()->route('bill.show', Crypt::encrypt($proforma->converted_bill_id))

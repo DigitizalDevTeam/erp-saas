@@ -16,13 +16,17 @@
 
 @section('action-btn')
     <div class="float-end">
-        @if ((int) $proforma->is_bill_converted === 1)
+        @if ((int) $proforma->is_purchase_converted === 1 && ! empty($proforma->converted_purchase_id))
+            @can('show purchase')
+                <a href="{{ route('purchase.show', \Crypt::encrypt($proforma->converted_purchase_id)) }}" class="btn btn-primary">{{ __('View purchase order') }}</a>
+            @endcan
+        @elseif ((int) $proforma->is_bill_converted === 1)
             @can('show bill')
                 <a href="{{ route('bill.show', \Crypt::encrypt($proforma->converted_bill_id)) }}" class="btn btn-primary">{{ __('View supplier bill') }}</a>
             @endcan
         @else
-            @can('create bill')
-                <a href="{{ route('proforma.convert-bill.form', \Crypt::encrypt($proforma->id)) }}" class="btn btn-primary">{{ __('Convert to supplier bill') }}</a>
+            @can('create purchase')
+                <a href="{{ route('proforma.convert-purchase.form', \Crypt::encrypt($proforma->id)) }}" class="btn btn-primary">{{ __('Convert to purchase order') }}</a>
             @endcan
         @endif
     </div>

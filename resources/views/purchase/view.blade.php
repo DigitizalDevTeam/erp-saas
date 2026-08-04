@@ -16,17 +16,33 @@
 
 @section('content')
 
-    @can('create bill')
-        @if (empty($purchase->converted_bill_id))
+    @can('create invoice')
+        @if ((int) $purchase->is_invoice_converted === 1 && ! empty($purchase->converted_invoice_id))
             <div class="row mb-3">
                 <div class="col-12 text-end">
-                    <a href="{{ route('purchase.convert-vendor-bill', \Crypt::encrypt($purchase->id)) }}" class="btn btn-sm btn-primary">{{ __('Create vendor bill (from PO)') }}</a>
+                    <a href="{{ route('invoice.show', \Crypt::encrypt($purchase->converted_invoice_id)) }}" class="btn btn-sm btn-outline-primary">{{ __('View sales invoice') }}</a>
                 </div>
             </div>
         @else
             <div class="row mb-3">
                 <div class="col-12 text-end">
-                    <a href="{{ route('bill.show', \Crypt::encrypt($purchase->converted_bill_id)) }}" class="btn btn-sm btn-outline-primary">{{ __('View vendor bill') }}</a>
+                    <a href="{{ route('purchase.convert-invoice.form', \Crypt::encrypt($purchase->id)) }}" class="btn btn-sm btn-primary">{{ __('Convert to invoice') }}</a>
+                </div>
+            </div>
+        @endif
+    @endcan
+
+    @can('create bill')
+        @if (empty($purchase->converted_bill_id))
+            <div class="row mb-2">
+                <div class="col-12 text-end">
+                    <a href="{{ route('purchase.convert-vendor-bill', \Crypt::encrypt($purchase->id)) }}" class="btn btn-sm btn-outline-secondary">{{ __('Create vendor bill (optional)') }}</a>
+                </div>
+            </div>
+        @else
+            <div class="row mb-2">
+                <div class="col-12 text-end">
+                    <a href="{{ route('bill.show', \Crypt::encrypt($purchase->converted_bill_id)) }}" class="btn btn-sm btn-outline-secondary">{{ __('View vendor bill') }}</a>
                 </div>
             </div>
         @endif
