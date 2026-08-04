@@ -36,6 +36,8 @@ use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Models\CustomerBillingAddress;
 use App\Models\CustomerShippingAddress;
+use App\Services\InvoiceSaleDeductionService;
+
 class InvoiceController extends Controller
 {
     public function __construct()
@@ -139,6 +141,7 @@ class InvoiceController extends Controller
         $data['unit_area_sqm'] = $product->unit_area_sqm;
         $data['unit_volume_cbm'] = $product->unit_volume_cbm;
 
+        $data = array_merge($data, $product->variantsForDocumentJson('sale_price'));
         $data = array_merge($data, \App\Services\ProductOptionService::productJsonExtras($product));
 
         return json_encode($data);
@@ -298,6 +301,9 @@ class InvoiceController extends Controller
                         $invoiceProduct = new InvoiceProduct();
                         $invoiceProduct->invoice_id = $invoice->id;
                         $invoiceProduct->product_id = $products[$i]['item'];
+                        $invoiceProduct->product_variant_id = ! empty($products[$i]['product_variant_id'])
+                            ? (int) $products[$i]['product_variant_id']
+                            : null;
                         $invoiceProduct->quantity = $products[$i]['quantity'];
                         $invoiceProduct->tax = $products[$i]['tax'];
                         $invoiceProduct->discount = $products[$i]['discount'];
@@ -505,6 +511,9 @@ class InvoiceController extends Controller
                     $invoiceProduct->discount = $products[$i]['discount'];
                     $invoiceProduct->price = $products[$i]['price'];
                     $invoiceProduct->description = $products[$i]['description'];
+                    $invoiceProduct->product_variant_id = ! empty($products[$i]['product_variant_id'])
+                        ? (int) $products[$i]['product_variant_id']
+                        : null;
                     $invoiceProduct->identifiers = $products[$i]['identifiers'] ?? null;
                     $invoiceProduct->measurement_json = $products[$i]['measurement_json'] ?? null;
 

@@ -318,6 +318,7 @@ class PurchaseQuotationController extends Controller
                 'discount' => $row->discount,
                 'description' => $row->description,
                 'product_variant_id' => '',
+                'allow_default_variant' => 1,
                 'row_no' => '',
                 'shelf_no' => '',
                 'expiry_date' => '',

@@ -524,6 +524,11 @@
                             $(el.parent().parent().find('.tax')).val(tax);
                             $(el.parent().parent().find('.unit')).html(item.unit);
 
+                            var $wrap = $(el).closest('[data-repeater-item]');
+                            if (typeof window.applyProductVariants === 'function') {
+                                window.applyProductVariants($wrap, item, (invoiceItems && invoiceItems.product_variant_id) || null, 'sale_price');
+                            }
+
 
                             var inputs = $(".amount");
                             var subTotal = 0;
@@ -904,6 +909,7 @@
                             <thead>
                             <tr>
                                 <th>{{__('Items')}}<x-required></x-required></th>
+                                <th>{{ __('Variant') }}</th>
                                 <th>{{__('Quantity')}}<x-required></x-required></th>
                                 <th>{{__('Price')}}<x-required></x-required></th>
                                 <th>{{__('Discount')}}<x-required></x-required></th>
@@ -918,6 +924,11 @@
                                 <td width="25%" class="form-group pt-0">
                                     {{ Form::select('item', $product_services,null, array('class' => 'form-control item select','data-url'=>route('invoice.product'))) }}
 
+                                </td>
+                                <td width="16%" class="form-group pt-0">
+                                    <select name="product_variant_id" class="form-control select2 variant-select" disabled>
+                                        <option value="">{{ __('—') }}</option>
+                                    </select>
                                 </td>
                                 <td>
 
@@ -959,7 +970,7 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td colspan="2">
+                                <td colspan="3">
                                     <div class="form-group">
                                         {{ Form::textarea('description', null, ['class'=>'form-control pro_description','rows'=>'2','placeholder'=>__('Description')]) }}
                                     </div>
@@ -967,7 +978,7 @@
                                 <td colspan="5"></td>
                             </tr>
                             <tr class="identifier-row d-none">
-                                <td colspan="7">
+                                <td colspan="8">
                                     <div class="form-group">
                                         <label class="form-label identifier-label">{{ __('Serial/MAC List') }}</label>
                                         {{ Form::hidden('identifiers', '', ['class' => 'identifiers-input']) }}
@@ -983,12 +994,14 @@
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
+                                <td>&nbsp;</td>
                                 <td></td>
                                 <td><strong>{{__('Sub Total')}} ({{\Auth::user()->currencySymbol()}})</strong></td>
                                 <td class="text-end subTotal">0.00</td>
                                 <td></td>
                             </tr>
                             <tr>
+                                <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
@@ -1001,12 +1014,14 @@
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
+                                <td>&nbsp;</td>
                                 <td></td>
                                 <td><strong>{{__('Tax')}} ({{\Auth::user()->currencySymbol()}})</strong></td>
                                 <td class="text-end totalTax">0.00</td>
                                 <td></td>
                             </tr>
                             <tr>
+                                <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
@@ -1028,4 +1043,8 @@
         {{ Form::close() }}
     </div>
 @endsection
+
+@push('script-page')
+    @include('partials.product_variant_line_js')
+@endpush
 

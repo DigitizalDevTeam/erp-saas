@@ -107,6 +107,7 @@ class ProformaController extends Controller
             $line = new ProformaProduct();
             $line->proforma_id = $proforma->id;
             $line->product_id = $row['item'];
+            $line->product_variant_id = ! empty($row['product_variant_id']) ? (int) $row['product_variant_id'] : null;
             $line->price = $row['price'];
             $line->quantity = $row['quantity'];
             $line->tax = $row['tax'];
@@ -222,6 +223,7 @@ class ProformaController extends Controller
             $line->discount = $row['discount'];
             $line->price = $row['price'];
             $line->description = $row['description'] ?? null;
+            $line->product_variant_id = ! empty($row['product_variant_id']) ? (int) $row['product_variant_id'] : null;
             $line->save();
         }
 
@@ -269,6 +271,7 @@ class ProformaController extends Controller
         $taxPrice = ($taxRate / 100) * ($salePrice * $quantity);
         $data['totalAmount'] = ($salePrice * $quantity);
         $data['productquantity'] = $product->getQuantity();
+        $data = array_merge($data, $product->variantsForDocumentJson('sale_price'));
 
         return json_encode($data);
     }
@@ -341,6 +344,7 @@ class ProformaController extends Controller
                 $line = new ProformaProduct();
                 $line->proforma_id = $p->id;
                 $line->product_id = $row->product_id;
+                $line->product_variant_id = $row->product_variant_id ? (int) $row->product_variant_id : null;
                 $line->price = $row->price;
                 $line->quantity = $row->quantity;
                 $line->tax = $row->tax;
@@ -435,7 +439,8 @@ class ProformaController extends Controller
                 'tax' => $row->tax,
                 'discount' => $row->discount,
                 'description' => $row->description,
-                'product_variant_id' => '',
+                'product_variant_id' => $row->product_variant_id ?: '',
+                'allow_default_variant' => empty($row->product_variant_id) ? 1 : 0,
                 'row_no' => '',
                 'shelf_no' => '',
                 'expiry_date' => '',

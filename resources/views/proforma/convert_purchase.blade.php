@@ -16,7 +16,7 @@
                     <p class="text-muted mb-4">
                         {{ __('Create a purchase order from proforma') }}
                         <strong>{{ Auth::user()->proformaNumberFormat($proforma->proforma_id) }}</strong>.
-                        {{ __('Next: convert the purchase order to a vendor bill, then add payment.') }}
+                        {{ __('Next: convert the purchase order to a sales invoice.') }}
                     </p>
                     {{ Form::open(['route' => ['proforma.convert-purchase.store', \Crypt::encrypt($proforma->id)], 'method' => 'POST', 'class' => 'needs-validation']) }}
                     <div class="row">

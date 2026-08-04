@@ -304,6 +304,8 @@ class TrialBalanceReportService
         ?int $periodTo,
         int $fiscalYear
     ): array {
+        $closingIdsForYear = $this->fiscalYearClosingJournalIds($creatorId, $fiscalYear, $periodFrom, $periodTo);
+
         $query = TransactionLines::query()
             ->select(
                 'account_id',
@@ -311,8 +313,20 @@ class TrialBalanceReportService
                 DB::raw('SUM(credit) as totalCredit')
             )
             ->where('created_by', $creatorId)
-            ->whereDate('date', '>=', $start)
-            ->whereDate('date', '<=', $end);
+            ->where(function ($w) use ($start, $end, $closingIdsForYear) {
+                // Normal activity in the fiscal calendar window…
+                $w->where(function ($dated) use ($start, $end) {
+                    $dated->whereDate('date', '>=', $start)
+                        ->whereDate('date', '<=', $end);
+                });
+                // …plus this year's FY-CLOSE journals even if their calendar date drifted.
+                if ($closingIdsForYear !== []) {
+                    $w->orWhere(function ($closing) use ($closingIdsForYear) {
+                        $closing->where('reference', 'Journal')
+                            ->whereIn('reference_id', $closingIdsForYear);
+                    });
+                }
+            });
 
         $this->applyTransactionLinePeriodFilter($query, $creatorId, $start, $end, $periodFrom, $periodTo, $fiscalYear);
 
@@ -332,8 +346,15 @@ class TrialBalanceReportService
         $journalOnly = DB::table('journal_items as ji')
             ->join('journal_entries as je', 'ji.journal', '=', 'je.id')
             ->where('je.created_by', $creatorId)
-            ->whereDate('je.date', '>=', $start)
-            ->whereDate('je.date', '<=', $end)
+            ->where(function ($w) use ($start, $end, $closingIdsForYear) {
+                $w->where(function ($dated) use ($start, $end) {
+                    $dated->whereDate('je.date', '>=', $start)
+                        ->whereDate('je.date', '<=', $end);
+                });
+                if ($closingIdsForYear !== []) {
+                    $w->orWhereIn('je.id', $closingIdsForYear);
+                }
+            })
             ->whereNotExists(function ($q) {
                 $q->select(DB::raw(1))
                     ->from('transaction_lines as tl')
@@ -385,14 +406,26 @@ class TrialBalanceReportService
         ?int $periodTo,
         int $fiscalYear
     ): array {
+        $closingIdsForYear = $this->fiscalYearClosingJournalIds($creatorId, $fiscalYear, $periodFrom, $periodTo);
+
         $tlQuery = TransactionLines::query()
             ->select(
                 DB::raw('COALESCE(SUM(debit), 0) as totalDebit'),
                 DB::raw('COALESCE(SUM(credit), 0) as totalCredit')
             )
             ->where('created_by', $creatorId)
-            ->whereDate('date', '>=', $start)
-            ->whereDate('date', '<=', $end);
+            ->where(function ($w) use ($start, $end, $closingIdsForYear) {
+                $w->where(function ($dated) use ($start, $end) {
+                    $dated->whereDate('date', '>=', $start)
+                        ->whereDate('date', '<=', $end);
+                });
+                if ($closingIdsForYear !== []) {
+                    $w->orWhere(function ($closing) use ($closingIdsForYear) {
+                        $closing->where('reference', 'Journal')
+                            ->whereIn('reference_id', $closingIdsForYear);
+                    });
+                }
+            });
 
         $this->applyTransactionLinePeriodFilter($tlQuery, $creatorId, $start, $end, $periodFrom, $periodTo, $fiscalYear);
         $tl = $tlQuery->first();
@@ -400,8 +433,15 @@ class TrialBalanceReportService
         $jiQuery = DB::table('journal_items as ji')
             ->join('journal_entries as je', 'ji.journal', '=', 'je.id')
             ->where('je.created_by', $creatorId)
-            ->whereDate('je.date', '>=', $start)
-            ->whereDate('je.date', '<=', $end)
+            ->where(function ($w) use ($start, $end, $closingIdsForYear) {
+                $w->where(function ($dated) use ($start, $end) {
+                    $dated->whereDate('je.date', '>=', $start)
+                        ->whereDate('je.date', '<=', $end);
+                });
+                if ($closingIdsForYear !== []) {
+                    $w->orWhereIn('je.id', $closingIdsForYear);
+                }
+            })
             ->whereNotExists(function ($q) {
                 $q->select(DB::raw(1))
                     ->from('transaction_lines as tl')
@@ -448,12 +488,9 @@ class TrialBalanceReportService
         $periods = $this->periodsInRange($periodFrom, $periodTo);
 
         if ($periods === []) {
-            $closingIds = $this->closingJournalIdsQuery($creatorId, null, $fiscalYear, $start, $end)
-                ->pluck('id')
-                ->map(static fn ($id) => (int) $id)
-                ->all();
+            $excludedIds = $this->allClosingJournalIdsToExclude($creatorId, $fiscalYear, $start, $end);
             $openingIds = $this->openingJournalIdsQuery($creatorId, $fiscalYear, $start, $end);
-            $excludedIds = array_values(array_unique(array_merge($closingIds, $openingIds)));
+            $excludedIds = array_values(array_unique(array_merge($excludedIds, $openingIds)));
 
             $query->where(function ($w) use ($excludedIds) {
                 $w->where('reference', '!=', 'Journal')
@@ -503,14 +540,10 @@ class TrialBalanceReportService
             }
 
             if ($ops !== []) {
-                $excludedClosing = $this->closingJournalIdsQuery($creatorId, null, $fiscalYear, $start, $end)
-                    ->pluck('id')
-                    ->map(static fn ($id) => (int) $id)
-                    ->all();
+                // Exclude every FY-*-CLOSE* (any year) and period 13–15 in the window so foreign
+                // closes dated in this calendar year cannot leak into operational totals.
+                $excludedClosing = $this->allClosingJournalIdsToExclude($creatorId, $fiscalYear, $start, $end);
                 $excludedOpening = $this->openingJournalIdsQuery($creatorId, $fiscalYear, $start, $end);
-                // When opening is also selected in the range, do not exclude it from operational branch
-                // (opening is already handled above). Still exclude opening from ops branch to avoid double-count
-                // when 0 is NOT in range; when 0 IS in range, opening is only via opening branch.
                 $excludedIds = array_values(array_unique(array_merge($excludedClosing, $excludedOpening)));
 
                 $outer->orWhere(function ($w) use ($excludedIds, $ops) {
@@ -569,17 +602,49 @@ class TrialBalanceReportService
             if ($closing !== []) {
                 $outer->orWhere(function ($w) use ($closing, $fiscalYear) {
                     $w->whereIn('je.accounting_period', $closing)
-                        ->whereYear('je.date', $fiscalYear);
+                        ->where('je.reference', 'like', 'FY-'.$fiscalYear.'-CLOSE%');
                 });
             }
 
             if ($ops !== []) {
                 $outer->orWhere(function ($w) use ($ops) {
-                    $w->whereNull('je.accounting_period')
-                        ->orWhereIn('je.accounting_period', $ops);
+                    $w->where(function ($periods) use ($ops) {
+                        $periods->whereNull('je.accounting_period')
+                            ->orWhereIn('je.accounting_period', $ops);
+                    })->where(function ($ref) {
+                        $ref->whereNull('je.reference')
+                            ->orWhere('je.reference', 'not like', 'FY-%-CLOSE%');
+                    });
                 });
             }
         });
+    }
+
+    /**
+     * FY-{year}-CLOSE* journal ids for the selected fiscal year (reference year is authoritative).
+     *
+     * @return list<int>
+     */
+    private function fiscalYearClosingJournalIds(
+        int $creatorId,
+        int $fiscalYear,
+        ?int $periodFrom,
+        ?int $periodTo
+    ): array {
+        $periods = $this->periodsInRange($periodFrom, $periodTo);
+        if ($periods === []) {
+            return [];
+        }
+        $closing = array_values(array_filter($periods, static fn ($p) => $p >= 13));
+        if ($closing === []) {
+            return [];
+        }
+
+        return $this->closingJournalIdsQuery($creatorId, null, $fiscalYear)
+            ->whereIn('accounting_period', $closing)
+            ->pluck('id')
+            ->map(static fn ($id) => (int) $id)
+            ->all();
     }
 
     /**
@@ -602,6 +667,10 @@ class TrialBalanceReportService
     }
 
     /**
+     * Official closing journals for one fiscal year (by FY-{year}-CLOSE* reference).
+     * Does not use calendar year of the journal date — avoids FY-2025 closes dated in 2026
+     * polluting / doubling the 2026 trial balance.
+     *
      * @return Builder
      */
     private function closingJournalIdsQuery(
@@ -614,19 +683,44 @@ class TrialBalanceReportService
         $query = DB::table('journal_entries')
             ->select('id')
             ->where('created_by', $creatorId)
-            ->whereYear('date', $fiscalYear);
+            ->where('reference', 'like', 'FY-'.$fiscalYear.'-CLOSE%');
 
         if ($onlyPeriod !== null) {
             $query->where('accounting_period', $onlyPeriod);
         } else {
             $query->whereIn('accounting_period', [13, 14, 15]);
-            if ($start !== null && $end !== null) {
-                $query->whereDate('date', '>=', $start)
-                    ->whereDate('date', '<=', $end);
-            }
         }
 
         return $query;
+    }
+
+    /**
+     * All closing-related journal ids to keep out of the operational branch.
+     *
+     * @return list<int>
+     */
+    private function allClosingJournalIdsToExclude(
+        int $creatorId,
+        int $fiscalYear,
+        ?string $start,
+        ?string $end
+    ): array {
+        $query = DB::table('journal_entries')
+            ->select('id')
+            ->where('created_by', $creatorId)
+            ->where(function ($w) use ($fiscalYear, $start, $end) {
+                $w->where('reference', 'like', 'FY-%-CLOSE%')
+                    ->orWhere(function ($p) use ($fiscalYear, $start, $end) {
+                        $p->whereIn('accounting_period', [13, 14, 15])
+                            ->whereYear('date', $fiscalYear);
+                        if ($start !== null && $end !== null) {
+                            $p->whereDate('date', '>=', $start)
+                                ->whereDate('date', '<=', $end);
+                        }
+                    });
+            });
+
+        return $query->pluck('id')->map(static fn ($id) => (int) $id)->all();
     }
 
     /**

@@ -99,6 +99,40 @@ class ProductService extends Model
         return $this->hasMany(ProductVariant::class, 'product_service_id')->orderBy('sort_order')->orderBy('id');
     }
 
+    /**
+     * Payload for document-line product AJAX (quotation / proforma / invoice / purchase).
+     *
+     * @return array{variants_enabled: bool, variants: list<array{id: int, label: string, sale_price: float|null, purchase_price: float|null, price: float|null}>}
+     */
+    public function variantsForDocumentJson(string $priceField = 'sale_price'): array
+    {
+        if (! ($this->variants_enabled ?? false)) {
+            return [
+                'variants_enabled' => false,
+                'variants' => [],
+            ];
+        }
+
+        $this->loadMissing('variants');
+
+        return [
+            'variants_enabled' => true,
+            'variants' => $this->variants->map(function ($v) use ($priceField) {
+                $sale = $v->sale_price !== null ? (float) $v->sale_price : null;
+                $purchase = $v->purchase_price !== null ? (float) $v->purchase_price : null;
+                $price = $priceField === 'purchase_price' ? $purchase : $sale;
+
+                return [
+                    'id' => (int) $v->id,
+                    'label' => $v->displayLabel($this),
+                    'sale_price' => $sale,
+                    'purchase_price' => $purchase,
+                    'price' => $price,
+                ];
+            })->values()->all(),
+        ];
+    }
+
     public function optionItems()
     {
         return $this->hasMany(ProductOptionItem::class, 'parent_product_id')->orderBy('sort_order')->orderBy('id');

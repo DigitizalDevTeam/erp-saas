@@ -99,7 +99,27 @@ class PurchaseController extends Controller
                 $variantId = null;
             }
             if (! $variantId) {
-                return ['error' => __('Enter quantity for at least one variant, or select a variant.')];
+                // Quotation/proforma converts have no variant UI — use first variant when product is variant-enabled.
+                if (! empty($row['allow_default_variant'])) {
+                    $firstVariant = ProductVariant::where('product_service_id', $product->id)
+                        ->where('created_by', $creatorId)
+                        ->orderBy('sort_order')
+                        ->orderBy('id')
+                        ->first();
+                    if ($firstVariant) {
+                        $variantId = (int) $firstVariant->id;
+                        $row['product_variant_id'] = $variantId;
+                    } else {
+                        // Marked as variant product but no variants defined — allow base line.
+                        $row['product_variant_id'] = null;
+                        $one = $row;
+                        unset($one['variant_quantities'], $one['allow_default_variant']);
+
+                        return ['lines' => [$one]];
+                    }
+                } else {
+                    return ['error' => __('Enter quantity for at least one variant, or select a variant.')];
+                }
             }
             if (! ProductVariant::where('id', $variantId)->where('product_service_id', $product->id)->where('created_by', $creatorId)->exists()) {
                 return ['error' => __('Invalid variant for this product.')];
@@ -535,6 +555,7 @@ class PurchaseController extends Controller
                 'tax' => $line->tax,
                 'discount' => $line->discount,
                 'description' => $line->description,
+                'product_variant_id' => $line->product_variant_id ?: '',
                 'identifiers' => '',
             ];
         }
@@ -1397,14 +1418,8 @@ class PurchaseController extends Controller
         $data['variants_enabled'] = (bool) ($product->variants_enabled ?? false);
         $data['variants'] = [];
         if ($data['variants_enabled']) {
-            $product->load('variants');
-            $data['variants'] = $product->variants->map(function ($v) use ($product) {
-                return [
-                    'id' => $v->id,
-                    'label' => $v->displayLabel($product),
-                    'purchase_price' => $v->purchase_price !== null ? (float) $v->purchase_price : null,
-                ];
-            })->values()->all();
+            $payload = $product->variantsForDocumentJson('purchase_price');
+            $data['variants'] = $payload['variants'];
         }
         $ut = $product->unit_type ?? 'unit';
         $data['unit_type'] = $ut;

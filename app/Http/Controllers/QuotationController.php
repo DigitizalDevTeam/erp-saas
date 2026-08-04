@@ -123,6 +123,7 @@ class QuotationController extends Controller
                 $quotationItems              = new QuotationProduct();
                 $quotationItems->quotation_id    = $quotations->id;
                 $quotationItems->product_id = $products[$i]['item'];
+                $quotationItems->product_variant_id = ! empty($products[$i]['product_variant_id']) ? (int) $products[$i]['product_variant_id'] : null;
                 $quotationItems->price      = $products[$i]['price'];
                 $quotationItems->quantity   = $products[$i]['quantity'];
                 $quotationItems->tax       = $products[$i]['tax'];
@@ -256,6 +257,9 @@ class QuotationController extends Controller
                     $quotationProduct->discount    = $products[$i]['discount'];
                     $quotationProduct->price       = $products[$i]['price'];
                     $quotationProduct->description = $products[$i]['description'];
+                    $quotationProduct->product_variant_id = ! empty($products[$i]['product_variant_id'])
+                        ? (int) $products[$i]['product_variant_id']
+                        : null;
                     $quotationProduct->save();
 
                 }
@@ -337,6 +341,7 @@ class QuotationController extends Controller
         }
         $data['productquantity'] = $productquantity;
 
+        $data = array_merge($data, $product->variantsForDocumentJson('sale_price'));
         $data = array_merge($data, \App\Services\ProductOptionService::productJsonExtras($product));
 
         return json_encode($data);

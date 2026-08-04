@@ -126,6 +126,11 @@
                     $(el.parent().parent().parent().find('.discount')).val(0);
                     $(el.parent().parent().parent().find('.amount')).html(item.totalAmount);
 
+                    var $wrap = $(el).closest('[data-repeater-item]');
+                    if (typeof window.applyProductVariants === 'function') {
+                        window.applyProductVariants($wrap, item, null, 'sale_price');
+                    }
+
 
                     var inputs = $(".amount");
                     var subTotal = 0;
@@ -450,6 +455,7 @@
                             <thead>
                             <tr>
                                 <th>{{__('Items')}}</th>
+                                <th>{{ __('Variant') }}</th>
                                 <th>{{__('Quantity')}}</th>
                                 <th>{{__('Price')}} </th>
                                 <th>{{__('Discount')}}</th>
@@ -460,10 +466,15 @@
                             </thead>
                             <tbody class="ui-sortable" data-repeater-item>
                             <tr>
-                                <td width="25%" class="form-group pt-1">
+                                <td width="22%" class="form-group pt-1">
                                     <div class="item_div">
                                         {{ Form::select('item', $product_services,'', array('class' => 'form-control select2 item','data-url'=>route('quotation.product'),'required'=>'required')) }}
                                     </div>
+                                </td>
+                                <td width="16%" class="form-group pt-1">
+                                    <select name="product_variant_id" class="form-control select2 variant-select" disabled>
+                                        <option value="">{{ __('—') }}</option>
+                                    </select>
                                 </td>
                                 <td>
                                     <div class="form-group price-input input-group search-form">
@@ -504,7 +515,7 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td colspan="2">
+                                <td colspan="3">
                                     <div class="form-group">{{ Form::textarea('description', null, ['class'=>'form-control pro_description','rows'=>'2','placeholder'=>__('Description')]) }}</div>
                                 </td>
                                 <td colspan="5"></td>
@@ -512,6 +523,7 @@
                             </tbody>
                             <tfoot>
                             <tr>
+                                <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
@@ -524,12 +536,14 @@
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
+                                <td>&nbsp;</td>
                                 <td></td>
                                 <td><strong>{{__('Discount')}} ({{\Auth::user()->currencySymbol()}})</strong></td>
                                 <td class="text-end totalDiscount">0.00</td>
                                 <td></td>
                             </tr>
                             <tr>
+                                <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
@@ -543,6 +557,7 @@
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
+                                <td></td>
                                 <td class="blue-text"><strong>{{__('Total Amount')}} ({{\Auth::user()->currencySymbol()}})</strong></td>
                                 <td class="blue-text text-end totalAmount">0.00</td>
                                 <td></td>
@@ -562,4 +577,8 @@
     </div>
 
 @endsection
+
+@push('script-page')
+    @include('partials.product_variant_line_js')
+@endpush
 
