@@ -51,7 +51,8 @@ class TrialBalanceReportService
     }
 
     /**
-     * Default TB window: operational months only (excludes periods 13–15).
+     * Default TB calendar window for a fiscal year (1 Jan–31 Dec).
+     * Period filter defaults to 0–15 (opening + operational + year-end closing).
      *
      * @return array{start: string, end: string}
      */
@@ -118,6 +119,18 @@ class TrialBalanceReportService
         }
 
         [$periodFrom, $periodTo] = self::normalizePeriodRange($input);
+
+        // Fiscal year alone (no month range): include opening (0) + months 1–12 + closing (13–15),
+        // so year-end accounts 81/82/83 appear the same as an explicit 0→15 filter.
+        // YTD and explicit date ranges keep period null (= operational journals only).
+        if ($periodFrom === null && $periodTo === null
+            && ($input['range'] ?? '') !== 'ytd'
+            && empty($input['start_date'])
+            && empty($input['end_date'])
+        ) {
+            $periodFrom = 0;
+            $periodTo = 15;
+        }
 
         if ($periodFrom !== null && $periodTo !== null) {
             $range = self::dateRangeForPeriodSpan($fiscalYear, $periodFrom, $periodTo);
@@ -721,8 +734,12 @@ class TrialBalanceReportService
         ];
     }
 
+    /**
+     * True when the account has any gross movement (even if debit == credit).
+     * Clearing accounts 81/82/83 must remain visible after year-end close.
+     */
     private function hasActivity(float $totalDebit, float $totalCredit): bool
     {
-        return abs($totalDebit - $totalCredit) > 0.00001;
+        return abs($totalDebit) > 0.00001 || abs($totalCredit) > 0.00001;
     }
 }

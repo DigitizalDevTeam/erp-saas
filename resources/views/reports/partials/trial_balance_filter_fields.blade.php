@@ -28,6 +28,6 @@
         {{ Form::select('accounting_period_to', $periodRangeOptions, old('accounting_period_to', $selectedTo), [
             'class' => 'form-control',
         ]) }}
-        <small class="text-muted">{{ __('Range 0–15 (e.g. 0→1, 0→12, 13→14). Leave blank for Jan–Dec operational.') }}</small>
+        <small class="text-muted">{{ __('Range 0–15. Blank defaults to full year (0→15), including year-end closing.') }}</small>
     </div>
 </div>

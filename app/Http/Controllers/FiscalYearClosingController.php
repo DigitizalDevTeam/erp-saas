@@ -59,18 +59,18 @@ class FiscalYearClosingController extends Controller
 
         $validated = $request->validate([
             'fiscal_year' => 'required|integer|min:2000|max:2100',
-            'closing_date' => 'required|date',
             'accounting_period' => 'required|integer|in:13,14,15',
             'allow_duplicate' => 'sometimes|boolean',
         ]);
 
         $creatorId = \Auth::user()->creatorId();
         $skipIfReferenceExists = ! $request->boolean('allow_duplicate');
+        $closingDate = sprintf('%04d-12-31', (int) $validated['fiscal_year']);
 
         $result = $service->run(
             $creatorId,
             (int) $validated['fiscal_year'],
-            $validated['closing_date'],
+            $closingDate,
             (int) $validated['accounting_period'],
             $skipIfReferenceExists
         );

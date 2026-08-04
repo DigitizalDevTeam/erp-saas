@@ -17,22 +17,24 @@ class FiscalYearClosingService
      * Net balance in "credit-positive" form: sum(credit) - sum(debit).
      * Prefers transaction_lines (Trial Balance source) so year-end clearing matches the screen.
      *
-     * @param  bool  $excludeFinalClosingPeriods  If true, ignore journals with accounting_period 14 or 15.
+     * @param  bool  $excludeFiscalClosingJournals  If true, ignore FY-*-CLOSE* journals (any year/period).
+     *                                              Prevents double-close and reverse-close when prior
+     *                                              closing entries sit in the same date window.
      */
     public function netBalanceCreditPositive(
         int $accountId,
         string $fromDate,
         string $toDate,
         int $createdBy,
-        bool $excludeFinalClosingPeriods = true
+        bool $excludeFiscalClosingJournals = true
     ): float {
         $excludedJournalIds = [];
-        if ($excludeFinalClosingPeriods) {
+        if ($excludeFiscalClosingJournals) {
             $excludedJournalIds = DB::table('journal_entries')
                 ->where('created_by', $createdBy)
-                ->whereNotNull('accounting_period')
-                ->where('accounting_period', '>=', 14)
+                ->where('reference', 'like', 'FY-%-CLOSE%')
                 ->pluck('id')
+                ->map(static fn ($id) => (int) $id)
                 ->all();
         }
 
@@ -49,12 +51,14 @@ class FiscalYearClosingService
             });
         }
 
-        $tlNet = round((float) ($tl->selectRaw(
-            'COALESCE(SUM(credit),0) - COALESCE(SUM(debit),0) as net'
-        )->value('net') ?? 0), 2);
+        $tlRow = $tl->selectRaw(
+            'COALESCE(SUM(credit),0) - COALESCE(SUM(debit),0) as net, COUNT(*) as cnt'
+        )->first();
 
-        if (abs($tlNet) >= 0.0001) {
-            return $tlNet;
+        // Prefer transaction_lines whenever any row exists (including a zero net).
+        // Falling through to journal_items when net is 0 double-counts journals that already have TL.
+        if ($tlRow && (int) $tlRow->cnt > 0) {
+            return round((float) $tlRow->net, 2);
         }
 
         // Fallback when older journals never wrote transaction_lines.
@@ -64,11 +68,8 @@ class FiscalYearClosingService
             ->where('journal_entries.created_by', $createdBy)
             ->whereBetween('journal_entries.date', [$fromDate, $toDate]);
 
-        if ($excludeFinalClosingPeriods) {
-            $q->where(function ($w) {
-                $w->whereNull('journal_entries.accounting_period')
-                    ->orWhere('journal_entries.accounting_period', '<', 14);
-            });
+        if ($excludedJournalIds !== []) {
+            $q->whereNotIn('journal_entries.id', $excludedJournalIds);
         }
 
         return round((float) ($q->selectRaw(
@@ -106,15 +107,31 @@ class FiscalYearClosingService
         }
 
         if ($skipIfReferenceExists) {
-            $exists = JournalEntry::where('created_by', $createdBy)
-                ->where('reference', 'like', 'FY-'.$fiscalYear.'-CLOSE%')
-                ->exists();
-            if ($exists) {
+            $existingInWindow = JournalEntry::where('created_by', $createdBy)
+                ->where('reference', 'like', 'FY-%-CLOSE%')
+                ->whereBetween('date', [$fromDate, $toDate])
+                ->orderBy('id')
+                ->get(['id', 'reference']);
+
+            if ($existingInWindow->isNotEmpty()) {
+                $refs = $existingInWindow->pluck('reference')->unique()->values()->all();
+
                 return [
                     'success' => false,
-                    'messages' => [__('Fiscal closing entries for year :y already exist. Delete those journal entries first or run with duplicate check disabled.', ['y' => $fiscalYear])],
+                    'messages' => [__('Closing journals already exist in :y (:refs). Delete those journal entries first, or enable "allow duplicate" to replace them.', [
+                        'y' => $fiscalYear,
+                        'refs' => implode(', ', $refs),
+                    ])],
                     'journals' => [],
                 ];
+            }
+        } else {
+            $removed = $this->deleteClosingJournalsInDateRange($createdBy, $fromDate, $toDate);
+            if ($removed > 0) {
+                $messages[] = __('Removed :n existing closing journal(s) in the :y date range before re-posting.', [
+                    'n' => $removed,
+                    'y' => $fiscalYear,
+                ]);
             }
         }
 
@@ -421,6 +438,30 @@ class FiscalYearClosingService
         }
 
         return ['success' => true, 'messages' => $messages, 'journals' => $journalIds];
+    }
+
+    /**
+     * Delete FY-*-CLOSE* journals (items + transaction_lines) whose date falls in the window.
+     */
+    private function deleteClosingJournalsInDateRange(int $createdBy, string $fromDate, string $toDate): int
+    {
+        $journals = JournalEntry::where('created_by', $createdBy)
+            ->where('reference', 'like', 'FY-%-CLOSE%')
+            ->whereBetween('date', [$fromDate, $toDate])
+            ->get();
+
+        $count = 0;
+        foreach ($journals as $journal) {
+            DB::table('transaction_lines')
+                ->where('reference', 'Journal')
+                ->where('reference_id', $journal->id)
+                ->delete();
+            DB::table('journal_items')->where('journal', $journal->id)->delete();
+            $journal->delete();
+            $count++;
+        }
+
+        return $count;
     }
 
     /**

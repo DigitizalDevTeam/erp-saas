@@ -29,7 +29,8 @@ class TrialBalanceReportServiceTest extends TestCase
         $this->assertFalse($method->invoke($service, 0.0, 0.0));
         $this->assertTrue($method->invoke($service, 10.0, 0.0));
         $this->assertTrue($method->invoke($service, 0.0, 10.0));
-        $this->assertFalse($method->invoke($service, 100.0, 100.0));
+        // Balanced clearing accounts (e.g. 81/82/83 after close) must still appear.
+        $this->assertTrue($method->invoke($service, 100.0, 100.0));
         $this->assertTrue($method->invoke($service, 100.0, 50.0));
     }
 
@@ -39,6 +40,19 @@ class TrialBalanceReportServiceTest extends TestCase
 
         $this->assertSame('2026-01-01', $range['start']);
         $this->assertSame('2026-12-31', $range['end']);
+    }
+
+    public function test_resolve_filter_defaults_blank_months_to_full_year_0_to_15(): void
+    {
+        $resolved = TrialBalanceReportService::resolveFilter([
+            'fiscal_year' => 2025,
+        ]);
+
+        $this->assertSame('2025-01-01', $resolved['start']);
+        $this->assertSame('2025-12-31', $resolved['end']);
+        $this->assertSame(0, $resolved['accountingPeriodFrom']);
+        $this->assertSame(15, $resolved['accountingPeriodTo']);
+        $this->assertNull($resolved['accountingPeriod']);
     }
 
     public function test_resolve_filter_uses_month_dates_for_operational_period(): void
