@@ -1443,8 +1443,6 @@
                 <!--------------------- Start POs System ----------------------------------->
                 @if (!empty($userPlan) && $userPlan->pos == 1)
                     @if (
-                        Gate::check('manage purchase') ||
-                        Gate::check('manage quotation') ||
                         Gate::check('manage pos') ||
                         Gate::check('pos restaurant full') ||
                         Gate::check('pos restaurant waiter') ||
@@ -1459,25 +1457,6 @@
                         </a>
 
                         <ul class="dash-submenu">
-
-                            {{-- ================= PURCHASE / QUOTATION ================= --}}
-                            @can('manage purchase')
-                            <li class="dash-item">
-                                <a class="dash-link" href="{{ route('purchase.index') }}">{{ __('Purchase') }}</a>
-                            </li>
-                            <li class="dash-item">
-                                <a class="dash-link" href="{{ route('vendor-quote.index') }}">{{ __('Vendor quotes') }}</a>
-                            </li>
-                            @endcan
-
-                            @can('manage quotation')
-                            <li class="dash-item">
-                                <a class="dash-link" href="{{ route('quotation.index') }}">{{ __('Quotation') }}</a>
-                            </li>
-                            <li class="dash-item">
-                                <a class="dash-link" href="{{ route('proforma.index') }}">{{ __('Proforma') }}</a>
-                            </li>
-                            @endcan
 
                             {{-- ================= RETAIL POS ================= --}}
                             @if (Gate::check('manage pos') || Gate::check('pos restaurant waiter') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))

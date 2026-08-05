@@ -1066,6 +1066,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('invoice/customer/addresses', [InvoiceController::class, 'customer_addresses'])->name('invoice.customer.addresses');
             Route::post('invoice/customer/specific/address', [InvoiceController::class, 'customer_address_detail'])->name('invoice.customer.specific.address');
             Route::get('invoice/{id}/sent', [InvoiceController::class, 'sent'])->name('invoice.sent');
+            Route::get('invoice/{id}/authorize', [InvoiceController::class, 'authorizeInvoice'])->name('invoice.authorize');
+            Route::get('invoice/{id}/reject-authorization', [InvoiceController::class, 'rejectAuthorization'])->name('invoice.reject.authorization');
             Route::get('invoice/{id}/resent', [InvoiceController::class, 'resent'])->name('invoice.resent');
             Route::get('invoice/{id}/payment', [InvoiceController::class, 'payment'])->name('invoice.payments');
             Route::post('invoice/{id}/payment', [InvoiceController::class, 'createPayment'])->name('invoice.payment');

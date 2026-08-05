@@ -289,21 +289,39 @@
                                     <div class="timeline-content text-start">
                                         <h5 class="mb-2">{{ __('Send Invoice') }}</h5>
                                         <p class="text-muted mb-2">
-                                            @if ($invoice->status != 0)
+                                            @if ((int) $invoice->status === \App\Models\Invoice::STATUS_PENDING_AUTHORIZATION)
+                                                <small class="text-warning">{{ __('Pending authorization') }}</small>
+                                                @if (!empty($invoice->credit_hold_reasons))
+                                                    <br><small>{{ $invoice->credit_hold_reasons }}</small>
+                                                @endif
+                                            @elseif ($invoice->status != 0)
                                                 {{ __('Sent on') }} {{ \Auth::user()->dateFormat($invoice->send_date) }}
                                             @else
-                                                @can('send purchase')
+                                                @can('send invoice')
                                                     <small>{{ __('Status') }} : {{ __('Not Sent') }}</small>
                                                 @endcan
                                             @endif
                                         </p>
                                         @if ($invoice->status == 0)
-                                        @can('send bill')
+                                        @can('send invoice')
                                             <a href="{{ route('invoice.sent', $invoice->id) }}" class="btn btn-sm d-inline-flex align-items-center gap-2 btn-warning border-0"
                                                 data-bs-toggle="tooltip" data-original-title="{{ __('Mark Sent') }}"><i
                                                     class="ti ti-send"></i>{{ __('Send') }}</a>
                                         @endcan
-                                    @endif
+                                        @elseif ((int) $invoice->status === \App\Models\Invoice::STATUS_PENDING_AUTHORIZATION)
+                                        @can('authorize invoice')
+                                            <a href="{{ route('invoice.authorize', $invoice->id) }}" class="btn btn-sm d-inline-flex align-items-center gap-2 btn-success border-0"
+                                                data-bs-toggle="tooltip" data-original-title="{{ __('Authorize & Release') }}"
+                                                onclick="return confirm('{{ __('Authorize and release this invoice to the customer account?') }}');">
+                                                <i class="ti ti-check"></i>{{ __('Authorize') }}</a>
+                                        @endcan
+                                        @can('reject invoice authorization')
+                                            <a href="{{ route('invoice.reject.authorization', $invoice->id) }}" class="btn btn-sm d-inline-flex align-items-center gap-2 btn-danger border-0 ms-1"
+                                                data-bs-toggle="tooltip" data-original-title="{{ __('Reject') }}"
+                                                onclick="return confirm('{{ __('Reject authorization and return invoice to draft?') }}');">
+                                                <i class="ti ti-x"></i>{{ __('Reject') }}</a>
+                                        @endcan
+                                        @endif
                                     </div>
                                 </div>
                             </div>
@@ -338,7 +356,7 @@
                                         <p class="text-muted mb-2">
                                             {{ __('Status') }} : {{ __('Awaiting payment') }}
                                         </p>
-                                        @if ($invoice->status != 0)
+                                        @if (in_array((int) $invoice->status, [1, 2, 3], true))
                                         @can('create payment invoice')
                                             <a href="#" data-url="{{ route('invoice.payments', $invoice->id) }}"
                                                 data-ajax-popup="true" data-title="{{ __('Add Payment') }}"
@@ -558,6 +576,9 @@
                                         @elseif($invoice->status == 4)
                                             <span
                                                 class="badge p-2 px-3 rounded bg-primary">{{ __(\App\Models\Invoice::$statues[$invoice->status]) }}</span>
+                                        @elseif($invoice->status == 6)
+                                            <span
+                                                class="badge p-2 px-3 rounded bg-dark">{{ __(\App\Models\Invoice::$statues[$invoice->status]) }}</span>
                                         @endif
                                     </small>
                                 </div>

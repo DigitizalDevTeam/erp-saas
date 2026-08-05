@@ -17,6 +17,9 @@ class Invoice extends Model
         'due_date',
         'ref_number',
         'status',
+        'credit_hold_reasons',
+        'authorized_by',
+        'authorized_at',
         'category_id',
         'created_by',
         'voided_at',
@@ -24,8 +27,17 @@ class Invoice extends Model
         'void_reason',
     ];
 
+    public const STATUS_DRAFT = 0;
+    public const STATUS_SENT = 1;
+    public const STATUS_UNPAID = 2;
+    public const STATUS_PARTIALLY_PAID = 3;
+    public const STATUS_PAID = 4;
+    public const STATUS_CANCELLED = 5;
+    public const STATUS_PENDING_AUTHORIZATION = 6;
+
     protected $casts = [
         'voided_at' => 'datetime',
+        'authorized_at' => 'datetime',
     ];
     public function pos()
     {
@@ -54,6 +66,7 @@ class Invoice extends Model
         'Partialy Paid',
         'Paid',
         'Cancelled',
+        'Pending Authorization',
     ];
 
 

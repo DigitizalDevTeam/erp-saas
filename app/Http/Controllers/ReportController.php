@@ -3781,6 +3781,43 @@ class ReportController extends Controller
         return view('report.restaurant_cash_discrepancies', compact('shifts', 'start', 'end'));
     }
 
+    /**
+     * P&L amounts in their natural sign: income positive when credited, expenses and
+     * cost of sales positive when debited, so "profit = income - expenses" holds.
+     */
+    private function profitLossBalance(string $typeName, $debit, $credit): float
+    {
+        $debit = (float) $debit;
+        $credit = (float) $credit;
+
+        return $typeName === 'Income'
+            ? round($credit - $debit, 2)
+            : round($debit - $credit, 2);
+    }
+
+    /**
+     * Year-end closing journals only move income and expense balances into equity.
+     * Counting them inside a P&L period cancels out — or inverts — the year's result.
+     */
+    private function excludeClosingJournalLines($query): void
+    {
+        $closingIds = \DB::table('journal_entries')
+            ->where('created_by', \Auth::user()->creatorId())
+            ->where('reference', 'like', 'FY-%-CLOSE%')
+            ->pluck('id')
+            ->all();
+
+        if ($closingIds === []) {
+            return;
+        }
+
+        $query->where(function ($w) use ($closingIds) {
+            $w->whereNull('transaction_lines.reference')
+                ->orWhere('transaction_lines.reference', '!=', 'Journal')
+                ->orWhereNotIn('transaction_lines.reference_id', $closingIds);
+        });
+    }
+
     public function profitLoss(Request $request, $view = '', $collapseView = 'expand')
     {
         if (\Auth::user()->can('income vs expense report')) {
@@ -3813,6 +3850,7 @@ class ReportController extends Controller
                         $parentAccs->where('transaction_lines.created_by', \Auth::user()->creatorId());
                         $parentAccs->where('transaction_lines.date', '>=', $start);
                         $parentAccs->where('transaction_lines.date', '<=', $end);
+                        $this->excludeClosingJournalLines($parentAccs);
                         $parentAccs->groupBy('account_id');
                         $parentAccs = $parentAccs->get()->toArray();
 
@@ -3823,6 +3861,7 @@ class ReportController extends Controller
                         $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
                         $accounts->where('transaction_lines.date', '>=', $start);
                         $accounts->where('transaction_lines.date', '<=', $end);
+                        $this->excludeClosingJournalLines($accounts);
                         $accounts->groupBy('account_id');
                         $accounts = $accounts->get()->toArray();
 
@@ -3846,7 +3885,7 @@ class ReportController extends Controller
                         $parenttotalAmount = 0;
 
                         foreach ($parentAccs as $account) {
-                            $Balance = $account['totalCredit'] - $account['totalDebit'];
+                            $Balance = $this->profitLossBalance($type->name, $account['totalDebit'], $account['totalCredit']);
                             $parenttotalBalance += $Balance;
 
                             $data = [
@@ -3866,7 +3905,7 @@ class ReportController extends Controller
                         }
 
                         foreach ($accounts as $account) {
-                            $Balance = $account['totalCredit'] - $account['totalDebit'];
+                            $Balance = $this->profitLossBalance($type->name, $account['totalDebit'], $account['totalCredit']);
                             $parenttotalBalance += $Balance;
 
                             if ($Balance != 0) {
@@ -3918,6 +3957,7 @@ class ReportController extends Controller
                     $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
                     $accounts->where('transaction_lines.date', '>=', $start);
                     $accounts->where('transaction_lines.date', '<=', $end);
+                    $this->excludeClosingJournalLines($accounts);
                     $accounts->groupBy('account_id');
                     $accounts = $accounts->get()->toArray();
                 } else {
@@ -3928,6 +3968,7 @@ class ReportController extends Controller
                     $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
                     $accounts->where('transaction_lines.date', '>=', $start);
                     $accounts->where('transaction_lines.date', '<=', $end);
+                    $this->excludeClosingJournalLines($accounts);
                     $accounts->groupBy('account_id');
                     $accounts = $accounts->get()->toArray();
                 }
@@ -3937,8 +3978,9 @@ class ReportController extends Controller
                 $debitTotal = 0;
                 $totalAmount = 0;
                 $accountArray = [];
+                $accountArrayTotal = [];
                 foreach ($accounts as $account) {
-                    $Balance = $account['totalCredit'] - $account['totalDebit'];
+                    $Balance = $this->profitLossBalance($type->name, $account['totalDebit'], $account['totalCredit']);
                     $totalBalance += $Balance;
                     if ($Balance != 0) {
                         $data['account_id'] = $account['id'];
@@ -4679,6 +4721,7 @@ class ReportController extends Controller
                         $parentAccs->where('transaction_lines.created_by', \Auth::user()->creatorId());
                         $parentAccs->where('transaction_lines.date', '>=', $start);
                         $parentAccs->where('transaction_lines.date', '<=', $end);
+                        $this->excludeClosingJournalLines($parentAccs);
                         $parentAccs->groupBy('account_id');
                         $parentAccs = $parentAccs->get()->toArray();
 
@@ -4689,6 +4732,7 @@ class ReportController extends Controller
                         $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
                         $accounts->where('transaction_lines.date', '>=', $start);
                         $accounts->where('transaction_lines.date', '<=', $end);
+                        $this->excludeClosingJournalLines($accounts);
                         $accounts->groupBy('account_id');
                         $accounts = $accounts->get()->toArray();
 
@@ -4712,7 +4756,7 @@ class ReportController extends Controller
                         $parenttotalAmount = 0;
 
                         foreach ($parentAccs as $account) {
-                            $Balance = $account['totalCredit'] - $account['totalDebit'];
+                            $Balance = $this->profitLossBalance($type->name, $account['totalDebit'], $account['totalCredit']);
                             $parenttotalBalance += $Balance;
 
                             $data = [
@@ -4732,7 +4776,7 @@ class ReportController extends Controller
                         }
 
                         foreach ($accounts as $account) {
-                            $Balance = $account['totalCredit'] - $account['totalDebit'];
+                            $Balance = $this->profitLossBalance($type->name, $account['totalDebit'], $account['totalCredit']);
                             $parenttotalBalance += $Balance;
 
                             if ($Balance != 0) {
@@ -4784,6 +4828,7 @@ class ReportController extends Controller
                     $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
                     $accounts->where('transaction_lines.date', '>=', $start);
                     $accounts->where('transaction_lines.date', '<=', $end);
+                    $this->excludeClosingJournalLines($accounts);
                     $accounts->groupBy('account_id');
                     $accounts = $accounts->get()->toArray();
                 } else {
@@ -4794,6 +4839,7 @@ class ReportController extends Controller
                     $accounts->where('transaction_lines.created_by', \Auth::user()->creatorId());
                     $accounts->where('transaction_lines.date', '>=', $start);
                     $accounts->where('transaction_lines.date', '<=', $end);
+                    $this->excludeClosingJournalLines($accounts);
                     $accounts->groupBy('account_id');
                     $accounts = $accounts->get()->toArray();
                 }
@@ -4803,8 +4849,9 @@ class ReportController extends Controller
                 $debitTotal = 0;
                 $totalAmount = 0;
                 $accountArray = [];
+                $accountArrayTotal = [];
                 foreach ($accounts as $account) {
-                    $Balance = $account['totalCredit'] - $account['totalDebit'];
+                    $Balance = $this->profitLossBalance($type->name, $account['totalDebit'], $account['totalCredit']);
                     $totalBalance += $Balance;
                     if ($Balance != 0) {
                         $data['account_id'] = $account['id'];

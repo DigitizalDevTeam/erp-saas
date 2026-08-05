@@ -25,6 +25,7 @@ class Customer extends Authenticatable
         'avatar',
         'payment_type',
         'credit_terms',
+        'credit_limit',
         'price_level_id',
         'is_active',
         'created_by',

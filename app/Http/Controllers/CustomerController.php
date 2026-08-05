@@ -124,6 +124,7 @@ class CustomerController extends Controller
                 $customer->price_level_id      =$request->price_level_id ?? null;
                 $customer->payment_type      =$request->payment_type;
                 $customer->credit_terms      =$request->credit_terms;
+                $customer->credit_limit      = $request->filled('credit_limit') ? $request->credit_limit : 0;
                 $customer->created_by      = \Auth::user()->creatorId();
                 // $customer->billing_name    = $request->billing_name;
                 // $customer->billing_country = $request->billing_country;
@@ -395,6 +396,7 @@ class CustomerController extends Controller
             $customer->price_level_id      =$request->price_level_id ?? null;
             $customer->payment_type      =$request->payment_type;
             $customer->credit_terms      =$request->credit_terms;
+            $customer->credit_limit      = $request->filled('credit_limit') ? $request->credit_limit : 0;
             $customer->created_by       = \Auth::user()->creatorId();
             // $customer->billing_name     = $request->billing_name;
             // $customer->billing_country  = $request->billing_country;

@@ -13,10 +13,39 @@ use App\Models\Revenue;
 use App\Models\Utility;
 use App\Models\Transaction;
 use App\Models\TransactionLines;
+use App\Services\Accounting\DocumentLedgerService;
 use Illuminate\Http\Request;
 
 class BankAccountController extends Controller
 {
+    private const OPENING_BALANCE_REFERENCES = ['Bank Account', 'Bank Account Opening Equity'];
+
+    /**
+     * Opening balance as a double entry: debit the bank's GL account, credit equity.
+     * Posting only the bank side leaves the trial balance and balance sheet out of balance.
+     */
+    private function postOpeningBalance(BankAccount $account): void
+    {
+        $createdBy = (int) \Auth::user()->creatorId();
+        $ledger = app(DocumentLedgerService::class);
+
+        TransactionLines::where('created_by', $createdBy)
+            ->where('reference_id', $account->id)
+            ->whereIn('reference', self::OPENING_BALANCE_REFERENCES)
+            ->delete();
+
+        $amount = (float) $account->opening_balance;
+        $bankChartAccountId = (int) $account->chart_account_id;
+        $equityAccountId = $ledger->openingBalanceEquityId($createdBy);
+
+        if (abs($amount) < 0.01 || $bankChartAccountId <= 0 || ! $equityAccountId) {
+            return;
+        }
+
+        $date = date('Y-m-d');
+        $ledger->writeLine($createdBy, $bankChartAccountId, 'Debit', $amount, 'Bank Account', (int) $account->id, 0, $date);
+        $ledger->writeLine($createdBy, $equityAccountId, 'Credit', $amount, 'Bank Account Opening Equity', (int) $account->id, 0, $date);
+    }
 
     public function index()
     {
@@ -94,16 +123,7 @@ class BankAccountController extends Controller
             $account->save();
             CustomField::saveData($account, $request->customField);
 
-            $data = [
-                'account_id' => $account->chart_account_id,
-                'transaction_type' => 'Credit',
-                'transaction_amount' => $account->opening_balance,
-                'reference' => 'Bank Account',
-                'reference_id' => $account->id,
-                'reference_sub_id' => 0,
-                'date' => date('Y-m-d'),
-            ];
-            Utility::addTransactionLines($data , 'create');
+            $this->postOpeningBalance($account);
 
             return redirect()->route('bank-account.index')->with('success', __('Account successfully created.'));
         }
@@ -187,16 +207,7 @@ class BankAccountController extends Controller
             $bankAccount->save();
             CustomField::saveData($bankAccount, $request->customField);
 
-            $data = [
-                'account_id' => $bankAccount->chart_account_id,
-                'transaction_type' => 'Credit',
-                'transaction_amount' => $bankAccount->opening_balance,
-                'reference' => 'Bank Account',
-                'reference_id' => $bankAccount->id,
-                'reference_sub_id' => 0,
-                'date' => date('Y-m-d'),
-            ];
-            Utility::addTransactionLines($data , 'edit');
+            $this->postOpeningBalance($bankAccount);
 
             return redirect()->route('bank-account.index')->with('success', __('Account successfully updated.'));
         }
@@ -219,7 +230,9 @@ class BankAccountController extends Controller
                 $payment        = Payment::where('account_id', $bankAccount->id)->first();
                 $billPayment    = BillPayment::first();
 
-            TransactionLines::where('reference_id', $bankAccount->id)->where('reference', 'Bank Account')->delete();
+            TransactionLines::where('reference_id', $bankAccount->id)
+                ->whereIn('reference', self::OPENING_BALANCE_REFERENCES)
+                ->delete();
 
                 if(!empty($revenue) && !empty($invoicePayment) && !empty($transaction) && !empty($payment) && !empty($billPayment))
                 {

@@ -35,6 +35,8 @@ class AuthServiceProvider extends ServiceProvider
                 'reject journal entry' => 'manage journal entry',
                 'approve expense' => 'manage expense',
                 'reject expense' => 'manage expense',
+                'authorize invoice' => 'manage invoice',
+                'reject invoice authorization' => 'manage invoice',
             ];
 
             if (isset($manageGrantsApprove[$ability]) && $user->can($manageGrantsApprove[$ability])) {

@@ -25,6 +25,15 @@ class DocumentLedgerService
     }
 
     /**
+     * Equity counterpart for opening balances (retained earnings, else share capital).
+     */
+    public function openingBalanceEquityId(int $createdBy): ?int
+    {
+        return $this->resolver->resolveByCodeOrPrefix($createdBy, '59')
+            ?? $this->resolver->resolveByCodeOrPrefix($createdBy, '51');
+    }
+
+    /**
      * Write a transaction line with an explicit company id (avoids Auth::creatorId() drift).
      */
     public function writeLine(

@@ -62,6 +62,13 @@
                 {{ Form::select('credit_terms', ['7 days' => '7 Days', '15 days' => '15 Days', '30 days' => '30 Days', '90 days' => '90 Days', '120 days' => '120 Days'], null, ['class' => 'form-control', 'placeholder' => __('Select Credit Terms')]) }}
             </div>
         </div>
+        <div class="col-lg-6 col-md-6 col-sm-6">
+            <div class="form-group">
+                {{ Form::label('credit_limit', __('Credit Limit (Amount)'), ['class' => 'form-label']) }}
+                {{ Form::number('credit_limit', old('credit_limit', $customer->credit_limit ?? 0), ['class' => 'form-control', 'step' => '0.01', 'min' => '0', 'placeholder' => __('0 = no amount limit')]) }}
+                <small class="text-muted">{{ __('If exceeded (amount or overdue days), invoice needs authorization before release.') }}</small>
+            </div>
+        </div>
         @if(!$customFields->isEmpty())
                     @include('customFields.formBuilder')
         @endif

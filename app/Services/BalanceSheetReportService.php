@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\ChartOfAccountType;
 use App\Models\TransactionLines;
 use Carbon\Carbon;
 
@@ -10,6 +9,8 @@ class BalanceSheetReportService
 {
     /**
      * PGC MOZ-style balance sheet lines. Prefixes match account codes and descendants.
+     * An account is assigned to the single line with the longest matching prefix,
+     * so overlapping prefixes (44 vs 4437) never double count.
      *
      * @var list<array{section: string, label: string, code_label: string, prefixes: list<string>}>
      */
@@ -48,9 +49,10 @@ class BalanceSheetReportService
         ['section' => 'Equity', 'label' => 'Current / interim results', 'code_label' => '81,82,83', 'prefixes' => ['81', '82', '83']],
     ];
 
-    private const CREDIT_NORMAL_TYPES = ['Liabilities', 'Equity', 'Income'];
+    /** Lines kept on the face of the report even when the balance is zero. */
+    private const ALWAYS_SHOWN_CODES = ['21', '44', '11', '12', '41', '51', '88'];
 
-    private const DEBIT_NORMAL_TYPES = ['Assets', 'Expenses', 'Costs of Goods Sold', 'Results'];
+    private const SECTIONS = ['Assets', 'Liabilities', 'Equity'];
 
     /**
      * @return array{
@@ -68,94 +70,31 @@ class BalanceSheetReportService
         $previousStart = $currentStart->copy()->subYear();
         $previousEnd = $currentEnd->copy()->subYear();
 
-        $rows = [];
-        foreach (self::LINE_MAPPINGS as $mapping) {
-            if ($mapping['prefixes'] === []) {
-                continue;
-            }
+        $current = $this->computeSnapshot($this->accountBalances($creatorId, $currentEnd));
+        $previous = $this->computeSnapshot($this->accountBalances($creatorId, $previousEnd));
 
-            $current = $this->sumByCodePrefixes(
-                $mapping['prefixes'],
-                $mapping['section'],
-                $currentEnd,
-                $creatorId
-            );
-            $previous = $this->sumByCodePrefixes(
-                $mapping['prefixes'],
-                $mapping['section'],
-                $previousEnd,
-                $creatorId
-            );
+        $rows = $this->buildRows($current, $previous);
 
-            // Always keep structural lines the client expects (21, 44) even at zero.
-            $alwaysShow = in_array($mapping['code_label'], ['21', '44', '11', '12', '41', '51', '88'], true);
-            if (! $alwaysShow && ! $this->hasBalance($current) && ! $this->hasBalance($previous)) {
-                continue;
-            }
-
-            $rows[] = [
-                'section' => $mapping['section'],
-                'label' => $mapping['label'],
-                'code_label' => $mapping['code_label'],
-                'current_year' => $current,
-                'previous_year' => $previous,
-            ];
-        }
-
-        $assetsCurrent = $this->sectionTotal('Assets', $currentEnd, $creatorId);
-        $assetsPrevious = $this->sectionTotal('Assets', $previousEnd, $creatorId);
-        $liabilitiesCurrent = $this->sectionTotal('Liabilities', $currentEnd, $creatorId);
-        $liabilitiesPrevious = $this->sectionTotal('Liabilities', $previousEnd, $creatorId);
-        $equityCurrent = $this->sectionTotal('Equity', $currentEnd, $creatorId);
-        $equityPrevious = $this->sectionTotal('Equity', $previousEnd, $creatorId);
-
-        // Unclosed P&L for the period (Income − Expenses). Do not add Results (81–88)
-        // again — those live under Equity after / during closing.
-        $netIncomeCurrent = $this->netIncome($currentEnd, $creatorId);
-        $netIncomePrevious = $this->netIncome($previousEnd, $creatorId);
-
-        // Avoid double-counting when 81/82/83/88 already hold the result.
-        $resultsAlreadyInEquityCurrent = $this->sumByCodePrefixes(
-            ['81', '82', '83', '88'],
-            'Equity',
-            $currentEnd,
-            $creatorId
-        );
-        $resultsAlreadyInEquityPrevious = $this->sumByCodePrefixes(
-            ['81', '82', '83', '88'],
-            'Equity',
-            $previousEnd,
-            $creatorId
-        );
-
-        $addNetCurrent = $this->hasBalance($netIncomeCurrent) && abs($resultsAlreadyInEquityCurrent) < 0.01;
-        $addNetPrevious = $this->hasBalance($netIncomePrevious) && abs($resultsAlreadyInEquityPrevious) < 0.01;
-
-        if ($addNetCurrent || $addNetPrevious) {
-            $rows[] = [
-                'section' => 'Equity',
-                'label' => 'Current Period Result',
-                'code_label' => '',
-                'current_year' => $addNetCurrent ? $netIncomeCurrent : 0.0,
-                'previous_year' => $addNetPrevious ? $netIncomePrevious : 0.0,
-            ];
-        }
-
-        $equityWithResultCurrent = $equityCurrent + ($addNetCurrent ? $netIncomeCurrent : 0.0);
-        $equityWithResultPrevious = $equityPrevious + ($addNetPrevious ? $netIncomePrevious : 0.0);
-
-        // ASSETS = LIABILITIES + EQUITY
         $totals = [
-            'assets' => ['current' => $assetsCurrent, 'previous' => $assetsPrevious],
-            'liabilities' => ['current' => $liabilitiesCurrent, 'previous' => $liabilitiesPrevious],
-            'equity' => ['current' => $equityWithResultCurrent, 'previous' => $equityWithResultPrevious],
+            'assets' => [
+                'current' => $current['totals']['Assets'],
+                'previous' => $previous['totals']['Assets'],
+            ],
+            'liabilities' => [
+                'current' => $current['totals']['Liabilities'],
+                'previous' => $previous['totals']['Liabilities'],
+            ],
+            'equity' => [
+                'current' => $current['totals']['Equity'],
+                'previous' => $previous['totals']['Equity'],
+            ],
             'equity_liabilities' => [
-                'current' => round($liabilitiesCurrent + $equityWithResultCurrent, 2),
-                'previous' => round($liabilitiesPrevious + $equityWithResultPrevious, 2),
+                'current' => round($current['totals']['Liabilities'] + $current['totals']['Equity'], 2),
+                'previous' => round($previous['totals']['Liabilities'] + $previous['totals']['Equity'], 2),
             ],
             'difference' => [
-                'current' => round($assetsCurrent - ($liabilitiesCurrent + $equityWithResultCurrent), 2),
-                'previous' => round($assetsPrevious - ($liabilitiesPrevious + $equityWithResultPrevious), 2),
+                'current' => $current['difference'],
+                'previous' => $previous['difference'],
             ],
         ];
 
@@ -173,101 +112,235 @@ class BalanceSheetReportService
         ];
     }
 
-    private function sectionTotal(string $typeName, Carbon $asOf, int $creatorId): float
-    {
-        return $this->sumByAccountType($typeName, $asOf, $creatorId);
-    }
-
-    private function netIncome(Carbon $asOf, int $creatorId): float
-    {
-        $income = $this->sumByAccountType('Income', $asOf, $creatorId);
-        $cogs = $this->sumByAccountType('Costs of Goods Sold', $asOf, $creatorId);
-        $expenses = $this->sumByAccountType('Expenses', $asOf, $creatorId);
-
-        return round($income - $cogs - $expenses, 2);
-    }
-
     /**
-     * @param  list<string>  $prefixes
+     * Turn per-account balances into report lines and section totals.
+     *
+     * Every account lands in exactly one bucket, so section totals always equal the
+     * sum of the lines shown underneath them, and Assets = Liabilities + Equity
+     * holds whenever the underlying journals balance.
+     *
+     * @param  list<array{code: string, type: string, debit: float, credit: float}>  $accounts
+     * @return array{
+     *     lines: array<int, float>,
+     *     other: array<string, float>,
+     *     unclassified: float,
+     *     net_income: float,
+     *     totals: array<string, float>,
+     *     difference: float,
+     * }
      */
-    private function sumByCodePrefixes(array $prefixes, string $section, Carbon $asOf, int $creatorId): float
+    public function computeSnapshot(array $accounts): array
     {
-        if ($prefixes === []) {
-            return 0.0;
+        $lines = array_fill(0, count(self::LINE_MAPPINGS), 0.0);
+        $other = ['Assets' => 0.0, 'Liabilities' => 0.0, 'Equity' => 0.0];
+        $unclassified = 0.0;
+        $income = 0.0;
+        $expenses = 0.0;
+
+        foreach ($accounts as $account) {
+            $debit = (float) ($account['debit'] ?? 0);
+            $credit = (float) ($account['credit'] ?? 0);
+            $code = (string) ($account['code'] ?? '');
+            $section = $this->sectionForType((string) ($account['type'] ?? ''));
+
+            switch ($section) {
+                case 'Assets':
+                    $this->addToSection($lines, $other, 'Assets', $code, $debit - $credit);
+                    break;
+                case 'Liabilities':
+                    $this->addToSection($lines, $other, 'Liabilities', $code, $credit - $debit);
+                    break;
+                case 'Equity':
+                    $this->addToSection($lines, $other, 'Equity', $code, $credit - $debit);
+                    break;
+                case 'Income':
+                    $income += $credit - $debit;
+                    break;
+                case 'Expenses':
+                    $expenses += $debit - $credit;
+                    break;
+                default:
+                    // Deleted or untyped accounts still carry a balance; treat as debit-normal
+                    // so they stay visible instead of silently breaking the equation.
+                    $unclassified += $debit - $credit;
+            }
         }
 
-        $balanceExpr = $this->balanceExpression($section);
+        $netIncome = round($income - $expenses, 2);
 
-        $query = TransactionLines::query()
-            ->join('chart_of_accounts', 'transaction_lines.account_id', '=', 'chart_of_accounts.id')
-            ->join('chart_of_account_types', 'chart_of_accounts.type', '=', 'chart_of_account_types.id')
-            ->where('transaction_lines.created_by', $creatorId)
-            ->where('chart_of_accounts.created_by', $creatorId)
-            ->whereDate('transaction_lines.date', '<=', $asOf->toDateString())
-            ->where(function ($q) use ($prefixes) {
-                foreach ($prefixes as $prefix) {
-                    // Exact code or proper descendant (21 matches 21, 210, 211 — not 29).
-                    $q->orWhere('chart_of_accounts.code', $prefix)
-                        ->orWhere('chart_of_accounts.code', 'like', $prefix . '%');
+        $sectionSums = [];
+        foreach (self::SECTIONS as $section) {
+            $sum = $other[$section];
+            foreach (self::LINE_MAPPINGS as $index => $mapping) {
+                if ($mapping['section'] === $section) {
+                    $sum += $lines[$index];
                 }
-            });
-
-        // Prefer matching section type so Assets/Liabilities signs stay correct.
-        $typeNames = $this->typeAliases($section);
-        $query->whereIn('chart_of_account_types.name', $typeNames);
-
-        return round((float) ($query->selectRaw("COALESCE(SUM({$balanceExpr}), 0) as balance")->value('balance') ?? 0), 2);
-    }
-
-    private function sumByAccountType(string $typeName, Carbon $asOf, int $creatorId): float
-    {
-        $aliases = $this->typeAliases($typeName);
-        $exists = ChartOfAccountType::where('created_by', $creatorId)
-            ->whereIn('name', $aliases)
-            ->exists();
-        if (! $exists) {
-            return 0.0;
+            }
+            $sectionSums[$section] = round($sum, 2);
         }
 
-        $balanceExpr = $this->balanceExpression($typeName);
+        $sectionSums['Assets'] = round($sectionSums['Assets'] + $unclassified, 2);
+        $sectionSums['Equity'] = round($sectionSums['Equity'] + $netIncome, 2);
 
-        $value = TransactionLines::query()
-            ->join('chart_of_accounts', 'transaction_lines.account_id', '=', 'chart_of_accounts.id')
-            ->join('chart_of_account_types', 'chart_of_accounts.type', '=', 'chart_of_account_types.id')
-            ->where('transaction_lines.created_by', $creatorId)
-            ->where('chart_of_accounts.created_by', $creatorId)
-            ->whereIn('chart_of_account_types.name', $aliases)
-            ->whereDate('transaction_lines.date', '<=', $asOf->toDateString())
-            ->selectRaw("COALESCE(SUM({$balanceExpr}), 0) as balance")
-            ->value('balance');
-
-        return round((float) ($value ?? 0), 2);
+        return [
+            'lines' => $lines,
+            'other' => $other,
+            'unclassified' => round($unclassified, 2),
+            'net_income' => $netIncome,
+            'totals' => $sectionSums,
+            'difference' => round($sectionSums['Assets'] - ($sectionSums['Liabilities'] + $sectionSums['Equity']), 2),
+        ];
     }
 
     /**
-     * @return list<string>
+     * @param  array{lines: array<int, float>, other: array<string, float>, unclassified: float, net_income: float}  $current
+     * @param  array{lines: array<int, float>, other: array<string, float>, unclassified: float, net_income: float}  $previous
+     * @return list<array<string, mixed>>
      */
-    private function typeAliases(string $typeName): array
+    private function buildRows(array $current, array $previous): array
     {
-        return match ($typeName) {
-            'Assets' => ['Assets', 'Asset'],
-            'Liabilities' => ['Liabilities', 'Liability'],
-            'Equity' => ['Equity', 'Capital', 'Equity and Liabilities'],
-            'Income' => ['Income', 'Revenue'],
-            'Expenses' => ['Expenses', 'Expense'],
-            'Costs of Goods Sold' => ['Costs of Goods Sold', 'Cost of Goods Sold', 'COGS'],
-            'Results' => ['Results', 'Result'],
-            default => [$typeName],
-        };
-    }
+        $rows = [];
 
-    private function balanceExpression(string $typeOrSection): string
-    {
-        if (in_array($typeOrSection, self::CREDIT_NORMAL_TYPES, true)) {
-            return 'transaction_lines.credit - transaction_lines.debit';
+        foreach (self::LINE_MAPPINGS as $index => $mapping) {
+            $currentValue = round($current['lines'][$index], 2);
+            $previousValue = round($previous['lines'][$index], 2);
+
+            $alwaysShow = in_array($mapping['code_label'], self::ALWAYS_SHOWN_CODES, true);
+            if (! $alwaysShow && ! $this->hasBalance($currentValue) && ! $this->hasBalance($previousValue)) {
+                continue;
+            }
+
+            $rows[] = [
+                'section' => $mapping['section'],
+                'label' => $mapping['label'],
+                'code_label' => $mapping['code_label'],
+                'current_year' => $currentValue,
+                'previous_year' => $previousValue,
+            ];
         }
 
-        return 'transaction_lines.debit - transaction_lines.credit';
+        $extra = [
+            ['section' => 'Assets', 'label' => 'Other assets', 'code_label' => '', 'key' => 'other.Assets'],
+            ['section' => 'Assets', 'label' => 'Unclassified / deleted accounts', 'code_label' => '', 'key' => 'unclassified'],
+            ['section' => 'Liabilities', 'label' => 'Other liabilities', 'code_label' => '', 'key' => 'other.Liabilities'],
+            ['section' => 'Equity', 'label' => 'Other equity', 'code_label' => '', 'key' => 'other.Equity'],
+            ['section' => 'Equity', 'label' => 'Current Period Result', 'code_label' => '', 'key' => 'net_income'],
+        ];
+
+        foreach ($extra as $definition) {
+            $currentValue = round($this->snapshotValue($current, $definition['key']), 2);
+            $previousValue = round($this->snapshotValue($previous, $definition['key']), 2);
+
+            if (! $this->hasBalance($currentValue) && ! $this->hasBalance($previousValue)) {
+                continue;
+            }
+
+            $rows[] = [
+                'section' => $definition['section'],
+                'label' => $definition['label'],
+                'code_label' => $definition['code_label'],
+                'current_year' => $currentValue,
+                'previous_year' => $previousValue,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $snapshot
+     */
+    private function snapshotValue(array $snapshot, string $key): float
+    {
+        if (str_starts_with($key, 'other.')) {
+            return (float) ($snapshot['other'][substr($key, 6)] ?? 0);
+        }
+
+        return (float) ($snapshot[$key] ?? 0);
+    }
+
+    /**
+     * Add a balance to the best-matching line of a section, or to that section's
+     * catch-all bucket when no mapping claims the code.
+     *
+     * @param  array<int, float>  $lines
+     * @param  array<string, float>  $other
+     */
+    private function addToSection(array &$lines, array &$other, string $section, string $code, float $amount): void
+    {
+        $bestIndex = null;
+        $bestLength = -1;
+
+        foreach (self::LINE_MAPPINGS as $index => $mapping) {
+            if ($mapping['section'] !== $section) {
+                continue;
+            }
+
+            foreach ($mapping['prefixes'] as $prefix) {
+                if ($code !== $prefix && ! str_starts_with($code, $prefix)) {
+                    continue;
+                }
+                if (strlen($prefix) > $bestLength) {
+                    $bestLength = strlen($prefix);
+                    $bestIndex = $index;
+                }
+            }
+        }
+
+        if ($bestIndex === null) {
+            $other[$section] += $amount;
+
+            return;
+        }
+
+        $lines[$bestIndex] += $amount;
+    }
+
+    /**
+     * Balances per account. Scoped by transaction owner only: lines pointing at a
+     * chart account owned by another company (or a deleted one) must still be
+     * reported, otherwise the balance sheet silently loses value.
+     *
+     * @return list<array{code: string, type: string, debit: float, credit: float}>
+     */
+    private function accountBalances(int $creatorId, Carbon $asOf): array
+    {
+        $records = TransactionLines::query()
+            ->leftJoin('chart_of_accounts', 'transaction_lines.account_id', '=', 'chart_of_accounts.id')
+            ->leftJoin('chart_of_account_types', 'chart_of_accounts.type', '=', 'chart_of_account_types.id')
+            ->where('transaction_lines.created_by', $creatorId)
+            ->whereDate('transaction_lines.date', '<=', $asOf->toDateString())
+            ->groupBy('transaction_lines.account_id', 'chart_of_accounts.code', 'chart_of_account_types.name')
+            ->selectRaw('chart_of_accounts.code as code, chart_of_account_types.name as type_name, SUM(transaction_lines.debit) as debit, SUM(transaction_lines.credit) as credit')
+            ->get();
+
+        $accounts = [];
+        foreach ($records as $record) {
+            $accounts[] = [
+                'code' => (string) ($record->code ?? ''),
+                'type' => (string) ($record->type_name ?? ''),
+                'debit' => (float) $record->debit,
+                'credit' => (float) $record->credit,
+            ];
+        }
+
+        return $accounts;
+    }
+
+    /**
+     * Map a chart-of-account type name onto a balance sheet section.
+     * Result accounts (81–88) belong to equity once the year is closed.
+     */
+    private function sectionForType(string $typeName): string
+    {
+        return match (strtolower(trim($typeName))) {
+            'assets', 'asset' => 'Assets',
+            'liabilities', 'liability' => 'Liabilities',
+            'equity', 'capital', 'equity and liabilities', 'results', 'result' => 'Equity',
+            'income', 'revenue' => 'Income',
+            'expenses', 'expense', 'costs of goods sold', 'cost of goods sold', 'cogs' => 'Expenses',
+            default => 'Unclassified',
+        };
     }
 
     private function hasBalance(float $amount): bool

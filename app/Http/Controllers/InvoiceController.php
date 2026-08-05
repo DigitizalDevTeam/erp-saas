@@ -27,6 +27,7 @@ use App\Models\Utility;
 use App\Models\TransactionLines;
 use App\Services\DocumentVoidService;
 use App\Services\Accounting\DocumentLedgerService;
+use App\Services\Accounting\CustomerCreditLimitService;
 use App\Support\SalesPurchaseNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -750,81 +751,172 @@ class InvoiceController extends Controller
 
     public function sent($id)
     {
+        if (! \Auth::user()->can('send invoice')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
 
-        if (\Auth::user()->can('send invoice')) {
-            // Send Email
-            $setings = Utility::settings();
+        $invoice = Invoice::where('id', $id)->where('created_by', \Auth::user()->creatorId())->first();
+        if (! $invoice) {
+            return redirect()->back()->with('error', __('Invoice not found'));
+        }
 
-            if ($setings['customer_invoice_sent'] == 1) {
-                $invoice = Invoice::where('id', $id)->first();
-                $invoice->send_date = date('Y-m-d');
-                $invoice->status = 1;
-                $invoice->save();
+        if ((int) $invoice->status !== Invoice::STATUS_DRAFT) {
+            return redirect()->back()->with('error', __('Only draft invoices can be sent.'));
+        }
 
-                $customer = Customer::where('id', $invoice->customer_id)->first();
-                $invoice->name = !empty($customer) ? $customer->name : '';
-                $invoice->invoice = \Auth::user()->invoiceNumberFormat($invoice->invoice_id);
+        $customer = Customer::where('id', $invoice->customer_id)->first();
+        if (! $customer) {
+            return redirect()->back()->with('error', __('Customer not found.'));
+        }
 
-                $invoiceId = Crypt::encrypt($invoice->id);
-                $invoice->url = route('invoice.pdf', $invoiceId);
+        $creditCheck = app(CustomerCreditLimitService::class)->evaluate(
+            $customer,
+            (float) $invoice->getTotal(),
+            (int) $invoice->id
+        );
 
-                // Utility::updateUserBalance('customer', $customer->id, $invoice->getTotal(), 'credit');
+        if ($creditCheck['exceeded']) {
+            $labels = app(CustomerCreditLimitService::class)->reasonLabels($creditCheck);
+            $invoice->status = Invoice::STATUS_PENDING_AUTHORIZATION;
+            $invoice->credit_hold_reasons = implode(' | ', $labels);
+            $invoice->send_date = null;
+            $invoice->authorized_by = null;
+            $invoice->authorized_at = null;
+            $invoice->save();
 
-                $invoice_products = InvoiceProduct::where('invoice_id', $invoice->id)->get();
-                foreach ($invoice_products as $invoice_product) {
-                    $product = ProductService::find($invoice_product->product_id);
-                    $totalTaxPrice = 0;
-                    if($invoice_product->tax != null)
-                    {
-                        $taxes = \App\Models\Utility::tax($invoice_product->tax);
-                        foreach ($taxes as $tax) {
-                            $taxPrice = \App\Models\Utility::taxRate($tax->rate, $invoice_product->price, $invoice_product->quantity, $invoice_product->discount);
-                            $totalTaxPrice += $taxPrice;
-                        }
+            return redirect()->back()->with(
+                'warning',
+                __('Invoice saved but needs authorization before release to customer account.') . ' ' . implode(' ', $labels)
+            );
+        }
+
+        $this->releaseInvoiceToAccount($invoice, $customer);
+
+        return redirect()->back()->with('success', __('Invoice successfully sent.'));
+    }
+
+    public function authorizeInvoice($id)
+    {
+        if (! \Auth::user()->can('authorize invoice')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $invoice = Invoice::where('id', $id)->where('created_by', \Auth::user()->creatorId())->first();
+        if (! $invoice) {
+            return redirect()->back()->with('error', __('Invoice not found'));
+        }
+
+        if ((int) $invoice->status !== Invoice::STATUS_PENDING_AUTHORIZATION) {
+            return redirect()->back()->with('error', __('Only invoices pending authorization can be authorized.'));
+        }
+
+        $customer = Customer::where('id', $invoice->customer_id)->first();
+        if (! $customer) {
+            return redirect()->back()->with('error', __('Customer not found.'));
+        }
+
+        $this->releaseInvoiceToAccount($invoice, $customer, true);
+
+        return redirect()->back()->with('success', __('Invoice authorized and released to customer account.'));
+    }
+
+    public function rejectAuthorization($id)
+    {
+        if (! \Auth::user()->can('reject invoice authorization')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $invoice = Invoice::where('id', $id)->where('created_by', \Auth::user()->creatorId())->first();
+        if (! $invoice) {
+            return redirect()->back()->with('error', __('Invoice not found'));
+        }
+
+        if ((int) $invoice->status !== Invoice::STATUS_PENDING_AUTHORIZATION) {
+            return redirect()->back()->with('error', __('Only invoices pending authorization can be rejected.'));
+        }
+
+        $invoice->status = Invoice::STATUS_DRAFT;
+        $invoice->credit_hold_reasons = null;
+        $invoice->authorized_by = null;
+        $invoice->authorized_at = null;
+        $invoice->send_date = null;
+        $invoice->save();
+
+        return redirect()->back()->with('success', __('Invoice authorization rejected. Invoice returned to draft.'));
+    }
+
+    /**
+     * Post invoice to GL / customer account and mark as Sent.
+     */
+    protected function releaseInvoiceToAccount(Invoice $invoice, Customer $customer, bool $fromAuthorization = false): void
+    {
+        $invoice->send_date = date('Y-m-d');
+        $invoice->status = Invoice::STATUS_SENT;
+        if ($fromAuthorization) {
+            $invoice->authorized_by = \Auth::id();
+            $invoice->authorized_at = now();
+        }
+        $invoice->save();
+
+        $alreadyPosted = TransactionLines::where('reference_id', $invoice->id)
+            ->whereIn('reference', ['Invoice', 'Invoice Receivable'])
+            ->exists();
+
+        if (! $alreadyPosted) {
+            $invoice_products = InvoiceProduct::where('invoice_id', $invoice->id)->get();
+            foreach ($invoice_products as $invoice_product) {
+                $product = ProductService::find($invoice_product->product_id);
+                if (! $product) {
+                    continue;
+                }
+                $totalTaxPrice = 0;
+                if ($invoice_product->tax != null) {
+                    $taxes = \App\Models\Utility::tax($invoice_product->tax);
+                    foreach ($taxes as $tax) {
+                        $taxPrice = \App\Models\Utility::taxRate($tax->rate, $invoice_product->price, $invoice_product->quantity, $invoice_product->discount);
+                        $totalTaxPrice += $taxPrice;
                     }
-
-                    $itemAmount = ($invoice_product->price * $invoice_product->quantity) - ($invoice_product->discount) + $totalTaxPrice;
-
-                    $data = [
-                        'account_id' => $product->sale_chartaccount_id,
-                        'transaction_type' => 'Credit',
-                        'transaction_amount' => $itemAmount,
-                        'reference' => 'Invoice',
-                        'reference_id' => $invoice->id,
-                        'reference_sub_id' => $product->id,
-                        'date' => $invoice->issue_date,
-                    ];
-                    Utility::addTransactionLines($data , 'create');
                 }
 
-                app(DocumentLedgerService::class)->balanceDocumentLines(
-                    (int) \Auth::user()->creatorId(),
-                    (int) $invoice->id,
-                    ['Invoice'],
-                    'receivable',
-                    'Invoice Receivable',
-                    (string) $invoice->issue_date
-                );
+                $itemAmount = ($invoice_product->price * $invoice_product->quantity) - ($invoice_product->discount) + $totalTaxPrice;
 
-                $customerArr = [
-
-                    'customer_name' => $customer->name,
-                    'customer_email' => $customer->email,
-                    'invoice_name' => $customer->name,
-                    'invoice_number' => $invoice->invoice,
-                    'invoice_url' => $invoice->url,
-
+                $data = [
+                    'account_id' => $product->sale_chartaccount_id,
+                    'transaction_type' => 'Credit',
+                    'transaction_amount' => $itemAmount,
+                    'reference' => 'Invoice',
+                    'reference_id' => $invoice->id,
+                    'reference_sub_id' => $product->id,
+                    'date' => $invoice->issue_date,
                 ];
-                $resp = SalesPurchaseNotifier::customerInvoiceSent($customer, $customerArr);
-
-                return redirect()->back()->with('success', __('Invoice successfully sent.') . (($resp !== null && ($resp['is_success'] ?? true) == false && !empty($resp['error'])) ? '<br> <span class="text-danger">' . $resp['error'] . '</span>' : ''));
-
-            } else {
-                return redirect()->back()->with('error', 'Invoice not found');
+                Utility::addTransactionLines($data, 'create');
             }
 
-        } else {
-            return redirect()->back()->with('error', __('Permission denied.'));
+            app(DocumentLedgerService::class)->balanceDocumentLines(
+                (int) \Auth::user()->creatorId(),
+                (int) $invoice->id,
+                ['Invoice'],
+                'receivable',
+                'Invoice Receivable',
+                (string) $invoice->issue_date
+            );
+        }
+
+        $setings = Utility::settings();
+        if (($setings['customer_invoice_sent'] ?? 0) == 1) {
+            $invoice->name = ! empty($customer) ? $customer->name : '';
+            $invoice->invoice = \Auth::user()->invoiceNumberFormat($invoice->invoice_id);
+            $invoiceId = Crypt::encrypt($invoice->id);
+            $invoice->url = route('invoice.pdf', $invoiceId);
+
+            $customerArr = [
+                'customer_name' => $customer->name,
+                'customer_email' => $customer->email,
+                'invoice_name' => $customer->name,
+                'invoice_number' => $invoice->invoice,
+                'invoice_url' => $invoice->url,
+            ];
+            SalesPurchaseNotifier::customerInvoiceSent($customer, $customerArr);
         }
     }
 

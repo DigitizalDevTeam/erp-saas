@@ -148,7 +148,8 @@
                     @php
                         $totalIncome = 0;
                         $netProfit = 0;
-                        $totalCosts = 0;
+                        $totalCogs = 0;
+                        $totalExpenses = 0;
                         $grossProfit = 0;
                     @endphp
 
@@ -197,12 +198,11 @@
                                             @php
                                                 if ($record['account_name'] === 'Total Income') {
                                                     $totalIncome = $record['netAmount'];
+                                                } elseif ($record['account_name'] == 'Total Costs of Goods Sold') {
+                                                    $totalCogs = $record['netAmount'];
+                                                } elseif ($record['account_name'] == 'Total Expenses') {
+                                                    $totalExpenses = $record['netAmount'];
                                                 }
-
-                                                if ($record['account_name'] == 'Total Costs of Goods Sold') {
-                                                    $totalCosts = $record['netAmount'];
-                                                }
-                                                $grossProfit = $totalIncome - $totalCosts;
                                             @endphp
                                         @endforeach
                                     @else
@@ -252,12 +252,11 @@
                                             @php
                                                 if ($record['account_name'] === 'Total Income') {
                                                     $totalIncome = $record['netAmount'];
+                                                } elseif ($record['account_name'] == 'Total Costs of Goods Sold') {
+                                                    $totalCogs = $record['netAmount'];
+                                                } elseif ($record['account_name'] == 'Total Expenses') {
+                                                    $totalExpenses = $record['netAmount'];
                                                 }
-
-                                                if ($record['account_name'] == 'Total Costs of Goods Sold') {
-                                                    $totalCosts = $record['netAmount'];
-                                                }
-                                                $grossProfit = $totalIncome - $totalCosts;
                                             @endphp
                                         @endforeach
                                     @endif
@@ -281,11 +280,7 @@
                                     @if ($collapseView == 'collapse')
                                         @foreach ($records as $key => $record)
                                             @php
-                                                if ($record['netAmount'] > 0) {
-                                                    $netAmount = $record['netAmount'];
-                                                } else {
-                                                    $netAmount = -$record['netAmount'];
-                                                }
+                                                $netAmount = $record['netAmount'];
                                             @endphp
                                             @if ($record['account'] == 'parentTotal')
                                                 <div
@@ -327,22 +322,17 @@
                                             @php
                                                 if ($record['account_name'] === 'Total Income') {
                                                     $totalIncome = $netAmount;
+                                                } elseif ($record['account_name'] == 'Total Costs of Goods Sold') {
+                                                    $totalCogs = $netAmount;
+                                                } elseif ($record['account_name'] == 'Total Expenses') {
+                                                    $totalExpenses = $netAmount;
                                                 }
-
-                                                if ($record['account_name'] == 'Total Costs of Goods Sold') {
-                                                    $totalCosts = $netAmount;
-                                                }
-                                                $grossProfit = $totalIncome - $totalCosts;
                                             @endphp
                                         @endforeach
                                     @else
                                         @foreach ($records as $key => $record)
                                             @php
-                                                if ($record['netAmount'] > 0) {
-                                                    $netAmount = $record['netAmount'];
-                                                } else {
-                                                    $netAmount = -$record['netAmount'];
-                                                }
+                                                $netAmount = $record['netAmount'];
                                             @endphp
                                             @if ($record['account'] == 'parent' || $record['account'] == 'parentTotal')
                                                 <div
@@ -388,12 +378,11 @@
                                             @php
                                                 if ($record['account_name'] === 'Total Income') {
                                                     $totalIncome = $netAmount;
+                                                } elseif ($record['account_name'] == 'Total Costs of Goods Sold') {
+                                                    $totalCogs = $netAmount;
+                                                } elseif ($record['account_name'] == 'Total Expenses') {
+                                                    $totalExpenses = $netAmount;
                                                 }
-
-                                                if ($record['account_name'] == 'Total Costs of Goods Sold') {
-                                                    $totalCosts = $netAmount;
-                                                }
-                                                $grossProfit = $totalIncome - $totalCosts;
                                             @endphp
                                         @endforeach
                                     @endif
@@ -411,7 +400,11 @@
                         @endif
                     @endforeach
 
-                    @if ($grossProfit > 0)
+                    @php
+                        $grossProfit = $totalIncome - $totalCogs;
+                    @endphp
+
+                    @if ($totalIncome != 0 || $totalCogs != 0)
                         <div class="account-inner d-flex align-items-center justify-content-between border-bottom pt-2">
                             <p></p>
                             <p class="fw-bold mb-2 text-center">{{ __('Gross Profit') }}</p>
@@ -429,11 +422,7 @@
                                     @if ($collapseView == 'collapse')
                                         @foreach ($records as $key => $record)
                                             @php
-                                                if ($record['netAmount'] > 0) {
-                                                    $netAmount = $record['netAmount'];
-                                                } else {
-                                                    $netAmount = -$record['netAmount'];
-                                                }
+                                                $netAmount = $record['netAmount'];
                                             @endphp
                                             @if ($record['account'] == 'parentTotal')
                                                 <div
@@ -474,22 +463,17 @@
                                             @php
                                                 if ($record['account_name'] === 'Total Income') {
                                                     $totalIncome = $record['netAmount'];
+                                                } elseif ($record['account_name'] == 'Total Costs of Goods Sold') {
+                                                    $totalCogs = $record['netAmount'];
+                                                } elseif ($record['account_name'] == 'Total Expenses') {
+                                                    $totalExpenses = $record['netAmount'];
                                                 }
-
-                                                if ($record['account_name'] == 'Total Costs of Goods Sold') {
-                                                    $totalCosts = $record['netAmount'];
-                                                }
-                                                $grossProfit = $totalIncome - $totalCosts;
                                             @endphp
                                         @endforeach
                                     @else
                                         @foreach ($records as $key => $record)
                                             @php
-                                                if ($record['netAmount'] > 0) {
-                                                    $netAmount = $record['netAmount'];
-                                                } else {
-                                                    $netAmount = -$record['netAmount'];
-                                                }
+                                                $netAmount = $record['netAmount'];
                                             @endphp
                                             @if ($record['account'] == 'parent' || $record['account'] == 'parentTotal')
                                                 <div
@@ -534,11 +518,9 @@
                                                 </div>
                                             @endif
                                             @php
-
                                                 if ($record['account_name'] == 'Total Expenses') {
-                                                    $totalCosts = $netAmount;
+                                                    $totalExpenses = $netAmount;
                                                 }
-                                                $netProfit = $grossProfit - $totalCosts;
                                             @endphp
                                         @endforeach
                                     @endif
@@ -553,15 +535,19 @@
                                     </p>
                                 </div>
                             </div>
-
-                            <div class="account-inner d-flex align-items-center justify-content-between border-bottom pt-2">
-                                <p></p>
-                                <p class="fw-bold mb-2 text-center">{{ __('Net Profit/Loss') }}</p>
-                                <p class="text-primary mb-2 float-end text-end">
-                                    {{ \Auth::user()->priceFormat($netProfit) }}</p>
-                            </div>
                         @endif
                     @endforeach
+
+                    @php
+                        $netProfit = $grossProfit - $totalExpenses;
+                    @endphp
+
+                    <div class="account-inner d-flex align-items-center justify-content-between border-bottom pt-2">
+                        <p></p>
+                        <p class="fw-bold mb-2 text-center">{{ __('Net Profit/Loss') }}</p>
+                        <p class="text-primary mb-2 float-end text-end">
+                            {{ \Auth::user()->priceFormat($netProfit) }}</p>
+                    </div>
 
                 </div>
             </div>

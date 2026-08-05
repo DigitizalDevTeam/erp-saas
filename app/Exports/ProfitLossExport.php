@@ -47,14 +47,7 @@ class ProfitLossExport implements FromArray, WithEvents, WithHeadings, WithStyle
                 {
                     foreach($accounts as $account)
                     {
-                    if($account['netAmount'] > 0)
-                    {
-                        $netAmount = $account['netAmount'];
-                    }
-                    else
-                    {
-                        $netAmount = -$account['netAmount'];
-                    }
+                    $netAmount = $account['netAmount'];
                     if ($account['account'] == 'parent' || $account['account'] == 'parentTotal')
                     {
                         $formattedData[] = [
@@ -125,15 +118,12 @@ class ProfitLossExport implements FromArray, WithEvents, WithHeadings, WithStyle
             {
                 foreach($accounts as $account)
                 {
-                if($account['netAmount'] > 0)
-                {
-                    $netAmount = $account['netAmount'];
-                }
-                else
-                {
-                    $netAmount = -$account['netAmount'];
-                }
+                $netAmount = $account['netAmount'];
 
+                if($account['account_name'] == 'Total Expenses')
+                {
+                    $totalExpense = $netAmount;
+                }
 
                 if ($account['account'] == 'parent' || $account['account'] == 'parentTotal')
                 {
@@ -161,14 +151,15 @@ class ProfitLossExport implements FromArray, WithEvents, WithHeadings, WithStyle
                 }
             }
             }
+        }
+        }
 
-            $formattedData[] = [
-                'Account Name' => 'Net Profit/Loss',
-                'Account No'   => '',
-                'Total'        => $grossProfit -  $totalExpense
-            ];
-        }
-        }
+        $formattedData[] = [
+            'Account Name' => 'Net Profit/Loss',
+            'Account No'   => '',
+            'Total'        => $grossProfit - $totalExpense
+        ];
+
         $this->data        = $formattedData;
         $this->companyName = $companyName;
         $this->startDate   = $startDate;

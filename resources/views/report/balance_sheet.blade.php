@@ -216,6 +216,11 @@
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['difference']['current']) }}</td>
                                         <td class="text-end">{{ \Auth::user()->priceFormat($totals['difference']['previous']) }}</td>
                                     </tr>
+                                    <tr>
+                                        <td colspan="4" class="small text-muted">
+                                            {{ __('This difference equals the unbalanced amount in the ledger (total debits minus total credits). Check the Trial Balance for journals or opening balances posted on one side only.') }}
+                                        </td>
+                                    </tr>
                                 @endif
                             </tbody>
                         </table>
