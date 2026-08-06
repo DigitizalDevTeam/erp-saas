@@ -16,12 +16,24 @@ class Quotation extends Model
         'converted_pos_id',
         'is_converted',
         'converted_proforma_id',
+        'converted_invoice_id',
+        'converted_purchase_id',
         'created_by',
     ];
 
     public function proformaFromQuotation()
     {
         return $this->belongsTo(Proforma::class, 'converted_proforma_id');
+    }
+
+    public function invoiceFromQuotation()
+    {
+        return $this->belongsTo(Invoice::class, 'converted_invoice_id');
+    }
+
+    public function purchaseFromQuotation()
+    {
+        return $this->belongsTo(Purchase::class, 'converted_purchase_id');
     }
 
     public function customer()

@@ -15,6 +15,7 @@ class Purchase extends Model
         'purchase_id',
         'purchase_quotation_id',
         'proforma_id',
+        'quotation_id',
         'converted_bill_id',
         'converted_invoice_id',
         'is_invoice_converted',
@@ -56,6 +57,11 @@ class Purchase extends Model
     public function sourceProforma()
     {
         return $this->belongsTo(Proforma::class, 'proforma_id');
+    }
+
+    public function sourceQuotation()
+    {
+        return $this->belongsTo(Quotation::class, 'quotation_id');
     }
 
     public function salesInvoice()

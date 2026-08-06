@@ -11,6 +11,7 @@ use App\Models\ProductService;
 use App\Models\ProductServiceCategory;
 use App\Models\Purchase;
 use App\Models\PurchaseQuotation;
+use App\Models\Quotation;
 use App\Models\BillProduct;
 use App\Models\ProductIdentifier;
 use App\Models\ProductExpiryLot;
@@ -228,6 +229,9 @@ class PurchaseController extends Controller
             if ($request->filled('proforma_id')) {
                 $purchase->proforma_id = (int) $request->proforma_id;
             }
+            if ($request->filled('quotation_id')) {
+                $purchase->quotation_id = (int) $request->quotation_id;
+            }
             $purchase->save();
 
             $products = $request->items;
@@ -391,9 +395,24 @@ class PurchaseController extends Controller
                         'converted_purchase_id' => $purchase->id,
                         'is_purchase_converted' => 1,
                     ]);
+            }
 
+            if ($request->filled('quotation_id')) {
+                Quotation::where('id', (int) $request->quotation_id)
+                    ->where('created_by', (int) \Auth::user()->creatorId())
+                    ->update([
+                        'converted_purchase_id' => $purchase->id,
+                    ]);
+            }
+
+            if ($request->filled('proforma_id')) {
                 return redirect()->route('purchase.show', Crypt::encrypt($purchase->id))
                     ->with('success', __('Purchase order created from proforma.'));
+            }
+
+            if ($request->filled('quotation_id')) {
+                return redirect()->route('purchase.show', Crypt::encrypt($purchase->id))
+                    ->with('success', __('Purchase order created from quotation.'));
             }
 
             return redirect()->route('purchase.index', $purchase->id)->with('success', __('Purchase successfully created.'));

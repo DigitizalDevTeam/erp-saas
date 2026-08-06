@@ -2231,6 +2231,10 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('quotation/product', [QuotationController::class, 'product'])->name('quotation.product');
     Route::post('quotation/product/destroy', [QuotationController::class, 'productDestroy'])->name('quotation.product.destroy');
     Route::get('quotation/convert/{id}', [QuotationController::class, 'convert'])->name('quotation.convert');
+    Route::get('quotation/{id}/convert-invoice', [QuotationController::class, 'convertToInvoiceForm'])->name('quotation.convert-invoice.form')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('quotation/{id}/convert-invoice', [QuotationController::class, 'convertToInvoiceStore'])->name('quotation.convert-invoice.store')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('quotation/{id}/convert-purchase', [QuotationController::class, 'convertToPurchaseForm'])->name('quotation.convert-purchase.form')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('quotation/{id}/convert-purchase', [QuotationController::class, 'convertToPurchaseStore'])->name('quotation.convert-purchase.store')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('quantity/product', [QuotationController::class, 'productQuantity'])->name('product.quantity');
     Route::post('/quotation/template/setting', [QuotationController::class, 'saveQuotationTemplateSettings'])->name('quotation.template.setting');
     Route::get('quotation/preview/{template}/{color}', [QuotationController::class, 'previewQuotation'])->name('quotation.preview')->middleware(['auth', 'XSS']);
@@ -2240,6 +2244,10 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('proforma/from-quotation/{id}', [ProformaController::class, 'createFromQuotation'])->name('proforma.create-from-quotation')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('proforma/{id}/convert-purchase', [ProformaController::class, 'convertToPurchaseForm'])->name('proforma.convert-purchase.form')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('proforma/{id}/convert-purchase', [ProformaController::class, 'convertToPurchaseStore'])->name('proforma.convert-purchase.store')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('proforma/{id}/convert-invoice', [ProformaController::class, 'convertToInvoiceForm'])->name('proforma.convert-invoice.form')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('proforma/{id}/convert-invoice', [ProformaController::class, 'convertToInvoiceStore'])->name('proforma.convert-invoice.store')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('proforma/{id}/issue-invoice', [ProformaController::class, 'convertToInvoiceForm'])->name('proforma.issue-invoice.form')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('proforma/{id}/issue-invoice', [ProformaController::class, 'convertToInvoiceStore'])->name('proforma.issue-invoice.store')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('proforma/{id}/convert-bill', [ProformaController::class, 'convertToBillForm'])->name('proforma.convert-bill.form')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('proforma/{id}/convert-bill', [ProformaController::class, 'convertToBillStore'])->name('proforma.convert-bill.store')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('proforma/items', [ProformaController::class, 'items'])->name('proforma.items')->middleware(['auth', 'XSS', 'revalidate']);
@@ -2252,6 +2260,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('vendor-quote/product', [PurchaseQuotationController::class, 'product'])->name('vendor-quote.product')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('vendor-quote/product/destroy', [PurchaseQuotationController::class, 'productDestroy'])->name('vendor-quote.product.destroy')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('vendor-quote/convert-purchase/{id}', [PurchaseQuotationController::class, 'convertToPurchase'])->name('vendor-quote.convert-purchase')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('vendor-quote/{id}/convert-proforma', [PurchaseQuotationController::class, 'convertToProformaForm'])->name('vendor-quote.convert-proforma.form')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('vendor-quote/{id}/convert-proforma', [PurchaseQuotationController::class, 'convertToProformaStore'])->name('vendor-quote.convert-proforma.store')->middleware(['auth', 'XSS', 'revalidate']);
     Route::resource('vendor-quote', PurchaseQuotationController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::any('vendor-quote/create/{cid}', [PurchaseQuotationController::class, 'quoteCreate'])->name('vendor_quotes.create')->middleware(['auth', 'XSS', 'revalidate']);
 

@@ -979,10 +979,11 @@
                                 @if (Gate::check('manage customer') ||
                                         Gate::check('manage proposal') ||
                                         Gate::check('manage invoice') ||
+                                        Gate::check('manage quotation') ||
                                         Gate::check('manage revenue') ||
                                         Gate::check('manage credit note'))
                                     <li
-                                        class="dash-item dash-hasmenu {{ Request::segment(1) == 'customer' || Request::segment(1) == 'proposal' || Request::segment(1) == 'invoice' || Request::segment(1) == 'revenue' || Request::segment(1) == 'credit-note' ? 'active dash-trigger' : '' }}">
+                                        class="dash-item dash-hasmenu {{ Request::segment(1) == 'customer' || Request::segment(1) == 'proposal' || Request::segment(1) == 'invoice' || Request::segment(1) == 'quotation' || Request::segment(1) == 'proforma' || Request::segment(1) == 'revenue' || Request::segment(1) == 'credit-note' ? 'active dash-trigger' : '' }}">
                                         <a class="dash-link" href="#">{{ __('Sales') }}<span
                                                 class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                                         <ul class="dash-submenu">
@@ -1005,6 +1006,18 @@
                                                     class="dash-item {{ Request::route()->getName() == 'invoice.index' || Request::route()->getName() == 'invoice.create' || Request::route()->getName() == 'invoice.edit' || Request::route()->getName() == 'invoice.show' ? ' active' : '' }}">
                                                     <a class="dash-link"
                                                         href="{{ route('invoice.index') }}">{{ __('Invoice') }}</a>
+                                                </li>
+                                            @endcan
+                                            @can('manage quotation')
+                                                <li
+                                                    class="dash-item {{ Request::segment(1) == 'quotation' ? 'active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('quotation.index') }}">{{ __('Quotation') }}</a>
+                                                </li>
+                                                <li
+                                                    class="dash-item {{ Request::segment(1) == 'proforma' ? 'active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('proforma.index') }}">{{ __('Proforma Invoice') }}</a>
                                                 </li>
                                             @endcan
                                             @can('manage revenue')
@@ -1036,10 +1049,9 @@
                                         Gate::check('manage bill') ||
                                         Gate::check('manage payment') ||
                                         Gate::check('manage debit note') ||
-                                        Gate::check('manage purchase') ||
-                                        Gate::check('manage quotation'))
+                                        Gate::check('manage purchase'))
                                     <li
-                                        class="dash-item dash-hasmenu {{ Request::segment(1) == 'bill' || Request::segment(1) == 'vender' || Request::segment(1) == 'expense' || Request::segment(1) == 'payment' || Request::segment(1) == 'debit-note' || Request::segment(1) == 'quotation' || Request::segment(1) == 'proforma' || Request::segment(1) == 'purchase' || Request::segment(1) == 'vendor-quote' ? 'active dash-trigger' : '' }}">
+                                        class="dash-item dash-hasmenu {{ Request::segment(1) == 'bill' || Request::segment(1) == 'vender' || Request::segment(1) == 'expense' || Request::segment(1) == 'payment' || Request::segment(1) == 'debit-note' || Request::segment(1) == 'purchase' || Request::segment(1) == 'vendor-quote' ? 'active dash-trigger' : '' }}">
                                         <a class="dash-link" href="#">{{ __('Purchases') }}<span
                                                 class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                                         <ul class="dash-submenu">
@@ -1050,28 +1062,16 @@
                                                         href="{{ route('vender.index') }}">{{ __('Suppiler') }}</a>
                                                 </li>
                                             @endif
-                                            @can('manage quotation')
-                                                <li
-                                                    class="dash-item {{ Request::segment(1) == 'quotation' ? 'active' : '' }}">
-                                                    <a class="dash-link"
-                                                        href="{{ route('quotation.index') }}">{{ __('Quotation') }}</a>
-                                                </li>
-                                                <li
-                                                    class="dash-item {{ Request::segment(1) == 'proforma' ? 'active' : '' }}">
-                                                    <a class="dash-link"
-                                                        href="{{ route('proforma.index') }}">{{ __('Proforma') }}</a>
-                                                </li>
-                                            @endcan
                                             @can('manage purchase')
-                                                <li
-                                                    class="dash-item {{ Request::segment(1) == 'purchase' ? 'active' : '' }}">
-                                                    <a class="dash-link"
-                                                        href="{{ route('purchase.index') }}">{{ __('Purchase') }}</a>
-                                                </li>
                                                 <li
                                                     class="dash-item {{ Request::segment(1) == 'vendor-quote' ? 'active' : '' }}">
                                                     <a class="dash-link"
                                                         href="{{ route('vendor-quote.index') }}">{{ __('Vendor Quote') }}</a>
+                                                </li>
+                                                <li
+                                                    class="dash-item {{ Request::segment(1) == 'purchase' ? 'active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('purchase.index') }}">{{ __('Purchase Order') }}</a>
                                                 </li>
                                             @endcan
                                             @can('manage bill')

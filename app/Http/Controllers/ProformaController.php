@@ -320,9 +320,6 @@ class ProformaController extends Controller
         if (! $quotation) {
             return redirect()->back()->with('error', __('Quotation not found.'));
         }
-        if ((int) $quotation->is_converted === 1) {
-            return redirect()->back()->with('error', __('This quotation was already converted to POS.'));
-        }
         if (! empty($quotation->converted_proforma_id)) {
             return redirect()->route('proforma.show', Crypt::encrypt($quotation->converted_proforma_id))
                 ->with('info', __('Proforma already exists for this quotation.'));
@@ -565,6 +562,102 @@ class ProformaController extends Controller
         $req->setUserResolver(fn () => Auth::user());
 
         return app(BillController::class)->store($req);
+    }
+
+    /**
+     * Proforma → Invoice (agreed price → sales invoice).
+     */
+    public function convertToInvoiceForm($encryptedId)
+    {
+        if (! Auth::user()->can('create invoice')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid proforma.'));
+        }
+
+        $proforma = Proforma::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $proforma) {
+            return redirect()->back()->with('error', __('Proforma not found.'));
+        }
+        if ((int) $proforma->is_invoice_converted === 1 && ! empty($proforma->converted_invoice_id)) {
+            return redirect()->route('invoice.show', Crypt::encrypt($proforma->converted_invoice_id))
+                ->with('info', __('Invoice already exists for this proforma.'));
+        }
+
+        $category = ProductServiceCategory::where('created_by', Auth::user()->creatorId())
+            ->where(function ($q) {
+                $q->where('type', 'income')->orWhere('type', 1);
+            })
+            ->orderBy('id')
+            ->first();
+
+        return view('proforma.issue_invoice', compact('proforma', 'category'));
+    }
+
+    public function convertToInvoiceStore(Request $request, $encryptedId)
+    {
+        if (! Auth::user()->can('create invoice')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid proforma.'));
+        }
+
+        $proforma = Proforma::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $proforma) {
+            return redirect()->back()->with('error', __('Proforma not found.'));
+        }
+        if ((int) $proforma->is_invoice_converted === 1 && ! empty($proforma->converted_invoice_id)) {
+            return redirect()->route('invoice.show', Crypt::encrypt($proforma->converted_invoice_id))
+                ->with('info', __('Invoice already exists for this proforma.'));
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'issue_date' => 'required|date',
+            'due_date' => 'required|date',
+            'category_id' => 'required|integer',
+        ]);
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', $validator->getMessageBag()->first())->withInput();
+        }
+
+        $items = [];
+        foreach ($proforma->items as $row) {
+            $items[] = [
+                'item' => $row->product_id,
+                'quantity' => $row->quantity,
+                'price' => $row->price,
+                'tax' => $row->tax,
+                'discount' => $row->discount,
+                'description' => $row->description,
+                'product_variant_id' => $row->product_variant_id ?: '',
+                'identifiers' => '',
+            ];
+        }
+        if ($items === []) {
+            return redirect()->back()->with('error', __('Proforma has no line items.'));
+        }
+
+        $payload = [
+            'customer_id' => $proforma->customer_id,
+            'issue_date' => $request->issue_date,
+            'due_date' => $request->due_date,
+            'category_id' => $request->category_id,
+            'ref_number' => $request->ref_number ?: '',
+            'items' => $items,
+            'source_proforma_id' => $proforma->id,
+            '_token' => csrf_token(),
+        ];
+
+        $req = Request::create('/invoice', 'POST', $payload);
+        $req->setUserResolver(fn () => Auth::user());
+
+        return app(InvoiceController::class)->store($req);
     }
 
     protected function nextProformaNumber(): int

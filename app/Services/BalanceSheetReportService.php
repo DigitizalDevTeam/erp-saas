@@ -136,6 +136,7 @@ class BalanceSheetReportService
         $unclassified = 0.0;
         $income = 0.0;
         $expenses = 0.0;
+        $resultsInEquity = 0.0;
 
         foreach ($accounts as $account) {
             $debit = (float) ($account['debit'] ?? 0);
@@ -151,7 +152,11 @@ class BalanceSheetReportService
                     $this->addToSection($lines, $other, 'Liabilities', $code, $credit - $debit);
                     break;
                 case 'Equity':
-                    $this->addToSection($lines, $other, 'Equity', $code, $credit - $debit);
+                    $equityAmount = $credit - $debit;
+                    $this->addToSection($lines, $other, 'Equity', $code, $equityAmount);
+                    if ($this->isResultsEquityCode($code)) {
+                        $resultsInEquity += $equityAmount;
+                    }
                     break;
                 case 'Income':
                     $income += $credit - $debit;
@@ -167,6 +172,17 @@ class BalanceSheetReportService
         }
 
         $netIncome = round($income - $expenses, 2);
+        // Avoid double-counting when closings already sit in 81/82/83/88 and the same
+        // amount is still visible in Income/Expense. Mid-year prior results + current
+        // P&L (different amounts) still add the operational result.
+        $addNetIncome = $netIncome;
+        if (
+            abs($netIncome) > 0.005
+            && abs($resultsInEquity) > 0.005
+            && abs($netIncome - $resultsInEquity) < 0.02
+        ) {
+            $addNetIncome = 0.0;
+        }
 
         $sectionSums = [];
         foreach (self::SECTIONS as $section) {
@@ -180,13 +196,13 @@ class BalanceSheetReportService
         }
 
         $sectionSums['Assets'] = round($sectionSums['Assets'] + $unclassified, 2);
-        $sectionSums['Equity'] = round($sectionSums['Equity'] + $netIncome, 2);
+        $sectionSums['Equity'] = round($sectionSums['Equity'] + $addNetIncome, 2);
 
         return [
             'lines' => $lines,
             'other' => $other,
             'unclassified' => round($unclassified, 2),
-            'net_income' => $netIncome,
+            'net_income' => $addNetIncome,
             'totals' => $sectionSums,
             'difference' => round($sectionSums['Assets'] - ($sectionSums['Liabilities'] + $sectionSums['Equity']), 2),
         ];
@@ -346,5 +362,17 @@ class BalanceSheetReportService
     private function hasBalance(float $amount): bool
     {
         return abs($amount) > 0.005;
+    }
+
+    /** Result / closing codes that already hold period result once the year is closed. */
+    private function isResultsEquityCode(string $code): bool
+    {
+        foreach (['81', '82', '83', '88'] as $prefix) {
+            if ($code === $prefix || str_starts_with($code, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

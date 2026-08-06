@@ -15,6 +15,7 @@ class PurchaseQuotation extends Model
         'status',
         'converted_purchase_id',
         'is_converted',
+        'converted_proforma_id',
         'created_by',
     ];
 
@@ -36,6 +37,11 @@ class PurchaseQuotation extends Model
     public function items()
     {
         return $this->hasMany(PurchaseQuotationProduct::class, 'purchase_quotation_id', 'id');
+    }
+
+    public function proforma()
+    {
+        return $this->belongsTo(Proforma::class, 'converted_proforma_id');
     }
 
     public function purchase()

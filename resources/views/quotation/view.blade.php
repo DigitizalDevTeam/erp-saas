@@ -15,8 +15,29 @@
 @endsection
 
 @section('action-btn')
-    <div class="float-end">
-        <a href="{{ route('quotation.pdf', Crypt::encrypt($quotation->id))}}" class="btn btn-primary" target="_blank" >{{__('Download')}}</a>
+    <div class="float-end d-flex flex-wrap gap-2">
+        @can('convert quotation')
+            @if (empty($quotation->converted_proforma_id))
+                <a href="{{ route('proforma.create-from-quotation', \Crypt::encrypt($quotation->id)) }}" class="btn btn-primary">{{ __('Convert to proforma') }}</a>
+            @else
+                <a href="{{ route('proforma.show', \Crypt::encrypt($quotation->converted_proforma_id)) }}" class="btn btn-primary">{{ __('View proforma') }}</a>
+            @endif
+        @endcan
+        @if (empty($quotation->converted_invoice_id))
+            @can('create invoice')
+                <a href="{{ route('quotation.convert-invoice.form', \Crypt::encrypt($quotation->id)) }}" class="btn btn-success">{{ __('Convert to invoice') }}</a>
+            @endcan
+        @else
+            <a href="{{ route('invoice.show', \Crypt::encrypt($quotation->converted_invoice_id)) }}" class="btn btn-success">{{ __('View invoice') }}</a>
+        @endif
+        @if (empty($quotation->converted_purchase_id))
+            @can('create purchase')
+                <a href="{{ route('quotation.convert-purchase.form', \Crypt::encrypt($quotation->id)) }}" class="btn btn-secondary">{{ __('Convert to purchase order') }}</a>
+            @endcan
+        @else
+            <a href="{{ route('purchase.show', \Crypt::encrypt($quotation->converted_purchase_id)) }}" class="btn btn-secondary">{{ __('View purchase order') }}</a>
+        @endif
+        <a href="{{ route('quotation.pdf', Crypt::encrypt($quotation->id))}}" class="btn btn-outline-primary" target="_blank" >{{__('Download')}}</a>
     </div>
 @endsection
 

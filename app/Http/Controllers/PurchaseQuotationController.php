@@ -303,7 +303,7 @@ class PurchaseQuotationController extends Controller
         if (! $pq) {
             return redirect()->back()->with('error', __('Vendor quote not found.'));
         }
-        if ((int) $pq->is_converted === 1) {
+        if (! empty($pq->converted_purchase_id)) {
             return redirect()->route('purchase.show', Crypt::encrypt($pq->converted_purchase_id))
                 ->with('info', __('Purchase order already exists.'));
         }
@@ -344,6 +344,100 @@ class PurchaseQuotationController extends Controller
         $req->setUserResolver(fn () => Auth::user());
 
         return app(PurchaseController::class)->store($req);
+    }
+
+    /**
+     * Vendor Quote → Proforma Invoice (price lock for customer, using supplier quote lines).
+     */
+    public function convertToProformaForm($encryptedId)
+    {
+        if (! Auth::user()->can('create quotation')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid quote.'));
+        }
+
+        $quote = PurchaseQuotation::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $quote) {
+            return redirect()->back()->with('error', __('Vendor quote not found.'));
+        }
+        if (! empty($quote->converted_proforma_id)) {
+            return redirect()->route('proforma.show', Crypt::encrypt($quote->converted_proforma_id))
+                ->with('info', __('Proforma already exists for this vendor quote.'));
+        }
+
+        $customers = \App\Models\Customer::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $customers->prepend(__('Select Customer'), '');
+
+        return view('vendor_quote.convert_proforma', compact('quote', 'customers'));
+    }
+
+    public function convertToProformaStore(Request $request, $encryptedId)
+    {
+        if (! Auth::user()->can('create quotation')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid quote.'));
+        }
+
+        $quote = PurchaseQuotation::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $quote) {
+            return redirect()->back()->with('error', __('Vendor quote not found.'));
+        }
+        if (! empty($quote->converted_proforma_id)) {
+            return redirect()->route('proforma.show', Crypt::encrypt($quote->converted_proforma_id))
+                ->with('info', __('Proforma already exists for this vendor quote.'));
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'customer_id' => 'required|integer',
+            'proforma_date' => 'required|date',
+        ]);
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', $validator->getMessageBag()->first())->withInput();
+        }
+
+        $proforma = \Illuminate\Support\Facades\DB::transaction(function () use ($quote, $request) {
+            $latest = \App\Models\Proforma::where('created_by', Auth::user()->creatorId())->latest('id')->first();
+            $next = $latest ? ((int) $latest->proforma_id + 1) : 1;
+
+            $p = new \App\Models\Proforma();
+            $p->proforma_id = $next;
+            $p->purchase_quotation_id = $quote->id;
+            $p->customer_id = $request->customer_id;
+            $p->warehouse_id = $quote->warehouse_id;
+            $p->proforma_date = $request->proforma_date;
+            $p->status = 0;
+            $p->category_id = $quote->category_id ?? 0;
+            $p->created_by = Auth::user()->creatorId();
+            $p->save();
+
+            foreach ($quote->items as $row) {
+                $line = new \App\Models\ProformaProduct();
+                $line->proforma_id = $p->id;
+                $line->product_id = $row->product_id;
+                $line->price = $row->price;
+                $line->quantity = $row->quantity;
+                $line->tax = $row->tax;
+                $line->discount = $row->discount;
+                $line->description = $row->description;
+                $line->save();
+            }
+
+            $quote->converted_proforma_id = $p->id;
+            $quote->save();
+
+            return $p;
+        });
+
+        return redirect()->route('proforma.show', Crypt::encrypt($proforma->id))
+            ->with('success', __('Proforma invoice created from vendor quote.'));
     }
 
     protected function nextQuoteNumber(): int

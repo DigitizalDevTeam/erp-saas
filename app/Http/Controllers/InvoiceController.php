@@ -356,6 +356,13 @@ class InvoiceController extends Controller
                                 'is_invoice_converted' => 1,
                             ]);
                     }
+                    if (! empty($invoice->quotation_id)) {
+                        Quotation::where('id', (int) $invoice->quotation_id)
+                            ->where('created_by', $creatorId)
+                            ->update([
+                                'converted_invoice_id' => $invoice->id,
+                            ]);
+                    }
 
                     return $invoice->fresh();
                 });

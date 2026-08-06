@@ -607,6 +607,216 @@ class QuotationController extends Controller
         return redirect()->route('proforma.create-from-quotation', \Crypt::encrypt((int) $id));
     }
 
+    /**
+     * Quotation → Invoice (direct). Can run alongside PI / PO.
+     */
+    public function convertToInvoiceForm($encryptedId)
+    {
+        if (! \Auth::user()->can('create invoice')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid quotation.'));
+        }
+
+        $quotation = Quotation::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $quotation) {
+            return redirect()->back()->with('error', __('Quotation not found.'));
+        }
+        if (! empty($quotation->converted_invoice_id)) {
+            return redirect()->route('invoice.show', Crypt::encrypt($quotation->converted_invoice_id))
+                ->with('info', __('Invoice already exists for this quotation.'));
+        }
+
+        $category = ProductServiceCategory::where('created_by', Auth::user()->creatorId())
+            ->where(function ($q) {
+                $q->where('type', 'income')->orWhere('type', 1);
+            })
+            ->orderBy('id')
+            ->first();
+
+        return view('quotation.convert_invoice', compact('quotation', 'category'));
+    }
+
+    public function convertToInvoiceStore(Request $request, $encryptedId)
+    {
+        if (! \Auth::user()->can('create invoice')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid quotation.'));
+        }
+
+        $quotation = Quotation::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $quotation) {
+            return redirect()->back()->with('error', __('Quotation not found.'));
+        }
+        if (! empty($quotation->converted_invoice_id)) {
+            return redirect()->route('invoice.show', Crypt::encrypt($quotation->converted_invoice_id))
+                ->with('info', __('Invoice already exists for this quotation.'));
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'issue_date' => 'required|date',
+            'due_date' => 'required|date',
+            'category_id' => 'required|integer',
+        ]);
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', $validator->getMessageBag()->first())->withInput();
+        }
+
+        $items = [];
+        foreach ($quotation->items as $row) {
+            $items[] = [
+                'item' => $row->product_id,
+                'quantity' => $row->quantity,
+                'price' => $row->price,
+                'tax' => $row->tax,
+                'discount' => $row->discount,
+                'description' => $row->description,
+                'product_variant_id' => $row->product_variant_id ?: '',
+                'identifiers' => '',
+            ];
+        }
+        if ($items === []) {
+            return redirect()->back()->with('error', __('Quotation has no line items.'));
+        }
+
+        $payload = [
+            'customer_id' => $quotation->customer_id,
+            'issue_date' => $request->issue_date,
+            'due_date' => $request->due_date,
+            'category_id' => $request->category_id,
+            'ref_number' => $request->ref_number ?: '',
+            'items' => $items,
+            'source_quotation_id' => $quotation->id,
+            '_token' => csrf_token(),
+        ];
+        if (! empty($quotation->converted_proforma_id)) {
+            $payload['source_proforma_id'] = $quotation->converted_proforma_id;
+        }
+
+        $req = Request::create('/invoice', 'POST', $payload);
+        $req->setUserResolver(fn () => Auth::user());
+
+        return app(InvoiceController::class)->store($req);
+    }
+
+    /**
+     * Quotation → Purchase order (direct). Can run alongside PI / Invoice.
+     */
+    public function convertToPurchaseForm($encryptedId)
+    {
+        if (! Auth::user()->can('create purchase')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid quotation.'));
+        }
+
+        $quotation = Quotation::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $quotation) {
+            return redirect()->back()->with('error', __('Quotation not found.'));
+        }
+        if (! empty($quotation->converted_purchase_id)) {
+            return redirect()->route('purchase.show', Crypt::encrypt($quotation->converted_purchase_id))
+                ->with('info', __('Purchase order already exists for this quotation.'));
+        }
+
+        $venders = Vender::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $venders->prepend(__('Select Vendor'), '');
+        $warehouses = warehouse::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $warehouses->prepend(__('Select Warehouse'), '');
+        $category = ProductServiceCategory::where('created_by', Auth::user()->creatorId())
+            ->where('type', 'expense')->orderBy('id')->first();
+
+        return view('quotation.convert_purchase', compact('quotation', 'venders', 'warehouses', 'category'));
+    }
+
+    public function convertToPurchaseStore(Request $request, $encryptedId)
+    {
+        if (! Auth::user()->can('create purchase')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid quotation.'));
+        }
+
+        $quotation = Quotation::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $quotation) {
+            return redirect()->back()->with('error', __('Quotation not found.'));
+        }
+        if (! empty($quotation->converted_purchase_id)) {
+            return redirect()->route('purchase.show', Crypt::encrypt($quotation->converted_purchase_id))
+                ->with('info', __('Purchase order already exists for this quotation.'));
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'vender_id' => 'required|integer',
+            'warehouse_id' => 'required|integer',
+            'purchase_date' => 'required|date',
+            'category_id' => 'required|integer',
+        ]);
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', $validator->getMessageBag()->first())->withInput();
+        }
+
+        $items = [];
+        foreach ($quotation->items as $row) {
+            $product = ProductService::find($row->product_id);
+            $price = $product && (float) $product->purchase_price > 0
+                ? (float) $product->purchase_price
+                : (float) $row->price;
+
+            $items[] = [
+                'item' => $row->product_id,
+                'quantity' => $row->quantity,
+                'price' => $price,
+                'tax' => $row->tax,
+                'discount' => $row->discount,
+                'description' => $row->description,
+                'product_variant_id' => $row->product_variant_id ?: '',
+                'allow_default_variant' => empty($row->product_variant_id) ? 1 : 0,
+                'row_no' => '',
+                'shelf_no' => '',
+                'expiry_date' => '',
+                'batch_no' => '',
+                'mfg_date' => '',
+                'identifiers' => '',
+            ];
+        }
+        if ($items === []) {
+            return redirect()->back()->with('error', __('Quotation has no line items.'));
+        }
+
+        $payload = [
+            'vender_id' => $request->vender_id,
+            'warehouse_id' => $request->warehouse_id,
+            'purchase_date' => $request->purchase_date,
+            'category_id' => $request->category_id,
+            'purchase_number' => 0,
+            'items' => $items,
+            'quotation_id' => $quotation->id,
+            '_token' => csrf_token(),
+        ];
+        if (! empty($quotation->converted_proforma_id)) {
+            $payload['proforma_id'] = $quotation->converted_proforma_id;
+        }
+
+        $req = Request::create('/purchase', 'POST', $payload);
+        $req->setUserResolver(fn () => Auth::user());
+
+        return app(PurchaseController::class)->store($req);
+    }
+
     public function quotation($quotation_Id)
     {
         $settings = Utility::settings();

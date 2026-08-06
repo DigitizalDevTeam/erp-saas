@@ -49,7 +49,26 @@
                                         @if (Gate::check('edit purchase') || Gate::check('delete purchase') || Gate::check('create purchase'))
                                             <td class="Action">
                                                 <span>
-                                                    @if ((int) $quote->is_converted === 0)
+                                                    @if (empty($quote->converted_proforma_id))
+                                                        @can('create quotation')
+                                                            <div class="action-btn me-2">
+                                                                <a href="{{ route('vendor-quote.convert-proforma.form', \Crypt::encrypt($quote->id)) }}"
+                                                                    class="mx-3 btn btn-sm align-items-center bg-success"
+                                                                    data-bs-toggle="tooltip" title="{{ __('Convert to proforma') }}">
+                                                                    <i class="ti ti-file-invoice text-white"></i>
+                                                                </a>
+                                                            </div>
+                                                        @endcan
+                                                    @else
+                                                        <div class="action-btn me-2">
+                                                            <a href="{{ route('proforma.show', \Crypt::encrypt($quote->converted_proforma_id)) }}"
+                                                                class="mx-3 btn btn-sm align-items-center bg-success"
+                                                                data-bs-toggle="tooltip" title="{{ __('View proforma') }}">
+                                                                <i class="ti ti-file text-white"></i>
+                                                            </a>
+                                                        </div>
+                                                    @endif
+                                                    @if (empty($quote->converted_purchase_id))
                                                         @can('create purchase')
                                                             <div class="action-btn me-2">
                                                                 <a href="{{ route('vendor-quote.convert-purchase', \Crypt::encrypt($quote->id)) }}"

@@ -73,47 +73,81 @@
                                             <td class="Action">
                                                 <span>
 
-                                                    @if ($quotation->is_converted == 0)
-                                                        @can('convert quotation')
-                                                            @if (empty($quotation->converted_proforma_id))
-                                                                <div class="action-btn me-2">
-                                                                    <a href="{{ route('proforma.create-from-quotation', \Crypt::encrypt($quotation->id)) }}"
-                                                                        class="mx-3 btn btn-sm align-items-center bg-primary"
-                                                                        data-bs-toggle="tooltip" title="{{ __('Convert to proforma') }}">
-                                                                        <i class="ti ti-exchange text-white"></i>
-                                                                    </a>
-                                                                </div>
-                                                            @else
-                                                                <div class="action-btn me-2">
-                                                                    <a href="{{ route('proforma.show', \Crypt::encrypt($quotation->converted_proforma_id)) }}"
-                                                                        class="mx-3 btn btn-sm align-items-center bg-primary"
-                                                                        data-bs-toggle="tooltip" title="{{ __('View proforma') }}">
-                                                                        <i class="ti ti-file text-white"></i>
-                                                                    </a>
-                                                                </div>
-                                                            @endif
-                                                            @if (empty($quotation->converted_proforma_id))
-                                                                <div class="action-btn me-2">
-                                                                    <a href="{{ route('pos.index', $quotation->id) }}"
-                                                                        class="mx-3 btn btn-sm align-items-center bg-warning"
-                                                                        data-bs-toggle="tooltip" title="{{ __('Convert to POS') }}"
-                                                                        data-original-title="{{ __('Detail') }}">
-                                                                        <i class="ti ti-exchange text-white"></i>
-                                                                    </a>
-                                                                </div>
-                                                            @endif
-                                                        @endcan
-                                                        @else
-                                                        {{-- @can('show pos') --}}
+                                                    @can('convert quotation')
+                                                        @if (empty($quotation->converted_proforma_id))
                                                             <div class="action-btn me-2">
-                                                                <a href="{{ route('pos.show', \Crypt::encrypt($quotation->converted_pos_id)) }}" class="mx-3 btn btn-sm align-items-center bg-warning"
-                                                                    data-bs-toggle="tooltip"
-                                                                    title="{{ __('Already convert to POS') }}"
-                                                                    data-original-title="{{ __('Detail') }}">
+                                                                <a href="{{ route('proforma.create-from-quotation', \Crypt::encrypt($quotation->id)) }}"
+                                                                    class="mx-3 btn btn-sm align-items-center bg-primary"
+                                                                    data-bs-toggle="tooltip" title="{{ __('Convert to proforma') }}">
+                                                                    <i class="ti ti-file-invoice text-white"></i>
+                                                                </a>
+                                                            </div>
+                                                        @else
+                                                            <div class="action-btn me-2">
+                                                                <a href="{{ route('proforma.show', \Crypt::encrypt($quotation->converted_proforma_id)) }}"
+                                                                    class="mx-3 btn btn-sm align-items-center bg-primary"
+                                                                    data-bs-toggle="tooltip" title="{{ __('View proforma') }}">
                                                                     <i class="ti ti-file text-white"></i>
                                                                 </a>
                                                             </div>
-                                                        {{-- @endcan --}}
+                                                        @endif
+                                                        @if (empty($quotation->converted_invoice_id))
+                                                            @can('create invoice')
+                                                                <div class="action-btn me-2">
+                                                                    <a href="{{ route('quotation.convert-invoice.form', \Crypt::encrypt($quotation->id)) }}"
+                                                                        class="mx-3 btn btn-sm align-items-center bg-success"
+                                                                        data-bs-toggle="tooltip" title="{{ __('Convert to invoice') }}">
+                                                                        <i class="ti ti-receipt text-white"></i>
+                                                                    </a>
+                                                                </div>
+                                                            @endcan
+                                                        @else
+                                                            <div class="action-btn me-2">
+                                                                <a href="{{ route('invoice.show', \Crypt::encrypt($quotation->converted_invoice_id)) }}"
+                                                                    class="mx-3 btn btn-sm align-items-center bg-success"
+                                                                    data-bs-toggle="tooltip" title="{{ __('View invoice') }}">
+                                                                    <i class="ti ti-eye text-white"></i>
+                                                                </a>
+                                                            </div>
+                                                        @endif
+                                                        @if (empty($quotation->converted_purchase_id))
+                                                            @can('create purchase')
+                                                                <div class="action-btn me-2">
+                                                                    <a href="{{ route('quotation.convert-purchase.form', \Crypt::encrypt($quotation->id)) }}"
+                                                                        class="mx-3 btn btn-sm align-items-center bg-secondary"
+                                                                        data-bs-toggle="tooltip" title="{{ __('Convert to purchase order') }}">
+                                                                        <i class="ti ti-shopping-cart text-white"></i>
+                                                                    </a>
+                                                                </div>
+                                                            @endcan
+                                                        @else
+                                                            <div class="action-btn me-2">
+                                                                <a href="{{ route('purchase.show', \Crypt::encrypt($quotation->converted_purchase_id)) }}"
+                                                                    class="mx-3 btn btn-sm align-items-center bg-secondary"
+                                                                    data-bs-toggle="tooltip" title="{{ __('View purchase order') }}">
+                                                                    <i class="ti ti-eye text-white"></i>
+                                                                </a>
+                                                            </div>
+                                                        @endif
+                                                    @endcan
+                                                    @if ((int) $quotation->is_converted === 0)
+                                                        @can('convert quotation')
+                                                            <div class="action-btn me-2">
+                                                                <a href="{{ route('pos.index', $quotation->id) }}"
+                                                                    class="mx-3 btn btn-sm align-items-center bg-warning"
+                                                                    data-bs-toggle="tooltip" title="{{ __('Convert to POS') }}">
+                                                                    <i class="ti ti-device-desktop text-white"></i>
+                                                                </a>
+                                                            </div>
+                                                        @endcan
+                                                    @elseif (! empty($quotation->converted_pos_id))
+                                                        <div class="action-btn me-2">
+                                                            <a href="{{ route('pos.show', \Crypt::encrypt($quotation->converted_pos_id)) }}" class="mx-3 btn btn-sm align-items-center bg-warning"
+                                                                data-bs-toggle="tooltip"
+                                                                title="{{ __('Already convert to POS') }}">
+                                                                <i class="ti ti-file text-white"></i>
+                                                            </a>
+                                                        </div>
                                                     @endif
 
                                                     @can('edit quotation')

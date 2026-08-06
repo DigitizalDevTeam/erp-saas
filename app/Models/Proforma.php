@@ -20,6 +20,7 @@ class Proforma extends Model
         'is_purchase_converted',
         'converted_bill_id',
         'is_bill_converted',
+        'purchase_quotation_id',
         'created_by',
     ];
 

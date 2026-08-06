@@ -9,8 +9,15 @@
 @endsection
 
 @section('action-btn')
-    <div class="float-end">
-        @if ((int) $quote->is_converted === 0)
+    <div class="float-end d-flex flex-wrap gap-2">
+        @if (empty($quote->converted_proforma_id))
+            @can('create quotation')
+                <a href="{{ route('vendor-quote.convert-proforma.form', \Crypt::encrypt($quote->id)) }}" class="btn btn-success">{{ __('Convert to proforma') }}</a>
+            @endcan
+        @else
+            <a href="{{ route('proforma.show', \Crypt::encrypt($quote->converted_proforma_id)) }}" class="btn btn-success">{{ __('View proforma') }}</a>
+        @endif
+        @if (empty($quote->converted_purchase_id))
             @can('create purchase')
                 <a href="{{ route('vendor-quote.convert-purchase', \Crypt::encrypt($quote->id)) }}" class="btn btn-primary">{{ __('Convert to purchase order') }}</a>
             @endcan

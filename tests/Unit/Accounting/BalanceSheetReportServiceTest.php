@@ -90,6 +90,36 @@ class BalanceSheetReportServiceTest extends TestCase
         $this->assertSame(0.0, $snapshot['difference']);
     }
 
+    public function test_does_not_add_period_result_when_identical_to_results_accounts(): void
+    {
+        // Closing posted to 88 but income/expense were not cleared — same amount.
+        $snapshot = $this->snapshot([
+            ['code' => '11', 'type' => 'Assets', 'debit' => 3000, 'credit' => 0],
+            ['code' => '71', 'type' => 'Income', 'debit' => 0, 'credit' => 4000],
+            ['code' => '62', 'type' => 'Expenses', 'debit' => 1000, 'credit' => 0],
+            ['code' => '88', 'type' => 'Results', 'debit' => 0, 'credit' => 3000],
+        ]);
+
+        $this->assertSame(0.0, $snapshot['net_income']);
+        $this->assertSame(3000.0, $snapshot['totals']['Equity']);
+        $this->assertSame(0.0, $snapshot['difference']);
+    }
+
+    public function test_prior_results_plus_current_period_still_adds_net_income(): void
+    {
+        // Mid-year: prior year in 88, current P&L still open — different amounts.
+        $snapshot = $this->snapshot([
+            ['code' => '11', 'type' => 'Assets', 'debit' => 5000, 'credit' => 0],
+            ['code' => '88', 'type' => 'Results', 'debit' => 0, 'credit' => 2000],
+            ['code' => '71', 'type' => 'Income', 'debit' => 0, 'credit' => 4000],
+            ['code' => '62', 'type' => 'Expenses', 'debit' => 1000, 'credit' => 0],
+        ]);
+
+        $this->assertSame(3000.0, $snapshot['net_income']);
+        $this->assertSame(5000.0, $snapshot['totals']['Equity']);
+        $this->assertSame(0.0, $snapshot['difference']);
+    }
+
     private function lineFor(array $snapshot, string $label): float
     {
         $reflection = new \ReflectionClass(BalanceSheetReportService::class);
