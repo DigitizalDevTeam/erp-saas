@@ -324,8 +324,56 @@ class ProformaController extends Controller
             return redirect()->route('proforma.show', Crypt::encrypt($quotation->converted_proforma_id))
                 ->with('info', __('Proforma already exists for this quotation.'));
         }
+        if ($quotation->items->isEmpty()) {
+            return redirect()->back()->with('error', __('Quotation has no line items.'));
+        }
 
-        $proforma = DB::transaction(function () use ($quotation) {
+        return view('quotation.convert_proforma', compact('quotation'));
+    }
+
+    public function storeFromQuotation(Request $request, $encryptedId)
+    {
+        if (! Auth::user()->can('convert quotation')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $qid = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid quotation.'));
+        }
+
+        $quotation = Quotation::with('items')->where('created_by', Auth::user()->creatorId())->find($qid);
+        if (! $quotation) {
+            return redirect()->back()->with('error', __('Quotation not found.'));
+        }
+        if (! empty($quotation->converted_proforma_id)) {
+            return redirect()->route('proforma.show', Crypt::encrypt($quotation->converted_proforma_id))
+                ->with('info', __('Proforma already exists for this quotation.'));
+        }
+
+        $selected = $request->input('items', []);
+        if (! is_array($selected) || $selected === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
+        $selectedRows = [];
+        foreach ($quotation->items as $row) {
+            $payload = $selected[$row->id] ?? null;
+            if (! is_array($payload) || empty($payload['selected'])) {
+                continue;
+            }
+            $qty = (float) ($payload['quantity'] ?? $row->quantity);
+            if ($qty <= 0) {
+                return redirect()->back()->with('error', __('Quantity must be greater than zero.'))->withInput();
+            }
+            $selectedRows[] = [$row, $qty];
+        }
+
+        if ($selectedRows === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
+        $proforma = DB::transaction(function () use ($quotation, $selectedRows) {
             $p = new Proforma();
             $p->proforma_id = $this->nextProformaNumber();
             $p->quotation_id = $quotation->id;
@@ -337,13 +385,13 @@ class ProformaController extends Controller
             $p->created_by = Auth::user()->creatorId();
             $p->save();
 
-            foreach ($quotation->items as $row) {
+            foreach ($selectedRows as [$row, $qty]) {
                 $line = new ProformaProduct();
                 $line->proforma_id = $p->id;
                 $line->product_id = $row->product_id;
                 $line->product_variant_id = $row->product_variant_id ? (int) $row->product_variant_id : null;
                 $line->price = $row->price;
-                $line->quantity = $row->quantity;
+                $line->quantity = $qty;
                 $line->tax = $row->tax;
                 $line->discount = $row->discount;
                 $line->description = $row->description;
@@ -594,7 +642,15 @@ class ProformaController extends Controller
             ->orderBy('id')
             ->first();
 
-        return view('proforma.issue_invoice', compact('proforma', 'category'));
+        $quotationReference = '';
+        if (! empty($proforma->quotation_id)) {
+            $sourceQuotation = Quotation::find($proforma->quotation_id);
+            if ($sourceQuotation) {
+                $quotationReference = Auth::user()->quotationNumberFormat($sourceQuotation->quotation_id);
+            }
+        }
+
+        return view('proforma.issue_invoice', compact('proforma', 'category', 'quotationReference'));
     }
 
     public function convertToInvoiceStore(Request $request, $encryptedId)
@@ -620,10 +676,14 @@ class ProformaController extends Controller
         $validator = \Validator::make($request->all(), [
             'issue_date' => 'required|date',
             'due_date' => 'required|date',
-            'category_id' => 'required|integer',
+            'category_id' => 'required|integer|min:1',
+            'client_po_date' => 'nullable|date',
         ]);
         if ($validator->fails()) {
             return redirect()->back()->with('error', $validator->getMessageBag()->first())->withInput();
+        }
+        if (empty($proforma->customer_id)) {
+            return redirect()->back()->with('error', __('Proforma has no customer.'))->withInput();
         }
 
         $items = [];
@@ -643,16 +703,34 @@ class ProformaController extends Controller
             return redirect()->back()->with('error', __('Proforma has no line items.'));
         }
 
+        $quotationReference = $request->input('quotation_reference');
+        if (! $quotationReference && ! empty($proforma->quotation_id)) {
+            $sourceQuotation = Quotation::find($proforma->quotation_id);
+            if ($sourceQuotation) {
+                $quotationReference = Auth::user()->quotationNumberFormat($sourceQuotation->quotation_id);
+            }
+        }
+
         $payload = [
             'customer_id' => $proforma->customer_id,
             'issue_date' => $request->issue_date,
             'due_date' => $request->due_date,
             'category_id' => $request->category_id,
-            'ref_number' => $request->ref_number ?: '',
+            'ref_number' => $request->ref_number ?: ($quotationReference ?: ''),
+            'client_po_number' => $request->client_po_number,
+            'client_po_date' => $request->client_po_date,
+            'client_po_details' => $request->client_po_details,
+            'quotation_reference' => $quotationReference,
             'items' => $items,
             'source_proforma_id' => $proforma->id,
             '_token' => csrf_token(),
         ];
+        if (! empty($proforma->quotation_id)) {
+            $payload['source_quotation_id'] = $proforma->quotation_id;
+        }
+        if (! empty($proforma->converted_purchase_id)) {
+            $payload['source_purchase_id'] = $proforma->converted_purchase_id;
+        }
 
         $req = Request::create('/invoice', 'POST', $payload);
         $req->setUserResolver(fn () => Auth::user());

@@ -378,13 +378,24 @@
         @if ($invoice->status != 0)
             <div class="row justify-content-between align-items-center mb-3">
                 <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
-                    @if (! empty($invoice->quotation_id) || ! empty($invoice->proforma_id))
-                        <div class="all-button-box">
-                            @if (! empty($invoice->quotation_id))
+                    @if (! empty($invoice->quotation_id) || ! empty($invoice->proforma_id) || ! empty($invoice->purchase_id) || ! empty($invoice->client_po_number) || ! empty($invoice->quotation_reference))
+                        <div class="all-button-box d-flex flex-wrap align-items-center gap-2">
+                            @if (! empty($invoice->quotation_reference))
+                                <span class="badge bg-light text-dark border">{{ __('Quotation Reference') }}: {{ $invoice->quotation_reference }}</span>
+                            @elseif (! empty($invoice->quotation_id))
                                 <a href="{{ route('quotation.show', \Crypt::encrypt($invoice->quotation_id)) }}" class="btn btn-sm btn-outline-secondary">{{ __('Quotation') }}</a>
+                            @endif
+                            @if (! empty($invoice->client_po_number))
+                                <span class="badge bg-light text-dark border">{{ __('PO Number') }}: {{ $invoice->client_po_number }}</span>
+                            @endif
+                            @if (! empty($invoice->client_po_date))
+                                <span class="badge bg-light text-dark border">{{ __('PO Date') }}: {{ Auth::user()->dateFormat($invoice->client_po_date) }}</span>
                             @endif
                             @if (! empty($invoice->proforma_id))
                                 <a href="{{ route('proforma.show', \Crypt::encrypt($invoice->proforma_id)) }}" class="btn btn-sm btn-outline-secondary">{{ __('Proforma') }}</a>
+                            @endif
+                            @if (! empty($invoice->purchase_id))
+                                <a href="{{ route('purchase.show', \Crypt::encrypt($invoice->purchase_id)) }}" class="btn btn-sm btn-outline-secondary">{{ __('Purchase Order') }}</a>
                             @endif
                         </div>
                     @endif

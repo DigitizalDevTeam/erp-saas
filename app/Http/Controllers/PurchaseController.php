@@ -517,7 +517,20 @@ class PurchaseController extends Controller
             ->orderBy('id')
             ->first();
 
-        return view('purchase.convert_invoice', compact('purchase', 'customers', 'defaultCustomerId', 'category'));
+        $quotationReference = '';
+        if (! empty($purchase->quotation_id)) {
+            $sourceQuotation = Quotation::find($purchase->quotation_id);
+            if ($sourceQuotation) {
+                $quotationReference = \Auth::user()->quotationNumberFormat($sourceQuotation->quotation_id);
+            }
+        } elseif (! empty($purchase->sourceProforma?->quotation_id)) {
+            $sourceQuotation = Quotation::find($purchase->sourceProforma->quotation_id);
+            if ($sourceQuotation) {
+                $quotationReference = \Auth::user()->quotationNumberFormat($sourceQuotation->quotation_id);
+            }
+        }
+
+        return view('purchase.convert_invoice', compact('purchase', 'customers', 'defaultCustomerId', 'category', 'quotationReference'));
     }
 
     public function convertToInvoiceStore(Request $request, $encryptedId)
@@ -583,18 +596,41 @@ class PurchaseController extends Controller
             return redirect()->back()->with('error', __('Purchase has no line items.'));
         }
 
+        $quotationReference = '';
+        if (! empty($purchase->quotation_id)) {
+            $sourceQuotation = Quotation::find($purchase->quotation_id);
+            if ($sourceQuotation) {
+                $quotationReference = \Auth::user()->quotationNumberFormat($sourceQuotation->quotation_id);
+            }
+        } elseif (! empty($purchase->proforma_id)) {
+            $sourceProforma = Proforma::find($purchase->proforma_id);
+            if ($sourceProforma && ! empty($sourceProforma->quotation_id)) {
+                $sourceQuotation = Quotation::find($sourceProforma->quotation_id);
+                if ($sourceQuotation) {
+                    $quotationReference = \Auth::user()->quotationNumberFormat($sourceQuotation->quotation_id);
+                }
+            }
+        }
+
         $payload = [
             'customer_id' => $request->customer_id,
             'issue_date' => $request->issue_date,
             'due_date' => $request->due_date,
             'category_id' => $request->category_id,
             'ref_number' => $request->ref_number ?: (\Auth::user()->purchaseNumberFormat($purchase->purchase_id)),
+            'client_po_number' => $request->input('client_po_number'),
+            'client_po_date' => $request->input('client_po_date'),
+            'client_po_details' => $request->input('client_po_details'),
+            'quotation_reference' => $request->input('quotation_reference') ?: $quotationReference,
             'items' => $items,
             'source_purchase_id' => $purchase->id,
             '_token' => csrf_token(),
         ];
         if (! empty($purchase->proforma_id)) {
             $payload['source_proforma_id'] = $purchase->proforma_id;
+        }
+        if (! empty($purchase->quotation_id)) {
+            $payload['source_quotation_id'] = $purchase->quotation_id;
         }
 
         $req = Request::create('/invoice', 'POST', $payload);

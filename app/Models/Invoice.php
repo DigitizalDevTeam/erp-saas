@@ -16,6 +16,10 @@ class Invoice extends Model
         'issue_date',
         'due_date',
         'ref_number',
+        'client_po_number',
+        'client_po_date',
+        'client_po_details',
+        'quotation_reference',
         'status',
         'credit_hold_reasons',
         'authorized_by',
@@ -38,6 +42,7 @@ class Invoice extends Model
     protected $casts = [
         'voided_at' => 'datetime',
         'authorized_at' => 'datetime',
+        'client_po_date' => 'date',
     ];
     public function pos()
     {

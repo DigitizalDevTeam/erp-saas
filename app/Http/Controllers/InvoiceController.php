@@ -258,6 +258,10 @@ class InvoiceController extends Controller
                     $invoice->due_date = $request->due_date;
                     $invoice->category_id = $request->category_id;
                     $invoice->ref_number = $request->ref_number;
+                    $invoice->client_po_number = $request->input('client_po_number');
+                    $invoice->client_po_date = $request->input('client_po_date') ?: null;
+                    $invoice->client_po_details = $request->input('client_po_details');
+                    $invoice->quotation_reference = $request->input('quotation_reference');
                     $invoice->billing_address_id = $request->billing_address ?? null;
                     $invoice->shipping_address_id = $request->shipping_address ?? null;
                     $invoice->created_by = \Auth::user()->creatorId();
@@ -288,6 +292,15 @@ class InvoiceController extends Controller
                             if (empty($invoice->proforma_id) && ! empty($purchase->proforma_id)) {
                                 $invoice->proforma_id = $purchase->proforma_id;
                             }
+                            if (empty($invoice->quotation_id) && ! empty($purchase->quotation_id)) {
+                                $invoice->quotation_id = $purchase->quotation_id;
+                            }
+                        }
+                    }
+                    if (empty($invoice->quotation_reference) && ! empty($invoice->quotation_id)) {
+                        $q = Quotation::find($invoice->quotation_id);
+                        if ($q) {
+                            $invoice->quotation_reference = \Auth::user()->quotationNumberFormat($q->quotation_id);
                         }
                     }
                     $invoice->save();
@@ -409,6 +422,11 @@ class InvoiceController extends Controller
                     ->with('success', __('Sales invoice created from purchase order. Send the invoice to post accounting entries.'));
             }
 
+            if ($request->filled('source_proforma_id') || $request->filled('source_quotation_id')) {
+                return redirect()->route('invoice.show', Crypt::encrypt($invoice->id))
+                    ->with('success', __('Invoice successfully created.'));
+            }
+
             return redirect()->route('invoice.index', $invoice->id)->with('success', __('Invoice successfully created.'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
@@ -475,6 +493,10 @@ class InvoiceController extends Controller
                 $invoice->issue_date = $request->issue_date;
                 $invoice->due_date = $request->due_date;
                 $invoice->ref_number = $request->ref_number;
+                $invoice->client_po_number = $request->input('client_po_number');
+                $invoice->client_po_date = $request->input('client_po_date') ?: null;
+                $invoice->client_po_details = $request->input('client_po_details');
+                $invoice->quotation_reference = $request->input('quotation_reference');
                 //                $invoice->discount_apply = isset($request->discount_apply) ? 1 : 0;
                 $invoice->category_id = $request->category_id;
                 $invoice->billing_address_id = $request->billing_address ?? $invoice->billing_address_id;
@@ -1368,7 +1390,7 @@ class InvoiceController extends Controller
             return redirect()->back()->with('error', __('Something went wrong.'));
         }
 
-        $invoice = Invoice::with(['pos.branch', 'pos.table', 'pos.shift','billing_address','shipping_address'])->where('id', $invoiceId)->first();
+        $invoice = Invoice::with(['pos.branch', 'pos.table', 'pos.shift', 'billing_address', 'shipping_address', 'sourcePurchase', 'sourceQuotation', 'sourceProforma'])->where('id', $invoiceId)->first();
 
         $data = DB::table('settings');
         $data = $data->where('created_by', '=', $invoice->created_by);

@@ -249,6 +249,7 @@
                             <td><b>{{__('Due Date:')}}</b></td>
                             <td class="text-right">{{Utility::dateFormat($settings,$invoice->due_date)}}</td>
                         </tr>
+                        @include('invoice.partials.document_references')
                         @if(!empty($invoice->pos))
                             @if(!empty($invoice->pos->branch))
                             <tr>

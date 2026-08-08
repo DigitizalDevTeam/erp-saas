@@ -637,7 +637,9 @@ class QuotationController extends Controller
             ->orderBy('id')
             ->first();
 
-        return view('quotation.convert_invoice', compact('quotation', 'category'));
+        $quotationReference = Auth::user()->quotationNumberFormat($quotation->quotation_id);
+
+        return view('quotation.convert_invoice', compact('quotation', 'category', 'quotationReference'));
     }
 
     public function convertToInvoiceStore(Request $request, $encryptedId)
@@ -664,6 +666,7 @@ class QuotationController extends Controller
             'issue_date' => 'required|date',
             'due_date' => 'required|date',
             'category_id' => 'required|integer',
+            'client_po_date' => 'nullable|date',
         ]);
         if ($validator->fails()) {
             return redirect()->back()->with('error', $validator->getMessageBag()->first())->withInput();
@@ -686,18 +689,28 @@ class QuotationController extends Controller
             return redirect()->back()->with('error', __('Quotation has no line items.'));
         }
 
+        $quotationReference = $request->input('quotation_reference')
+            ?: Auth::user()->quotationNumberFormat($quotation->quotation_id);
+
         $payload = [
             'customer_id' => $quotation->customer_id,
             'issue_date' => $request->issue_date,
             'due_date' => $request->due_date,
             'category_id' => $request->category_id,
-            'ref_number' => $request->ref_number ?: '',
+            'ref_number' => $request->ref_number ?: $quotationReference,
+            'client_po_number' => $request->client_po_number,
+            'client_po_date' => $request->client_po_date,
+            'client_po_details' => $request->client_po_details,
+            'quotation_reference' => $quotationReference,
             'items' => $items,
             'source_quotation_id' => $quotation->id,
             '_token' => csrf_token(),
         ];
         if (! empty($quotation->converted_proforma_id)) {
             $payload['source_proforma_id'] = $quotation->converted_proforma_id;
+        }
+        if (! empty($quotation->converted_purchase_id)) {
+            $payload['source_purchase_id'] = $quotation->converted_purchase_id;
         }
 
         $req = Request::create('/invoice', 'POST', $payload);

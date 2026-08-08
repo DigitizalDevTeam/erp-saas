@@ -40,10 +40,10 @@
                             @endphp
                             {{ Form::select('category_id', $cats, $category?->id ?? $quotation->category_id, ['class' => 'form-control select', 'required' => true]) }}
                         </div>
-                        <div class="col-md-12 mb-3">
-                            {{ Form::label('ref_number', __('Reference'), ['class' => 'form-label']) }}
-                            {{ Form::text('ref_number', Auth::user()->quotationNumberFormat($quotation->quotation_id), ['class' => 'form-control']) }}
-                        </div>
+                        @include('invoice.partials.convert_po_fields', [
+                            'quotationReference' => $quotationReference ?? Auth::user()->quotationNumberFormat($quotation->quotation_id),
+                            'refNumber' => $quotationReference ?? Auth::user()->quotationNumberFormat($quotation->quotation_id),
+                        ])
                     </div>
                     <div class="mt-3">
                         {{ Form::submit(__('Create invoice'), ['class' => 'btn btn-primary']) }}

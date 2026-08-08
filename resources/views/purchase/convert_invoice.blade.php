@@ -44,10 +44,10 @@
                             {{ Form::label('due_date', __('Due date'), ['class' => 'form-label']) }}<x-required></x-required>
                             {{ Form::date('due_date', date('Y-m-d', strtotime('+30 days')), ['class' => 'form-control', 'required' => true]) }}
                         </div>
-                        <div class="col-md-12 mb-3">
-                            {{ Form::label('ref_number', __('Reference'), ['class' => 'form-label']) }}
-                            {{ Form::text('ref_number', Auth::user()->purchaseNumberFormat($purchase->purchase_id), ['class' => 'form-control']) }}
-                        </div>
+                        @include('invoice.partials.convert_po_fields', [
+                            'quotationReference' => $quotationReference ?? '',
+                            'refNumber' => Auth::user()->purchaseNumberFormat($purchase->purchase_id),
+                        ])
                     </div>
                     <div class="mt-3">
                         {{ Form::submit(__('Create invoice'), ['class' => 'btn btn-primary']) }}

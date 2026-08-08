@@ -2242,6 +2242,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('quotation/pdf/{id}', [QuotationController::class, 'quotation'])->name('quotation.pdf')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::get('proforma/from-quotation/{id}', [ProformaController::class, 'createFromQuotation'])->name('proforma.create-from-quotation')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('proforma/from-quotation/{id}', [ProformaController::class, 'storeFromQuotation'])->name('proforma.store-from-quotation')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('proforma/{id}/convert-purchase', [ProformaController::class, 'convertToPurchaseForm'])->name('proforma.convert-purchase.form')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('proforma/{id}/convert-purchase', [ProformaController::class, 'convertToPurchaseStore'])->name('proforma.convert-purchase.store')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('proforma/{id}/convert-invoice', [ProformaController::class, 'convertToInvoiceForm'])->name('proforma.convert-invoice.form')->middleware(['auth', 'XSS', 'revalidate']);

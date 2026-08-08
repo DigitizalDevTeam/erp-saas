@@ -879,6 +879,30 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ Form::label('client_po_number', __('Client PO Number'),['class'=>'form-label']) }}
+                                        {{ Form::text('client_po_number', null, ['class' => 'form-control']) }}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ Form::label('client_po_date', __('Client PO Date'),['class'=>'form-label']) }}
+                                        {{ Form::date('client_po_date', optional($invoice->client_po_date)->format('Y-m-d'), ['class' => 'form-control']) }}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ Form::label('quotation_reference', __('Quotation Reference'),['class'=>'form-label']) }}
+                                        {{ Form::text('quotation_reference', null, ['class' => 'form-control']) }}
+                                    </div>
+                                </div>
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        {{ Form::label('client_po_details', __('Client PO Details'),['class'=>'form-label']) }}
+                                        {{ Form::textarea('client_po_details', null, ['class' => 'form-control', 'rows' => 2]) }}
+                                    </div>
+                                </div>
 
                                 @if(!$customFields->isEmpty())
                                             @include('customFields.formBuilder')

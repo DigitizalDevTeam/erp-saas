@@ -319,6 +319,7 @@
                         <tr><td class="k">{{__('Date')}}:</td><td class="v">{{Utility::dateFormat($settings,$invoice->issue_date)}}</td></tr>
                         <tr><td class="k">{{__('Sales Rep')}}:</td><td class="v">{{ auth()->user()->name ?? 'User' }}</td></tr>
                         <tr><td class="k">{{__('Due Date')}}:</td><td class="v">{{Utility::dateFormat($settings,$invoice->due_date)}}</td></tr>
+                        @include('invoice.partials.document_references')
                         <tr><td class="k">{{__('Overall Discount %')}}:</td><td class="v">{{number_format($overallDiscountPercent, 2)}}%</td></tr>
                     </table>
                 </td>
