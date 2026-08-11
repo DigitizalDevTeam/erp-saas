@@ -386,6 +386,12 @@ class ProformaController extends Controller
             $p->save();
 
             foreach ($selectedRows as [$row, $qty]) {
+                $originalQty = (float) $row->quantity;
+                $discount = (float) $row->discount;
+                if ($originalQty > 0 && abs($qty - $originalQty) > 0.00001) {
+                    $discount = $discount * ($qty / $originalQty);
+                }
+
                 $line = new ProformaProduct();
                 $line->proforma_id = $p->id;
                 $line->product_id = $row->product_id;
@@ -393,7 +399,7 @@ class ProformaController extends Controller
                 $line->price = $row->price;
                 $line->quantity = $qty;
                 $line->tax = $row->tax;
-                $line->discount = $row->discount;
+                $line->discount = $discount;
                 $line->description = $row->description;
                 $line->save();
             }
@@ -499,7 +505,7 @@ class ProformaController extends Controller
             return redirect()->back()->with('error', __('Proforma has no line items.'));
         }
 
-        $req = Request::create('/purchase', 'POST', [
+        $payload = [
             'vender_id' => $request->vender_id,
             'warehouse_id' => $request->warehouse_id,
             'purchase_date' => $request->purchase_date,
@@ -508,7 +514,12 @@ class ProformaController extends Controller
             'items' => $items,
             'proforma_id' => $proforma->id,
             '_token' => csrf_token(),
-        ]);
+        ];
+        if (! empty($proforma->quotation_id)) {
+            $payload['quotation_id'] = (int) $proforma->quotation_id;
+        }
+
+        $req = Request::create('/purchase', 'POST', $payload);
         $req->setUserResolver(fn () => Auth::user());
 
         return app(PurchaseController::class)->store($req);

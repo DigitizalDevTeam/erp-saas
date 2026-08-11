@@ -563,10 +563,17 @@ class PurchaseController extends Controller
             return redirect()->back()->with('error', $validator->getMessageBag()->first())->withInput();
         }
 
-        $proformaPrices = [];
+        $proformaPricesByVariant = [];
+        $proformaPricesByProduct = [];
         if ($purchase->sourceProforma) {
             foreach ($purchase->sourceProforma->items as $pfItem) {
-                $proformaPrices[(int) $pfItem->product_id] = (float) $pfItem->price;
+                $productKey = (int) $pfItem->product_id;
+                $variantKey = $pfItem->product_variant_id ? (int) $pfItem->product_variant_id : 0;
+                $proformaPricesByVariant[$productKey . ':' . $variantKey] = (float) $pfItem->price;
+                // First matching product_id wins as fallback when variant does not match.
+                if (! array_key_exists($productKey, $proformaPricesByProduct)) {
+                    $proformaPricesByProduct[$productKey] = (float) $pfItem->price;
+                }
             }
         }
 
@@ -576,7 +583,10 @@ class PurchaseController extends Controller
             $salePrice = $product && (float) ($product->sale_price ?? 0) > 0
                 ? (float) $product->sale_price
                 : null;
-            $price = $proformaPrices[(int) $line->product_id]
+            $productKey = (int) $line->product_id;
+            $variantKey = $line->product_variant_id ? (int) $line->product_variant_id : 0;
+            $price = $proformaPricesByVariant[$productKey . ':' . $variantKey]
+                ?? $proformaPricesByProduct[$productKey]
                 ?? $salePrice
                 ?? (float) $line->price;
 
@@ -631,6 +641,11 @@ class PurchaseController extends Controller
         }
         if (! empty($purchase->quotation_id)) {
             $payload['source_quotation_id'] = $purchase->quotation_id;
+        } elseif (! empty($purchase->proforma_id)) {
+            $sourceProforma = $purchase->sourceProforma ?: Proforma::find($purchase->proforma_id);
+            if ($sourceProforma && ! empty($sourceProforma->quotation_id)) {
+                $payload['source_quotation_id'] = (int) $sourceProforma->quotation_id;
+            }
         }
 
         $req = Request::create('/invoice', 'POST', $payload);
