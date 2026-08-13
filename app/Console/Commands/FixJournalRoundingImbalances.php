@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use App\Services\Accounting\JournalRoundingRepairService;
 use App\Services\BalanceSheetReportService;
-use Carbon\Carbon;
+use App\Services\TrialBalanceReportService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -38,10 +38,16 @@ class FixJournalRoundingImbalances extends Command
             $diff = round((float) $row->d - (float) $row->c, 2);
             $this->line("Company {$companyId} ledger debit−credit: {$diff}");
 
+            $year = (int) date('Y');
+            $range = TrialBalanceReportService::defaultDateRange($year);
             $bs = app(BalanceSheetReportService::class)->build(
                 $companyId,
-                Carbon::parse(date('Y').'-01-01'),
-                Carbon::today()
+                $range['start'],
+                $range['end'],
+                null,
+                $year,
+                0,
+                15
             );
             $this->line('Balance Sheet difference (current): '.$bs['totals']['difference']['current']);
             $this->line('Balance Sheet difference (previous): '.$bs['totals']['difference']['previous']);

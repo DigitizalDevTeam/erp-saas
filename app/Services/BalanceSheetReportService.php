@@ -2,8 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\TransactionLines;
-use Carbon\Carbon;
+use App\Services\Accounting\LedgerAccountBalanceService;
 
 class BalanceSheetReportService
 {
@@ -55,23 +54,110 @@ class BalanceSheetReportService
     private const SECTIONS = ['Assets', 'Liabilities', 'Equity'];
 
     /**
+     * Resolve BS filter. Date-only bookmarks still use full FY 0→15 (opening + close),
+     * unlike Trial Balance which treats explicit dates as operational-only.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array{
+     *     start: string,
+     *     end: string,
+     *     fiscalYear: int,
+     *     accountingPeriod: int|null,
+     *     accountingPeriodFrom: int,
+     *     accountingPeriodTo: int,
+     *     previousStart: string,
+     *     previousEnd: string,
+     *     previousFiscalYear: int
+     * }
+     */
+    public static function resolveFilter(array $input): array
+    {
+        [$periodFrom, $periodTo] = TrialBalanceReportService::normalizePeriodRange($input);
+
+        if (isset($input['fiscal_year']) && $input['fiscal_year'] !== '') {
+            $fiscalYear = (int) $input['fiscal_year'];
+        } elseif (! empty($input['end_date'])) {
+            $fiscalYear = (int) date('Y', strtotime((string) $input['end_date']));
+        } elseif (! empty($input['start_date'])) {
+            $fiscalYear = (int) date('Y', strtotime((string) $input['start_date']));
+        } else {
+            $fiscalYear = (int) date('Y');
+        }
+
+        if ($periodFrom === null || $periodTo === null) {
+            $periodFrom = 0;
+            $periodTo = 15;
+        }
+
+        $range = TrialBalanceReportService::dateRangeForPeriodSpan($fiscalYear, $periodFrom, $periodTo);
+        $previousFiscalYear = $fiscalYear - 1;
+        $previousRange = TrialBalanceReportService::dateRangeForPeriodSpan($previousFiscalYear, $periodFrom, $periodTo);
+
+        return [
+            'start' => $range['start'],
+            'end' => $range['end'],
+            'fiscalYear' => $fiscalYear,
+            'accountingPeriod' => ($periodFrom === $periodTo) ? $periodFrom : null,
+            'accountingPeriodFrom' => $periodFrom,
+            'accountingPeriodTo' => $periodTo,
+            'previousStart' => $previousRange['start'],
+            'previousEnd' => $previousRange['end'],
+            'previousFiscalYear' => $previousFiscalYear,
+        ];
+    }
+
+    /**
      * @return array{
      *     rows: list<array<string, mixed>>,
      *     totals: array<string, array<string, float>>,
-     *     filter: array<string, string>,
+     *     filter: array<string, mixed>,
      * }
      */
-    public function build(int $creatorId, Carbon $currentStart, Carbon $currentEnd): array
-    {
-        if ($currentStart->gt($currentEnd)) {
-            [$currentStart, $currentEnd] = [$currentEnd->copy(), $currentStart->copy()];
+    public function build(
+        int $creatorId,
+        string $start,
+        string $end,
+        ?int $accountingPeriod = null,
+        ?int $fiscalYear = null,
+        ?int $accountingPeriodFrom = null,
+        ?int $accountingPeriodTo = null
+    ): array {
+        $fiscalYear = $fiscalYear ?? (int) date('Y', strtotime($end));
+
+        if ($accountingPeriodFrom === null && $accountingPeriodTo === null) {
+            if ($accountingPeriod !== null) {
+                $accountingPeriodFrom = $accountingPeriod;
+                $accountingPeriodTo = $accountingPeriod;
+            } else {
+                $accountingPeriodFrom = 0;
+                $accountingPeriodTo = 15;
+            }
         }
 
-        $previousStart = $currentStart->copy()->subYear();
-        $previousEnd = $currentEnd->copy()->subYear();
+        $previousFiscalYear = $fiscalYear - 1;
+        $previousRange = TrialBalanceReportService::dateRangeForPeriodSpan(
+            $previousFiscalYear,
+            $accountingPeriodFrom,
+            $accountingPeriodTo
+        );
 
-        $current = $this->computeSnapshot($this->accountBalances($creatorId, $currentEnd));
-        $previous = $this->computeSnapshot($this->accountBalances($creatorId, $previousEnd));
+        $ledger = app(LedgerAccountBalanceService::class);
+        $current = $this->computeSnapshot($ledger->balancesForSnapshot(
+            $creatorId,
+            $start,
+            $end,
+            $accountingPeriodFrom,
+            $accountingPeriodTo,
+            $fiscalYear
+        ));
+        $previous = $this->computeSnapshot($ledger->balancesForSnapshot(
+            $creatorId,
+            $previousRange['start'],
+            $previousRange['end'],
+            $accountingPeriodFrom,
+            $accountingPeriodTo,
+            $previousFiscalYear
+        ));
 
         $rows = $this->buildRows($current, $previous);
 
@@ -102,12 +188,18 @@ class BalanceSheetReportService
             'rows' => $rows,
             'totals' => $totals,
             'filter' => [
-                'startDateRange' => $currentStart->format('Y-m-d'),
-                'endDateRange' => $currentEnd->format('Y-m-d'),
-                'previousStartDateRange' => $previousStart->format('Y-m-d'),
-                'previousEndDateRange' => $previousEnd->format('Y-m-d'),
-                'currentYear' => (string) $currentEnd->year,
-                'previousYear' => (string) $previousEnd->year,
+                'startDateRange' => $start,
+                'endDateRange' => $end,
+                'previousStartDateRange' => $previousRange['start'],
+                'previousEndDateRange' => $previousRange['end'],
+                'currentYear' => (string) $fiscalYear,
+                'previousYear' => (string) $previousFiscalYear,
+                'fiscalYear' => $fiscalYear,
+                'accountingPeriod' => ($accountingPeriodFrom === $accountingPeriodTo)
+                    ? $accountingPeriodFrom
+                    : null,
+                'accountingPeriodFrom' => $accountingPeriodFrom,
+                'accountingPeriodTo' => $accountingPeriodTo,
             ],
         ];
     }
@@ -310,37 +402,6 @@ class BalanceSheetReportService
         }
 
         $lines[$bestIndex] += $amount;
-    }
-
-    /**
-     * Balances per account. Scoped by transaction owner only: lines pointing at a
-     * chart account owned by another company (or a deleted one) must still be
-     * reported, otherwise the balance sheet silently loses value.
-     *
-     * @return list<array{code: string, type: string, debit: float, credit: float}>
-     */
-    private function accountBalances(int $creatorId, Carbon $asOf): array
-    {
-        $records = TransactionLines::query()
-            ->leftJoin('chart_of_accounts', 'transaction_lines.account_id', '=', 'chart_of_accounts.id')
-            ->leftJoin('chart_of_account_types', 'chart_of_accounts.type', '=', 'chart_of_account_types.id')
-            ->where('transaction_lines.created_by', $creatorId)
-            ->whereDate('transaction_lines.date', '<=', $asOf->toDateString())
-            ->groupBy('transaction_lines.account_id', 'chart_of_accounts.code', 'chart_of_account_types.name')
-            ->selectRaw('chart_of_accounts.code as code, chart_of_account_types.name as type_name, SUM(transaction_lines.debit) as debit, SUM(transaction_lines.credit) as credit')
-            ->get();
-
-        $accounts = [];
-        foreach ($records as $record) {
-            $accounts[] = [
-                'code' => (string) ($record->code ?? ''),
-                'type' => (string) ($record->type_name ?? ''),
-                'debit' => (float) $record->debit,
-                'credit' => (float) $record->credit,
-            ];
-        }
-
-        return $accounts;
     }
 
     /**

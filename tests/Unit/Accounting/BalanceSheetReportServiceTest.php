@@ -120,6 +120,107 @@ class BalanceSheetReportServiceTest extends TestCase
         $this->assertSame(0.0, $snapshot['difference']);
     }
 
+    public function test_resolve_filter_defaults_to_full_year_0_to_15(): void
+    {
+        $resolved = BalanceSheetReportService::resolveFilter([
+            'fiscal_year' => 2025,
+        ]);
+
+        $this->assertSame('2025-01-01', $resolved['start']);
+        $this->assertSame('2025-12-31', $resolved['end']);
+        $this->assertSame(0, $resolved['accountingPeriodFrom']);
+        $this->assertSame(15, $resolved['accountingPeriodTo']);
+        $this->assertSame(2025, $resolved['fiscalYear']);
+        $this->assertSame('2024-01-01', $resolved['previousStart']);
+        $this->assertSame('2024-12-31', $resolved['previousEnd']);
+        $this->assertSame(2024, $resolved['previousFiscalYear']);
+    }
+
+    public function test_resolve_filter_date_only_range_uses_end_year_full_0_to_15(): void
+    {
+        $resolved = BalanceSheetReportService::resolveFilter([
+            'start_date' => '2025-01-01',
+            'end_date' => '2026-12-31',
+        ]);
+
+        $this->assertSame(2026, $resolved['fiscalYear']);
+        $this->assertSame(0, $resolved['accountingPeriodFrom']);
+        $this->assertSame(15, $resolved['accountingPeriodTo']);
+        $this->assertSame('2026-01-01', $resolved['start']);
+        $this->assertSame('2026-12-31', $resolved['end']);
+        $this->assertSame(2025, $resolved['previousFiscalYear']);
+        $this->assertSame('2025-01-01', $resolved['previousStart']);
+        $this->assertSame('2025-12-31', $resolved['previousEnd']);
+    }
+
+    public function test_resolve_filter_forwards_explicit_months(): void
+    {
+        $resolved = BalanceSheetReportService::resolveFilter([
+            'fiscal_year' => 2026,
+            'accounting_period_from' => 1,
+            'accounting_period_to' => 3,
+        ]);
+
+        $this->assertSame('2026-01-01', $resolved['start']);
+        $this->assertSame('2026-03-31', $resolved['end']);
+        $this->assertSame(1, $resolved['accountingPeriodFrom']);
+        $this->assertSame(3, $resolved['accountingPeriodTo']);
+        $this->assertSame('2025-01-01', $resolved['previousStart']);
+        $this->assertSame('2025-03-31', $resolved['previousEnd']);
+    }
+
+    public function test_resolve_filter_blank_uses_current_calendar_year(): void
+    {
+        $resolved = BalanceSheetReportService::resolveFilter([]);
+        $year = (int) date('Y');
+
+        $this->assertSame($year, $resolved['fiscalYear']);
+        $this->assertSame(0, $resolved['accountingPeriodFrom']);
+        $this->assertSame(15, $resolved['accountingPeriodTo']);
+        $this->assertSame(sprintf('%04d-01-01', $year), $resolved['start']);
+        $this->assertSame(sprintf('%04d-12-31', $year), $resolved['end']);
+    }
+
+    public function test_cash_credit_balance_matches_trial_balance_magnitude(): void
+    {
+        $snapshot = $this->snapshot([
+            ['code' => '11', 'type' => 'Assets', 'debit' => 0, 'credit' => 898474.10],
+            ['code' => '21', 'type' => 'Assets', 'debit' => 95384.57, 'credit' => 0],
+        ]);
+
+        $this->assertEqualsWithDelta(-898474.10, $this->lineFor($snapshot, 'Cash'), 0.001);
+        $this->assertEqualsWithDelta(95384.57, $this->lineFor($snapshot, 'Purchases / Inventory'), 0.001);
+    }
+
+    public function test_vat_payable_is_hidden_when_4437_has_no_balance(): void
+    {
+        $current = $this->snapshot([
+            ['code' => '11', 'type' => 'Assets', 'debit' => 0, 'credit' => 898474.10],
+            ['code' => '21', 'type' => 'Assets', 'debit' => 95384.57, 'credit' => 0],
+            ['code' => '443', 'type' => 'Liabilities', 'debit' => 4359.31, 'credit' => 14573.76],
+        ]);
+        $previous = $this->snapshot([]);
+        $rows = $this->rowsFrom($current, $previous);
+
+        $this->assertNull($this->rowFor($rows, 'VAT payable'));
+        $this->assertNotNull($this->rowFor($rows, 'State / Tax authorities'));
+        $this->assertEqualsWithDelta(-898474.10, $this->rowFor($rows, 'Cash')['current_year'], 0.001);
+        $this->assertEqualsWithDelta(95384.57, $this->rowFor($rows, 'Purchases / Inventory')['current_year'], 0.001);
+    }
+
+    public function test_vat_payable_is_shown_when_4437_has_a_balance(): void
+    {
+        $current = $this->snapshot([
+            ['code' => '4437', 'type' => 'Liabilities', 'debit' => 0, 'credit' => 700],
+        ]);
+        $previous = $this->snapshot([]);
+        $rows = $this->rowsFrom($current, $previous);
+
+        $vat = $this->rowFor($rows, 'VAT payable');
+        $this->assertNotNull($vat);
+        $this->assertSame(700.0, $vat['current_year']);
+    }
+
     private function lineFor(array $snapshot, string $label): float
     {
         $reflection = new \ReflectionClass(BalanceSheetReportService::class);
@@ -132,5 +233,33 @@ class BalanceSheetReportServiceTest extends TestCase
         }
 
         $this->fail("Line '{$label}' not found.");
+    }
+
+    /**
+     * @param  array{lines: array<int, float>, other: array<string, float>, unclassified: float, net_income: float}  $current
+     * @param  array{lines: array<int, float>, other: array<string, float>, unclassified: float, net_income: float}  $previous
+     * @return list<array<string, mixed>>
+     */
+    private function rowsFrom(array $current, array $previous): array
+    {
+        $method = (new \ReflectionClass(BalanceSheetReportService::class))->getMethod('buildRows');
+        $method->setAccessible(true);
+
+        return $method->invoke(new BalanceSheetReportService(), $current, $previous);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return array<string, mixed>|null
+     */
+    private function rowFor(array $rows, string $label): ?array
+    {
+        foreach ($rows as $row) {
+            if (($row['label'] ?? '') === $label) {
+                return $row;
+            }
+        }
+
+        return null;
     }
 }

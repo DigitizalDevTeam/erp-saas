@@ -1247,13 +1247,16 @@ class ReportController extends Controller
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 
-        $currentStart = !empty($request->start_date) ? Carbon::parse($request->start_date) : Carbon::now()->startOfYear();
-        $currentEnd = !empty($request->end_date) ? Carbon::parse($request->end_date) : Carbon::now();
+        $resolved = BalanceSheetReportService::resolveFilter($request->all());
 
         $report = app(BalanceSheetReportService::class)->build(
             (int) \Auth::user()->creatorId(),
-            $currentStart,
-            $currentEnd
+            $resolved['start'],
+            $resolved['end'],
+            $resolved['accountingPeriod'],
+            $resolved['fiscalYear'],
+            $resolved['accountingPeriodFrom'],
+            $resolved['accountingPeriodTo']
         );
 
         $settings = Utility::settings();
@@ -4660,13 +4663,16 @@ class ReportController extends Controller
 
     public function balanceSheetExport(Request $request)
     {
-        $currentStart = !empty($request->start_date) ? Carbon::parse($request->start_date) : Carbon::now()->startOfYear();
-        $currentEnd = !empty($request->end_date) ? Carbon::parse($request->end_date) : Carbon::now();
+        $resolved = BalanceSheetReportService::resolveFilter($request->all());
 
         $report = app(BalanceSheetReportService::class)->build(
             (int) \Auth::user()->creatorId(),
-            $currentStart,
-            $currentEnd
+            $resolved['start'],
+            $resolved['end'],
+            $resolved['accountingPeriod'],
+            $resolved['fiscalYear'],
+            $resolved['accountingPeriodFrom'],
+            $resolved['accountingPeriodTo']
         );
 
         $settings = Utility::settings();

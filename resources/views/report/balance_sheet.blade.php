@@ -49,8 +49,11 @@
     </div>
     <div class="float-end me-2">
         {{ Form::open(['route' => ['balance.sheet.export']]) }}
-        <input type="hidden" name="start_date" class="start_date">
-        <input type="hidden" name="end_date" class="end_date">
+        <input type="hidden" name="start_date" value="{{ $filter['startDateRange'] }}">
+        <input type="hidden" name="end_date" value="{{ $filter['endDateRange'] }}">
+        <input type="hidden" name="fiscal_year" value="{{ $filter['fiscalYear'] ?? '' }}">
+        <input type="hidden" name="accounting_period_from" value="{{ $filter['accountingPeriodFrom'] ?? '' }}">
+        <input type="hidden" name="accounting_period_to" value="{{ $filter['accountingPeriodTo'] ?? '' }}">
         <button type="submit" class="btn btn-sm btn-secondary" data-bs-toggle="tooltip" title="{{ __('Export') }}"
             data-original-title="{{ __('Export') }}"><i class="ti ti-file-export"></i></button>
         {{ Form::close() }}
@@ -74,20 +77,7 @@
                                 <div class="row justify-content-between">
                                     <div class="col-xl-12">
                                         <div class="row justify-content-end align-items-center">
-                                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
-                                                <div class="btn-box">
-                                                    {{ Form::label('start_date', __('Start Date'), ['class' => 'form-label']) }}
-                                                    {{ Form::date('start_date', $filter['startDateRange'], ['class' => 'startDate form-control']) }}
-                                                </div>
-                                            </div>
-
-                                            <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
-                                                <div class="btn-box">
-                                                    {{ Form::label('end_date', __('End Date'), ['class' => 'form-label']) }}
-                                                    {{ Form::date('end_date', $filter['endDateRange'], ['class' => 'endDate form-control']) }}
-                                                </div>
-                                            </div>
-
+                                            @include('reports.partials.trial_balance_filter_fields')
                                             <div class="col-auto mt-4">
                                                 <a href="#" class="btn btn-sm btn-primary"
                                                     onclick="document.getElementById('report_balancesheet').submit(); return false;"
@@ -130,6 +120,9 @@
                                 {{ $filter['startDateRange'] }} - {{ $filter['endDateRange'] }}
                                 |
                                 {{ $filter['previousStartDateRange'] }} - {{ $filter['previousEndDateRange'] }}
+                                @if(isset($filter['accountingPeriodFrom'], $filter['accountingPeriodTo']))
+                                    ({{ __('Periods') }} {{ $filter['accountingPeriodFrom'] }}–{{ $filter['accountingPeriodTo'] }})
+                                @endif
                             </small>
                         </div>
                         <table class="table table-bordered">
