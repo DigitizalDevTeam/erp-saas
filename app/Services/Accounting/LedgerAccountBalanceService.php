@@ -57,6 +57,7 @@ class LedgerAccountBalanceService
 
         $meta = ChartOfAccount::query()
             ->leftJoin('chart_of_account_types', 'chart_of_accounts.type', '=', 'chart_of_account_types.id')
+            ->where('chart_of_accounts.created_by', $creatorId)
             ->whereIn('chart_of_accounts.id', array_keys($raw))
             ->select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_account_types.name as type_name')
             ->get()
@@ -66,6 +67,8 @@ class LedgerAccountBalanceService
         foreach ($raw as $accountId => $amounts) {
             $coa = $meta->get($accountId);
             $accounts[] = [
+                // Missing / foreign ids (after remap) stay empty so BS shows Unclassified
+                // instead of borrowing another company's chart labels.
                 'code' => (string) ($coa->code ?? ''),
                 'type' => (string) ($coa->type_name ?? ''),
                 'debit' => (float) $amounts['totalDebit'],
@@ -232,7 +235,98 @@ class LedgerAccountBalanceService
             }
         }
 
-        return $balances;
+        // Historical bills/docs sometimes stored another company's chart account id.
+        // Remap by account code onto this company's CoA so TB and BS stay aligned.
+        return $this->remapToCompanyAccountIds($creatorId, $balances);
+    }
+
+    /**
+     * Re-attribute balances posted against foreign/missing chart rows onto this
+     * company's account with the same code (when one exists).
+     *
+     * @param  array<int, array{totalDebit: float, totalCredit: float}>  $balances
+     * @return array<int, array{totalDebit: float, totalCredit: float}>
+     */
+    public function remapToCompanyAccountIds(int $creatorId, array $balances): array
+    {
+        if ($balances === []) {
+            return [];
+        }
+
+        $accountIds = array_keys($balances);
+        $coaRows = ChartOfAccount::query()
+            ->whereIn('id', $accountIds)
+            ->get(['id', 'code', 'created_by'])
+            ->keyBy('id');
+
+        $meta = [];
+        foreach ($accountIds as $accountId) {
+            $coa = $coaRows->get($accountId);
+            $meta[(int) $accountId] = $coa === null
+                ? null
+                : [
+                    'code' => trim((string) ($coa->code ?? '')),
+                    'created_by' => (int) $coa->created_by,
+                ];
+        }
+
+        $foreignCodes = [];
+        foreach ($meta as $info) {
+            if ($info === null || $info['created_by'] === $creatorId || $info['code'] === '') {
+                continue;
+            }
+            $foreignCodes[$info['code']] = true;
+        }
+
+        $companyByCode = [];
+        if ($foreignCodes !== []) {
+            $companyByCode = ChartOfAccount::query()
+                ->where('created_by', $creatorId)
+                ->whereIn('code', array_keys($foreignCodes))
+                ->get(['id', 'code'])
+                ->keyBy(static fn (ChartOfAccount $row) => trim((string) $row->code))
+                ->map(static fn (ChartOfAccount $row) => (int) $row->id)
+                ->all();
+        }
+
+        return self::rekeyBalancesToCompanyAccounts($balances, $meta, $companyByCode, $creatorId);
+    }
+
+    /**
+     * Pure remapping helper (unit-testable without Eloquent).
+     *
+     * @param  array<int, array{totalDebit: float, totalCredit: float}>  $balances
+     * @param  array<int, array{code: string, created_by: int}|null>  $meta
+     * @param  array<string, int>  $companyByCode
+     * @return array<int, array{totalDebit: float, totalCredit: float}>
+     */
+    public static function rekeyBalancesToCompanyAccounts(
+        array $balances,
+        array $meta,
+        array $companyByCode,
+        int $creatorId
+    ): array {
+        $remapped = [];
+        foreach ($balances as $accountId => $amounts) {
+            $targetId = (int) $accountId;
+            $info = $meta[$accountId] ?? null;
+            if ($info !== null && $info['created_by'] !== $creatorId && $info['code'] !== '') {
+                if (isset($companyByCode[$info['code']])) {
+                    $targetId = $companyByCode[$info['code']];
+                }
+            }
+
+            if (! isset($remapped[$targetId])) {
+                $remapped[$targetId] = [
+                    'totalDebit' => 0.0,
+                    'totalCredit' => 0.0,
+                ];
+            }
+            $remapped[$targetId]['totalDebit'] += (float) $amounts['totalDebit'];
+            $remapped[$targetId]['totalCredit'] += (float) $amounts['totalCredit'];
+        }
+
+        return $remapped;
     }
 
     /**

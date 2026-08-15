@@ -268,9 +268,15 @@ class TrialBalanceReportService
         // Same ordering as Chart of Accounts (PGC / CSV code order), not grouped by account type.
         $tree = ChartOfAccountHierarchy::buildMasterTree($creatorId);
         $rows = [];
+        $seenAccountIds = [];
         foreach ($tree as $root) {
-            $result = $this->rowsForNode($root, $balances, $view, 0);
+            $result = $this->rowsForNode($root, $balances, $view, 0, $seenAccountIds);
             $rows = array_merge($rows, $result['rows']);
+        }
+
+        $orphanRows = $this->orphanBalanceRows($balances, $seenAccountIds, $creatorId);
+        if ($orphanRows !== []) {
+            $rows = array_merge($rows, $orphanRows);
         }
 
         $sections = $rows !== [] ? ['' => $rows] : [];
@@ -294,11 +300,19 @@ class TrialBalanceReportService
 
     /**
      * @param  array<int, array{totalDebit: float, totalCredit: float}>  $balances
+     * @param  array<int, true>  $seenAccountIds
      * @return array{rows: list<array<string, mixed>>, subtreeDebit: float, subtreeCredit: float}
      */
-    private function rowsForNode(ChartOfAccount $node, array $balances, string $view, int $depth): array
-    {
-        $direct = $balances[(int) $node->id] ?? ['totalDebit' => 0.0, 'totalCredit' => 0.0];
+    private function rowsForNode(
+        ChartOfAccount $node,
+        array $balances,
+        string $view,
+        int $depth,
+        array &$seenAccountIds
+    ): array {
+        $accountId = (int) $node->id;
+        $seenAccountIds[$accountId] = true;
+        $direct = $balances[$accountId] ?? ['totalDebit' => 0.0, 'totalCredit' => 0.0];
 
         /** @var Collection<int, ChartOfAccount> $children */
         $children = $node->tree_children ?? collect();
@@ -308,7 +322,7 @@ class TrialBalanceReportService
         $childCredit = 0.0;
 
         foreach ($children as $child) {
-            $childResult = $this->rowsForNode($child, $balances, $view, $depth + 1);
+            $childResult = $this->rowsForNode($child, $balances, $view, $depth + 1, $seenAccountIds);
             if ($childResult['rows'] === []) {
                 continue;
             }
@@ -351,6 +365,67 @@ class TrialBalanceReportService
             'subtreeDebit' => $subtreeDebit,
             'subtreeCredit' => $subtreeCredit,
         ];
+    }
+
+    /**
+     * Balances whose account id is not in this company's chart tree (deleted or
+     * unmapped foreign ids after remap). Surface them so TB matches BS.
+     *
+     * @param  array<int, array{totalDebit: float, totalCredit: float}>  $balances
+     * @param  array<int, true>  $seenAccountIds
+     * @return list<array<string, mixed>>
+     */
+    private function orphanBalanceRows(array $balances, array $seenAccountIds, int $creatorId): array
+    {
+        $orphanIds = [];
+        foreach ($balances as $accountId => $amounts) {
+            $accountId = (int) $accountId;
+            if (isset($seenAccountIds[$accountId])) {
+                continue;
+            }
+            if (! $this->hasActivity($amounts['totalDebit'], $amounts['totalCredit'])) {
+                continue;
+            }
+            $orphanIds[] = $accountId;
+        }
+
+        if ($orphanIds === []) {
+            return [];
+        }
+
+        $coaById = ChartOfAccount::query()
+            ->where('created_by', $creatorId)
+            ->whereIn('id', $orphanIds)
+            ->get()
+            ->keyBy('id');
+
+        $rows = [];
+        foreach ($orphanIds as $accountId) {
+            $amounts = $balances[$accountId];
+            $coa = $coaById->get($accountId);
+            if ($coa) {
+                $rows[] = $this->makeRow($coa, 'orphan', $amounts['totalDebit'], $amounts['totalCredit']);
+                continue;
+            }
+
+            $normalized = $this->normalizeAmounts($amounts['totalDebit'], $amounts['totalCredit']);
+            $rows[] = [
+                'account_id' => $accountId,
+                'account_code' => '',
+                'account_name' => __('Unclassified / deleted accounts') . ' #' . $accountId,
+                'account' => 'orphan',
+                'totalDebit' => $normalized['totalDebit'],
+                'totalCredit' => $normalized['totalCredit'],
+                'balanceDebit' => $normalized['totalDebit'] > $normalized['totalCredit']
+                    ? $normalized['totalDebit'] - $normalized['totalCredit']
+                    : 0.0,
+                'balanceCredit' => $normalized['totalCredit'] > $normalized['totalDebit']
+                    ? $normalized['totalCredit'] - $normalized['totalDebit']
+                    : 0.0,
+            ];
+        }
+
+        return $rows;
     }
 
     /**
