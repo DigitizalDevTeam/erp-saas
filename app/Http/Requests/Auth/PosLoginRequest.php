@@ -27,7 +27,7 @@ class PosLoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email'],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
             'pos_pin' => ['required', 'string', 'regex:/^\d{4,8}$/'],
         ];
     }
@@ -48,7 +48,7 @@ class PosLoginRequest extends FormRequest
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
+            'user_id' => trans('auth.throttle', [
                 'seconds' => $seconds,
                 'minutes' => ceil($seconds / 60),
             ]),
@@ -67,6 +67,6 @@ class PosLoginRequest extends FormRequest
 
     public function throttleKey(): string
     {
-        return 'pos|'.Str::lower($this->input('email')).'|'.$this->ip();
+        return 'pos|user_id|'.$this->input('user_id').'|'.$this->ip();
     }
 }

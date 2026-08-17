@@ -68,6 +68,29 @@ class BalanceSheetReportServiceTest extends TestCase
         $this->assertSame(0.0, $snapshot['difference']);
     }
 
+    public function test_credit_orphan_with_supplier_code_routes_to_liabilities(): void
+    {
+        $snapshot = $this->snapshot([
+            ['code' => '4210001', 'type' => '', 'debit' => 0, 'credit' => 380.48],
+        ]);
+
+        $this->assertEqualsWithDelta(380.48, $snapshot['other']['Liabilities'], 0.001);
+        $this->assertSame(380.48, $snapshot['totals']['Liabilities']);
+        $this->assertSame(0.0, $snapshot['unclassified']);
+        $this->assertSame(0.0, $snapshot['unclassified_liabilities']);
+    }
+
+    public function test_credit_orphan_without_code_uses_unclassified_liabilities_bucket(): void
+    {
+        $snapshot = $this->snapshot([
+            ['code' => '', 'type' => '', 'debit' => 0, 'credit' => 380.48],
+        ]);
+
+        $this->assertEqualsWithDelta(380.48, $snapshot['unclassified_liabilities'], 0.001);
+        $this->assertSame(380.48, $snapshot['totals']['Liabilities']);
+        $this->assertSame(0.0, $snapshot['unclassified']);
+    }
+
     public function test_difference_reports_the_unbalanced_ledger_amount(): void
     {
         $snapshot = $this->snapshot([
@@ -136,21 +159,21 @@ class BalanceSheetReportServiceTest extends TestCase
         $this->assertSame(2024, $resolved['previousFiscalYear']);
     }
 
-    public function test_resolve_filter_date_only_range_uses_end_year_full_0_to_15(): void
+    public function test_resolve_filter_date_only_range_uses_start_year_full_0_to_15(): void
     {
         $resolved = BalanceSheetReportService::resolveFilter([
             'start_date' => '2025-01-01',
             'end_date' => '2026-12-31',
         ]);
 
-        $this->assertSame(2026, $resolved['fiscalYear']);
+        $this->assertSame(2025, $resolved['fiscalYear']);
         $this->assertSame(0, $resolved['accountingPeriodFrom']);
         $this->assertSame(15, $resolved['accountingPeriodTo']);
-        $this->assertSame('2026-01-01', $resolved['start']);
-        $this->assertSame('2026-12-31', $resolved['end']);
-        $this->assertSame(2025, $resolved['previousFiscalYear']);
-        $this->assertSame('2025-01-01', $resolved['previousStart']);
-        $this->assertSame('2025-12-31', $resolved['previousEnd']);
+        $this->assertSame('2025-01-01', $resolved['start']);
+        $this->assertSame('2025-12-31', $resolved['end']);
+        $this->assertSame(2024, $resolved['previousFiscalYear']);
+        $this->assertSame('2024-01-01', $resolved['previousStart']);
+        $this->assertSame('2024-12-31', $resolved['previousEnd']);
     }
 
     public function test_resolve_filter_forwards_explicit_months(): void

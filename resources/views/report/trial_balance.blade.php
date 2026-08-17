@@ -122,6 +122,9 @@
                         <h5 class="mb-3">{{ 'Trial Balance of ' . $user->name . ' as of ' . $filter['startDateRange'] . ' to ' . $filter['endDateRange'] }}
                             </h5>
                         @include('reports.partials.trial_balance_period_banner')
+                        <p class="text-muted small mb-0 mt-1">
+                            {{ __('Use Expand view for subaccounts. Parent rows include child totals — do not sum parent and child rows together.') }}
+                        </p>
                     </div>
                     <div
                         class="aacount-title d-flex align-items-center justify-content-between border-top border-bottom py-2">

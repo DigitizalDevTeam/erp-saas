@@ -76,6 +76,9 @@
                             {{ __('Period') }}: {{ $filter['startDateRange'] }} {{ __('to') }} {{ $filter['endDateRange'] }}
                         </div>
                         @include('reports.partials.trial_balance_period_banner')
+                        <p class="text-muted small mb-0 mt-1 text-center">
+                            {{ __('Use Expand view for subaccounts. Parent rows include child totals — do not sum parent and child rows together.') }}
+                        </p>
                     </div>
 
                     <div class="table-responsive">

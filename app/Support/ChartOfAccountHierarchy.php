@@ -699,9 +699,17 @@ class ChartOfAccountHierarchy
                     $parentCode = $csvParents[$code]; // may be null for top-level
                     $csvLinks++;
                 } else {
+                    $currentParentId = self::effectiveParentAccountId($account);
+                    if (self::shouldPreserveCustomParentLink($account, $currentParentId, (int) $account->created_by)) {
+                        continue;
+                    }
+
                     for ($len = strlen($code) - 1; $len > 0; $len--) {
                         $prefix = substr($code, 0, $len);
                         if (! isset($byCode[$prefix])) {
+                            continue;
+                        }
+                        if (self::shouldSkipCustomPrefixParent($code, $prefix, $csvParents, $csvLevels)) {
                             continue;
                         }
                         $extra = substr($code, $len);
@@ -724,10 +732,14 @@ class ChartOfAccountHierarchy
                     $parentCode = null;
                     for ($len = strlen($code) - 1; $len > 0; $len--) {
                         $prefix = substr($code, 0, $len);
-                        if (isset($byCode[$prefix])) {
-                            $parentCode = $prefix;
-                            break;
+                        if (! isset($byCode[$prefix])) {
+                            continue;
                         }
+                        if (self::shouldSkipCustomPrefixParent($code, $prefix, $csvParents, $csvLevels)) {
+                            continue;
+                        }
+                        $parentCode = $prefix;
+                        break;
                     }
                 }
 
@@ -760,6 +772,63 @@ class ChartOfAccountHierarchy
         self::applyCsvCategories($creatorId);
 
         return ['updated' => $updated, 'cleared' => $cleared, 'csv_links' => $csvLinks];
+    }
+
+    /**
+     * Custom (non-CSV) accounts keep a valid manual parent_account_id on repair.
+     */
+    public static function shouldPreserveCustomParentLink(
+        ChartOfAccount $account,
+        ?int $currentParentId,
+        int $creatorId
+    ): bool {
+        if (! $currentParentId || empty($account->parent_account_id)) {
+            return false;
+        }
+
+        $parent = ChartOfAccount::query()
+            ->where('id', $currentParentId)
+            ->where('created_by', $creatorId)
+            ->first();
+
+        return $parent !== null;
+    }
+
+    /**
+     * Skip CSV sibling codes (e.g. 4210) as inferred parents for custom vendor subs (4210001).
+     *
+     * @param  array<string, string|null>  $csvParents
+     * @param  array<string, string>  $csvLevels
+     */
+    public static function shouldSkipCustomPrefixParent(
+        string $code,
+        string $prefix,
+        array $csvParents,
+        array $csvLevels
+    ): bool {
+        if (! array_key_exists($prefix, $csvLevels)) {
+            return false;
+        }
+
+        $prefixParent = $csvParents[$prefix] ?? null;
+        if ($prefixParent === null) {
+            return false;
+        }
+
+        for ($len = strlen($prefix) - 1; $len > 0; $len--) {
+            $shorter = substr($prefix, 0, $len);
+            if ($shorter === $prefix || ! str_starts_with($code, $shorter)) {
+                continue;
+            }
+            if (($csvParents[$shorter] ?? null) !== $prefixParent) {
+                continue;
+            }
+            if (str_starts_with($prefix, $shorter) && strlen($prefix) > strlen($shorter)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

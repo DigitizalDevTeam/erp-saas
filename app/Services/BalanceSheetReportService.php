@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Services\Accounting\AccountingReportFilterService;
 use App\Services\Accounting\LedgerAccountBalanceService;
+use App\Support\ChartOfAccountHierarchy;
 
 class BalanceSheetReportService
 {
@@ -72,38 +74,7 @@ class BalanceSheetReportService
      */
     public static function resolveFilter(array $input): array
     {
-        [$periodFrom, $periodTo] = TrialBalanceReportService::normalizePeriodRange($input);
-
-        if (isset($input['fiscal_year']) && $input['fiscal_year'] !== '') {
-            $fiscalYear = (int) $input['fiscal_year'];
-        } elseif (! empty($input['end_date'])) {
-            $fiscalYear = (int) date('Y', strtotime((string) $input['end_date']));
-        } elseif (! empty($input['start_date'])) {
-            $fiscalYear = (int) date('Y', strtotime((string) $input['start_date']));
-        } else {
-            $fiscalYear = (int) date('Y');
-        }
-
-        if ($periodFrom === null || $periodTo === null) {
-            $periodFrom = 0;
-            $periodTo = 15;
-        }
-
-        $range = TrialBalanceReportService::dateRangeForPeriodSpan($fiscalYear, $periodFrom, $periodTo);
-        $previousFiscalYear = $fiscalYear - 1;
-        $previousRange = TrialBalanceReportService::dateRangeForPeriodSpan($previousFiscalYear, $periodFrom, $periodTo);
-
-        return [
-            'start' => $range['start'],
-            'end' => $range['end'],
-            'fiscalYear' => $fiscalYear,
-            'accountingPeriod' => ($periodFrom === $periodTo) ? $periodFrom : null,
-            'accountingPeriodFrom' => $periodFrom,
-            'accountingPeriodTo' => $periodTo,
-            'previousStart' => $previousRange['start'],
-            'previousEnd' => $previousRange['end'],
-            'previousFiscalYear' => $previousFiscalYear,
-        ];
+        return AccountingReportFilterService::resolveWithPreviousYear($input);
     }
 
     /**
@@ -122,6 +93,8 @@ class BalanceSheetReportService
         ?int $accountingPeriodFrom = null,
         ?int $accountingPeriodTo = null
     ): array {
+        ChartOfAccountHierarchy::backfillLegacyParentLinks($creatorId);
+
         $fiscalYear = $fiscalYear ?? (int) date('Y', strtotime($end));
 
         if ($accountingPeriodFrom === null && $accountingPeriodTo === null) {
@@ -216,6 +189,7 @@ class BalanceSheetReportService
      *     lines: array<int, float>,
      *     other: array<string, float>,
      *     unclassified: float,
+     *     unclassified_liabilities: float,
      *     net_income: float,
      *     totals: array<string, float>,
      *     difference: float,
@@ -226,6 +200,7 @@ class BalanceSheetReportService
         $lines = array_fill(0, count(self::LINE_MAPPINGS), 0.0);
         $other = ['Assets' => 0.0, 'Liabilities' => 0.0, 'Equity' => 0.0];
         $unclassified = 0.0;
+        $unclassifiedLiabilities = 0.0;
         $income = 0.0;
         $expenses = 0.0;
         $resultsInEquity = 0.0;
@@ -257,9 +232,7 @@ class BalanceSheetReportService
                     $expenses += $debit - $credit;
                     break;
                 default:
-                    // Deleted or untyped accounts still carry a balance; treat as debit-normal
-                    // so they stay visible instead of silently breaking the equation.
-                    $unclassified += $debit - $credit;
+                    $this->routeOrphanBalance($code, $debit, $credit, $other, $unclassified, $unclassifiedLiabilities);
             }
         }
 
@@ -288,12 +261,14 @@ class BalanceSheetReportService
         }
 
         $sectionSums['Assets'] = round($sectionSums['Assets'] + $unclassified, 2);
+        $sectionSums['Liabilities'] = round($sectionSums['Liabilities'] + $unclassifiedLiabilities, 2);
         $sectionSums['Equity'] = round($sectionSums['Equity'] + $addNetIncome, 2);
 
         return [
             'lines' => $lines,
             'other' => $other,
             'unclassified' => round($unclassified, 2),
+            'unclassified_liabilities' => round($unclassifiedLiabilities, 2),
             'net_income' => $addNetIncome,
             'totals' => $sectionSums,
             'difference' => round($sectionSums['Assets'] - ($sectionSums['Liabilities'] + $sectionSums['Equity']), 2),
@@ -331,6 +306,7 @@ class BalanceSheetReportService
             ['section' => 'Assets', 'label' => 'Other assets', 'code_label' => '', 'key' => 'other.Assets'],
             ['section' => 'Assets', 'label' => 'Unclassified / deleted accounts', 'code_label' => '', 'key' => 'unclassified'],
             ['section' => 'Liabilities', 'label' => 'Other liabilities', 'code_label' => '', 'key' => 'other.Liabilities'],
+            ['section' => 'Liabilities', 'label' => 'Unclassified / deleted accounts', 'code_label' => '', 'key' => 'unclassified_liabilities'],
             ['section' => 'Equity', 'label' => 'Other equity', 'code_label' => '', 'key' => 'other.Equity'],
             ['section' => 'Equity', 'label' => 'Current Period Result', 'code_label' => '', 'key' => 'net_income'],
         ];
@@ -418,6 +394,62 @@ class BalanceSheetReportService
             'expenses', 'expense', 'costs of goods sold', 'cost of goods sold', 'cogs' => 'Expenses',
             default => 'Unclassified',
         };
+    }
+
+    /** Liability code prefixes for orphan routing when type metadata is missing. */
+    private const LIABILITY_CODE_PREFIXES = ['42', '44', '46', '251', '252', '261', '262'];
+
+    /** Equity code prefixes for orphan routing when type metadata is missing. */
+    private const EQUITY_CODE_PREFIXES = ['51', '52', '55', '56', '59', '81', '82', '83', '88'];
+
+    /**
+     * Route deleted/untyped balances to the correct BS section.
+     *
+     * @param  array<string, float>  $other
+     */
+    private function routeOrphanBalance(
+        string $code,
+        float $debit,
+        float $credit,
+        array &$other,
+        float &$unclassified,
+        float &$unclassifiedLiabilities
+    ): void {
+        $net = $debit - $credit;
+
+        if ($this->codeStartsWithAny($code, self::LIABILITY_CODE_PREFIXES)) {
+            $other['Liabilities'] += $credit - $debit;
+
+            return;
+        }
+
+        if ($this->codeStartsWithAny($code, self::EQUITY_CODE_PREFIXES)) {
+            $other['Equity'] += $credit - $debit;
+
+            return;
+        }
+
+        if ($credit > $debit) {
+            $unclassifiedLiabilities += $credit - $debit;
+
+            return;
+        }
+
+        $unclassified += $net;
+    }
+
+    /**
+     * @param  list<string>  $prefixes
+     */
+    private function codeStartsWithAny(string $code, array $prefixes): bool
+    {
+        foreach ($prefixes as $prefix) {
+            if ($code === $prefix || str_starts_with($code, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hasBalance(float $amount): bool

@@ -476,13 +476,19 @@
                         {{ Form::hidden('login_mode', 'pos') }}
 
                         <div class="form-group">
-                            {{ Form::email('email', old('email'), [
-                                'class' => 'form-control',
-                                'placeholder' => __('Email / User'),
-                                'required',
-                                'autocomplete' => 'username',
-                            ]) }}
-                            @error('email')
+                            <label class="form-label">{{ __('Select User') }}</label>
+                            <select name="user_id" class="form-control" required id="pos-login-user">
+                                <option value="">{{ __('Select User') }}</option>
+                                @foreach ($posLoginUsers ?? [] as $u)
+                                    <option value="{{ $u['id'] }}" @selected(old('user_id') == $u['id'])>
+                                        {{ $u['display_label'] }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @if (empty($posLoginUsers))
+                                <small class="text-muted d-block mt-2">{{ __('No POS users configured. Ask your administrator to set POS PIN on staff accounts.') }}</small>
+                            @endif
+                            @error('user_id')
                                 @if(old('login_mode') === 'pos')
                                     <small class="text-danger">{{ $message }}</small>
                                 @endif
@@ -521,7 +527,7 @@
                         @endif
 
                         <button type="submit" class="btn btn-primary w-100">{{ __('Open Restaurant POS') }}</button>
-                        <p class="text-muted small mt-3 mb-0">{{ __('Sign in with your email and restaurant POS PIN. You will go directly to the POS screen.') }}</p>
+                        <p class="text-muted small mt-3 mb-0">{{ __('Select your name, enter POS PIN, and open Restaurant POS.') }}</p>
 
                         {{ Form::close() }}
                         </div>
@@ -550,6 +556,16 @@
                     button.classList.add('active');
                 });
             });
+
+            var posUserSelect = document.getElementById('pos-login-user');
+            var posPinInput = document.querySelector('#login-panel-pos .pos-pin-input');
+            if (posUserSelect && posPinInput) {
+                posUserSelect.addEventListener('change', function () {
+                    if (posUserSelect.value && panels.pos.classList.contains('active')) {
+                        posPinInput.focus();
+                    }
+                });
+            }
         });
     </script>
 @endsection

@@ -16,6 +16,7 @@ use App\Http\Requests\Auth\PosLoginRequest;
 use App\Providers\RouteServiceProvider;
 use App\Services\CompanyUserRoleService;
 use App\Services\PosActorService;
+use App\Services\PosLoginUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -284,7 +285,7 @@ class AuthenticatedSessionController extends Controller
     }
 
     /**
-     * POS tab login: email + restaurant PIN → direct restaurant POS (no second PIN screen).
+     * POS tab login: selected user + restaurant PIN → direct restaurant POS (no second PIN screen).
      */
     public function storePosLogin(PosLoginRequest $request)
     {
@@ -311,14 +312,14 @@ class AuthenticatedSessionController extends Controller
 
         $request->ensureIsNotRateLimited();
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::find($request->integer('user_id'));
         $pin = $request->normalizedPin();
 
         if (! $user || ! $user->pos_pin || $user->pos_pin !== $pin) {
             $request->hitRateLimit();
 
             throw ValidationException::withMessages([
-                'email' => __('Invalid email or PIN.'),
+                'user_id' => __('Invalid user or PIN.'),
             ]);
         }
 
@@ -326,7 +327,7 @@ class AuthenticatedSessionController extends Controller
             $request->hitRateLimit();
 
             throw ValidationException::withMessages([
-                'email' => __('This account does not have POS access.'),
+                'user_id' => __('This account does not have POS access.'),
             ]);
         }
 
@@ -334,7 +335,7 @@ class AuthenticatedSessionController extends Controller
         $companyUser = $preLoginCompanyId ? User::where('id', $preLoginCompanyId)->first() : null;
 
         if ($user->is_disable == 0 && $user->type != 'company' && $user->type != 'super admin') {
-            return redirect()->back()->withInput($request->only('email', 'login_mode'))->with('status', __('Your Account is disable,please contact your Administrator.'));
+            return redirect()->back()->withInput($request->only('user_id', 'login_mode'))->with('status', __('Your Account is disable,please contact your Administrator.'));
         }
 
         $activeMembershipCount = $this->activeCompanyMembershipCount($user);
@@ -348,7 +349,7 @@ class AuthenticatedSessionController extends Controller
             && (int) $companyUser->is_enable_login === 0;
 
         if ($isUserLoginDisabled || $isCompanyLoginDisabled) {
-            return redirect()->back()->withInput($request->only('email', 'login_mode'))->with('status', __('Your Account is disable from company.'));
+            return redirect()->back()->withInput($request->only('user_id', 'login_mode'))->with('status', __('Your Account is disable from company.'));
         }
 
         User::defaultEmail();
@@ -373,13 +374,13 @@ class AuthenticatedSessionController extends Controller
         if ($user->delete_status == 0 || $status == 0) {
             Auth::logout();
 
-            return redirect()->back()->withInput($request->only('email', 'login_mode'))->with('status', __('Your Account is deleted by admin,please contact your Administrator.'));
+            return redirect()->back()->withInput($request->only('user_id', 'login_mode'))->with('status', __('Your Account is deleted by admin,please contact your Administrator.'));
         }
 
         if ($user->is_active == 0) {
             Auth::logout();
 
-            return redirect()->back()->withInput($request->only('email', 'login_mode'))->with('status', __('Your Account is deactive by admin,please contact your Administrator.'));
+            return redirect()->back()->withInput($request->only('user_id', 'login_mode'))->with('status', __('Your Account is deactive by admin,please contact your Administrator.'));
         }
 
         if ($companyUser && $companyUser->plan) {
@@ -387,7 +388,7 @@ class AuthenticatedSessionController extends Controller
             if ($plan && (int) $plan->pos !== 1) {
                 Auth::logout();
 
-                return redirect()->back()->withInput($request->only('email', 'login_mode'))->with('status', __('POS is not enabled on your plan.'));
+                return redirect()->back()->withInput($request->only('user_id', 'login_mode'))->with('status', __('POS is not enabled on your plan.'));
             }
         }
 
@@ -461,8 +462,9 @@ class AuthenticatedSessionController extends Controller
         \App::setLocale($lang);
 
         $settings = Utility::settings();
+        $posLoginUsers = app(PosLoginUserService::class)->eligibleUsersForLoginDropdown();
 
-        return view('auth.login', compact('lang', 'settings'));
+        return view('auth.login', compact('lang', 'settings', 'posLoginUsers'));
     }
 
     public function showLinkRequestForm($lang = '')

@@ -63,6 +63,19 @@ class LedgerAccountBalanceService
             ->get()
             ->keyBy('id');
 
+        $missingIds = array_values(array_diff(array_keys($raw), $meta->keys()->all()));
+        if ($missingIds !== []) {
+            $fallback = ChartOfAccount::query()
+                ->leftJoin('chart_of_account_types', 'chart_of_accounts.type', '=', 'chart_of_account_types.id')
+                ->whereIn('chart_of_accounts.id', $missingIds)
+                ->select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_account_types.name as type_name')
+                ->get()
+                ->keyBy('id');
+            foreach ($fallback as $id => $row) {
+                $meta->put($id, $row);
+            }
+        }
+
         $accounts = [];
         foreach ($raw as $accountId => $amounts) {
             $coa = $meta->get($accountId);
