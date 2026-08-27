@@ -13,18 +13,18 @@ class FixJournalRoundingImbalances extends Command
     protected $signature = 'accounting:fix-journal-rounding
                             {--company= : Repair only this company id}';
 
-    protected $description = 'Deduplicate journal ledger lines and fix sub-unit debit/credit rounding so books balance';
+    protected $description = 'Deduplicate ledger lines and fix sub-unit debit/credit rounding on journals and other documents so books balance';
 
     public function handle(JournalRoundingRepairService $service): int
     {
         $companyId = $this->option('company') !== null ? (int) $this->option('company') : null;
 
-        $this->info('Fixing journal rounding / duplicate postings...');
+        $this->info('Fixing ledger rounding / duplicate postings...');
 
         $result = $service->repair($companyId);
 
         $this->info("Duplicate lines removed: {$result['deduped']}");
-        $this->info("Journals adjusted: {$result['adjusted']}");
+        $this->info("Document groups adjusted: {$result['adjusted']}");
 
         foreach ($result['warnings'] as $warning) {
             $this->warn($warning);

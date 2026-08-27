@@ -149,47 +149,27 @@ class MonthlyVatReportController extends Controller
         return round((float) str_replace([' ', ','], ['', '.'], (string) $v), 2);
     }
 
-    private function buildReportData(int $creatorId, string $start, string $end, array $manual, bool $insideDeadline): array
+    /**
+     * Build Modelo A field amounts for a calendar month.
+     *
+     * Sales (f01) use all ledger activity. VAT boxes (f02/f05/f06/f07) exclude
+     * VAT settlement journals so clearing to 4435 does not understate the return.
+     *
+     * @param  array<string, mixed>  $manual
+     * @return array<string, float>
+     */
+    public function buildReportData(int $creatorId, string $start, string $end, array $manual, bool $insideDeadline): array
     {
-        $rows = DB::table('transaction_lines as tl')
-            ->join('chart_of_accounts as coa', 'coa.id', '=', 'tl.account_id')
-            ->where('tl.created_by', $creatorId)
-            ->whereBetween('tl.date', [$start, $end])
-            ->select(
-                'coa.code',
-                DB::raw('SUM(tl.debit) as debit'),
-                DB::raw('SUM(tl.credit) as credit')
-            )
-            ->groupBy('coa.code')
-            ->get();
+        $allRows = $this->ledgerTotalsByCode($creatorId, $start, $end, false);
+        $vatRows = $this->ledgerTotalsByCode($creatorId, $start, $end, true);
 
-        $sumByPrefix = function (array $prefixes, string $mode) use ($rows): float {
-            $t = 0.0;
-            foreach ($rows as $r) {
-                $code = preg_replace('/\D/', '', (string) $r->code) ?? '';
-                if ($code === '') {
-                    continue;
-                }
-                foreach ($prefixes as $pfx) {
-                    if (str_starts_with($code, $pfx)) {
-                        $debit = (float) $r->debit;
-                        $credit = (float) $r->credit;
-                        $t += $mode === 'credit' ? ($credit - $debit) : ($debit - $credit);
-                        break;
-                    }
-                }
-            }
-
-            return round(max(0.0, $t), 2);
-        };
-
-        $f01 = $sumByPrefix(['71', '72'], 'credit');
+        $f01 = self::sumByPrefix($allRows, ['71', '72'], 'credit');
         $f03 = $this->amount($manual, 'manual_03');
         $f04 = $this->amount($manual, 'manual_04');
-        $f02 = $sumByPrefix(['44331'], 'credit');
-        $f05 = $sumByPrefix(['44322'], 'debit');
-        $f06 = $sumByPrefix(['44321'], 'debit');
-        $f07 = $sumByPrefix(['44323'], 'debit');
+        $f02 = self::sumByPrefix($vatRows, ['44331'], 'credit');
+        $f05 = self::sumByPrefix($vatRows, ['44322'], 'debit');
+        $f06 = self::sumByPrefix($vatRows, ['44321'], 'debit');
+        $f07 = self::sumByPrefix($vatRows, ['44323'], 'debit');
         $f08 = $this->amount($manual, 'manual_08');
         $f09 = $this->amount($manual, 'manual_09');
         $f10 = $this->amount($manual, 'manual_10');
@@ -207,6 +187,88 @@ class MonthlyVatReportController extends Controller
         $f21 = $f17;
 
         return compact('f01', 'f02', 'f03', 'f04', 'f05', 'f06', 'f07', 'f08', 'f09', 'f10', 'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f20', 'f21');
+    }
+
+    /**
+     * @param  iterable<int, object{code: mixed, debit: mixed, credit: mixed}>  $rows
+     * @param  array<int, string>  $prefixes
+     */
+    public static function sumByPrefix(iterable $rows, array $prefixes, string $mode): float
+    {
+        $t = 0.0;
+        foreach ($rows as $r) {
+            $code = preg_replace('/\D/', '', (string) $r->code) ?? '';
+            if ($code === '') {
+                continue;
+            }
+            foreach ($prefixes as $pfx) {
+                if (str_starts_with($code, $pfx)) {
+                    $debit = (float) $r->debit;
+                    $credit = (float) $r->credit;
+                    $t += $mode === 'credit' ? ($credit - $debit) : ($debit - $credit);
+                    break;
+                }
+            }
+        }
+
+        return round(max(0.0, $t), 2);
+    }
+
+    /**
+     * Journal entry IDs that clear VAT into 4435 and/or use FY-*-VAT* references.
+     *
+     * @return array<int, int>
+     */
+    public function settlementJournalIds(int $creatorId): array
+    {
+        $byAccount = DB::table('transaction_lines as tl')
+            ->join('chart_of_accounts as coa', 'coa.id', '=', 'tl.account_id')
+            ->where('tl.created_by', $creatorId)
+            ->where('tl.reference', 'Journal')
+            ->where('coa.code', 'like', '4435%')
+            ->distinct()
+            ->pluck('tl.reference_id');
+
+        $byReference = DB::table('journal_entries')
+            ->where('created_by', $creatorId)
+            ->where('reference', 'like', 'FY-%-VAT%')
+            ->pluck('id');
+
+        return $byAccount->merge($byReference)
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, object{code: mixed, debit: mixed, credit: mixed}>
+     */
+    private function ledgerTotalsByCode(int $creatorId, string $start, string $end, bool $excludeSettlement): \Illuminate\Support\Collection
+    {
+        $query = DB::table('transaction_lines as tl')
+            ->join('chart_of_accounts as coa', 'coa.id', '=', 'tl.account_id')
+            ->where('tl.created_by', $creatorId)
+            ->whereBetween('tl.date', [$start, $end]);
+
+        if ($excludeSettlement) {
+            $excludeIds = $this->settlementJournalIds($creatorId);
+            if ($excludeIds !== []) {
+                $query->where(function ($q) use ($excludeIds): void {
+                    $q->where('tl.reference', '!=', 'Journal')
+                        ->orWhereNotIn('tl.reference_id', $excludeIds);
+                });
+            }
+        }
+
+        return $query
+            ->select(
+                'coa.code',
+                DB::raw('SUM(tl.debit) as debit'),
+                DB::raw('SUM(tl.credit) as credit')
+            )
+            ->groupBy('coa.code')
+            ->get();
     }
 }
 

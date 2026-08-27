@@ -103,59 +103,29 @@ class LedgerAccountBalanceService
         ?int $periodTo,
         int $fiscalYear
     ): array {
-        $closingIdsForYear = $this->fiscalYearClosingJournalIds($creatorId, $fiscalYear, $periodFrom, $periodTo);
+        $raw = $this->rawBalancesByAccountId($creatorId, $start, $end, $periodFrom, $periodTo, $fiscalYear);
 
-        $tlQuery = TransactionLines::query()
-            ->select(
-                DB::raw('COALESCE(SUM(debit), 0) as totalDebit'),
-                DB::raw('COALESCE(SUM(credit), 0) as totalCredit')
-            )
-            ->where('created_by', $creatorId)
-            ->where(function ($w) use ($start, $end, $closingIdsForYear) {
-                $w->where(function ($dated) use ($start, $end) {
-                    $dated->whereDate('date', '>=', $start)
-                        ->whereDate('date', '<=', $end);
-                });
-                if ($closingIdsForYear !== []) {
-                    $w->orWhere(function ($closing) use ($closingIdsForYear) {
-                        $closing->where('reference', 'Journal')
-                            ->whereIn('reference_id', $closingIdsForYear);
-                    });
-                }
-            });
+        return self::aggregateGrandTotalsFromBalances($raw);
+    }
 
-        $this->applyTransactionLinePeriodFilter($tlQuery, $creatorId, $start, $end, $periodFrom, $periodTo, $fiscalYear);
-        $tl = $tlQuery->first();
+    /**
+     * Sum remapped per-account balances into trial-balance footer totals.
+     * Uses the same raw/remapped path as row balances and balance-sheet snapshots.
+     *
+     * @param  array<int, array{totalDebit: float, totalCredit: float}>  $balances
+     * @return array{totalDebit: float, totalCredit: float}
+     */
+    public static function aggregateGrandTotalsFromBalances(array $balances): array
+    {
+        $totalDebit = 0.0;
+        $totalCredit = 0.0;
 
-        $jiQuery = DB::table('journal_items as ji')
-            ->join('journal_entries as je', 'ji.journal', '=', 'je.id')
-            ->where('je.created_by', $creatorId)
-            ->where(function ($w) use ($start, $end, $closingIdsForYear) {
-                $w->where(function ($dated) use ($start, $end) {
-                    $dated->whereDate('je.date', '>=', $start)
-                        ->whereDate('je.date', '<=', $end);
-                });
-                if ($closingIdsForYear !== []) {
-                    $w->orWhereIn('je.id', $closingIdsForYear);
-                }
-            })
-            ->whereNotExists(function ($q) {
-                $q->select(DB::raw(1))
-                    ->from('transaction_lines as tl')
-                    ->whereColumn('tl.reference_id', 'je.id')
-                    ->where('tl.reference', 'Journal');
-            });
+        foreach ($balances as $amounts) {
+            $totalDebit += (float) $amounts['totalDebit'];
+            $totalCredit += (float) $amounts['totalCredit'];
+        }
 
-        $this->applyJournalEntryPeriodFilter($jiQuery, $periodFrom, $periodTo, $fiscalYear);
-
-        $ji = $jiQuery
-            ->selectRaw('COALESCE(SUM(ji.debit),0) as totalDebit, COALESCE(SUM(ji.credit),0) as totalCredit')
-            ->first();
-
-        return $this->normalizeAmounts(
-            (float) ($tl->totalDebit ?? 0) + (float) ($ji->totalDebit ?? 0),
-            (float) ($tl->totalCredit ?? 0) + (float) ($ji->totalCredit ?? 0)
-        );
+        return (new self())->normalizeAmounts($totalDebit, $totalCredit);
     }
 
     /**

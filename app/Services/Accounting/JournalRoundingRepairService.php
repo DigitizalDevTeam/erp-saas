@@ -7,8 +7,8 @@ use App\Models\TransactionLines;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Removes duplicate Journal transaction_lines and fixes sub-cent
- * debit/credit mismatches so the ledger (and Balance Sheet) can balance.
+ * Removes duplicate transaction_lines and fixes sub-cent debit/credit
+ * mismatches so the ledger (and Balance Sheet) can balance.
  */
 class JournalRoundingRepairService
 {
@@ -21,42 +21,46 @@ class JournalRoundingRepairService
         $adjusted = 0;
         $warnings = [];
 
-        $query = TransactionLines::query()
+        $journalQuery = TransactionLines::query()
             ->select('created_by', 'reference_id')
             ->where('reference', 'Journal')
             ->groupBy('created_by', 'reference_id');
 
         if ($companyId !== null) {
-            $query->where('created_by', $companyId);
+            $journalQuery->where('created_by', $companyId);
         }
 
-        foreach ($query->get() as $group) {
+        foreach ($journalQuery->get() as $group) {
             $createdBy = (int) $group->created_by;
             $journalId = (int) $group->reference_id;
 
             DB::transaction(function () use ($createdBy, $journalId, &$deduped, &$adjusted, &$warnings) {
-                $removed = $this->dedupeJournalLines($createdBy, $journalId);
+                $removed = $this->dedupeLines($createdBy, 'Journal', $journalId);
                 $deduped += $removed;
 
-                $diff = $this->journalDiff($createdBy, $journalId);
-                if (abs($diff) < 0.005) {
-                    $this->syncJournalItemsFromLines($journalId, $createdBy);
+                $this->repairGroup($createdBy, 'Journal', $journalId, $adjusted, $warnings, true);
+            });
+        }
 
-                    return;
-                }
+        $documentQuery = TransactionLines::query()
+            ->select('created_by', 'reference', 'reference_id')
+            ->where('reference', '!=', 'Journal')
+            ->groupBy('created_by', 'reference', 'reference_id');
 
-                if (abs($diff) > 1.0) {
-                    $warnings[] = "Company {$createdBy}, journal {$journalId}: imbalance {$diff} exceeds 1.00 — skipped (needs manual review).";
+        if ($companyId !== null) {
+            $documentQuery->where('created_by', $companyId);
+        }
 
-                    return;
-                }
+        foreach ($documentQuery->get() as $group) {
+            $createdBy = (int) $group->created_by;
+            $reference = (string) $group->reference;
+            $referenceId = (int) $group->reference_id;
 
-                if ($this->adjustImbalance($createdBy, $journalId, $diff)) {
-                    $adjusted++;
-                    $this->syncJournalItemsFromLines($journalId, $createdBy);
-                } else {
-                    $warnings[] = "Company {$createdBy}, journal {$journalId}: could not adjust imbalance {$diff}.";
-                }
+            DB::transaction(function () use ($createdBy, $reference, $referenceId, &$deduped, &$adjusted, &$warnings) {
+                $removed = $this->dedupeLines($createdBy, $reference, $referenceId);
+                $deduped += $removed;
+
+                $this->repairGroup($createdBy, $reference, $referenceId, $adjusted, $warnings, false);
             });
         }
 
@@ -67,12 +71,53 @@ class JournalRoundingRepairService
         ];
     }
 
-    private function journalDiff(int $createdBy, int $journalId): float
+    /**
+     * @param  list<string>  $warnings
+     */
+    private function repairGroup(
+        int $createdBy,
+        string $reference,
+        int $referenceId,
+        int &$adjusted,
+        array &$warnings,
+        bool $syncJournalItems
+    ): void {
+        $diff = $this->groupDiff($createdBy, $reference, $referenceId);
+
+        if (abs($diff) < 0.005) {
+            if ($syncJournalItems) {
+                $this->syncJournalItemsFromLines($referenceId, $createdBy);
+            }
+
+            return;
+        }
+
+        $label = $reference === 'Journal'
+            ? "journal {$referenceId}"
+            : "{$reference} #{$referenceId}";
+
+        if (abs($diff) > 1.0) {
+            $warnings[] = "Company {$createdBy}, {$label}: imbalance {$diff} exceeds 1.00 — skipped (needs manual review).";
+
+            return;
+        }
+
+        if ($this->adjustGroupImbalance($createdBy, $reference, $referenceId, $diff)) {
+            $adjusted++;
+            if ($syncJournalItems) {
+                $this->syncJournalItemsFromLines($referenceId, $createdBy);
+            }
+        } else {
+            $warnings[] = "Company {$createdBy}, {$label}: could not adjust imbalance {$diff}.";
+        }
+    }
+
+    private function groupDiff(int $createdBy, string $reference, int $referenceId): float
     {
         $row = TransactionLines::query()
             ->where('created_by', $createdBy)
-            ->where('reference', 'Journal')
-            ->where('reference_id', $journalId)
+            ->where('reference', $reference)
+            ->where('reference_id', $referenceId)
             ->selectRaw('COALESCE(SUM(debit),0) as d, COALESCE(SUM(credit),0) as c')
             ->first();
 
@@ -80,15 +125,15 @@ class JournalRoundingRepairService
     }
 
     /**
-     * When each journal item was posted more than once, keep the posting
-     * generation that balances (or the closest), delete the rest.
+     * When each sub-line was posted more than once, keep the generation
+     * that balances (or the closest), delete the rest.
      */
-    private function dedupeJournalLines(int $createdBy, int $journalId): int
+    private function dedupeLines(int $createdBy, string $reference, int $referenceId): int
     {
         $lines = TransactionLines::query()
             ->where('created_by', $createdBy)
-            ->where('reference', 'Journal')
-            ->where('reference_id', $journalId)
+            ->where('reference', $reference)
+            ->where('reference_id', $referenceId)
             ->orderBy('id')
             ->get();
 
@@ -134,13 +179,13 @@ class JournalRoundingRepairService
         return $removed;
     }
 
-    private function adjustImbalance(int $createdBy, int $journalId, float $diff): bool
+    private function adjustGroupImbalance(int $createdBy, string $reference, int $referenceId, float $diff): bool
     {
         // diff = debit - credit. Positive → need more credit (or less debit).
         $lines = TransactionLines::query()
             ->where('created_by', $createdBy)
-            ->where('reference', 'Journal')
-            ->where('reference_id', $journalId)
+            ->where('reference', $reference)
+            ->where('reference_id', $referenceId)
             ->orderByDesc(DB::raw('GREATEST(debit, credit)'))
             ->orderBy('id')
             ->get();
@@ -163,7 +208,7 @@ class JournalRoundingRepairService
                 $creditLine->credit = round((float) $creditLine->credit + $amount, 2);
                 $creditLine->save();
 
-                return abs($this->journalDiff($createdBy, $journalId)) < 0.005;
+                return abs($this->groupDiff($createdBy, $reference, $referenceId)) < 0.005;
             }
         } else {
             // Credits exceed debits.
@@ -176,13 +221,13 @@ class JournalRoundingRepairService
                 $debitLine->debit = round((float) $debitLine->debit + $amount, 2);
                 $debitLine->save();
 
-                return abs($this->journalDiff($createdBy, $journalId)) < 0.005;
+                return abs($this->groupDiff($createdBy, $reference, $referenceId)) < 0.005;
             }
         }
 
         $target->save();
 
-        return abs($this->journalDiff($createdBy, $journalId)) < 0.005;
+        return abs($this->groupDiff($createdBy, $reference, $referenceId)) < 0.005;
     }
 
     private function syncJournalItemsFromLines(int $journalId, int $createdBy): void

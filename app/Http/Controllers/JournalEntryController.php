@@ -109,7 +109,7 @@ class JournalEntryController extends Controller
             }
             // $totalDebit += $debit;
 
-            if ($totalCredit != $totalDebit) {
+            if (round($totalCredit, 2) !== round($totalDebit, 2)) {
                 return redirect()->back()->with('error', __('Debit and Credit must be Equal.'));
             }
 
@@ -254,7 +254,7 @@ class JournalEntryController extends Controller
                     $totalCredit += $credit;
                 }
 
-                if ($totalCredit != $totalDebit) {
+                if (round($totalCredit, 2) !== round($totalDebit, 2)) {
                     return redirect()->back()->with('error', __('Debit and Credit must be Equal.'));
                 }
 
@@ -386,6 +386,17 @@ class JournalEntryController extends Controller
         }
 
         $accounts = $journalEntry->accounts;
+
+        $totalDebit = 0.0;
+        $totalCredit = 0.0;
+        foreach ($accounts as $journalItem) {
+            $totalDebit += (float) $journalItem->debit;
+            $totalCredit += (float) $journalItem->credit;
+        }
+        if (round($totalDebit, 2) !== round($totalCredit, 2)) {
+            return redirect()->back()->with('error', __('Debit and Credit must be Equal.'));
+        }
+
         foreach ($accounts as $journalItem) {
             $bankAccounts = BankAccount::where('chart_account_id', '=', $journalItem->account)->get();
             if (! empty($bankAccounts)) {

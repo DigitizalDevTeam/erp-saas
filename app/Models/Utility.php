@@ -5567,12 +5567,13 @@ namespace App\Models;
             $transactionLines->reference_id = $data['reference_id'];
             $transactionLines->reference_sub_id = $data['reference_sub_id'];
             $transactionLines->date = $data['date'];
+            $amount = round((float) $data['transaction_amount'], 2);
             if ($data['transaction_type'] == "Credit") {
-                $transactionLines->credit = $data['transaction_amount'];
+                $transactionLines->credit = $amount;
                 $transactionLines->debit = 0;
             } else {
                 $transactionLines->credit = 0;
-                $transactionLines->debit = $data['transaction_amount'];
+                $transactionLines->debit = $amount;
             }
             $transactionLines->created_by = Auth::user()->creatorId();
             $transactionLines->save();
