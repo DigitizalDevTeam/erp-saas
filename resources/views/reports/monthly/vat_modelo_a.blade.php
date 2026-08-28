@@ -92,6 +92,10 @@
                         <div class="col-md-4"><strong>{{ __('Address') }}:</strong> {{ $company['address'] }}</div>
                     </div>
 
+                    <p class="text-muted small mb-2">
+                        {{ __('Fields 02 and 05–07 show operational VAT for the month (aligned with Balancete Debit/Credit columns). Internal VAT settlement journals to 4435 are excluded.') }}
+                    </p>
+
                     <div class="table-responsive">
                         <table class="table table-bordered table-sm" style="font-size: 12px;">
                             <thead class="table-light">

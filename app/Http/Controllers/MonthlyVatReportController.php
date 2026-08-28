@@ -3,13 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\Utility;
+use App\Services\Accounting\VatModeloAReportService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class MonthlyVatReportController extends Controller
 {
+    public function __construct(
+        private VatModeloAReportService $vatReport
+    ) {}
+
     public function modeloA(Request $request)
     {
         if (! \Auth::user()->can('tax report')) {
@@ -160,8 +164,8 @@ class MonthlyVatReportController extends Controller
      */
     public function buildReportData(int $creatorId, string $start, string $end, array $manual, bool $insideDeadline): array
     {
-        $allRows = $this->ledgerTotalsByCode($creatorId, $start, $end, false);
-        $vatRows = $this->ledgerTotalsByCode($creatorId, $start, $end, true);
+        $allRows = $this->vatReport->ledgerTotalsByCode($creatorId, $start, $end, false);
+        $vatRows = $this->vatReport->ledgerTotalsByCode($creatorId, $start, $end, true);
 
         $f01 = self::sumByPrefix($allRows, ['71', '72'], 'credit');
         $f03 = $this->amount($manual, 'manual_03');
@@ -221,54 +225,7 @@ class MonthlyVatReportController extends Controller
      */
     public function settlementJournalIds(int $creatorId): array
     {
-        $byAccount = DB::table('transaction_lines as tl')
-            ->join('chart_of_accounts as coa', 'coa.id', '=', 'tl.account_id')
-            ->where('tl.created_by', $creatorId)
-            ->where('tl.reference', 'Journal')
-            ->where('coa.code', 'like', '4435%')
-            ->distinct()
-            ->pluck('tl.reference_id');
-
-        $byReference = DB::table('journal_entries')
-            ->where('created_by', $creatorId)
-            ->where('reference', 'like', 'FY-%-VAT%')
-            ->pluck('id');
-
-        return $byAccount->merge($byReference)
-            ->map(fn ($id): int => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @return \Illuminate\Support\Collection<int, object{code: mixed, debit: mixed, credit: mixed}>
-     */
-    private function ledgerTotalsByCode(int $creatorId, string $start, string $end, bool $excludeSettlement): \Illuminate\Support\Collection
-    {
-        $query = DB::table('transaction_lines as tl')
-            ->join('chart_of_accounts as coa', 'coa.id', '=', 'tl.account_id')
-            ->where('tl.created_by', $creatorId)
-            ->whereBetween('tl.date', [$start, $end]);
-
-        if ($excludeSettlement) {
-            $excludeIds = $this->settlementJournalIds($creatorId);
-            if ($excludeIds !== []) {
-                $query->where(function ($q) use ($excludeIds): void {
-                    $q->where('tl.reference', '!=', 'Journal')
-                        ->orWhereNotIn('tl.reference_id', $excludeIds);
-                });
-            }
-        }
-
-        return $query
-            ->select(
-                'coa.code',
-                DB::raw('SUM(tl.debit) as debit'),
-                DB::raw('SUM(tl.credit) as credit')
-            )
-            ->groupBy('coa.code')
-            ->get();
+        return $this->vatReport->settlementJournalIds($creatorId);
     }
 }
 
