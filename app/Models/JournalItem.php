@@ -13,6 +13,11 @@ class JournalItem extends Model
         'credit',
     ];
 
+    protected $casts = [
+        'debit' => 'decimal:2',
+        'credit' => 'decimal:2',
+    ];
+
     public function accounts()
     {
         return $this->hasOne('App\Models\ChartOfAccount', 'id', 'account');

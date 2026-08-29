@@ -13,6 +13,31 @@
     <script src="{{ asset('js/jquery-searchbox.js') }}"></script>
     <script src="{{ asset('js/jquery-searchbox.js') }}"></script>
     <script>
+        function parseMoneyInput(val) {
+            if (!val) {
+                return 0;
+            }
+
+            return parseFloat(String(val).replace(',', '.')) || 0;
+        }
+
+        function isValidMoneyInput(val) {
+            return /^\d*[.,]?\d*$/.test(val);
+        }
+
+        function normalizeJournalAmountFields() {
+            $('.debit, .credit').each(function() {
+                var val = $(this).val();
+                if (val && String(val).indexOf(',') !== -1) {
+                    $(this).val(String(val).replace(',', '.'));
+                }
+            });
+        }
+
+        $('form').on('submit', function() {
+            normalizeJournalAmountFields();
+        });
+
         var selector = "body";
         if ($(selector + " .repeater").length) {
             var $repeater = $(selector + ' .repeater').repeater({
@@ -47,7 +72,7 @@
                         var inputs = $(".debit");
                         var totalDebit = 0;
                         for (var i = 0; i < inputs.length; i++) {
-                            totalDebit = parseFloat(totalDebit) + parseFloat($(inputs[i]).val());
+                            totalDebit = parseMoneyInput(totalDebit) + parseMoneyInput($(inputs[i]).val());
                         }
                         $('.totalDebit').html(totalDebit.toFixed(2));
 
@@ -55,7 +80,7 @@
                         var inputs = $(".credit");
                         var totalCredit = 0;
                         for (var i = 0; i < inputs.length; i++) {
-                            totalCredit = parseFloat(totalCredit) + parseFloat($(inputs[i]).val());
+                            totalCredit = parseMoneyInput(totalCredit) + parseMoneyInput($(inputs[i]).val());
                         }
                         $('.totalCredit').html(totalCredit.toFixed(2));
 
@@ -106,6 +131,12 @@
         $(document).on('keyup', '.debit', function () {
             var el = $(this).parent().parent().parent().parent();
             var debit = $(this).val();
+
+            if (!isValidMoneyInput(debit)) {
+                $(this).val(0);
+                return;
+            }
+
             var credit = 0;
             el.find('.credit').val(credit);
 
@@ -114,7 +145,7 @@
             var inputs = $(".debit");
             var totalDebit = 0;
             for (var i = 0; i < inputs.length; i++) {
-                totalDebit = parseFloat(totalDebit) + parseFloat($(inputs[i]).val());
+                totalDebit = parseMoneyInput(totalDebit) + parseMoneyInput($(inputs[i]).val());
             }
             $('.totalDebit').html(totalDebit.toFixed(2));
 
@@ -127,6 +158,12 @@
         $(document).on('keyup', '.credit', function () {
             var el = $(this).parent().parent().parent().parent();
             var credit = $(this).val();
+
+            if (!isValidMoneyInput(credit)) {
+                $(this).val(0);
+                return;
+            }
+
             var debit = 0;
             el.find('.debit').val(debit);
             el.find('.amount').html(credit);
@@ -134,7 +171,7 @@
             var inputs = $(".credit");
             var totalCredit = 0;
             for (var i = 0; i < inputs.length; i++) {
-                totalCredit = parseFloat(totalCredit) + parseFloat($(inputs[i]).val());
+                totalCredit = parseMoneyInput(totalCredit) + parseMoneyInput($(inputs[i]).val());
             }
             $('.totalCredit').html(totalCredit.toFixed(2));
 
@@ -224,7 +261,7 @@
     </div>
     <div class="row">
         <div class="col-12">
-            <div class="card repeater" data-value='{!! json_encode($journalEntry->accounts) !!}'>
+            <div class="card repeater" data-value='{!! json_encode($journalAccounts) !!}'>
                 <div class="item-section  p-4 text-end">
                             <div class="all-button-box">
                                 <a href="#" data-repeater-create="" class="btn btn-primary" data-toggle="modal" data-target="#add-bank">

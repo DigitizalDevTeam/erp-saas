@@ -15,6 +15,31 @@
     <script src="{{ asset('js/jquery-searchbox.js') }}"></script>
 
     <script>
+        function parseMoneyInput(val) {
+            if (!val) {
+                return 0;
+            }
+
+            return parseFloat(String(val).replace(',', '.')) || 0;
+        }
+
+        function isValidMoneyInput(val) {
+            return /^\d*[.,]?\d*$/.test(val);
+        }
+
+        function normalizeJournalAmountFields() {
+            $('.debit, .credit').each(function() {
+                var val = $(this).val();
+                if (val && String(val).indexOf(',') !== -1) {
+                    $(this).val(String(val).replace(',', '.'));
+                }
+            });
+        }
+
+        $('form').on('submit', function() {
+            normalizeJournalAmountFields();
+        });
+
         var selector = "body";
         if ($(selector + " .repeater").length) {
             var $repeater = $(selector + ' .repeater').repeater({
@@ -44,7 +69,7 @@
                         var inputs = $(".debit");
                         var totalDebit = 0;
                         for (var i = 0; i < inputs.length; i++) {
-                            totalDebit = parseFloat(totalDebit) + parseFloat($(inputs[i]).val());
+                            totalDebit = parseMoneyInput(totalDebit) + parseMoneyInput($(inputs[i]).val());
                         }
                         $('.totalDebit').html(totalDebit.toFixed(2));
 
@@ -52,7 +77,7 @@
                         var inputs = $(".credit");
                         var totalCredit = 0;
                         for (var i = 0; i < inputs.length; i++) {
-                            totalCredit = parseFloat(totalCredit) + parseFloat($(inputs[i]).val());
+                            totalCredit = parseMoneyInput(totalCredit) + parseMoneyInput($(inputs[i]).val());
                         }
                         $('.totalCredit').html(totalCredit.toFixed(2));
 
@@ -82,8 +107,8 @@
             var el = $(this).parent().parent().parent().parent();
             var debit = $(this).val();
 
-            // Validate input: Allow only integers or floats
-            if (!/^\d*\.?\d*$/.test(debit)) {
+            // Validate input: Allow integers or floats with dot or comma decimals
+            if (!isValidMoneyInput(debit)) {
                 $(this).val(0);
                 return;
             }
@@ -96,7 +121,7 @@
             var inputs = $(".debit");
             var totalDebit = 0;
             for (var i = 0; i < inputs.length; i++) {
-                totalDebit = parseFloat(totalDebit) + parseFloat($(inputs[i]).val());
+                totalDebit = parseMoneyInput(totalDebit) + parseMoneyInput($(inputs[i]).val());
             }
             $('.totalDebit').html(totalDebit.toFixed(2));
 
@@ -110,8 +135,8 @@
             var el = $(this).parent().parent().parent().parent();
             var credit = $(this).val();
 
-            // Validate input: Allow only integers or floats
-            if (!/^\d*\.?\d*$/.test(credit)) {
+            // Validate input: Allow integers or floats with dot or comma decimals
+            if (!isValidMoneyInput(credit)) {
                 $(this).val(0);
                 return;
             }
@@ -123,7 +148,7 @@
             var inputs = $(".credit");
             var totalCredit = 0;
             for (var i = 0; i < inputs.length; i++) {
-                totalCredit = parseFloat(totalCredit) + parseFloat($(inputs[i]).val());
+                totalCredit = parseMoneyInput(totalCredit) + parseMoneyInput($(inputs[i]).val());
             }
             $('.totalCredit').html(totalCredit.toFixed(2));
 

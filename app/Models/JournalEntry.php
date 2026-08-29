@@ -43,23 +43,21 @@ class JournalEntry extends Model
     public function totalCredit()
     {
         $total = 0;
-        foreach($this->accounts as $account)
-        {
-            $total += $account->credit;
+        foreach ($this->accounts as $account) {
+            $total += (float) $account->credit;
         }
 
-        return $total;
+        return round($total, 2);
     }
 
     public function totalDebit()
     {
         $total = 0;
-        foreach($this->accounts as $account)
-        {
-            $total += $account->debit;
+        foreach ($this->accounts as $account) {
+            $total += (float) $account->debit;
         }
 
-        return $total;
+        return round($total, 2);
     }
 
 

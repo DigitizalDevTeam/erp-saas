@@ -9,6 +9,7 @@ use App\Models\JournalItem;
 use App\Models\TransactionLines;
 use App\Models\Utility;
 use App\Support\AccountingPeriodDate;
+use App\Support\MoneyAmount;
 use Illuminate\Http\Request;
 
 class JournalEntryController extends Controller
@@ -97,19 +98,16 @@ class JournalEntryController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
 
-            $accounts = $request->accounts;
+            $accounts = $this->normalizeJournalAccounts($request->accounts);
 
             $totalDebit = 0;
             $totalCredit = 0;
-            for ($i = 0; $i < count($accounts); $i++) {
-                $debit = isset($accounts[$i]['debit']) ? $accounts[$i]['debit'] : 0;
-                $credit = isset($accounts[$i]['credit']) ? $accounts[$i]['credit'] : 0;
-                $totalDebit += $debit;
-                $totalCredit += $credit;
+            foreach ($accounts as $account) {
+                $totalDebit += $account['debit'];
+                $totalCredit += $account['credit'];
             }
-            // $totalDebit += $debit;
 
-            if (round($totalCredit, 2) !== round($totalDebit, 2)) {
+            if (! MoneyAmount::equals($totalCredit, $totalDebit)) {
                 return redirect()->back()->with('error', __('Debit and Credit must be Equal.'));
             }
 
@@ -130,8 +128,8 @@ class JournalEntryController extends Controller
                 $journalItem->journal = $journal->id;
                 $journalItem->account = $accounts[$i]['account'];
                 $journalItem->description = $accounts[$i]['description'];
-                $journalItem->debit = isset($accounts[$i]['debit']) ? $accounts[$i]['debit'] : 0;
-                $journalItem->credit = isset($accounts[$i]['credit']) ? $accounts[$i]['credit'] : 0;
+                $journalItem->debit = $accounts[$i]['debit'];
+                $journalItem->credit = $accounts[$i]['credit'];
                 $journalItem->save();
 
             }
@@ -219,7 +217,17 @@ class JournalEntryController extends Controller
             $subAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
             $subAccounts = $subAccounts->get()->toArray();
 
-            return view('journalEntry.edit', compact('chartAccounts', 'journalEntry' , 'subAccounts'));
+            $journalAccounts = $journalEntry->accounts->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'account' => $item->account,
+                    'description' => $item->description,
+                    'debit' => number_format((float) $item->debit, 2, '.', ''),
+                    'credit' => number_format((float) $item->credit, 2, '.', ''),
+                ];
+            })->values();
+
+            return view('journalEntry.edit', compact('chartAccounts', 'journalEntry', 'subAccounts', 'journalAccounts'));
         } else {
             return response()->json(['error' => __('Permission denied.')], 401);
         }
@@ -243,18 +251,16 @@ class JournalEntryController extends Controller
                     return redirect()->back()->with('error', $messages->first());
                 }
 
-                $accounts = $request->accounts;
+                $accounts = $this->normalizeJournalAccounts($request->accounts);
 
                 $totalDebit = 0;
                 $totalCredit = 0;
-                for ($i = 0; $i < count($accounts); $i++) {
-                    $debit = isset($accounts[$i]['debit']) ? $accounts[$i]['debit'] : 0;
-                    $credit = isset($accounts[$i]['credit']) ? $accounts[$i]['credit'] : 0;
-                    $totalDebit += $debit;
-                    $totalCredit += $credit;
+                foreach ($accounts as $account) {
+                    $totalDebit += $account['debit'];
+                    $totalCredit += $account['credit'];
                 }
 
-                if (round($totalCredit, 2) !== round($totalDebit, 2)) {
+                if (! MoneyAmount::equals($totalCredit, $totalDebit)) {
                     return redirect()->back()->with('error', __('Debit and Credit must be Equal.'));
                 }
 
@@ -280,12 +286,12 @@ class JournalEntryController extends Controller
                     }
 
                     $journalItem->description = $accounts[$i]['description'];
-                    $journalItem->debit = isset($accounts[$i]['debit']) ? $accounts[$i]['debit'] : 0;
-                    $journalItem->credit = isset($accounts[$i]['credit']) ? $accounts[$i]['credit'] : 0;
+                    $journalItem->debit = $accounts[$i]['debit'];
+                    $journalItem->credit = $accounts[$i]['credit'];
                     $journalItem->save();
 
                     if ($journalEntry->status == JournalEntry::STATUS_APPROVED) {
-                        if (isset($accounts[$i]['debit'])) {
+                        if ($accounts[$i]['debit'] > 0) {
                             $data = [
                                 'account_id' => $accounts[$i]['account'],
                                 'transaction_type' => 'Debit',
@@ -306,7 +312,7 @@ class JournalEntryController extends Controller
                                 'date' => $journalEntry->date,
                             ];
                         }
-                        Utility::addTransactionLines($data , 'edit');
+                        Utility::addTransactionLines($data, 'edit');
                     }
                 }
 
@@ -393,20 +399,22 @@ class JournalEntryController extends Controller
             $totalDebit += (float) $journalItem->debit;
             $totalCredit += (float) $journalItem->credit;
         }
-        if (round($totalDebit, 2) !== round($totalCredit, 2)) {
+        if (! MoneyAmount::equals($totalDebit, $totalCredit)) {
             return redirect()->back()->with('error', __('Debit and Credit must be Equal.'));
         }
 
         foreach ($accounts as $journalItem) {
+            $debit = MoneyAmount::parse($journalItem->debit);
+            $credit = MoneyAmount::parse($journalItem->credit);
             $bankAccounts = BankAccount::where('chart_account_id', '=', $journalItem->account)->get();
             if (! empty($bankAccounts)) {
                 foreach ($bankAccounts as $bankAccount) {
                     $old_balance = $bankAccount->opening_balance;
-                    if ($journalItem->debit > 0) {
-                        $new_balance = $old_balance - $journalItem->debit;
+                    if ($debit > 0) {
+                        $new_balance = $old_balance - $debit;
                     }
-                    if ($journalItem->credit > 0) {
-                        $new_balance = $old_balance + $journalItem->credit;
+                    if ($credit > 0) {
+                        $new_balance = $old_balance + $credit;
                     }
                     if (isset($new_balance)) {
                         $bankAccount->opening_balance = $new_balance;
@@ -414,11 +422,11 @@ class JournalEntryController extends Controller
                     }
                 }
             }
-            if ((float) $journalItem->debit > 0) {
+            if ($debit > 0) {
                 $data = [
                     'account_id' => $journalItem->account,
                     'transaction_type' => 'Debit',
-                    'transaction_amount' => $journalItem->debit,
+                    'transaction_amount' => $debit,
                     'reference' => 'Journal',
                     'reference_id' => $journalEntry->id,
                     'reference_sub_id' => $journalItem->id,
@@ -428,7 +436,7 @@ class JournalEntryController extends Controller
                 $data = [
                     'account_id' => $journalItem->account,
                     'transaction_type' => 'Credit',
-                    'transaction_amount' => $journalItem->credit,
+                    'transaction_amount' => $credit,
                     'reference' => 'Journal',
                     'reference_id' => $journalEntry->id,
                     'reference_sub_id' => $journalItem->id,
@@ -460,5 +468,23 @@ class JournalEntryController extends Controller
         $journalEntry->save();
 
         return redirect()->route('journal-entry.index')->with('success', __('Journal entry rejected successfully.'));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $accounts
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeJournalAccounts(array $accounts): array
+    {
+        $normalized = [];
+
+        foreach ($accounts as $account) {
+            $normalized[] = array_merge($account, [
+                'debit' => MoneyAmount::parse($account['debit'] ?? 0),
+                'credit' => MoneyAmount::parse($account['credit'] ?? 0),
+            ]);
+        }
+
+        return $normalized;
     }
 }
