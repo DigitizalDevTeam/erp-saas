@@ -486,6 +486,7 @@ class QuotationController extends Controller
         if (isset($post['quotation_template']) && (!isset($post['quotation_color']) || empty($post['quotation_color']))) {
             $post['quotation_color'] = "ffffff";
         }
+        $post['quotation_receipt_layout'] = Utility::normalizeReceiptLayout($request->input('quotation_receipt_layout'));
 
         if ($request->quotation_logo) {
             $dir = 'quotation_logo/';
@@ -916,6 +917,14 @@ class QuotationController extends Controller
         if ($quotation) {
             $color = '#' . $settings['quotation_color'];
             $font_color = Utility::getFontColor($color);
+            $receiptLayout = Utility::normalizeReceiptLayout($settings['quotation_receipt_layout'] ?? 'existing');
+
+            if ($receiptLayout === 'compact1') {
+                return view('quotation.receipts.compact1', compact('quotation', 'color', 'settings', 'customer', 'img', 'font_color'));
+            }
+            if ($receiptLayout === 'compact2') {
+                return view('quotation.receipts.compact2', compact('quotation', 'color', 'settings', 'customer', 'img', 'font_color'));
+            }
 
             return view('quotation.templates.' . $settings['quotation_template'], compact('quotation', 'color', 'settings', 'customer', 'img', 'font_color'));
         } else {

@@ -916,6 +916,42 @@
                                     @enderror
                                 </div>
                                 <div class="form-group col-md-6">
+                                    {{ Form::label('proforma_prefix', __('Proforma Prefix'), ['class' => 'form-label']) }}
+                                    {{ Form::text('proforma_prefix', null, ['class' => 'form-control', 'placeholder' => __('Enter Proforma Prefix')]) }}
+                                    @error('proforma_prefix')
+                                        <span class="invalid-proforma_prefix" role="alert">
+                                            <strong class="text-danger">{{ $message }}</strong>
+                                        </span>
+                                    @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('vendor_quote_prefix', __('Vendor Quote Prefix'), ['class' => 'form-label']) }}
+                                    {{ Form::text('vendor_quote_prefix', null, ['class' => 'form-control', 'placeholder' => __('Enter Vendor Quote Prefix')]) }}
+                                    @error('vendor_quote_prefix')
+                                        <span class="invalid-vendor_quote_prefix" role="alert">
+                                            <strong class="text-danger">{{ $message }}</strong>
+                                        </span>
+                                    @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('credit_note_prefix', __('Credit Note Prefix'), ['class' => 'form-label']) }}
+                                    {{ Form::text('credit_note_prefix', null, ['class' => 'form-control', 'placeholder' => __('Enter Credit Note Prefix')]) }}
+                                    @error('credit_note_prefix')
+                                        <span class="invalid-credit_note_prefix" role="alert">
+                                            <strong class="text-danger">{{ $message }}</strong>
+                                        </span>
+                                    @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('debit_note_prefix', __('Debit Note Prefix'), ['class' => 'form-label']) }}
+                                    {{ Form::text('debit_note_prefix', null, ['class' => 'form-control', 'placeholder' => __('Enter Debit Note Prefix')]) }}
+                                    @error('debit_note_prefix')
+                                        <span class="invalid-debit_note_prefix" role="alert">
+                                            <strong class="text-danger">{{ $message }}</strong>
+                                        </span>
+                                    @enderror
+                                </div>
+                                <div class="form-group col-md-6">
                                     {{ Form::label('purchase_prefix', __('Purchase Prefix'), ['class' => 'form-label']) }}
                                     {{ Form::text('purchase_prefix', null, ['class' => 'form-control', 'placeholder' => __('Enter Purchase Prifix')]) }}
                                     @error('purchase_prefix')
@@ -5120,7 +5156,7 @@
                                             <div class="col-lg-4 col-md-6 col-sm-6 form-group mb-0">
                                                 <div class="list-group">
                                                     <div class="list-group-item form-switch form-switch-right p-3">
-                                                        <label class="form-label mb-0">{{ $EmailTemplate->name }}</label>
+                                                        <label class="form-label mb-0">{{ __($EmailTemplate->name) }}</label>
                                                         {{--                                                    <input class="form-check-input email-template-checkbox" --}}
                                                         {{--                                                           id="email_tempalte_{{!empty($EmailTemplate->template)?$EmailTemplate->template->id:''}}" type="checkbox" --}}
                                                         {{--                                                           @if (!empty($EmailTemplate->template) ? $EmailTemplate->template->is_active : 0 == 1) checked="checked" @endif --}}

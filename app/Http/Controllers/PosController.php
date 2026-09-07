@@ -2571,16 +2571,13 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             ];
         }
 
-        // Clear session cart so UI loads from DB next time (skip when kitchen slip only).
-        $kitchenSlipOnly = $request->boolean('kitchen_slip_only');
-        if (!$kitchenSlipOnly) {
-            $cartKey = 'pos_restaurant_cart';
-            $sessionCartKey = $isNonDineIn && $posId > 0 ? ('pos_' . $pos->id) : ($isNonDineIn ? ($orderType . '_' . $shiftId) : ($tableId . '_' . $shiftId));
-            $allCarts = $request->session()->get($cartKey, []);
-            if (isset($allCarts[$sessionCartKey])) {
-                unset($allCarts[$sessionCartKey]);
-                $request->session()->put($cartKey, $allCarts);
-            }
+        // Clear session cart so UI loads from DB next time (also after kitchen slip print to avoid re-sending leftover lines).
+        $cartKey = 'pos_restaurant_cart';
+        $sessionCartKey = $isNonDineIn && $posId > 0 ? ('pos_' . $pos->id) : ($isNonDineIn ? ($orderType . '_' . $shiftId) : ($tableId . '_' . $shiftId));
+        $allCarts = $request->session()->get($cartKey, []);
+        if (isset($allCarts[$sessionCartKey])) {
+            unset($allCarts[$sessionCartKey]);
+            $request->session()->put($cartKey, $allCarts);
         }
 
         \App\Services\PosAuditLogService::log(
@@ -3211,6 +3208,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $itemTax['name'] = $tax->name;
                     $itemTax['rate'] = $tax->rate . '%';
                     $itemTax['price'] = Utility::priceFormat($settings, $taxPrice);
+                    $itemTax['tax_price'] = $taxPrice;
                     $itemTaxes[] = $itemTax;
 
                     if (array_key_exists($tax->name, $taxesData)) {
@@ -3306,6 +3304,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $itemTax['name'] = 'Tax ' . $k;
                 $itemTax['rate'] = '10 %';
                 $itemTax['price'] = '$10';
+                $itemTax['tax_price'] = $taxPrice;
                 $itemTaxes[] = $itemTax;
                 if (array_key_exists('Tax ' . $k, $taxesData)) {
                     $taxesData['Tax ' . $k] = $taxesData['Tax 1'] + $taxPrice;
@@ -3359,6 +3358,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         }
         $post['pos_direct_print'] = ($request->input('pos_direct_print') === 'on') ? 'on' : 'off';
         $post['pos_print_layout'] = Utility::normalizePosPrintLayout($request->input('pos_print_layout'));
+        $post['pos_receipt_layout'] = Utility::normalizeReceiptLayout($request->input('pos_receipt_layout'));
 
         if ($request->pos_logo) {
             $dir = 'pos_logo/';
@@ -3442,7 +3442,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $posIdRaw = $pos->id;
                     $receiptLinkUrl = URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]);
                     $printSource = in_array($request->get('source'), ['restaurant'], true) ? 'restaurant' : 'retail';
-                    return view('pos.printview', [
+                    return view(Utility::posReceiptViewName($settings ?? null), [
                         'details' => $details,
                         'sales' => $sales,
                         'customer' => $customer,
@@ -3471,6 +3471,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $mainsubtotal += $lineTotal;
                     $sales['data'][] = [
                         'name' => $product ? $product->name : __('Product'),
+                        'sku' => $product ? ($product->sku ?? '-') : '-',
                         'quantity' => $qty,
                         'price' => $user->priceFormat($price),
                         'tax' => $taxRate . '%',
@@ -3509,7 +3510,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $receiptLinkUrl = URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]);
                 \Log::info('Receipt link URL: ' . $receiptLinkUrl);
                 $printSource = in_array($request->get('source'), ['restaurant'], true) ? 'restaurant' : 'retail';
-                return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'printSource'));
+                return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'printSource'));
             }
         }
 
@@ -3605,7 +3606,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'barcodeFormat' => Auth::user()->barcodeFormat(),
         ];
 
-        return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource'));
+        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource'));
 
     }
 
@@ -3867,7 +3868,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $productServices = ProductService::where('created_by', $user->creatorId())->get();
         $barcode = ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()];
 
-        return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource'));
+        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource'));
     }
 
     /**
@@ -3926,6 +3927,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $mainsubtotal += $lineTotal;
             $sales['data'][] = [
                 'name' => $product ? $product->name : __('Product'),
+                'sku' => $product ? ($product->sku ?? '-') : '-',
                 'quantity' => $qty,
                 'price' => $user->priceFormat($price),
                 'tax' => $taxRate . '%',
@@ -3964,7 +3966,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $receiptLinkUrl = URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]);
         $printSource = 'retail';
         $receiptUser = $user;
-        return view('pos.printview', compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'settings', 'printSource', 'receiptUser'))->with('standalone', true);
+        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'settings', 'printSource', 'receiptUser'))->with('standalone', true);
     }
 
     public function add_opening_balance()
@@ -4541,7 +4543,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         ];
         $posIdRaw = $pos->id;
         $receiptLinkUrl = URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]);
-        $receiptHtml = view('pos.printview', [
+        $receiptHtml = view(Utility::posReceiptViewName($settings ?? null), [
             'details' => $details,
             'sales' => ['data' => [], 'discount' => '0', 'sub_total' => $user->priceFormat($amount), 'total' => $user->priceFormat($amount), 'tip' => '0'],
             'customer' => $customer,

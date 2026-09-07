@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ERP Invoice / Credit Note / Debit Note — PT Test Documentation</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --card: #ffffff;
+      --text: #1a1d23;
+      --muted: #5c6570;
+      --border: #d8dde3;
+      --accent: #1e4d6b;
+      --accent-soft: #e8f1f6;
+      --critical: #8b2e2e;
+      --critical-bg: #fdf2f2;
+      --pass: #1b6b3a;
+      --fail: #9b1c1c;
+      --placeholder: #e9edf1;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--accent);
+      color: #fff;
+      padding: 1.25rem 1rem 2rem;
+    }
+
+    .sidebar h1 {
+      font-size: 1rem;
+      margin: 0 0 0.35rem;
+      font-weight: 650;
+      line-height: 1.35;
+    }
+
+    .sidebar .meta {
+      font-size: 0.75rem;
+      opacity: 0.85;
+      margin-bottom: 1.25rem;
+    }
+
+    .sidebar nav a {
+      display: block;
+      color: #d7e6ef;
+      text-decoration: none;
+      padding: 0.35rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      margin-bottom: 0.15rem;
+    }
+
+    .sidebar nav a:hover,
+    .sidebar nav a:focus {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+
+    .sidebar nav a.critical-link {
+      color: #ffd4d4;
+      font-weight: 600;
+    }
+
+    .main {
+      padding: 1.5rem 2rem 3rem;
+      max-width: 980px;
+    }
+
+    .doc-header {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .doc-header h2 {
+      margin: 0 0 0.5rem;
+      font-size: 1.35rem;
+      color: var(--accent);
+    }
+
+    .doc-header p {
+      margin: 0.25rem 0;
+      color: var(--muted);
+    }
+
+    .formula {
+      margin-top: 0.85rem;
+      padding: 0.65rem 0.85rem;
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      font-size: 0.85rem;
+    }
+
+    .section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+      scroll-margin-top: 1rem;
+    }
+
+    .section.critical {
+      border-color: #d4a0a0;
+      box-shadow: 0 0 0 2px var(--critical-bg);
+    }
+
+    .section h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1.15rem;
+      color: var(--accent);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+
+    .section.critical h2 {
+      color: var(--critical);
+    }
+
+    .critical-banner {
+      background: var(--critical-bg);
+      border: 1px solid #e0b4b4;
+      color: var(--critical);
+      padding: 0.65rem 0.85rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .subsection {
+      margin-top: 1rem;
+    }
+
+    .subsection h3 {
+      margin: 0 0 0.45rem;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+    }
+
+    table.data {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.35rem 0 0.75rem;
+    }
+
+    table.data th,
+    table.data td {
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.6rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    table.data th {
+      width: 32%;
+      background: #f0f3f6;
+      font-weight: 600;
+    }
+
+    .placeholder-token {
+      color: #6b3a00;
+      background: #fff6e8;
+      padding: 0.05rem 0.3rem;
+      border-radius: 3px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.85em;
+    }
+
+    .shot {
+      margin: 0.5rem 0 1rem;
+      border: 2px dashed #a8b3bf;
+      border-radius: 6px;
+      background: var(--placeholder);
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      overflow: hidden;
+    }
+
+    .shot.small { min-height: 140px; }
+
+    .shot-label {
+      background: #cfd7df;
+      color: #33404c;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.4rem 0.65rem;
+      border-bottom: 1px dashed #a8b3bf;
+    }
+
+    .shot img {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 520px;
+      object-fit: contain;
+      background: #fff;
+    }
+
+    .shot img[src=""],
+    .shot img:not([src]) {
+      display: none;
+    }
+
+    .shot-fallback {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      min-height: 140px;
+    }
+
+    .shot.has-image .shot-fallback {
+      display: none;
+    }
+
+    .shots-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { position: relative; height: auto; }
+      .shots-row { grid-template-columns: 1fr; }
+    }
+
+    .checklist {
+      list-style: none;
+      padding: 0;
+      margin: 0.35rem 0 0.75rem;
+    }
+
+    .checklist li {
+      padding: 0.35rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-start;
+    }
+
+    .checklist li:last-child { border-bottom: none; }
+
+    .result-box {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    .result-box .field {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.55rem 0.7rem;
+      min-height: 4.5rem;
+      background: #fafbfc;
+    }
+
+    .result-box .field label {
+      display: block;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+      font-weight: 600;
+    }
+
+    .pass-fail {
+      display: flex;
+      gap: 1.25rem;
+      align-items: center;
+      margin-top: 0.75rem;
+      padding: 0.55rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #fafbfc;
+    }
+
+    .pass-fail label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .pass-fail .pass { color: var(--pass); }
+    .pass-fail .fail { color: var(--fail); }
+
+    .steps {
+      margin: 0.25rem 0 0.75rem;
+      padding-left: 1.25rem;
+    }
+
+    .steps li { margin-bottom: 0.3rem; }
+
+    .note {
+      font-size: 0.85rem;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    footer.doc-footer {
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    @media print {
+      body { background: #fff; font-size: 11pt; }
+      .layout { display: block; }
+      .sidebar {
+        position: static;
+        height: auto;
+        background: #fff;
+        color: #000;
+        border-bottom: 1px solid #ccc;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1rem;
+      }
+      .sidebar nav { display: none; }
+      .sidebar h1 { color: #000; }
+      .main { padding: 0; max-width: none; }
+      .section { break-inside: avoid; box-shadow: none; }
+      .shot { break-inside: avoid; }
+      .pass-fail input { print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <h1>ERP Invoice Traceability — PT Docs</h1>
+      <div class="meta">Invoice / Credit Note / Debit Note<br>Portuguese (PT) UI required</div>
+      <nav>
+        <a href="#sec-1">1. Test Environment</a>
+        <a href="#sec-2">2. Company Configuration</a>
+        <a href="#sec-3">3. Master Data</a>
+        <a href="#sec-4">4. Invoice Creation</a>
+        <a href="#sec-5">5. Invoice Issuance</a>
+        <a href="#sec-6">6. Invoice List</a>
+        <a href="#sec-7">7. Delete / Cancel / Correction</a>
+        <a href="#sec-8" class="critical-link">8. Report After Cancel ★</a>
+        <a href="#sec-9">9. Credit Note</a>
+        <a href="#sec-10">10. Credit Note List</a>
+        <a href="#sec-11">11. Debit Note</a>
+        <a href="#sec-12">12. Debit Note List</a>
+        <a href="#sec-13">13. Traceability / History</a>
+        <a href="#sec-14">14. PT Language Verification</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="doc-header">
+        <h2>ERP Invoice / Credit Note / Debit Note — PT Documentation</h2>
+        <p>Client test evidence for invoice issuance, cancellation/correction, credit notes, debit notes, and full traceability in the Portuguese (PT) interface.</p>
+        <p><strong>Screenshots:</strong> Place PNG files in <code>document/images/</code> using the filenames shown under each placeholder. All UI screenshots must be captured with language set to <strong>Português (PT)</strong>.</p>
+       
+      </header>
+
+      <!-- ========== 1. TEST ENVIRONMENT ========== -->
+      <section class="section" id="sec-1">
+        <h2>1. Test Environment</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>ERP version</th>
+              <td><span class="placeholder-token">[ERP Version / APP_NAME]</span></td>
+            </tr>
+            <tr>
+              <th>Language</th>
+              <td>Portuguese (PT) — UI must not show English or mixed labels</td>
+            </tr>
+            <tr>
+              <th>Test / demo company name</th>
+              <td><span class="placeholder-token">[Demo Company Name]</span></td>
+            </tr>
+            <tr>
+              <th>Purpose of the test database</th>
+              <td>Validate invoice lifecycle, cancel/void with credit note linkage, sales debit notes, and that cancelled documents remain traceable (no silent loss of fiscal history).</td>
+            </tr>
+            <tr>
+              <th>Test date</th>
+              <td><span class="placeholder-token">[YYYY-MM-DD]</span></td>
+            </tr>
+            <tr>
+              <th>System / module being tested</th>
+              <td>Faturação / Contas a Receber — Faturas, Notas de Crédito, Notas de Débito (vendas), Void Audit Log</td>
+            </tr>
+            <tr>
+              <th>Tester</th>
+              <td><span class="placeholder-token">[Tester Name]</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Log in to the test/demo company with PT language selected.</li>
+            <li>Confirm company context and date of testing in this section (no screenshot required).</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result</h3>
+          <p>Environment details are recorded; system is ready for PT invoice testing.</p>
+        </div>
+
+        
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf1" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf1" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 2. COMPANY CONFIGURATION ========== -->
+      <section class="section" id="sec-2">
+        <h2>2. Company Configuration</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>Company name</th>
+              <td><span class="placeholder-token">[Company Name]</span></td>
+            </tr>
+            <tr>
+              <th>NUIT</th>
+              <td><span class="placeholder-token">[NUIT / VAT Number]</span> <span class="note">(stored as company VAT number)</span></td>
+            </tr>
+            <tr>
+              <th>Address</th>
+              <td><span class="placeholder-token">[Company Address]</span></td>
+            </tr>
+            <tr>
+              <th>Currency</th>
+              <td><span class="placeholder-token">[MZN / MT]</span></td>
+            </tr>
+            <tr>
+              <th>VAT / Tax configuration</th>
+              <td><span class="placeholder-token">[IVA rate / tax names, e.g. IVA 16%]</span></td>
+            </tr>
+            <tr>
+              <th>Fiscal period</th>
+              <td><span class="placeholder-token">[Fiscal Year / Period]</span></td>
+            </tr>
+            <tr>
+              <th>Document series / prefix</th>
+              <td>
+                Invoice: <span class="placeholder-token">[#Fatura]</span> ·
+                Credit Note: <span class="placeholder-token">[#NC]</span> ·
+                Debit Note: <span class="placeholder-token">[#ND]</span>
+              </td>
+            </tr>
+            <tr>
+              <th>Document void → credit note</th>
+              <td><span class="placeholder-token">[auto / manual / off]</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Open <strong>Configurações da Empresa</strong> (Company Settings).</li>
+            <li>Verify name, NUIT (Número de IVA), address, currency, IVA, and document prefixes.</li>
+            <li>Capture the settings screen in PT.</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Screenshot</h3>
+          <div class="shot" data-shot>
+            <div class="shot-label">Company settings (PT UI)</div>
+            <img src="images/company-settings.png" alt="Company settings screenshot" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>company-settings.png</strong> into <code>document/images/</code></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result</h3>
+          <p>Company fiscal identity, currency, IVA, and document prefixes are correctly configured and visible in PT.</p>
+        </div>
+
+        
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf2" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf2" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 3. MASTER DATA ========== -->
+      <section class="section" id="sec-3">
+        <h2>3. Master Data</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>Sample customer</th>
+              <td><span class="placeholder-token">[Customer Name]</span> — NUIT: <span class="placeholder-token">[Customer NUIT]</span></td>
+            </tr>
+            <tr>
+              <th>Sample supplier</th>
+              <td><span class="placeholder-token">[Supplier Name]</span> — NUIT: <span class="placeholder-token">[Supplier NUIT]</span></td>
+            </tr>
+            <tr>
+              <th>Sample product / service</th>
+              <td><span class="placeholder-token">[Product/Service Name]</span> — Price: <span class="placeholder-token">[Unit Price]</span></td>
+            </tr>
+            <tr>
+              <th>Tax / VAT setup</th>
+              <td><span class="placeholder-token">[Tax name &amp; rate, e.g. IVA 16%]</span></td>
+            </tr>
+            <tr>
+              <th>Payment methods</th>
+              <td><span class="placeholder-token">[Cash / Bank Transfer / …]</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Open customer, supplier, and product/service master records.</li>
+            <li>Confirm tax and payment method masters used on invoices.</li>
+            <li>Capture PT screenshots for each sample record.</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Screenshots</h3>
+          <div class="shots-row">
+            <div class="shot small" data-shot>
+              <div class="shot-label">customer.png</div>
+              <img src="images/customer.png" alt="Sample customer" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+              <div class="shot-fallback">Customer (PT)</div>
+            </div>
+            <div class="shot small" data-shot>
+              <div class="shot-label">supplier.png</div>
+              <img src="images/supplier.png" alt="Sample supplier" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+              <div class="shot-fallback">Supplier (PT)</div>
+            </div>
+            <div class="shot small" data-shot>
+              <div class="shot-label">product.png</div>
+              <img src="images/product.png" alt="Sample product" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+              <div class="shot-fallback">Product / Service (PT)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result</h3>
+          <p>Master data required for invoice testing exists and is usable in PT.</p>
+        </div>
+
+        
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf3" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf3" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 4. INVOICE CREATION ========== -->
+      <section class="section" id="sec-4">
+        <h2>4. Invoice Creation</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>Customer</th>
+              <td><span class="placeholder-token">[Customer Name]</span></td>
+            </tr>
+            <tr>
+              <th>Product / service</th>
+              <td><span class="placeholder-token">[Product/Service]</span></td>
+            </tr>
+            <tr>
+              <th>Quantity</th>
+              <td><span class="placeholder-token">[Qty]</span></td>
+            </tr>
+            <tr>
+              <th>Price</th>
+              <td><span class="placeholder-token">[Unit Price]</span></td>
+            </tr>
+            <tr>
+              <th>VAT (IVA)</th>
+              <td><span class="placeholder-token">[IVA amount / rate]</span></td>
+            </tr>
+            <tr>
+              <th>Subtotal</th>
+              <td><span class="placeholder-token">[Subtotal]</span></td>
+            </tr>
+            <tr>
+              <th>Total</th>
+              <td><span class="placeholder-token">[Total]</span></td>
+            </tr>
+            <tr>
+              <th>Invoice series / number</th>
+              <td><span class="placeholder-token">[#Fatura00001]</span></td>
+            </tr>
+            <tr>
+              <th>Date</th>
+              <td><span class="placeholder-token">[Invoice Date]</span></td>
+            </tr>
+            <tr>
+              <th>Initial status</th>
+              <td>Rascunho (Draft)</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Go to <strong>Faturas</strong> → Create invoice (<code>/invoice/create</code>).</li>
+            <li>Select customer, add product/service line(s), quantity, price, and IVA.</li>
+            <li>Save as draft and capture the create/view screen showing totals.</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Screenshot</h3>
+          <div class="shot" data-shot>
+            <div class="shot-label">images/invoice-create.png — Invoice creation with lines, IVA, totals (PT)</div>
+            <img src="images/invoice-create.png" alt="Invoice creation" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>invoice-create.png</strong> into <code>document/images/</code></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result</h3>
+          <p>Invoice is saved with correct customer, lines, IVA, subtotal, total, series/number, and date.</p>
+        </div>
+
+       
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf4" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf4" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 5. INVOICE ISSUANCE ========== -->
+      <section class="section" id="sec-5">
+        <h2>5. Invoice Issuance</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>Invoice number</th>
+              <td><span class="placeholder-token">[#Fatura00001]</span></td>
+            </tr>
+            <tr>
+              <th>Status after issue</th>
+              <td><span class="placeholder-token">[Enviada / Sent or applicable PT status]</span></td>
+            </tr>
+            <tr>
+              <th>Customer</th>
+              <td><span class="placeholder-token">[Customer Name]</span></td>
+            </tr>
+            <tr>
+              <th>Total</th>
+              <td><span class="placeholder-token">[Total]</span></td>
+            </tr>
+            <tr>
+              <th>Issued / confirmed date</th>
+              <td><span class="placeholder-token">[Issue Date/Time]</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Open the draft invoice.</li>
+            <li>Issue / send the invoice (<code>/invoice/{id}/sent</code>).</li>
+            <li>Capture the issued invoice view showing number, status, customer, total, and date.</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Screenshot</h3>
+          <div class="shot" data-shot>
+            <div class="shot-label">images/invoice-issued.png — Issued invoice detail (PT)</div>
+            <img src="images/invoice-issued.png" alt="Issued invoice" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>invoice-issued.png</strong> into <code>document/images/</code></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result</h3>
+          <p>Invoice status changes from draft to issued/sent (or pending authorization if credit-limit hold applies); number and totals remain correct.</p>
+        </div>
+
+      
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf5" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf5" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 6. INVOICE LIST ========== -->
+      <section class="section" id="sec-6">
+        <h2>6. Invoice List</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>List must show</th>
+              <td>Invoice number · Date · Customer · Amount · Status</td>
+            </tr>
+            <tr>
+              <th>Target invoice</th>
+              <td><span class="placeholder-token">[#Fatura00001]</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Open invoice list (<code>/invoice</code> — <strong>Faturas</strong>).</li>
+            <li>Locate the test invoice and capture the full list row(s) in PT.</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Screenshot</h3>
+          <div class="shot" data-shot>
+            <div class="shot-label">images/invoice-list.png — Invoice list with number, date, customer, amount, status (PT)</div>
+            <img src="images/invoice-list.png" alt="Invoice list" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>invoice-list.png</strong> into <code>document/images/</code></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result</h3>
+          <p>List displays invoice number, date, customer, amount, and status for the test invoice.</p>
+        </div>
+
+        
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf6" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf6" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 7. DELETE / CANCEL / CORRECTION ========== -->
+      <section class="section" id="sec-7">
+        <h2>7. Invoice Delete / Cancel / Correction Test</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>Which invoice was tested</th>
+              <td><span class="placeholder-token">[Description / customer / amount]</span></td>
+            </tr>
+            <tr>
+              <th>Invoice number</th>
+              <td><span class="placeholder-token">[#Fatura00001]</span></td>
+            </tr>
+            <tr>
+              <th>Action performed</th>
+              <td>Cancel / void (system does not hard-delete issued fiscal documents; void sets status <strong>Cancelada</strong>)</td>
+            </tr>
+            <tr>
+              <th>Void reason</th>
+              <td><span class="placeholder-token">[Cancellation reason]</span></td>
+            </tr>
+            <tr>
+              <th>Create credit note on void</th>
+              <td><span class="placeholder-token">[Yes — auto / Yes — manual / No]</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Open the issued test invoice.</li>
+            <li>Use Cancel / Void (document void modal) and confirm with reason.</li>
+            <li>Observe system response (status Cancelada; optional Nota de Crédito creation).</li>
+            <li>Capture void modal and/or post-void confirmation screen.</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Screenshot</h3>
+          <div class="shot" data-shot>
+            <div class="shot-label">images/invoice-void.png — Void / cancel action and system response (PT)</div>
+            <img src="images/invoice-void.png" alt="Invoice void" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>invoice-void.png</strong> into <code>document/images/</code></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result</h3>
+          <p>System cancels the invoice (status <strong>Cancelada</strong>). Invoice number is retained. If configured, a linked Nota de Crédito is created. Success message / UI confirmation is shown in PT.</p>
+        </div>
+
+        
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf7" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf7" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 8. REPORT AFTER DELETE/CANCEL — CRITICAL ========== -->
+      <section class="section critical" id="sec-8">
+        <h2>8. Invoice Report After Delete/Cancel — Client Critical Requirement</h2>
+        <div class="critical-banner">
+          MAIN CLIENT REQUIREMENT: After cancel/void, the original invoice must remain available and traceable; cancellation status must be visible; the related Credit Note (Nota de Crédito) must be identifiable/linked.
+        </div>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>Original invoice number</th>
+              <td><span class="placeholder-token">[#Fatura00001]</span></td>
+            </tr>
+            <tr>
+              <th>Status after action</th>
+              <td>Cancelada</td>
+            </tr>
+            <tr>
+              <th>Linked Credit Note</th>
+              <td><span class="placeholder-token">[#NC00001]</span> (if created)</td>
+            </tr>
+            <tr>
+              <th>Void audit log</th>
+              <td>User / date / time / reason — <span class="placeholder-token">[User · YYYY-MM-DD HH:MM]</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Re-open the cancelled invoice detail and confirm the record still exists (not deleted).</li>
+            <li>Verify invoice number is still visible and searchable in the list/report.</li>
+            <li>Confirm status shows cancellation information (Cancelada).</li>
+            <li>Identify the related Nota de Crédito linked to this invoice.</li>
+            <li>Open Void Audit Log and locate the void entry (user, date/time, reason, accounting note flag).</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Screenshots (evidence pack)</h3>
+          <div class="shot" data-shot>
+            <div class="shot-label">images/invoice-after-void.png — Cancelled invoice still present with number &amp; Cancelada status (PT)</div>
+            <img src="images/invoice-after-void.png" alt="Invoice after void" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>invoice-after-void.png</strong> into <code>document/images/</code></div>
+          </div>
+          <div class="shot" data-shot>
+            <div class="shot-label">images/credit-note-link.png — Linked Nota de Crédito identifiable against original invoice (PT)</div>
+            <img src="images/credit-note-link.png" alt="Credit note link" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>credit-note-link.png</strong> into <code>document/images/</code></div>
+          </div>
+          <div class="shot" data-shot>
+            <div class="shot-label">images/void-audit-log.png — Void Audit Log with user / date / time / action (PT)</div>
+            <img src="images/void-audit-log.png" alt="Void audit log" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>void-audit-log.png</strong> into <code>document/images/</code></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result — checklist</h3>
+          <ul class="checklist">
+            <li><input type="checkbox"> Original invoice record / history is still available</li>
+            <li><input type="checkbox"> Invoice number remains traceable</li>
+            <li><input type="checkbox"> Cancellation / status information is available (Cancelada)</li>
+            <li><input type="checkbox"> Related Credit Note can be identified / linked</li>
+            <li><input type="checkbox"> Void log shows user and date/time when available</li>
+          </ul>
+        </div>
+
+        
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf8" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf8" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 9. CREDIT NOTE ========== -->
+      <section class="section" id="sec-9">
+        <h2>9. Credit Note</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>Credit Note number</th>
+              <td><span class="placeholder-token">[#NC00001]</span></td>
+            </tr>
+            <tr>
+              <th>Date</th>
+              <td><span class="placeholder-token">[NC Date]</span></td>
+            </tr>
+            <tr>
+              <th>Original invoice reference</th>
+              <td><span class="placeholder-token">[#Fatura00001]</span></td>
+            </tr>
+            <tr>
+              <th>Customer</th>
+              <td><span class="placeholder-token">[Customer Name]</span></td>
+            </tr>
+            <tr>
+              <th>Reason</th>
+              <td><span class="placeholder-token">[Reason / void reason]</span></td>
+            </tr>
+            <tr>
+              <th>Amount</th>
+              <td><span class="placeholder-token">[Amount excl. IVA if shown]</span></td>
+            </tr>
+            <tr>
+              <th>VAT (IVA)</th>
+              <td><span class="placeholder-token">[IVA]</span></td>
+            </tr>
+            <tr>
+              <th>Total</th>
+              <td><span class="placeholder-token">[NC Total]</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Open the Nota de Crédito created from void or created manually against the invoice.</li>
+            <li>Verify number, date, original invoice reference, customer, reason, amount, IVA, total.</li>
+            <li>Capture the credit note detail screen in PT.</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Screenshot</h3>
+          <div class="shot" data-shot>
+            <div class="shot-label">images/credit-note.png — Nota de Crédito detail (PT)</div>
+            <img src="images/credit-note.png" alt="Credit note detail" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>credit-note.png</strong> into <code>document/images/</code></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result</h3>
+          <p>Credit note shows correct linkage to the original invoice and matching financial values.</p>
+        </div>
+
+       
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf9" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf9" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 10. CREDIT NOTE LIST ========== -->
+      <section class="section" id="sec-10">
+        <h2>10. Credit Note List</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>List URL / menu</th>
+              <td><code>/credit-note</code> — Notas de Crédito</td>
+            </tr>
+            <tr>
+              <th>Target Credit Note</th>
+              <td><span class="placeholder-token">[#NC00001]</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Open the complete Credit Note list.</li>
+            <li>Capture a screenshot showing the full list including the test Nota de Crédito.</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Screenshot</h3>
+          <div class="shot" data-shot>
+            <div class="shot-label">images/credit-note-list.png — Complete Credit Note list (PT)</div>
+            <img src="images/credit-note-list.png" alt="Credit note list" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>credit-note-list.png</strong> into <code>document/images/</code></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result</h3>
+          <p>Complete list is visible in PT and includes the test credit note.</p>
+        </div>
+
+       
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf10" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf10" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 11. DEBIT NOTE ========== -->
+      <section class="section" id="sec-11">
+        <h2>11. Debit Note (Sales)</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>Debit Note number</th>
+              <td><span class="placeholder-token">[#ND00001]</span></td>
+            </tr>
+            <tr>
+              <th>Date</th>
+              <td><span class="placeholder-token">[ND Date]</span></td>
+            </tr>
+            <tr>
+              <th>Customer</th>
+              <td><span class="placeholder-token">[Customer Name]</span></td>
+            </tr>
+            <tr>
+              <th>Original document / reference</th>
+              <td><span class="placeholder-token">[#Fatura00001]</span> (if applicable)</td>
+            </tr>
+            <tr>
+              <th>Reason</th>
+              <td><span class="placeholder-token">[Reason]</span></td>
+            </tr>
+            <tr>
+              <th>Amount</th>
+              <td><span class="placeholder-token">[Amount]</span></td>
+            </tr>
+            <tr>
+              <th>VAT (IVA)</th>
+              <td><span class="placeholder-token">[IVA]</span></td>
+            </tr>
+            <tr>
+              <th>Total</th>
+              <td><span class="placeholder-token">[ND Total]</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Create or open a sales Nota de Débito (<code>/sale-debit-note</code> / create-sale-debit-note).</li>
+            <li>Record number, date, customer, original invoice reference (if any), reason, amount, IVA, total.</li>
+            <li>Capture the debit note detail screen in PT.</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Screenshot</h3>
+          <div class="shot" data-shot>
+            <div class="shot-label">images/debit-note.png — Sales Nota de Débito detail (PT)</div>
+            <img src="images/debit-note.png" alt="Debit note detail" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>debit-note.png</strong> into <code>document/images/</code></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result</h3>
+          <p>Sales debit note is recorded with correct customer/reference and financial values.</p>
+        </div>
+
+     
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf11" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf11" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 12. DEBIT NOTE LIST ========== -->
+      <section class="section" id="sec-12">
+        <h2>12. Debit Note List</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>List URL / menu</th>
+              <td><code>/sale-debit-note</code> — Notas de Débito (vendas)</td>
+            </tr>
+            <tr>
+              <th>Target Debit Note</th>
+              <td><span class="placeholder-token">[#ND00001]</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Open the complete sales Debit Note list.</li>
+            <li>Capture a screenshot of the full list in PT.</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Screenshot</h3>
+          <div class="shot" data-shot>
+            <div class="shot-label">images/debit-note-list.png — Complete Debit Note list (PT)</div>
+            <img src="images/debit-note-list.png" alt="Debit note list" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>debit-note-list.png</strong> into <code>document/images/</code></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result</h3>
+          <p>Complete list is visible in PT and includes the test debit note.</p>
+        </div>
+
+     
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf12" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf12" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 13. TRACEABILITY / HISTORY ========== -->
+      <section class="section" id="sec-13">
+        <h2>13. Traceability / History</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>Original invoice</th>
+              <td><span class="placeholder-token">[#Fatura00001]</span> — still present, status Cancelada</td>
+            </tr>
+            <tr>
+              <th>Correction / cancellation</th>
+              <td>Void action + optional Nota de Crédito / Nota de Débito</td>
+            </tr>
+            <tr>
+              <th>Linked Credit Note</th>
+              <td><span class="placeholder-token">[#NC00001]</span></td>
+            </tr>
+            <tr>
+              <th>User / date / time / action</th>
+              <td><span class="placeholder-token">[User · YYYY-MM-DD HH:MM · void/cancel]</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>From the original invoice view, show linked credit/debit notes and cancelled status.</li>
+            <li>From Void Audit Log, show user, date/time, reason, and accounting note created.</li>
+            <li>Capture one combined evidence screenshot (or the strongest single screen) proving the chain.</li>
+          </ol>
+        </div> -->
+
+        <div class="subsection">
+          <!-- <h3>Screenshot</h3> -->
+          <!-- <div class="shot" data-shot>
+            <div class="shot-label">images/13-traceability.png — Original invoice retained + NC link + audit (PT)</div>
+            <img src="images/13-traceability.png" alt="Traceability" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>13-traceability.png</strong> into <code>document/images/</code></div>
+          </div> -->
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result — checklist</h3>
+          <ul class="checklist">
+            <li><input type="checkbox"> Original invoice record is not lost</li>
+            <li><input type="checkbox"> Correction / cancellation is traceable</li>
+            <li><input type="checkbox"> Credit Note is linked to the original invoice</li>
+            <li><input type="checkbox"> User / date / time / action are shown (Void Audit Log or equivalent)</li>
+          </ul>
+        </div>
+
+        
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf13" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf13" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <!-- ========== 14. PT LANGUAGE VERIFICATION ========== -->
+      <section class="section" id="sec-14">
+        <h2>14. PT Language Verification</h2>
+
+        <div class="subsection">
+          <h3>Test Data</h3>
+          <table class="data">
+            <tr>
+              <th>Required language</th>
+              <td>Portuguese (PT) only — no English or mixed-language UI labels in screenshots</td>
+            </tr>
+            <tr>
+              <th>Key labels to verify</th>
+              <td>Fatura · Faturas · Nota de Crédito · Nota de Débito · Cancelada · IVA · Configurações da Empresa · Pago / Não pago</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="subsection">
+          <h3>Action</h3>
+          <ol class="steps">
+            <li>Review every screenshot in this document with language set to PT.</li>
+            <li>Confirm menus, buttons, statuses, and column headers are Portuguese.</li>
+            <li>Capture one representative screen used for language sign-off (or reuse a clear list/detail screen).</li>
+          </ol>
+        </div>
+
+        <div class="subsection">
+          <h3>Screenshot</h3>
+          <div class="shot" data-shot>
+            <div class="shot-label">images/pt-language-check.png — Representative PT UI (no English labels)</div>
+            <img src="images/pt-language-check.png" alt="PT language check" onload="this.closest('.shot').classList.add('has-image')" onerror="this.style.display='none'">
+            <div class="shot-fallback">Screenshot placeholder — drop <strong>pt-language-check.png</strong> into <code>document/images/</code></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Expected Result — checklist</h3>
+          <ul class="checklist">
+            <li><input type="checkbox"> Section 2 company settings screenshot is fully PT</li>
+            <li><input type="checkbox"> Section 4–6 invoice screens are fully PT</li>
+            <li><input type="checkbox"> Section 7–8 cancel / post-cancel screens are fully PT</li>
+            <li><input type="checkbox"> Section 9–10 credit note screens are fully PT</li>
+            <li><input type="checkbox"> Section 11–12 debit note screens are fully PT</li>
+            <li><input type="checkbox"> Section 13 traceability / void log is fully PT</li>
+            <li><input type="checkbox"> No English or mixed-language labels appear in any evidence screenshot</li>
+          </ul>
+        </div>
+
+       
+        <div class="pass-fail">
+          <span>Pass / Fail:</span>
+          <label class="pass"><input type="checkbox" name="pf14" value="pass"> Pass</label>
+          <label class="fail"><input type="checkbox" name="pf14" value="fail"> Fail</label>
+        </div>
+      </section>
+
+      <footer class="doc-footer">
+        <!-- <p><strong>How to attach screenshots:</strong> Save PNG files into <code>document/images/</code> using the exact filenames shown on each placeholder. Refresh this page — images load automatically when present.</p> -->
+        <!-- <p><strong>Image filenames:</strong>
+          company-settings.png ·
+          customer.png · supplier.png · product.png ·
+          invoice-create.png · invoice-issued.png · invoice-list.png ·
+          invoice-void.png ·
+          invoice-after-void.png · credit-note-link.png · void-audit-log.png ·
+          credit-note.png · credit-note-list.png ·
+          debit-note.png · debit-note-list.png ·
+          13-traceability.png · pt-language-check.png
+        </p>
+        <p>Open <code>document/index.html</code> in a browser, or print to PDF when evidence is complete.</p> -->
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

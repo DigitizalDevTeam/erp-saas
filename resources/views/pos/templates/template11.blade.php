@@ -335,8 +335,9 @@
                         if(!empty($item->itemTax)) {
                             $taxRates = [];
                             foreach($item->itemTax as $taxes) {
-                                $itemTaxAmount += $taxes['tax_price'];
-                                $taxRates[] = $taxes['rate'].'%';
+                                $itemTaxAmount += (float)($taxes['tax_price'] ?? 0);
+                                $rateLabel = (string)($taxes['rate'] ?? '');
+                                $taxRates[] = str_contains($rateLabel, '%') ? $rateLabel : ($rateLabel . '%');
                             }
                             $itemTaxRateText = implode(', ', $taxRates);
                         }

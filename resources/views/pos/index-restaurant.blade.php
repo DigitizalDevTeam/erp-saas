@@ -2002,7 +2002,7 @@
                 function printSlip(title, slipRows) {
                     if (slipRows.length === 0) return;
                     var w = window.open('', '_blank', 'width=380,height=400');
-                    w.document.write('<html><head><title>' + title + '</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note-bold{font-weight:bold;font-size:13px;margin-top:2px;}.addon-banner{font-weight:bold;font-size:16px;margin:8px 0 4px;border:2px solid #000;padding:6px;text-align:center;}.addon-sub{font-size:12px;margin:0 0 8px;color:#333;}</style></head><body>');
+                    w.document.write('<html><head><title>' + title + '</title><style>body{font-family:monospace;padding:12px;font-size:16px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note-bold{font-weight:bold;font-size:14px;margin-top:2px;}.addon-banner{font-weight:bold;font-size:18px;margin:8px 0 4px;border:2px solid #000;padding:6px;text-align:center;}.addon-sub{font-size:13px;margin:0 0 8px;color:#333;}</style></head><body>');
                     w.document.write('<h3>' + title + '</h3>');
                     if (isAddon) {
                         w.document.write('<div class="addon-banner">{{ __("pos.kitchen_slip_addon") }}</div>');
@@ -2143,24 +2143,32 @@
                 var tableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
                 var shiftId = $('#pos_shift_id_hidden').val();
                 var items = [];
+                // Match posRestaurantGetKitchenBarRows: include unsent rows even with empty print_zone (empty = kitchen).
                 $('#tbody-restaurant tr[data-product-id]').each(function () {
                     if ($(this).attr('data-is-sent') === '1') return;
-                    var zone = ($(this).attr('data-print-zone') || '').trim();
-                    var printerId = ($(this).attr('data-printer-id') || '').trim();
-                    if (!zone && !printerId) return;
                     var id = $(this).attr('data-product-id');
+                    var vid = parseInt($(this).attr('data-product-variant-id'), 10);
                     var qty = parseInt($(this).find('input[name="quantity"]').val() || $(this).attr('data-quantity') || 1, 10);
                     var price = parseFloat($(this).attr('data-price')) || 0;
                     var discount = parseFloat($(this).attr('data-discount')) || 0;
                     var $n = $(this).find('.notes');
                     var desc = ($n.length && ($n.is('input') || $n.is('textarea'))) ? ($n.val() || '').trim() : ($n.text() || '').trim();
-                    if (id && qty > 0) items.push({ id: id, quantity: qty, price: price, discount: discount, description: desc });
+                    var line = { id: id, quantity: qty, price: price, discount: discount, description: desc };
+                    if (!isNaN(vid) && vid > 0) line.product_variant_id = vid;
+                    var selAttr = $(this).attr('data-selected-options');
+                    if (selAttr) {
+                        try { line.selected_options = JSON.parse(selAttr); } catch (e) {}
+                    }
+                    if (id && qty > 0) items.push(line);
                 });
                 var orderTypePrint = ($('#pos-restaurant-order-type').length ? $('#pos-restaurant-order-type').val() : '') || 'dine_in';
                 var isNonDineInPrint = (orderTypePrint === 'delivery' || orderTypePrint === 'takeaway');
-                var rows = posRestaurantGetKitchenBarRows(true);
-                if (rows.kitchen.length === 0 && rows.bar.length === 0 && Object.keys(rows.byPrinter || {}).every(function(k) { return !(rows.byPrinter[k].rows && rows.byPrinter[k].rows.length); })) {
+                if (items.length === 0) {
                     show_toastr('{{ __("Error") }}', '{{ __("pos.no_data_found") }}', 'error');
+                    return;
+                }
+                if (!branchId || !shiftId || (!isNonDineInPrint && !tableId)) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_branch_first") }}', 'error');
                     return;
                 }
                 var printOpts = {
@@ -2168,44 +2176,42 @@
                     isAddon: posRestaurantOrderHasSentLines(),
                     orderRef: $('#pos_restaurant_pos_id').val() || ''
                 };
-                var canPrint = items.length > 0 && branchId && shiftId && (isNonDineInPrint || tableId);
-                if (canPrint) {
-                    var printData = { _token: '{{ csrf_token() }}', branch_id: branchId, shift_id: shiftId, order_type: orderTypePrint, items: items, kitchen_slip_only: 1 };
-                    if (isNonDineInPrint) {
-                        printData.guest_name = ($('#pos-guest-name').val() || '').trim();
-                        printData.guest_email = ($('#pos-guest-email').val() || '').trim();
-                        printData.guest_phone = ($('#pos-guest-phone').val() || '').trim();
-                    } else {
-                        printData.table_id = tableId;
-                    }
-                    $.ajax({
-                        type: 'POST',
-                        url: '{{ route("pos.send.to.production") }}',
-                        data: printData,
-                        success: function (res) {
-                            if (res.success) {
-                                printOpts.orderRef = res.pos_id || printOpts.orderRef;
-                                printOpts.printJobs = Array.isArray(res.print_jobs) ? res.print_jobs : null;
-                                posRestaurantPrintSlips(tableName, printOpts);
-                                if (isNonDineInPrint) {
-                                    loadRestaurantOrder(null, $('#pos_shift_id_hidden').val(), $('#pos-restaurant-branch').val(), orderTypePrint);
-                                } else {
-                                    var tid = $('#pos_table_id_hidden').val();
-                                    var sid = $('#pos_shift_id_hidden').val();
-                                    if (tid) loadRestaurantOrder(tid, sid, $('#pos-restaurant-branch').val(), 'dine_in');
-                                }
-                            }
-                        },
-                        error: function (xhr) {
-                            var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("Error") }}';
-                            show_toastr('{{ __("Error") }}', msg, 'error');
-                        }
-                    });
-                } else if (items.length > 0) {
-                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_branch_first") }}', 'error');
+                var printData = { _token: '{{ csrf_token() }}', branch_id: branchId, shift_id: shiftId, order_type: orderTypePrint, items: items, kitchen_slip_only: 1 };
+                if (isNonDineInPrint) {
+                    printData.guest_name = ($('#pos-guest-name').val() || '').trim();
+                    printData.guest_email = ($('#pos-guest-email').val() || '').trim();
+                    printData.guest_phone = ($('#pos-guest-phone').val() || '').trim();
+                    var existingPosId = $('#pos_restaurant_pos_id').val();
+                    if (existingPosId) printData.pos_id = existingPosId;
                 } else {
-                    posRestaurantPrintSlips(tableName, { unsentOnly: false, isAddon: false });
+                    printData.table_id = tableId;
                 }
+                $.ajax({
+                    type: 'POST',
+                    url: '{{ route("pos.send.to.production") }}',
+                    data: printData,
+                    success: function (res) {
+                        if (res.success) {
+                            printOpts.orderRef = res.pos_id || printOpts.orderRef;
+                            printOpts.printJobs = Array.isArray(res.print_jobs) ? res.print_jobs : null;
+                            posRestaurantPrintSlips(tableName, printOpts);
+                            if (isNonDineInPrint) {
+                                if (res.pos_id) {
+                                    $('#pos_restaurant_pos_id').val(res.pos_id);
+                                }
+                                loadRestaurantOrder(null, $('#pos_shift_id_hidden').val(), $('#pos-restaurant-branch').val(), orderTypePrint, res.pos_id || $('#pos_restaurant_pos_id').val());
+                            } else {
+                                var tid = $('#pos_table_id_hidden').val();
+                                var sid = $('#pos_shift_id_hidden').val();
+                                if (tid) loadRestaurantOrder(tid, sid, $('#pos-restaurant-branch').val(), 'dine_in');
+                            }
+                        }
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("Error") }}';
+                        show_toastr('{{ __("Error") }}', msg, 'error');
+                    }
+                });
             });
             $(document).on('click', '.pos-open-drawer-btn', function () {
                 var w = window.open('', '_blank', 'width=300,height=200');

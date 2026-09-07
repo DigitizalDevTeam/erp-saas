@@ -119,7 +119,7 @@ class UserController extends Controller
                 $user['type'] = 'company';
                 $user['default_pipeline'] = 1;
                 $user['plan'] = 1;
-                $user['lang'] = !empty($default_language) ? $default_language->value : 'en';
+                $user['lang'] = !empty($default_language) ? $default_language->value : 'pt';
                 $user['referral_code'] = $code;
                 $user['created_by'] = \Auth::user()->creatorId();
                 $user['plan'] = Plan::first()->id;
@@ -132,6 +132,7 @@ class UserController extends Controller
                 $user['is_enable_login'] = $enableLogin;
 
                 $user->save();
+                Utility::seedCompanyDefaultSettings((int) $user->id);
                 $this->syncCompanyMembership($user, [(int) $user->id], (int) $user->id);
                 $role_r = Role::findByName('company');
                 $user->assignRole($role_r);
@@ -195,7 +196,7 @@ class UserController extends Controller
                     $psw = $request->password;
                     $request['password'] = !empty($userpassword)?\Hash::make($userpassword) : null;
                     $request['type'] = CompanyUserRoleService::userTypeFromRoleName($role_r->name);
-                    $request['lang'] = !empty($default_language) ? $default_language->value : 'en';
+                    $request['lang'] = !empty($default_language) ? $default_language->value : 'pt';
                     $request['created_by'] = \Auth::user()->creatorId();
                     $request['email_verified_at'] = date('Y-m-d H:i:s');
                     $request['is_enable_login'] = $enableLogin;

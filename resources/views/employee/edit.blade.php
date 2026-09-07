@@ -191,6 +191,7 @@
                                                         class="form-control file-validate @if (!empty($employeedoc[$document->id])) float-left @endif @error('document') is-invalid @enderror "
                                                         @if ($document->is_required == 1 && empty($employeedoc[$document->id])) required @endif
                                                         name="document[{{ $document->id }}]"
+                                                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.zip,.xlsx,.xls,.csv,application/pdf"
                                                         onchange="document.getElementById('{{ 'blah' . $key }}').src = window.URL.createObjectURL(this.files[0])"
                                                         type="file" data-filename="{{ $document->id . '_filename' }}">
                                                     <p id="" class="file-error text-danger"></p>
@@ -380,6 +381,16 @@
 @endsection
 
 @push('script-page')
+    <script>
+        (function () {
+            var types = (typeof file_types === 'string' ? file_types : '') || '';
+            var parts = types.split(',').map(function (t) { return t.trim().toLowerCase(); }).filter(Boolean);
+            if (parts.indexOf('pdf') === -1) {
+                parts.push('pdf');
+            }
+            file_types = parts.join(',');
+        })();
+    </script>
     <script type="text/javascript">
         $(document).on('change', '#branch_id', function() {
             var branch_id = $(this).val();

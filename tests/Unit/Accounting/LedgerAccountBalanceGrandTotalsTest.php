@@ -52,7 +52,7 @@ class LedgerAccountBalanceGrandTotalsTest extends TestCase
         );
     }
 
-    public function test_aggregate_sums_raw_balances_before_global_normalize(): void
+    public function test_aggregate_force_balances_cent_level_rounding_drift(): void
     {
         $balances = [
             1 => ['totalDebit' => 100.0, 'totalCredit' => 0.0],
@@ -61,7 +61,46 @@ class LedgerAccountBalanceGrandTotalsTest extends TestCase
 
         $totals = LedgerAccountBalanceService::aggregateGrandTotalsFromBalances($balances);
 
+        $this->assertSame($totals['totalDebit'], $totals['totalCredit']);
         $this->assertSame(100.0, $totals['totalDebit']);
-        $this->assertSame(100.04, $totals['totalCredit']);
+        $this->assertSame(100.0, $totals['totalCredit']);
+    }
+
+    public function test_aggregate_force_balances_three_cent_trial_balance_gap(): void
+    {
+        $balances = [
+            1 => ['totalDebit' => 15299028.52, 'totalCredit' => 0.0],
+            2 => ['totalDebit' => 0.0, 'totalCredit' => 15299028.55],
+        ];
+
+        $totals = LedgerAccountBalanceService::aggregateGrandTotalsFromBalances($balances);
+
+        $this->assertSame($totals['totalDebit'], $totals['totalCredit']);
+        $this->assertSame(15299028.52, $totals['totalDebit']);
+        $this->assertSame(15299028.52, $totals['totalCredit']);
+    }
+
+    public function test_aggregate_does_not_force_balance_large_imbalances(): void
+    {
+        $balances = [
+            1 => ['totalDebit' => 100.0, 'totalCredit' => 0.0],
+            2 => ['totalDebit' => 0.0, 'totalCredit' => 150.0],
+        ];
+
+        $totals = LedgerAccountBalanceService::aggregateGrandTotalsFromBalances($balances);
+
+        $this->assertSame(100.0, $totals['totalDebit']);
+        $this->assertSame(150.0, $totals['totalCredit']);
+    }
+
+    public function test_force_balance_within_tolerance_helper(): void
+    {
+        $balanced = LedgerAccountBalanceService::forceBalanceWithinTolerance([
+            'totalDebit' => 15.02,
+            'totalCredit' => 15.05,
+        ]);
+
+        $this->assertSame(15.02, $balanced['totalDebit']);
+        $this->assertSame(15.02, $balanced['totalCredit']);
     }
 }

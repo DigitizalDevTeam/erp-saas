@@ -29,10 +29,67 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Maatwebsite\Excel\Facades\Excel;
 
-//use Faker\Provider\File;
-
 class EmployeeController extends Controller
 {
+    /**
+     * Extensions allowed for HR employee documents (always includes pdf).
+     *
+     * @return string[]
+     */
+    protected function employeeDocumentAllowedExtensions(): array
+    {
+        $fromSettings = [];
+        try {
+            $fv = Utility::file_validate();
+            if (! empty($fv['types']) && is_string($fv['types'])) {
+                $fromSettings = array_filter(array_map('trim', explode(',', strtolower($fv['types']))));
+            }
+        } catch (\Throwable $e) {
+            $fromSettings = [];
+        }
+
+        return array_values(array_unique(array_filter(array_merge(
+            $fromSettings ?: ['jpg', 'jpeg', 'png', 'xlsx', 'xls', 'csv', 'pdf'],
+            ['pdf']
+        ))));
+    }
+
+    /**
+     * @return true|\Illuminate\Http\RedirectResponse
+     */
+    protected function assertEmployeeDocumentExtension(string $extension)
+    {
+        $ext = strtolower($extension);
+        $allowed = $this->employeeDocumentAllowedExtensions();
+        if (! in_array($ext, $allowed, true)) {
+            return redirect()->back()->withInput()->with(
+                'error',
+                __('This file type is not allowed. Allowed types: :types', ['types' => implode(', ', $allowed)])
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * Sync employee HR branch onto the linked login user (branch_user + pos_branch_id).
+     */
+    protected function syncEmployeeBranchToUser(?User $user, $branchId): void
+    {
+        if (! $user || $user->type === 'company' || $user->type === 'super admin') {
+            return;
+        }
+        $id = (int) $branchId;
+        if ($id <= 0) {
+            return;
+        }
+        $user->syncBranchesFromRequest([$id]);
+        if (empty($user->pos_branch_id)) {
+            $user->pos_branch_id = $id;
+            $user->save();
+        }
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -129,6 +186,7 @@ class EmployeeController extends Controller
                 }
                 $user->save();
                 $user->assignRole('Employee');
+                $this->syncEmployeeBranchToUser($user, $request['branch_id']);
             }
             else
             {
@@ -191,6 +249,10 @@ class EmployeeController extends Controller
                     $filenameWithExt = $request->file('document')[$key]->getClientOriginalName();
                     $filename        = pathinfo($filenameWithExt, PATHINFO_FILENAME);
                     $extension       = $request->file('document')[$key]->getClientOriginalExtension();
+                    $checkExt        = $this->assertEmployeeDocumentExtension($extension);
+                    if ($checkExt !== true) {
+                        return $checkExt;
+                    }
                     $fileNameToStore = $filename . '_' . time() . '.' . $extension;
                     $dir             = storage_path('uploads/document/');
                     $image_path      = $dir . $filenameWithExt;
@@ -304,6 +366,10 @@ class EmployeeController extends Controller
                         $filenameWithExt = $request->file('document')[$key]->getClientOriginalName();
                         $filename        = pathinfo($filenameWithExt, PATHINFO_FILENAME);
                         $extension       = $request->file('document')[$key]->getClientOriginalExtension();
+                        $checkExt        = $this->assertEmployeeDocumentExtension($extension);
+                        if ($checkExt !== true) {
+                            return $checkExt;
+                        }
                         $fileNameToStore = $filename . '_' . time() . '.' . $extension;
 //                        $dir        = storage_path('uploads/document/');
                         $dir             = 'uploads/document/';
@@ -320,7 +386,9 @@ class EmployeeController extends Controller
 //                        }
 //                        $path = $request->file('document')[$key]->storeAs('uploads/document/', $fileNameToStore);
 
-                        $path = \Utility::upload_coustom_file($request,'document',$fileNameToStore,$dir,$key,[]);
+                        // Pre-validated extension above. Pass a no-op rule so Utility does not
+                        // validate the generated filename string as a mime upload field.
+                        $path = \Utility::upload_coustom_file($request, 'document', $fileNameToStore, $dir, $key, ['nullable']);
 
 
                         if($path['flag'] == 1){
@@ -379,6 +447,7 @@ class EmployeeController extends Controller
                 $user->name = $employee->name;
                 $user->email = $employee->email;
                 $user->save();
+                $this->syncEmployeeBranchToUser($user, $employee->branch_id);
             }
             if($request->salary)
             {

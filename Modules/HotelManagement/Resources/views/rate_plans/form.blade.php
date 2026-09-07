@@ -12,6 +12,11 @@
         {!! Form::number('rate', $ratePlan->rate ?? null, ['class' => 'form-control', 'step' => '0.01', 'min' => '0']) !!}
     </div>
     <div class="col-md-4 form-group">
+        {!! Form::label('weekend_rate', __('Weekend / promo nightly rate')) !!}
+        {!! Form::number('weekend_rate', $ratePlan->weekend_rate ?? null, ['class' => 'form-control', 'step' => '0.01', 'min' => '0', 'placeholder' => __('Optional — Fri, Sat, Sun')]) !!}
+        <small class="text-muted">{{ __('Leave empty to use the nightly rate every day. Set a lower value for weekend promotions.') }}</small>
+    </div>
+    <div class="col-md-4 form-group">
         {!! Form::label('monthly_rate', __('Monthly rate')) !!}
         {!! Form::number('monthly_rate', $ratePlan->monthly_rate ?? null, ['class' => 'form-control', 'step' => '0.01', 'min' => '0']) !!}
     </div>
@@ -22,6 +27,7 @@
     <div class="col-md-4 form-group">
         {!! Form::label('priority', __('Priority')) !!}
         {!! Form::number('priority', $ratePlan->priority ?? 100, ['class' => 'form-control', 'min' => 0]) !!}
+        <small class="text-muted">{{ __('Lower number = higher priority when periods overlap.') }}</small>
     </div>
     <div class="col-md-4 form-group">
         {!! Form::label('valid_from', __('Valid from')) !!}

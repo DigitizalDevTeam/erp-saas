@@ -2146,7 +2146,7 @@ PMS for multi-tenant hotels: rooms, reservations, front desk, folios, housekeepi
 | Area | What it does |
 |------|----------------|
 | Rooms / types / floors | CRUD; room statuses `available\|occupied\|dirty\|cleaning\|maintenance\|blocked`; branch/floor; map/bulk status |
-| Rate plans | Per room type: rates, billing mode, validity, priority |
+| Rate plans | **Price per Period** (menu): per room type rates, billing mode, validity dates, priority, optional **weekend_rate** (Fri–Sun promo). Quoted nightly stays sum per-night weekday/weekend rates. |
 | Reservations / calendar | Resource + quotes/suggest room; statuses `pending\|confirmed\|checked_in\|checked_out\|cancelled`; calendar drag, extend, change room |
 | Front desk | In-house list; check-in/out; force checkout; heal occupancy mismatches |
 | Guests | Profiles/map; created with reservations/online (no standalone create route); optional CRM sync → ERP `Customer` |

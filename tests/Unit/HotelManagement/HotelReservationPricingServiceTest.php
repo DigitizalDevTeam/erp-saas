@@ -84,4 +84,60 @@ class HotelReservationPricingServiceTest extends TestCase
         $this->assertTrue($service->validateDiscountAmount(100, 1000));
         $this->assertFalse($service->validateDiscountAmount(101, 1000));
     }
+
+    public function test_weekend_rate_applies_fri_sat_sun_nights_only(): void
+    {
+        $service = new HotelReservationPricingService();
+        $ref = new \ReflectionClass(HotelReservationPricingService::class);
+        $method = $ref->getMethod('priceNightlyStay');
+        $method->setAccessible(true);
+
+        $ratePlan = new \Modules\HotelManagement\Entities\HotelRatePlan([
+            'rate' => 100,
+            'weekend_rate' => 80,
+        ]);
+
+        // Thu 14:00 → Mon 11:00 = 4 nights: Thu, Fri, Sat, Sun
+        $result = $method->invoke(
+            $service,
+            null,
+            null,
+            $ratePlan,
+            Carbon::parse('2026-05-07 14:00:00'), // Thursday
+            Carbon::parse('2026-05-11 11:00:00'), // Monday
+            4
+        );
+
+        // Thu 100 + Fri 80 + Sat 80 + Sun 80 = 340
+        $this->assertTrue($result['uses_weekend_rate']);
+        $this->assertSame(340.0, $result['subtotal']);
+        $this->assertSame(100.0, $result['base_rate']);
+        $this->assertSame(80.0, $result['weekend_rate']);
+    }
+
+    public function test_flat_rate_when_weekend_rate_not_set(): void
+    {
+        $service = new HotelReservationPricingService();
+        $ref = new \ReflectionClass(HotelReservationPricingService::class);
+        $method = $ref->getMethod('priceNightlyStay');
+        $method->setAccessible(true);
+
+        $ratePlan = new \Modules\HotelManagement\Entities\HotelRatePlan([
+            'rate' => 100,
+            'weekend_rate' => null,
+        ]);
+
+        $result = $method->invoke(
+            $service,
+            null,
+            null,
+            $ratePlan,
+            Carbon::parse('2026-05-07 14:00:00'),
+            Carbon::parse('2026-05-11 11:00:00'),
+            4
+        );
+
+        $this->assertFalse($result['uses_weekend_rate']);
+        $this->assertSame(400.0, $result['subtotal']);
+    }
 }

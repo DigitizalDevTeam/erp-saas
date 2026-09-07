@@ -75,7 +75,7 @@ class EmployeeWeeklyShiftService
      */
     public static function windowForDate(Employee $employee, string $dateYmd): ?array
     {
-        $day = Carbon::parse($dateYmd)->dayOfWeekIso();
+        $day = Carbon::parse($dateYmd)->dayOfWeekIso;
         $row = EmployeeWeeklyShift::where('employee_id', $employee->id)
             ->where('day_of_week', $day)
             ->first();

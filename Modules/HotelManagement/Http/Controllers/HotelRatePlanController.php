@@ -64,6 +64,7 @@ class HotelRatePlanController extends Controller
             'hotel_room_type_id' => 'required|exists:hotel_room_types,id',
             'name' => 'required|string|max:100',
             'rate' => 'nullable|numeric|min:0',
+            'weekend_rate' => 'nullable|numeric|min:0',
             'monthly_rate' => 'nullable|numeric|min:0',
             'billing_mode' => 'required|in:nightly,monthly,both',
             'priority' => 'nullable|integer|min:0|max:999',
@@ -78,6 +79,7 @@ class HotelRatePlanController extends Controller
             'hotel_room_type_id' => $request->hotel_room_type_id,
             'name' => $request->name,
             'rate' => $request->rate ?: 0,
+            'weekend_rate' => $request->filled('weekend_rate') ? $request->weekend_rate : null,
             'monthly_rate' => $request->monthly_rate ?: 0,
             'billing_mode' => $request->billing_mode,
             'priority' => $request->filled('priority') ? (int) $request->priority : 100,
@@ -87,7 +89,7 @@ class HotelRatePlanController extends Controller
             'created_by' => Auth::user()->creatorId(),
         ]);
 
-        return redirect()->route('hotel.rate-plans.index')->with('success', __('Rate plan created successfully.'));
+        return redirect()->route('hotel.rate-plans.index')->with('success', __('Price period created successfully.'));
     }
 
     public function edit(HotelRatePlan $rate_plan)
@@ -111,6 +113,7 @@ class HotelRatePlanController extends Controller
             'hotel_room_type_id' => 'required|exists:hotel_room_types,id',
             'name' => 'required|string|max:100',
             'rate' => 'nullable|numeric|min:0',
+            'weekend_rate' => 'nullable|numeric|min:0',
             'monthly_rate' => 'nullable|numeric|min:0',
             'billing_mode' => 'required|in:nightly,monthly,both',
             'priority' => 'nullable|integer|min:0|max:999',
@@ -125,6 +128,7 @@ class HotelRatePlanController extends Controller
             'hotel_room_type_id' => $request->hotel_room_type_id,
             'name' => $request->name,
             'rate' => $request->rate ?: 0,
+            'weekend_rate' => $request->filled('weekend_rate') ? $request->weekend_rate : null,
             'monthly_rate' => $request->monthly_rate ?: 0,
             'billing_mode' => $request->billing_mode,
             'priority' => $request->filled('priority') ? (int) $request->priority : 100,
@@ -133,7 +137,7 @@ class HotelRatePlanController extends Controller
             'is_active' => $request->has('is_active'),
         ]);
 
-        return redirect()->route('hotel.rate-plans.index')->with('success', __('Rate plan updated successfully.'));
+        return redirect()->route('hotel.rate-plans.index')->with('success', __('Price period updated successfully.'));
     }
 
     public function destroy(HotelRatePlan $rate_plan)

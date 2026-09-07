@@ -177,7 +177,7 @@
             </a>
         @endcan
         @can('view grant chart')
-            <a href="{{ route('projects.gantt', $project->id) }}" class="btn btn-sm bg-warning-subtle text-white me-1">
+            <a href="{{ route('projects.gantt', $project->id) }}" class="btn btn-sm bg-warning-subtle text-dark me-1">
                 {{ __('Gantt Chart') }}
             </a>
         @endcan
@@ -188,13 +188,13 @@
         @endif
         @can('view expense')
             <a href="{{ route('projects.expenses.index', $project->id) }}"
-                class="btn btn-sm bg-light-blue-subtitle text-white me-1">
+                class="btn btn-sm bg-light-blue-subtitle text-dark me-1">
                 {{ __('Expense') }}
             </a>
         @endcan
         @if (\Auth::user()->type != 'client')
             @can('view timesheet')
-                <a href="{{ route('timesheet.index', $project->id) }}" class="btn btn-sm bg-blue-subtitle text-white me-1">
+                <a href="{{ route('timesheet.index', $project->id) }}" class="btn btn-sm bg-blue-subtitle text-dark me-1">
                     {{ __('Timesheet') }}
                 </a>
             @endcan

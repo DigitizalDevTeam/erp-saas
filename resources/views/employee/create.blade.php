@@ -153,6 +153,7 @@
                                                         class="form-control file file-validate d-none @error('document') is-invalid @enderror"
                                                         @if ($document->is_required == 1) required @endif
                                                         name="document[{{ $document->id }}]" id="document[{{ $document->id }}]"
+                                                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.zip,.xlsx,.xls,.csv,application/pdf"
                                                         data-filename="{{ $document->id . '_filename' }}" onchange="document.getElementById('{{'blah'.$key}}').src = window.URL.createObjectURL(this.files[0])">
                                                     <p id="" class="file-error text-danger"></p>
                                                 </label>
@@ -239,6 +240,16 @@
 @endsection
 
 @push('script-page')
+    <script>
+        (function () {
+            var types = (typeof file_types === 'string' ? file_types : '') || '';
+            var parts = types.split(',').map(function (t) { return t.trim().toLowerCase(); }).filter(Boolean);
+            if (parts.indexOf('pdf') === -1) {
+                parts.push('pdf');
+            }
+            file_types = parts.join(',');
+        })();
+    </script>
     <script>
         $('input[type="file"]').change(function(e) {
             var file = e.target.files[0].name;

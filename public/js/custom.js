@@ -77,9 +77,15 @@ function validation() {
 }
 
 
+function getDatatableLabels() {
+    return (typeof window.datatableLabels === 'object' && window.datatableLabels !== null)
+        ? { labels: window.datatableLabels }
+        : {};
+}
+
 $(document).ready(function () {
     if ($(".datatable").length > 0) {
-        const dataTable =  new simpleDatatables.DataTable(".datatable");
+        const dataTable =  new simpleDatatables.DataTable(".datatable", getDatatableLabels());
 
     }
 
@@ -98,7 +104,7 @@ $(document).ready(function () {
     if ($(".pc-dt-simple").length > 0) {
         $( $(".pc-dt-simple") ).each(function( index,element ) {
             var id = $(element).attr('id');
-            const dataTable = new simpleDatatables.DataTable("#"+id);
+            const dataTable = new simpleDatatables.DataTable("#"+id, getDatatableLabels());
         });
     }
 

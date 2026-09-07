@@ -178,6 +178,18 @@
                                             action="{{ route('quotation.template.setting') }}"
                                             enctype="multipart/form-data">
                                             @csrf
+                                            <div class="form-group mb-3">
+                                                <label for="quotation_receipt_layout" class="form-label fw-semibold">{{ __('Slip Layout') }}</label>
+                                                @php
+                                                    $qrl = \App\Models\Utility::normalizeReceiptLayout($settings['quotation_receipt_layout'] ?? 'existing');
+                                                @endphp
+                                                <select class="form-control" name="quotation_receipt_layout" id="quotation_receipt_layout">
+                                                    <option value="existing" {{ $qrl === 'existing' ? 'selected' : '' }}>{{ __('Existing Layout') }}</option>
+                                                    <option value="compact1" {{ $qrl === 'compact1' ? 'selected' : '' }}>{{ __('Compact Layout 1') }}</option>
+                                                    <option value="compact2" {{ $qrl === 'compact2' ? 'selected' : '' }}>{{ __('Compact Layout 2') }}</option>
+                                                </select>
+                                                <small class="text-muted">{{ __('Existing uses the Quotation Template below. Compact layouts are paper-saving Mozambique-style slips.') }}</small>
+                                            </div>
                                             <div class="form-group">
                                                 <label for="address"
                                                     class="form-label">{{ __('Quotation Template') }}</label>
@@ -253,6 +265,18 @@
                                             <hr class="my-3">
                                             <h6 class="fw-semibold mb-2">{{ __('Receipt printer & paper') }}</h6>
                                             <p class="small text-muted mb-3">{{ __('Choose the paper size that matches your physical receipt printer. The receipt HTML uses fixed page sizes (A4 / A5 / 80mm) so you only set your OS or Chrome default printer once to the same paper—customers should not need to change margins or scale each time.') }}</p>
+                                            <div class="form-group mb-3">
+                                                <label for="pos_receipt_layout" class="form-label fw-semibold">{{ __('Slip Layout') }}</label>
+                                                @php
+                                                    $prl = \App\Models\Utility::normalizeReceiptLayout($settings['pos_receipt_layout'] ?? 'existing');
+                                                @endphp
+                                                <select class="form-control" name="pos_receipt_layout" id="pos_receipt_layout">
+                                                    <option value="existing" {{ $prl === 'existing' ? 'selected' : '' }}>{{ __('Existing Layout') }}</option>
+                                                    <option value="compact1" {{ $prl === 'compact1' ? 'selected' : '' }}>{{ __('Compact Layout 1') }}</option>
+                                                    <option value="compact2" {{ $prl === 'compact2' ? 'selected' : '' }}>{{ __('Compact Layout 2') }}</option>
+                                                </select>
+                                                <small class="text-muted">{{ __('Existing keeps the current receipt. Compact layouts save paper (thermal / dense Mozambique style).') }}</small>
+                                            </div>
                                             <div class="form-group mb-3">
                                                 <label for="pos_print_layout" class="form-label fw-semibold">{{ __('Receipt paper / layout') }}</label>
                                                 <select class="form-control" name="pos_print_layout" id="pos_print_layout">

@@ -116,7 +116,7 @@
                 @endcan
                 @can('hotel.menu.rooms_setup')
                 <li class="dash-item {{ str_starts_with($routeName, 'hotel.rate-plans.') ? 'active' : '' }}">
-                    <a class="dash-link" href="{{ route('hotel.rate-plans.index') }}">{{ __('Pricing Plans') }}</a>
+                    <a class="dash-link" href="{{ route('hotel.rate-plans.index') }}">{{ __('Price per Period') }}</a>
                 </li>
                 <li class="dash-item {{ str_starts_with($routeName, 'hotel.addons.') ? 'active' : '' }}">
                     <a class="dash-link" href="{{ route('hotel.addons.index') }}">{{ __('Add-ons & Extras') }}</a>

@@ -14,26 +14,19 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
-                    {{ Form::open(['route' => 'warehouse-loss.store', 'method' => 'post']) }}
+                    {{ Form::open(['route' => 'warehouse-loss.store', 'method' => 'post', 'id' => 'warehouse-loss-form']) }}
                     <div class="row">
-                        <div class="form-group col-md-3">
+                        <div class="form-group col-md-4">
                             {{ Form::label('warehouse_id', __('Warehouse'), ['class' => 'form-label']) }}
                             {{ Form::select('warehouse_id', $warehouses, null, ['class' => 'form-control select', 'required' => true, 'placeholder' => __('Select Warehouse')]) }}
                         </div>
-                        <div class="form-group col-md-3">
-                            {{ Form::label('product_id', __('Product'), ['class' => 'form-label']) }}
-                            {{ Form::select('product_id', $products, null, ['class' => 'form-control select', 'required' => true, 'placeholder' => __('Select Product')]) }}
-                        </div>
-                        <div class="form-group col-md-2">
-                            {{ Form::label('quantity', __('Lost Qty'), ['class' => 'form-label']) }}
-                            {{ Form::number('quantity', null, ['class' => 'form-control', 'step' => '0.0001', 'min' => '0.0001', 'required' => true]) }}
-                        </div>
-                        <div class="form-group col-md-2">
+                        <div class="form-group col-md-4">
                             {{ Form::label('date', __('Date'), ['class' => 'form-label']) }}
                             {{ Form::date('date', date('Y-m-d'), ['class' => 'form-control']) }}
                         </div>
-                        <div class="form-group col-md-2 d-flex align-items-end">
-                            <button type="submit" class="btn btn-primary w-100">{{ __('Add Loss') }}</button>
+                        <div class="form-group col-md-4">
+                            {{ Form::label('issuer_branch', __('Branch'), ['class' => 'form-label']) }}
+                            {{ Form::text('issuer_branch_display', $issuerBranchName !== '' ? $issuerBranchName : '—', ['class' => 'form-control', 'readonly' => true, 'disabled' => true]) }}
                         </div>
                         <div class="form-group col-md-12">
                             {{ Form::label('reason', __('Reason'), ['class' => 'form-label']) }}
@@ -64,6 +57,29 @@
                             {{ Form::text('delivery_destination', null, ['class' => 'form-control', 'placeholder' => __('Where goods are being sent / delivery note reference')]) }}
                         </div>
                     </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-2 mb-2">
+                        <h6 class="mb-0">{{ __('Products') }}</h6>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="wl-add-line">{{ __('Add line') }}</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm" id="wl-items-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:55%;">{{ __('Product') }}</th>
+                                    <th style="width:25%;">{{ __('Lost Qty') }}</th>
+                                    <th style="width:20%;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="wl-items-body"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="row mt-2">
+                        <div class="col-md-3 ms-auto">
+                            <button type="submit" class="btn btn-primary w-100">{{ __('Add Loss') }}</button>
+                        </div>
+                    </div>
                     {{ Form::close() }}
                 </div>
             </div>
@@ -82,6 +98,7 @@
                                     <th>{{ __('Date') }}</th>
                                     <th>{{ __('Warehouse') }}</th>
                                     <th>{{ __('Product') }}</th>
+                                    <th>{{ __('Lines') }}</th>
                                     <th>{{ __('Qty') }}</th>
                                     <th>{{ __('Reason') }}</th>
                                     <th>{{ __('Issued / Authorized / Witness') }}</th>
@@ -90,12 +107,13 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($records as $r)
+                                @foreach($documents as $r)
                                     <tr>
-                                        <td>{{ $r->write_off_no ?? ('WO-' . $r->id) }}</td>
+                                        <td>{{ $r->write_off_no }}</td>
                                         <td>{{ \Auth::user()->dateFormat($r->date) }}</td>
                                         <td>{{ $r->warehouse->name ?? '-' }}</td>
-                                        <td>{{ $r->product->name ?? '-' }}</td>
+                                        <td>{{ $r->product_label }}</td>
+                                        <td>{{ $r->line_count }}</td>
                                         <td>{{ $r->quantity }}</td>
                                         <td>{{ $r->reason ?? '-' }}</td>
                                         <td>
@@ -112,7 +130,7 @@
                                             @endif
                                         </td>
                                         <td>
-                                            <a href="{{ route('warehouse-loss.print', $r->id) }}" target="_blank" class="btn btn-sm btn-primary">
+                                            <a href="{{ route('warehouse-loss.print', $r->print_id) }}" target="_blank" class="btn btn-sm btn-primary">
                                                 <i class="ti ti-printer"></i>
                                             </a>
                                         </td>
@@ -127,3 +145,47 @@
     </div>
 @endsection
 
+@push('script-page')
+<script>
+(function () {
+    var products = @json($products);
+    var lineIndex = 0;
+
+    function productOptionsHtml(selected) {
+        var html = '<option value="">{{ __("Select Product") }}</option>';
+        Object.keys(products).forEach(function (id) {
+            html += '<option value="' + id + '"' + (String(selected) === String(id) ? ' selected' : '') + '>' + products[id] + '</option>';
+        });
+        return html;
+    }
+
+    function addLine(productId, qty) {
+        var idx = lineIndex++;
+        var tr = document.createElement('tr');
+        tr.className = 'wl-line';
+        tr.innerHTML =
+            '<td><select name="items[' + idx + '][product_id]" class="form-control select wl-product" required>' + productOptionsHtml(productId || '') + '</select></td>' +
+            '<td><input type="number" name="items[' + idx + '][quantity]" class="form-control" step="0.0001" min="0.0001" required value="' + (qty || '') + '"></td>' +
+            '<td><button type="button" class="btn btn-sm btn-outline-danger wl-remove-line">{{ __("Remove") }}</button></td>';
+        document.getElementById('wl-items-body').appendChild(tr);
+        if (window.$ && $.fn.select2) {
+            $(tr).find('select').select2({ width: '100%' });
+        }
+    }
+
+    document.getElementById('wl-add-line').addEventListener('click', function () {
+        addLine('', '');
+    });
+    document.getElementById('wl-items-body').addEventListener('click', function (e) {
+        if (e.target && e.target.classList.contains('wl-remove-line')) {
+            var rows = document.querySelectorAll('#wl-items-body tr');
+            if (rows.length <= 1) {
+                return;
+            }
+            e.target.closest('tr').remove();
+        }
+    });
+    addLine('', '');
+})();
+</script>
+@endpush

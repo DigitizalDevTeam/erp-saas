@@ -13,6 +13,7 @@ class HotelRatePlan extends Model
         'hotel_room_type_id',
         'name',
         'rate',
+        'weekend_rate',
         'monthly_rate',
         'billing_mode',
         'priority',
@@ -20,6 +21,15 @@ class HotelRatePlan extends Model
         'valid_to',
         'is_active',
         'created_by',
+    ];
+
+    protected $casts = [
+        'rate' => 'float',
+        'weekend_rate' => 'float',
+        'monthly_rate' => 'float',
+        'is_active' => 'boolean',
+        'valid_from' => 'date',
+        'valid_to' => 'date',
     ];
 
     public function roomType()

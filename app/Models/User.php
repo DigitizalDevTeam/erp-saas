@@ -596,14 +596,16 @@ class User extends Authenticatable implements MustVerifyEmail
     public function creditNoteNumberFormat($number)
     {
         $settings = Utility::settings();
+        $prefix = $settings['credit_note_prefix'] ?? '#NC';
 
-        return '#CRD' . sprintf("%05d", $number);
+        return $prefix . sprintf("%05d", $number);
     }
     public function debitNoteNumberFormat($number)
     {
         $settings = Utility::settings();
+        $prefix = $settings['debit_note_prefix'] ?? '#ND';
 
-        return '#DBT' . sprintf("%05d", $number);
+        return $prefix . sprintf("%05d", $number);
     }
 
     public function invoiceNumberFormat($number)

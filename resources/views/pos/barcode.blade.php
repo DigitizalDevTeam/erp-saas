@@ -96,7 +96,7 @@
         setTimeout(myGreeting, 1000);
         function myGreeting() {
             if ($(".datatable-barcode").length > 0) {
-                const dataTable =  new simpleDatatables.DataTable(".datatable-barcode");
+                const dataTable =  new simpleDatatables.DataTable(".datatable-barcode", (typeof getDatatableLabels === 'function' ? getDatatableLabels() : (typeof window.datatableLabels === 'object' && window.datatableLabels ? { labels: window.datatableLabels } : {})));
             }
         }
     </script>

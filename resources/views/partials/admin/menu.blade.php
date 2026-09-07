@@ -1414,6 +1414,11 @@
                                     <a class="dash-link" href="{{ route('warehouse-loss.index') }}">{{ __('Warehouse Loss') }}</a>
                                 </li>
                             @endcan
+                            @can('stock report')
+                                <li class="dash-item {{ str_starts_with((string) optional(Request::route())->getName(), 'reports.product.') ? ' active' : '' }}">
+                                    <a class="dash-link" href="{{ route('reports.product.index') }}">{{ __('Reports') }}</a>
+                                </li>
+                            @endcan
                             @if (Gate::check('manage product & service'))
                                 <li class="dash-item {{ Request::segment(1) == 'productservice' ? 'active' : '' }}">
                                     <a href="{{ route('productservice.index') }}"

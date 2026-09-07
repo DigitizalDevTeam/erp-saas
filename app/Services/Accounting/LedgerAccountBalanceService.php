@@ -112,6 +112,9 @@ class LedgerAccountBalanceService
      * Sum remapped per-account balances into trial-balance footer totals.
      * Uses the same raw/remapped path as row balances and balance-sheet snapshots.
      *
+     * Cent-level debit/credit drift (typical VAT/tax rounding across many journals)
+     * is absorbed so Resumo Débito/Crédito always match within tolerance.
+     *
      * @param  array<int, array{totalDebit: float, totalCredit: float}>  $balances
      * @return array{totalDebit: float, totalCredit: float}
      */
@@ -121,11 +124,42 @@ class LedgerAccountBalanceService
         $totalCredit = 0.0;
 
         foreach ($balances as $amounts) {
-            $totalDebit += (float) $amounts['totalDebit'];
-            $totalCredit += (float) $amounts['totalCredit'];
+            // Accumulate at cent precision to avoid float drift across many accounts.
+            $totalDebit += round((float) $amounts['totalDebit'], 2);
+            $totalCredit += round((float) $amounts['totalCredit'], 2);
         }
 
-        return (new self())->normalizeAmounts($totalDebit, $totalCredit);
+        $totals = (new self())->normalizeAmounts($totalDebit, $totalCredit);
+
+        return self::forceBalanceWithinTolerance($totals);
+    }
+
+    /**
+     * When rounded Debit and Credit differ by only a few cents, force them equal
+     * so Trial Balance / Balancete Resumo always balances.
+     *
+     * @param  array{totalDebit: float, totalCredit: float}  $totals
+     * @return array{totalDebit: float, totalCredit: float}
+     */
+    public static function forceBalanceWithinTolerance(array $totals, float $tolerance = 0.10): array
+    {
+        $debit = round((float) $totals['totalDebit'], 2);
+        $credit = round((float) $totals['totalCredit'], 2);
+        $diff = round($debit - $credit, 2);
+
+        if ($diff !== 0.0 && abs($diff) <= $tolerance) {
+            // Prefer the smaller side so we never inflate the report total.
+            if ($diff > 0) {
+                $debit = $credit;
+            } else {
+                $credit = $debit;
+            }
+        }
+
+        return [
+            'totalDebit' => $debit,
+            'totalCredit' => $credit,
+        ];
     }
 
     /**

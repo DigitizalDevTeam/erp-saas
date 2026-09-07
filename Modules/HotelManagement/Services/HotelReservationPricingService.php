@@ -13,6 +13,9 @@ use Modules\HotelManagement\Entities\HotelRoomType;
 
 class HotelReservationPricingService
 {
+    /** Carbon dayOfWeekIso: 5=Fri, 6=Sat, 7=Sun */
+    private const WEEKEND_ISO_DAYS = [5, 6, 7];
+
     /**
      * @return array<string, mixed>
      */
@@ -29,20 +32,44 @@ class HotelReservationPricingService
 
         $billingMode = $this->normalizeBillingMode($billingMode ?: ($type->default_billing_mode ?? 'nightly'));
         $ratePlan = $this->resolveRatePlan($creatorId, $roomTypeId, $checkInAt, $checkOutAt, $billingMode);
-        $rate = $this->resolveRateAmount($type, $room, $ratePlan, $billingMode);
         [$units, $unitLabel] = $this->calculateUnits($checkInAt, $checkOutAt, $billingMode);
 
+        if ($billingMode === 'monthly') {
+            $rate = $this->resolveRateAmount($type, $room, $ratePlan, $billingMode);
+            $subtotal = round($rate * $units, 2);
+
+            return [
+                'rate_per_night' => $rate,
+                'rate_amount' => $rate,
+                'billing_mode' => $billingMode,
+                'units' => $units,
+                'nights' => $units,
+                'unit_label' => $unitLabel,
+                'subtotal' => $subtotal,
+                'rate_plan_id' => $ratePlan?->id,
+                'rate_plan_name' => $ratePlan?->name,
+                'source' => $this->resolveSource($room, $ratePlan, $billingMode),
+                'uses_weekend_rate' => false,
+            ];
+        }
+
+        $priced = $this->priceNightlyStay($type, $room, $ratePlan, $checkInAt, $checkOutAt, $units);
+        $avgRate = $units > 0 ? round($priced['subtotal'] / $units, 2) : $priced['base_rate'];
+
         return [
-            'rate_per_night' => $rate,
-            'rate_amount' => $rate,
+            'rate_per_night' => $avgRate,
+            'rate_amount' => $avgRate,
             'billing_mode' => $billingMode,
             'units' => $units,
             'nights' => $units,
             'unit_label' => $unitLabel,
-            'subtotal' => round($rate * $units, 2),
+            'subtotal' => $priced['subtotal'],
             'rate_plan_id' => $ratePlan?->id,
             'rate_plan_name' => $ratePlan?->name,
             'source' => $this->resolveSource($room, $ratePlan, $billingMode),
+            'uses_weekend_rate' => $priced['uses_weekend_rate'],
+            'weekday_rate' => $priced['base_rate'],
+            'weekend_rate' => $priced['weekend_rate'],
         ];
     }
 
@@ -59,6 +86,7 @@ class HotelReservationPricingService
 
         if ($billingMode === 'monthly') {
             $days = max(1, $checkInAt->diffInDays($checkOutAt));
+
             return [max(1, (int) ceil($days / 30)), __('Months')];
         }
 
@@ -172,6 +200,59 @@ class HotelReservationPricingService
             ->orderBy('priority')
             ->orderByDesc('valid_from')
             ->first();
+    }
+
+    /**
+     * @return array{subtotal:float,base_rate:float,weekend_rate:float|null,uses_weekend_rate:bool}
+     */
+    private function priceNightlyStay(
+        ?HotelRoomType $type,
+        ?HotelRoom $room,
+        ?HotelRatePlan $ratePlan,
+        ?Carbon $checkInAt,
+        ?Carbon $checkOutAt,
+        int $units
+    ): array {
+        $baseRate = $this->resolveRateAmount($type, $room, $ratePlan, 'nightly');
+        $weekendRate = null;
+        $usesWeekend = false;
+
+        $hasRoomOverride = $room && (float) $room->override_price > 0;
+        if (! $hasRoomOverride && $ratePlan && $ratePlan->weekend_rate !== null && (float) $ratePlan->weekend_rate > 0) {
+            $weekendRate = round((float) $ratePlan->weekend_rate, 2);
+        }
+
+        if ($weekendRate === null || ! $checkInAt || ! $checkOutAt || $units < 1) {
+            return [
+                'subtotal' => round($baseRate * max(1, $units), 2),
+                'base_rate' => $baseRate,
+                'weekend_rate' => $weekendRate,
+                'uses_weekend_rate' => false,
+            ];
+        }
+
+        $subtotal = 0.0;
+        $cursor = $checkInAt->copy()->startOfDay();
+        for ($i = 0; $i < $units; $i++) {
+            $nightRate = $this->isWeekendNight($cursor) ? $weekendRate : $baseRate;
+            if ($this->isWeekendNight($cursor) && $weekendRate !== $baseRate) {
+                $usesWeekend = true;
+            }
+            $subtotal += $nightRate;
+            $cursor->addDay();
+        }
+
+        return [
+            'subtotal' => round($subtotal, 2),
+            'base_rate' => $baseRate,
+            'weekend_rate' => $weekendRate,
+            'uses_weekend_rate' => $usesWeekend,
+        ];
+    }
+
+    private function isWeekendNight(Carbon $nightDate): bool
+    {
+        return in_array((int) $nightDate->dayOfWeekIso, self::WEEKEND_ISO_DAYS, true);
     }
 
     private function resolveRateAmount(

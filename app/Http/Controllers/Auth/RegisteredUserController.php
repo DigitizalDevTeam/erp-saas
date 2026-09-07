@@ -86,6 +86,8 @@ class RegisteredUserController extends Controller
             $code = rand(100000, 999999);
         } while (User::where('referral_code', $code)->exists());
 
+        $defaultLang = Utility::getValByName('default_language') ?: 'pt';
+
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
@@ -93,13 +95,15 @@ class RegisteredUserController extends Controller
             'type' => 'company',
             'default_pipeline' => 1,
             'plan' => 1,
-            'lang' => app()->getLocale() ?: Utility::getValByName('default_language'),
+            'lang' => $defaultLang,
             'avatar' => '',
             'referral_code'=> $code,
             'used_referral_code'=>$request->ref_code,
             'created_by' => 1,
         ]);
         \Auth::login($user);
+
+        Utility::seedCompanyDefaultSettings((int) $user->id);
 
         $settings = Utility::settings();
 

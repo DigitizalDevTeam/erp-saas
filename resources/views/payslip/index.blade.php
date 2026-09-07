@@ -278,7 +278,7 @@
                         }
 
                         $('#pc-dt-render-column-cells tbody').html(tr);
-                        new simpleDatatables.DataTable('#pc-dt-render-column-cells');
+                        new simpleDatatables.DataTable('#pc-dt-render-column-cells', (typeof getDatatableLabels === 'function' ? getDatatableLabels() : (typeof window.datatableLabels === 'object' && window.datatableLabels ? { labels: window.datatableLabels } : {})));
 
                     },
                     error: function(data) {

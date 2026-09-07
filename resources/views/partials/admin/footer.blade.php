@@ -55,7 +55,13 @@
 <script>
     var site_currency_symbol_position = '{{ $setting['site_currency_symbol_position'] }}';
     var site_currency_symbol = '{{ $setting['site_currency_symbol'] }}';
-
+    window.datatableLabels = {
+        placeholder: @json(__('Search...')),
+        perPage: @json(__('{select} entries per page')),
+        noRows: @json(__('No entries found')),
+        noResults: @json(__('No results match your search query')),
+        info: @json(__('Showing {start} to {end} of {rows} entries'))
+    };
 </script>
 <script src="{{ asset('js/custom.js') }}"></script>
 

@@ -220,6 +220,33 @@ namespace App\Models;
             return in_array($layout, ['slip', 'a5', 'a4', 'receipt'], true) ? $layout : 'receipt';
         }
 
+        /**
+         * Slip style for live POS/Restaurant receipts and Quotation compact downloads.
+         *
+         * @param  string|null  $layout  Raw setting: existing | compact1 | compact2
+         */
+        public static function normalizeReceiptLayout(?string $layout): string
+        {
+            $layout = ($layout !== null && $layout !== '') ? $layout : 'existing';
+
+            return in_array($layout, ['existing', 'compact1', 'compact2'], true) ? $layout : 'existing';
+        }
+
+        /**
+         * Blade view name for live POS/Restaurant receipt by slip layout setting.
+         */
+        public static function posReceiptViewName(?array $settings = null): string
+        {
+            $settings = $settings ?? self::settings();
+            $layout = self::normalizeReceiptLayout($settings['pos_receipt_layout'] ?? 'existing');
+
+            return match ($layout) {
+                'compact1' => 'pos.receipts.compact1',
+                'compact2' => 'pos.receipts.compact2',
+                default => 'pos.printview',
+            };
+        }
+
         public static function settings()
         {
             if (\Auth::check()) {
@@ -235,8 +262,8 @@ namespace App\Models;
 
             $settings = [
                 "disable_lang" => "ar,da,de,he,it,ja,nl,pl,pt-br,ru,tr",
-                "site_currency" => "USD",
-                "site_currency_symbol" => "$",
+                "site_currency" => "MZN",
+                "site_currency_symbol" => "MT",
                 "site_currency_symbol_position" => "pre",
                 "site_date_format" => "M j, Y",
                 "site_time_format" => "g:i A",
@@ -249,16 +276,18 @@ namespace App\Models;
                 "company_zipcode" => "",
                 "company_country" => "",
                 "company_telephone" => "",
-                "invoice_prefix" => "#INVO",
-                "journal_prefix" => "#JUR",
+                "invoice_prefix" => "#Fatura",
+                "journal_prefix" => "#Lan",
                 "invoice_color" => "ffffff",
-                "proposal_prefix" => "#PROP",
+                "proposal_prefix" => "#Prop",
                 "proposal_color" => "ffffff",
-                "bill_prefix" => "#BILL",
-                "expense_prefix" => "#EXP",
+                "bill_prefix" => "#FatFor",
+                "expense_prefix" => "#Desp",
                 "bill_color" => "ffffff",
-                "customer_prefix" => "#CUST",
-                "vender_prefix" => "#VEND",
+                "customer_prefix" => "#Cli",
+                "vender_prefix" => "#Forn",
+                "credit_note_prefix" => "#NC",
+                "debit_note_prefix" => "#ND",
                 "footer_title" => "",
                 "footer_notes" => "",
                 "invoice_template" => "template11",
@@ -292,9 +321,9 @@ namespace App\Models;
                 "tax_type" => "",
                 "shipping_display" => "on",
                 "display_landing_page" => "",
-                "employee_prefix" => "#EMP00",
+                "employee_prefix" => "#Func",
                 'leave_status' => '1',
-                "bug_prefix" => "#ISSUE",
+                "bug_prefix" => "#Prob",
                 'title_text' => 'ERP SaaS',
                 'footer_text' => '',
                 "company_start_time" => "09:00",
@@ -316,10 +345,10 @@ namespace App\Models;
                 "cust_darklayout" => "off",
                 "color" => "",
                 "SITE_RTL" => "off",
-                "purchase_prefix" => "#PUR",
-                "quotation_prefix" => "#QUO",
-                "proforma_prefix" => "#PF",
-                "vendor_quote_prefix" => "#VQ",
+                "purchase_prefix" => "#Comp",
+                "quotation_prefix" => "#Cot",
+                "proforma_prefix" => "#Pro",
+                "vendor_quote_prefix" => "#CotForn",
                 "quotation_color" => "ffffff",
                 "quotation_template" => "template1",
                 "quotation_color" => "ffffff",
@@ -327,8 +356,10 @@ namespace App\Models;
                 "purchase_template" => "template1",
                 "pos_color" => "ffffff",
                 "pos_template" => "template1",
-                "pos_prefix" => "#POS",
+                "pos_prefix" => "#PDV",
                 "pos_print_layout" => "receipt",
+                "pos_receipt_layout" => "existing",
+                "quotation_receipt_layout" => "existing",
                 "pos_receipt_printer" => "browser",
                 "pos_direct_print" => "off",
 
@@ -404,7 +435,7 @@ namespace App\Models;
                 "bill_logo" => "",
                 "pos_logo" => "",
                 "quotation_logo" => "",
-                "contract_prefix" => "#CON",
+                "contract_prefix" => "#Contr",
 
                 "barcode_type" => "code128",
                 "barcode_format" => "css",
@@ -529,8 +560,8 @@ namespace App\Models;
             $data = Utility::getSettingById($user_id);
 
             $settings = [
-                "site_currency" => "USD",
-                "site_currency_symbol" => "$",
+                "site_currency" => "MZN",
+                "site_currency_symbol" => "MT",
                 "site_currency_symbol_position" => "pre",
                 "site_date_format" => "M j, Y",
                 "site_time_format" => "g:i A",
@@ -542,15 +573,17 @@ namespace App\Models;
                 "company_zipcode" => "",
                 "company_country" => "",
                 "company_telephone" => "",
-                "invoice_prefix" => "#INVO",
+                "invoice_prefix" => "#Fatura",
                 "invoice_color" => "ffffff",
-                "proposal_prefix" => "#PROP",
+                "proposal_prefix" => "#Prop",
                 "proposal_color" => "ffffff",
-                "bill_prefix" => "#BILL",
-                "expense_prefix" => "#EXP",
+                "bill_prefix" => "#FatFor",
+                "expense_prefix" => "#Desp",
                 "bill_color" => "ffffff",
-                "customer_prefix" => "#CUST",
-                "vender_prefix" => "#VEND",
+                "customer_prefix" => "#Cli",
+                "vender_prefix" => "#Forn",
+                "credit_note_prefix" => "#NC",
+                "debit_note_prefix" => "#ND",
                 "footer_title" => "",
                 "footer_notes" => "",
                 "invoice_template" => "template11",
@@ -574,11 +607,11 @@ namespace App\Models;
                 "decimal_number" => "2",
                 "tax_type" => "",
                 "shipping_display" => "on",
-                "journal_prefix" => "#JUR",
+                "journal_prefix" => "#Lan",
                 "display_landing_page" => "",
-                "employee_prefix" => "#EMP00",
+                "employee_prefix" => "#Func",
                 'leave_status' => '1',
-                "bug_prefix" => "#ISSUE",
+                "bug_prefix" => "#Prob",
                 'title_text' => 'ERP SaaS',
                 'footer_text' => '',
                 "company_start_time" => "09:00",
@@ -604,7 +637,7 @@ namespace App\Models;
                 "cust_darklayout" => "off",
                 "color" => "",
                 "SITE_RTL" => "off",
-                "purchase_prefix" => "#PUR",
+                "purchase_prefix" => "#Comp",
                 "purchase_color" => "ffffff",
                 "purchase_template" => "template1",
                 "proposal_logo" => "",
@@ -612,9 +645,11 @@ namespace App\Models;
                 "invoice_logo" => "",
                 "bill_logo" => "",
                 "pos_logo" => "",
-                "quotation_prefix" => "#QUO",
-                "proforma_prefix" => "#PF",
-                "vendor_quote_prefix" => "#VQ",
+                "quotation_prefix" => "#Cot",
+                "proforma_prefix" => "#Pro",
+                "vendor_quote_prefix" => "#CotForn",
+                "pos_prefix" => "#PDV",
+                "contract_prefix" => "#Contr",
                 "quotation_logo"=>'',
                 "pos_color" => "ffffff",
                 "quotation_template" => "template1",
@@ -767,6 +802,106 @@ namespace App\Models;
             }
 
             return $settings;
+        }
+
+        /**
+         * Localization-critical defaults for Mozambique / Portuguese companies.
+         */
+        public static function companyLocaleDefaultSettings(): array
+        {
+            return [
+                'site_currency' => 'MZN',
+                'site_currency_symbol' => 'MT',
+                'site_currency_symbol_position' => 'pre',
+                'default_language' => 'pt',
+                'languages' => '["pt"]',
+                'invoice_prefix' => '#Fatura',
+                'proposal_prefix' => '#Prop',
+                'proforma_prefix' => '#Pro',
+                'quotation_prefix' => '#Cot',
+                'bill_prefix' => '#FatFor',
+                'purchase_prefix' => '#Comp',
+                'expense_prefix' => '#Desp',
+                'journal_prefix' => '#Lan',
+                'pos_prefix' => '#PDV',
+                'customer_prefix' => '#Cli',
+                'vender_prefix' => '#Forn',
+                'employee_prefix' => '#Func',
+                'contract_prefix' => '#Contr',
+                'vendor_quote_prefix' => '#CotForn',
+                'bug_prefix' => '#Prob',
+                'credit_note_prefix' => '#NC',
+                'debit_note_prefix' => '#ND',
+            ];
+        }
+
+        /**
+         * Old English/US defaults that may safely be replaced during backfill.
+         */
+        public static function companyLocaleLegacyDefaultValues(): array
+        {
+            return [
+                'site_currency' => ['USD', 'usd'],
+                'site_currency_symbol' => ['$'],
+                'default_language' => ['en'],
+                'invoice_prefix' => ['#INVO', 'INVO'],
+                'proposal_prefix' => ['#PROP', 'PROP'],
+                'proforma_prefix' => ['#PF', 'PF'],
+                'quotation_prefix' => ['#QUO', 'QUO'],
+                'bill_prefix' => ['#BILL', 'BILL'],
+                'purchase_prefix' => ['#PUR', 'PUR'],
+                'expense_prefix' => ['#EXP', 'EXP'],
+                'journal_prefix' => ['#JUR', 'JUR'],
+                'pos_prefix' => ['#POS', 'POS'],
+                'customer_prefix' => ['#CUST', 'CUST'],
+                'vender_prefix' => ['#VEND', 'VEND'],
+                'employee_prefix' => ['#EMP00', 'EMP00'],
+                'contract_prefix' => ['#CON', 'CON'],
+                'vendor_quote_prefix' => ['#VQ', 'VQ'],
+                'bug_prefix' => ['#ISSUE', 'ISSUE'],
+                'credit_note_prefix' => ['#CRD', 'CRD'],
+                'debit_note_prefix' => ['#DBT', 'DBT'],
+            ];
+        }
+
+        /**
+         * Seed localization defaults for a newly created company (insert only if missing).
+         */
+        public static function seedCompanyDefaultSettings(int $companyId, bool $overwriteLegacy = false): int
+        {
+            $defaults = self::companyLocaleDefaultSettings();
+            $legacy = self::companyLocaleLegacyDefaultValues();
+            $now = date('Y-m-d H:i:s');
+            $written = 0;
+
+            $existing = DB::table('settings')
+                ->where('created_by', $companyId)
+                ->whereIn('name', array_keys($defaults))
+                ->pluck('value', 'name')
+                ->toArray();
+
+            foreach ($defaults as $name => $value) {
+                $current = $existing[$name] ?? null;
+                $shouldWrite = false;
+
+                if ($current === null || $current === '') {
+                    $shouldWrite = true;
+                } elseif ($overwriteLegacy && isset($legacy[$name]) && in_array($current, $legacy[$name], true)) {
+                    $shouldWrite = true;
+                }
+
+                if (!$shouldWrite) {
+                    continue;
+                }
+
+                DB::insert(
+                    'insert into settings (`value`, `name`, `created_by`, `created_at`, `updated_at`) values (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), `updated_at` = VALUES(`updated_at`)',
+                    [$value, $name, $companyId, $now, $now]
+                );
+                $written++;
+            }
+
+            return $written;
         }
 
         public static $emailStatus = [
