@@ -107,6 +107,40 @@
                 setCategoryFilterValue('');
                 reloadProductServiceTable();
             });
+
+            $(document).off('click.productSkuGen', '.product-sku-generate-btn').on('click.productSkuGen', '.product-sku-generate-btn', function (e) {
+                e.preventDefault();
+                var $btn = $(this);
+                var $input = $btn.closest('.input-group').find('.product-sku-input');
+                if (!$input.length) {
+                    return;
+                }
+                $btn.prop('disabled', true);
+                $.ajax({
+                    url: '{{ route('productservice.generate-sku') }}',
+                    type: 'GET',
+                    dataType: 'json',
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    },
+                    success: function (res) {
+                        if (res && res.sku) {
+                            $input.val(res.sku).trigger('change');
+                        }
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __('Unable to generate SKU. Please try again.') }}';
+                        if (typeof show_toastr === 'function') {
+                            show_toastr('Error', msg, 'error');
+                        } else {
+                            alert(msg);
+                        }
+                    },
+                    complete: function () {
+                        $btn.prop('disabled', false);
+                    }
+                });
+            });
         });
     </script>
 @endpush

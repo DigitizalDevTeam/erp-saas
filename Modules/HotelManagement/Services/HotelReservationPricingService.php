@@ -3,6 +3,7 @@
 namespace Modules\HotelManagement\Services;
 
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Modules\HotelManagement\Entities\HotelAddon;
 use Modules\HotelManagement\Entities\HotelRatePlan;
@@ -31,10 +32,10 @@ class HotelReservationPricingService
         $room = $roomId ? HotelRoom::where('created_by', $creatorId)->find($roomId) : null;
 
         $billingMode = $this->normalizeBillingMode($billingMode ?: ($type->default_billing_mode ?? 'nightly'));
-        $ratePlan = $this->resolveRatePlan($creatorId, $roomTypeId, $checkInAt, $checkOutAt, $billingMode);
         [$units, $unitLabel] = $this->calculateUnits($checkInAt, $checkOutAt, $billingMode);
 
         if ($billingMode === 'monthly') {
+            $ratePlan = $this->resolveBestPlanForStayWindow($creatorId, $roomTypeId, $checkInAt, $checkOutAt, $billingMode);
             $rate = $this->resolveRateAmount($type, $room, $ratePlan, $billingMode);
             $subtotal = round($rate * $units, 2);
 
@@ -50,11 +51,13 @@ class HotelReservationPricingService
                 'rate_plan_name' => $ratePlan?->name,
                 'source' => $this->resolveSource($room, $ratePlan, $billingMode),
                 'uses_weekend_rate' => false,
+                'uses_promotional' => $ratePlan?->isPromotional() ?? false,
             ];
         }
 
-        $priced = $this->priceNightlyStay($type, $room, $ratePlan, $checkInAt, $checkOutAt, $units);
+        $priced = $this->priceNightlyStay($creatorId, $type, $room, $checkInAt, $checkOutAt, $units);
         $avgRate = $units > 0 ? round($priced['subtotal'] / $units, 2) : $priced['base_rate'];
+        $dominantPlan = $priced['dominant_plan'];
 
         return [
             'rate_per_night' => $avgRate,
@@ -64,12 +67,14 @@ class HotelReservationPricingService
             'nights' => $units,
             'unit_label' => $unitLabel,
             'subtotal' => $priced['subtotal'],
-            'rate_plan_id' => $ratePlan?->id,
-            'rate_plan_name' => $ratePlan?->name,
-            'source' => $this->resolveSource($room, $ratePlan, $billingMode),
+            'rate_plan_id' => $dominantPlan?->id,
+            'rate_plan_name' => $dominantPlan?->name,
+            'source' => $this->resolveSource($room, $dominantPlan, $billingMode),
             'uses_weekend_rate' => $priced['uses_weekend_rate'],
+            'uses_promotional' => $priced['uses_promotional'],
             'weekday_rate' => $priced['base_rate'],
             'weekend_rate' => $priced['weekend_rate'],
+            'night_rates' => $priced['night_rates'],
         ];
     }
 
@@ -172,81 +177,198 @@ class HotelReservationPricingService
         return $billingMode === 'monthly' ? 'monthly' : 'nightly';
     }
 
-    private function resolveRatePlan(
-        int $creatorId,
-        ?int $roomTypeId,
-        ?Carbon $checkInAt,
-        ?Carbon $checkOutAt,
-        string $billingMode
-    ): ?HotelRatePlan {
+    /**
+     * Load active plans for a room type (period + promotional).
+     *
+     * @return Collection<int, HotelRatePlan>
+     */
+    private function loadCandidatePlans(int $creatorId, ?int $roomTypeId, string $billingMode): Collection
+    {
         if (! $roomTypeId) {
-            return null;
+            return collect();
         }
 
         return HotelRatePlan::where('created_by', $creatorId)
             ->where('hotel_room_type_id', $roomTypeId)
             ->where('is_active', true)
             ->whereIn('billing_mode', [$billingMode, 'both'])
-            ->when($checkInAt, function ($query) use ($checkInAt) {
-                $query->where(function ($sub) use ($checkInAt) {
-                    $sub->whereNull('valid_from')->orWhereDate('valid_from', '<=', $checkInAt->toDateString());
-                });
-            })
-            ->when($checkOutAt, function ($query) use ($checkOutAt) {
-                $query->where(function ($sub) use ($checkOutAt) {
-                    $sub->whereNull('valid_to')->orWhereDate('valid_to', '>=', $checkOutAt->toDateString());
-                });
-            })
+            ->orderByRaw("CASE WHEN plan_type = 'promotional' THEN 0 ELSE 1 END")
             ->orderBy('priority')
             ->orderByDesc('valid_from')
-            ->first();
+            ->get();
     }
 
     /**
-     * @return array{subtotal:float,base_rate:float,weekend_rate:float|null,uses_weekend_rate:bool}
+     * Best plan overlapping the full stay window (used for monthly billing).
+     */
+    private function resolveBestPlanForStayWindow(
+        int $creatorId,
+        ?int $roomTypeId,
+        ?Carbon $checkInAt,
+        ?Carbon $checkOutAt,
+        string $billingMode
+    ): ?HotelRatePlan {
+        $plans = $this->loadCandidatePlans($creatorId, $roomTypeId, $billingMode);
+        if ($plans->isEmpty()) {
+            return null;
+        }
+
+        if (! $checkInAt || ! $checkOutAt) {
+            return $plans->first();
+        }
+
+        $stayStart = $checkInAt->copy();
+        $stayEnd = $checkOutAt->copy();
+
+        return $plans->first(function (HotelRatePlan $plan) use ($stayStart, $stayEnd) {
+            return $this->planOverlapsWindow($plan, $stayStart, $stayEnd);
+        });
+    }
+
+    /**
+     * Pick best plan for a single night interval [nightStart, nightEnd).
+     * Priority: promotional > period; within type: lower priority, then newer valid_from.
+     */
+    private function resolveRatePlanForNight(Collection $plans, Carbon $nightStart, Carbon $nightEnd): ?HotelRatePlan
+    {
+        $overlapping = $plans->filter(function (HotelRatePlan $plan) use ($nightStart, $nightEnd) {
+            return $this->planOverlapsWindow($plan, $nightStart, $nightEnd);
+        });
+
+        if ($overlapping->isEmpty()) {
+            return null;
+        }
+
+        $promos = $overlapping->filter(fn (HotelRatePlan $p) => $p->isPromotional());
+        $pool = $promos->isNotEmpty() ? $promos : $overlapping;
+
+        return $pool
+            ->sortByDesc(fn (HotelRatePlan $p) => optional($p->valid_from)->getTimestamp() ?? 0)
+            ->sortBy(fn (HotelRatePlan $p) => (int) $p->priority)
+            ->first();
+    }
+
+    private function planOverlapsWindow(HotelRatePlan $plan, Carbon $windowStart, Carbon $windowEnd): bool
+    {
+        $from = $plan->valid_from ? Carbon::parse($plan->valid_from) : null;
+        $to = $plan->valid_to ? Carbon::parse($plan->valid_to) : null;
+
+        // Open-ended plans: null from = always started; null to = never ends.
+        if ($from && $from->greaterThanOrEqualTo($windowEnd)) {
+            return false;
+        }
+        if ($to && $to->lessThanOrEqualTo($windowStart)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array{
+     *   subtotal:float,
+     *   base_rate:float,
+     *   weekend_rate:float|null,
+     *   uses_weekend_rate:bool,
+     *   uses_promotional:bool,
+     *   dominant_plan:?HotelRatePlan,
+     *   night_rates:array<int, array<string, mixed>>
+     * }
      */
     private function priceNightlyStay(
+        int $creatorId,
         ?HotelRoomType $type,
         ?HotelRoom $room,
-        ?HotelRatePlan $ratePlan,
         ?Carbon $checkInAt,
         ?Carbon $checkOutAt,
         int $units
     ): array {
-        $baseRate = $this->resolveRateAmount($type, $room, $ratePlan, 'nightly');
-        $weekendRate = null;
-        $usesWeekend = false;
-
+        $normalRate = $this->resolveTypeDefaultRate($type, 'nightly');
         $hasRoomOverride = $room && (float) $room->override_price > 0;
-        if (! $hasRoomOverride && $ratePlan && $ratePlan->weekend_rate !== null && (float) $ratePlan->weekend_rate > 0) {
-            $weekendRate = round((float) $ratePlan->weekend_rate, 2);
-        }
+        $roomOverride = $hasRoomOverride ? round((float) $room->override_price, 2) : null;
 
-        if ($weekendRate === null || ! $checkInAt || ! $checkOutAt || $units < 1) {
+        $plans = $this->loadCandidatePlans($creatorId, $type?->id, 'nightly');
+
+        $subtotal = 0.0;
+        $usesWeekend = false;
+        $usesPromotional = false;
+        $dominantPlan = null;
+        $seenWeekendRate = null;
+        $nightRates = [];
+        $units = max(1, $units);
+
+        if (! $checkInAt) {
+            $rate = $roomOverride ?? $normalRate;
+
             return [
-                'subtotal' => round($baseRate * max(1, $units), 2),
-                'base_rate' => $baseRate,
-                'weekend_rate' => $weekendRate,
+                'subtotal' => round($rate * $units, 2),
+                'base_rate' => $normalRate,
+                'weekend_rate' => null,
                 'uses_weekend_rate' => false,
+                'uses_promotional' => false,
+                'dominant_plan' => null,
+                'night_rates' => [],
             ];
         }
 
-        $subtotal = 0.0;
-        $cursor = $checkInAt->copy()->startOfDay();
         for ($i = 0; $i < $units; $i++) {
-            $nightRate = $this->isWeekendNight($cursor) ? $weekendRate : $baseRate;
-            if ($this->isWeekendNight($cursor) && $weekendRate !== $baseRate) {
-                $usesWeekend = true;
+            $nightStart = $checkInAt->copy()->addDays($i);
+            $nightEnd = $checkInAt->copy()->addDays($i + 1);
+
+            if ($roomOverride !== null) {
+                $nightRate = $roomOverride;
+                $plan = null;
+                $source = 'room_override';
+            } else {
+                $plan = $this->resolveRatePlanForNight($plans, $nightStart, $nightEnd);
+                if ($plan) {
+                    $nightRate = round((float) $plan->rate, 2);
+                    $source = $plan->isPromotional() ? 'promotional' : 'period';
+                    if ($plan->isPromotional()) {
+                        $usesPromotional = true;
+                    }
+                    // Weekend rate only on period plans (not promo), when no room override.
+                    if (
+                        ! $plan->isPromotional()
+                        && $plan->weekend_rate !== null
+                        && (float) $plan->weekend_rate > 0
+                        && $this->isWeekendNight($nightStart)
+                    ) {
+                        $nightRate = round((float) $plan->weekend_rate, 2);
+                        $usesWeekend = true;
+                        $seenWeekendRate = $nightRate;
+                        $source = 'period_weekend';
+                    }
+                    if ($dominantPlan === null) {
+                        $dominantPlan = $plan;
+                    } elseif ($plan->isPromotional() && ! $dominantPlan->isPromotional()) {
+                        $dominantPlan = $plan;
+                    }
+                } else {
+                    $nightRate = $normalRate;
+                    $source = 'room_type_default';
+                }
             }
+
             $subtotal += $nightRate;
-            $cursor->addDay();
+            $nightRates[] = [
+                'night_index' => $i,
+                'date' => $nightStart->toDateString(),
+                'rate' => $nightRate,
+                'source' => $source,
+                'rate_plan_id' => $plan?->id,
+                'rate_plan_name' => $plan?->name,
+            ];
         }
 
         return [
             'subtotal' => round($subtotal, 2),
-            'base_rate' => $baseRate,
-            'weekend_rate' => $weekendRate,
+            'base_rate' => $normalRate,
+            'weekend_rate' => $seenWeekendRate,
             'uses_weekend_rate' => $usesWeekend,
+            'uses_promotional' => $usesPromotional,
+            'dominant_plan' => $dominantPlan,
+            'night_rates' => $nightRates,
         ];
     }
 
@@ -312,13 +434,13 @@ class HotelReservationPricingService
             return 'room_monthly_override';
         }
         if ($billingMode === 'monthly' && $ratePlan && (float) $ratePlan->monthly_rate > 0) {
-            return 'rate_plan_monthly';
+            return $ratePlan->isPromotional() ? 'promotional_monthly' : 'rate_plan_monthly';
         }
         if ($room && (float) $room->override_price > 0) {
             return 'room_override';
         }
         if ($ratePlan && (float) $ratePlan->rate > 0) {
-            return 'rate_plan';
+            return $ratePlan->isPromotional() ? 'promotional' : 'rate_plan';
         }
 
         return 'room_type_default';

@@ -11,20 +11,21 @@
 @endsection
 @section('content')
 <div class="alert alert-info mb-3">
-    {{ __('Plan different rates for date ranges. Lower priority wins when plans overlap. Optional weekend rate applies Fri–Sun nights (promo / discounted weekends).') }}
+    {{ __('Normal Price is the room type default. Active period prices apply only during their Start–End date/time and must not overlap for the same room type. When no period is active, Normal price applies.') }}
 </div>
 <div class="card"><div class="card-body table-border-style"><div class="table-responsive">
 <table class="table datatable">
     <thead>
         <tr>
             <th>{{ __('Name') }}</th>
+            <th>{{ __('Type') }}</th>
             <th>{{ __('Room Type') }}</th>
             <th>{{ __('Nightly') }}</th>
             <th>{{ __('Weekend rate') }}</th>
             <th>{{ __('Monthly') }}</th>
             <th>{{ __('Mode') }}</th>
-            <th>{{ __('Valid from') }}</th>
-            <th>{{ __('Valid to') }}</th>
+            <th>{{ __('Start Date & Time') }}</th>
+            <th>{{ __('End Date & Time') }}</th>
             <th>{{ __('Priority') }}</th>
             <th>{{ __('Active') }}</th>
             <th>{{ __('Action') }}</th>
@@ -34,13 +35,20 @@
     @foreach($ratePlans as $plan)
         <tr>
             <td>{{ $plan->name }}</td>
+            <td>
+                @if(($plan->plan_type ?? 'period') === 'promotional')
+                    <span class="badge bg-warning text-dark">{{ __('Promotional') }}</span>
+                @else
+                    <span class="badge bg-primary">{{ __('Period') }}</span>
+                @endif
+            </td>
             <td>{{ $plan->roomType->name ?? '-' }}</td>
             <td>{{ $plan->rate }}</td>
             <td>{{ $plan->weekend_rate !== null && (float) $plan->weekend_rate > 0 ? $plan->weekend_rate : '—' }}</td>
             <td>{{ $plan->monthly_rate }}</td>
             <td>{{ __(\Illuminate\Support\Str::title(str_replace('_', ' ', $plan->billing_mode))) }}</td>
-            <td>{{ $plan->valid_from ? \Carbon\Carbon::parse($plan->valid_from)->format('Y-m-d') : '—' }}</td>
-            <td>{{ $plan->valid_to ? \Carbon\Carbon::parse($plan->valid_to)->format('Y-m-d') : '—' }}</td>
+            <td>{{ $plan->valid_from ? \Carbon\Carbon::parse($plan->valid_from)->format('Y-m-d H:i') : '—' }}</td>
+            <td>{{ $plan->valid_to ? \Carbon\Carbon::parse($plan->valid_to)->format('Y-m-d H:i') : '—' }}</td>
             <td>{{ $plan->priority }}</td>
             <td>{{ $plan->is_active ? __('Yes') : __('No') }}</td>
             <td>

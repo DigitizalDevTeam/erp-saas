@@ -603,11 +603,7 @@ class ProductServiceController extends Controller
 
             $rules = [
                 'name' => 'required',
-                'sku' => [
-                    'required', Rule::unique('product_services')->where(function ($query) {
-                        return $query->where('created_by', \Auth::user()->id);
-                    })
-                ],
+                'sku' => $this->productSkuRules(),
                 'sale_price' => 'required|numeric',
                 'purchase_price' => 'required|numeric',
                 'category_id' => 'required',
@@ -618,7 +614,7 @@ class ProductServiceController extends Controller
                 $rules['sale_price'] = 'nullable|numeric|min:0';
             }
 
-            $validator = \Validator::make($request->all(), $rules);
+            $validator = \Validator::make($request->all(), $rules, $this->productSkuMessages());
 
             if ($validator->fails()) {
                 $messages = $validator->getMessageBag();
@@ -886,7 +882,7 @@ class ProductServiceController extends Controller
             if ($productService->created_by == \Auth::user()->creatorId()) {
                 $rules = [
                     'name' => 'required',
-                    'sku' => 'required', Rule::unique('product_services')->ignore($productService->id),
+                    'sku' => $this->productSkuRules((int) $productService->id),
                     'sale_price' => 'required|numeric',
                     'purchase_price' => 'required|numeric',
                     'category_id' => 'required',
@@ -898,7 +894,7 @@ class ProductServiceController extends Controller
                     $rules['sale_price'] = 'nullable|numeric|min:0';
                 }
 
-                $validator = \Validator::make($request->all(), $rules);
+                $validator = \Validator::make($request->all(), $rules, $this->productSkuMessages());
 
                 if ($validator->fails()) {
                     $messages = $validator->getMessageBag();
@@ -2272,5 +2268,72 @@ class ProductServiceController extends Controller
         $productService->batch_consumption_method = $productService->batch_tracking
             ? $method
             : BatchLotDeductionService::METHOD_FEFO;
+    }
+
+    /**
+     * Suggest the next unique numeric SKU for the current company.
+     */
+    public function generateSku()
+    {
+        if (! \Auth::user()->can('create product & service') && ! \Auth::user()->can('edit product & service')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        return response()->json([
+            'sku' => $this->nextAvailableSku((int) \Auth::user()->creatorId()),
+        ]);
+    }
+
+    private function productSkuRules(?int $ignoreId = null): array
+    {
+        $creatorId = (int) \Auth::user()->creatorId();
+        $unique = Rule::unique('product_services', 'sku')->where(function ($query) use ($creatorId) {
+            return $query->where('created_by', $creatorId);
+        });
+
+        if ($ignoreId) {
+            $unique->ignore($ignoreId);
+        }
+
+        return ['required', 'string', 'max:191', $unique];
+    }
+
+    private function productSkuMessages(): array
+    {
+        return [
+            'sku.unique' => __('This SKU is already used by another product. Please enter a different SKU or auto-generate one.'),
+        ];
+    }
+
+    private function nextAvailableSku(int $creatorId): string
+    {
+        $skus = ProductService::where('created_by', $creatorId)->pluck('sku');
+        $maxNumeric = 0;
+        $pad = 6;
+
+        foreach ($skus as $sku) {
+            $sku = trim((string) $sku);
+            if ($sku !== '' && preg_match('/^\d+$/', $sku)) {
+                $num = (int) ltrim($sku, '0');
+                if ($sku === '0' || $sku === '00') {
+                    $num = 0;
+                }
+                if ($num > $maxNumeric) {
+                    $maxNumeric = $num;
+                }
+                $pad = max($pad, strlen($sku));
+            }
+        }
+
+        $next = $maxNumeric + 1;
+        $candidate = str_pad((string) $next, $pad, '0', STR_PAD_LEFT);
+
+        // Guarantee uniqueness even if alphanumeric SKUs collide with the padded number.
+        while (ProductService::where('created_by', $creatorId)->where('sku', $candidate)->exists()) {
+            $next++;
+            $candidate = str_pad((string) $next, $pad, '0', STR_PAD_LEFT);
+        }
+
+        return $candidate;
     }
 }

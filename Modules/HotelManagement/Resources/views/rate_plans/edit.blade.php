@@ -6,9 +6,6 @@
     <li class="breadcrumb-item">{{ __('Edit') }}</li>
 @endsection
 @section('content')
-<div class="alert alert-info mb-3">
-    {{ __('Plan different rates for date ranges. Lower priority wins when plans overlap. Optional weekend rate applies Fri–Sun nights (promo / discounted weekends).') }}
-</div>
 <div class="card shadow-sm"><div class="card-body">
 {!! Form::model($ratePlan, ['route' => ['hotel.rate-plans.update', $ratePlan->id], 'method' => 'PUT']) !!}
 @include('hotelmanagement::rate_plans.form')

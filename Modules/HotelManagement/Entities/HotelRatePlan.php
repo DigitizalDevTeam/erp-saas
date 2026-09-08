@@ -9,9 +9,14 @@ class HotelRatePlan extends Model
 {
     use HasFactory;
 
+    public const TYPE_PERIOD = 'period';
+
+    public const TYPE_PROMOTIONAL = 'promotional';
+
     protected $fillable = [
         'hotel_room_type_id',
         'name',
+        'plan_type',
         'rate',
         'weekend_rate',
         'monthly_rate',
@@ -28,12 +33,22 @@ class HotelRatePlan extends Model
         'weekend_rate' => 'float',
         'monthly_rate' => 'float',
         'is_active' => 'boolean',
-        'valid_from' => 'date',
-        'valid_to' => 'date',
+        'valid_from' => 'datetime',
+        'valid_to' => 'datetime',
     ];
 
     public function roomType()
     {
         return $this->belongsTo(HotelRoomType::class, 'hotel_room_type_id');
+    }
+
+    public function isPromotional(): bool
+    {
+        return ($this->plan_type ?? self::TYPE_PERIOD) === self::TYPE_PROMOTIONAL;
+    }
+
+    public function planTypeLabel(): string
+    {
+        return $this->isPromotional() ? __('Promotional') : __('Period');
     }
 }

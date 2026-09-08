@@ -23,7 +23,13 @@
         <div class="col-md-6">
             <div class="form-group">
                 {{ Form::label('sku', __('SKU'),['class'=>'form-label']) }}<x-required></x-required>
-                {{ Form::text('sku', null, array('class' => 'form-control','required'=>'required', 'placeholder' => __('Enter Sku'))) }}
+                <div class="input-group">
+                    {{ Form::text('sku', null, array('class' => 'form-control product-sku-input','required'=>'required', 'placeholder' => __('Enter Sku'), 'autocomplete' => 'off')) }}
+                    <button type="button" class="btn btn-outline-primary product-sku-generate-btn" title="{{ __('Auto generate SKU') }}">
+                        <i class="ti ti-refresh"></i> {{ __('Auto generate') }}
+                    </button>
+                </div>
+                <small class="text-muted">{{ __('SKU must be unique. Enter manually or click Auto generate.') }}</small>
             </div>
         </div>
         <div class="col-md-6">

@@ -970,6 +970,7 @@ Route::group(['middleware' => ['verified']], function () {
     );
 
     Route::match(['get', 'post'], 'productservice/datatable', [ProductServiceController::class, 'datatable'])->name('productservice.datatable')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('productservice/generate-sku', [ProductServiceController::class, 'generateSku'])->name('productservice.generate-sku')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('productservice/{productservice}/variants-json', [ProductServiceController::class, 'variantsJson'])->name('productservice.variants-json')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('productservice/{productservice}/options-json', [ProductServiceController::class, 'optionsJson'])->name('productservice.options-json')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('productservice/{id}/detail', [ProductServiceController::class, 'warehouseDetail'])->name('productservice.detail');
