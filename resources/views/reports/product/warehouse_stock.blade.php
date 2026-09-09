@@ -29,6 +29,11 @@
                     <button type="submit" class="btn btn-primary">{{ __('Apply') }}</button>
                     <a href="{{ route('reports.product.warehouse-stock') }}" class="btn btn-outline-secondary">{{ __('Reset') }}</a>
                 </div>
+                <div class="col-auto ms-auto">
+                    <a href="{{ route('reports.product.warehouse-stock', array_merge(request()->query(), ['print' => 1])) }}" target="_blank" class="btn btn-secondary">
+                        <i class="ti ti-printer"></i> {{ __('Print') }}
+                    </a>
+                </div>
             </form>
         </div>
     </div>

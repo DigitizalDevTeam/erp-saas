@@ -70,26 +70,23 @@
                     <input type="text" name="search" value="{{ request('search') }}" class="form-control" placeholder="{{ __('Search…') }}">
                 </div>
                 <div class="col-auto">
-                    <button type="submit" class="btn btn-primary">{{ __('Apply') }}</button>
+                        <button type="submit" class="btn btn-primary">{{ __('Apply') }}</button>
                     <a href="{{ route('reports.product.store-check') }}" class="btn btn-outline-secondary">{{ __('Reset') }}</a>
+                        <a href="{{ route('reports.product.store-check', array_merge(request()->query(), ['print' => 1])) }}" target="_blank" class="btn btn-secondary">
+                            <i class="ti ti-printer"></i> {{ __('Print') }}
+                        </a>
                 </div>
             </form>
         </div>
     </div>
 
     <div id="stock-check-printable">
-        <div class="card border-0 shadow-none bg-transparent mb-2 d-none-print-info">
-            <div class="text-muted small mb-1">{{ __('Stock audit') }} — {{ $periodLabel }}</div>
-        </div>
         <div class="card">
             <div class="card-body table-border-style">
-                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3 no-print">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                     <div>
                         <strong>{{ __('Period') }}:</strong> {{ $periodLabel }}
                         <div class="text-muted small">{{ __('System quantity is current stock on hand. Physical quantity is your counted amount.') }}</div>
-                    </div>
-                    <div class="d-flex flex-wrap gap-2">
-                        <button type="button" class="btn btn-secondary" onclick="window.print();"><i class="ti ti-printer"></i> {{ __('Print') }}</button>
                     </div>
                 </div>
 
