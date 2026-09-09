@@ -1871,6 +1871,96 @@ class ReportController extends Controller
 
     }
 
+    /**
+     * Products whose on-hand quantity is equal to or below "Low stock alert at"
+     * (per-product low_stock_threshold, or the global POS low-stock default).
+     */
+    public function minimumStockAlertReport(Request $request)
+    {
+        if (!\Auth::user()->can('stock report')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
+        [$products, $globalThreshold] = $this->minimumStockAlertData($request);
+
+        return view('report.minimum_stock_alert', compact('products', 'globalThreshold'));
+    }
+
+    public function minimumStockAlertExport(Request $request)
+    {
+        if (!\Auth::user()->can('stock report')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
+        [$products, $globalThreshold] = $this->minimumStockAlertData($request);
+        $fileName = 'minimum_stock_alert_' . date('Y-m-d_His') . '.csv';
+
+        $headers = [
+            'Content-type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=$fileName",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($products, $globalThreshold) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, [
+                __('Product'),
+                __('SKU'),
+                __('Type'),
+                __('Current Stock'),
+                __('Low stock alert at'),
+                __('Shortage'),
+                __('Sale Price'),
+            ]);
+
+            foreach ($products as $p) {
+                $threshold = $p->low_stock_threshold !== null ? (float) $p->low_stock_threshold : (float) $globalThreshold;
+                $shortage = max(0, $threshold - (float) $p->quantity);
+                fputcsv($file, [
+                    $p->name,
+                    $p->sku ?: '',
+                    ucfirst((string) $p->type),
+                    $p->quantity,
+                    $threshold,
+                    $shortage,
+                    $p->sale_price ?? 0,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    protected function minimumStockAlertData(Request $request): array
+    {
+        $globalThreshold = (float) (\App\Models\Utility::getValByName('pos_low_stock_threshold') ?: 10);
+        if ($request->filled('threshold')) {
+            $globalThreshold = (float) $request->threshold;
+        }
+
+        $products = ProductService::where('created_by', \Auth::user()->creatorId())
+            ->whereIn('type', ['product', 'kit'])
+            ->where(function ($q) use ($globalThreshold) {
+                $q->where(function ($q2) {
+                    $q2->whereNotNull('low_stock_threshold')
+                        ->whereRaw('quantity <= low_stock_threshold');
+                })->orWhere(function ($q2) use ($globalThreshold) {
+                    $q2->whereNull('low_stock_threshold')
+                        ->whereRaw('quantity <= ?', [$globalThreshold]);
+                });
+            })
+            ->orderBy('quantity')
+            ->orderBy('name')
+            ->get();
+
+        return [$products, $globalThreshold];
+    }
+
     //for export in account statement report
     public function export()
     {
@@ -3022,7 +3112,7 @@ class ReportController extends Controller
     }
 
     /**
-     * Phase 5: Low stock report – products below threshold.
+     * Phase 5: Minimum stock alert – products at or below low stock threshold.
      */
     public function posLowStockReport(Request $request)
     {
@@ -3036,10 +3126,10 @@ class ReportController extends Controller
         $products = ProductService::where('created_by', \Auth::user()->creatorId())
             ->where('type', 'product')
             ->where(function ($q) use ($globalThreshold) {
-                $q->where(function ($q2) use ($globalThreshold) {
-                    $q2->whereNotNull('low_stock_threshold')->whereRaw('quantity < low_stock_threshold');
+                $q->where(function ($q2) {
+                    $q2->whereNotNull('low_stock_threshold')->whereRaw('quantity <= low_stock_threshold');
                 })->orWhere(function ($q2) use ($globalThreshold) {
-                    $q2->whereNull('low_stock_threshold')->whereRaw('quantity < ?', [$globalThreshold]);
+                    $q2->whereNull('low_stock_threshold')->whereRaw('quantity <= ?', [$globalThreshold]);
                 });
             })
             ->orderBy('quantity')
@@ -3465,7 +3555,7 @@ class ReportController extends Controller
                 $minAt = $p->low_stock_threshold !== null ? (float) $p->low_stock_threshold : $globalMin;
                 $maxAt = $p->max_stock_threshold !== null ? (float) $p->max_stock_threshold : $globalMax;
 
-                if ($stockQty < $minAt) {
+                if ($stockQty <= $minAt) {
                     $alertCounters[$cid]['min'] = ($alertCounters[$cid]['min'] ?? 0) + 1;
                     $stockAlerts->push([
                         'alert_type' => 'min',

@@ -51,7 +51,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
     <style type="text/css">
         :root {
-            --theme-color: #f7941d;
+            --theme-color: {{ $color }};
             --dark: #101114;
             --light-bg: #efefef;
             --line: #d5d5d5;
@@ -83,8 +83,8 @@
             padding: 18px 24px 14px;
         }
         .top-grid td { vertical-align: top; }
-        .logo-box { width: 150px; }
-        .logo-box img { max-width: 120px; max-height: 62px; }
+        .logo-box { width: 200px; }
+        .logo-box img { max-width: 180px; max-height: 90px; }
         .address-pill {
             display: inline-block;
             min-width: 330px;

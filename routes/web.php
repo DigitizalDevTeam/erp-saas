@@ -1236,6 +1236,12 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('report/invoice-summary', [ReportController::class, 'invoiceSummary'])->name('report.invoice.summary');
             Route::get('report/bill-summary', [ReportController::class, 'billSummary'])->name('report.bill.summary');
             Route::get('report/product-stock-report', [ReportController::class, 'productStock'])->name('report.product.stock.report');
+            Route::get('report/minimum-stock-alert', function () {
+                return redirect()->route('reports.product.minimum-stock-alert', request()->query());
+            })->name('report.minimum.stock.alert');
+            Route::get('report/minimum-stock-alert/export', function () {
+                return redirect()->route('reports.product.minimum-stock-alert.export', request()->query());
+            })->name('report.minimum.stock.alert.export');
             Route::get('report/invoice-report', [ReportController::class, 'invoiceReport'])->name('report.invoice');
             Route::get('report/account-statement-report', [ReportController::class, 'accountStatement'])->name('report.account.statement');
             Route::get('balance-sheet-report/{view?}/{collapseview?}', [ReportController::class, 'balanceSheet'])->name('report.balance.sheet');
@@ -1290,10 +1296,25 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('reports/product-system/store-check', [ProductReportsController::class, 'storeCheck'])->name('reports.product.store-check');
             Route::post('reports/product-system/store-check', [ProductReportsController::class, 'storeStockAudit'])->name('reports.product.store-check.save');
             Route::get('reports/product-system/warehouse-stock', [ProductReportsController::class, 'warehouseStock'])->name('reports.product.warehouse-stock');
+            Route::get('reports/product-system/total-stock-value', [ProductReportsController::class, 'totalStockValue'])->name('reports.product.total-stock-value');
+            Route::get('reports/product-system/total-stock-value/export', [ProductReportsController::class, 'totalStockValueExport'])->name('reports.product.total-stock-value.export');
+            Route::get('reports/product-system/high-rotation', [ProductReportsController::class, 'highRotation'])->name('reports.product.high-rotation');
+            Route::get('reports/product-system/high-rotation/export', [ProductReportsController::class, 'highRotationExport'])->name('reports.product.high-rotation.export');
+            Route::get('reports/product-system/out-of-stock', [ProductReportsController::class, 'outOfStock'])->name('reports.product.out-of-stock');
+            Route::get('reports/product-system/out-of-stock/export', [ProductReportsController::class, 'outOfStockExport'])->name('reports.product.out-of-stock.export');
+            Route::get('reports/product-system/minimum-stock-alert', [ProductReportsController::class, 'minimumStockAlert'])->name('reports.product.minimum-stock-alert');
+            Route::get('reports/product-system/minimum-stock-alert/export', [ProductReportsController::class, 'minimumStockAlertExport'])->name('reports.product.minimum-stock-alert.export');
+            Route::get('reports/product-system/near-expiry', [ProductReportsController::class, 'nearExpiry'])->name('reports.product.near-expiry');
+            Route::get('reports/product-system/near-expiry/export', [ProductReportsController::class, 'nearExpiryExport'])->name('reports.product.near-expiry.export');
+            Route::get('reports/product-system/expired-products', [ProductReportsController::class, 'expiredProducts'])->name('reports.product.expired-products');
+            Route::get('reports/product-system/expired-products/export', [ProductReportsController::class, 'expiredProductsExport'])->name('reports.product.expired-products.export');
             Route::get('reports/product-system/transactions', [ProductReportsController::class, 'transactions'])->name('reports.product.transactions');
+            Route::get('reports/product-system/transactions/export', [ProductReportsController::class, 'transactionsExport'])->name('reports.product.transactions.export');
             Route::get('reports/product-system/document/{docType}/{id}', [ProductReportsController::class, 'document'])->name('reports.product.document');
             Route::get('reports/product-system/last-supplies', [ProductReportsController::class, 'lastSupplies'])->name('reports.product.last-supplies');
+            Route::get('reports/product-system/last-supplies/export', [ProductReportsController::class, 'lastSuppliesExport'])->name('reports.product.last-supplies.export');
             Route::get('reports/product-system/location-check', [ProductReportsController::class, 'locationCheck'])->name('reports.product.location-check');
+            Route::get('reports/product-system/location-check/export', [ProductReportsController::class, 'locationCheckExport'])->name('reports.product.location-check.export');
         }
     );
 

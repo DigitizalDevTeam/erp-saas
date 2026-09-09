@@ -56,6 +56,7 @@
                                 Request::segment(1) == 'payables' ||
                                 Request::segment(1) == 'bill-summary' ||
                                 Request::segment(1) == 'product-stock-report' ||
+                                Request::segment(1) == 'minimum-stock-alert' ||
                                 Request::segment(1) == 'transaction' ||
                                 Request::segment(1) == 'income-summary' ||
                                 Request::segment(1) == 'expense-summary' ||
@@ -191,6 +192,9 @@
                                                                 <li class="dash-item {{ Request::route()->getName() == 'report.product.stock.report' ? ' active' : '' }}">
                                                                     <a class="dash-link" href="{{ route('report.product.stock.report') }}">{{ __('Product Stock') }}</a>
                                                                 </li>
+                                                                <li class="dash-item {{ Request::route()->getName() == 'reports.product.minimum-stock-alert' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('reports.product.minimum-stock-alert') }}">{{ __('Minimum Stock Alert') }}</a>
+                                                                </li>
                                                             @endcan
                                                             @can('loss & profit report')
                                                                 <li class="dash-item {{ request()->is('reports-monthly-cashflow') || request()->is('reports-quarterly-cashflow') ? 'active' : '' }}">
@@ -296,6 +300,24 @@
                                         </li>
                                         <li class="dash-item {{ Request::route()->getName() == 'reports.product.warehouse-stock' ? ' active' : '' }}">
                                             <a class="dash-link" href="{{ route('reports.product.warehouse-stock') }}">{{ __('Warehouse stock') }}</a>
+                                        </li>
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.total-stock-value' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.total-stock-value') }}">{{ __('Total stock value') }}</a>
+                                        </li>
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.high-rotation' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.high-rotation') }}">{{ __('High-value stock movements') }}</a>
+                                        </li>
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.out-of-stock' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.out-of-stock') }}">{{ __('Out-of-stock products') }}</a>
+                                        </li>
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.minimum-stock-alert' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.minimum-stock-alert') }}">{{ __('Minimum Stock Alert') }}</a>
+                                        </li>
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.near-expiry' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.near-expiry') }}">{{ __('Products near expiry') }}</a>
+                                        </li>
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.expired-products' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.expired-products') }}">{{ __('Expired products') }}</a>
                                         </li>
                                         <li class="dash-item {{ Request::route()->getName() == 'reports.product.transactions' ? ' active' : '' }}">
                                             <a class="dash-link" href="{{ route('reports.product.transactions') }}">{{ __('Transactions') }}</a>
@@ -1415,6 +1437,9 @@
                                 </li>
                             @endcan
                             @can('stock report')
+                                <li class="dash-item {{ Request::route()->getName() == 'reports.product.minimum-stock-alert' ? ' active' : '' }}">
+                                    <a class="dash-link" href="{{ route('reports.product.minimum-stock-alert') }}">{{ __('Minimum Stock Alert') }}</a>
+                                </li>
                                 <li class="dash-item {{ str_starts_with((string) optional(Request::route())->getName(), 'reports.product.') ? ' active' : '' }}">
                                     <a class="dash-link" href="{{ route('reports.product.index') }}">{{ __('Reports') }}</a>
                                 </li>
@@ -1544,7 +1569,7 @@
 
                                     @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
                                     <li class="dash-item {{ Request::route()->getName() == 'report.pos.low-stock' ? 'active' : '' }}">
-                                        <a class="dash-link" href="{{ route('report.pos.low-stock') }}">{{ __('Low Stock') }}</a>
+                                        <a class="dash-link" href="{{ route('report.pos.low-stock') }}">{{ __('Minimum Stock Alert') }}</a>
                                     </li>
                                     <li class="dash-item {{ Request::route()->getName() == 'pos-restaurant-settings.index' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos-restaurant-settings.index') }}">{{ __('Restaurant Settings') }}</a>

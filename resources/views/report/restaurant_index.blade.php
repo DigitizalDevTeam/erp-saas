@@ -67,7 +67,7 @@
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <a href="{{ route('report.pos.low-stock') }}" class="btn btn-outline-primary w-100 text-start d-flex align-items-center">
-                                <i class="ti ti-box me-2"></i> {{ __('Low Stock') }}
+                                <i class="ti ti-box me-2"></i> {{ __('Minimum Stock Alert') }}
                             </a>
                         </div>
                         <div class="col-md-6 col-lg-4">

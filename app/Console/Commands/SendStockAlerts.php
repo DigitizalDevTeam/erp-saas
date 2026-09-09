@@ -68,7 +68,7 @@ class SendStockAlerts extends Command
 
                 if ($sendMin) {
                     $min = $p->low_stock_threshold !== null ? (int) $p->low_stock_threshold : $globalMin;
-                    if ($min > 0 && $qty < $min) {
+                    if ($min > 0 && $qty <= $min) {
                         $last = $p->last_min_stock_alert_at ? $p->last_min_stock_alert_at->toDateString() : null;
                         if ($force || $last !== $today) {
                             $minRows[] = [

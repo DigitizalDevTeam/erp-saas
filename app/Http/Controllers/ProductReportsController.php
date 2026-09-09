@@ -12,6 +12,7 @@ use App\Models\PurchaseProduct;
 use App\Models\StockAudit;
 use App\Models\StockAuditLine;
 use App\Models\StockReport;
+use App\Models\Utility;
 use App\Models\warehouse;
 use App\Models\WarehouseProduct;
 use App\Models\WarehouseTransfer;
@@ -31,6 +32,11 @@ class ProductReportsController extends Controller
         if (! \Auth::user()->can('stock report')) {
             abort(403, __('Permission Denied.'));
         }
+    }
+
+    protected function printResponse(string $view, string $title, array $data = [])
+    {
+        return response()->view($view, array_merge($data, compact('title')));
     }
 
     public function index()
@@ -117,6 +123,10 @@ class ProductReportsController extends Controller
         }
 
         $products = $q->orderBy('name')->get();
+
+        if ($request->boolean('print')) {
+            return $this->printResponse('reports.product.print.store_check', __('Store check'), compact('products'));
+        }
 
         return view('reports.product.store_check', compact(
             'products',
@@ -266,7 +276,827 @@ class ProductReportsController extends Controller
 
         $rows = $query->orderBy('warehouses.name')->orderBy('product_services.name')->get();
 
+        if ($request->boolean('print')) {
+            return $this->printResponse('reports.product.print.warehouse_stock', __('Warehouse stock'), compact('rows'));
+        }
+
         return view('reports.product.warehouse_stock', compact('rows', 'warehouses'));
+    }
+
+    /**
+     * Total stock value: qty × purchase/sale, with and without VAT. All warehouses or one.
+     */
+    public function totalStockValue(Request $request)
+    {
+        $this->ensureStockReport();
+
+        [
+            'rows' => $rows,
+            'warehouses' => $warehouses,
+            'totals' => $totals,
+        ] = $this->totalStockValueData($request);
+
+        if ($request->boolean('print')) {
+            return $this->printResponse('reports.product.print.total_stock_value', __('Total stock value'), compact('rows', 'totals'));
+        }
+
+        return view('reports.product.total_stock_value', compact('rows', 'warehouses', 'totals'));
+    }
+
+    public function totalStockValueExport(Request $request)
+    {
+        $this->ensureStockReport();
+
+        ['rows' => $rows, 'totals' => $totals] = $this->totalStockValueData($request);
+
+        $fileName = 'total_stock_value_' . date('Y-m-d_His') . '.csv';
+        $headers = [
+            'Content-type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=$fileName",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($rows, $totals) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, [
+                __('ID'),
+                __('SKU'),
+                __('Description'),
+                __('Warehouse'),
+                __('QTY'),
+                __('Purchase Value (without VAT)'),
+                __('Purchase Value (with VAT)'),
+                __('Sale Value (without VAT)'),
+                __('Sale Value (with VAT)'),
+            ]);
+
+            foreach ($rows as $r) {
+                fputcsv($file, [
+                    $r->product_id,
+                    $r->sku ?: '',
+                    $r->description,
+                    $r->warehouse_name ?: '',
+                    $r->qty,
+                    $r->purchase_ex_vat,
+                    $r->purchase_inc_vat,
+                    $r->sale_ex_vat,
+                    $r->sale_inc_vat,
+                ]);
+            }
+
+            fputcsv($file, []);
+            fputcsv($file, [
+                '',
+                '',
+                __('Total'),
+                '',
+                $totals['qty'],
+                $totals['purchase_ex_vat'],
+                $totals['purchase_inc_vat'],
+                $totals['sale_ex_vat'],
+                $totals['sale_inc_vat'],
+            ]);
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    protected function totalStockValueData(Request $request): array
+    {
+        $creatorId = $this->creatorId();
+        $warehouses = warehouse::where('created_by', $creatorId)->orderBy('name')->get();
+        $warehouseId = $request->filled('warehouse_id') ? (int) $request->warehouse_id : 0;
+
+        if ($warehouseId > 0) {
+            $query = WarehouseProduct::query()
+                ->join('product_services', 'warehouse_products.product_id', '=', 'product_services.id')
+                ->join('warehouses', 'warehouse_products.warehouse_id', '=', 'warehouses.id')
+                ->where('warehouse_products.created_by', $creatorId)
+                ->where('product_services.created_by', $creatorId)
+                ->where('product_services.type', 'product')
+                ->where('warehouse_products.warehouse_id', $warehouseId)
+                ->where('warehouse_products.quantity', '!=', 0)
+                ->select([
+                    'product_services.id as product_id',
+                    'product_services.sku',
+                    'product_services.name',
+                    'product_services.description',
+                    'product_services.purchase_price',
+                    'product_services.sale_price',
+                    'product_services.sale_price_type',
+                    'product_services.tax_id',
+                    'warehouse_products.quantity as qty',
+                    'warehouses.name as warehouse_name',
+                ]);
+
+            if ($request->filled('search')) {
+                $s = '%' . trim((string) $request->search) . '%';
+                $query->where(function ($qq) use ($s) {
+                    $qq->where('product_services.name', 'like', $s)
+                        ->orWhere('product_services.sku', 'like', $s)
+                        ->orWhere('product_services.description', 'like', $s)
+                        ->orWhere('product_services.id', 'like', $s);
+                });
+            }
+
+            $raw = $query->orderBy('product_services.name')->get();
+        } else {
+            $query = ProductService::query()
+                ->where('created_by', $creatorId)
+                ->where('type', 'product')
+                ->where('quantity', '!=', 0)
+                ->select([
+                    'id as product_id',
+                    'sku',
+                    'name',
+                    'description',
+                    'purchase_price',
+                    'sale_price',
+                    'sale_price_type',
+                    'tax_id',
+                    'quantity as qty',
+                ]);
+
+            if ($request->filled('search')) {
+                $s = '%' . trim((string) $request->search) . '%';
+                $query->where(function ($qq) use ($s) {
+                    $qq->where('name', 'like', $s)
+                        ->orWhere('sku', 'like', $s)
+                        ->orWhere('description', 'like', $s)
+                        ->orWhere('id', 'like', $s);
+                });
+            }
+
+            $raw = $query->orderBy('name')->get();
+        }
+
+        $rows = collect();
+        $totals = [
+            'qty' => 0.0,
+            'purchase_ex_vat' => 0.0,
+            'purchase_inc_vat' => 0.0,
+            'sale_ex_vat' => 0.0,
+            'sale_inc_vat' => 0.0,
+        ];
+
+        foreach ($raw as $item) {
+            $qty = (float) ($item->qty ?? 0);
+            $purchaseUnit = (float) ($item->purchase_price ?? 0);
+            $saleUnit = (float) ($item->sale_price ?? 0);
+            $taxRate = (float) Utility::totalTaxRate((string) ($item->tax_id ?? ''));
+            $saleType = (string) ($item->sale_price_type ?? 'exclusive');
+
+            $purchaseEx = $qty * $purchaseUnit;
+            $purchaseInc = $taxRate > 0 ? $purchaseEx * (1 + ($taxRate / 100)) : $purchaseEx;
+
+            if ($saleType === 'inclusive') {
+                $saleInc = $qty * $saleUnit;
+                $saleEx = $taxRate > 0 ? $saleInc / (1 + ($taxRate / 100)) : $saleInc;
+            } else {
+                $saleEx = $qty * $saleUnit;
+                $saleInc = $taxRate > 0 ? $saleEx * (1 + ($taxRate / 100)) : $saleEx;
+            }
+
+            $desc = trim((string) ($item->name ?? ''));
+            $extra = trim((string) ($item->description ?? ''));
+            if ($extra !== '') {
+                $desc = $desc !== '' ? ($desc . ' — ' . $extra) : $extra;
+            }
+
+            $row = (object) [
+                'product_id' => (int) $item->product_id,
+                'sku' => $item->sku,
+                'description' => $desc,
+                'warehouse_name' => $warehouseId > 0 ? ($item->warehouse_name ?? '') : __('All warehouses'),
+                'qty' => $qty,
+                'purchase_ex_vat' => round($purchaseEx, 2),
+                'purchase_inc_vat' => round($purchaseInc, 2),
+                'sale_ex_vat' => round($saleEx, 2),
+                'sale_inc_vat' => round($saleInc, 2),
+            ];
+
+            $rows->push($row);
+            $totals['qty'] += $qty;
+            $totals['purchase_ex_vat'] += $purchaseEx;
+            $totals['purchase_inc_vat'] += $purchaseInc;
+            $totals['sale_ex_vat'] += $saleEx;
+            $totals['sale_inc_vat'] += $saleInc;
+        }
+
+        foreach (['qty', 'purchase_ex_vat', 'purchase_inc_vat', 'sale_ex_vat', 'sale_inc_vat'] as $k) {
+            $totals[$k] = round($totals[$k], 2);
+        }
+
+        return compact('rows', 'warehouses', 'totals');
+    }
+
+    /**
+     * High-rotation / best-selling products from invoice & POS stock movements.
+     */
+    public function highRotation(Request $request)
+    {
+        $this->ensureStockReport();
+
+        [
+            'rows' => $rows,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'sortBy' => $sortBy,
+            'limit' => $limit,
+        ] = $this->highRotationData($request);
+
+        if ($request->boolean('print')) {
+            return $this->printResponse('reports.product.print.high_rotation', __('High-value stock movements'), compact('rows', 'dateFrom', 'dateTo'));
+        }
+
+        return view('reports.product.high_rotation', compact('rows', 'dateFrom', 'dateTo', 'sortBy', 'limit'));
+    }
+
+    public function highRotationExport(Request $request)
+    {
+        $this->ensureStockReport();
+
+        ['rows' => $rows] = $this->highRotationData($request);
+
+        $fileName = 'high_value_stock_movements_' . date('Y-m-d_His') . '.csv';
+        $headers = [
+            'Content-type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=$fileName",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($rows) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, [
+                __('Rank'),
+                __('ID'),
+                __('SKU'),
+                __('Description'),
+                __('Qty sold'),
+                __('Movements'),
+                __('Est. sale value'),
+                __('Current stock'),
+                __('Rotation'),
+            ]);
+
+            foreach ($rows as $i => $r) {
+                fputcsv($file, [
+                    $i + 1,
+                    $r->product_id,
+                    $r->sku ?: '',
+                    $r->description,
+                    $r->qty_sold,
+                    $r->movements,
+                    $r->sale_value,
+                    $r->current_stock,
+                    $r->rotation,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    protected function highRotationData(Request $request): array
+    {
+        $creatorId = $this->creatorId();
+        $dateFrom = $request->input('date_from', now()->subDays(30)->format('Y-m-d'));
+        $dateTo = $request->input('date_to', now()->format('Y-m-d'));
+        $sortBy = in_array($request->input('sort_by'), ['qty', 'value', 'rotation'], true)
+            ? $request->input('sort_by')
+            : 'qty';
+        $limit = max(10, min(500, (int) $request->input('limit', 50)));
+
+        $types = ['invoice', 'pos'];
+        if ($request->input('source') === 'invoice') {
+            $types = ['invoice'];
+        } elseif ($request->input('source') === 'pos') {
+            $types = ['pos'];
+        }
+
+        $q = DB::table('stock_reports as sr')
+            ->join('product_services as p', 'p.id', '=', 'sr.product_id')
+            ->where('sr.created_by', $creatorId)
+            ->where('p.created_by', $creatorId)
+            ->whereIn('sr.type', $types)
+            ->whereDate('sr.created_at', '>=', $dateFrom)
+            ->whereDate('sr.created_at', '<=', $dateTo)
+            ->select([
+                'p.id as product_id',
+                'p.sku',
+                'p.name',
+                'p.description',
+                'p.sale_price',
+                'p.quantity as current_stock',
+                DB::raw('SUM(ABS(sr.quantity)) as qty_sold'),
+                DB::raw('COUNT(sr.id) as movements'),
+            ])
+            ->groupBy('p.id', 'p.sku', 'p.name', 'p.description', 'p.sale_price', 'p.quantity');
+
+        if ($request->filled('search')) {
+            $s = '%' . trim((string) $request->search) . '%';
+            $q->where(function ($qq) use ($s) {
+                $qq->where('p.name', 'like', $s)
+                    ->orWhere('p.sku', 'like', $s)
+                    ->orWhere('p.description', 'like', $s)
+                    ->orWhere('p.id', 'like', $s);
+            });
+        }
+
+        $raw = $q->get();
+
+        $rows = $raw->map(function ($item) {
+            $qtySold = (float) $item->qty_sold;
+            $salePrice = (float) ($item->sale_price ?? 0);
+            $saleValue = round($qtySold * $salePrice, 2);
+            $currentStock = (float) ($item->current_stock ?? 0);
+            $rotation = $currentStock > 0
+                ? round($qtySold / $currentStock, 2)
+                : ($qtySold > 0 ? round($qtySold, 2) : 0);
+
+            $desc = trim((string) ($item->name ?? ''));
+            $extra = trim((string) ($item->description ?? ''));
+            if ($extra !== '') {
+                $desc = $desc !== '' ? ($desc . ' — ' . $extra) : $extra;
+            }
+
+            return (object) [
+                'product_id' => (int) $item->product_id,
+                'sku' => $item->sku,
+                'description' => $desc,
+                'qty_sold' => round($qtySold, 2),
+                'movements' => (int) $item->movements,
+                'sale_value' => $saleValue,
+                'current_stock' => round($currentStock, 2),
+                'rotation' => $rotation,
+            ];
+        });
+
+        if ($sortBy === 'value') {
+            $rows = $rows->sortByDesc('sale_value')->values();
+        } elseif ($sortBy === 'rotation') {
+            $rows = $rows->sortByDesc('rotation')->values();
+        } else {
+            $rows = $rows->sortByDesc('qty_sold')->values();
+        }
+
+        $rows = $rows->take($limit)->values();
+
+        return compact('rows', 'dateFrom', 'dateTo', 'sortBy', 'limit');
+    }
+
+    /**
+     * Products with zero or negative on-hand quantity.
+     */
+    public function outOfStock(Request $request)
+    {
+        $this->ensureStockReport();
+
+        ['products' => $products, 'categories' => $categories] = $this->outOfStockData($request);
+
+        if ($request->boolean('print')) {
+            return $this->printResponse('reports.product.print.out_of_stock', __('Out-of-stock products'), compact('products'));
+        }
+
+        return view('reports.product.out_of_stock', compact('products', 'categories'));
+    }
+
+    public function outOfStockExport(Request $request)
+    {
+        $this->ensureStockReport();
+
+        ['products' => $products] = $this->outOfStockData($request);
+
+        $fileName = 'out_of_stock_products_' . date('Y-m-d_His') . '.csv';
+        $headers = [
+            'Content-type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=$fileName",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($products) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, [
+                __('Product'),
+                __('SKU'),
+                __('Category'),
+                __('Type'),
+                __('Current Stock'),
+                __('Sale Price'),
+            ]);
+
+            foreach ($products as $p) {
+                fputcsv($file, [
+                    $p->name,
+                    $p->sku ?: '',
+                    $p->category->name ?? '',
+                    ucfirst((string) $p->type),
+                    $p->quantity,
+                    $p->sale_price ?? 0,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    protected function outOfStockData(Request $request): array
+    {
+        $creatorId = $this->creatorId();
+
+        $categories = ProductServiceCategory::where('created_by', $creatorId)
+            ->where('type', 'product & service')
+            ->orderBy('name')
+            ->pluck('name', 'id');
+
+        $q = ProductService::with('category')
+            ->where('created_by', $creatorId)
+            ->whereIn('type', ['product', 'kit'])
+            ->where('quantity', '<=', 0);
+
+        if ($request->filled('search')) {
+            $s = '%' . trim((string) $request->search) . '%';
+            $q->where(function ($qq) use ($s) {
+                $qq->where('name', 'like', $s)->orWhere('sku', 'like', $s);
+            });
+        }
+
+        if ($request->filled('category_id')) {
+            $q->where('category_id', (int) $request->category_id);
+        }
+
+        $products = $q->orderBy('name')->get();
+
+        return compact('products', 'categories');
+    }
+
+    /**
+     * Products at or below "Low stock alert at" (or global default threshold).
+     */
+    public function minimumStockAlert(Request $request)
+    {
+        $this->ensureStockReport();
+
+        [
+            'products' => $products,
+            'categories' => $categories,
+            'globalThreshold' => $globalThreshold,
+        ] = $this->minimumStockAlertData($request);
+
+        if ($request->boolean('print')) {
+            return $this->printResponse('reports.product.print.minimum_stock_alert', __('Minimum Stock Alert'), compact('products', 'globalThreshold'));
+        }
+
+        return view('reports.product.minimum_stock_alert', compact('products', 'categories', 'globalThreshold'));
+    }
+
+    public function minimumStockAlertExport(Request $request)
+    {
+        $this->ensureStockReport();
+
+        ['products' => $products, 'globalThreshold' => $globalThreshold] = $this->minimumStockAlertData($request);
+
+        $fileName = 'minimum_stock_alert_' . date('Y-m-d_His') . '.csv';
+        $headers = [
+            'Content-type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=$fileName",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($products, $globalThreshold) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, [
+                __('Product'),
+                __('SKU'),
+                __('Category'),
+                __('Type'),
+                __('Current Stock'),
+                __('Low stock alert at'),
+                __('Shortage'),
+                __('Sale Price'),
+            ]);
+
+            foreach ($products as $p) {
+                $threshold = $p->low_stock_threshold !== null ? (float) $p->low_stock_threshold : (float) $globalThreshold;
+                $shortage = max(0, $threshold - (float) $p->quantity);
+                fputcsv($file, [
+                    $p->name,
+                    $p->sku ?: '',
+                    $p->category->name ?? '',
+                    ucfirst((string) $p->type),
+                    $p->quantity,
+                    $threshold,
+                    $shortage,
+                    $p->sale_price ?? 0,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    protected function minimumStockAlertData(Request $request): array
+    {
+        $creatorId = $this->creatorId();
+        $globalThreshold = (float) (Utility::getValByName('pos_low_stock_threshold') ?: 10);
+        if ($request->filled('threshold')) {
+            $globalThreshold = (float) $request->threshold;
+        }
+
+        $categories = ProductServiceCategory::where('created_by', $creatorId)
+            ->where('type', 'product & service')
+            ->orderBy('name')
+            ->pluck('name', 'id');
+
+        $q = ProductService::with('category')
+            ->where('created_by', $creatorId)
+            ->whereIn('type', ['product', 'kit'])
+            ->where(function ($q) use ($globalThreshold) {
+                $q->where(function ($q2) {
+                    $q2->whereNotNull('low_stock_threshold')
+                        ->whereRaw('quantity <= low_stock_threshold');
+                })->orWhere(function ($q2) use ($globalThreshold) {
+                    $q2->whereNull('low_stock_threshold')
+                        ->whereRaw('quantity <= ?', [$globalThreshold]);
+                });
+            });
+
+        if ($request->filled('search')) {
+            $s = '%' . trim((string) $request->search) . '%';
+            $q->where(function ($qq) use ($s) {
+                $qq->where('name', 'like', $s)->orWhere('sku', 'like', $s);
+            });
+        }
+
+        if ($request->filled('category_id')) {
+            $q->where('category_id', (int) $request->category_id);
+        }
+
+        $products = $q->orderBy('quantity')->orderBy('name')->get();
+
+        return compact('products', 'categories', 'globalThreshold');
+    }
+
+    /**
+     * Batch/lot lines expiring within N days (still have remaining stock).
+     */
+    public function nearExpiry(Request $request)
+    {
+        $this->ensureStockReport();
+
+        ['rows' => $rows, 'warehouses' => $warehouses, 'days' => $days] = $this->nearExpiryData($request);
+
+        if ($request->boolean('print')) {
+            return $this->printResponse('reports.product.print.near_expiry', __('Products near expiry'), compact('rows'));
+        }
+
+        return view('reports.product.near_expiry', compact('rows', 'warehouses', 'days'));
+    }
+
+    public function nearExpiryExport(Request $request)
+    {
+        $this->ensureStockReport();
+
+        ['rows' => $rows, 'days' => $days] = $this->nearExpiryData($request);
+
+        $fileName = 'products_near_expiry_' . date('Y-m-d_His') . '.csv';
+        $headers = [
+            'Content-type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=$fileName",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($rows) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, [
+                __('Product'),
+                __('SKU'),
+                __('Batch / Lot'),
+                __('Warehouse'),
+                __('Expiry date'),
+                __('Days left'),
+                __('Qty remaining'),
+                __('Alert days'),
+            ]);
+
+            $today = Carbon::today();
+            foreach ($rows as $r) {
+                $expiry = $r->expiry_date ? Carbon::parse($r->expiry_date) : null;
+                $daysLeft = $expiry ? $today->diffInDays($expiry, false) : '';
+                fputcsv($file, [
+                    $r->product_name,
+                    $r->sku ?: '',
+                    $r->batch_no ?: '',
+                    $r->warehouse_name ?: '',
+                    $expiry ? $expiry->format('Y-m-d') : '',
+                    $daysLeft,
+                    $r->quantity_remaining,
+                    $r->expiry_alert_days ?? '',
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    protected function nearExpiryData(Request $request): array
+    {
+        $creatorId = $this->creatorId();
+        $days = max(1, min(365, (int) $request->input('days', 30)));
+        $today = now()->toDateString();
+        $until = now()->addDays($days)->toDateString();
+
+        $warehouses = warehouse::where('created_by', $creatorId)->orderBy('name')->get();
+
+        $q = DB::table('product_expiry_lots as l')
+            ->join('product_services as p', 'p.id', '=', 'l.product_id')
+            ->leftJoin('warehouses as w', 'w.id', '=', 'l.warehouse_id')
+            ->where('l.created_by', $creatorId)
+            ->where('p.created_by', $creatorId)
+            ->where('l.quantity_remaining', '>', 0)
+            ->whereNotNull('l.expiry_date')
+            ->where('l.expiry_date', '>=', $today)
+            ->where('l.expiry_date', '<=', $until);
+
+        if ($request->filled('warehouse_id')) {
+            $q->where('l.warehouse_id', (int) $request->warehouse_id);
+        }
+
+        if ($request->filled('search')) {
+            $s = '%' . trim((string) $request->search) . '%';
+            $q->where(function ($qq) use ($s) {
+                $qq->where('p.name', 'like', $s)
+                    ->orWhere('p.sku', 'like', $s)
+                    ->orWhere('l.batch_no', 'like', $s);
+            });
+        }
+
+        if ($request->boolean('use_product_alert_days')) {
+            $q->whereNotNull('p.expiry_alert_days')
+                ->where('p.expiry_alert_days', '>', 0)
+                ->whereRaw('l.expiry_date <= DATE_ADD(?, INTERVAL p.expiry_alert_days DAY)', [$today]);
+        }
+
+        $rows = $q->select([
+                'l.id',
+                'l.batch_no',
+                'l.expiry_date',
+                'l.mfg_date',
+                'l.quantity_remaining',
+                'l.warehouse_id',
+                'p.name as product_name',
+                'p.sku',
+                'p.expiry_alert_days',
+                'w.name as warehouse_name',
+            ])
+            ->orderBy('l.expiry_date')
+            ->orderBy('p.name')
+            ->get();
+
+        return compact('rows', 'warehouses', 'days');
+    }
+
+    /**
+     * Batch/lot lines that have already expired and still have remaining stock.
+     */
+    public function expiredProducts(Request $request)
+    {
+        $this->ensureStockReport();
+
+        ['rows' => $rows, 'warehouses' => $warehouses] = $this->expiredProductsData($request);
+
+        if ($request->boolean('print')) {
+            return $this->printResponse('reports.product.print.expired_products', __('Expired products'), compact('rows'));
+        }
+
+        return view('reports.product.expired_products', compact('rows', 'warehouses'));
+    }
+
+    public function expiredProductsExport(Request $request)
+    {
+        $this->ensureStockReport();
+
+        ['rows' => $rows] = $this->expiredProductsData($request);
+
+        $fileName = 'expired_products_' . date('Y-m-d_His') . '.csv';
+        $headers = [
+            'Content-type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=$fileName",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($rows) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, [
+                __('Product'),
+                __('SKU'),
+                __('Batch / Lot'),
+                __('Warehouse'),
+                __('Expiry date'),
+                __('Days overdue'),
+                __('Qty remaining'),
+            ]);
+
+            $today = Carbon::today();
+            foreach ($rows as $r) {
+                $expiry = $r->expiry_date ? Carbon::parse($r->expiry_date) : null;
+                $daysOverdue = $expiry ? $expiry->diffInDays($today) : '';
+                fputcsv($file, [
+                    $r->product_name,
+                    $r->sku ?: '',
+                    $r->batch_no ?: '',
+                    $r->warehouse_name ?: '',
+                    $expiry ? $expiry->format('Y-m-d') : '',
+                    $daysOverdue,
+                    $r->quantity_remaining,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    protected function expiredProductsData(Request $request): array
+    {
+        $creatorId = $this->creatorId();
+        $today = now()->toDateString();
+
+        $warehouses = warehouse::where('created_by', $creatorId)->orderBy('name')->get();
+
+        $q = DB::table('product_expiry_lots as l')
+            ->join('product_services as p', 'p.id', '=', 'l.product_id')
+            ->leftJoin('warehouses as w', 'w.id', '=', 'l.warehouse_id')
+            ->where('l.created_by', $creatorId)
+            ->where('p.created_by', $creatorId)
+            ->whereNotNull('l.expiry_date')
+            ->where('l.expiry_date', '<', $today);
+
+        $remaining = $request->input('remaining', 'with_stock');
+        if ($remaining === 'with_stock') {
+            $q->where('l.quantity_remaining', '>', 0);
+        } elseif ($remaining === 'depleted') {
+            $q->where('l.quantity_remaining', '<=', 0);
+        }
+
+        if ($request->filled('warehouse_id')) {
+            $q->where('l.warehouse_id', (int) $request->warehouse_id);
+        }
+
+        if ($request->filled('search')) {
+            $s = '%' . trim((string) $request->search) . '%';
+            $q->where(function ($qq) use ($s) {
+                $qq->where('p.name', 'like', $s)
+                    ->orWhere('p.sku', 'like', $s)
+                    ->orWhere('l.batch_no', 'like', $s);
+            });
+        }
+
+        $rows = $q->select([
+                'l.id',
+                'l.batch_no',
+                'l.expiry_date',
+                'l.mfg_date',
+                'l.quantity_remaining',
+                'l.warehouse_id',
+                'p.name as product_name',
+                'p.sku',
+                'w.name as warehouse_name',
+            ])
+            ->orderBy('l.expiry_date')
+            ->orderBy('p.name')
+            ->get();
+
+        return compact('rows', 'warehouses');
     }
 
     /**
@@ -276,6 +1106,66 @@ class ProductReportsController extends Controller
     {
         $this->ensureStockReport();
 
+        ['movements' => $movements, 'products' => $products] = $this->transactionsData($request);
+
+        if ($request->boolean('print')) {
+            return $this->printResponse('reports.product.print.transactions', __('Product transactions'), compact('movements'));
+        }
+
+        return view('reports.product.transactions', compact('movements', 'products'));
+    }
+
+    public function transactionsExport(Request $request)
+    {
+        $this->ensureStockReport();
+
+        ['movements' => $movements] = $this->transactionsData($request);
+
+        $fileName = 'product_transactions_' . date('Y-m-d_His') . '.csv';
+        $headers = [
+            'Content-type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=$fileName",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($movements) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, [
+                __('Date'),
+                __('Product'),
+                __('IN / OUT'),
+                __('Qty'),
+                __('Type'),
+                __('Reference'),
+            ]);
+
+            foreach ($movements as $m) {
+                $at = $m->at
+                    ? ($m->at instanceof \Carbon\Carbon
+                        ? $m->at->format('Y-m-d H:i')
+                        : Carbon::parse($m->at)->format('Y-m-d H:i'))
+                    : '';
+                fputcsv($file, [
+                    $at,
+                    $m->product_name,
+                    strtoupper((string) $m->direction),
+                    $m->quantity,
+                    ucfirst(str_replace('_', ' ', (string) $m->kind)),
+                    $m->reference,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    protected function transactionsData(Request $request): array
+    {
         $creatorId = $this->creatorId();
         $products = ProductService::where('created_by', $creatorId)
             ->where('type', 'product')
@@ -341,7 +1231,7 @@ class ProductReportsController extends Controller
 
         foreach ($wtQuery->orderByDesc('date')->orderByDesc('id')->limit(2000)->get() as $wt) {
             $name = $wt->product->name ?? ('#' . $wt->product_id);
-            $date = $wt->date ? \Carbon\Carbon::parse($wt->date)->startOfDay() : $wt->created_at;
+            $date = $wt->date ? Carbon::parse($wt->date)->startOfDay() : $wt->created_at;
             $qty = (float) $wt->quantity;
             $from = $wt->fromWarehouse->name ?? ('#' . $wt->from_warehouse);
             $to = $wt->toWarehouse->name ?? ('#' . $wt->to_warehouse);
@@ -376,7 +1266,7 @@ class ProductReportsController extends Controller
             return $m->at instanceof \Carbon\Carbon ? $m->at->timestamp : strtotime((string) $m->at);
         })->values();
 
-        return view('reports.product.transactions', compact('movements', 'products'));
+        return compact('movements', 'products');
     }
 
     protected function stockDirection(string $type): string
@@ -470,7 +1360,88 @@ class ProductReportsController extends Controller
             }
         }
 
+        if ($request->boolean('print')) {
+            $title = __('Last 5 supplies') . ($product ? (': ' . $product->name) : '');
+            return $this->printResponse('reports.product.print.last_supplies', $title, compact('lines', 'product'));
+        }
+
         return view('reports.product.last_supplies', compact('productList', 'lines', 'product'));
+    }
+
+    public function lastSuppliesExport(Request $request)
+    {
+        $this->ensureStockReport();
+
+        if (!$request->filled('product_id')) {
+            return redirect()->route('reports.product.last-supplies')
+                ->with('error', __('Please select a product.'));
+        }
+
+        $creatorId = $this->creatorId();
+        $product = ProductService::where('created_by', $creatorId)->find((int) $request->product_id);
+        if (!$product) {
+            return redirect()->route('reports.product.last-supplies')
+                ->with('error', __('Product not found.'));
+        }
+
+        $lines = PurchaseProduct::query()
+            ->join('purchases', 'purchase_products.purchase_id', '=', 'purchases.id')
+            ->leftJoin('venders', 'purchases.vender_id', '=', 'venders.id')
+            ->where('purchases.created_by', $creatorId)
+            ->where('purchase_products.product_id', $product->id)
+            ->select([
+                'purchase_products.*',
+                'purchases.purchase_date',
+                'purchases.purchase_id as purchase_seq',
+                'purchases.id as purchase_table_id',
+                'venders.name as supplier_name',
+            ])
+            ->orderByDesc('purchases.purchase_date')
+            ->orderByDesc('purchases.id')
+            ->limit(5)
+            ->get();
+
+        $safeName = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $product->name);
+        $fileName = 'last_supplies_' . $safeName . '_' . date('Y-m-d_His') . '.csv';
+
+        $headers = [
+            'Content-type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=$fileName",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($lines, $product) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, [
+                __('Product'),
+                __('Date'),
+                __('Purchase #'),
+                __('Supplier'),
+                __('Qty'),
+                __('Unit price'),
+                __('Line total'),
+            ]);
+
+            foreach ($lines as $line) {
+                $lineTotal = (float) $line->price * (float) $line->quantity - (float) $line->discount;
+                fputcsv($file, [
+                    $product->name,
+                    $line->purchase_date ? Carbon::parse($line->purchase_date)->format('Y-m-d') : '',
+                    \Auth::user()->purchaseNumberFormat($line->purchase_seq),
+                    $line->supplier_name ?? '',
+                    $line->quantity,
+                    $line->price,
+                    $lineTotal,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 
     /**
@@ -480,6 +1451,82 @@ class ProductReportsController extends Controller
     {
         $this->ensureStockReport();
 
+        ['warehouses' => $warehouses, 'byLocation' => $byLocation, 'byLocationFallback' => $byLocationFallback] = $this->locationCheckData($request);
+
+        if ($request->boolean('print')) {
+            return $this->printResponse('reports.product.print.location_check', __('Row & column check'), compact('byLocation', 'byLocationFallback'));
+        }
+
+        return view('reports.product.location_check', compact('byLocation', 'byLocationFallback', 'warehouses'));
+    }
+
+    public function locationCheckExport(Request $request)
+    {
+        $this->ensureStockReport();
+
+        ['byLocation' => $byLocation, 'byLocationFallback' => $byLocationFallback] = $this->locationCheckData($request);
+
+        $fileName = 'location_check_' . date('Y-m-d_His') . '.csv';
+        $headers = [
+            'Content-type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=$fileName",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($byLocation, $byLocationFallback) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, [
+                __('Source'),
+                __('Warehouse'),
+                __('Row'),
+                __('Shelf'),
+                __('Product'),
+                __('SKU'),
+                __('Qty'),
+            ]);
+
+            foreach ($byLocation as $key => $group) {
+                $locParts = array_pad(explode('|', $key, 3), 3, '—');
+                $hdr = $group->first();
+                foreach ($group as $r) {
+                    fputcsv($file, [
+                        __('Warehouse bins'),
+                        $hdr->warehouse_name ?? '',
+                        $locParts[1],
+                        $locParts[2],
+                        $r->product_name,
+                        $r->sku ?? '',
+                        $r->quantity,
+                    ]);
+                }
+            }
+
+            foreach ($byLocationFallback as $key => $group) {
+                $fbParts = array_pad(explode('|', $key, 3), 3, '—');
+                foreach ($group as $p) {
+                    fputcsv($file, [
+                        __('Product card location only'),
+                        '',
+                        $fbParts[1],
+                        $fbParts[2],
+                        $p->name,
+                        $p->sku ?? '',
+                        $p->quantity,
+                    ]);
+                }
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    protected function locationCheckData(Request $request): array
+    {
         $creatorId = $this->creatorId();
 
         $warehouses = warehouse::where('created_by', $creatorId)->orderBy('name')->get();
@@ -560,6 +1607,6 @@ class ProductReportsController extends Controller
             return 'card|' . ($row !== '' ? $row : '—') . '|' . ($shelf !== '' ? $shelf : '—');
         });
 
-        return view('reports.product.location_check', compact('byLocation', 'byLocationFallback', 'warehouses'));
+        return compact('warehouses', 'byLocation', 'byLocationFallback');
     }
 }

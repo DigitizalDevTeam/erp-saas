@@ -101,8 +101,8 @@
             padding: 18px 24px 14px;
         }
         .top-grid td { vertical-align: top; }
-        .logo-box { width: 150px; }
-        .logo-box img { max-width: 120px; max-height: 62px; }
+        .logo-box { width: 200px; }
+        .logo-box img { max-width: 180px; max-height: 90px; }
         .address-pill {
             display: inline-block;
             min-width: 330px;

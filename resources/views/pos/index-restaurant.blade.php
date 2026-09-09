@@ -257,7 +257,7 @@
                                 <li><a class="dropdown-item" href="{{ route('report.pos.day-summary', ['date' => date('Y-m-d')]) }}" target="_blank"><i class="ti ti-calendar-event me-2"></i>{{ __('Day Summary') }}</a></li>
                                 <li><a class="dropdown-item pos-eod-link" href="#" data-date="{{ date('Y-m-d') }}" data-bs-toggle="modal" data-bs-target="#posEodWarningModal"><i class="ti ti-calendar-off me-2"></i>{{ __('pos.day_closed') }} / {{ __('EOD Report') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('report.restaurant.sales-by-category') }}" target="_blank"><i class="ti ti-receipt me-2"></i>{{ __('Sales by Categories') }}</a></li>
-                                <li><a class="dropdown-item" href="{{ route('report.pos.low-stock') }}" target="_blank"><i class="ti ti-box me-2"></i>{{ __('Low Stock') }}</a></li>
+                                <li><a class="dropdown-item" href="{{ route('report.pos.low-stock') }}" target="_blank"><i class="ti ti-box me-2"></i>{{ __('Minimum Stock Alert') }}</a></li>
                                 <li><a class="dropdown-item" href="{{ route('pos-shift.index') }}" target="_blank"><i class="ti ti-calendar me-2"></i>{{ __('POS Shifts') }}</a></li>
                                 <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#payReceiptsModal"><i class="ti ti-receipt me-2"></i>{{ __('pos.pay_receipts') }}</a></li>
                                 @if(isset($posPinUser) && $posPinUser)

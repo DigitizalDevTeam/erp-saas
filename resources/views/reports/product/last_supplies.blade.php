@@ -9,7 +9,6 @@
 @endsection
 
 @section('content')
-    @if(!request('print'))
     <div class="card mb-3">
         <div class="card-body">
             <form method="get" action="{{ route('reports.product.last-supplies') }}" class="row g-3 align-items-end">
@@ -26,20 +25,18 @@
                     <button type="submit" class="btn btn-primary">{{ __('Show') }}</button>
                 </div>
                 @if($product && $lines->isNotEmpty())
-                    <div class="col-auto ms-auto">
-                        <a href="{{ route('reports.product.last-supplies', ['product_id' => $product->id, 'print' => 1]) }}" target="_blank" class="btn btn-outline-secondary"><i class="ti ti-printer"></i> {{ __('Print') }}</a>
+                    <div class="col-auto ms-auto d-flex flex-wrap gap-2">
+                        <a href="{{ route('reports.product.last-supplies.export', ['product_id' => $product->id]) }}" class="btn btn-primary">
+                            <i class="ti ti-file-export"></i> {{ __('Export CSV') }}
+                        </a>
+                        <a href="{{ route('reports.product.last-supplies', ['product_id' => $product->id, 'print' => 1]) }}" target="_blank" class="btn btn-secondary">
+                            <i class="ti ti-printer"></i> {{ __('Print') }}
+                        </a>
                     </div>
                 @endif
             </form>
         </div>
     </div>
-    @endif
-
-    @if(request('print'))
-        @push('script-page')
-            <script>window.onload = function () { window.print(); };</script>
-        @endpush
-    @endif
 
     @if($product)
         <div class="card">
