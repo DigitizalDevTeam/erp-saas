@@ -121,7 +121,7 @@
                     $(el.parent().parent().parent().find('.itemTaxPrice')).val(itemTaxPrice.toFixed(2));
                     $(el.parent().parent().parent().find('.itemTaxRate')).val(totalItemTaxRate.toFixed(2));
                     $(el.parent().parent().parent().find('.taxes')).html(taxes);
-                    $(el.parent().parent().parent().find('.tax')).val(tax);
+                    $(el.parent().parent().parent().find('.tax')).val(tax.length ? tax.join(',') : '0');
                     $(el.parent().parent().parent().find('.unit')).html(item.unit);
                     $(el.parent().parent().parent().find('.discount')).val(0);
                     $(el.parent().parent().parent().find('.amount')).html(item.totalAmount);
@@ -498,7 +498,7 @@
                                     <div class="form-group">
                                         <div class="input-group">
                                             <div class="taxes"></div>
-                                            {{ Form::hidden('tax','', array('class' => 'form-control tax')) }}
+                                            {{ Form::hidden('tax','0', array('class' => 'form-control tax')) }}
                                             {{ Form::hidden('itemTaxPrice','', array('class' => 'form-control itemTaxPrice')) }}
                                             {{ Form::hidden('itemTaxRate','', array('class' => 'form-control itemTaxRate')) }}
                                         </div>

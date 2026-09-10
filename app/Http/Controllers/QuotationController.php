@@ -117,18 +117,32 @@ class QuotationController extends Controller
             $quotations->save();
 
             $products = $request->items;
+            if (! is_array($products) || count($products) === 0) {
+                return redirect()->back()->with('error', __('Please add at least one product.'))->withInput();
+            }
 
             for($i = 0; $i < count($products); $i++)
             {
+                if (empty($products[$i]['item'])) {
+                    continue;
+                }
+                $tax = $products[$i]['tax'] ?? '0';
+                if (is_array($tax)) {
+                    $tax = implode(',', array_filter($tax, fn ($v) => $v !== null && $v !== ''));
+                }
+                if ($tax === null || $tax === '') {
+                    $tax = '0';
+                }
+
                 $quotationItems              = new QuotationProduct();
                 $quotationItems->quotation_id    = $quotations->id;
                 $quotationItems->product_id = $products[$i]['item'];
                 $quotationItems->product_variant_id = ! empty($products[$i]['product_variant_id']) ? (int) $products[$i]['product_variant_id'] : null;
-                $quotationItems->price      = $products[$i]['price'];
-                $quotationItems->quantity   = $products[$i]['quantity'];
-                $quotationItems->tax       = $products[$i]['tax'];
-                $quotationItems->discount        = $products[$i]['discount'];
-                $quotationItems->description = $products[$i]['description'];
+                $quotationItems->price      = $products[$i]['price'] ?? 0;
+                $quotationItems->quantity   = $products[$i]['quantity'] ?? 0;
+                $quotationItems->tax       = (string) $tax;
+                $quotationItems->discount        = $products[$i]['discount'] ?? 0;
+                $quotationItems->description = $products[$i]['description'] ?? '';
                 $quotationItems->save();
             }
 
@@ -253,10 +267,17 @@ class QuotationController extends Controller
                     }
 
                     $quotationProduct->quantity    = $products[$i]['quantity'];
-                    $quotationProduct->tax         = $products[$i]['tax'];
-                    $quotationProduct->discount    = $products[$i]['discount'];
+                    $tax = $products[$i]['tax'] ?? '0';
+                    if (is_array($tax)) {
+                        $tax = implode(',', array_filter($tax, fn ($v) => $v !== null && $v !== ''));
+                    }
+                    if ($tax === null || $tax === '') {
+                        $tax = '0';
+                    }
+                    $quotationProduct->tax         = (string) $tax;
+                    $quotationProduct->discount    = $products[$i]['discount'] ?? 0;
                     $quotationProduct->price       = $products[$i]['price'];
-                    $quotationProduct->description = $products[$i]['description'];
+                    $quotationProduct->description = $products[$i]['description'] ?? '';
                     $quotationProduct->product_variant_id = ! empty($products[$i]['product_variant_id'])
                         ? (int) $products[$i]['product_variant_id']
                         : null;
