@@ -10,7 +10,7 @@
 .mz-factura.a4 .doc h1 { font-size:22pt; }
 .mz-factura .doc-number { font-size:10pt; font-weight:700; margin:2mm 0; color:#fff; }
 .mz-factura .copy { display:inline-block; border:1px solid #7fa895; padding:1mm 2mm; border-radius:10mm; font-size:7pt; font-weight:700; color:#fff; }
-.mz-factura .logo { max-width:48mm; max-height:18mm; object-fit:contain; margin-bottom:2mm; }
+.mz-factura img.logo { max-width:120px; max-height:56px; width:auto; height:auto; object-fit:contain; margin-bottom:2mm; display:block; }
 .mz-factura .company { line-height:1.45; font-size:7.5pt; color:#111; }
 .mz-factura .company strong { font-size:10pt; color:#111; }
 .mz-factura .top-meta { display:grid; grid-template-columns:repeat(4,1fr); background:var(--soft); border-top:1px solid var(--line); }

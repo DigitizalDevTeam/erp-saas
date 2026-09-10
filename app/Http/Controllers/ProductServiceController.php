@@ -1442,7 +1442,18 @@ class ProductServiceController extends Controller
                 }
             }
 
-            if (!$product || ($isPosSession && $productquantity == 0)) {
+            if (!$product) {
+                return response()->json(
+                    [
+                        'code' => 404,
+                        'status' => 'Error',
+                        'error' => __('This Product is not found!'),
+                    ],
+                    404
+                );
+            }
+
+            if ($isPosSession && $productquantity == 0) {
                 return response()->json(
                     [
                         'code' => 404,
@@ -1785,11 +1796,14 @@ class ProductServiceController extends Controller
                 ]
             );
         } else {
+            $msg = !$request->ajax()
+                ? __('This endpoint must be called via AJAX from POS.')
+                : __('This Product is not found!');
             return response()->json(
                 [
                     'code' => 404,
                     'status' => 'Error',
-                    'error' => __('This Product is not found!'),
+                    'error' => $msg,
                 ],
                 404
             );

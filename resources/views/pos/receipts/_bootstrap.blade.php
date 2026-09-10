@@ -2,7 +2,15 @@
 <style id="pos-receipt-styles">
     .pos-print-header .header-sep { border-bottom: 1px dotted #333; margin: 6px 0; }
     .pos-print-header .logo-box { max-width: 100px; height: 56px; margin: 0 auto 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #fff; }
-    .pos-print-header .logo-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .pos-print-header .logo-box img,
+    #printarea .logo-box img,
+    .modal-body #printarea .logo-box img {
+        max-width: 100px !important;
+        max-height: 56px !important;
+        width: auto !important;
+        height: auto !important;
+        object-fit: contain;
+    }
     .pos-compact-kv { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; color: #111; font-size: 0.9rem; }
     .pos-compact-kv .k { color: #222; font-weight: 600; white-space: nowrap; }
     .pos-compact-kv .v { text-align: right; color: #111; word-break: break-word; }

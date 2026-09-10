@@ -5,6 +5,22 @@
     .view-qrcode-receipt img { max-width: 70px; height: auto; display: block; }
     .view-qrcode-receipt-svg { line-height: 0; }
     .view-qrcode-receipt-svg svg { display: block !important; width: 100% !important; height: 100% !important; max-width: 100%; max-height: 100%; }
+    /* Beat Bootstrap .modal-body img { max-width:100% } so logos stay small in View Bill */
+    #printarea img.logo,
+    #printarea .mz-factura img.logo,
+    #printarea .mz-talao img.logo,
+    .modal-body #printarea img.logo {
+        max-width: 120px !important;
+        max-height: 56px !important;
+        width: auto !important;
+        height: auto !important;
+        object-fit: contain;
+    }
+    .pos-print-layout-slip #printarea img.logo,
+    .pos-print-layout-slip #printarea .mz-talao img.logo {
+        max-width: 96px !important;
+        max-height: 44px !important;
+    }
     .pos-print-layout-slip #printarea { max-width: 80mm; margin-left: auto; margin-right: auto; }
     .pos-print-layout-a5 #printarea { max-width: 148mm; margin-left: auto; margin-right: auto; }
     .pos-print-layout-a4 #printarea,

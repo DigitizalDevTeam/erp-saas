@@ -5,7 +5,7 @@
 .mz-talao .right { text-align: right; }
 .mz-talao .bold { font-weight: 700; }
 .mz-talao .small { font-size: 8px; }
-.mz-talao .logo { max-width: 38mm; max-height: 15mm; margin: 0 auto 2mm; display: block; object-fit: contain; }
+.mz-talao img.logo { max-width: 96px; max-height: 44px; width: auto; height: auto; margin: 0 auto 2mm; display: block; object-fit: contain; }
 .mz-talao h1.doc-type { font-size: 13px; margin: 2mm 0 .5mm; text-transform: uppercase; letter-spacing: .3px; color: #111; }
 .mz-talao .document-no { font-weight: 700; font-size: 11px; color: #111; }
 .mz-talao .rule { border-top: 1px dashed #000; margin: 2mm 0; }

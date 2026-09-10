@@ -3222,14 +3222,33 @@
                     var rawVL = $el.attr('data-variants');
                     var vlist = [];
                     try { vlist = rawVL ? JSON.parse(rawVL) : []; } catch (vex) { vlist = []; }
-                    if (vlist.length) {
+                    var openVariantModal = function (list) {
+                        if (!list || !list.length) {
+                            if (typeof show_toastr === 'function') {
+                                show_toastr('{{ __("Error") }}', '{{ __("Select size / color variant for this product.") }}', 'error');
+                            }
+                            return;
+                        }
                         var $sel = $('#posVariantPickerSelect').empty();
-                        vlist.forEach(function (v) {
+                        list.forEach(function (v) {
                             var ps = (v.sale_price != null && v.sale_price !== '') ? (' — ' + v.sale_price) : '';
-                            $sel.append($('<option/>').val(v.id).text((v.label || '') + ps));
+                            $sel.append($('<option/>').val(v.id).text((v.label || ((v.size || '') + ' / ' + (v.color || ''))) + ps));
                         });
                         $('#posVariantPickerModal').data('posVariantCtx', { $el: $el, $btn: $btn, wasDisabled: wasDisabled, ctx: ctx });
                         $('#posVariantPickerModal').modal('show');
+                    };
+                    if (vlist.length) {
+                        openVariantModal(vlist);
+                        return;
+                    }
+                    var pid = $el.data('product-id');
+                    if (pid) {
+                        $.get('{{ url("productservice") }}/' + pid + '/variants-json', function (resp) {
+                            var list = (resp && resp.variants) ? resp.variants : [];
+                            openVariantModal(list);
+                        }).fail(function () {
+                            openVariantModal([]);
+                        });
                         return;
                     }
                 }

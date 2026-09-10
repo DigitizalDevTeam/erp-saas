@@ -2507,6 +2507,157 @@
                 posMeasureState = null;
             });
 
+            function posFillVariantPickerSelect(vlist) {
+                var $sel = $('#posVariantPickerSelect').empty();
+                (vlist || []).forEach(function (v) {
+                    var ps = (v.sale_price != null && v.sale_price !== '') ? (' — ' + v.sale_price) : '';
+                    $sel.append($('<option/>').val(v.id).text((v.label || ((v.size || '') + ' / ' + (v.color || ''))) + ps).attr('data-sale-price', v.sale_price != null ? v.sale_price : ''));
+                });
+            }
+
+            function posOpenVariantPickerThen($el, proceedFn) {
+                var rawVL = $el.attr('data-variants');
+                var vlist = [];
+                try { vlist = rawVL ? JSON.parse(rawVL) : []; } catch (vex) { vlist = []; }
+                var showModal = function (list) {
+                    if (!list || !list.length) {
+                        if (typeof show_toastr === 'function') {
+                            show_toastr('{{ __("Error") }}', '{{ __("Select size / color variant for this product.") }}', 'error');
+                        }
+                        return;
+                    }
+                    posFillVariantPickerSelect(list);
+                    $('#posVariantPickerModal').data('posVariantCtx', { $el: $el, proceed: proceedFn });
+                    $('#posVariantPickerModal').modal('show');
+                };
+                if (vlist.length) {
+                    showModal(vlist);
+                    return;
+                }
+                var pid = $el.data('product-id');
+                if (!pid) {
+                    showModal([]);
+                    return;
+                }
+                $.get('{{ url("productservice") }}/' + pid + '/variants-json', function (resp) {
+                    var list = (resp && resp.variants) ? resp.variants : [];
+                    if (list.length) {
+                        try { $el.attr('data-variants', JSON.stringify(list)); } catch (e) {}
+                    }
+                    showModal(list);
+                }).fail(function () {
+                    showModal([]);
+                });
+            }
+
+            $(document).on('click', '#posVariantPickerConfirm', function () {
+                var $modal = $('#posVariantPickerModal');
+                var d = $modal.data('posVariantCtx');
+                $modal.modal('hide');
+                if (!d || !d.$el || typeof d.proceed !== 'function') return;
+                var vid = $('#posVariantPickerSelect').val();
+                if (!vid) return;
+                var salePrice = $('#posVariantPickerSelect option:selected').attr('data-sale-price');
+                if (salePrice !== undefined && salePrice !== '' && !isNaN(parseFloat(salePrice))) {
+                    d.$el.attr('data-product-price', parseFloat(salePrice));
+                    d.$el.data('product-price', parseFloat(salePrice));
+                }
+                d.proceed(vid);
+            });
+
+            var posProductOptionsJsonBase = @json(url('/productservice'));
+
+            function posProductHasOptions($el) {
+                return String($el.attr('data-options-enabled')) === '1';
+            }
+
+            function posOpenOptionsModal($el, optsList, onDone) {
+                if (!window.ErpProductOptions || typeof window.ErpProductOptions.open !== 'function') {
+                    if (typeof show_toastr === 'function') {
+                        show_toastr('{{ __("Error") }}', '{{ __("Options picker failed to load. Refresh the page.") }}', 'error');
+                    }
+                    return;
+                }
+                if (!optsList || !optsList.length) {
+                    if (typeof show_toastr === 'function') {
+                        show_toastr('{{ __("Error") }}', '{{ __("No options configured for this product.") }}', 'error');
+                    }
+                    return;
+                }
+                var item = {
+                    product: {
+                        name: $el.attr('data-product-name') || $el.data('productName') || '',
+                        sale_price: parseFloat($el.attr('data-product-price') || $el.data('productPrice')) || 0,
+                        purchase_price: parseFloat($el.attr('data-product-price') || $el.data('productPrice')) || 0
+                    },
+                    options: optsList
+                };
+                window.ErpProductOptions.open(item, function (selected) {
+                    onDone(selected || []);
+                }, { forPurchase: false });
+            }
+
+            function posLoadProductOptions($el, done) {
+                var productId = $el.attr('data-product-id') || $el.data('productId');
+                if (!productId) {
+                    done(null, []);
+                    return;
+                }
+                $.ajax({
+                    url: posProductOptionsJsonBase + '/' + String(productId) + '/options-json',
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function (resp) {
+                        if (resp && resp.options_enabled) {
+                            $el.attr('data-options-enabled', '1');
+                        }
+                        var list = (resp && resp.options) ? resp.options : [];
+                        if (list.length) {
+                            try { $el.attr('data-options', JSON.stringify(list)); } catch (e) {}
+                        }
+                        done(resp, list);
+                    },
+                    error: function () {
+                        done(null, []);
+                    }
+                });
+            }
+
+            function posOpenOptionsThen($el, onDone) {
+                var rawO = $el.attr('data-options');
+                var opts = [];
+                try { opts = rawO ? JSON.parse(rawO) : []; } catch (e) { opts = []; }
+
+                if (posProductHasOptions($el) && opts.length) {
+                    posOpenOptionsModal($el, opts, onDone);
+                    return;
+                }
+
+                if (!posProductHasOptions($el) && !opts.length) {
+                    posLoadProductOptions($el, function (resp, list) {
+                        if (resp && resp.options_enabled && list.length) {
+                            posOpenOptionsModal($el, list, onDone);
+                        } else {
+                            onDone(null);
+                        }
+                    });
+                    return;
+                }
+
+                if (posProductHasOptions($el)) {
+                    posLoadProductOptions($el, function (resp, list) {
+                        if (list.length) {
+                            posOpenOptionsModal($el, list, onDone);
+                        } else if (typeof show_toastr === 'function') {
+                            show_toastr('{{ __("Error") }}', '{{ __("No options configured for this product.") }}', 'error');
+                        }
+                    });
+                    return;
+                }
+
+                onDone(null);
+            }
+
             $(document).on('click', '.toacart', function () {
                 var $el = $(this);
                 var $btn = $el.find('.pos-add-cart-btn, button').first();
@@ -2514,8 +2665,12 @@
                 var tbodySel = isRestaurant ? '#tbody-restaurant' : '#tbody';
                 var rowIdPrefix = isRestaurant ? 'product-id-r-' : 'product-id-';
                 var totalSel = isRestaurant ? '#pos-restaurant-total' : '#displaytotal, .totalamount';
-                var runAddToCart = function (measureData) {
+                var runAddToCart = function (measureData, productVariantId, selectedOptions) {
                 if (!navigator.onLine && $el.data('product-id')) {
+                    if (String($el.attr('data-variants-enabled')) === '1' || posProductHasOptions($el)) {
+                        if (typeof show_toastr === 'function') show_toastr('error', '{{ __("Variant products require online mode.") }}', 'error');
+                        return;
+                    }
                     var id = $el.data('product-id');
                     var name = $el.data('product-name') || '';
                     var price = measureData ? (parseFloat(measureData.measured_price) || 0) : (parseFloat($el.data('product-price')) || 0);
@@ -2580,6 +2735,12 @@
                     addToCartUrl += (addToCartUrl.indexOf('?') !== -1 ? '&' : '?') + 'measured_price=' + encodeURIComponent(measureData.measured_price);
                     addToCartUrl += '&line_suffix=' + encodeURIComponent(measureData.line_suffix);
                     addToCartUrl += '&measurement_json=' + encodeURIComponent(JSON.stringify(measureData));
+                }
+                if (productVariantId) {
+                    addToCartUrl += (addToCartUrl.indexOf('?') !== -1 ? '&' : '?') + 'product_variant_id=' + encodeURIComponent(productVariantId);
+                }
+                if (selectedOptions && selectedOptions.length) {
+                    addToCartUrl += (addToCartUrl.indexOf('?') !== -1 ? '&' : '?') + 'selected_options=' + encodeURIComponent(JSON.stringify(selectedOptions));
                 }
                 $.ajax({
                     url: addToCartUrl,
@@ -2649,14 +2810,26 @@
                     }
                 });
                 };
-                if (posMeasurementNeeded($el)) {
-                    posOpenMeasureModal($el, function (measureData) {
-                        if (measureData === false) return;
-                        runAddToCart(measureData);
+                var proceedAfterOptions = function (variantId, selectedOptions) {
+                    if (posMeasurementNeeded($el)) {
+                        posOpenMeasureModal($el, function (measureData) {
+                            if (measureData === false) return;
+                            runAddToCart(measureData, variantId || null, selectedOptions || null);
+                        });
+                        return;
+                    }
+                    runAddToCart(null, variantId || null, selectedOptions || null);
+                };
+                var proceedAfterVariant = function (variantId) {
+                    posOpenOptionsThen($el, function (selectedOptions) {
+                        proceedAfterOptions(variantId, selectedOptions);
                     });
+                };
+                if (navigator.onLine && String($el.attr('data-variants-enabled')) === '1') {
+                    posOpenVariantPickerThen($el, proceedAfterVariant);
                     return;
                 }
-                runAddToCart(null);
+                proceedAfterVariant(null);
             });
 
             $(document).on('click', '.pos-offline-remove', function(e) {
@@ -3095,6 +3268,8 @@
             });
         })();
     </script>
+@include('pos.partials.variant-picker-modal')
+@include('partials.product-options-picker')
 <div class="modal fade" id="posMeasureModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-sm">
         <div class="modal-content">
