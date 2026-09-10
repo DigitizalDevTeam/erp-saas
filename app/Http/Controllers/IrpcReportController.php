@@ -14,7 +14,8 @@ class IrpcReportController extends Controller
 
     public function index(Request $request)
     {
-        if (! \Auth::user()->can('tax report')) {
+        if (! \Auth::user()->can('menu.dashboard.accounting.reports.monthly.irpc_payment_guide')
+            && ! \Auth::user()->can('tax report')) {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 

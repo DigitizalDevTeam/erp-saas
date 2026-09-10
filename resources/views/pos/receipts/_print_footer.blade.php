@@ -48,26 +48,32 @@ var posDirectPrint = {{ $directPrint ? 'true' : 'false' }};
         }
         var html = printarea.innerHTML;
         clones.forEach(function(c) { c.remove(); });
-        var receiptStyles = '';
-        var styleEl = document.getElementById('pos-receipt-styles');
-        if (styleEl && styleEl.innerHTML) receiptStyles = styleEl.innerHTML;
+        // Collect ALL receipt <style> blocks (shared + layout-specific e.g. compact3),
+        // not only #pos-receipt-styles — otherwise header centering/layout CSS is lost in print.
+        var styleChunks = [];
+        var styleRoot = printarea.parentElement || document;
+        styleRoot.querySelectorAll('style').forEach(function (el) {
+            if (el && el.innerHTML) styleChunks.push(el.innerHTML);
+        });
+        if (!styleChunks.length) {
+            var styleEl = document.getElementById('pos-receipt-styles');
+            if (styleEl && styleEl.innerHTML) styleChunks.push(styleEl.innerHTML);
+        }
+        var receiptStyles = styleChunks.join('\n');
         var printWin = window.open('', '_blank', 'width=800,height=600');
         if (!printWin) {
             window.print();
             return;
         }
         var doc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{{ __("Receipt") }}</title>';
-        doc += '<link rel="stylesheet" href="{{ asset("assets/css/plugins/main.css") }}">';
-        doc += '<link rel="stylesheet" href="{{ asset("assets/css/style.css") }}">';
-        doc += '<link rel="stylesheet" href="{{ asset("css/custom.css") }}">';
         var layout = (typeof posPrintLayout !== 'undefined' ? posPrintLayout : 'receipt');
-        doc += '<style>body{background:#fff;margin:0;padding:12px;font-family:Arial,sans-serif;color:#111}';
+        doc += '<style>body{background:#fff;margin:0;padding:12px;font-family:Arial,Helvetica,sans-serif;color:#111}';
         if (layout === 'slip') {
-            doc += '#printarea{width:80mm;max-width:100%}';
+            doc += '#printarea{width:80mm;max-width:100%;margin:0 auto}';
         } else if (layout === 'a5') {
-            doc += '#printarea{width:100%;max-width:148mm}';
+            doc += '#printarea{width:100%;max-width:148mm;margin:0 auto}';
         } else {
-            doc += '#printarea{width:100%;max-width:210mm}';
+            doc += '#printarea{width:100%;max-width:210mm;margin:0 auto}';
         }
         doc += receiptStyles + '</style></head><body class="pos-print-layout-' + layout + '"><div id="printarea" class="pos-print-layout-' + layout + '">' + html + '</div></body></html>';
         printWin.document.write(doc);

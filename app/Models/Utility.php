@@ -223,13 +223,13 @@ namespace App\Models;
         /**
          * Slip style for live POS/Restaurant receipts and Quotation compact downloads.
          *
-         * @param  string|null  $layout  Raw setting: existing | compact1 | compact2
+         * @param  string|null  $layout  Raw setting: existing | compact1 | compact2 | compact3
          */
         public static function normalizeReceiptLayout(?string $layout): string
         {
             $layout = ($layout !== null && $layout !== '') ? $layout : 'existing';
 
-            return in_array($layout, ['existing', 'compact1', 'compact2'], true) ? $layout : 'existing';
+            return in_array($layout, ['existing', 'compact1', 'compact2', 'compact3'], true) ? $layout : 'existing';
         }
 
         /**
@@ -243,6 +243,7 @@ namespace App\Models;
             return match ($layout) {
                 'compact1' => 'pos.receipts.compact1',
                 'compact2' => 'pos.receipts.compact2',
+                'compact3' => 'pos.receipts.compact3',
                 default => 'pos.printview',
             };
         }
@@ -361,6 +362,7 @@ namespace App\Models;
                 "pos_receipt_layout" => "existing",
                 "quotation_receipt_layout" => "existing",
                 "pos_receipt_printer" => "browser",
+                "pos_qr_display" => "on",
                 "pos_direct_print" => "off",
 
                 // Sales stock deduction timing: 'invoice' or 'delivery_note'

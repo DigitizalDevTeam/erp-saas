@@ -21,6 +21,10 @@ $balancePaymentExtra = $balancePaymentExtra ?? null;
 $receiptUser = $receiptUser ?? null;
 $priceUser = $receiptUser ?? Auth::user();
 $printLayout = Utility::normalizePosPrintLayout($settings['pos_print_layout'] ?? 'receipt');
+// For existing printview + restaurant, prefer 80mm slip paper when not already set.
+if ($printSource === 'restaurant' && $printLayout === 'receipt') {
+    $printLayout = 'slip';
+}
 $directPrint = (isset($settings['pos_direct_print']) && $settings['pos_direct_print'] === 'on');
 
 $hasCreditPayment = ! empty($posPayments) && $posPayments->isNotEmpty() && $posPayments->contains(function ($p) {
@@ -37,12 +41,14 @@ $dueDate = $creditPmt && ! empty($creditPmt->credit_terms)
     ? \Carbon\Carbon::now()->addDays((int) $creditPmt->credit_terms)->format($settings['date_format'] ?? 'Y-m-d')
     : null;
 
-$logoPath = asset(Storage::url('uploads/logo/'));
+$logoBase = rtrim((string) Utility::get_file('uploads/logo'), '/');
 $company_logo = Utility::getValByName('company_logo_dark');
 $pos_logo = Utility::getValByName('pos_logo');
-$headerLogo = (isset($pos_logo) && $pos_logo)
-    ? Utility::get_file('pos_logo/') . $pos_logo
-    : $logoPath . '/' . ($company_logo ?? 'logo-dark.png');
+if (! empty($pos_logo)) {
+    $headerLogo = rtrim((string) Utility::get_file('pos_logo'), '/') . '/' . ltrim((string) $pos_logo, '/');
+} else {
+    $headerLogo = $logoBase . '/' . ltrim((string) ($company_logo ?: 'logo-dark.png'), '/');
+}
 
 $clientName = $details['client_name']
     ?? ($details['customer']['name'] ?? __('pos.walkin_customer'));
@@ -72,6 +78,7 @@ $docNumber = $details['pos_id'] ?? '—';
 $docDate = $details['date'] ?? date('Y-m-d');
 $docDateTime = $docDate . ' ' . date('H:i:s');
 $operatorName = $receiptUser->name ?? (Auth::user()->name ?? '—');
+$operatorEmail = $receiptUser->email ?? (Auth::user()->email ?? $companyEmail);
 $branchName = $details['branch']['name'] ?? ($details['warehouse']['name'] ?? '—');
 $copyLabel = $segundaVia ? __('Copy') : __('Original');
 
@@ -120,6 +127,29 @@ $ivaTotalNum = 0.0;
 foreach ($vatBreakdown as $row) {
     $ivaTotalNum += (float) ($row['vat'] ?? 0);
 }
+
+$parseMoney = function ($v) {
+    if (is_numeric($v)) {
+        return (float) $v;
+    }
+    $s = preg_replace('/[^\d.,\-]/', '', (string) $v);
+    if ($s === null || $s === '') {
+        return 0.0;
+    }
+    if (strpos($s, ',') !== false && strpos($s, '.') !== false) {
+        $s = str_replace(',', '', $s);
+    } else {
+        $s = str_replace(',', '.', $s);
+    }
+
+    return (float) $s;
+};
+
+if ($ivaTotalNum <= 0 && ! empty($sales['data'])) {
+    foreach ($sales['data'] as $line) {
+        $ivaTotalNum += $parseMoney($line['tax_amount'] ?? 0);
+    }
+}
 $ivaTotalFmt = $fmt($ivaTotalNum);
 
 $paidFmt = $fmt($paidTotal);
@@ -130,7 +160,16 @@ $trocoPendenteValue = $showPendente
     ? $fmt($creditTotal > 0 ? $creditTotal : 0)
     : $fmt($changeTotal);
 
-$amountInWords = Utility::amountInWords($paidTotal > 0 ? $paidTotal : $ivaTotalNum);
+$saleTotalNum = $parseMoney($sales['total'] ?? 0);
+if ($saleTotalNum <= 0 && ! empty($sales['data'])) {
+    foreach ($sales['data'] as $line) {
+        $saleTotalNum += $parseMoney($line['subtotal'] ?? 0);
+    }
+}
+$amountInWordsSource = $saleTotalNum > 0 ? $saleTotalNum : ($paidTotal > 0 ? $paidTotal : 0);
+$amountInWords = Utility::amountInWords($amountInWordsSource);
+
+$hasPayments = ! empty($posPayments) && $posPayments->isNotEmpty() && $paidTotal > 0;
 
 $qrSvg = null;
 $qrHtml = '';
@@ -145,6 +184,14 @@ if (empty($qrSvg)) {
     } catch (\Throwable $e) {
         $qrHtml = '';
     }
+}
+
+$barcodeSvg = null;
+$barcodeCode = preg_replace('/[^A-Za-z0-9\-]/', '', (string) $docNumber) ?: '0';
+try {
+    $barcodeSvg = \DNS1D::getBarcodeSVG($barcodeCode, 'C128', 1.2, 40);
+} catch (\Throwable $e) {
+    $barcodeSvg = null;
 }
 
 $standardPartial = match ($printLayout) {

@@ -14,7 +14,8 @@ class MonthlyIrpsReportController extends Controller
 {
     public function modelo19(Request $request)
     {
-        if (!\Auth::user()->can('manage report')) {
+        if (!\Auth::user()->can('menu.dashboard.accounting.reports.monthly.irps_modelo_19')
+            && !\Auth::user()->can('manage report')) {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 
@@ -151,7 +152,8 @@ class MonthlyIrpsReportController extends Controller
      */
     public function modelo22(Request $request)
     {
-        if (! \Auth::user()->can('manage report')) {
+        if (! \Auth::user()->can('menu.dashboard.accounting.reports.monthly.irps_modelo_22')
+            && ! \Auth::user()->can('manage report')) {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 

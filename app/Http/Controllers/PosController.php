@@ -3233,13 +3233,13 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $pos->totalDiscount = $totalDiscount;
         $pos->taxesData = $taxesData;
 
-        $logo = asset(Storage::url('uploads/logo/'));
-        $company_logo = Utility::getValByName('company_logo_dark');
+        $logoBase = rtrim((string) Utility::get_file('uploads/logo'), '/');
+        $company_logo = Utility::getValByName('company_logo_dark') ?: 'logo-dark.png';
         $pos_logo = Utility::getValByName('pos_logo');
-        if (isset($pos_logo) && !empty($pos_logo)) {
-            $img = Utility::get_file('pos_logo/') . $pos_logo;
+        if (! empty($pos_logo)) {
+            $img = rtrim((string) Utility::get_file('pos_logo'), '/') . '/' . ltrim((string) $pos_logo, '/');
         } else {
-            $img = asset($logo . '/' . (isset($company_logo) && !empty($company_logo) ? $company_logo : 'logo-dark.png'));
+            $img = $logoBase . '/' . ltrim((string) $company_logo, '/');
         }
 
         if ($pos) {
@@ -3332,16 +3332,15 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $color = '#' . $color;
         $font_color = Utility::getFontColor($color);
 
-        $logo = asset(Storage::url('uploads/logo/'));
-
-        $company_logo = Utility::getValByName('company_logo_dark');
+        $logoBase = rtrim((string) Utility::get_file('uploads/logo'), '/');
+        $company_logo = Utility::getValByName('company_logo_dark') ?: 'logo-dark.png';
         $settings_data = \App\Models\Utility::settingsById($pos->created_by);
-        $pos_logo = $settings_data['pos_logo'];
+        $pos_logo = $settings_data['pos_logo'] ?? Utility::getValByName('pos_logo');
 
-        if (isset($pos_logo) && !empty($pos_logo)) {
-            $img = Utility::get_file('pos_logo/') . $pos_logo;
+        if (! empty($pos_logo)) {
+            $img = rtrim((string) Utility::get_file('pos_logo'), '/') . '/' . ltrim((string) $pos_logo, '/');
         } else {
-            $img = asset($logo . '/' . (isset($company_logo) && !empty($company_logo) ? $company_logo : 'logo-dark.png'));
+            $img = $logoBase . '/' . ltrim((string) $company_logo, '/');
         }
 
         return view('pos.templates.' . $template, compact('pos', 'preview', 'color', 'img', 'settings', 'customer', 'font_color', 'posPayment'));
@@ -3357,6 +3356,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $post['pos_color'] = "ffffff";
         }
         $post['pos_direct_print'] = ($request->input('pos_direct_print') === 'on') ? 'on' : 'off';
+        $post['pos_qr_display'] = ($request->input('pos_qr_display') === 'on') ? 'on' : 'off';
         $post['pos_print_layout'] = Utility::normalizePosPrintLayout($request->input('pos_print_layout'));
         $post['pos_receipt_layout'] = Utility::normalizeReceiptLayout($request->input('pos_receipt_layout'));
 
@@ -3868,7 +3868,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $productServices = ProductService::where('created_by', $user->creatorId())->get();
         $barcode = ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()];
 
-        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource'));
+        // Use selected Slip Layout (existing / compact1–3) for restaurant View Bill.
+        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource', 'settings'));
     }
 
     /**

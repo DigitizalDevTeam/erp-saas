@@ -27,11 +27,16 @@ class ProductReportsController extends Controller
         return (int) \Auth::user()->creatorId();
     }
 
-    protected function ensureStockReport(): void
+    protected function ensureStockReport(?string $menuPermission = null): void
     {
-        if (! \Auth::user()->can('stock report')) {
-            abort(403, __('Permission Denied.'));
+        $user = \Auth::user();
+        if ($menuPermission && $user->can($menuPermission)) {
+            return;
         }
+        if ($user->can('stock report')) {
+            return;
+        }
+        abort(403, __('Permission Denied.'));
     }
 
     protected function printResponse(string $view, string $title, array $data = [])
@@ -41,7 +46,7 @@ class ProductReportsController extends Controller
 
     public function index()
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.overview');
 
         return view('reports.product.index');
     }
@@ -51,7 +56,7 @@ class ProductReportsController extends Controller
      */
     public function storeCheck(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.store_check');
 
         $creatorId = $this->creatorId();
         $periodType = $request->input('period_type', 'all');
@@ -143,7 +148,7 @@ class ProductReportsController extends Controller
      */
     public function storeStockAudit(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.store_check');
 
         $creatorId = $this->creatorId();
 
@@ -242,7 +247,7 @@ class ProductReportsController extends Controller
      */
     public function warehouseStock(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.warehouse_stock');
 
         $creatorId = $this->creatorId();
         $warehouses = warehouse::where('created_by', $creatorId)->orderBy('name')->get();
@@ -288,7 +293,7 @@ class ProductReportsController extends Controller
      */
     public function totalStockValue(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.total_stock_value');
 
         [
             'rows' => $rows,
@@ -305,7 +310,7 @@ class ProductReportsController extends Controller
 
     public function totalStockValueExport(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.total_stock_value');
 
         ['rows' => $rows, 'totals' => $totals] = $this->totalStockValueData($request);
 
@@ -500,7 +505,7 @@ class ProductReportsController extends Controller
      */
     public function highRotation(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.high_rotation');
 
         [
             'rows' => $rows,
@@ -519,7 +524,7 @@ class ProductReportsController extends Controller
 
     public function highRotationExport(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.high_rotation');
 
         ['rows' => $rows] = $this->highRotationData($request);
 
@@ -660,7 +665,7 @@ class ProductReportsController extends Controller
      */
     public function outOfStock(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.out_of_stock');
 
         ['products' => $products, 'categories' => $categories] = $this->outOfStockData($request);
 
@@ -673,7 +678,7 @@ class ProductReportsController extends Controller
 
     public function outOfStockExport(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.out_of_stock');
 
         ['products' => $products] = $this->outOfStockData($request);
 
@@ -750,7 +755,7 @@ class ProductReportsController extends Controller
      */
     public function minimumStockAlert(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.minimum_stock_alert');
 
         [
             'products' => $products,
@@ -767,7 +772,7 @@ class ProductReportsController extends Controller
 
     public function minimumStockAlertExport(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.minimum_stock_alert');
 
         ['products' => $products, 'globalThreshold' => $globalThreshold] = $this->minimumStockAlertData($request);
 
@@ -862,7 +867,7 @@ class ProductReportsController extends Controller
      */
     public function nearExpiry(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.near_expiry');
 
         ['rows' => $rows, 'warehouses' => $warehouses, 'days' => $days] = $this->nearExpiryData($request);
 
@@ -875,7 +880,7 @@ class ProductReportsController extends Controller
 
     public function nearExpiryExport(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.near_expiry');
 
         ['rows' => $rows, 'days' => $days] = $this->nearExpiryData($request);
 
@@ -986,7 +991,7 @@ class ProductReportsController extends Controller
      */
     public function expiredProducts(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.expired_products');
 
         ['rows' => $rows, 'warehouses' => $warehouses] = $this->expiredProductsData($request);
 
@@ -999,7 +1004,7 @@ class ProductReportsController extends Controller
 
     public function expiredProductsExport(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.expired_products');
 
         ['rows' => $rows] = $this->expiredProductsData($request);
 
@@ -1104,7 +1109,7 @@ class ProductReportsController extends Controller
      */
     public function transactions(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.transactions');
 
         ['movements' => $movements, 'products' => $products] = $this->transactionsData($request);
 
@@ -1117,7 +1122,7 @@ class ProductReportsController extends Controller
 
     public function transactionsExport(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.transactions');
 
         ['movements' => $movements] = $this->transactionsData($request);
 
@@ -1281,7 +1286,7 @@ class ProductReportsController extends Controller
      */
     public function document(Request $request, string $docType, int $id)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.transactions');
 
         $docType = strtolower($docType);
         $creatorId = $this->creatorId();
@@ -1326,7 +1331,7 @@ class ProductReportsController extends Controller
      */
     public function lastSupplies(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.last_supplies');
 
         $creatorId = $this->creatorId();
         $productList = ProductService::where('created_by', $creatorId)
@@ -1370,7 +1375,7 @@ class ProductReportsController extends Controller
 
     public function lastSuppliesExport(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.last_supplies');
 
         if (!$request->filled('product_id')) {
             return redirect()->route('reports.product.last-supplies')
@@ -1449,7 +1454,7 @@ class ProductReportsController extends Controller
      */
     public function locationCheck(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.location_check');
 
         ['warehouses' => $warehouses, 'byLocation' => $byLocation, 'byLocationFallback' => $byLocationFallback] = $this->locationCheckData($request);
 
@@ -1462,7 +1467,7 @@ class ProductReportsController extends Controller
 
     public function locationCheckExport(Request $request)
     {
-        $this->ensureStockReport();
+        $this->ensureStockReport('menu.dashboard.product_system.location_check');
 
         ['byLocation' => $byLocation, 'byLocationFallback' => $byLocationFallback] = $this->locationCheckData($request);
 

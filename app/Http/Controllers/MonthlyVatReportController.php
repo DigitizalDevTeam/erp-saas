@@ -16,7 +16,8 @@ class MonthlyVatReportController extends Controller
 
     public function modeloA(Request $request)
     {
-        if (! \Auth::user()->can('tax report')) {
+        if (! \Auth::user()->can('menu.dashboard.accounting.reports.monthly.vat_modelo_a')
+            && ! \Auth::user()->can('tax report')) {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 
@@ -39,7 +40,8 @@ class MonthlyVatReportController extends Controller
 
     public function exportModeloA(Request $request)
     {
-        if (! \Auth::user()->can('tax report')) {
+        if (! \Auth::user()->can('menu.dashboard.accounting.reports.monthly.vat_modelo_a')
+            && ! \Auth::user()->can('tax report')) {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 

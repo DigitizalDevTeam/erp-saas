@@ -10,7 +10,8 @@ class MonthlyReportController extends Controller
 {
     public function trialBalance(Request $request, $view = 'government')
     {
-        if (!\Auth::user()->can('trial balance report')) {
+        if (!\Auth::user()->can('menu.dashboard.accounting.reports.monthly.trial_balance')
+            && !\Auth::user()->can('trial balance report')) {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 

@@ -5,10 +5,20 @@
 $standalone = $standalone ?? false;
 $settings = $settings ?? \App\Models\Utility::settings();
 $posPayments = $posPayments ?? collect();
-$logoPath = asset(\Illuminate\Support\Facades\Storage::url('uploads/logo/'));
+$logoBase = rtrim((string) \App\Models\Utility::get_file('uploads/logo'), '/');
 $company_logo = \App\Models\Utility::getValByName('company_logo_dark');
 $pos_logo = \App\Models\Utility::getValByName('pos_logo');
-$headerLogo = (isset($pos_logo) && $pos_logo) ? \App\Models\Utility::get_file('pos_logo/') . $pos_logo : $logoPath . '/' . ($company_logo ?? 'logo-dark.png');
+if (! empty($pos_logo)) {
+    $headerLogo = rtrim((string) \App\Models\Utility::get_file('pos_logo'), '/') . '/' . ltrim((string) $pos_logo, '/');
+} else {
+    $headerLogo = $logoBase . '/' . ltrim((string) ($company_logo ?: 'logo-dark.png'), '/');
+}
+$companyName = $settings['company_name'] ?? config('app.name');
+$posAccentColor = '#' . ltrim((string) ($settings['pos_color'] ?? '000000'), '#');
+if (strlen(ltrim((string) ($settings['pos_color'] ?? ''), '#')) < 3) {
+    $posAccentColor = '#000000';
+}
+$posQrDisplay = (($settings['pos_qr_display'] ?? 'on') !== 'off');
 $clientName = isset($details['client_name']) ? $details['client_name'] : (isset($details['customer']['name']) ? $details['customer']['name'] : __('pos.walkin_customer'));
 $cust = $details['customer'] ?? [];
 $vatBreakdown = $vatBreakdown ?? [];
@@ -23,6 +33,11 @@ $qrCodeContent = $receiptLinkUrl ?: (isset($details['pos_id']) ? (($settings['co
 $receiptUser = $receiptUser ?? null;
 $priceUser = $receiptUser ?? \Illuminate\Support\Facades\Auth::user();
 $printLayout = \App\Models\Utility::normalizePosPrintLayout($settings['pos_print_layout'] ?? 'receipt');
+// POS Layout 3 / compact slips are designed for 80mm thermal paper.
+$receiptLayout = \App\Models\Utility::normalizeReceiptLayout($settings['pos_receipt_layout'] ?? 'existing');
+if (in_array($receiptLayout, ['compact1', 'compact2', 'compact3'], true) && $printLayout === 'receipt') {
+    $printLayout = 'slip';
+}
 $directPrint = (isset($settings['pos_direct_print']) && $settings['pos_direct_print'] === 'on');
 
 $companyAddressParts = array_filter([
@@ -45,18 +60,6 @@ $hasCreditPayment = ! empty($posPayments) && $posPayments->isNotEmpty() && $posP
     return in_array(strtolower($p->payment_method ?? ''), ['credit'], true);
 });
 $paymentDocumentTitle = $hasCreditPayment ? __('Credit Sale') : __('Cash Sale');
-$paidTotal = 0.0;
-$changeTotal = 0.0;
-$creditTotal = 0.0;
-if (! empty($posPayments)) {
-    foreach ($posPayments as $pmt) {
-        $paidTotal += (float) ($pmt->amount ?? 0);
-        $changeTotal += (float) ($pmt->change_amount ?? 0);
-        if (strtolower($pmt->payment_method ?? '') === 'credit') {
-            $creditTotal += (float) ($pmt->amount ?? 0);
-        }
-    }
-}
 $fmtMoney = function ($amount) use ($priceUser) {
     if ($priceUser && method_exists($priceUser, 'priceFormat')) {
         return $priceUser->priceFormat($amount);
@@ -64,6 +67,44 @@ $fmtMoney = function ($amount) use ($priceUser) {
 
     return number_format((float) $amount, 2);
 };
+$paidTotal = 0.0;
+$changeTotal = 0.0;
+$creditTotal = 0.0;
+$paymentMethods = [];
+$paymentRefs = [];
+if (! empty($posPayments)) {
+    foreach ($posPayments as $pmt) {
+        $paidTotal += (float) ($pmt->amount ?? 0);
+        $changeTotal += (float) ($pmt->change_amount ?? 0);
+        if (strtolower($pmt->payment_method ?? '') === 'credit') {
+            $creditTotal += (float) ($pmt->amount ?? 0);
+        }
+        if (! empty($pmt->payment_method)) {
+            $paymentMethods[] = str_replace('_', ' ', $pmt->payment_method);
+        }
+        if (! empty($pmt->transaction_id)) {
+            $paymentRefs[] = $pmt->transaction_id;
+        }
+    }
+}
+$paymentMethodLabel = $paymentMethods ? implode(', ', array_unique($paymentMethods)) : '—';
+$paymentRefLabel = $paymentRefs ? implode(', ', $paymentRefs) : '—';
+$operatorName = $receiptUser->name ?? (\Illuminate\Support\Facades\Auth::user()->name ?? '—');
+$branchName = $details['branch']['name'] ?? ($details['warehouse']['name'] ?? '—');
+$docNumber = $details['pos_id'] ?? '—';
+$docDate = $details['date'] ?? date('Y-m-d');
+$docDateTime = $docDate . ' ' . date('H:i:s');
+$copyLabel = ! empty($segundaVia) ? __('Copy') : __('Original');
+$salesSubTotal = $sales['sub_total'] ?? ($sales['total'] ?? '0');
+$salesDiscount = $sales['discount'] ?? '0';
+$salesTotal = $sales['total'] ?? '0';
+$ivaTotalNum = 0.0;
+foreach ($vatBreakdown as $row) {
+    $ivaTotalNum += (float) ($row['vat'] ?? 0);
+}
+$ivaTotalFmt = $fmtMoney($ivaTotalNum);
+$paidFmt = $fmtMoney($paidTotal);
+$hasPayments = ! empty($posPayments) && $posPayments->isNotEmpty() && $paidTotal > 0;
 $showPendente = $hasCreditPayment || $creditTotal > 0;
 $trocoPendenteLabel = $showPendente ? __('Pendente') : __('Troco');
 $trocoPendenteValue = $showPendente

@@ -19,7 +19,7 @@
         </div>
         <div class="col-12">
             <div class="my-3 d-flex justify-content-end">
-                @can('Create Competencies')
+                @can('create competencies')
                     <a href="#" data-url="{{ route('competencies.create') }}" data-ajax-popup="true"
                         data-title="{{ __('Create New Competencies') }}" data-bs-toggle="tooltip" title="{{ __('Create') }}"
                         class="btn btn-sm btn-primary">
@@ -48,7 +48,7 @@
                                                 </td>
                                                 <td class="Action">
                                                     <span>
-                                                        @can('edit document type')
+                                                        @can('edit competencies')
                                                             <div class="action-btn me-2">
                                                                 <a href="#"
                                                                     class="mx-3 btn btn-sm align-items-center bg-info"
@@ -61,7 +61,7 @@
                                                                 </a>
                                                             </div>
                                                         @endcan
-                                                        @can('Delete Competencies')
+                                                        @can('delete competencies')
                                                             <div class="action-btn ">
                                                                 {!! Form::open([
                                                                     'method' => 'DELETE',

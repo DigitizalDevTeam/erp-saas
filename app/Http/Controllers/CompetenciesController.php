@@ -11,7 +11,7 @@ class CompetenciesController extends Controller
 
     public function index()
     {
-        if(\Auth::user()->can('Manage Competencies'))
+        if(\Auth::user()->can('manage competencies'))
         {
             $competencies = Competencies::where('created_by', \Auth::user()->creatorId())->get();
 
@@ -34,7 +34,7 @@ class CompetenciesController extends Controller
 
     public function store(Request $request)
     {
-        if(\Auth::user()->can('Create Competencies'))
+        if(\Auth::user()->can('create competencies'))
         {
 
             $validator = \Validator::make(
@@ -82,7 +82,7 @@ class CompetenciesController extends Controller
 
     public function update(Request $request, $id)
     {
-        if(\Auth::user()->can('Edit Competencies'))
+        if(\Auth::user()->can('edit competencies'))
         {
 
             $validator = \Validator::make(
@@ -113,7 +113,7 @@ class CompetenciesController extends Controller
 
     public function destroy($id)
     {
-        if(\Auth::user()->can('Delete Competencies'))
+        if(\Auth::user()->can('delete competencies'))
         {
             $competencies = Competencies::find($id);
             $competencies->delete();

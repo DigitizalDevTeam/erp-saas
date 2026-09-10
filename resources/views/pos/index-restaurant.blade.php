@@ -1922,7 +1922,7 @@
                     pos_id: (orderType === 'delivery' || orderType === 'takeaway') && $('#pos_restaurant_pos_id').length ? ($('#pos_restaurant_pos_id').val() || '') : ''
                 };
                 $('#commonModal .modal-title').html('{{ __("pos.view_bill") }}');
-                $('.modal-dialog').removeClass('modal-xl modal-lg modal-md modal-sm').addClass('modal-xl');
+                $('.modal-dialog').removeClass('modal-xl modal-lg modal-md modal-sm').addClass('modal-md');
                 $.ajax({
                     url: '{{ route("pos.bill.view") }}',
                     data: data,

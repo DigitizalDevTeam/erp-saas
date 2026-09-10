@@ -12,6 +12,14 @@
     $company_logo = Utility::getValByName('company_logo');
     $company_favicon = Utility::getValByName('company_favicon');
     $lang = Utility::getValByName('default_language');
+    $posLogoFile = $settings['pos_logo'] ?? Utility::getValByName('pos_logo');
+    $posLogoUrl = !empty($posLogoFile)
+        ? (rtrim((string) Utility::get_file('pos_logo'), '/') . '/' . ltrim((string) $posLogoFile, '/'))
+        : '';
+    $quotationLogoFile = $settings['quotation_logo'] ?? Utility::getValByName('quotation_logo');
+    $quotationLogoUrl = !empty($quotationLogoFile)
+        ? (rtrim((string) Utility::get_file('quotation_logo'), '/') . '/' . ltrim((string) $quotationLogoFile, '/'))
+        : '';
 @endphp
 @push('script-page')
     <script>
@@ -21,29 +29,38 @@
         })
     </script>
     <script>
-           $(document).on("change", "select[name='purchase_template'], input[name='purchase_color']", function() {
+        $(document).on("change", "select[name='purchase_template'], input[name='purchase_color']", function() {
             var template = $("select[name='purchase_template']").val();
             var color = $("input[name='purchase_color']:checked").val();
             $('#purchase_frame').attr('src', '{{ url('/purchase/preview') }}/' + template + '/' + color);
-            });
+        });
 
-            $(document).on("change", "select[name='quotation_template'], input[name='quotation_color']", function() {
+        $(document).on("change", "select[name='quotation_template'], input[name='quotation_color']", function() {
             var template = $("select[name='quotation_template']").val();
             var color = $("input[name='quotation_color']:checked").val();
             $('#quotation_frame').attr('src', '{{ url('/quotation/preview') }}/' + template + '/' + color);
-            });
+        });
 
-            $(document).on("change", "select[name='pos_template'], input[name='pos_color']", function () {
+        $(document).on("change", "select[name='pos_template'], input[name='pos_color']", function () {
             var template = $("select[name='pos_template']").val();
             var color = $("input[name='pos_color']:checked").val();
             $('#pos_frame').attr('src', '{{ url('/pos/preview') }}/' + template + '/' + color);
-            });
+        });
 
-    document.getElementById('pos_logo').onchange = function () {
-    var src = URL.createObjectURL(this.files[0])
-    document.getElementById('pos_image').src = src
-    }
+        $(document).on('change', '#pos_logo', function () {
+            if (!this.files || !this.files[0]) return;
+            $('#pos_image').attr('src', URL.createObjectURL(this.files[0])).show();
+        });
 
+        $(document).on('change', '#quotation_logo', function () {
+            if (!this.files || !this.files[0]) return;
+            $('#quotation_image').attr('src', URL.createObjectURL(this.files[0])).show();
+        });
+
+        $(document).on('change', '#purchase_logo', function () {
+            if (!this.files || !this.files[0]) return;
+            $('#purchase_image').attr('src', URL.createObjectURL(this.files[0])).show();
+        });
     </script>
 @endpush
 @section('content')
@@ -228,7 +245,10 @@
                                                         <input type="file" class="form-control file"
                                                             name="quotation_logo" id="quotation_logo"
                                                             data-filename="quotation_logo_update">
-                                                        <img id="pos_image" class="mt-2" style="width:25%;" />
+                                                        <img id="quotation_image" class="mt-2" style="width:25%;max-width:120px;"
+                                                            @if(!empty($quotationLogoUrl)) src="{{ $quotationLogoUrl }}" @endif
+                                                            alt="{{ __('Quotation Logo') }}"
+                                                            onerror="this.style.display='none'">
                                                     </label>
                                                 </div>
                                             </div>
@@ -274,8 +294,9 @@
                                                     <option value="existing" {{ $prl === 'existing' ? 'selected' : '' }}>{{ __('Existing Layout') }}</option>
                                                     <option value="compact1" {{ $prl === 'compact1' ? 'selected' : '' }}>{{ __('Compact Layout 1') }}</option>
                                                     <option value="compact2" {{ $prl === 'compact2' ? 'selected' : '' }}>{{ __('Compact Layout 2') }}</option>
+                                                    <option value="compact3" {{ $prl === 'compact3' ? 'selected' : '' }}>{{ __('POS Layout 3') }}</option>
                                                 </select>
-                                                <small class="text-muted">{{ __('Existing keeps the current receipt. Compact layouts save paper (thermal / dense Mozambique style).') }}</small>
+                                                <small class="text-muted">{{ __('Existing keeps the current receipt. Compact layouts save paper (thermal / dense Mozambique style). POS Layout 3 is the UTHARA 80mm talão.') }}</small>
                                             </div>
                                             <div class="form-group mb-3">
                                                 <label for="pos_print_layout" class="form-label fw-semibold">{{ __('Receipt paper / layout') }}</label>
@@ -335,6 +356,17 @@
                                                 </div>
                                             </div>
                                             <div class="form-group">
+                                                <label for="pos_qr_display" class="col-form-label">{{ __('QR Display?') }}</label>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="form-check form-switch custom-switch-v1 mt-2">
+                                                        <input type="hidden" name="pos_qr_display" value="off">
+                                                        <input type="checkbox" class="form-check-input input-primary"
+                                                            id="pos_qr_display" name="pos_qr_display" value="on"
+                                                            {{ ($settings['pos_qr_display'] ?? 'on') === 'on' ? 'checked' : '' }}>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="form-group">
                                                 <label class="col-form-label">{{ __('POS Logo') }}</label>
                                                 <div class="choose-files mt-2 ">
                                                     <label for="pos_logo">
@@ -343,7 +375,10 @@
                                                         </div>
                                                         <input type="file" class="form-control file" name="pos_logo"
                                                             id="pos_logo" data-filename="pos_logo_update">
-                                                        <img id="pos_image" class="mt-2" style="width:25%;" />
+                                                        <img id="pos_image" class="mt-2" style="width:25%;max-width:120px;"
+                                                            @if(!empty($posLogoUrl)) src="{{ $posLogoUrl }}" @endif
+                                                            alt="{{ __('POS Logo') }}"
+                                                            onerror="this.style.display='none'">
                                                     </label>
                                                 </div>
                                             </div>

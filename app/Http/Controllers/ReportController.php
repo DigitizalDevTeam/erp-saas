@@ -5017,6 +5017,12 @@ class ReportController extends Controller
 
     public function salesReport(Request $request)
     {
+        if (!\Auth::user()->can('menu.dashboard.accounting.reports.management.sales')
+            && !\Auth::user()->can('manage report')
+            && !\Auth::user()->can('invoice report')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
         $creatorId = \Auth::user()->creatorId();
         if (!empty($request->start_date) && !empty($request->end_date)) {
             $start = $request->start_date;
@@ -5148,6 +5154,12 @@ class ReportController extends Controller
 
     public function salesReportExport(Request $request)
     {
+        if (!\Auth::user()->can('menu.dashboard.accounting.reports.management.sales')
+            && !\Auth::user()->can('manage report')
+            && !\Auth::user()->can('invoice report')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
         $creatorId = \Auth::user()->creatorId();
         if (!empty($request->start_date) && !empty($request->end_date)) {
             $start = $request->start_date;
@@ -5229,6 +5241,12 @@ class ReportController extends Controller
 
     public function ReceivablesReport(Request $request)
     {
+        if (!\Auth::user()->can('menu.dashboard.accounting.reports.management.receivables')
+            && !\Auth::user()->can('manage report')
+            && !\Auth::user()->can('invoice report')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
         if (!empty($request->start_date) && !empty($request->end_date)) {
             $start = $request->start_date;
             $end = $request->end_date;
@@ -5467,6 +5485,12 @@ class ReportController extends Controller
 
     public function ReceivablesExport(Request $request)
     {
+        if (!\Auth::user()->can('menu.dashboard.accounting.reports.management.receivables')
+            && !\Auth::user()->can('manage report')
+            && !\Auth::user()->can('invoice report')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
         if (!empty($request->start_date) && !empty($request->end_date)) {
             $start = $request->start_date;
             $end = $request->end_date;
@@ -5505,6 +5529,12 @@ class ReportController extends Controller
 
     public function PayablesReport(Request $request)
     {
+        if (!\Auth::user()->can('menu.dashboard.accounting.reports.management.payables')
+            && !\Auth::user()->can('manage report')
+            && !\Auth::user()->can('bill report')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
         if (!empty($request->start_date) && !empty($request->end_date)) {
             $start = $request->start_date;
             $end = $request->end_date;

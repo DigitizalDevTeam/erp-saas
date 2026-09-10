@@ -19,7 +19,8 @@ class CreditDebitNoteReportsController extends Controller
 
     public function creditNoteReport(Request $request)
     {
-        if (!\Auth::user()->can('manage report')) {
+        if (!\Auth::user()->can('menu.dashboard.accounting.reports.management.credit_note')
+            && !\Auth::user()->can('manage report')) {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 
@@ -51,7 +52,8 @@ class CreditDebitNoteReportsController extends Controller
 
     public function debitNoteReport(Request $request)
     {
-        if (!\Auth::user()->can('manage report')) {
+        if (!\Auth::user()->can('menu.dashboard.accounting.reports.management.debit_note')
+            && !\Auth::user()->can('manage report')) {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 

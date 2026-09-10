@@ -141,7 +141,7 @@
             </a>
         </li>
     @endcan
-    @can('Manage Competencies')
+    @can('manage competencies')
         <li class="nav-item" role="presentation">
             <a href="{{ route('competencies.index') }}" class="list-group-item list-group-item-action border-0">
                 <button class="nav-link {{ request()->is('competencies*') ? 'active' : '' }} "

@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Services\HotelPermissionCatalog;
 use App\Services\CompanyUserRoleService;
+use App\Services\PosRestaurantRoleService;
+use App\Services\RolePermissionUiCatalog;
+use App\Services\SidebarMenuPermissionCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Spatie\Permission\Models\Permission;
@@ -35,6 +38,8 @@ class RoleController extends Controller
         if(\Auth::user()->can('create role'))
         {
             HotelPermissionCatalog::ensurePermissionsExist();
+            PosRestaurantRoleService::ensurePermissionsExist();
+            SidebarMenuPermissionCatalog::ensurePermissionsExist();
 
             $user = \Auth::user();
             if($user->type == 'super admin' || $user->type == 'company')
@@ -87,14 +92,10 @@ class RoleController extends Controller
             $role             = new Role();
             $role->name       = $name;
             $role->created_by = \Auth::user()->creatorId();
-            $permissions      = $request['permissions'];
             $role->save();
 
-            foreach($permissions as $permission)
-            {
-                $p = Permission::where('id', '=', $permission)->firstOrFail();
-                $role->givePermissionTo($p);
-            }
+            $permissionIds = collect($request['permissions'])->map(fn ($id) => (int) $id)->unique()->values()->all();
+            $role->syncPermissions($permissionIds);
 
             return redirect()->route('roles.index')->with('success' , 'Role successfully created.', 'Role ' . $role->name . ' added!');
         }
@@ -109,6 +110,8 @@ class RoleController extends Controller
         if(\Auth::user()->can('edit role'))
         {
             HotelPermissionCatalog::ensurePermissionsExist();
+            PosRestaurantRoleService::ensurePermissionsExist();
+            SidebarMenuPermissionCatalog::ensurePermissionsExist();
 
             $user = \Auth::user();
             if($user->type == 'super admin' || $user->type == 'company')
@@ -157,23 +160,28 @@ class RoleController extends Controller
                 return redirect()->back()->with('error', __('This role name is reserved. Please choose another name.'));
             }
 
-            $input       = $request->except(['permissions']);
-            $permissions = $request['permissions'];
+            $input = $request->except(['permissions']);
             $role->fill($input)->save();
 
-            $p_all = Permission::all();
+            $submittedIds = collect($request['permissions'])->map(fn ($id) => (int) $id)->unique()->values()->all();
 
-            foreach($p_all as $p)
-            {
-                $role->revokePermissionTo($p);
-            }
+            // Permissions the Role UI can assign — form fully controls these.
+            $assignableNames = RolePermissionUiCatalog::assignableNames(\Auth::user()->type);
+            $assignableIds = Permission::query()
+                ->whereIn('name', $assignableNames)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
 
-            foreach($permissions as $permission)
-            {
+            // Keep any current role permissions that are not shown on the form
+            // so obscure/system grants are not stripped on save.
+            $preservedIds = $role->permissions()
+                ->whereNotIn('id', $assignableIds)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
 
-                $p = Permission::where('id', '=', $permission)->firstOrFail();
-                $role->givePermissionTo($p);
-            }
+            $role->syncPermissions(array_values(array_unique(array_merge($submittedIds, $preservedIds))));
 
             return redirect()->route('roles.index')->with('success' , 'Role successfully updated.', 'Role ' . $role->name . ' updated!');
         }

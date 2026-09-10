@@ -1,152 +1,285 @@
-{{-- Mozambique standard 80mm Talão — structure from UTHARA HTML ref. --}}
+{{-- 80mm thermal slip — layout matched to retail-style thermal receipt --}}
 <style>
-.mz-talao { color: #111; font-family: Arial, Helvetica, sans-serif; font-size: 10px; line-height: 1.35; }
-.mz-talao .center { text-align: center; }
-.mz-talao .right { text-align: right; }
+.mz-talao {
+    color: #111;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11px;
+    line-height: 1.4;
+    width: 100%;
+    max-width: 72mm;
+    margin: 0 auto;
+    padding: 0;
+    box-sizing: border-box;
+    text-align: left;
+}
+.mz-talao *,
+.mz-talao *::before,
+.mz-talao *::after { box-sizing: border-box; }
+.mz-talao .mz-talao-center,
+.mz-talao .mz-talao-center .meta-line,
+.mz-talao .mz-talao-center .small,
+.mz-talao .mz-talao-center .company-name {
+    text-align: center !important;
+}
 .mz-talao .bold { font-weight: 700; }
-.mz-talao .small { font-size: 8px; }
-.mz-talao img.logo { max-width: 96px; max-height: 44px; width: auto; height: auto; margin: 0 auto 2mm; display: block; object-fit: contain; }
-.mz-talao h1.doc-type { font-size: 13px; margin: 2mm 0 .5mm; text-transform: uppercase; letter-spacing: .3px; color: #111; }
-.mz-talao .document-no { font-weight: 700; font-size: 11px; color: #111; }
-.mz-talao .rule { border-top: 1px dashed #000; margin: 2mm 0; }
-.mz-talao .solid { border-top: 1.5px solid #000; margin: 2mm 0; }
-.mz-talao .row { display: flex; justify-content: space-between; gap: 3mm; color: #111; margin: .5mm 0; }
-.mz-talao .row span:last-child { text-align: right; }
-.mz-talao table.items { width: 100%; border-collapse: collapse; table-layout: fixed; color: #111; }
-.mz-talao table.items th { border-bottom: 1px solid #000; padding: 1mm .4mm; text-align: left; font-size: 8px; text-transform: uppercase; color: #111; background: #fff; }
-.mz-talao table.items td { padding: 1.1mm .4mm; vertical-align: top; font-size: 9px; overflow-wrap: anywhere; color: #111; }
-.mz-talao .qty { width: 10mm; text-align: center; }
-.mz-talao .price { width: 18mm; text-align: right; }
-.mz-talao .total { width: 19mm; text-align: right; }
-.mz-talao .item-detail { display: block; font-size: 7.5px; color: #333; margin-top: .4mm; }
-.mz-talao .totals { margin-left: auto; width: 52mm; color: #111; }
-.mz-talao .totals .grand { font-size: 13px; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 1.5mm 0; margin-top: 1mm; }
-.mz-talao .tax-table { width: 100%; border-collapse: collapse; color: #111; }
-.mz-talao .tax-table th, .mz-talao .tax-table td { text-align: right; font-size: 8px; padding: .7mm .3mm; color: #111; border-bottom: 1px solid #ddd; }
-.mz-talao .tax-table th:first-child, .mz-talao .tax-table td:first-child { text-align: left; }
-.mz-talao .qr-wrap { display: flex; align-items: center; justify-content: center; gap: 3mm; margin: 2mm 0; }
-.mz-talao .view-qrcode-receipt-svg, .mz-talao .view-qrcode-receipt { width: 24mm; height: 24mm; flex-shrink: 0; }
-.mz-talao .view-qrcode-receipt-svg svg { display: block !important; width: 100% !important; height: 100% !important; }
-.mz-talao .validation { max-width: 38mm; font-size: 8px; color: #111; }
-.mz-talao .footer { font-size: 8px; text-align: center; color: #111; }
-.mz-talao .sig-box { border: 1px solid #333; min-height: 28px; margin-top: 2mm; padding: 1mm; }
+.mz-talao .small { font-size: 9px; }
+.mz-talao img.logo,
+.mz-talao img.mz-receipt-logo,
+#commonModal .body .mz-talao img.logo,
+#commonModal .body .mz-talao img.mz-receipt-logo,
+#printarea .mz-talao img.logo,
+#printarea .mz-talao img.mz-receipt-logo,
+#printarea.modal-body .mz-talao img.logo,
+#printarea.modal-body .mz-talao img.mz-receipt-logo {
+    max-width: 96px !important;
+    max-height: 44px !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 auto 6px !important;
+    display: block !important;
+    object-fit: contain !important;
+}
+.mz-talao .company-name {
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    margin: 1mm 0;
+    letter-spacing: .2px;
+}
+.mz-talao .dots,
+.mz-talao .dots-heavy {
+    display: block;
+    width: 100%;
+    border: 0;
+    border-top: 1px dotted #000;
+    margin: 2.5mm 0;
+    padding: 0;
+    height: 0;
+}
+.mz-talao .dots-heavy { border-top-width: 2px; }
+.mz-talao .meta-line {
+    margin: .4mm 0;
+    color: #111;
+    text-align: center !important;
+    word-break: break-word;
+}
+.mz-talao .item-block {
+    margin: 2mm 0;
+    padding: 0;
+    width: 100%;
+    text-align: left;
+}
+.mz-talao .item-code,
+.mz-talao .item-name {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    text-align: left;
+}
+.mz-talao .item-code { font-weight: 700; }
+.mz-talao .item-name { margin: .3mm 0 .5mm; }
+.mz-talao .line-table,
+.mz-talao .tot-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    margin: 0;
+}
+.mz-talao .line-table td,
+.mz-talao .tot-table td {
+    padding: 0;
+    vertical-align: top;
+    color: #111;
+    font-size: 11px;
+}
+.mz-talao .line-table td.qty,
+.mz-talao .tot-table td.lbl {
+    text-align: left;
+    width: 58%;
+}
+.mz-talao .line-table td.amt,
+.mz-talao .tot-table td.amt {
+    text-align: right;
+    width: 42%;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.mz-talao .tot-table { margin: .6mm 0; }
+.mz-talao .tot-table.grand td {
+    font-weight: 700;
+    font-size: 13px;
+}
+.mz-talao .in-words {
+    text-align: center !important;
+    margin: 2mm 0;
+    font-size: 10px;
+    width: 100%;
+}
+.mz-talao .pay-block { text-align: center !important; margin: 2mm 0; width: 100%; }
+.mz-talao .pay-block div { margin: .4mm 0; }
+.mz-talao .footer {
+    text-align: center !important;
+    font-size: 10px;
+    margin-top: 2mm;
+    width: 100%;
+}
+.mz-talao .barcode-wrap {
+    text-align: center !important;
+    margin: 2.5mm auto 1.5mm;
+    width: 100%;
+}
+.mz-talao .barcode-wrap svg {
+    display: block !important;
+    margin: 0 auto !important;
+    max-width: 100%;
+    height: 36px;
+}
+.mz-talao .barcode-caption {
+    font-size: 9px;
+    margin-top: 1mm;
+    word-break: break-all;
+    text-align: center !important;
+}
+.mz-talao .qr-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 2mm auto;
+    width: 100%;
+}
+.mz-talao .view-qrcode-receipt-svg,
+.mz-talao .view-qrcode-receipt {
+    width: 28mm;
+    height: 28mm;
+    margin: 0 auto;
+}
+.mz-talao .view-qrcode-receipt-svg svg {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 auto;
+}
+.mz-talao .sig-box { border: 1px solid #333; min-height: 28px; margin-top: 2mm; padding: 1mm; width: 100%; }
+.mz-talao .left { text-align: left !important; }
 </style>
 
 <div class="mz-talao receipt-body">
-    <div class="center">
-        <img class="logo" src="{{ $headerLogo }}" alt="Logo" onerror="this.style.display='none'">
-        <div class="bold">{{ $companyName }}</div>
-        <div>{{ __('NUIT') }}: {{ $companyVat !== '' ? $companyVat : '—' }}</div>
-        <div>{{ $companyAddressLine }}</div>
-        <div>
-            @if($companyPhone !== '')
-                {{ __('Phone') }}: {{ $companyPhone }}
-            @endif
-            @if($companyPhone !== '' && $companyEmail !== '')
-                ·
-            @endif
-            @if($companyEmail !== '')
-                {{ $companyEmail }}
-            @endif
-        </div>
+    {{-- Header --}}
+    <div class="mz-talao-center" style="text-align:center !important;">
+        <img class="mz-receipt-logo logo" src="{{ $headerLogo }}" alt="Logo"
+             style="max-width:96px;max-height:44px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 6px;"
+             onerror="this.style.display='none'">
+        <div class="company-name" style="text-align:center !important;">{{ $companyName }}</div>
+        <div class="small" style="text-align:center !important;">{{ __('Address') }}: {{ $companyAddressLine }}</div>
+        <div class="small" style="text-align:center !important;">{{ __('NUIT') }} : {{ $companyVat !== '' ? $companyVat : '—' }}</div>
+        @if($companyPhone !== '')
+            <div class="small" style="text-align:center !important;">{{ __('Phone Number') }}: {{ $companyPhone }}</div>
+        @endif
+        <div class="small" style="text-align:center !important;">{{ __('Branch') }} : {{ $branchName }}</div>
     </div>
 
-    <div class="solid"></div>
-    <h1 class="center doc-type">{{ $paymentDocumentTitle }}</h1>
-    <div class="center document-no">{{ __('No.') }} {{ $docNumber }}</div>
-    <div class="center small">{{ $copyLabel }} · {{ __('Issued at') }} {{ $docDateTime }}</div>
-    <div class="rule"></div>
+    <hr class="dots">
 
-    <div class="row"><span>{{ __('Customer') }}:</span><span class="bold">{{ $clientName }}</span></div>
-    <div class="row"><span>{{ __('NUIT') }}:</span><span>{{ $custVat !== '' ? $custVat : '—' }}</span></div>
-    <div class="row"><span>{{ __('Address') }}:</span><span>{{ $custAddress !== '' ? $custAddress : '—' }}</span></div>
-    <div class="row"><span>{{ __('Contact') }}:</span><span>{{ $custPhone !== '' ? $custPhone : '—' }}</span></div>
-    <div class="row"><span>{{ __('Email') }}:</span><span>{{ $custEmail !== '' ? $custEmail : '—' }}</span></div>
-    <div class="row"><span>{{ __('Currency') }}:</span><span>{{ $currency }}</span></div>
-    @if(!empty($details['table_name']))
-        <div class="row"><span>{{ __('pos.table') }}:</span><span>{{ $details['table_name'] }}</span></div>
-    @endif
-    <div class="rule"></div>
-
-    @if(!$isBalancePayment)
-    <table class="items" aria-label="{{ __('Items') }}">
-        <thead>
-            <tr>
-                <th>{{ __('Description') }}</th>
-                <th class="qty">{{ __('Qty') }}</th>
-                <th class="price">{{ __('Price') }}</th>
-                <th class="total">{{ __('Total') }}</th>
-            </tr>
-        </thead>
-        <tbody>
-        @foreach($sales['data'] ?? [] as $value)
-            <tr>
-                <td>
-                    {{ $value['name'] ?? '' }}
-                    <span class="item-detail">
-                        @if(!empty($value['tax'])){{ __('VAT') }} {{ $value['tax'] }}@endif
-                        @if(!empty($value['description'])) · {{ $value['description'] }}@endif
-                    </span>
-                </td>
-                <td class="qty">{{ $value['quantity'] ?? '' }}</td>
-                <td class="price">{{ $value['price'] ?? '' }}</td>
-                <td class="total">{{ $value['subtotal'] ?? '' }}</td>
-            </tr>
-        @endforeach
-        </tbody>
-    </table>
-    <div class="rule"></div>
-    @endif
-
-    <section class="totals">
-        <div class="row"><span>{{ __('Sub Total') }}</span><span>{{ $salesSubTotal }}</span></div>
-        <div class="row"><span>{{ __('Discount') }}</span><span>{{ $salesDiscount }}</span></div>
-        <div class="row"><span>{{ __('VAT') }} / IVA</span><span>{{ $ivaTotalFmt }}</span></div>
-        @if(!empty($salesTip) && $salesTip !== '0' && $salesTip !== '0.00')
-            <div class="row"><span>{{ __('pos.tip') }}</span><span>{{ $salesTip }}</span></div>
+    {{-- Meta --}}
+    <div class="mz-talao-center" style="text-align:center !important;">
+        <div class="meta-line" style="text-align:center !important;">{{ __('Created By') }}: {{ $operatorName }}</div>
+        @if(!empty($operatorEmail))
+            <div class="meta-line" style="text-align:center !important;">{{ __('Email') }}: {{ $operatorEmail }}</div>
         @endif
-        <div class="row grand bold"><span>{{ __('TOTAL') }}</span><span>{{ $salesTotal }} {{ $currency }}</span></div>
-        <div class="row"><span>{{ __('Paid') }}</span><span>{{ $paidFmt }}</span></div>
-        <div class="row"><span>{{ $trocoPendenteLabel }}</span><span>{{ $trocoPendenteValue }}</span></div>
-    </section>
+        <div class="meta-line" style="text-align:center !important;">{{ __('Date') }}: {{ $docDateTime }}</div>
+        <div class="meta-line bold" style="text-align:center !important;">{{ $paymentDocumentTitle }} : {{ $docNumber }}</div>
+        <div class="meta-line" style="text-align:center !important;">{{ __('Customer') }}: {{ $clientName }}</div>
+        <div class="meta-line" style="text-align:center !important;">{{ __('Customer NUIT') }} : {{ $custVat !== '' ? $custVat : '' }}</div>
+        @if(!empty($details['table_name']))
+            <div class="meta-line" style="text-align:center !important;">{{ __('pos.table') }}: {{ $details['table_name'] }}</div>
+        @endif
+    </div>
 
-    @if(count($vatBreakdown) > 0)
-    <div class="rule"></div>
-    <table class="tax-table" aria-label="{{ __('Tax summary') }}">
-        <thead>
-            <tr>
-                <th>{{ __('VAT') }}</th>
-                <th>{{ __('Net Amount') }}</th>
-                <th>{{ __('Tax') }}</th>
-            </tr>
-        </thead>
-        <tbody>
-        @foreach($vatBreakdown as $row)
-            <tr>
-                <td>{{ number_format((float)($row['rate'] ?? 0), 0) }}%</td>
-                <td>{{ $fmt($row['net'] ?? 0) }}</td>
-                <td>{{ $fmt($row['vat'] ?? 0) }}</td>
-            </tr>
+    <hr class="dots">
+
+    {{-- Items --}}
+    @if(!$isBalancePayment)
+        @foreach($sales['data'] ?? [] as $value)
+            @php
+                $lineName = $value['name'] ?? '';
+                $lineQty = $value['quantity'] ?? '';
+                $linePrice = $value['price'] ?? '';
+                $lineTotal = $value['subtotal'] ?? '';
+            @endphp
+            <div class="item-block">
+                <div class="item-code">{{ __('Codigo') }} : {{ $lineName }}</div>
+                <div class="item-name">{{ $lineName }}</div>
+                <table class="line-table" role="presentation">
+                    <tr>
+                        <td class="qty">{{ $lineQty }} X {{ $linePrice }}</td>
+                        <td class="amt">{{ $lineTotal }}</td>
+                    </tr>
+                </table>
+            </div>
         @endforeach
-        </tbody>
-    </table>
+        <hr class="dots">
     @endif
 
-    <div class="rule"></div>
-    <div class="row"><span>{{ __('Payment Method') }}:</span><span class="bold text-capitalize">{{ $paymentMethodLabel }}</span></div>
-    <div class="row"><span>{{ __('Reference') }}:</span><span>{{ $paymentRefLabel }}</span></div>
-    <div class="row"><span>{{ __('Operator') }}:</span><span>{{ $operatorName }}</span></div>
-    <div class="row"><span>{{ __('Branch') }}:</span><span>{{ $branchName }}</span></div>
-    @if($hasCreditPayment && $dueDate)
-        <div class="row"><span>{{ __('Due date') }}:</span><span>{{ $dueDate }}</span></div>
+    {{-- Totals --}}
+    <table class="tot-table" role="presentation">
+        <tr>
+            <td class="lbl">{{ __('Total') }}</td>
+            <td class="amt">{{ $salesSubTotal }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">{{ __('Tax') }}</td>
+            <td class="amt">{{ $ivaTotalFmt }}</td>
+        </tr>
+    </table>
+    <hr class="dots-heavy">
+    <table class="tot-table grand" role="presentation">
+        <tr>
+            <td class="lbl">{{ __('Grand Total') }}</td>
+            <td class="amt">{{ $salesTotal }}</td>
+        </tr>
+    </table>
+    <hr class="dots-heavy">
+
+    @if(!empty($amountInWords))
+        <div class="in-words">{{ __('In Words') }}: {{ $amountInWords }}</div>
+    @endif
+
+    {{-- Payment (paid receipts only) --}}
+    @if(!empty($hasPayments))
+        <div class="pay-block">
+            <div>{{ __('Paid By') }}: {{ $paymentMethodLabel }}</div>
+            <div>{{ __('Amount') }}: {{ $paidFmt }}</div>
+            @if($showTroco || $changeTotal > 0)
+                <div>{{ __('Change') }}: {{ $fmt($changeTotal) }}</div>
+            @elseif($showPendente)
+                <div>{{ $trocoPendenteLabel }}: {{ $trocoPendenteValue }}</div>
+            @endif
+        </div>
     @endif
 
     @if($hasCreditPayment)
-    <div class="rule"></div>
-    <div class="bold small">{{ __('pos.client_signature_for_credit') }}</div>
-    <div class="sig-box"></div>
-    <div class="small">{{ __('Name') }}: _______________________</div>
-    <div class="row"><span>{{ __('Pendente') }}:</span><span class="bold">{{ $trocoPendenteValue }}</span></div>
+        <hr class="dots">
+        <div class="left small bold">{{ __('pos.client_signature_for_credit') }}</div>
+        <div class="sig-box"></div>
+        <div class="small left">{{ __('Name') }}: _______________________</div>
+        <table class="tot-table" role="presentation">
+            <tr>
+                <td class="lbl">{{ __('Pendente') }}:</td>
+                <td class="amt bold">{{ $trocoPendenteValue }}</td>
+            </tr>
+        </table>
+    @endif
+
+    <div class="footer">
+        <div class="bold">{{ __('Thank You For Shopping With Us. Please Come Again') }}</div>
+    </div>
+
+    @if(!empty($barcodeSvg))
+        <div class="barcode-wrap">
+            {!! $barcodeSvg !!}
+            <div class="barcode-caption">{{ $docNumber }}</div>
+        </div>
     @endif
 
     <div class="qr-wrap">
@@ -155,24 +288,12 @@
         @elseif(!empty($qrHtml))
             <div class="view-qrcode-receipt">{!! $qrHtml !!}</div>
         @endif
-        <div class="validation">
-            <div class="bold">{{ __('Consult and validate the invoice') }}</div>
-            @if($receiptLinkUrl)<div class="small" style="overflow-wrap:anywhere;">{{ $receiptLinkUrl }}</div>@endif
-            <div>{{ __('Code') }}: <strong>{{ $docNumber }}</strong></div>
-        </div>
     </div>
 
-    <div class="rule"></div>
     <div class="footer">
-        <div class="bold">{{ __('pos.thank_you') }}</div>
-        <div>{{ __('Invoice generated by ERPSaaS') }}</div>
-        @if($companyPhone !== '')<div>{{ __('Phone') }}: {{ $companyPhone }}</div>@endif
-        <div>
-            www.uthara.co.mz
-            @if($companyEmail !== '')
-                · {{ $companyEmail }}
-            @endif
-        </div>
-        <div class="small">{{ __('pos.document_processed_by_computer') }}</div>
+        <div>{{ __('Invoice Generated By') }} {{ config('app.name', 'ERP SaaS') }}</div>
+        @if(!empty($companyWebsite))
+            <div class="small">{{ $companyWebsite }}</div>
+        @endif
     </div>
 </div>

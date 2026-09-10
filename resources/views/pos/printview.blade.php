@@ -5,26 +5,56 @@
     .view-qrcode-receipt img { max-width: 70px; height: auto; display: block; }
     .view-qrcode-receipt-svg { line-height: 0; }
     .view-qrcode-receipt-svg svg { display: block !important; width: 100% !important; height: 100% !important; max-width: 100%; max-height: 100%; }
-    /* Beat Bootstrap .modal-body img { max-width:100% } so logos stay small in View Bill */
+    /* Beat theme/Bootstrap img { max-width:100% } so logos stay small in View Bill */
+    #commonModal .body img.logo,
+    #commonModal .body img.mz-receipt-logo,
     #printarea img.logo,
+    #printarea img.mz-receipt-logo,
+    #printarea.modal-body img.logo,
+    #printarea.modal-body img.mz-receipt-logo,
     #printarea .mz-factura img.logo,
     #printarea .mz-talao img.logo,
-    .modal-body #printarea img.logo {
-        max-width: 120px !important;
-        max-height: 56px !important;
+    #printarea .mz-talao img.mz-receipt-logo {
+        max-width: 96px !important;
+        max-height: 48px !important;
         width: auto !important;
         height: auto !important;
-        object-fit: contain;
+        object-fit: contain !important;
+        display: block !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
     }
     .pos-print-layout-slip #printarea img.logo,
-    .pos-print-layout-slip #printarea .mz-talao img.logo {
+    .pos-print-layout-slip #printarea img.mz-receipt-logo,
+    #printarea.pos-print-layout-slip img.logo,
+    #printarea.pos-print-layout-slip img.mz-receipt-logo {
         max-width: 96px !important;
         max-height: 44px !important;
     }
-    .pos-print-layout-slip #printarea { max-width: 80mm; margin-left: auto; margin-right: auto; }
-    .pos-print-layout-a5 #printarea { max-width: 148mm; margin-left: auto; margin-right: auto; }
+    /* Slip width: class is on #printarea itself (modal + print) */
+    #printarea.pos-print-layout-slip,
+    .pos-print-layout-slip #printarea {
+        max-width: 80mm;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    /* Modal preview: force header/meta centered (theme can override .center) */
+    #commonModal .mz-talao .mz-talao-center,
+    #commonModal .mz-talao .mz-talao-center .meta-line,
+    #commonModal .mz-talao .mz-talao-center .small,
+    #commonModal .mz-talao .mz-talao-center .company-name,
+    #printarea .mz-talao .mz-talao-center,
+    #printarea .mz-talao .mz-talao-center .meta-line,
+    #printarea .mz-talao .mz-talao-center .small,
+    #printarea .mz-talao .mz-talao-center .company-name {
+        text-align: center !important;
+    }
+    .pos-print-layout-a5 #printarea,
+    #printarea.pos-print-layout-a5 { max-width: 148mm; margin-left: auto; margin-right: auto; }
     .pos-print-layout-a4 #printarea,
-    .pos-print-layout-receipt #printarea { max-width: 210mm; margin-left: auto; margin-right: auto; }
+    .pos-print-layout-receipt #printarea,
+    #printarea.pos-print-layout-a4,
+    #printarea.pos-print-layout-receipt { max-width: 210mm; margin-left: auto; margin-right: auto; }
     @media print {
         body * { visibility: hidden; }
         #printarea, #printarea * { visibility: visible; }
@@ -112,19 +142,27 @@ var posDirectPrint = {{ $directPrint ? 'true' : 'false' }};
         }
         var html = printarea.innerHTML;
         clones.forEach(function(c) { c.remove(); });
-        var receiptStyles = '';
-        var styleEl = document.getElementById('pos-receipt-styles');
-        if (styleEl && styleEl.innerHTML) receiptStyles = styleEl.innerHTML;
+        var styleChunks = [];
+        var styleRoot = printarea.parentElement || document;
+        styleRoot.querySelectorAll('style').forEach(function (el) {
+            if (el && el.innerHTML) styleChunks.push(el.innerHTML);
+        });
+        printarea.querySelectorAll('style').forEach(function (el) {
+            if (el && el.innerHTML) styleChunks.push(el.innerHTML);
+        });
+        if (!styleChunks.length) {
+            var styleEl = document.getElementById('pos-receipt-styles');
+            if (styleEl && styleEl.innerHTML) styleChunks.push(styleEl.innerHTML);
+        }
+        var receiptStyles = styleChunks.join('\n');
         var printWin = window.open('', '_blank', 'width=900,height=700');
         if (!printWin) { window.print(); return; }
         var layout = (typeof posPrintLayout !== 'undefined' ? posPrintLayout : 'receipt');
         var doc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{{ __("Receipt") }}</title>';
-        doc += '<link rel="stylesheet" href="{{ asset("assets/css/plugins/main.css") }}">';
-        doc += '<link rel="stylesheet" href="{{ asset("assets/css/style.css") }}">';
-        doc += '<style>body{background:#fff;margin:0;padding:12px;font-family:Arial,sans-serif;color:#111}';
-        if (layout === 'slip') doc += '#printarea{width:80mm;max-width:100%}';
-        else if (layout === 'a5') doc += '#printarea{width:100%;max-width:148mm}';
-        else doc += '#printarea{width:100%;max-width:210mm}';
+        doc += '<style>body{background:#fff;margin:0;padding:12px;font-family:Arial,Helvetica,sans-serif;color:#111}';
+        if (layout === 'slip') doc += '#printarea{width:80mm;max-width:100%;margin:0 auto}';
+        else if (layout === 'a5') doc += '#printarea{width:100%;max-width:148mm;margin:0 auto}';
+        else doc += '#printarea{width:100%;max-width:210mm;margin:0 auto}';
         doc += receiptStyles + '</style></head><body class="pos-print-layout-' + layout + '"><div id="printarea" class="pos-print-layout-' + layout + '">' + html + '</div></body></html>';
         printWin.document.write(doc);
         printWin.document.close();
