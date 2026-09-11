@@ -34,7 +34,7 @@ class PosTableController extends Controller
                 ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
                 ->get()
                 ->pluck('name', 'id');
-            $areas = PosArea::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $areas = [];
             return view('pos_table.create', compact('branches', 'areas'));
         }
         return response()->json(['error' => __('Permission denied.')], 401);
@@ -50,6 +50,12 @@ class PosTableController extends Controller
             ]);
             if ($validator->fails()) {
                 return redirect()->back()->with('error', $validator->getMessageBag()->first());
+            }
+            $area = PosArea::where('id', $request->area_id)
+                ->where('created_by', \Auth::user()->creatorId())
+                ->first();
+            if (! $area || (int) $area->branch_id !== (int) $request->branch_id) {
+                return redirect()->back()->with('error', __('Area must belong to the selected branch.'));
             }
             $table = new PosTable();
             $table->area_id = $request->area_id;
@@ -72,7 +78,12 @@ class PosTableController extends Controller
                 ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
                 ->get()
                 ->pluck('name', 'id');
-            $areas = PosArea::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $areas = PosArea::where('created_by', \Auth::user()->creatorId())
+                ->where('branch_id', $pos_table->branch_id)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get()
+                ->pluck('name', 'id');
             return view('pos_table.edit', compact('pos_table', 'branches', 'areas'));
         }
         return response()->json(['error' => __('Permission denied.')], 401);
@@ -88,6 +99,12 @@ class PosTableController extends Controller
             ]);
             if ($validator->fails()) {
                 return redirect()->back()->with('error', $validator->getMessageBag()->first());
+            }
+            $area = PosArea::where('id', $request->area_id)
+                ->where('created_by', \Auth::user()->creatorId())
+                ->first();
+            if (! $area || (int) $area->branch_id !== (int) $request->branch_id) {
+                return redirect()->back()->with('error', __('Area must belong to the selected branch.'));
             }
             $pos_table->area_id = $request->area_id;
             $pos_table->branch_id = $request->branch_id;

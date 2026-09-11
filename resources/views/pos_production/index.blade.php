@@ -8,12 +8,15 @@
     <li class="breadcrumb-item">{{ __('Production') }}</li>
 @endsection
 
+@push('css-page')
+    <link rel="stylesheet" href="{{ asset('css/pos.css') }}?v=6">
+@endpush
+
 @section('content')
     <div class="row">
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
-                    @if(!empty($showBranchSelector) || !empty($showZoneSelector))
                     <form method="get" class="row g-3 align-items-end mb-4">
                         @if(!empty($showBranchSelector))
                         <div class="col-auto">
@@ -39,10 +42,18 @@
                             <input type="hidden" name="zone" value="{{ $zone }}">
                         @endif
                         <div class="col-auto">
+                            <label class="form-label">{{ __('Warehouse') }}</label>
+                            <select name="warehouse_id" class="form-select form-select-sm" style="min-width:180px;">
+                                <option value="">{{ __('All Warehouses') }}</option>
+                                @foreach(($warehouses ?? []) as $w)
+                                    <option value="{{ $w->id }}" {{ (string)($warehouseId ?? '') === (string)$w->id ? 'selected' : '' }}>{{ $w->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-auto">
                             <button type="submit" class="btn btn-sm btn-primary"><i class="ti ti-refresh"></i> {{ __('Apply') }}</button>
                         </div>
                     </form>
-                    @endif
 
                     <div class="alert alert-info py-2 mb-3 small">
                         <i class="ti ti-info-circle me-1"></i> {{ __('pos.kitchen_display_info') }}
@@ -50,6 +61,12 @@
                     <div id="pos-prep-overdue-banner" class="alert alert-danger py-2 mb-3 small d-none">
                         <i class="ti ti-alert-triangle me-1"></i>
                         <span id="pos-prep-overdue-text"></span>
+                    </div>
+
+                    <div class="pos-status-legend mb-3" aria-label="{{ __('pos.status') }}">
+                        <span class="pos-status-legend__item"><span class="pos-status-legend__dot pos-status-legend__dot--sent"></span>{{ __('pos.status_legend_sent') }}</span>
+                        <span class="pos-status-legend__item"><span class="pos-status-legend__dot pos-status-legend__dot--prep"></span>{{ __('pos.status_legend_preparation') }}</span>
+                        <span class="pos-status-legend__item"><span class="pos-status-legend__dot pos-status-legend__dot--done"></span>{{ __('pos.status_legend_done') }}</span>
                     </div>
 
                     <div class="table-responsive">
@@ -69,10 +86,22 @@
                             <tbody>
                                 @forelse($lines as $line)
                                     @php
-                                        $isOverdue = $line->isPrepOverdue();
-                                        $remaining = $line->prepRemainingMinutes();
-                                        $elapsed = $line->prepElapsedMinutes();
+                                        $isOverdue = method_exists($line, 'isPrepOverdue') ? (bool) $line->isPrepOverdue() : false;
+                                        $remaining = method_exists($line, 'prepRemainingMinutes') ? $line->prepRemainingMinutes() : null;
+                                        $elapsed = method_exists($line, 'prepElapsedMinutes') ? $line->prepElapsedMinutes() : null;
                                         $target = (int) ($line->prep_minutes ?? 0);
+                                        $productName = $line->product ? $line->product->name : ($line->product_id ?? '—');
+                                        $productSku = $line->product && !empty($line->product->sku) ? $line->product->sku : null;
+                                        $linePrice = Auth::user()->priceFormat($line->price ?? 0);
+                                        $statusClass = 'pos-prod-status--done';
+                                        $statusLabel = __('pos.status_ready');
+                                        if ($line->status === \App\Models\PosProduct::STATUS_PENDING) {
+                                            $statusClass = 'pos-prod-status--sent';
+                                            $statusLabel = __('pos.status_pending');
+                                        } elseif ($line->status === \App\Models\PosProduct::STATUS_IN_PREPARATION) {
+                                            $statusClass = 'pos-prod-status--prep';
+                                            $statusLabel = __('pos.status_in_preparation');
+                                        }
                                     @endphp
                                     <tr data-line-id="{{ $line->id }}"
                                         data-sent-at="{{ $line->sent_at ? $line->sent_at->toIso8601String() : '' }}"
@@ -81,17 +110,17 @@
                                         data-status="{{ $line->status }}"
                                         class="{{ $isOverdue ? 'table-danger' : '' }}">
                                         <td>{{ $line->pos && $line->pos->table ? $line->pos->table->name : '—' }}</td>
-                                        <td>{{ $line->product ? $line->product->name : ($line->product_id ?? '—') }}</td>
+                                        <td>
+                                            <div class="fw-semibold">{{ $productName }}</div>
+                                            @if($productSku)
+                                                <div class="small text-muted">{{ __('Sku') }}: {{ $productSku }}</div>
+                                            @endif
+                                            <div class="small text-muted">{{ __('Price') }}: {{ $linePrice }}</div>
+                                        </td>
                                         <td>{{ $line->quantity }}</td>
                                         <td><small class="text-muted">{{ $line->description ?: '—' }}</small></td>
                                         <td>
-                                            @if($line->status === \App\Models\PosProduct::STATUS_PENDING)
-                                                <span class="badge bg-warning text-dark">{{ __('Pending') }}</span>
-                                            @elseif($line->status === \App\Models\PosProduct::STATUS_IN_PREPARATION)
-                                                <span class="badge bg-info">{{ __('In Preparation') }}</span>
-                                            @else
-                                                <span class="badge bg-success">{{ __('Ready') }}</span>
-                                            @endif
+                                            <span class="badge pos-prod-status {{ $statusClass }}">{{ $statusLabel }}</span>
                                             @if($isOverdue)
                                                 <span class="badge bg-danger ms-1 pos-prep-overdue-badge">{{ __('Overtime') }}</span>
                                             @endif
@@ -119,10 +148,10 @@
                                         </td>
                                         <td>
                                             @if($line->status === \App\Models\PosProduct::STATUS_PENDING)
-                                                <button type="button" class="btn btn-sm btn-outline-info pos-production-set-status" data-id="{{ $line->id }}" data-status="in_preparation"><i class="ti ti-chef-hat"></i> {{ __('In preparation') }}</button>
+                                                <button type="button" class="btn btn-sm btn-outline-warning pos-production-set-status" data-id="{{ $line->id }}" data-status="in_preparation"><i class="ti ti-chef-hat"></i> {{ __('pos.status_in_preparation') }}</button>
                                             @endif
                                             @if(in_array($line->status, [\App\Models\PosProduct::STATUS_PENDING, \App\Models\PosProduct::STATUS_IN_PREPARATION]))
-                                                <button type="button" class="btn btn-sm btn-success pos-production-set-status" data-id="{{ $line->id }}" data-status="ready"><i class="ti ti-check"></i> {{ __('Ready') }}</button>
+                                                <button type="button" class="btn btn-sm btn-success pos-production-set-status" data-id="{{ $line->id }}" data-status="ready"><i class="ti ti-check"></i> {{ __('pos.status_ready') }}</button>
                                             @endif
                                         </td>
                                     </tr>

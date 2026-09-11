@@ -137,6 +137,11 @@
                             </div>
                         </div>
                     </div>
+                    <div class="pos-status-legend" aria-label="{{ __('pos.status') }}">
+                        <span class="pos-status-legend__item"><span class="pos-status-legend__dot pos-status-legend__dot--sent"></span>{{ __('pos.status_legend_sent') }}</span>
+                        <span class="pos-status-legend__item"><span class="pos-status-legend__dot pos-status-legend__dot--prep"></span>{{ __('pos.status_legend_preparation') }}</span>
+                        <span class="pos-status-legend__item"><span class="pos-status-legend__dot pos-status-legend__dot--done"></span>{{ __('pos.status_legend_done') }}</span>
+                    </div>
                     <div class="card-body p-2 carttable carttable-scroll pos-cart-restaurant-wrap" id="carthtml-restaurant" style="max-height: 55vh; overflow-y: auto; overflow-x: hidden;">
                         <table class="table table-sm pos-cart-table pos-cart-table--restaurant mb-0 w-100">
                             <tbody id="tbody-restaurant"></tbody>

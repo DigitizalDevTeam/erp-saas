@@ -16,13 +16,34 @@
         <div class="col-xl-12">
             <div class="card">
                 <div class="card-body table-border-style">
+                    <form method="get" action="{{ route('productstock.index') }}" class="row g-2 align-items-end mb-3">
+                        <div class="col-md-4 col-lg-3">
+                            <label class="form-label" for="warehouse_id">{{ __('Warehouse') }}</label>
+                            <select name="warehouse_id" id="warehouse_id" class="form-control select">
+                                <option value="">{{ __('All Warehouses') }}</option>
+                                @foreach($warehouses as $warehouse)
+                                    <option value="{{ $warehouse->id }}" {{ (string) $warehouseId === (string) $warehouse->id ? 'selected' : '' }}>
+                                        {{ $warehouse->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="ti ti-filter"></i> {{ __('Filter') }}
+                            </button>
+                            @if($warehouseId)
+                                <a href="{{ route('productstock.index') }}" class="btn btn-secondary btn-sm">{{ __('Clear') }}</a>
+                            @endif
+                        </div>
+                    </form>
                     <div class="table-responsive">
                         <table class="table datatable">
                             <thead>
                             <tr>
                                 <th>{{ __('Name') }}</th>
                                 <th>{{ __('Sku') }}</th>
-                                <th>{{ __('Current Quantity') }}</th>
+                                <th>{{ __('Current Quantity') }}@if($warehouseId)<span class="text-muted small"> ({{ __('Warehouse') }})</span>@endif</th>
                                 <th>{{ __('Action') }}</th>
                             </tr>
                             </thead>
@@ -31,7 +52,7 @@
                                 <tr class="font-style">
                                     <td>{{ $productService->name }}</td>
                                     <td>{{ $productService->sku }}</td>
-                                    <td>{{ $productService->quantity }}</td>
+                                    <td>{{ $productService->display_quantity ?? $productService->quantity }}</td>
 
                                     <td class="Action">
                                         <div class="action-btn me-2">

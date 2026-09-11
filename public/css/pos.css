@@ -457,16 +457,52 @@
     line-height: 1.1 !important;
     padding: 0.1rem 0.35rem !important;
     border-radius: 3px !important;
-    background: #6fd943 !important;
+    background: #94a3b8 !important;
     color: #fff !important;
     white-space: nowrap;
     flex-shrink: 0;
 }
-.pos-cart-row--sent .pos-cart-line__badge.pos-line-status { background: #64748b !important; }
+.pos-cart-row--draft .pos-cart-line__badge.pos-line-status { background: #94a3b8 !important; }
+.pos-cart-row-sent .pos-cart-line__badge.pos-line-status { background: #ef4444 !important; }
 .pos-cart-row-preparation .pos-cart-line__badge.pos-line-status { background: #f59e0b !important; }
 .pos-cart-row-ready .pos-cart-line__badge.pos-line-status,
 .pos-cart-row-sent.pos-cart-row-ready .pos-cart-line__badge.pos-line-status { background: #22c55e !important; }
 .pos-cart-row-cancelled .pos-cart-line__badge.pos-line-status { background: #dc2626 !important; color: #fff !important; }
+.pos-status-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+    font-size: 0.68rem;
+    color: #64748b;
+    padding: 0.35rem 0.5rem 0;
+}
+.pos-status-legend__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+.pos-status-legend__dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    display: inline-block;
+}
+.pos-status-legend__dot--sent { background: #ef4444; }
+.pos-status-legend__dot--prep { background: #f59e0b; }
+.pos-status-legend__dot--done { background: #22c55e; }
+.pos-prod-status {
+    display: inline-block;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    line-height: 1.2 !important;
+    padding: 0.2rem 0.45rem !important;
+    border-radius: 4px !important;
+    color: #fff !important;
+}
+.pos-prod-status--sent { background: #ef4444 !important; }
+.pos-prod-status--prep { background: #f59e0b !important; }
+.pos-prod-status--done { background: #22c55e !important; }
 .pos-cart-row-compact.pos-cart-row-cancelled,
 .pos-cart-row-compact.pos-cart-row--voided {
     background: rgba(220, 38, 38, 0.08) !important;

@@ -37,6 +37,7 @@ class PosProductionController extends Controller
 
         $branchId = $request->get('branch_id');
         $zone = $request->get('zone', PosProduct::PRINT_ZONE_KITCHEN);
+        $warehouseId = $request->get('warehouse_id');
 
         if (! $showZoneSelector) {
             if ($user->can('manage pos production')) {
@@ -63,6 +64,16 @@ class PosProductionController extends Controller
             return redirect()->route('dashboard')->with('error', __('Permission denied.'));
         }
 
+        $warehouses = \App\Models\warehouse::where('created_by', $creatorId)
+            ->where(function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+            })
+            ->orderBy('name')
+            ->get();
+        if ($warehouseId !== null && $warehouseId !== '' && ! $warehouses->contains('id', (int) $warehouseId)) {
+            $warehouseId = null;
+        }
+
         $lines = collect();
         if ($branchId) {
             $openShiftIds = PosShift::where('branch_id', $branchId)
@@ -71,10 +82,13 @@ class PosProductionController extends Controller
                 ->pluck('id');
 
             $lines = PosProduct::with(['pos.table', 'pos.shift', 'product'])
-                ->whereHas('pos', function ($q) use ($openShiftIds, $creatorId) {
+                ->whereHas('pos', function ($q) use ($openShiftIds, $creatorId, $warehouseId) {
                     $q->whereIn('shift_id', $openShiftIds)
                         ->where('created_by', $creatorId)
                         ->whereNull('cancelled_at');
+                    if ($warehouseId) {
+                        $q->where('warehouse_id', (int) $warehouseId);
+                    }
                 })
                 ->forProductionZone($zone)
                 ->pendingOrInProgress()
@@ -83,7 +97,7 @@ class PosProductionController extends Controller
                 ->get();
         }
 
-        return view('pos_production.index', compact('branches', 'branchId', 'zone', 'lines', 'showBranchSelector', 'showZoneSelector'));
+        return view('pos_production.index', compact('branches', 'branchId', 'zone', 'lines', 'showBranchSelector', 'showZoneSelector', 'warehouses', 'warehouseId'));
     }
 
     public function updateLineStatus(Request $request, PosProduct $line)

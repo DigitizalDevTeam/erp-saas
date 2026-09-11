@@ -355,13 +355,20 @@ class PosController extends Controller
             return $resp;
         }
         $shiftId = (int) $request->get('shift_id', 0);
+        $forManage = $request->boolean('for_manage');
         $areas = PosArea::where('created_by', Auth::user()->creatorId())
             ->where('branch_id', $branchId)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
+        // Include tables for this branch OR tables whose area belongs to this branch
         $tablesQuery = PosTable::where('created_by', Auth::user()->creatorId())
-            ->where('branch_id', $branchId)
+            ->where(function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId)
+                    ->orWhereHas('area', function ($aq) use ($branchId) {
+                        $aq->where('branch_id', $branchId);
+                    });
+            })
             ->with('area');
 
         $pinCheck = $this->restaurantPinActorOrJsonError();
@@ -370,8 +377,11 @@ class PosController extends Controller
         }
         $posActor = $pinCheck;
         $posActorId = $posActor->id;
-        // Waiter sees only tables assigned to their current shift for this branch
-        if ($posActor->can('pos restaurant waiter') && ! $posActor->can('pos restaurant full') && ! $posActor->can('pos restaurant manager')) {
+        // Waiter sees only tables assigned to their current shift (skip for Manage Tables modal)
+        $isWaiterOnly = $posActor->can('pos restaurant waiter')
+            && ! $posActor->can('pos restaurant full')
+            && ! $posActor->can('pos restaurant manager');
+        if ($isWaiterOnly && ! $forManage) {
             $openShift = \App\Models\PosShift::where('branch_id', $branchId)
                 ->where('user_id', $posActorId)
                 ->where('status', \App\Models\PosShift::STATUS_OPEN)
@@ -389,6 +399,7 @@ class PosController extends Controller
         }
 
         $tables = $tablesQuery->orderBy('area_id')->orderBy('name')->get();
+        $knownAreaIds = $areas->pluck('id');
         $result = $areas->map(function ($area) use ($tables, $request, $shiftId) {
             return [
                 'id' => $area->id,
@@ -396,13 +407,15 @@ class PosController extends Controller
                 'tables' => $tables->where('area_id', $area->id)->values()->map(fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId))->toArray(),
             ];
         })->toArray();
-        // Tables without area
-        $tablesNoArea = $tables->whereNull('area_id');
-        if ($tablesNoArea->isNotEmpty()) {
+        // Tables without area, or with an area not in this branch's area list
+        $orphanTables = $tables->filter(function ($t) use ($knownAreaIds) {
+            return ! $t->area_id || ! $knownAreaIds->contains($t->area_id);
+        });
+        if ($orphanTables->isNotEmpty()) {
             $result[] = [
                 'id' => 0,
                 'name' => __('Other'),
-                'tables' => $tablesNoArea->values()->map(fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId))->toArray(),
+                'tables' => $orphanTables->values()->map(fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId))->toArray(),
             ];
         }
         return response()->json(['areas' => $result]);
@@ -2301,7 +2314,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     'printer_name' => $printer ? $printer->name : null,
                     'status' => $line->status ?? PosProduct::STATUS_PENDING,
                     'sent_at' => $line->sent_at ? $line->sent_at->toIso8601String() : null,
-                    'is_sent' => true,
+                    'is_sent' => $line->sent_at !== null,
                     'voided_at' => $line->voided_at ? $line->voided_at->toIso8601String() : null,
                     'void_reason' => $line->void_reason ?? null,
                     'pro_image' => $line->product && $line->product->pro_image ? $line->product->pro_image : 'default.png',
@@ -2585,12 +2598,27 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             ];
         }
 
-        // Clear session cart so UI loads from DB next time (also after kitchen slip print to avoid re-sending leftover lines).
+        // Clear all related session cart keys so ghost unsent lines cannot be re-sent/reprinted.
         $cartKey = 'pos_restaurant_cart';
-        $sessionCartKey = $isNonDineIn && $posId > 0 ? ('pos_' . $pos->id) : ($isNonDineIn ? ($orderType . '_' . $shiftId) : ($tableId . '_' . $shiftId));
         $allCarts = $request->session()->get($cartKey, []);
-        if (isset($allCarts[$sessionCartKey])) {
-            unset($allCarts[$sessionCartKey]);
+        $keysToClear = [];
+        if ($tableId && $shiftId) {
+            $keysToClear[] = $tableId . '_' . $shiftId;
+        }
+        if ($orderType && $shiftId) {
+            $keysToClear[] = $orderType . '_' . $shiftId;
+        }
+        if ($pos && $pos->id) {
+            $keysToClear[] = 'pos_' . $pos->id;
+        }
+        $cleared = false;
+        foreach (array_unique($keysToClear) as $key) {
+            if (isset($allCarts[$key])) {
+                unset($allCarts[$key]);
+                $cleared = true;
+            }
+        }
+        if ($cleared) {
             $request->session()->put($cartKey, $allCarts);
         }
 

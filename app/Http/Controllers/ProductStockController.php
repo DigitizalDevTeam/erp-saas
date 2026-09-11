@@ -17,16 +17,33 @@ class ProductStockController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index()
+    public function index(Request $request)
     {
 
         if(\Auth::user()->can('manage product & service'))
         {
+            $warehouses = warehouse::where('created_by', '=', \Auth::user()->creatorId())
+                ->orderBy('name')
+                ->get();
+            $warehouseId = $request->get('warehouse_id');
+            if ($warehouseId !== null && $warehouseId !== '' && ! $warehouses->contains('id', (int) $warehouseId)) {
+                $warehouseId = null;
+            }
 
-            $productServices = ProductService::where('created_by', '=', \Auth::user()->creatorId())->where('type', '=', 'product')->get();
+            $productServices = ProductService::where('created_by', '=', \Auth::user()->creatorId())
+                ->where('type', '=', 'product')
+                ->orderBy('name')
+                ->get();
 
+            foreach ($productServices as $productService) {
+                if ($warehouseId) {
+                    $productService->display_quantity = $productService->warehouseProduct($productService->id, (int) $warehouseId);
+                } else {
+                    $productService->display_quantity = $productService->quantity;
+                }
+            }
 
-            return view('productstock.index', compact('productServices'));
+            return view('productstock.index', compact('productServices', 'warehouses', 'warehouseId'));
         }
         else
         {
