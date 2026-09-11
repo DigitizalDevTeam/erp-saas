@@ -236,7 +236,8 @@
                     $(el.parent().parent().find('.itemTaxRate')).val(totalItemTaxRate.toFixed(2));
                     $(el.parent().parent().find('.taxes')).html(taxes);
                     $(el.parent().parent().find('.tax')).val(tax);
-                    $(el.parent().parent().find('.unit')).html(item.unit);
+                    var $unit = $(el.parent().parent().find('.unit'));
+                    $unit.text(item.unit || '').attr('title', item.unit || '');
                     $(el.parent().parent().find('.discount')).val(0);
                     $(el.parent().parent().find('.amount')).html(item.totalAmount);
 
@@ -582,20 +583,20 @@
                                 <td width="25%" class="form-group pt-0">
                                     {{ Form::select('item', $product_services,'', array('class' => 'form-control item'  ,'data-url'=>route('proposal.product'),'required'=>'required')) }}
                                 </td>
-                                <td>
-                                    <div class="form-group price-input input-group search-form">
+                                <td class="item-col-qty">
+                                    <div class="form-group price-input input-group search-form mb-0">
                                         {{ Form::number('quantity','', array('class' => 'form-control quantity','required'=>'required','placeholder'=>__('Qty'),'required'=>'required')) }}
-                                        <span class="unit input-group-text bg-transparent"></span>
                                     </div>
+                                    <small class="unit item-unit-label" title=""></small>
                                 </td>
-                                <td>
-                                    <div class="form-group price-input input-group search-form">
+                                <td class="item-col-price">
+                                    <div class="form-group price-input input-group search-form mb-0">
                                         {{ Form::number('price','', array('class' => 'form-control price','required'=>'required','placeholder'=>__('Price'),'required'=>'required')) }}
                                         <span class="input-group-text bg-transparent">{{\Auth::user()->currencySymbol()}}</span>
                                     </div>
                                 </td>
-                                <td>
-                                    <div class="form-group price-input input-group search-form">
+                                <td class="item-col-discount">
+                                    <div class="form-group price-input input-group search-form mb-0">
                                         {{ Form::number('discount','', array('class' => 'form-control discount','required'=>'required','placeholder'=>__('Discount'))) }}
                                         <span class="input-group-text bg-transparent">{{\Auth::user()->currencySymbol()}}</span>
                                     </div>

@@ -31,6 +31,7 @@ class PosProduct extends Model
         'selected_options_json',
         'status',
         'sent_at',
+        'prep_minutes',
         'ready_at',
         'print_zone',
         'pos_printer_id',
@@ -43,7 +44,47 @@ class PosProduct extends Model
         'sent_at' => 'datetime',
         'ready_at' => 'datetime',
         'voided_at' => 'datetime',
+        'prep_minutes' => 'integer',
     ];
+
+    public function dueAt(): ?\Carbon\Carbon
+    {
+        if (! $this->sent_at || ! $this->prep_minutes || (int) $this->prep_minutes <= 0) {
+            return null;
+        }
+
+        return $this->sent_at->copy()->addMinutes((int) $this->prep_minutes);
+    }
+
+    public function isPrepOverdue(): bool
+    {
+        if ($this->ready_at || in_array($this->status, [self::STATUS_READY, self::STATUS_SERVED, self::STATUS_CANCELLED], true)) {
+            return false;
+        }
+        $due = $this->dueAt();
+
+        return $due ? now()->greaterThan($due) : false;
+    }
+
+    public function prepElapsedMinutes(): ?int
+    {
+        if (! $this->sent_at) {
+            return null;
+        }
+        $end = $this->ready_at ?? now();
+
+        return (int) $this->sent_at->diffInMinutes($end);
+    }
+
+    public function prepRemainingMinutes(): ?int
+    {
+        $due = $this->dueAt();
+        if (! $due || $this->ready_at) {
+            return null;
+        }
+
+        return (int) now()->diffInMinutes($due, false);
+    }
 
     public function pos()
     {

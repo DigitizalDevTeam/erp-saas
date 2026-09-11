@@ -22,9 +22,11 @@ class PosRestaurantSettingsController extends Controller
         }
         $maxDiscount = Utility::getValByName('pos_max_discount_percent');
         $lowStockThreshold = Utility::getValByName('pos_low_stock_threshold');
+        $defaultPrepMinutes = Utility::getValByName('pos_default_prep_minutes');
         return view('pos_restaurant_settings.index', [
             'pos_max_discount_percent' => $maxDiscount !== '' ? $maxDiscount : '10',
             'pos_low_stock_threshold' => $lowStockThreshold !== '' ? $lowStockThreshold : '10',
+            'pos_default_prep_minutes' => $defaultPrepMinutes !== '' ? $defaultPrepMinutes : '15',
         ]);
     }
 
@@ -39,10 +41,12 @@ class PosRestaurantSettingsController extends Controller
         $request->validate([
             'pos_max_discount_percent' => 'nullable|numeric|min:0|max:100',
             'pos_low_stock_threshold' => 'nullable|numeric|min:0',
+            'pos_default_prep_minutes' => 'nullable|integer|min:1|max:480',
         ]);
         $creatorId = Auth::user()->creatorId();
         $this->saveSetting($creatorId, 'pos_max_discount_percent', (string) ($request->pos_max_discount_percent ?: 10));
         $this->saveSetting($creatorId, 'pos_low_stock_threshold', (string) ($request->pos_low_stock_threshold ?: 10));
+        $this->saveSetting($creatorId, 'pos_default_prep_minutes', (string) ($request->pos_default_prep_minutes ?: 15));
         return redirect()->route('pos-restaurant-settings.index')->with('success', __('Settings saved.'));
     }
 

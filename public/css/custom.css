@@ -2068,3 +2068,63 @@ font-size: 20px;
 .upgrade-line hr {
     flex: 1;
 }
+
+/* Product & Services line inputs: stop Qty/Price/Discount collapsing at 100% zoom */
+.repeater .table-responsive {
+    overflow-x: auto;
+}
+.repeater table.table {
+    min-width: 1100px;
+    table-layout: auto;
+}
+.repeater table.table > tbody > tr > td.item-col-qty,
+.repeater table.table > tbody > tr > td.item-col-price,
+.repeater table.table > tbody > tr > td.item-col-discount {
+    min-width: 140px !important;
+    width: 140px;
+    vertical-align: top;
+}
+.repeater .price-input.input-group {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    min-width: 0;
+}
+.repeater .price-input.input-group > .form-control {
+    position: relative !important;
+    flex: 1 1 auto !important;
+    width: 1% !important;
+    min-width: 5.5rem !important; /* override Bootstrap min-width:0 */
+    max-width: none !important;
+}
+.repeater .price-input.input-group > .input-group-text {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+}
+.repeater .item-unit-label {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #6c757d;
+    line-height: 1.2;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.repeater .price-input input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.repeater .price-input input[type="number"]::-webkit-outer-spin-button,
+.repeater .price-input input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+}

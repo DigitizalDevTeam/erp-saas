@@ -101,7 +101,7 @@
     @endif
 
     <link rel="stylesheet" href="{{ asset('assets/css/customizer.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/custom.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/custom.css') }}?v=20260909">
 
     @if ($setting['cust_darklayout'] == 'on')
         <link rel="stylesheet" href="{{ asset('css/custom-dark.css') }}">

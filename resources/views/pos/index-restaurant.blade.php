@@ -2091,43 +2091,85 @@
                     show_toastr('{{ __("Error") }}', '{{ __("pos.no_data_found") }}', 'error');
                     return;
                 }
-                var sendData = { _token: '{{ csrf_token() }}', branch_id: branchId, shift_id: shiftId, order_type: orderType, items: items };
-                if (isNonDineIn) {
+                window._posPendingSendPayload = {
+                    branchId: branchId,
+                    tableId: tableId,
+                    shiftId: shiftId,
+                    items: items,
+                    orderType: orderType,
+                    isNonDineIn: isNonDineIn
+                };
+                var defPrep = parseInt($('#pos-prep-minutes-input').val(), 10) || {{ (int) ($posDefaultPrepMinutes ?? 15) }};
+                $('#pos-prep-minutes-input').val(defPrep);
+                var modalEl = document.getElementById('posPrepTimeModal');
+                if (modalEl && window.bootstrap && bootstrap.Modal) {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                } else {
+                    $('#posPrepTimeModal').modal('show');
+                }
+            });
+
+            $(document).on('click', '#pos-prep-time-confirm-btn', function () {
+                var payload = window._posPendingSendPayload;
+                if (!payload || !payload.items || !payload.items.length) {
+                    return;
+                }
+                var prepMinutes = parseInt($('#pos-prep-minutes-input').val(), 10);
+                if (!prepMinutes || prepMinutes < 1) {
+                    show_toastr('{{ __("Error") }}', '{{ __("Please enter preparation time in minutes.") }}', 'error');
+                    return;
+                }
+                var modalEl = document.getElementById('posPrepTimeModal');
+                if (modalEl && window.bootstrap && bootstrap.Modal) {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                } else {
+                    $('#posPrepTimeModal').modal('hide');
+                }
+                var sendData = {
+                    _token: '{{ csrf_token() }}',
+                    branch_id: payload.branchId,
+                    shift_id: payload.shiftId,
+                    order_type: payload.orderType,
+                    items: payload.items,
+                    prep_minutes: prepMinutes
+                };
+                if (payload.isNonDineIn) {
                     sendData.guest_name = ($('#pos-guest-name').val() || '').trim();
                     sendData.guest_email = ($('#pos-guest-email').val() || '').trim();
                     sendData.guest_phone = ($('#pos-guest-phone').val() || '').trim();
                     var existingPosId = $('#pos_restaurant_pos_id').val();
                     if (existingPosId) sendData.pos_id = existingPosId;
                 } else {
-                    sendData.table_id = tableId;
+                    sendData.table_id = payload.tableId;
                 }
                 $.ajax({
                     type: 'POST',
                     url: '{{ route("pos.send.to.production") }}',
                     data: sendData,
                     success: function (res) {
+                        window._posPendingSendPayload = null;
                         if (res.success) {
                             show_toastr('{{ __("Success") }}', res.message || '{{ __("Order sent to production.") }}', 'success');
-                            var tableLabel = isNonDineIn ? (orderType === 'delivery' ? '{{ __("pos.delivery") }}' : '{{ __("pos.takeaway") }}') : $('#pos-selected-table').text();
+                            var tableLabel = payload.isNonDineIn ? (payload.orderType === 'delivery' ? '{{ __("pos.delivery") }}' : '{{ __("pos.takeaway") }}') : $('#pos-selected-table').text();
                             posRestaurantPrintSlips(tableLabel, {
                                 unsentOnly: true,
                                 isAddon: posRestaurantOrderHasSentLines(),
                                 orderRef: res.pos_id || $('#pos_restaurant_pos_id').val() || '',
                                 printJobs: Array.isArray(res.print_jobs) ? res.print_jobs : null
                             });
-                            if (isNonDineIn) {
+                            if (payload.isNonDineIn) {
                                 if (res.pos_id) {
                                     $('#pos_restaurant_pos_id').val(res.pos_id);
-                                    loadRestaurantOrder(null, shiftId, branchId, orderType, res.pos_id);
+                                    loadRestaurantOrder(null, payload.shiftId, payload.branchId, payload.orderType, res.pos_id);
                                 } else {
-                                    loadRestaurantOrder(null, shiftId, branchId, orderType);
+                                    loadRestaurantOrder(null, payload.shiftId, payload.branchId, payload.orderType);
                                 }
                                 if (typeof loadRestaurantDeliveryTakeawayCustomers === 'function') {
-                                    loadRestaurantDeliveryTakeawayCustomers(branchId, shiftId, orderType);
+                                    loadRestaurantDeliveryTakeawayCustomers(payload.branchId, payload.shiftId, payload.orderType);
                                 }
                             } else {
-                                loadRestaurantOrder(tableId, shiftId, branchId, 'dine_in');
-                                if (branchId) loadRestaurantTables(branchId);
+                                loadRestaurantOrder(payload.tableId, payload.shiftId, payload.branchId, 'dine_in');
+                                if (payload.branchId) loadRestaurantTables(payload.branchId);
                             }
                         }
                     },

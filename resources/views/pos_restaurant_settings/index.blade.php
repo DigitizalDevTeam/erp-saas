@@ -31,6 +31,13 @@
                                 <small class="text-muted">{{ __('Products with quantity below this appear in Low Stock report.') }}</small>
                             </div>
                         </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">{{ __('Default preparation time (minutes)') }}</label>
+                                <input type="number" name="pos_default_prep_minutes" class="form-control" min="1" max="480" step="1" value="{{ old('pos_default_prep_minutes', $pos_default_prep_minutes ?? '15') }}" placeholder="15">
+                                <small class="text-muted">{{ __('Used when sending orders to kitchen/bar. Overtime before Ready triggers an alert.') }}</small>
+                            </div>
+                        </div>
                     </div>
                     <div class="mt-3">
                         <button type="submit" class="btn btn-primary">{{ __('Save') }}</button>

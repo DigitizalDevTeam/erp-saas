@@ -10,6 +10,27 @@
     <li class="breadcrumb-item">{{ __('Credit Note Report') }}</li>
 @endsection
 
+@push('script-page')
+<script>
+    function printReportArea() {
+        const printContents = document.getElementById('printableArea').innerHTML;
+        const originalContents = document.body.innerHTML;
+        document.body.innerHTML = printContents;
+        window.print();
+        document.body.innerHTML = originalContents;
+        window.location.reload();
+    }
+</script>
+@endpush
+
+@section('action-btn')
+    <div class="float-end">
+        <a href="#" onclick="printReportArea(); return false;" class="btn btn-sm btn-primary-subtle" data-bs-toggle="tooltip" title="{{ __('Print') }}">
+            <i class="ti ti-printer"></i>
+        </a>
+    </div>
+@endsection
+
 @section('content')
 <div class="row">
     <div class="col-12">
@@ -18,7 +39,7 @@
                 <h5>{{ __('Credit Note Report') }}</h5>
             </div>
             <div class="card-body">
-                <form method="GET" action="{{ route('reports.credit.note') }}">
+                <form method="GET" action="{{ route('reports.credit.note') }}" class="no-print">
                     <div class="row">
                         <div class="col-md-3">
                             <label for="start_date">{{ __('Start Date') }}</label>
@@ -55,7 +76,7 @@
                     </div>
                 </form>
 
-                <div class="table-responsive mt-4">
+                <div class="table-responsive mt-4" id="printableArea">
                     <table class="table table-striped">
                         <thead>
                             <tr>

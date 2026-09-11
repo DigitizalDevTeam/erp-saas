@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\Utility;
 use App\Models\Customer;
 use App\Models\InvoiceProduct;
+use App\Models\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 
@@ -82,11 +83,15 @@ class CreditNoteController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
             $invoiceDue = Invoice::where('id', $invoice_id)->first();
+            $invoiceError = $this->validateInvoiceForNote($invoiceDue, true);
+            if ($invoiceError) {
+                return redirect()->back()->with('error', $invoiceError);
+            }
             if($request->amount > $invoiceDue->getDue())
             {
                 return redirect()->back()->with('error', 'Maximum ' . \Auth::user()->priceFormat($invoiceDue->getDue()) . ' credit limit of this invoice.');
             }
-            $invoice = Invoice::where('id', $invoice_id)->first();
+            $invoice = $invoiceDue;
             $ex_cred = CreditNote::where(['created_by' =>  \Auth::user()->creatorId() , 'is_debit' => 0])->latest()->first();
             $uid = 1;
             if($ex_cred)
@@ -290,15 +295,65 @@ class CreditNoteController extends Controller
         return view('creditNote.debit_view', compact('note','customer','iteams','rdata'));
     }
 
+    /**
+     * Invoices eligible for credit/debit notes (exclude paid, cancelled, draft).
+     */
+    protected function eligibleInvoicesForNotes()
+    {
+        return Invoice::where('created_by', \Auth::user()->creatorId())
+            ->whereNotIn('status', [
+                Invoice::STATUS_DRAFT,
+                Invoice::STATUS_PAID,
+                Invoice::STATUS_CANCELLED,
+            ])
+            ->get()
+            ->pluck('invoice_id', 'id');
+    }
+
+    protected function productsForNotes()
+    {
+        return ProductService::where('created_by', \Auth::user()->creatorId())
+            ->orderBy('name')
+            ->get(['id', 'name', 'sale_price']);
+    }
+
+    /**
+     * @return string|null error message when invoice cannot be used
+     */
+    protected function validateInvoiceForNote(?Invoice $invoice, bool $isCreditNote = true): ?string
+    {
+        if (!$invoice) {
+            return __('Invoice not found.');
+        }
+
+        if ((int) $invoice->status === Invoice::STATUS_PAID) {
+            return __('Cannot create note for a paid invoice.');
+        }
+
+        if ((int) $invoice->status === Invoice::STATUS_CANCELLED) {
+            return __('Cannot create note for a cancelled invoice.');
+        }
+
+        if ((int) $invoice->status === Invoice::STATUS_DRAFT) {
+            return __('Cannot create note for a draft invoice.');
+        }
+
+        if ($isCreditNote && $invoice->getDue() <= 0) {
+            return __('This invoice has no outstanding balance for a credit note.');
+        }
+
+        return null;
+    }
+
     public function customCreate()
     {
         if(\Auth::user()->can('create credit note'))
         {
+            $invoices = $this->eligibleInvoicesForNotes();
+            $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $products = $this->productsForNotes();
 
-            $invoices = Invoice::where('created_by', \Auth::user()->creatorId())->get()->pluck('invoice_id', 'id');
-            $customers = \App\Models\Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-
-            return view('creditNote.custom_create', compact('invoices', 'customers'));
+            return view('creditNote.custom_create', compact('invoices', 'customers', 'products'));
         }
         else
         {
@@ -310,7 +365,10 @@ class CreditNoteController extends Controller
     {
         $invoice = Invoice::with('items.product')->find($request->invoice_id);
         if (!$invoice) {
-            return response()->json(['html' => '<div class="text-danger">Invoice not found.</div>']);
+            return response()->json(['html' => '<div class="text-danger">'.e(__('Invoice not found.')).'</div>']);
+        }
+        if ((int) $invoice->status === Invoice::STATUS_PAID) {
+            return response()->json(['html' => '<div class="text-danger">'.e(__('Cannot create note for a paid invoice.')).'</div>']);
         }
         $html = view('creditNote.invoice_items', compact('invoice'))->render();
         return response()->json(['html' => $html]);
@@ -320,11 +378,11 @@ class CreditNoteController extends Controller
     {
         if(\Auth::user()->can('create credit note'))
         {
+            $invoices = $this->eligibleInvoicesForNotes();
+            $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $products = $this->productsForNotes();
 
-            $invoices = Invoice::where('created_by', \Auth::user()->creatorId())->get()->pluck('invoice_id', 'id');
-            $customers = \App\Models\Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-
-            return view('creditNote.sale_debit_create', compact('invoices', 'customers'));
+            return view('creditNote.sale_debit_create', compact('invoices', 'customers', 'products'));
         }
         else
         {
@@ -340,7 +398,7 @@ class CreditNoteController extends Controller
                 $request->all(), [
                                    'invoice' => 'nullable|numeric',
                                    'customer' => 'nullable|required_without:invoice|numeric',
-                                   'amount' => 'required|numeric',
+                                   'amount' => 'required|numeric|gt:0',
                                    'date' => 'required',
                                ]
             );
@@ -355,6 +413,10 @@ class CreditNoteController extends Controller
             if($invoice_id > 0)
             {
                 $invoiceDue = Invoice::where('id', $invoice_id)->first();
+                $invoiceError = $this->validateInvoiceForNote($invoiceDue, true);
+                if ($invoiceError) {
+                    return redirect()->back()->with('error', $invoiceError);
+                }
                 if($request->amount > $invoiceDue->getDue())
                 {
                     return redirect()->back()->with('error', 'Maximum ' . \Auth::user()->priceFormat($invoiceDue->getDue()) . ' credit limit of this invoice.');
@@ -362,7 +424,6 @@ class CreditNoteController extends Controller
                 $customer_id = $invoiceDue->customer_id;
             }
             
-            $invoice             = $invoice_id > 0 ? Invoice::where('id', $invoice_id)->first() : null;
             $ex_cred = CreditNote::where(['created_by' =>  \Auth::user()->creatorId() , 'is_debit' => 0])->latest()->first();
             $uid = 1;
             if($ex_cred)
@@ -377,7 +438,7 @@ class CreditNoteController extends Controller
             $credit->amount      = $request->amount;
             $credit->description = $request->description;
             $credit->created_by = \Auth::user()->creatorId();
-            $credit->data = $request->return_items ? json_encode($request->items) : null;
+            $credit->data = $request->return_items ? json_encode($request->items ?? []) : null;
             $credit->save();
 
             if($customer_id)
@@ -385,7 +446,7 @@ class CreditNoteController extends Controller
                 Utility::updateUserBalance('customer', $customer_id, $request->amount, 'debit');
             }
             
-            if($request->return_items)
+            if($request->return_items && is_array($request->items))
             {
                 foreach($request->items as $pid => $qty)
                 {
@@ -415,7 +476,7 @@ class CreditNoteController extends Controller
                 $request->all(), [
                                    'invoice' => 'nullable|numeric',
                                    'customer' => 'nullable|required_without:invoice|numeric',
-                                   'amount' => 'required|numeric',
+                                   'amount' => 'required|numeric|gt:0',
                                    'date' => 'required',
                                ]
             );
@@ -430,13 +491,13 @@ class CreditNoteController extends Controller
             if($invoice_id > 0)
             {
                 $invoiceDue = Invoice::where('id', $invoice_id)->first();
-                if($request->amount > $invoiceDue->getDue())
-                {
-                    return redirect()->back()->with('error', 'Maximum ' . \Auth::user()->priceFormat($invoiceDue->getDue()) . ' credit limit of this invoice.');
+                // Debit notes must never attach to paid/cancelled invoices (critical).
+                $invoiceError = $this->validateInvoiceForNote($invoiceDue, false);
+                if ($invoiceError) {
+                    return redirect()->back()->with('error', $invoiceError);
                 }
                 $customer_id = $invoiceDue->customer_id;
             }
-            $invoice             = $invoice_id > 0 ? Invoice::where('id', $invoice_id)->first() : null;
             $ex_cred = CreditNote::where(['created_by' =>  \Auth::user()->creatorId() , 'is_debit' => 1])->latest()->first();
             $uid = 1;
             if($ex_cred)
@@ -452,6 +513,7 @@ class CreditNoteController extends Controller
             $credit->description = $request->description;
             $credit->created_by = \Auth::user()->creatorId();
             $credit->is_debit = 1;
+            $credit->data = $request->return_items ? json_encode($request->items ?? []) : null;
             $credit->save();
 
             if($customer_id)

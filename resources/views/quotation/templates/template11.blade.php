@@ -331,10 +331,13 @@
                         if(!empty($item->itemTax)) {
                             $taxRates = [];
                             foreach($item->itemTax as $taxes) {
-                                $itemTaxAmount += $taxes['tax_price'];
-                                $taxRates[] = $taxes['rate'].'%';
+                                $itemTaxAmount += (float)($taxes['tax_price'] ?? 0);
+                                $rateLabel = (string)($taxes['rate'] ?? '');
+                                if ($rateLabel !== '') {
+                                    $taxRates[] = str_contains($rateLabel, '%') ? $rateLabel : ($rateLabel . '%');
+                                }
                             }
-                            $itemTaxRateText = implode(', ', $taxRates);
+                            $itemTaxRateText = !empty($taxRates) ? implode(', ', $taxRates) : '-';
                         }
                         $lineTotal = ($item->price * $item->quantity) - $item->discount + $itemTaxAmount;
                     @endphp

@@ -8,6 +8,12 @@
     <li class="breadcrumb-item">{{ __('Row & column check') }}</li>
 @endsection
 
+@section('action-btn')
+    <div class="float-end">
+        <a href="#" onclick="window.print(); return false;" class="btn btn-sm btn-primary-subtle" title="{{ __('Print') }}"><i class="ti ti-printer"></i></a>
+    </div>
+@endsection
+
 @section('content')
     <div class="card mb-3 no-print">
         <div class="card-body">

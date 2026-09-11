@@ -27,6 +27,9 @@
 
 @section('action-btn')
     <div class="float-end">
+        <a href="#" onclick="window.print(); return false;" class="btn btn-sm btn-primary-subtle me-1" data-bs-toggle="tooltip" title="{{ __('Print') }}">
+            <i class="ti ti-printer"></i>
+        </a>
         <a href="{{ route('annual.reports.irpc-payment-guide', ['year' => $reportData['fiscal_year'], 'download' => 'pdf']) }}"
             class="btn btn-sm btn-primary">
             <i class="ti ti-download"></i> {{ __('Download PDF') }}

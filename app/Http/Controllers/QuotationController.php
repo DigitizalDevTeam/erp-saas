@@ -454,16 +454,18 @@ class QuotationController extends Controller
                 $taxPrice = 10;
                 $totalTaxPrice += $taxPrice;
                 $itemTax['name'] = 'Tax ' . $k;
-                $itemTax['rate'] = '10 %';
+                $itemTax['rate'] = '10';
                 $itemTax['price'] = '$10';
+                $itemTax['tax_price'] = $taxPrice;
                 $itemTaxes[] = $itemTax;
                 if (array_key_exists('Tax ' . $k, $taxesData)) {
-                    $taxesData['Tax ' . $k] = $taxesData['Tax 1'] + $taxPrice;
+                    $taxesData['Tax ' . $k] = $taxesData['Tax ' . $k] + $taxPrice;
                 } else {
                     $taxesData['Tax ' . $k] = $taxPrice;
                 }
             }
             $item->itemTax = $itemTaxes;
+            $item->sku = 'SKU-' . $i;
             $items[] = $item;
         }
 
@@ -889,6 +891,7 @@ class QuotationController extends Controller
             $item->discount = $product->discount;
             $item->price = $product->price;
             $item->description = $product->description;
+            $item->sku = !empty($product->product()) ? ($product->product()->sku ?? '-') : '-';
             $totalQuantity += $item->quantity;
             $totalRate += $item->price;
             $totalDiscount += $item->discount;
@@ -902,6 +905,7 @@ class QuotationController extends Controller
                     $itemTax['name'] = $tax->name;
                     $itemTax['rate'] = $tax->rate . '%';
                     $itemTax['price'] = Utility::priceFormat($settings, $taxPrice);
+                    $itemTax['tax_price'] = $taxPrice;
                     $itemTaxes[] = $itemTax;
 
                     if (array_key_exists($tax->name, $taxesData)) {

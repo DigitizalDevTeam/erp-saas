@@ -4,7 +4,7 @@
             <th>{{ __('Item') }}</th>
             <th>{{ __('Price') }}</th>
             <th>{{ __('Quantity') }}</th>
-            <th>{{ __('Return Quantity') }}</th>
+            <th>{{ __('Qty') }}</th>
         </tr>
     </thead>
     <tbody>

@@ -380,3 +380,26 @@
     </div>
 </div>
 @endif
+
+{{-- Preparation time before send to kitchen/bar --}}
+<div class="modal fade" id="posPrepTimeModal" tabindex="-1" aria-labelledby="posPrepTimeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="posPrepTimeModalLabel">{{ __('Preparation time') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="pos-prep-minutes-input">{{ __('Minutes until ready') }}</label>
+                <input type="number" id="pos-prep-minutes-input" class="form-control" min="1" max="480" step="1" value="{{ (int) ($posDefaultPrepMinutes ?? 15) }}">
+                <small class="text-muted">{{ __('If prep exceeds this time before Ready / delivery, an overtime alert is shown on Production.') }}</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
+                <button type="button" class="btn btn-success" id="pos-prep-time-confirm-btn">
+                    <i class="ti ti-send me-1"></i>{{ __('Send to production') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

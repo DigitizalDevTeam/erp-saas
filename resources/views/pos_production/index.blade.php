@@ -47,9 +47,13 @@
                     <div class="alert alert-info py-2 mb-3 small">
                         <i class="ti ti-info-circle me-1"></i> {{ __('pos.kitchen_display_info') }}
                     </div>
+                    <div id="pos-prep-overdue-banner" class="alert alert-danger py-2 mb-3 small d-none">
+                        <i class="ti ti-alert-triangle me-1"></i>
+                        <span id="pos-prep-overdue-text"></span>
+                    </div>
 
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle">
+                        <table class="table table-hover align-middle" id="pos-production-table">
                             <thead>
                                 <tr>
                                     <th>{{ __('Table') }}</th>
@@ -64,7 +68,18 @@
                             </thead>
                             <tbody>
                                 @forelse($lines as $line)
-                                    <tr data-line-id="{{ $line->id }}">
+                                    @php
+                                        $isOverdue = $line->isPrepOverdue();
+                                        $remaining = $line->prepRemainingMinutes();
+                                        $elapsed = $line->prepElapsedMinutes();
+                                        $target = (int) ($line->prep_minutes ?? 0);
+                                    @endphp
+                                    <tr data-line-id="{{ $line->id }}"
+                                        data-sent-at="{{ $line->sent_at ? $line->sent_at->toIso8601String() : '' }}"
+                                        data-prep-minutes="{{ $target }}"
+                                        data-ready-at="{{ $line->ready_at ? $line->ready_at->toIso8601String() : '' }}"
+                                        data-status="{{ $line->status }}"
+                                        class="{{ $isOverdue ? 'table-danger' : '' }}">
                                         <td>{{ $line->pos && $line->pos->table ? $line->pos->table->name : '—' }}</td>
                                         <td>{{ $line->product ? $line->product->name : ($line->product_id ?? '—') }}</td>
                                         <td>{{ $line->quantity }}</td>
@@ -77,9 +92,31 @@
                                             @else
                                                 <span class="badge bg-success">{{ __('Ready') }}</span>
                                             @endif
+                                            @if($isOverdue)
+                                                <span class="badge bg-danger ms-1 pos-prep-overdue-badge">{{ __('Overtime') }}</span>
+                                            @endif
                                         </td>
                                         <td><small>{{ $line->sent_at ? $line->sent_at->format('H:i') : '—' }}</small></td>
-                                        <td><small>@if($line->ready_at && $line->sent_at){{ $line->sent_at->diffInMinutes($line->ready_at) }} min @else — @endif</small></td>
+                                        <td class="pos-prep-cell">
+                                            @if($line->ready_at && $line->sent_at)
+                                                <small>{{ $elapsed }} min
+                                                    @if($target > 0)
+                                                        / {{ $target }} min
+                                                    @endif
+                                                </small>
+                                            @elseif($target > 0 && $line->sent_at)
+                                                <small class="pos-prep-live" data-remaining="{{ $remaining }}">
+                                                    @if($isOverdue)
+                                                        <span class="text-danger fw-semibold">+{{ abs((int)$remaining) }} min {{ __('over') }}</span>
+                                                    @else
+                                                        {{ max(0, (int)$remaining) }} min {{ __('left') }}
+                                                    @endif
+                                                    <span class="text-muted">({{ $target }} min)</span>
+                                                </small>
+                                            @else
+                                                <small>—</small>
+                                            @endif
+                                        </td>
                                         <td>
                                             @if($line->status === \App\Models\PosProduct::STATUS_PENDING)
                                                 <button type="button" class="btn btn-sm btn-outline-info pos-production-set-status" data-id="{{ $line->id }}" data-status="in_preparation"><i class="ti ti-chef-hat"></i> {{ __('In preparation') }}</button>
@@ -108,6 +145,62 @@
 $(function() {
     var updateLineUrl = "{{ route('pos.production.line.update', ['line' => '__ID__']) }}";
     var csrf = "{{ csrf_token() }}";
+    var overdueMsg = @json(__('Preparation overtime: :count order(s) exceeded prep time before Ready.'));
+    var alertedIds = {};
+
+    function refreshPrepTimers() {
+        var overdueCount = 0;
+        var newlyOverdue = [];
+        $('#pos-production-table tbody tr[data-line-id]').each(function () {
+            var $tr = $(this);
+            var sentAt = $tr.attr('data-sent-at');
+            var prepMinutes = parseInt($tr.attr('data-prep-minutes'), 10) || 0;
+            var readyAt = $tr.attr('data-ready-at');
+            var status = $tr.attr('data-status');
+            var lineId = $tr.attr('data-line-id');
+            if (!sentAt || prepMinutes < 1 || readyAt || status === 'ready' || status === 'served' || status === 'cancelled') {
+                return;
+            }
+            var due = new Date(sentAt).getTime() + (prepMinutes * 60 * 1000);
+            var remaining = Math.round((due - Date.now()) / 60000);
+            var $cell = $tr.find('.pos-prep-live');
+            if ($cell.length) {
+                if (remaining < 0) {
+                    $cell.html('<span class="text-danger fw-semibold">+' + Math.abs(remaining) + ' min {{ __("over") }}</span> <span class="text-muted">(' + prepMinutes + ' min)</span>');
+                    $tr.addClass('table-danger');
+                    if ($tr.find('.pos-prep-overdue-badge').length === 0) {
+                        $tr.find('td').eq(4).append(' <span class="badge bg-danger ms-1 pos-prep-overdue-badge">{{ __("Overtime") }}</span>');
+                    }
+                    overdueCount++;
+                    if (!alertedIds[lineId]) {
+                        alertedIds[lineId] = true;
+                        newlyOverdue.push(lineId);
+                    }
+                } else {
+                    $cell.html(remaining + ' min {{ __("left") }} <span class="text-muted">(' + prepMinutes + ' min)</span>');
+                    $tr.removeClass('table-danger');
+                    $tr.find('.pos-prep-overdue-badge').remove();
+                }
+            } else if (remaining < 0) {
+                overdueCount++;
+            }
+        });
+        var $banner = $('#pos-prep-overdue-banner');
+        if (overdueCount > 0) {
+            $('#pos-prep-overdue-text').text(overdueMsg.replace(':count', overdueCount));
+            $banner.removeClass('d-none');
+            if (newlyOverdue.length) {
+                show_toastr('{{ __("Alert") }}', overdueMsg.replace(':count', newlyOverdue.length), 'error');
+            }
+        } else {
+            $banner.addClass('d-none');
+        }
+    }
+
+    refreshPrepTimers();
+    setInterval(refreshPrepTimers, 15000);
+    setInterval(function () { location.reload(); }, 60000);
+
     $(document).on('click', '.pos-production-set-status', function() {
         var btn = $(this);
         var id = btn.data('id');

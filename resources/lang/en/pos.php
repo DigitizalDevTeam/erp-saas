@@ -268,7 +268,10 @@ return [
     'void' => 'Void',
     'voided' => 'Voided',
     'void_reason_required' => 'Reason is required to void.',
-    'kitchen_display_info' => 'Kitchen display: Open this page on a tablet in the kitchen. It works on your internal network (no internet required) when you use the server\'s LAN IP (e.g. http://192.168.1.x/...). When items are marked "Ready", they appear here for pickup.',
+    'kitchen_display_info' => 'Kitchen display: Open this page on a tablet in the kitchen. It works on your internal network (no internet required) when you use the server\'s LAN IP (e.g. http://192.168.1.x/...). When items are marked "Ready", they appear here for pickup. Overtime alerts appear if preparation time is exceeded.',
     'open_drawer' => 'Open Drawer',
     'open_drawer_allow_popup' => 'Please allow popups to open the drawer.',
+    'preparation_time' => 'Preparation time',
+    'minutes_until_ready' => 'Minutes until ready',
+    'prep_overtime_alert' => 'Preparation overtime: :count order(s) exceeded prep time before Ready.',
 ];

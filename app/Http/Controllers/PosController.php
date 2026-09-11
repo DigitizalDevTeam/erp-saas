@@ -2429,6 +2429,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'items.*.id' => 'required|exists:product_services,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.price' => 'required|numeric|min:0',
+            'prep_minutes' => 'nullable|integer|min:1|max:480',
         ];
         if ($isNonDineIn) {
             if ((int) $request->get('pos_id', 0) > 0) {
@@ -2528,6 +2529,14 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         // Add only new lines (do not delete or change already-sent lines). Request items = unsent items to send.
         $printLines = [];
         $now = now();
+        $defaultPrep = (int) (Utility::getValByName('pos_default_prep_minutes') ?: 15);
+        if ($defaultPrep < 1) {
+            $defaultPrep = 15;
+        }
+        $prepMinutes = (int) ($request->input('prep_minutes') ?: $defaultPrep);
+        if ($prepMinutes < 1) {
+            $prepMinutes = $defaultPrep;
+        }
         $itemProductIds = collect($request->items)->pluck('id')->filter()->unique()->values()->all();
         $productsById = $itemProductIds
             ? ProductService::whereIn('id', $itemProductIds)->where('created_by', $creatorId)->with('category')->get()->keyBy('id')
@@ -2544,6 +2553,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             if ($variantId !== null && $variantId <= 0) {
                 $variantId = null;
             }
+            $linePrep = isset($item['prep_minutes']) ? (int) $item['prep_minutes'] : $prepMinutes;
+            if ($linePrep < 1) {
+                $linePrep = $prepMinutes;
+            }
             $line = PosProduct::create([
                 'pos_id' => $pos->id,
                 'product_id' => $product->id,
@@ -2558,6 +2571,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     : (! empty($item['selected_options_json']) ? $item['selected_options_json'] : null),
                 'status' => PosProduct::STATUS_PENDING,
                 'sent_at' => $now,
+                'prep_minutes' => $linePrep,
                 'print_zone' => $printZone,
                 'pos_printer_id' => $resolvedPrinterId,
             ]);
@@ -2585,12 +2599,13 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'pos',
             (int) $pos->id,
             __('Order sent to production'),
-            ['table_id' => $pos->table_id, 'order_type' => $pos->order_type, 'items_count' => count($request->items)]
+            ['table_id' => $pos->table_id, 'order_type' => $pos->order_type, 'items_count' => count($request->items), 'prep_minutes' => $prepMinutes]
         );
         return response()->json([
             'success' => true,
             'message' => __('Order sent to production.'),
             'pos_id' => $pos->id,
+            'prep_minutes' => $prepMinutes,
             'print_jobs' => PosPrintRoutingService::buildProductionPrintJobs($branchId, $creatorId, $printLines),
         ]);
     }
@@ -4237,7 +4252,11 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $userOpenShift = $userOpenShifts->first();
         $canShowPayButton = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('pos restaurant cashier') || $user->can('manage pos');
         $canShowVoid = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
-        return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'posPinUser', 'posBranchAssignmentWarning'));
+        $posDefaultPrepMinutes = (int) (Utility::getValByName('pos_default_prep_minutes') ?: 15);
+        if ($posDefaultPrepMinutes < 1) {
+            $posDefaultPrepMinutes = 15;
+        }
+        return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'posPinUser', 'posBranchAssignmentWarning', 'posDefaultPrepMinutes'));
     }
 
     /**

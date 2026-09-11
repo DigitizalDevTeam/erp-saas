@@ -10,10 +10,30 @@
     <li class="breadcrumb-item">{{ __('VAT (Modelo A IVA)') }}</li>
 @endsection
 
+@push('script-page')
+    <script>
+        function printMonthlyVat() {
+            const printContents = document.getElementById('printableArea').innerHTML;
+            const originalContents = document.body.innerHTML;
+            document.body.innerHTML = printContents;
+            window.print();
+            document.body.innerHTML = originalContents;
+            window.location.reload();
+        }
+    </script>
+@endpush
+
+@section('action-btn')
+    <div class="float-end">
+        <a href="#" onclick="printMonthlyVat(); return false;" class="btn btn-sm btn-primary-subtle me-1" data-bs-toggle="tooltip"
+            title="{{ __('Print / Save PDF') }}"><i class="ti ti-printer"></i></a>
+    </div>
+@endsection
+
 @section('content')
     <div class="row">
         <div class="col-12">
-            <div class="card mb-3">
+            <div class="card mb-3 no-print">
                 <div class="card-body">
                     {{ Form::open(['route' => ['monthly.reports.vat-modelo-a'], 'method' => 'GET', 'class' => 'row g-2 align-items-end']) }}
                     <div class="col-md-2">
@@ -80,6 +100,7 @@
                 </div>
             </div>
 
+            <div id="printableArea">
             <div class="card">
                 <div class="card-header py-2 d-flex justify-content-between">
                     <strong>{{ __('VAT Modelo A') }}</strong>
@@ -131,6 +152,7 @@
                         </table>
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     </div>
