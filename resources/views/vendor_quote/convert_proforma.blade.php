@@ -10,13 +10,18 @@
 
 @section('content')
     <div class="row justify-content-center">
-        <div class="col-lg-8">
+        <div class="col-lg-10">
             <div class="card">
                 <div class="card-body">
                     <p class="text-muted mb-4">
-                        {{ __('Create a proforma invoice (agreed price) from this vendor quote. Choose the customer who will receive the proforma. You can still convert this vendor quote to a purchase order separately.') }}
+                        {{ __('Create a proforma invoice (agreed price) from this vendor quote. Choose the customer who will receive the proforma and select approved items.') }}
                     </p>
                     {{ Form::open(['route' => ['vendor-quote.convert-proforma.store', \Crypt::encrypt($quote->id)], 'method' => 'POST', 'class' => 'needs-validation']) }}
+                    @include('partials.convert_source_items', [
+                        'sourceLabel' => __('From Vendor Quote'),
+                        'sourceValue' => Auth::user()->vendorQuoteNumberFormat($quote->purchase_quotation_id),
+                        'sourceLines' => $quote->items,
+                    ])
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             {{ Form::label('customer_id', __('Customer'), ['class' => 'form-label']) }}<x-required></x-required>
@@ -37,3 +42,13 @@
         </div>
     </div>
 @endsection
+
+@push('script-page')
+<script>
+    document.getElementById('select-all-items')?.addEventListener('change', function () {
+        document.querySelectorAll('.item-check').forEach(function (el) {
+            el.checked = this.checked;
+        }.bind(this));
+    });
+</script>
+@endpush

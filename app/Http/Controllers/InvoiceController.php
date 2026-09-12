@@ -662,7 +662,7 @@ class InvoiceController extends Controller
                 $invoice->customField = CustomField::getData($invoice, 'invoice');
                 $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'invoice')->get();
 
-                $creditnote = CreditNote::where('invoice',$invoice->id)->first();
+                $creditnote = CreditNote::where('invoice',$invoice->id)->where('is_debit', 0)->first();
 
                 return view('invoice.view', compact('invoice', 'customer', 'iteams', 'invoicePayment', 'customFields', 'user', 'invoice_user', 'user_plan' , 'creditnote'));
             } else {

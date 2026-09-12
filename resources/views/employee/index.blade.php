@@ -41,7 +41,7 @@
                                 <th>{{__('Designation') }}</th>
                                 <th>{{__('Date Of Joining') }}</th>
                                 <th> {{__('Last Login')}}</th>
-                                <th width="200px">{{__('Action')}}</th>
+                                <th width="280px">{{__('Action')}}</th>
 
                             </tr>
                             </thead>
@@ -80,30 +80,57 @@
                                     <td>
                                         {{ (!empty($employee->user->last_login_at)) ? $employee->user->last_login_at : '-' }}
                                     </td>
-                                    @if(Gate::check('edit employee') || Gate::check('delete employee'))
-                                        <td>
-                                            @if($employee->is_active==1)
+                                    <td>
+                                        @if($employee->is_active==1)
+                                            <div class="d-flex align-items-center flex-wrap gap-1">
+                                                <div class="dropdown action-btn">
+                                                    <a href="#" class="btn btn-sm bg-primary text-white dropdown-toggle"
+                                                       data-bs-toggle="dropdown" aria-expanded="false"
+                                                       title="{{ __('Documents') }}">
+                                                        <i class="ti ti-file-type-pdf"></i>
+                                                    </a>
+                                                    <div class="dropdown-menu dropdown-menu-end">
+                                                        <h6 class="dropdown-header">{{ __('PDF') }}</h6>
+                                                        <a class="dropdown-item" href="{{ route('joiningletter.download.pdf', $employee->id) }}" target="_blank" rel="noopener">
+                                                            <i class="ti ti-download me-1"></i>{{ __('Joining Letter') }}
+                                                        </a>
+                                                        <a class="dropdown-item" href="{{ route('exp.download.pdf', $employee->id) }}" target="_blank" rel="noopener">
+                                                            <i class="ti ti-download me-1"></i>{{ __('Experience Certificate') }}
+                                                        </a>
+                                                        <a class="dropdown-item" href="{{ route('noc.download.pdf', $employee->id) }}" target="_blank" rel="noopener">
+                                                            <i class="ti ti-download me-1"></i>{{ __('NOC') }}
+                                                        </a>
+                                                        <div class="dropdown-divider"></div>
+                                                        <h6 class="dropdown-header">{{ __('DOC') }}</h6>
+                                                        <a class="dropdown-item" href="{{ route('joininglatter.download.doc', $employee->id) }}" target="_blank" rel="noopener">
+                                                            <i class="ti ti-file-text me-1"></i>{{ __('Joining Letter') }}
+                                                        </a>
+                                                        <a class="dropdown-item" href="{{ route('exp.download.doc', $employee->id) }}" target="_blank" rel="noopener">
+                                                            <i class="ti ti-file-text me-1"></i>{{ __('Experience Certificate') }}
+                                                        </a>
+                                                        <a class="dropdown-item" href="{{ route('noc.download.doc', $employee->id) }}" target="_blank" rel="noopener">
+                                                            <i class="ti ti-file-text me-1"></i>{{ __('NOC') }}
+                                                        </a>
+                                                    </div>
+                                                </div>
                                                 @can('edit employee')
-                                                <div class="action-btn me-2">
-                                                    <a href="{{route('employee.edit',\Illuminate\Support\Facades\Crypt::encrypt($employee->id))}}" class="mx-3 btn btn-sm align-items-center bg-info" data-bs-toggle="tooltip" title="{{__('Edit')}}"
-                                                     data-original-title="{{__('Edit')}}"><i class="ti ti-pencil text-white"></i></a>
-                                                </div>
-
-                                                    @endcan
-                                                @can('delete employee')
-                                                <div class="action-btn ">
-                                                {!! Form::open(['method' => 'DELETE', 'route' => ['employee.destroy', $employee->id],'id'=>'delete-form-'.$employee->id]) !!}
-
-                                                    <a href="#" class="btn btn-sm align-items-center bs-pass-para bg-danger" data-bs-toggle="tooltip" title="{{__('Delete')}}" data-original-title="{{__('Delete')}}" data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}" data-confirm-yes="document.getElementById('delete-form-{{$employee->id}}').submit();"><i class="ti ti-trash text-white"></i></a>
-                                                    {!! Form::close() !!}
-                                                </div>
+                                                    <div class="action-btn">
+                                                        <a href="{{route('employee.edit',\Illuminate\Support\Facades\Crypt::encrypt($employee->id))}}" class="btn btn-sm align-items-center bg-info" data-bs-toggle="tooltip" title="{{__('Edit')}}"
+                                                         data-original-title="{{__('Edit')}}"><i class="ti ti-pencil text-white"></i></a>
+                                                    </div>
                                                 @endcan
-                                            @else
-
-                                                <i class="ti ti-lock"></i>
-                                            @endif
-                                        </td>
-                                    @endif
+                                                @can('delete employee')
+                                                    <div class="action-btn">
+                                                    {!! Form::open(['method' => 'DELETE', 'route' => ['employee.destroy', $employee->id],'id'=>'delete-form-'.$employee->id]) !!}
+                                                        <a href="#" class="btn btn-sm align-items-center bs-pass-para bg-danger" data-bs-toggle="tooltip" title="{{__('Delete')}}" data-original-title="{{__('Delete')}}" data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}" data-confirm-yes="document.getElementById('delete-form-{{$employee->id}}').submit();"><i class="ti ti-trash text-white"></i></a>
+                                                    {!! Form::close() !!}
+                                                    </div>
+                                                @endcan
+                                            </div>
+                                        @else
+                                            <i class="ti ti-lock"></i>
+                                        @endif
+                                    </td>
                                 </tr>
                             @endforeach
                             </tbody>

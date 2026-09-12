@@ -644,11 +644,17 @@ class EmployeeController extends Controller
 
         $currantLang = $users->currentLanguage();
         $joiningletter=JoiningLetter::where(['lang' =>   $currantLang,'created_by' => \Auth::user()->creatorId()])->first();
+        if (empty($joiningletter)) {
+            return redirect()->back()->with('error', __('Joining letter template not found. Please configure it in company settings.'));
+        }
         $date=date('Y-m-d');
         $employees = Employee::find($id);
+        if (empty($employees)) {
+            return redirect()->back()->with('error', __('Employee not found.'));
+        }
         $settings = Utility::settings();
-        $secs = strtotime($settings['company_start_time'])-strtotime("00:00");
-        $result = date("H:i",strtotime($settings['company_end_time'])-$secs);
+        $secs = strtotime($settings['company_start_time'] ?? '00:00')-strtotime("00:00");
+        $result = date("H:i",strtotime($settings['company_end_time'] ?? '00:00')-$secs);
         $obj = [
             'date' =>  \Auth::user()->dateFormat($date),
             'app_name' => env('APP_NAME'),
@@ -707,15 +713,21 @@ class EmployeeController extends Controller
         }
         $termination = Termination::where('employee_id',$id)->first();
         $experience_certificate=ExperienceCertificate::where(['lang' =>   $currantLang,'created_by' => \Auth::user()->creatorId()])->first();
+        if (empty($experience_certificate)) {
+            return redirect()->back()->with('error', __('Experience certificate template not found. Please configure it in company settings.'));
+        }
         $date=date('Y-m-d');
         $employees = Employee::find($id);
+        if (empty($employees)) {
+            return redirect()->back()->with('error', __('Employee not found.'));
+        }
         $settings = Utility::settings();
-        $secs = strtotime($settings['company_start_time'])-strtotime("00:00");
-        $result = date("H:i",strtotime($settings['company_end_time'])-$secs);
+        $secs = strtotime($settings['company_start_time'] ?? '00:00')-strtotime("00:00");
+        $result = date("H:i",strtotime($settings['company_end_time'] ?? '00:00')-$secs);
         $date1 = date_create($employees->company_doj);
         $date2 = date_create($employees->termination_date);
         $diff  =date_diff($date1,$date2);
-        $duration = $diff->format("%a days");
+        $duration = $diff ? $diff->format("%a days") : '';
 
         if(!empty($termination->termination_date)){
 
@@ -778,11 +790,17 @@ class EmployeeController extends Controller
 
         $currantLang = $users->currentLanguage();
         $noc_certificate=NOC::where(['lang' =>   $currantLang,'created_by' => \Auth::user()->creatorId()])->first();
+        if (empty($noc_certificate)) {
+            return redirect()->back()->with('error', __('NOC template not found. Please configure it in company settings.'));
+        }
         $date=date('Y-m-d');
         $employees = Employee::find($id);
+        if (empty($employees)) {
+            return redirect()->back()->with('error', __('Employee not found.'));
+        }
         $settings = Utility::settings();
-        $secs = strtotime($settings['company_start_time'])-strtotime("00:00");
-        $result = date("H:i",strtotime($settings['company_end_time'])-$secs);
+        $secs = strtotime($settings['company_start_time'] ?? '00:00')-strtotime("00:00");
+        $result = date("H:i",strtotime($settings['company_end_time'] ?? '00:00')-$secs);
 
 
         $obj = [

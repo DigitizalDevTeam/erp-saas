@@ -150,7 +150,7 @@ class PurchaseProformaController extends Controller
             return redirect()->back()->with('error', __('Not found.'));
         }
 
-        $proforma = PurchaseProforma::find($id);
+        $proforma = PurchaseProforma::with(['purchaseQuotation', 'items', 'warehouse'])->find($id);
         if (! $proforma || (int) $proforma->created_by !== (int) Auth::user()->creatorId()) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
@@ -310,7 +310,33 @@ class PurchaseProformaController extends Controller
         return json_encode($items);
     }
 
-    public function convertToPurchase($encryptedId)
+    public function convertToPurchaseForm($encryptedId)
+    {
+        if (! Auth::user()->can('create purchase')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid proforma.'));
+        }
+
+        $proforma = PurchaseProforma::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $proforma) {
+            return redirect()->back()->with('error', __('Purchase proforma not found.'));
+        }
+        if (! empty($proforma->converted_purchase_id)) {
+            return redirect()->route('purchase.show', Crypt::encrypt($proforma->converted_purchase_id))
+                ->with('info', __('Purchase order already exists.'));
+        }
+        if ($proforma->items->isEmpty()) {
+            return redirect()->back()->with('error', __('Purchase proforma has no line items.'));
+        }
+
+        return view('purchase_proforma.convert_purchase', compact('proforma'));
+    }
+
+    public function convertToPurchase(Request $request, $encryptedId)
     {
         if (! Auth::user()->can('create purchase')) {
             return redirect()->back()->with('error', __('Permission denied.'));
@@ -330,14 +356,33 @@ class PurchaseProformaController extends Controller
                 ->with('info', __('Purchase order already exists.'));
         }
 
+        $selected = $request->input('items', []);
+        if (! is_array($selected) || $selected === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
         $items = [];
         foreach ($pp->items as $row) {
+            $payload = $selected[$row->id] ?? null;
+            if (! is_array($payload) || empty($payload['selected'])) {
+                continue;
+            }
+            $qty = (float) ($payload['quantity'] ?? $row->quantity);
+            if ($qty <= 0) {
+                return redirect()->back()->with('error', __('Quantity must be greater than zero.'))->withInput();
+            }
+            $discount = (float) $row->discount;
+            $originalQty = (float) $row->quantity;
+            if ($originalQty > 0 && abs($qty - $originalQty) > 0.00001) {
+                $discount = $discount * ($qty / $originalQty);
+            }
+
             $items[] = [
                 'item' => $row->product_id,
-                'quantity' => $row->quantity,
+                'quantity' => $qty,
                 'price' => $row->price,
                 'tax' => $row->tax,
-                'discount' => $row->discount,
+                'discount' => $discount,
                 'description' => $row->description,
                 'product_variant_id' => '',
                 'allow_default_variant' => 1,
@@ -348,6 +393,9 @@ class PurchaseProformaController extends Controller
                 'mfg_date' => '',
                 'identifiers' => '',
             ];
+        }
+        if ($items === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
         }
 
         $category = ProductServiceCategory::where('created_by', Auth::user()->creatorId())->where('type', 'expense')->orderBy('id')->first();
@@ -361,6 +409,7 @@ class PurchaseProformaController extends Controller
             'purchase_number' => 0,
             'items' => $items,
             'purchase_proforma_id' => $pp->id,
+            'purchase_quotation_id' => $pp->purchase_quotation_id ?: null,
             '_token' => csrf_token(),
         ]);
         $req->setUserResolver(fn () => Auth::user());
@@ -369,9 +418,35 @@ class PurchaseProformaController extends Controller
     }
 
     /**
-     * Vendor Quote → Purchase Proforma (keeps supplier).
+     * Vendor Quote → Purchase Proforma (keeps supplier) — form with item selection.
      */
-    public function createFromVendorQuote($encryptedId)
+    public function createFromVendorQuoteForm($encryptedId)
+    {
+        if (! Auth::user()->can('create purchase')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid quote.'));
+        }
+
+        $quote = PurchaseQuotation::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $quote) {
+            return redirect()->back()->with('error', __('Vendor quote not found.'));
+        }
+        if (! empty($quote->converted_purchase_proforma_id)) {
+            return redirect()->route('purchase-proforma.show', Crypt::encrypt($quote->converted_purchase_proforma_id))
+                ->with('info', __('Purchase proforma already exists for this vendor quote.'));
+        }
+        if ($quote->items->isEmpty()) {
+            return redirect()->back()->with('error', __('Vendor quote has no line items.'));
+        }
+
+        return view('vendor_quote.convert_purchase_proforma', compact('quote'));
+    }
+
+    public function createFromVendorQuote(Request $request, $encryptedId)
     {
         if (! Auth::user()->can('create purchase')) {
             return redirect()->back()->with('error', __('Permission denied.'));
@@ -391,7 +466,28 @@ class PurchaseProformaController extends Controller
                 ->with('info', __('Purchase proforma already exists for this vendor quote.'));
         }
 
-        $proforma = DB::transaction(function () use ($quote) {
+        $selected = $request->input('items', []);
+        if (! is_array($selected) || $selected === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
+        $selectedRows = [];
+        foreach ($quote->items as $row) {
+            $payload = $selected[$row->id] ?? null;
+            if (! is_array($payload) || empty($payload['selected'])) {
+                continue;
+            }
+            $qty = (float) ($payload['quantity'] ?? $row->quantity);
+            if ($qty <= 0) {
+                return redirect()->back()->with('error', __('Quantity must be greater than zero.'))->withInput();
+            }
+            $selectedRows[] = [$row, $qty];
+        }
+        if ($selectedRows === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
+        $proforma = DB::transaction(function () use ($quote, $selectedRows) {
             $pp = new PurchaseProforma();
             $pp->purchase_proforma_id = $this->nextProformaNumber();
             $pp->vender_id = $quote->vender_id;
@@ -403,14 +499,20 @@ class PurchaseProformaController extends Controller
             $pp->created_by = Auth::user()->creatorId();
             $pp->save();
 
-            foreach ($quote->items as $row) {
+            foreach ($selectedRows as [$row, $qty]) {
+                $discount = (float) $row->discount;
+                $originalQty = (float) $row->quantity;
+                if ($originalQty > 0 && abs($qty - $originalQty) > 0.00001) {
+                    $discount = $discount * ($qty / $originalQty);
+                }
+
                 $line = new PurchaseProformaProduct();
                 $line->purchase_proforma_id = $pp->id;
                 $line->product_id = $row->product_id;
                 $line->price = $row->price;
-                $line->quantity = $row->quantity;
+                $line->quantity = $qty;
                 $line->tax = $row->tax;
-                $line->discount = $row->discount;
+                $line->discount = $discount;
                 $line->description = $row->description;
                 $line->save();
             }

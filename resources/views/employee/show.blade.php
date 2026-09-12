@@ -12,61 +12,52 @@
 @section('action-btn')
     @if(!empty($employee))
         <div class="text-end">
-            <div class="d-flex flex-wrap align-items-center justify-content-md-end gap-2 drp-languages">
-                <ul class="list-unstyled mb-0">
-                    <li class="dropdown dash-h-item status-drp">
-                        <a class="dash-head-link dropdown-toggle arrow-none me-0" data-bs-toggle="dropdown" href="#"
-                           role="button" aria-haspopup="false" aria-expanded="false">
-                            <span class="drp-text hide-mob text-primary"> {{__('Joining Letter')}}</span>
-                            <i class="ti ti-chevron-down drp-arrow nocolor hide-mob"></i>
+            <div class="d-flex flex-wrap align-items-center justify-content-md-end gap-2">
+                <a href="{{ route('joiningletter.download.pdf', $employee->id) }}"
+                   class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener"
+                   data-bs-toggle="tooltip" title="{{ __('Joining Letter PDF') }}">
+                    <i class="ti ti-file-type-pdf"></i> {{ __('Joining Letter') }}
+                </a>
+                <a href="{{ route('exp.download.pdf', $employee->id) }}"
+                   class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener"
+                   data-bs-toggle="tooltip" title="{{ __('Experience Certificate PDF') }}">
+                    <i class="ti ti-file-type-pdf"></i> {{ __('Experience Certificate') }}
+                </a>
+                <a href="{{ route('noc.download.pdf', $employee->id) }}"
+                   class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener"
+                   data-bs-toggle="tooltip" title="{{ __('NOC PDF') }}">
+                    <i class="ti ti-file-type-pdf"></i> {{ __('NOC') }}
+                </a>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                            data-bs-toggle="dropdown" aria-expanded="false">
+                        {{ __('DOC') }}
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a href="{{ route('joininglatter.download.doc', $employee->id) }}" class="dropdown-item" target="_blank" rel="noopener">
+                            <i class="ti ti-file-text me-1"></i>{{ __('Joining Letter') }}
                         </a>
-                        <div class="dropdown-menu icon-dropdown dash-h-dropdown">
-                            <a href="{{route('joiningletter.download.pdf',$employee->id)}}" class=" btn-icon dropdown-item" data-bs-toggle="tooltip" data-bs-placement="top"  target="_blanks" ><i class="ti ti-download "></i>{{__('PDF')}}</a>
-
-                            <a href="{{route('joininglatter.download.doc',$employee->id)}}" class=" btn-icon dropdown-item" data-bs-toggle="tooltip" data-bs-placement="top"  target="_blanks" ><i class="ti ti-download "></i>{{__('DOC')}}</a>
-                        </div>
-                    </li>
-                </ul>
-                <ul class="list-unstyled mb-0">
-                    <li class="dropdown dash-h-item status-drp">
-                        <a class="dash-head-link dropdown-toggle arrow-none me-0" data-bs-toggle="dropdown" href="#"
-                           role="button" aria-haspopup="false" aria-expanded="false">
-                            <span class="drp-text hide-mob text-primary"> {{__('Experience Certificate')}}</span>
-                            <i class="ti ti-chevron-down drp-arrow nocolor hide-mob"></i>
+                        <a href="{{ route('exp.download.doc', $employee->id) }}" class="dropdown-item" target="_blank" rel="noopener">
+                            <i class="ti ti-file-text me-1"></i>{{ __('Experience Certificate') }}
                         </a>
-                        <div class="dropdown-menu icon-dropdown dash-h-dropdown">
-                            <a href="{{route('exp.download.pdf',$employee->id)}}" class=" btn-icon dropdown-item" data-bs-toggle="tooltip" data-bs-placement="top"  target="_blanks" ><i class="ti ti-download "></i>{{__('PDF')}}</a>
-
-                            <a href="{{route('exp.download.doc',$employee->id)}}" class=" btn-icon dropdown-item" data-bs-toggle="tooltip" data-bs-placement="top"  target="_blanks" ><i class="ti ti-download "></i>{{__('DOC')}}</a></a>
-                        </div>
-                    </li>
-                </ul>
-                <ul class="list-unstyled mb-0">
-                    <li class="dropdown dash-h-item status-drp">
-                        <a class="dash-head-link dropdown-toggle arrow-none me-0" data-bs-toggle="dropdown" href="#"
-                           role="button" aria-haspopup="false" aria-expanded="false">
-                            <span class="drp-text hide-mob text-primary"> {{__('NOC')}}</span>
-                            <i class="ti ti-chevron-down drp-arrow nocolor hide-mob"></i>
+                        <a href="{{ route('noc.download.doc', $employee->id) }}" class="dropdown-item" target="_blank" rel="noopener">
+                            <i class="ti ti-file-text me-1"></i>{{ __('NOC') }}
                         </a>
-                        <div class="dropdown-menu icon-dropdown dash-h-dropdown">
-                            <a href="{{route('noc.download.pdf',$employee->id)}}" class=" btn-icon dropdown-item" data-bs-toggle="tooltip" data-bs-placement="top"  target="_blanks" ><i class="ti ti-download "></i>{{__('PDF')}}</a>
-
-                            <a href="{{route('noc.download.doc',$employee->id)}}" class=" btn-icon dropdown-item" data-bs-toggle="tooltip" data-bs-placement="top"  target="_blanks" ><i class="ti ti-download "></i>{{__('DOC')}}</a>
-                        </div>
-                    </li>
-                </ul>
+                    </div>
+                </div>
                 @can('manage report')
                     <a href="{{ route('monthly.reports.irps-modelo-19', ['month' => now()->format('Y-m'), 'download' => 'pdf']) }}"
                         data-bs-toggle="tooltip" title="{{ __('IRPS Modelo 19 (PDF)') }}" class="btn btn-sm btn-primary"
-                        target="_blank">
+                        target="_blank" rel="noopener">
                         <i class="ti ti-report-money"></i>
                     </a>
                 @endcan
                 @can('edit employee')
-                <a href="{{route('employee.edit',\Illuminate\Support\Facades\Crypt::encrypt($employee->id))}}" data-bs-toggle="tooltip" title="{{__('Edit')}}"class="btn btn-sm btn-info">
-                    <i class="ti ti-pencil"></i>
-                </a>
-            @endcan
+                    <a href="{{ route('employee.edit', \Illuminate\Support\Facades\Crypt::encrypt($employee->id)) }}"
+                       data-bs-toggle="tooltip" title="{{ __('Edit') }}" class="btn btn-sm btn-info">
+                        <i class="ti ti-pencil"></i>
+                    </a>
+                @endcan
             </div>
         </div>
     @endif

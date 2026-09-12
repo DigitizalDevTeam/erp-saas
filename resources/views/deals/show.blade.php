@@ -349,7 +349,7 @@
                                     fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path
                                         d="M74.7692 35C27.8769 35 5.38462 65 0 80H135.692V0C134.923 11.6667 121.662 35 74.7692 35Z"
-                                        fill="#FF3A6E"></path>
+                                        fill="#6fd943"></path>
                                 </svg>
                                 <div class="leave-icon">
                                     <div class="leave-icon-inner">
@@ -369,7 +369,7 @@
                                     fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path
                                         d="M74.7692 35C27.8769 35 5.38462 65 0 80H135.692V0C134.923 11.6667 121.662 35 74.7692 35Z"
-                                        fill="#FF3A6E"></path>
+                                        fill="#6fd943"></path>
                                 </svg>
                                 <div class="leave-icon">
                                     <div class="leave-icon-inner">
@@ -389,7 +389,7 @@
                                     fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path
                                         d="M74.7692 35C27.8769 35 5.38462 65 0 80H135.692V0C134.923 11.6667 121.662 35 74.7692 35Z"
-                                        fill="#FF3A6E"></path>
+                                        fill="#6fd943"></path>
                                 </svg>
                                 <div class="leave-icon">
                                     <div class="leave-icon-inner">
@@ -409,7 +409,7 @@
                                     fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path
                                         d="M74.7692 35C27.8769 35 5.38462 65 0 80H135.692V0C134.923 11.6667 121.662 35 74.7692 35Z"
-                                        fill="#FF3A6E"></path>
+                                        fill="#6fd943"></path>
                                 </svg>
                                 <div class="leave-icon">
                                     <div class="leave-icon-inner">

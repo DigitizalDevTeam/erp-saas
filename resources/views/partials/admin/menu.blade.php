@@ -933,7 +933,7 @@
                                             href="{{ route('company-policy.index') }}">{{ __('Company policy') }}</a>
                                     </li>
                                 @endif
-                                @if ((\Auth::user()->type == 'company' || \Auth::user()->type == 'HR') && menu_can('menu.hrm_system.branch'))
+                                @if (menu_can('menu.hrm_system.branch'))
                                     <li
                                         class="dash-item {{ Request::segment(1) == 'branch'
                                             ? 'active dash-trigger'

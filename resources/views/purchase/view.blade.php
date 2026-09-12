@@ -16,6 +16,41 @@
 
 @section('content')
 
+    @if (!empty($purchase->purchase_quotation_id) || !empty($purchase->purchase_proforma_id) || !empty($purchase->quotation_id) || !empty($purchase->proforma_id))
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="alert alert-light border mb-0">
+                    <strong>{{ __('Document from') }}:</strong>
+                    @if (!empty($purchase->purchaseQuotation))
+                        <a href="{{ route('vendor-quote.show', \Crypt::encrypt($purchase->purchase_quotation_id)) }}">
+                            {{ __('Vendor Quote') }} {{ Auth::user()->vendorQuoteNumberFormat($purchase->purchaseQuotation->purchase_quotation_id) }}
+                        </a>
+                    @elseif (!empty($purchase->purchase_quotation_id))
+                        <span>{{ __('Vendor Quote') }} #{{ $purchase->purchase_quotation_id }}</span>
+                    @endif
+                    @if (!empty($purchase->purchaseProforma))
+                        @if (!empty($purchase->purchase_quotation_id)) · @endif
+                        <a href="{{ route('purchase-proforma.show', \Crypt::encrypt($purchase->purchase_proforma_id)) }}">
+                            {{ __('Purchase Proforma') }} {{ Auth::user()->purchaseProformaNumberFormat($purchase->purchaseProforma->purchase_proforma_id) }}
+                        </a>
+                    @endif
+                    @if (!empty($purchase->sourceQuotation))
+                        @if (!empty($purchase->purchase_quotation_id) || !empty($purchase->purchase_proforma_id)) · @endif
+                        <a href="{{ route('quotation.show', \Crypt::encrypt($purchase->quotation_id)) }}">
+                            {{ __('Quotation') }} {{ Auth::user()->quotationNumberFormat($purchase->sourceQuotation->quotation_id) }}
+                        </a>
+                    @endif
+                    @if (!empty($purchase->sourceProforma))
+                        @if (!empty($purchase->purchase_quotation_id) || !empty($purchase->purchase_proforma_id) || !empty($purchase->quotation_id)) · @endif
+                        <a href="{{ route('proforma.show', \Crypt::encrypt($purchase->proforma_id)) }}">
+                            {{ __('Proforma') }} {{ Auth::user()->proformaNumberFormat($purchase->sourceProforma->proforma_id) }}
+                        </a>
+                    @endif
+                </div>
+            </div>
+        </div>
+    @endif
+
     @can('create invoice')
         @if ((int) $purchase->is_invoice_converted === 1 && ! empty($purchase->converted_invoice_id))
             <div class="row mb-3">

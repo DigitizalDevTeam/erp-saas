@@ -27,6 +27,19 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
+                    @if (!empty($proforma->purchase_quotation_id))
+                        <div class="alert alert-light border mb-3">
+                            <strong>{{ __('Document from') }}:</strong>
+                            <a href="{{ route('vendor-quote.show', \Crypt::encrypt($proforma->purchase_quotation_id)) }}">
+                                {{ __('Vendor Quote') }}
+                                @if (!empty($proforma->purchaseQuotation))
+                                    {{ Auth::user()->vendorQuoteNumberFormat($proforma->purchaseQuotation->purchase_quotation_id) }}
+                                @else
+                                    #{{ $proforma->purchase_quotation_id }}
+                                @endif
+                            </a>
+                        </div>
+                    @endif
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <p><strong>{{ __('Supplier') }}:</strong> {{ $vendor->name ?? '-' }}</p>

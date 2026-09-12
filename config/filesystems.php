@@ -78,7 +78,9 @@ return [
     */
 
     'links' => [
-        public_path('storage') => storage_path('app/public'),
+        // App local disk root is storage/ (not storage/app/public), so /storage/*
+        // must map to the storage folder for uploads/avatar, uploads/projects, etc.
+        public_path('storage') => storage_path(),
     ],
 
 ];

@@ -28,7 +28,8 @@ class CreditDebitNoteReportsController extends Controller
         $products = ProductService::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
 
         $query = CreditNote::with(['customerRelation', 'invoice_data', 'invoice_data.items.product'])
-            ->where('created_by', \Auth::user()->creatorId());
+            ->where('created_by', \Auth::user()->creatorId())
+            ->where('is_debit', 0);
 
         // Filters
         if ($request->filled('start_date') && $request->filled('end_date')) {

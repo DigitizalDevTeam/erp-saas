@@ -53,15 +53,35 @@ class Project extends Model
     // Make new attribute for directly get image
     public function getImgImageAttribute()
     {
-//
-        if(!empty($this->project_image) && \Storage::exists($this->project_image))
-        {
-            return $this->attributes['img_image'] = 'src=' . asset(\Storage::url($this->project_image));
+        $defaultUrl = Utility::get_file('uploads/avatar/default.png');
+        if (empty($defaultUrl)) {
+            $defaultUrl = asset(\Storage::url('uploads/avatar/default.png'));
         }
-        else
-        {
-            return $this->attributes['img_image'] = 'src=' . asset(\Storage::url('uploads/avatar/default.png'));
+
+        if (empty($this->project_image)) {
+            return $this->attributes['img_image'] = 'src=' . $defaultUrl;
         }
+
+        $candidates = array_values(array_unique(array_filter([
+            $this->project_image,
+            ltrim($this->project_image, '/'),
+            // Legacy storeAs('projects') paths + current uploads/projects paths
+            str_starts_with($this->project_image, 'projects/') ? 'uploads/' . $this->project_image : null,
+            str_starts_with($this->project_image, 'uploads/projects/') ? substr($this->project_image, strlen('uploads/')) : null,
+        ])));
+
+        foreach ($candidates as $path) {
+            if (\Storage::exists($path) || file_exists(storage_path($path))) {
+                $url = Utility::get_file($path);
+                if (empty($url)) {
+                    $url = asset(\Storage::url($path));
+                }
+
+                return $this->attributes['img_image'] = 'src=' . $url;
+            }
+        }
+
+        return $this->attributes['img_image'] = 'src=' . $defaultUrl;
     }
 
     public static function projectHrs($project_id, $task_id = '')

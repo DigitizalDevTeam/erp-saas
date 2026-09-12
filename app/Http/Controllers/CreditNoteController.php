@@ -166,22 +166,46 @@ class CreditNoteController extends Controller
             }
 
             $credit = CreditNote::find($creditNote_id);
+            if(!$credit)
+            {
+                return redirect()->back()->with('error', __('Note not found.'));
+            }
+
+            $isDebit = (int) $credit->is_debit === 1;
+
             if($credit->invoice > 0)
             {
                 $invoiceDue = Invoice::where('id', $credit->invoice)->first();
-                if($request->amount > $invoiceDue->getDue()+$credit->amount)
+                if(!$isDebit && $request->amount > $invoiceDue->getDue()+$credit->amount)
                 {
                     return redirect()->back()->with('error', 'Maximum ' . \Auth::user()->priceFormat($invoiceDue->getDue()) . ' credit limit of this invoice.');
                 }
-                Utility::updateUserBalance('customer', $invoiceDue->customer_id, $credit->amount, 'credit');
-                Utility::updateUserBalance('customer', $invoiceDue->customer_id, $request->amount, 'debit');
+                // Reverse previous balance effect, then apply new amount.
+                if($isDebit)
+                {
+                    Utility::updateUserBalance('customer', $invoiceDue->customer_id, $credit->amount, 'debit');
+                    Utility::updateUserBalance('customer', $invoiceDue->customer_id, $request->amount, 'credit');
+                }
+                else
+                {
+                    Utility::updateUserBalance('customer', $invoiceDue->customer_id, $credit->amount, 'credit');
+                    Utility::updateUserBalance('customer', $invoiceDue->customer_id, $request->amount, 'debit');
+                }
             }
             else
             {
                 if($credit->customer)
                 {
-                    Utility::updateUserBalance('customer', $credit->customer, $credit->amount, 'credit');
-                    Utility::updateUserBalance('customer', $credit->customer, $request->amount, 'debit');
+                    if($isDebit)
+                    {
+                        Utility::updateUserBalance('customer', $credit->customer, $credit->amount, 'debit');
+                        Utility::updateUserBalance('customer', $credit->customer, $request->amount, 'credit');
+                    }
+                    else
+                    {
+                        Utility::updateUserBalance('customer', $credit->customer, $credit->amount, 'credit');
+                        Utility::updateUserBalance('customer', $credit->customer, $request->amount, 'debit');
+                    }
                 }
             }
 
@@ -191,7 +215,7 @@ class CreditNoteController extends Controller
             $credit->save();
 
 
-            return redirect()->back()->with('success', __('Credit Note successfully updated.'));
+            return redirect()->back()->with('success', $isDebit ? __('Debit Note successfully updated.') : __('Credit Note successfully updated.'));
         }
         else
         {
@@ -206,14 +230,22 @@ class CreditNoteController extends Controller
         {
 
             $creditNote = CreditNote::find($creditNote_id);
+            if(!$creditNote)
+            {
+                return redirect()->back()->with('error', __('Note not found.'));
+            }
+
+            $isDebit = (int) $creditNote->is_debit === 1;
+
             if($creditNote->customer)
             {
-                Utility::updateUserBalance('customer', $creditNote->customer, $creditNote->amount, 'credit');
+                // Credit note creation debited customer; debit note creation credited customer.
+                Utility::updateUserBalance('customer', $creditNote->customer, $creditNote->amount, $isDebit ? 'debit' : 'credit');
             }
 
             $creditNote->delete();
 
-            return redirect()->back()->with('success', __('Credit Note successfully deleted.'));
+            return redirect()->back()->with('success', $isDebit ? __('Debit Note successfully deleted.') : __('Credit Note successfully deleted.'));
 
         }
         else
@@ -230,6 +262,12 @@ class CreditNoteController extends Controller
             return redirect()->back()->with('error', __('Note Not Found.'));
         }
         $note = CreditNote::with(['invoice_data.customer_data', 'customerRelation'])->find($id);
+        if (! $note) {
+            return redirect()->back()->with('error', __('Note Not Found.'));
+        }
+        if ((int) $note->is_debit === 1) {
+            return redirect()->route('debit.note.view', Crypt::encrypt($note->id));
+        }
         if($note->invoice > 0)
         {
             $customer = $note->invoice_data->customer_data;
@@ -266,6 +304,12 @@ class CreditNoteController extends Controller
             return redirect()->back()->with('error', __('Note Not Found.'));
         }
         $note = CreditNote::with(['invoice_data.customer_data', 'customerRelation'])->find($id);
+        if (! $note) {
+            return redirect()->back()->with('error', __('Note Not Found.'));
+        }
+        if ((int) $note->is_debit !== 1) {
+            return redirect()->route('note.view', Crypt::encrypt($note->id));
+        }
         if($note->invoice > 0)
         {
             $customer = $note->invoice_data->customer_data;
@@ -438,6 +482,7 @@ class CreditNoteController extends Controller
             $credit->amount      = $request->amount;
             $credit->description = $request->description;
             $credit->created_by = \Auth::user()->creatorId();
+            $credit->is_debit = 0;
             $credit->data = $request->return_items ? json_encode($request->items ?? []) : null;
             $credit->save();
 

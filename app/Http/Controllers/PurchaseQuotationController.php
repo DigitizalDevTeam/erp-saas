@@ -286,7 +286,33 @@ class PurchaseQuotationController extends Controller
         return json_encode($items);
     }
 
-    public function convertToPurchase($encryptedId)
+    public function convertToPurchaseForm($encryptedId)
+    {
+        if (! Auth::user()->can('create purchase')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        try {
+            $id = Crypt::decrypt($encryptedId);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('Invalid quote.'));
+        }
+
+        $quote = PurchaseQuotation::with('items')->where('created_by', Auth::user()->creatorId())->find($id);
+        if (! $quote) {
+            return redirect()->back()->with('error', __('Vendor quote not found.'));
+        }
+        if (! empty($quote->converted_purchase_id)) {
+            return redirect()->route('purchase.show', Crypt::encrypt($quote->converted_purchase_id))
+                ->with('info', __('Purchase order already exists.'));
+        }
+        if ($quote->items->isEmpty()) {
+            return redirect()->back()->with('error', __('Vendor quote has no line items.'));
+        }
+
+        return view('vendor_quote.convert_purchase', compact('quote'));
+    }
+
+    public function convertToPurchase(Request $request, $encryptedId)
     {
         if (! Auth::user()->can('create purchase')) {
             return redirect()->back()->with('error', __('Permission denied.'));
@@ -306,14 +332,33 @@ class PurchaseQuotationController extends Controller
                 ->with('info', __('Purchase order already exists.'));
         }
 
+        $selected = $request->input('items', []);
+        if (! is_array($selected) || $selected === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
         $items = [];
         foreach ($pq->items as $row) {
+            $payload = $selected[$row->id] ?? null;
+            if (! is_array($payload) || empty($payload['selected'])) {
+                continue;
+            }
+            $qty = (float) ($payload['quantity'] ?? $row->quantity);
+            if ($qty <= 0) {
+                return redirect()->back()->with('error', __('Quantity must be greater than zero.'))->withInput();
+            }
+            $discount = (float) $row->discount;
+            $originalQty = (float) $row->quantity;
+            if ($originalQty > 0 && abs($qty - $originalQty) > 0.00001) {
+                $discount = $discount * ($qty / $originalQty);
+            }
+
             $items[] = [
                 'item' => $row->product_id,
-                'quantity' => $row->quantity,
+                'quantity' => $qty,
                 'price' => $row->price,
                 'tax' => $row->tax,
-                'discount' => $row->discount,
+                'discount' => $discount,
                 'description' => $row->description,
                 'product_variant_id' => '',
                 'allow_default_variant' => 1,
@@ -324,6 +369,9 @@ class PurchaseQuotationController extends Controller
                 'mfg_date' => '',
                 'identifiers' => '',
             ];
+        }
+        if ($items === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
         }
 
         $category = ProductServiceCategory::where('created_by', Auth::user()->creatorId())->where('type', 'expense')->orderBy('id')->first();
@@ -401,7 +449,28 @@ class PurchaseQuotationController extends Controller
             return redirect()->back()->with('error', $validator->getMessageBag()->first())->withInput();
         }
 
-        $proforma = \Illuminate\Support\Facades\DB::transaction(function () use ($quote, $request) {
+        $selected = $request->input('items', []);
+        if (! is_array($selected) || $selected === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
+        $selectedRows = [];
+        foreach ($quote->items as $row) {
+            $payload = $selected[$row->id] ?? null;
+            if (! is_array($payload) || empty($payload['selected'])) {
+                continue;
+            }
+            $qty = (float) ($payload['quantity'] ?? $row->quantity);
+            if ($qty <= 0) {
+                return redirect()->back()->with('error', __('Quantity must be greater than zero.'))->withInput();
+            }
+            $selectedRows[] = [$row, $qty];
+        }
+        if ($selectedRows === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
+        $proforma = \Illuminate\Support\Facades\DB::transaction(function () use ($quote, $request, $selectedRows) {
             $latest = \App\Models\Proforma::where('created_by', Auth::user()->creatorId())->latest('id')->first();
             $next = $latest ? ((int) $latest->proforma_id + 1) : 1;
 
@@ -416,14 +485,20 @@ class PurchaseQuotationController extends Controller
             $p->created_by = Auth::user()->creatorId();
             $p->save();
 
-            foreach ($quote->items as $row) {
+            foreach ($selectedRows as [$row, $qty]) {
+                $discount = (float) $row->discount;
+                $originalQty = (float) $row->quantity;
+                if ($originalQty > 0 && abs($qty - $originalQty) > 0.00001) {
+                    $discount = $discount * ($qty / $originalQty);
+                }
+
                 $line = new \App\Models\ProformaProduct();
                 $line->proforma_id = $p->id;
                 $line->product_id = $row->product_id;
                 $line->price = $row->price;
-                $line->quantity = $row->quantity;
+                $line->quantity = $qty;
                 $line->tax = $row->tax;
-                $line->discount = $row->discount;
+                $line->discount = $discount;
                 $line->description = $row->description;
                 $line->save();
             }

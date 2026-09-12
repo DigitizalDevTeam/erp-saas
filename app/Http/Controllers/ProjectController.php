@@ -102,8 +102,16 @@ class ProjectController extends Controller
                 if($result==1)
                 {
                     $imageName = time() . '.' . $request->project_image->extension();
-                    $request->file('project_image')->storeAs('projects', $imageName);
-                    $project->project_image      = 'projects/'.$imageName;
+                    $dir = 'uploads/projects/';
+                    if (!is_dir(storage_path('uploads/projects'))) {
+                        mkdir(storage_path('uploads/projects'), 0775, true);
+                    }
+                    $path = Utility::upload_file($request, 'project_image', $imageName, $dir, []);
+                    if (!empty($path['flag']) && (int) $path['flag'] === 1) {
+                        $project->project_image = $dir . $imageName;
+                    } else {
+                        return redirect()->back()->with('error', __($path['msg'] ?? 'File upload failed.'));
+                    }
                 }
             }
 
@@ -448,11 +456,18 @@ class ProjectController extends Controller
                 $result = Utility::updateStorageLimit(\Auth::user()->creatorId(), $image_size);
 
                 if($result==1) {
-//                Utility::checkFileExistsnDelete([$project->project_image]);
                     Utility::changeStorageLimit(\Auth::user()->creatorId(), $file_path);
                     $imageName = time() . '.' . $request->project_image->extension();
-                    $request->file('project_image')->storeAs('projects', $imageName);
-                    $project->project_image = 'projects/' . $imageName;
+                    $dir = 'uploads/projects/';
+                    if (!is_dir(storage_path('uploads/projects'))) {
+                        mkdir(storage_path('uploads/projects'), 0775, true);
+                    }
+                    $path = Utility::upload_file($request, 'project_image', $imageName, $dir, []);
+                    if (!empty($path['flag']) && (int) $path['flag'] === 1) {
+                        $project->project_image = $dir . $imageName;
+                    } else {
+                        return redirect()->back()->with('error', __($path['msg'] ?? 'File upload failed.'));
+                    }
                 }
             }
             $project->budget = $request->budget;

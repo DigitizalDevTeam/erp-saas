@@ -129,7 +129,7 @@
             <svg class="bottom-svg" width="135" height="80" viewBox="0 0 135 80" fill="none"
                 xmlns="http://www.w3.org/2000/svg">
                 <path d="M74.7692 35C27.8769 35 5.38462 65 0 80H135.692V0C134.923 11.6667 121.662 35 74.7692 35Z"
-                    fill="#FF3A6E"></path>
+                    fill="#6fd943"></path>
             </svg>
 
             <div class="deals-icon">
@@ -171,7 +171,7 @@
             <svg class="bottom-svg" width="135" height="80" viewBox="0 0 135 80" fill="none"
                 xmlns="http://www.w3.org/2000/svg">
                 <path d="M74.7692 35C27.8769 35 5.38462 65 0 80H135.692V0C134.923 11.6667 121.662 35 74.7692 35Z"
-                    fill="#FF3A6E"></path>
+                    fill="#6fd943"></path>
             </svg>
             <div class="deals-icon">
                 <svg width="25" height="25" viewBox="0 0 25 25" fill="none"
@@ -213,7 +213,7 @@
             <svg class="bottom-svg" width="135" height="80" viewBox="0 0 135 80" fill="none"
                 xmlns="http://www.w3.org/2000/svg">
                 <path d="M74.7692 35C27.8769 35 5.38462 65 0 80H135.692V0C134.923 11.6667 121.662 35 74.7692 35Z"
-                    fill="#FF3A6E"></path>
+                    fill="#6fd943"></path>
             </svg>
             <div class="deals-icon">
                 <svg width="25" height="25" viewBox="0 0 25 25" fill="none"
@@ -255,7 +255,7 @@
             <svg class="bottom-svg" width="135" height="80" viewBox="0 0 135 80" fill="none"
                 xmlns="http://www.w3.org/2000/svg">
                 <path d="M74.7692 35C27.8769 35 5.38462 65 0 80H135.692V0C134.923 11.6667 121.662 35 74.7692 35Z"
-                    fill="#FF3A6E"></path>
+                    fill="#6fd943"></path>
             </svg>
             <div class="deals-icon">
                 <svg width="25" height="25" viewBox="0 0 25 25" fill="none"

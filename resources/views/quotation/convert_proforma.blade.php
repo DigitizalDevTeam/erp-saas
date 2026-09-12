@@ -18,7 +18,16 @@
                         <strong>{{ Auth::user()->quotationNumberFormat($quotation->quotation_id) }}</strong>.
                         {{ __('Select the items to include. You can still convert this quotation to an invoice or purchase order separately.') }}
                     </p>
+                    @include('partials.convert_source_items', [
+                        'sourceLabel' => __('From Quotation'),
+                        'sourceValue' => Auth::user()->quotationNumberFormat($quotation->quotation_id),
+                        'sourceLines' => [],
+                    ])
                     {{ Form::open(['route' => ['proforma.store-from-quotation', \Crypt::encrypt($quotation->id)], 'method' => 'POST', 'class' => 'needs-validation', 'id' => 'convert-pi-form']) }}
+                    <div class="alert alert-light border mb-3">
+                        <strong>{{ __('From Quotation') }}:</strong>
+                        {{ Auth::user()->quotationNumberFormat($quotation->quotation_id) }}
+                    </div>
                     <div class="table-responsive mb-4">
                         <table class="table table-striped">
                             <thead>
