@@ -52,25 +52,32 @@
                                         <td>{{ !empty($warehouse_transfer->product) ? $warehouse_transfer->product->name : '—' }}</td>
                                         <td>{{ $warehouse_transfer->quantity }}</td>
                                         <td>{{ Auth::user()->dateFormat($warehouse_transfer->date) }}</td>
-
-                                        @if (Gate::check('edit warehouse') || Gate::check('delete warehouse'))
-                                            <td class="Action">
+                                        <td class="Action">
+                                            <span class="d-flex align-items-center">
+                                                <div class="action-btn me-2">
+                                                    <a href="{{ route('warehouse-transfer.print', $warehouse_transfer->id) }}"
+                                                        target="_blank"
+                                                        class="mx-3 btn btn-sm align-items-center bg-primary"
+                                                        data-bs-toggle="tooltip" title="{{ __('Print') }}">
+                                                        <i class="ti ti-printer text-white"></i>
+                                                    </a>
+                                                </div>
                                                 @can('delete warehouse')
-                                                    <div class="action-btn ">
+                                                    <div class="action-btn">
                                                         {!! Form::open([
                                                             'method' => 'DELETE',
                                                             'route' => ['warehouse-transfer.destroy', $warehouse_transfer->id],
                                                             'id' => 'delete-form-' . $warehouse_transfer->id,
                                                         ]) !!}
                                                         <a href="#"
-                                                            class="mx-3 btn btn-sm  align-items-center bs-pass-para bg-danger"
+                                                            class="mx-3 btn btn-sm align-items-center bs-pass-para bg-danger"
                                                             data-bs-toggle="tooltip" title="{{ __('Delete') }}"><i
                                                                 class="ti ti-trash text-white"></i></a>
                                                         {!! Form::close() !!}
                                                     </div>
                                                 @endcan
-                                            </td>
-                                        @endif
+                                            </span>
+                                        </td>
                                     </tr>
                                 @endforeach
 

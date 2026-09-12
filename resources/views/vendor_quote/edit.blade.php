@@ -442,8 +442,9 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group" id="vender-box">
-                                {{ Form::label('customer_id', __('Customer'),['class'=>'form-label']) }}<x-required></x-required>
-                                {{ Form::text('customer_id', $customer->name, array('class' => 'form-control select','id'=>'vender','required'=>'required', 'readonly' => 'readonly')) }}
+                                {{ Form::label('vender_id', __('Supplier'),['class'=>'form-label']) }}<x-required></x-required>
+                                {{ Form::hidden('vender_id', $vender->id) }}
+                                {{ Form::text('vender_display', $vender->name, array('class' => 'form-control select','id'=>'vender','required'=>'required', 'readonly' => 'readonly')) }}
                             </div>
                             <div id="vender_detail" class="d-none">
                             </div>
@@ -453,7 +454,8 @@
                                 <div class="col-md-6">
                                 <div class="form-group">
                                     {{ Form::label('warehouse_id', __('Warehouse'),['class'=>'form-label']) }}<x-required></x-required>
-                                    {{ Form::text('warehouse_id', $warehouse->name, array('class' => 'form-control select','required'=>'required', 'readonly' => 'readonly')) }}
+                                    {{ Form::hidden('warehouse_id', $warehouse->id) }}
+                                    {{ Form::text('warehouse_display', $warehouse->name, array('class' => 'form-control select','required'=>'required', 'readonly' => 'readonly')) }}
                                 </div>
                             </div>
                             <div class="col-md-6">

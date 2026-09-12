@@ -89,11 +89,20 @@
     <div class="row">
         <div class="col-12">
             <div class="card">
+                <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <h5 class="mb-0">{{ __('Write-off History') }}</h5>
+                    <button type="button" id="wl-print-selected" class="btn btn-sm btn-primary" disabled>
+                        <i class="ti ti-printer"></i> {{ __('Print Selected') }}
+                    </button>
+                </div>
                 <div class="card-body table-border-style">
                     <div class="table-responsive">
-                        <table class="table datatable">
+                        <table class="table datatable" id="wl-history-table">
                             <thead>
                                 <tr>
+                                    <th style="width:36px;">
+                                        <input type="checkbox" id="wl-select-all" class="form-check-input" title="{{ __('Select all') }}">
+                                    </th>
                                     <th>{{ __('Write-off #') }}</th>
                                     <th>{{ __('Date') }}</th>
                                     <th>{{ __('Warehouse') }}</th>
@@ -109,6 +118,9 @@
                             <tbody>
                                 @foreach($documents as $r)
                                     <tr>
+                                        <td>
+                                            <input type="checkbox" class="form-check-input wl-print-cb" value="{{ $r->print_id }}">
+                                        </td>
                                         <td>{{ $r->write_off_no }}</td>
                                         <td>{{ \Auth::user()->dateFormat($r->date) }}</td>
                                         <td>{{ $r->warehouse->name ?? '-' }}</td>
@@ -150,6 +162,7 @@
 (function () {
     var products = @json($products);
     var lineIndex = 0;
+    var bulkPrintUrl = @json(route('warehouse-loss.print-bulk'));
 
     function productOptionsHtml(selected) {
         var html = '<option value="">{{ __("Select Product") }}</option>';
@@ -173,6 +186,19 @@
         }
     }
 
+    function selectedPrintIds() {
+        return Array.prototype.map.call(document.querySelectorAll('.wl-print-cb:checked'), function (el) {
+            return el.value;
+        }).filter(Boolean);
+    }
+
+    function syncPrintSelectedBtn() {
+        var btn = document.getElementById('wl-print-selected');
+        if (btn) {
+            btn.disabled = selectedPrintIds().length === 0;
+        }
+    }
+
     document.getElementById('wl-add-line').addEventListener('click', function () {
         addLine('', '');
     });
@@ -186,6 +212,37 @@
         }
     });
     addLine('', '');
+
+    var selectAll = document.getElementById('wl-select-all');
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            document.querySelectorAll('.wl-print-cb').forEach(function (cb) {
+                cb.checked = selectAll.checked;
+            });
+            syncPrintSelectedBtn();
+        });
+    }
+
+    document.addEventListener('change', function (e) {
+        if (e.target && e.target.classList.contains('wl-print-cb')) {
+            syncPrintSelectedBtn();
+        }
+    });
+
+    var printSelectedBtn = document.getElementById('wl-print-selected');
+    if (printSelectedBtn) {
+        printSelectedBtn.addEventListener('click', function () {
+            var ids = selectedPrintIds();
+            if (!ids.length) {
+                return;
+            }
+            var params = new URLSearchParams();
+            ids.forEach(function (id) {
+                params.append('ids[]', id);
+            });
+            window.open(bulkPrintUrl + '?' + params.toString(), '_blank');
+        });
+    }
 })();
 </script>
 @endpush

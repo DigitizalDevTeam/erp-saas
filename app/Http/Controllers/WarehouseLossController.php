@@ -172,15 +172,57 @@ class WarehouseLossController extends Controller
 
     public function print($id)
     {
-        $record = WarehouseLoss::with(['warehouse', 'product'])->findOrFail($id);
-        if ((int) $record->created_by !== (int) \Auth::user()->creatorId()) {
+        $document = $this->buildWriteOffDocument((int) $id);
+        if ($document === null) {
             return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        return view('warehouse-loss.print', $document);
+    }
+
+    public function printBulk(Request $request)
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('ids', [])))));
+        if (empty($ids)) {
+            return redirect()->route('warehouse-loss.index')->with('error', __('Please select at least one loss record to print.'));
+        }
+
+        $documents = [];
+        $seen = [];
+        foreach ($ids as $id) {
+            $document = $this->buildWriteOffDocument($id);
+            if ($document === null) {
+                continue;
+            }
+            $key = $document['writeOffNo'];
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $documents[] = $document;
+        }
+
+        if (empty($documents)) {
+            return redirect()->route('warehouse-loss.index')->with('error', __('No loss records found to print.'));
+        }
+
+        return view('warehouse-loss.print-bulk', compact('documents'));
+    }
+
+    /**
+     * @return array{record: WarehouseLoss, lines: \Illuminate\Support\Collection, writeOffNo: string}|null
+     */
+    protected function buildWriteOffDocument(int $id): ?array
+    {
+        $record = WarehouseLoss::with(['warehouse', 'product'])->find($id);
+        if (! $record || (int) $record->created_by !== (int) \Auth::user()->creatorId()) {
+            return null;
         }
 
         $writeOffNo = $record->write_off_no ?: ('WO-' . $record->id);
         $lines = WarehouseLoss::with(['warehouse', 'product'])
             ->where('created_by', $record->created_by)
-            ->where(function ($q) use ($record, $writeOffNo) {
+            ->where(function ($q) use ($record) {
                 if (! empty($record->write_off_no)) {
                     $q->where('write_off_no', $record->write_off_no);
                 } else {
@@ -194,6 +236,6 @@ class WarehouseLossController extends Controller
             $lines = collect([$record]);
         }
 
-        return view('warehouse-loss.print', compact('record', 'lines', 'writeOffNo'));
+        return compact('record', 'lines', 'writeOffNo');
     }
 }

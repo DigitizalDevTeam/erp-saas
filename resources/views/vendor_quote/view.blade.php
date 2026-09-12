@@ -10,12 +10,19 @@
 
 @section('action-btn')
     <div class="float-end d-flex flex-wrap gap-2">
-        @if (empty($quote->converted_proforma_id))
-            @can('create quotation')
-                <a href="{{ route('vendor-quote.convert-proforma.form', \Crypt::encrypt($quote->id)) }}" class="btn btn-success">{{ __('Convert to proforma') }}</a>
+        @if (empty($quote->converted_purchase_proforma_id))
+            @can('create purchase')
+                <a href="{{ route('vendor-quote.convert-purchase-proforma', \Crypt::encrypt($quote->id)) }}" class="btn btn-info">{{ __('Convert to purchase proforma') }}</a>
             @endcan
         @else
-            <a href="{{ route('proforma.show', \Crypt::encrypt($quote->converted_proforma_id)) }}" class="btn btn-success">{{ __('View proforma') }}</a>
+            <a href="{{ route('purchase-proforma.show', \Crypt::encrypt($quote->converted_purchase_proforma_id)) }}" class="btn btn-info">{{ __('View purchase proforma') }}</a>
+        @endif
+        @if (empty($quote->converted_proforma_id))
+            @can('create quotation')
+                <a href="{{ route('vendor-quote.convert-proforma.form', \Crypt::encrypt($quote->id)) }}" class="btn btn-success">{{ __('Convert to sales proforma') }}</a>
+            @endcan
+        @else
+            <a href="{{ route('proforma.show', \Crypt::encrypt($quote->converted_proforma_id)) }}" class="btn btn-success">{{ __('View sales proforma') }}</a>
         @endif
         @if (empty($quote->converted_purchase_id))
             @can('create purchase')
@@ -36,7 +43,7 @@
                 <div class="card-body">
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <p><strong>{{ __('Vendor') }}:</strong> {{ $vendor->name ?? '-' }}</p>
+                            <p><strong>{{ __('Supplier') }}:</strong> {{ $vendor->name ?? '-' }}</p>
                             <p><strong>{{ __('Warehouse') }}:</strong> {{ $quote->warehouse->name ?? '-' }}</p>
                         </div>
                         <div class="col-md-6 text-md-end">

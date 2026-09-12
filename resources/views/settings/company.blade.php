@@ -871,8 +871,8 @@
                                     @enderror
                                 </div>
                                 <div class="form-group col-md-6">
-                                    {{ Form::label('vender_prefix', __('Vendor Prefix'), ['class' => 'form-label']) }}
-                                    {{ Form::text('vender_prefix', null, ['class' => 'form-control', 'placeholder' => __('Enter Vendor Prifix')]) }}
+                                    {{ Form::label('vender_prefix', __('Supplier Prefix'), ['class' => 'form-label']) }}
+                                    {{ Form::text('vender_prefix', null, ['class' => 'form-control', 'placeholder' => __('Enter Supplier Prefix')]) }}
                                     @error('vender_prefix')
                                         <span class="invalid-vender_prefix" role="alert">
                                             <strong class="text-danger">{{ $message }}</strong>
@@ -925,10 +925,19 @@
                                     @enderror
                                 </div>
                                 <div class="form-group col-md-6">
-                                    {{ Form::label('vendor_quote_prefix', __('Vendor Quote Prefix'), ['class' => 'form-label']) }}
-                                    {{ Form::text('vendor_quote_prefix', null, ['class' => 'form-control', 'placeholder' => __('Enter Vendor Quote Prefix')]) }}
+                                    {{ Form::label('vendor_quote_prefix', __('Supplier Quote Prefix'), ['class' => 'form-label']) }}
+                                    {{ Form::text('vendor_quote_prefix', null, ['class' => 'form-control', 'placeholder' => __('Enter Supplier Quote Prefix')]) }}
                                     @error('vendor_quote_prefix')
                                         <span class="invalid-vendor_quote_prefix" role="alert">
+                                            <strong class="text-danger">{{ $message }}</strong>
+                                        </span>
+                                    @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('purchase_proforma_prefix', __('Purchase Proforma Prefix'), ['class' => 'form-label']) }}
+                                    {{ Form::text('purchase_proforma_prefix', null, ['class' => 'form-control', 'placeholder' => __('Enter Purchase Proforma Prefix')]) }}
+                                    @error('purchase_proforma_prefix')
+                                        <span class="invalid-purchase_proforma_prefix" role="alert">
                                             <strong class="text-danger">{{ $message }}</strong>
                                         </span>
                                     @enderror
@@ -5058,7 +5067,7 @@
                                         </li>
                                         <li class="list-group-item">
                                             <div class=" form-switch form-switch-right">
-                                                <span>{{ __('New Vendor') }}</span>
+                                                <span>{{ __('New Supplier') }}</span>
                                                 {{ Form::checkbox('twilio_vender_notification', '1', isset($comSetting['twilio_vender_notification']) && $comSetting['twilio_vender_notification'] == '1' ? 'checked' : '', ['class' => 'form-check-input', 'id' => 'twilio_vender_notification']) }}
                                                 <label class="form-check-label"
                                                     for="twilio_vender_notification"></label>

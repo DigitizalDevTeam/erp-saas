@@ -515,7 +515,7 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group" id="vender-box">
-                                {{ Form::label('vender_id', __('Vendor'),['class'=>'form-label']) }}<x-required></x-required>
+                                {{ Form::label('vender_id', __('Supplier'),['class'=>'form-label']) }}<x-required></x-required>
                                 {{ Form::select('vender_id', $venders,$vendorId, array('class' => 'form-control select','id'=>'vender','data-url'=>route('bill.vender'),'required'=>'required')) }}
                                 <div class="text-xs mt-1">
                                     {{ __('Create vendor here.') }} <a href="{{ route('vender.index') }}"><b>{{ __('Create vendor') }}</b></a>

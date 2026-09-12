@@ -50,7 +50,7 @@
                             <thead>
                             <tr>
                                 <th> {{__('Purchase')}}</th>
-                                <th> {{__('Vendor')}}</th>
+                                <th> {{__('Supplier')}}</th>
                                 <th> {{__('Category')}}</th>
                                 <th> {{__('Purchase Date')}}</th>
                                 <th>{{__('Status')}}</th>

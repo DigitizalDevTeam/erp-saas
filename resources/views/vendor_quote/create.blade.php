@@ -3,10 +3,10 @@
     <div class="row">
         <div class="col-md-6">
             <div class="form-group">
-                {{ Form::label('vender_id', __('Vendor'),['class'=>'form-label']) }}<x-required></x-required>
+                {{ Form::label('vender_id', __('Supplier'),['class'=>'form-label']) }}<x-required></x-required>
                 {{ Form::select('vender_id', $venders,'', array('class' => 'form-control select','required'=>'required')) }}
                 <div class="text-xs mt-1">
-                    <a href="{{ route('vender.index') }}"><b>{{ __('Manage vendors') }}</b></a>
+                    <a href="{{ route('vender.index') }}"><b>{{ __('Manage suppliers') }}</b></a>
                 </div>
             </div>
         </div>

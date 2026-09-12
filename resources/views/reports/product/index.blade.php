@@ -13,8 +13,9 @@
             <div class="card h-100">
                 <div class="card-body">
                     <h5 class="card-title">{{ __('Store check') }}</h5>
-                    <p class="text-muted small">{{ __('Current stock per product (global quantity).') }}</p>
+                    <p class="text-muted small">{{ __('Count physical stock by warehouse and date. Saved checks stay in history for later reference.') }}</p>
                     <a href="{{ route('reports.product.store-check') }}" class="btn btn-primary btn-sm">{{ __('Open') }}</a>
+                    <a href="{{ route('reports.product.store-check.history') }}" class="btn btn-outline-primary btn-sm">{{ __('History') }}</a>
                 </div>
             </div>
         </div>

@@ -16,6 +16,7 @@ class PurchaseQuotation extends Model
         'converted_purchase_id',
         'is_converted',
         'converted_proforma_id',
+        'converted_purchase_proforma_id',
         'created_by',
     ];
 
@@ -42,6 +43,11 @@ class PurchaseQuotation extends Model
     public function proforma()
     {
         return $this->belongsTo(Proforma::class, 'converted_proforma_id');
+    }
+
+    public function purchaseProforma()
+    {
+        return $this->belongsTo(PurchaseProforma::class, 'converted_purchase_proforma_id');
     }
 
     public function purchase()

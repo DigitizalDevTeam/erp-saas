@@ -147,7 +147,7 @@ class PurchaseController extends Controller
     {
 
         $vender = Vender::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-        $vender->prepend('Select Vendor', '');
+        $vender->prepend(__('Select Supplier'), '');
         $status = Purchase::$statues;
         $purchases = Purchase::where('created_by', '=', \Auth::user()->creatorId())->with(['vender','category'])->get();
 
@@ -172,7 +172,7 @@ class PurchaseController extends Controller
 
             $purchase_number = \Auth::user()->purchaseNumberFormat($this->purchaseNumber());
             $venders     = Vender::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-            $venders->prepend('Select Vender', '');
+            $venders->prepend(__('Select Supplier'), '');
 
             $warehouse     = warehouse::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $warehouse->prepend('Select Warehouse', '');
@@ -225,6 +225,9 @@ class PurchaseController extends Controller
             $purchase->created_by     = \Auth::user()->creatorId();
             if ($request->filled('purchase_quotation_id')) {
                 $purchase->purchase_quotation_id = (int) $request->purchase_quotation_id;
+            }
+            if ($request->filled('purchase_proforma_id')) {
+                $purchase->purchase_proforma_id = (int) $request->purchase_proforma_id;
             }
             if ($request->filled('proforma_id')) {
                 $purchase->proforma_id = (int) $request->proforma_id;
@@ -388,6 +391,15 @@ class PurchaseController extends Controller
                     ]);
             }
 
+            if ($request->filled('purchase_proforma_id')) {
+                \App\Models\PurchaseProforma::where('id', (int) $request->purchase_proforma_id)
+                    ->where('created_by', (int) \Auth::user()->creatorId())
+                    ->update([
+                        'converted_purchase_id' => $purchase->id,
+                        'is_converted' => 1,
+                    ]);
+            }
+
             if ($request->filled('proforma_id')) {
                 Proforma::where('id', (int) $request->proforma_id)
                     ->where('created_by', (int) \Auth::user()->creatorId())
@@ -408,6 +420,16 @@ class PurchaseController extends Controller
             if ($request->filled('proforma_id')) {
                 return redirect()->route('purchase.show', Crypt::encrypt($purchase->id))
                     ->with('success', __('Purchase order created from proforma.'));
+            }
+
+            if ($request->filled('purchase_proforma_id')) {
+                return redirect()->route('purchase.show', Crypt::encrypt($purchase->id))
+                    ->with('success', __('Purchase order created from purchase proforma.'));
+            }
+
+            if ($request->filled('purchase_quotation_id')) {
+                return redirect()->route('purchase.show', Crypt::encrypt($purchase->id))
+                    ->with('success', __('Purchase order created from vendor quote.'));
             }
 
             if ($request->filled('quotation_id')) {

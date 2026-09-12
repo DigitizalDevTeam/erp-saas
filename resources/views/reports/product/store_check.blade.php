@@ -19,6 +19,19 @@
     <div class="card mb-3 no-print">
         <div class="card-body">
             <form method="get" action="{{ route('reports.product.store-check') }}" class="row g-3 align-items-end" id="store-check-filters">
+                <div class="col-md-3">
+                    <label class="form-label">{{ __('Warehouse') }} <x-required></x-required></label>
+                    <select name="warehouse_id" class="form-control" required>
+                        <option value="">{{ __('Select Warehouse') }}</option>
+                        @foreach($warehouses as $wid => $wname)
+                            <option value="{{ $wid }}" {{ (string) ($warehouseId ?? '') === (string) $wid ? 'selected' : '' }}>{{ $wname }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{{ __('Check Date') }} <x-required></x-required></label>
+                    <input type="date" name="check_date" value="{{ $checkDate ?? now()->format('Y-m-d') }}" class="form-control" required>
+                </div>
                 <div class="col-md-12">
                     <label class="form-label d-block">{{ __('Period') }}</label>
                     <div class="btn-group flex-wrap" role="group">
@@ -72,27 +85,75 @@
                 <div class="col-auto">
                         <button type="submit" class="btn btn-primary">{{ __('Apply') }}</button>
                     <a href="{{ route('reports.product.store-check') }}" class="btn btn-outline-secondary">{{ __('Reset') }}</a>
+                        <a href="{{ route('reports.product.store-check.history') }}" class="btn btn-outline-primary">
+                            <i class="ti ti-history"></i> {{ __('History') }}
+                        </a>
+                        @if($warehouseId)
                         <a href="{{ route('reports.product.store-check', array_merge(request()->query(), ['print' => 1])) }}" target="_blank" class="btn btn-secondary">
                             <i class="ti ti-printer"></i> {{ __('Print') }}
                         </a>
+                        @endif
                 </div>
             </form>
         </div>
     </div>
+
+    @if(!empty($history) && $history->count())
+        <div class="card mb-3 no-print">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ __('Recent Store Checks') }}</h5>
+                <a href="{{ route('reports.product.store-check.history') }}" class="btn btn-sm btn-outline-primary">{{ __('View all') }}</a>
+            </div>
+            <div class="card-body table-border-style py-2">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>{{ __('Date') }}</th>
+                                <th>{{ __('Warehouse') }}</th>
+                                <th>{{ __('Notes') }}</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($history->take(5) as $h)
+                                <tr>
+                                    <td>{{ $h->check_date ? Auth::user()->dateFormat($h->check_date) : Auth::user()->dateFormat($h->created_at) }}</td>
+                                    <td>{{ $h->warehouse->name ?? '—' }}</td>
+                                    <td>{{ \Illuminate\Support\Str::limit($h->notes, 40) ?: '—' }}</td>
+                                    <td class="text-end">
+                                        <a href="{{ route('reports.product.store-check.show', $h->id) }}" class="btn btn-sm btn-outline-primary">{{ __('Open') }}</a>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    @endif
 
     <div id="stock-check-printable">
         <div class="card">
             <div class="card-body table-border-style">
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                     <div>
+                        <strong>{{ __('Warehouse') }}:</strong> {{ $warehouseId ? ($warehouses[$warehouseId] ?? '—') : __('Select a warehouse to count stock') }}
+                        &nbsp;|&nbsp;
+                        <strong>{{ __('Check Date') }}:</strong> {{ $checkDate ?? now()->format('Y-m-d') }}
+                        &nbsp;|&nbsp;
                         <strong>{{ __('Period') }}:</strong> {{ $periodLabel }}
-                        <div class="text-muted small">{{ __('System quantity is current stock on hand. Physical quantity is your counted amount.') }}</div>
+                        <div class="text-muted small">{{ __('System quantity is warehouse stock on hand. Physical quantity is your counted amount.') }}</div>
                     </div>
                 </div>
 
-                @if($products->count() > 0)
+                @if(!$warehouseId)
+                    <p class="text-center text-muted mb-0">{{ __('Select a warehouse and date, then click Apply to start the store check.') }}</p>
+                @elseif($products->count() > 0)
                     {{ Form::open(['route' => 'reports.product.store-check.save', 'method' => 'post', 'id' => 'stock-audit-form']) }}
                     @csrf
+                    <input type="hidden" name="warehouse_id" value="{{ $warehouseId }}">
+                    <input type="hidden" name="check_date" value="{{ $checkDate }}">
                     <input type="hidden" name="period_type" value="{{ $periodType }}">
                     <input type="hidden" name="week_ref" value="{{ request('week_ref', now()->format('Y-m-d')) }}">
                     <input type="hidden" name="month_ref" value="{{ request('month_ref', now()->format('Y-m')) }}">
@@ -126,7 +187,7 @@
                             <tbody>
                             @foreach($products as $p)
                                 @php
-                                    $sys = (float) ($p->quantity ?? 0);
+                                    $sys = (float) ($p->system_quantity ?? $p->quantity ?? 0);
                                 @endphp
                                 <tr data-system="{{ number_format($sys, 10, '.', '') }}">
                                     <td>{{ $p->name }}</td>

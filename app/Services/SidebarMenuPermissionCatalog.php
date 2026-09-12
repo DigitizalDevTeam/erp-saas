@@ -72,6 +72,7 @@ class SidebarMenuPermissionCatalog
                 self::node('Product system', 'menu.dashboard.product_system', ['stock report'], [
                     self::node('Overview', 'menu.dashboard.product_system.overview', ['stock report']),
                     self::node('Store check', 'menu.dashboard.product_system.store_check', ['stock report']),
+                    self::node('Store Check History', 'menu.dashboard.product_system.store_check_history', ['stock report']),
                     self::node('Warehouse stock', 'menu.dashboard.product_system.warehouse_stock', ['stock report']),
                     self::node('Total stock value', 'menu.dashboard.product_system.total_stock_value', ['stock report']),
                     self::node('High-value stock movements', 'menu.dashboard.product_system.high_rotation', ['stock report']),
@@ -188,7 +189,7 @@ class SidebarMenuPermissionCatalog
                     self::node('Estimate', 'menu.accounting_system.sales.estimate', ['manage proposal']),
                     self::node('Invoice', 'menu.accounting_system.sales.invoice', ['manage invoice']),
                     self::node('Quotation', 'menu.accounting_system.sales.quotation', ['manage quotation']),
-                    self::node('Proforma Invoice', 'menu.accounting_system.sales.proforma', ['manage quotation']),
+                    self::node('Sales Proforma Invoice', 'menu.accounting_system.sales.proforma', ['manage quotation']),
                     self::node('Revenue', 'menu.accounting_system.sales.revenue', ['manage revenue']),
                     self::node('Credit Note', 'menu.accounting_system.sales.credit_note', ['manage credit note']),
                     self::node('Debit Note', 'menu.accounting_system.sales.debit_note', ['manage credit note']),
@@ -198,8 +199,9 @@ class SidebarMenuPermissionCatalog
                 ], [
                     self::node('Supplier', 'menu.accounting_system.purchases.vender', ['manage vender']),
                     self::node('Vendor Quote', 'menu.accounting_system.purchases.vendor_quote', ['manage purchase']),
+                    self::node('Purchase Proforma Invoice', 'menu.accounting_system.purchases.purchase_proforma', ['manage purchase']),
                     self::node('Purchase Order', 'menu.accounting_system.purchases.purchase', ['manage purchase']),
-                    self::node('Bill', 'menu.accounting_system.purchases.bill', ['manage bill']),
+                    self::node('Purchase Invoice', 'menu.accounting_system.purchases.bill', ['manage bill']),
                     self::node('Expense', 'menu.accounting_system.purchases.expense', ['manage bill']),
                     self::node('Payment', 'menu.accounting_system.purchases.payment', ['manage payment']),
                     self::node('Debit Note', 'menu.accounting_system.purchases.debit_note', ['manage debit note']),

@@ -311,9 +311,12 @@
                                             <a class="dash-link" href="{{ route('reports.product.index') }}">{{ __('Overview') }}</a>
                                         </li>
                                         @endif
-                                        @if (menu_can('menu.dashboard.product_system.store_check'))
-                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.store-check' ? ' active' : '' }}">
+                                        @if (menu_can('menu.dashboard.product_system.store_check') || menu_can('menu.dashboard.product_system.store_check_history'))
+                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['reports.product.store-check', 'reports.product.store-check.save', 'reports.product.store-check.show'], true) ? ' active' : '' }}">
                                             <a class="dash-link" href="{{ route('reports.product.store-check') }}">{{ __('Store check') }}</a>
+                                        </li>
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.store-check.history' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.store-check.history') }}">{{ __('Store Check History') }}</a>
                                         </li>
                                         @endif
                                         @if (menu_can('menu.dashboard.product_system.warehouse_stock'))
@@ -1049,7 +1052,7 @@
                                                 <li
                                                     class="dash-item {{ Request::segment(1) == 'proforma' ? 'active' : '' }}">
                                                     <a class="dash-link"
-                                                        href="{{ route('proforma.index') }}">{{ __('Proforma Invoice') }}</a>
+                                                        href="{{ route('proforma.index') }}">{{ __('Sales Proforma Invoice') }}</a>
                                                 </li>
                                             @endif
                                             @if (menu_can('menu.accounting_system.sales.revenue'))
@@ -1079,7 +1082,7 @@
                                 @endif
                                 @if (menu_can_node('menu.accounting_system.purchases'))
                                     <li
-                                        class="dash-item dash-hasmenu {{ Request::segment(1) == 'bill' || Request::segment(1) == 'vender' || Request::segment(1) == 'expense' || Request::segment(1) == 'payment' || Request::segment(1) == 'debit-note' || Request::segment(1) == 'purchase' || Request::segment(1) == 'vendor-quote' ? 'active dash-trigger' : '' }}">
+                                        class="dash-item dash-hasmenu {{ Request::segment(1) == 'bill' || Request::segment(1) == 'vender' || Request::segment(1) == 'expense' || Request::segment(1) == 'payment' || Request::segment(1) == 'debit-note' || Request::segment(1) == 'purchase' || Request::segment(1) == 'vendor-quote' || Request::segment(1) == 'purchase-proforma' ? 'active dash-trigger' : '' }}">
                                         <a class="dash-link" href="#">{{ __('Purchases') }}<span
                                                 class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                                         <ul class="dash-submenu">
@@ -1087,7 +1090,7 @@
                                                 <li
                                                     class="dash-item {{ Request::segment(1) == 'vender' ? 'active' : '' }}">
                                                     <a class="dash-link"
-                                                        href="{{ route('vender.index') }}">{{ __('Suppiler') }}</a>
+                                                        href="{{ route('vender.index') }}">{{ __('Supplier') }}</a>
                                                 </li>
                                             @endif
                                             @if (menu_can('menu.accounting_system.purchases.vendor_quote'))
@@ -1095,6 +1098,13 @@
                                                     class="dash-item {{ Request::segment(1) == 'vendor-quote' ? 'active' : '' }}">
                                                     <a class="dash-link"
                                                         href="{{ route('vendor-quote.index') }}">{{ __('Vendor Quote') }}</a>
+                                                </li>
+                                            @endif
+                                            @if (menu_can('menu.accounting_system.purchases.purchase_proforma'))
+                                                <li
+                                                    class="dash-item {{ Request::segment(1) == 'purchase-proforma' ? 'active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('purchase-proforma.index') }}">{{ __('Purchase Proforma Invoice') }}</a>
                                                 </li>
                                             @endif
                                             @if (menu_can('menu.accounting_system.purchases.purchase'))
@@ -1108,7 +1118,7 @@
                                                 <li
                                                     class="dash-item {{ Request::route()->getName() == 'bill.index' || Request::route()->getName() == 'bill.create' || Request::route()->getName() == 'bill.edit' || Request::route()->getName() == 'bill.show' ? ' active' : '' }}">
                                                     <a class="dash-link"
-                                                    href="{{ route('bill.index') }}">{{ __('Bill') }}</a>
+                                                    href="{{ route('bill.index') }}">{{ __('Purchase Invoice') }}</a>
                                                 </li>
                                             @endif
                                             @if (menu_can('menu.accounting_system.purchases.expense'))

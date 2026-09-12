@@ -29,7 +29,7 @@
                                 <tr>
                                     <th>{{ __('Quote ID') }}</th>
                                     <th>{{ __('Date') }}</th>
-                                    <th>{{ __('Vendor') }}</th>
+                                    <th>{{ __('Supplier') }}</th>
                                     <th>{{ __('Warehouse') }}</th>
                                     @if (Gate::check('edit purchase') || Gate::check('delete purchase') || Gate::check('create purchase'))
                                         <th>{{ __('Action') }}</th>
@@ -49,12 +49,31 @@
                                         @if (Gate::check('edit purchase') || Gate::check('delete purchase') || Gate::check('create purchase'))
                                             <td class="Action">
                                                 <span>
+                                                    @if (empty($quote->converted_purchase_proforma_id))
+                                                        @can('create purchase')
+                                                            <div class="action-btn me-2">
+                                                                <a href="{{ route('vendor-quote.convert-purchase-proforma', \Crypt::encrypt($quote->id)) }}"
+                                                                    class="mx-3 btn btn-sm align-items-center bg-primary"
+                                                                    data-bs-toggle="tooltip" title="{{ __('Convert to purchase proforma') }}">
+                                                                    <i class="ti ti-file-description text-white"></i>
+                                                                </a>
+                                                            </div>
+                                                        @endcan
+                                                    @else
+                                                        <div class="action-btn me-2">
+                                                            <a href="{{ route('purchase-proforma.show', \Crypt::encrypt($quote->converted_purchase_proforma_id)) }}"
+                                                                class="mx-3 btn btn-sm align-items-center bg-primary"
+                                                                data-bs-toggle="tooltip" title="{{ __('View purchase proforma') }}">
+                                                                <i class="ti ti-file text-white"></i>
+                                                            </a>
+                                                        </div>
+                                                    @endif
                                                     @if (empty($quote->converted_proforma_id))
                                                         @can('create quotation')
                                                             <div class="action-btn me-2">
                                                                 <a href="{{ route('vendor-quote.convert-proforma.form', \Crypt::encrypt($quote->id)) }}"
                                                                     class="mx-3 btn btn-sm align-items-center bg-success"
-                                                                    data-bs-toggle="tooltip" title="{{ __('Convert to proforma') }}">
+                                                                    data-bs-toggle="tooltip" title="{{ __('Convert to sales proforma') }}">
                                                                     <i class="ti ti-file-invoice text-white"></i>
                                                                 </a>
                                                             </div>
@@ -63,7 +82,7 @@
                                                         <div class="action-btn me-2">
                                                             <a href="{{ route('proforma.show', \Crypt::encrypt($quote->converted_proforma_id)) }}"
                                                                 class="mx-3 btn btn-sm align-items-center bg-success"
-                                                                data-bs-toggle="tooltip" title="{{ __('View proforma') }}">
+                                                                data-bs-toggle="tooltip" title="{{ __('View sales proforma') }}">
                                                                 <i class="ti ti-file text-white"></i>
                                                             </a>
                                                         </div>

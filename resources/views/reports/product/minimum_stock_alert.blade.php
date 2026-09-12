@@ -13,6 +13,15 @@
         <div class="card-body">
             <form method="get" action="{{ route('reports.product.minimum-stock-alert') }}" class="row g-3 align-items-end">
                 <div class="col-md-3">
+                    <label class="form-label">{{ __('Warehouse') }}</label>
+                    <select name="warehouse_id" class="form-control">
+                        <option value="">{{ __('All Warehouses') }}</option>
+                        @foreach($warehouses as $wid => $wname)
+                            <option value="{{ $wid }}" {{ (string) request('warehouse_id', $warehouseId) === (string) $wid ? 'selected' : '' }}>{{ $wname }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label">{{ __('Category') }}</label>
                     <select name="category_id" class="form-control">
                         <option value="">{{ __('All categories') }}</option>
@@ -21,7 +30,7 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label">{{ __('Search name / SKU') }}</label>
                     <input type="text" name="search" value="{{ request('search') }}" class="form-control" placeholder="{{ __('Search…') }}">
                 </div>
@@ -48,7 +57,7 @@
     <div class="card">
         <div class="card-body table-border-style">
             <p class="text-muted mb-3">
-                {{ __('Products with stock equal to or less than their Low stock alert at value.') }}
+                {{ __('Low stock is checked per warehouse against each product\'s minimum stock level.') }}
                 {{ __('Default threshold') }}: <strong>{{ $globalThreshold }}</strong>
                 {{ __('(for items without a per-product setting)') }}
             </p>
@@ -56,35 +65,38 @@
                 <table class="table table-striped align-middle">
                     <thead>
                         <tr>
+                            <th>{{ __('Warehouse') }}</th>
                             <th>{{ __('Product') }}</th>
                             <th>{{ __('SKU') }}</th>
                             <th>{{ __('Category') }}</th>
                             <th>{{ __('Type') }}</th>
-                            <th class="text-end">{{ __('Current Stock') }}</th>
+                            <th class="text-end">{{ __('Warehouse Stock') }}</th>
                             <th class="text-end">{{ __('Low stock alert at') }}</th>
                             <th class="text-end">{{ __('Shortage') }}</th>
                             <th class="text-end">{{ __('Sale Price') }}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($products as $p)
+                        @forelse($rows as $r)
                             @php
-                                $threshold = $p->low_stock_threshold !== null ? (float) $p->low_stock_threshold : (float) $globalThreshold;
-                                $shortage = $threshold - (float) $p->quantity;
+                                $threshold = $r->low_stock_threshold !== null ? (float) $r->low_stock_threshold : (float) $globalThreshold;
+                                $stockQty = (float) $r->warehouse_quantity;
+                                $shortage = $threshold - $stockQty;
                             @endphp
                             <tr>
-                                <td>{{ $p->name }}</td>
-                                <td>{{ $p->sku ?: '—' }}</td>
-                                <td>{{ $p->category->name ?? '—' }}</td>
-                                <td>{{ ucfirst($p->type) }}</td>
-                                <td class="text-end">{{ $p->quantity }}</td>
+                                <td>{{ $r->warehouse_name }}</td>
+                                <td>{{ $r->product_name }}</td>
+                                <td>{{ $r->sku ?: '—' }}</td>
+                                <td>{{ $r->category_name ?: '—' }}</td>
+                                <td>{{ ucfirst($r->type) }}</td>
+                                <td class="text-end">{{ $stockQty }}</td>
                                 <td class="text-end">{{ $threshold }}</td>
                                 <td class="text-end text-danger">{{ $shortage > 0 ? $shortage : 0 }}</td>
-                                <td class="text-end">{{ Auth::user()->priceFormat($p->sale_price ?? 0) }}</td>
+                                <td class="text-end">{{ Auth::user()->priceFormat($r->sale_price ?? 0) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center text-muted">{{ __('No products at or below the minimum stock alert.') }}</td>
+                                <td colspan="9" class="text-center text-muted">{{ __('No products at or below the minimum stock alert.') }}</td>
                             </tr>
                         @endforelse
                     </tbody>

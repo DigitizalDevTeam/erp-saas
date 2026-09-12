@@ -40,7 +40,7 @@ class BillController extends Controller
         {
 
             $vender = Vender::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-            $vender->prepend('Select Vendor', '');
+            $vender->prepend(__('Select Supplier'), '');
 
             $status = Bill::$statues;
 
@@ -93,7 +93,7 @@ class BillController extends Controller
 
             $bill_number = \Auth::user()->billNumberFormat($this->billNumber());
             $venders     = Vender::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-            $venders->prepend('Select Vender', '');
+            $venders->prepend(__('Select Supplier'), '');
 
             $product_services = ProductService::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $product_services->prepend('Select Item', '');

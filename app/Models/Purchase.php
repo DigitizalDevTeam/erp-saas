@@ -14,6 +14,7 @@ class Purchase extends Model
     protected $fillable = [
         'purchase_id',
         'purchase_quotation_id',
+        'purchase_proforma_id',
         'proforma_id',
         'quotation_id',
         'converted_bill_id',
@@ -52,6 +53,11 @@ class Purchase extends Model
     public function purchaseQuotation()
     {
         return $this->belongsTo(PurchaseQuotation::class, 'purchase_quotation_id');
+    }
+
+    public function purchaseProforma()
+    {
+        return $this->belongsTo(PurchaseProforma::class, 'purchase_proforma_id');
     }
 
     public function sourceProforma()

@@ -586,6 +586,14 @@ class User extends Authenticatable implements MustVerifyEmail
 
         return $prefix . sprintf('%05d', $number);
     }
+
+    public function purchaseProformaNumberFormat($number)
+    {
+        $settings = Utility::settings();
+        $prefix = $settings['purchase_proforma_prefix'] ?? '#PPro';
+
+        return $prefix . sprintf('%05d', $number);
+    }
     public function posNumberFormat($number)
     {
         $settings = Utility::settings();

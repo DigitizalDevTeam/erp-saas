@@ -37,9 +37,9 @@ class PurchaseQuotationController extends Controller
         }
 
         $venders = Vender::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
-        $venders->prepend('Select Vendor', '');
+        $venders->prepend(__('Select Supplier'), '');
         $warehouse = warehouse::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
-        $warehouse->prepend('Select Warehouse', '');
+        $warehouse->prepend(__('Select Warehouse'), '');
         $quote_number = Auth::user()->vendorQuoteNumberFormat($this->nextQuoteNumber());
 
         return view('vendor_quote.create', compact('venders', 'warehouse', 'quote_number'));
@@ -57,7 +57,7 @@ class PurchaseQuotationController extends Controller
         $quote_number = $request->quote_number ?? Auth::user()->vendorQuoteNumberFormat($this->nextQuoteNumber());
 
         if (! $vender || ! $wh) {
-            return redirect()->route('vendor-quote.index')->with('error', __('Please select vendor and warehouse.'));
+            return redirect()->route('vendor-quote.index')->with('error', __('Please select supplier and warehouse.'));
         }
 
         $warehouseProducts = WarehouseProduct::where('created_by', '=', Auth::user()->creatorId())
@@ -66,12 +66,11 @@ class PurchaseQuotationController extends Controller
             ->whereIn('id', $warehouseProducts)->where('type', '!=', 'service')->get()->pluck('name', 'id');
         $product_services->prepend(' -- ', '');
 
-        $customer = $vender;
         $warehouse = $wh;
         $quotation_date = $quote_date;
         $quotation_number = $quote_number;
 
-        return view('vendor_quote.quotation_create', compact('customer', 'warehouse', 'quotation_date', 'quotation_number', 'product_services'));
+        return view('vendor_quote.quotation_create', compact('vender', 'warehouse', 'quotation_date', 'quotation_number', 'product_services'));
     }
 
     public function store(Request $request)
@@ -94,7 +93,7 @@ class PurchaseQuotationController extends Controller
         $vender = Vender::find($request->vender_id) ?? Vender::where('name', $request->vender_id)->where('created_by', Auth::user()->creatorId())->first();
         $warehouse = warehouse::find($request->warehouse_id) ?? warehouse::where('name', $request->warehouse_id)->where('created_by', Auth::user()->creatorId())->first();
         if (! $vender || ! $warehouse) {
-            return redirect()->back()->with('error', __('Invalid vendor or warehouse.'));
+            return redirect()->back()->with('error', __('Invalid supplier or warehouse.'));
         }
 
         $pq = new PurchaseQuotation();
@@ -171,9 +170,8 @@ class PurchaseQuotationController extends Controller
             ->whereIn('id', $warehouseProducts)->where('type', '!=', 'service')->get()->pluck('name', 'id');
         $product_services->prepend(' -- ', '');
         $quotation_number = Auth::user()->vendorQuoteNumberFormat($quote->purchase_quotation_id);
-        $customer = $vender;
 
-        return view('vendor_quote.edit', compact('quote', 'customer', 'product_services', 'warehouse', 'quotation_number'));
+        return view('vendor_quote.edit', compact('quote', 'vender', 'product_services', 'warehouse', 'quotation_number'));
     }
 
     public function update(Request $request, PurchaseQuotation $vendor_quote)
@@ -201,7 +199,7 @@ class PurchaseQuotationController extends Controller
         $vender = Vender::find($request->vender_id) ?? Vender::where('name', $request->vender_id)->where('created_by', Auth::user()->creatorId())->first();
         $warehouse = warehouse::find($request->warehouse_id) ?? warehouse::where('name', $request->warehouse_id)->where('created_by', Auth::user()->creatorId())->first();
         if (! $vender || ! $warehouse) {
-            return redirect()->back()->with('error', __('Invalid vendor or warehouse.'));
+            return redirect()->back()->with('error', __('Invalid supplier or warehouse.'));
         }
 
         $vendor_quote->vender_id = $vender->id;

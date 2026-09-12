@@ -186,6 +186,7 @@ use App\Http\Controllers\PayHereController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\ProformaController;
 use App\Http\Controllers\PurchaseQuotationController;
+use App\Http\Controllers\PurchaseProformaController;
 use App\Http\Controllers\ReferralProgramController;
 use App\Http\Controllers\TapController;
 use App\Http\Controllers\BillCreditNoteController;
@@ -1295,6 +1296,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('reports/product-system', [ProductReportsController::class, 'index'])->name('reports.product.index');
             Route::get('reports/product-system/store-check', [ProductReportsController::class, 'storeCheck'])->name('reports.product.store-check');
             Route::post('reports/product-system/store-check', [ProductReportsController::class, 'storeStockAudit'])->name('reports.product.store-check.save');
+            Route::get('reports/product-system/store-check/history', [ProductReportsController::class, 'storeCheckHistory'])->name('reports.product.store-check.history');
+            Route::get('reports/product-system/store-check/{id}', [ProductReportsController::class, 'storeCheckShow'])->name('reports.product.store-check.show');
             Route::get('reports/product-system/warehouse-stock', [ProductReportsController::class, 'warehouseStock'])->name('reports.product.warehouse-stock');
             Route::get('reports/product-system/total-stock-value', [ProductReportsController::class, 'totalStockValue'])->name('reports.product.total-stock-value');
             Route::get('reports/product-system/total-stock-value/export', [ProductReportsController::class, 'totalStockValueExport'])->name('reports.product.total-stock-value.export');
@@ -2285,8 +2288,16 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('vendor-quote/convert-purchase/{id}', [PurchaseQuotationController::class, 'convertToPurchase'])->name('vendor-quote.convert-purchase')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('vendor-quote/{id}/convert-proforma', [PurchaseQuotationController::class, 'convertToProformaForm'])->name('vendor-quote.convert-proforma.form')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('vendor-quote/{id}/convert-proforma', [PurchaseQuotationController::class, 'convertToProformaStore'])->name('vendor-quote.convert-proforma.store')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('vendor-quote/{id}/convert-purchase-proforma', [PurchaseProformaController::class, 'createFromVendorQuote'])->name('vendor-quote.convert-purchase-proforma')->middleware(['auth', 'XSS', 'revalidate']);
     Route::resource('vendor-quote', PurchaseQuotationController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::any('vendor-quote/create/{cid}', [PurchaseQuotationController::class, 'quoteCreate'])->name('vendor_quotes.create')->middleware(['auth', 'XSS', 'revalidate']);
+
+    Route::get('purchase-proforma/items', [PurchaseProformaController::class, 'items'])->name('purchase-proforma.items')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('purchase-proforma/product', [PurchaseProformaController::class, 'product'])->name('purchase-proforma.product')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('purchase-proforma/product/destroy', [PurchaseProformaController::class, 'productDestroy'])->name('purchase-proforma.product.destroy')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('purchase-proforma/convert-purchase/{id}', [PurchaseProformaController::class, 'convertToPurchase'])->name('purchase-proforma.convert-purchase')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::resource('purchase-proforma', PurchaseProformaController::class)->middleware(['auth', 'XSS', 'revalidate']);
+    Route::any('purchase-proforma/create/{cid}', [PurchaseProformaController::class, 'proformaCreate'])->name('purchase_proformas.create')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('warehouse', WarehouseController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('warehouse/{warehouse}/document', [WarehouseController::class, 'uploadDocument'])->name('warehouse.document.upload')->middleware(['auth', 'XSS', 'revalidate']);
@@ -2418,11 +2429,13 @@ Route::group(['middleware' => ['verified']], function () {
 
 
     //warehouse-transfer
+    Route::get('warehouse-transfer/{id}/print', [WarehouseTransferController::class, 'print'])->name('warehouse-transfer.print')->middleware(['auth', 'XSS', 'revalidate']);
     Route::resource('warehouse-transfer', WarehouseTransferController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('warehouse-transfer/getproduct', [WarehouseTransferController::class, 'getproduct'])->name('warehouse-transfer.getproduct')->middleware(['auth', 'XSS']);
     Route::post('warehouse-transfer/getquantity', [WarehouseTransferController::class, 'getquantity'])->name('warehouse-transfer.getquantity')->middleware(['auth', 'XSS']);
     Route::get('warehouse-loss', [WarehouseLossController::class, 'index'])->name('warehouse-loss.index')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('warehouse-loss', [WarehouseLossController::class, 'store'])->name('warehouse-loss.store')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('warehouse-loss/print-bulk', [WarehouseLossController::class, 'printBulk'])->name('warehouse-loss.print-bulk')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('warehouse-loss/{id}/print', [WarehouseLossController::class, 'print'])->name('warehouse-loss.print')->middleware(['auth', 'XSS', 'revalidate']);
 
 

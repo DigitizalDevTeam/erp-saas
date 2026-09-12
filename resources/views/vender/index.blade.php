@@ -16,16 +16,16 @@ $profile = asset(Storage::url('uploads/avatar/'));
     </script>
 @endpush
 @section('page-title')
-    {{ __('Manage Vendors') }}
+    {{ __('Manage Suppliers') }}
 @endsection
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
-    <li class="breadcrumb-item">{{__('Vendor')}}</li>
+    <li class="breadcrumb-item">{{__('Supplier')}}</li>
 @endsection
 @section('action-btn')
     <div class="float-end d-flex">
         <a href="#" class="btn btn-sm bg-brown-subtitle me-2" data-url="{{ route('vender.file.import') }}" data-ajax-popup="true" data-bs-toggle="tooltip"
-           title="{{ __('Import Vendor CSV File') }}">
+           title="{{ __('Import Supplier CSV File') }}">
             <i class="ti ti-file-import"></i>
         </a>
 
@@ -33,7 +33,7 @@ $profile = asset(Storage::url('uploads/avatar/'));
             <i class="ti ti-file-export"></i>
         </a>
         @can('create vender')
-            <a href="#" data-size="lg" data-url="{{ route('vender.create') }}" data-ajax-popup="true" data-title="{{__('Create New Vendor')}}" data-bs-toggle="tooltip" title="{{ __('Create') }}" class="btn btn-sm btn-primary">
+            <a href="#" data-size="lg" data-url="{{ route('vender.create') }}" data-ajax-popup="true" data-title="{{__('Create New Supplier')}}" data-bs-toggle="tooltip" title="{{ __('Create') }}" class="btn btn-sm btn-primary">
                 <i class="ti ti-plus"></i>
             </a>
         @endcan
@@ -92,7 +92,7 @@ $profile = asset(Storage::url('uploads/avatar/'));
                                                         @can('edit vender')
                                                             <div class="action-btn me-2">
                                                                 <a href="#" class="mx-3 btn btn-sm align-items-center bg-info" data-size="lg"
-                                                                data-title="{{__('Edit Vendor')}}"
+                                                                data-title="{{__('Edit Supplier')}}"
                                                                     data-url="{{ route('vender.edit', $Vender['id']) }}"
                                                                     data-ajax-popup="true" title="{{ __('Edit') }}"
                                                                     data-bs-toggle="tooltip" data-original-title="{{ __('Edit') }}">

@@ -352,7 +352,7 @@
 
         })
 
-        var vendorId = '{{ $customer->id ?? 0 }}';
+        var vendorId = '{{ $vender->id ?? 0 }}';
         if (vendorId > 0) {
             $('#vender').val(vendorId).change();
         }
@@ -390,9 +390,9 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group" id="vender-box">
-                                {{ Form::label('vender_id', __('Vendor'),['class'=>'form-label']) }}
-                                {{ Form::hidden('vender_id', $customer->id ?? '') }}
-                                {{ Form::text('vender_display', $customer->name ?? '', array('class' => 'form-control','required'=>'required','readonly' => 'readonly')) }}
+                                {{ Form::label('vender_id', __('Supplier'),['class'=>'form-label']) }}
+                                {{ Form::hidden('vender_id', $vender->id ?? '') }}
+                                {{ Form::text('vender_display', $vender->name ?? '', array('class' => 'form-control','required'=>'required','readonly' => 'readonly')) }}
                             </div>
                             <div id="vender_detail" class="d-none">
                             </div>

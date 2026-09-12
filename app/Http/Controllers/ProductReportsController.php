@@ -19,6 +19,7 @@ use App\Models\WarehouseTransfer;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class ProductReportsController extends Controller
 {
@@ -59,6 +60,15 @@ class ProductReportsController extends Controller
         $this->ensureStockReport('menu.dashboard.product_system.store_check');
 
         $creatorId = $this->creatorId();
+        $warehouses = warehouse::where('created_by', $creatorId)->orderBy('name')->pluck('name', 'id');
+        $warehouseId = $request->filled('warehouse_id') ? (int) $request->warehouse_id : null;
+        if ($warehouseId && ! $warehouses->has($warehouseId)) {
+            $warehouseId = null;
+        }
+        $checkDate = $request->filled('check_date')
+            ? Carbon::parse($request->check_date)->toDateString()
+            : Carbon::now()->toDateString();
+
         $periodType = $request->input('period_type', 'all');
         if (! in_array($periodType, ['all', 'week', 'month', 'custom'], true)) {
             $periodType = 'all';
@@ -129,17 +139,45 @@ class ProductReportsController extends Controller
 
         $products = $q->orderBy('name')->get();
 
+        $warehouseQtyMap = [];
+        if ($warehouseId && $products->isNotEmpty()) {
+            $warehouseQtyMap = WarehouseProduct::where('created_by', $creatorId)
+                ->where('warehouse_id', $warehouseId)
+                ->whereIn('product_id', $products->pluck('id'))
+                ->pluck('quantity', 'product_id')
+                ->map(fn ($q) => (float) $q)
+                ->all();
+        }
+
+        foreach ($products as $p) {
+            if ($warehouseId) {
+                $p->system_quantity = (float) ($warehouseQtyMap[$p->id] ?? 0);
+            } else {
+                $p->system_quantity = (float) ($p->quantity ?? 0);
+            }
+        }
+
+        $history = StockAudit::with('warehouse')
+            ->where('created_by', $creatorId)
+            ->orderByDesc('id')
+            ->limit(30)
+            ->get();
+
         if ($request->boolean('print')) {
-            return $this->printResponse('reports.product.print.store_check', __('Store check'), compact('products'));
+            return $this->printResponse('reports.product.print.store_check', __('Store check'), compact('products', 'warehouseId', 'checkDate'));
         }
 
         return view('reports.product.store_check', compact(
             'products',
             'categories',
+            'warehouses',
+            'warehouseId',
+            'checkDate',
             'periodType',
             'periodStart',
             'periodEnd',
-            'periodLabel'
+            'periodLabel',
+            'history'
         ));
     }
 
@@ -153,6 +191,12 @@ class ProductReportsController extends Controller
         $creatorId = $this->creatorId();
 
         $validated = $request->validate([
+            'warehouse_id' => [
+                'required',
+                'integer',
+                Rule::exists('warehouses', 'id')->where(fn ($q) => $q->where('created_by', $creatorId)),
+            ],
+            'check_date' => 'required|date',
             'period_type' => 'required|in:all,week,month,custom',
             'week_ref' => 'nullable|date',
             'month_ref' => 'nullable|string|max:7',
@@ -185,6 +229,8 @@ class ProductReportsController extends Controller
         }
 
         $productIds = array_values(array_unique(array_map('intval', $validated['product_ids'])));
+        $warehouseId = (int) $validated['warehouse_id'];
+        $checkDate = Carbon::parse($validated['check_date'])->toDateString();
 
         $products = ProductService::where('created_by', $creatorId)
             ->where('type', 'product')
@@ -195,17 +241,26 @@ class ProductReportsController extends Controller
         if ($products->count() !== count($productIds)) {
             return redirect()
                 ->route('reports.product.store-check', $request->only([
-                    'period_type', 'week_ref', 'month_ref', 'date_from', 'date_to',
+                    'warehouse_id', 'check_date', 'period_type', 'week_ref', 'month_ref', 'date_from', 'date_to',
                     'search', 'category_id', 'row_filter', 'column_filter',
                 ]))
                 ->with('error', __('Invalid product selection.'));
         }
 
+        $warehouseQtyMap = WarehouseProduct::where('created_by', $creatorId)
+            ->where('warehouse_id', $warehouseId)
+            ->whereIn('product_id', $productIds)
+            ->pluck('quantity', 'product_id')
+            ->map(fn ($q) => (float) $q)
+            ->all();
+
         $physicalMap = $validated['physical'] ?? [];
 
-        DB::transaction(function () use ($validated, $products, $physicalMap, $creatorId, $periodType, $periodStart, $periodEnd) {
+        $audit = DB::transaction(function () use ($validated, $products, $physicalMap, $creatorId, $periodType, $periodStart, $periodEnd, $warehouseId, $checkDate, $warehouseQtyMap) {
             $audit = StockAudit::create([
                 'created_by' => $creatorId,
+                'warehouse_id' => $warehouseId,
+                'check_date' => $checkDate,
                 'period_type' => $periodType,
                 'period_start' => $periodStart,
                 'period_end' => $periodEnd,
@@ -216,7 +271,7 @@ class ProductReportsController extends Controller
                 $pid = (int) $product->id;
                 $raw = $physicalMap[$pid] ?? null;
                 $physical = ($raw === '' || $raw === null) ? null : (float) $raw;
-                $system = round((float) ($product->quantity ?? 0), 4);
+                $system = round((float) ($warehouseQtyMap[$pid] ?? 0), 4);
                 $difference = $physical === null ? null : round($physical - $system, 4);
 
                 StockAuditLine::create([
@@ -232,14 +287,73 @@ class ProductReportsController extends Controller
                     'difference' => $difference,
                 ]);
             }
+
+            return $audit;
         });
 
         return redirect()
-            ->route('reports.product.store-check', $request->only([
-                'period_type', 'week_ref', 'month_ref', 'date_from', 'date_to',
-                'search', 'category_id', 'row_filter', 'column_filter',
-            ]))
+            ->route('reports.product.store-check.show', $audit->id)
             ->with('success', __('Stock audit saved successfully.'));
+    }
+
+    public function storeCheckHistory(Request $request)
+    {
+        $this->ensureStockReport('menu.dashboard.product_system.store_check');
+
+        $creatorId = $this->creatorId();
+        $warehouses = warehouse::where('created_by', $creatorId)->orderBy('name')->pluck('name', 'id');
+
+        $warehouseId = $request->filled('warehouse_id') ? (int) $request->warehouse_id : null;
+        if ($warehouseId && ! $warehouses->has($warehouseId)) {
+            $warehouseId = null;
+        }
+
+        $dateFrom = $request->filled('date_from') ? Carbon::parse($request->date_from)->toDateString() : null;
+        $dateTo = $request->filled('date_to') ? Carbon::parse($request->date_to)->toDateString() : null;
+
+        $query = StockAudit::with('warehouse')
+            ->where('created_by', $creatorId)
+            ->withCount('lines');
+
+        if ($warehouseId) {
+            $query->where('warehouse_id', $warehouseId);
+        }
+
+        if ($dateFrom) {
+            $query->whereDate(DB::raw('COALESCE(check_date, DATE(created_at))'), '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $query->whereDate(DB::raw('COALESCE(check_date, DATE(created_at))'), '<=', $dateTo);
+        }
+
+        $audits = $query
+            ->orderByRaw('COALESCE(check_date, DATE(created_at)) DESC')
+            ->orderByDesc('id')
+            ->paginate(25)
+            ->appends($request->query());
+
+        return view('reports.product.store_check_history', compact(
+            'audits',
+            'warehouses',
+            'warehouseId',
+            'dateFrom',
+            'dateTo'
+        ));
+    }
+
+    public function storeCheckShow(Request $request, $id)
+    {
+        $this->ensureStockReport('menu.dashboard.product_system.store_check');
+
+        $audit = StockAudit::with(['warehouse', 'lines'])
+            ->where('created_by', $this->creatorId())
+            ->findOrFail($id);
+
+        if ($request->boolean('print')) {
+            return view('reports.product.print.store_check_show', compact('audit'));
+        }
+
+        return view('reports.product.store_check_show', compact('audit'));
     }
 
     /**
@@ -758,23 +872,25 @@ class ProductReportsController extends Controller
         $this->ensureStockReport('menu.dashboard.product_system.minimum_stock_alert');
 
         [
-            'products' => $products,
+            'rows' => $rows,
             'categories' => $categories,
+            'warehouses' => $warehouses,
             'globalThreshold' => $globalThreshold,
+            'warehouseId' => $warehouseId,
         ] = $this->minimumStockAlertData($request);
 
         if ($request->boolean('print')) {
-            return $this->printResponse('reports.product.print.minimum_stock_alert', __('Minimum Stock Alert'), compact('products', 'globalThreshold'));
+            return $this->printResponse('reports.product.print.minimum_stock_alert', __('Minimum Stock Alert'), compact('rows', 'globalThreshold'));
         }
 
-        return view('reports.product.minimum_stock_alert', compact('products', 'categories', 'globalThreshold'));
+        return view('reports.product.minimum_stock_alert', compact('rows', 'categories', 'warehouses', 'globalThreshold', 'warehouseId'));
     }
 
     public function minimumStockAlertExport(Request $request)
     {
         $this->ensureStockReport('menu.dashboard.product_system.minimum_stock_alert');
 
-        ['products' => $products, 'globalThreshold' => $globalThreshold] = $this->minimumStockAlertData($request);
+        ['rows' => $rows, 'globalThreshold' => $globalThreshold] = $this->minimumStockAlertData($request);
 
         $fileName = 'minimum_stock_alert_' . date('Y-m-d_His') . '.csv';
         $headers = [
@@ -785,32 +901,35 @@ class ProductReportsController extends Controller
             'Expires' => '0',
         ];
 
-        $callback = function () use ($products, $globalThreshold) {
+        $callback = function () use ($rows, $globalThreshold) {
             $file = fopen('php://output', 'w');
             fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
             fputcsv($file, [
+                __('Warehouse'),
                 __('Product'),
                 __('SKU'),
                 __('Category'),
                 __('Type'),
-                __('Current Stock'),
+                __('Warehouse Stock'),
                 __('Low stock alert at'),
                 __('Shortage'),
                 __('Sale Price'),
             ]);
 
-            foreach ($products as $p) {
-                $threshold = $p->low_stock_threshold !== null ? (float) $p->low_stock_threshold : (float) $globalThreshold;
-                $shortage = max(0, $threshold - (float) $p->quantity);
+            foreach ($rows as $r) {
+                $threshold = $r->low_stock_threshold !== null ? (float) $r->low_stock_threshold : (float) $globalThreshold;
+                $stockQty = (float) $r->warehouse_quantity;
+                $shortage = max(0, $threshold - $stockQty);
                 fputcsv($file, [
-                    $p->name,
-                    $p->sku ?: '',
-                    $p->category->name ?? '',
-                    ucfirst((string) $p->type),
-                    $p->quantity,
+                    $r->warehouse_name,
+                    $r->product_name,
+                    $r->sku ?: '',
+                    $r->category_name ?: '',
+                    ucfirst((string) $r->type),
+                    $stockQty,
                     $threshold,
                     $shortage,
-                    $p->sale_price ?? 0,
+                    $r->sale_price ?? 0,
                 ]);
             }
 
@@ -833,33 +952,63 @@ class ProductReportsController extends Controller
             ->orderBy('name')
             ->pluck('name', 'id');
 
-        $q = ProductService::with('category')
-            ->where('created_by', $creatorId)
-            ->whereIn('type', ['product', 'kit'])
-            ->where(function ($q) use ($globalThreshold) {
-                $q->where(function ($q2) {
-                    $q2->whereNotNull('low_stock_threshold')
-                        ->whereRaw('quantity <= low_stock_threshold');
+        $warehouses = warehouse::where('created_by', $creatorId)->orderBy('name')->pluck('name', 'id');
+        $warehouseId = $request->filled('warehouse_id') ? (int) $request->warehouse_id : null;
+        if ($warehouseId && ! $warehouses->has($warehouseId)) {
+            $warehouseId = null;
+        }
+
+        $q = WarehouseProduct::query()
+            ->join('product_services', 'warehouse_products.product_id', '=', 'product_services.id')
+            ->join('warehouses', 'warehouse_products.warehouse_id', '=', 'warehouses.id')
+            ->leftJoin('product_service_categories', 'product_services.category_id', '=', 'product_service_categories.id')
+            ->where('warehouse_products.created_by', $creatorId)
+            ->where('product_services.created_by', $creatorId)
+            ->whereIn('product_services.type', ['product', 'kit'])
+            ->where(function ($qq) use ($globalThreshold) {
+                $qq->where(function ($q2) {
+                    $q2->whereNotNull('product_services.low_stock_threshold')
+                        ->whereRaw('warehouse_products.quantity <= product_services.low_stock_threshold');
                 })->orWhere(function ($q2) use ($globalThreshold) {
-                    $q2->whereNull('low_stock_threshold')
-                        ->whereRaw('quantity <= ?', [$globalThreshold]);
+                    $q2->whereNull('product_services.low_stock_threshold')
+                        ->whereRaw('warehouse_products.quantity <= ?', [$globalThreshold]);
                 });
-            });
+            })
+            ->select([
+                'warehouse_products.id as warehouse_product_id',
+                'warehouse_products.warehouse_id',
+                'warehouse_products.product_id',
+                'warehouse_products.quantity as warehouse_quantity',
+                'warehouses.name as warehouse_name',
+                'product_services.name as product_name',
+                'product_services.sku',
+                'product_services.type',
+                'product_services.sale_price',
+                'product_services.low_stock_threshold',
+                'product_service_categories.name as category_name',
+            ]);
+
+        if ($warehouseId) {
+            $q->where('warehouse_products.warehouse_id', $warehouseId);
+        }
 
         if ($request->filled('search')) {
             $s = '%' . trim((string) $request->search) . '%';
             $q->where(function ($qq) use ($s) {
-                $qq->where('name', 'like', $s)->orWhere('sku', 'like', $s);
+                $qq->where('product_services.name', 'like', $s)->orWhere('product_services.sku', 'like', $s);
             });
         }
 
         if ($request->filled('category_id')) {
-            $q->where('category_id', (int) $request->category_id);
+            $q->where('product_services.category_id', (int) $request->category_id);
         }
 
-        $products = $q->orderBy('quantity')->orderBy('name')->get();
+        $rows = $q->orderBy('warehouses.name')
+            ->orderBy('warehouse_products.quantity')
+            ->orderBy('product_services.name')
+            ->get();
 
-        return compact('products', 'categories', 'globalThreshold');
+        return compact('rows', 'categories', 'warehouses', 'globalThreshold', 'warehouseId');
     }
 
     /**

@@ -10,7 +10,8 @@
 
 @section('action-btn')
     <div class="float-end">
-        <a href="#" onclick="window.print(); return false;" class="btn btn-sm btn-primary-subtle" title="{{ __('Print') }}"><i class="ti ti-printer"></i></a>
+        <a href="{{ route('warehouse-transfer.print', $doc->id) }}" target="_blank" class="btn btn-sm btn-primary me-1" title="{{ __('Print') }}"><i class="ti ti-printer"></i></a>
+        <a href="#" onclick="window.print(); return false;" class="btn btn-sm btn-primary-subtle" title="{{ __('Quick print') }}"><i class="ti ti-printer"></i></a>
     </div>
 @endsection
 
@@ -23,7 +24,23 @@
             <p><strong>{{ __('Quantity') }}:</strong> {{ number_format((float) $doc->quantity, 2) }}</p>
             <p><strong>{{ __('From') }}:</strong> {{ $doc->fromWarehouse->name ?? ('#' . $doc->from_warehouse) }}</p>
             <p><strong>{{ __('To') }}:</strong> {{ $doc->toWarehouse->name ?? ('#' . $doc->to_warehouse) }}</p>
-            <a href="{{ route('warehouse-transfer.index') }}" class="btn btn-sm btn-outline-primary">{{ __('Warehouse transfers') }}</a>
+
+            <div class="mt-4 pt-3 border-top">
+                <h6 class="mb-3">{{ __('Receiver Confirmation') }}</h6>
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="border-top pt-2 mt-5 small">{{ __('Receiver Name') }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border-top pt-2 mt-5 small">{{ __('Signature') }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border-top pt-2 mt-5 small">{{ __('Date') }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <a href="{{ route('warehouse-transfer.index') }}" class="btn btn-sm btn-outline-primary mt-4">{{ __('Warehouse transfers') }}</a>
         </div>
     </div>
 @endsection

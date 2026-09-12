@@ -236,4 +236,35 @@ class WarehouseTransferController extends Controller
 
         return response()->json($max);
     }
+
+    public function print($id)
+    {
+        if (! \Auth::user()->can('manage warehouse') && ! \Auth::user()->can('show warehouse') && ! \Auth::user()->can('create warehouse')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $record = WarehouseTransfer::with(['product', 'fromWarehouse', 'toWarehouse'])->findOrFail($id);
+        if ((int) $record->created_by !== (int) \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $batchId = $record->transfer_batch_id;
+        if (! empty($batchId)) {
+            $lines = WarehouseTransfer::with(['product', 'fromWarehouse', 'toWarehouse'])
+                ->where('created_by', $record->created_by)
+                ->where('transfer_batch_id', $batchId)
+                ->orderBy('id')
+                ->get();
+        } else {
+            $lines = collect([$record]);
+        }
+
+        if ($lines->isEmpty()) {
+            $lines = collect([$record]);
+        }
+
+        $batchLabel = ! empty($batchId) ? $batchId : ('TR-' . $record->id);
+
+        return view('warehouse-transfer.print', compact('record', 'lines', 'batchLabel'));
+    }
 }
