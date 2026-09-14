@@ -33,6 +33,13 @@
         </div>
         <div class="col-12 mt-3">
             <div class="form-group">
+                {{Form::label('default_warehouse_id',__('Default POS Warehouse'),['class'=>'form-label'])}}
+                {{Form::select('default_warehouse_id', $warehouses ?? [], $branch->default_warehouse_id, ['class'=>'form-control select'])}}
+                <small class="text-muted">{{ __('Preselected warehouse when this POS/branch is opened (e.g. POS01 → BAR1).') }}</small>
+            </div>
+        </div>
+        <div class="col-12 mt-3">
+            <div class="form-group">
                 <div class="form-check form-switch">
                     {{Form::checkbox('is_active', 1, $branch->is_active ?? true, array('class'=>'form-check-input','id'=>'is_active_edit'))}}
                     {{Form::label('is_active_edit',__('Active'),['class'=>'form-check-label'])}}

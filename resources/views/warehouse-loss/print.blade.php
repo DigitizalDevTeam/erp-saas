@@ -28,6 +28,12 @@
         <button onclick="window.print()">{{ __('Print') }}</button>
     </div>
 
-    @include('warehouse-loss._document', ['record' => $record, 'lines' => $lines, 'writeOffNo' => $writeOffNo])
+    @include('warehouse-loss._document', [
+        'record' => $record,
+        'lines' => $lines,
+        'writeOffNo' => $writeOffNo,
+        'totalCost' => $totalCost ?? 0,
+        'totalCostWithVat' => $totalCostWithVat ?? 0,
+    ])
 </body>
 </html>

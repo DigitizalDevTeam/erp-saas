@@ -19,6 +19,11 @@
                         {{ __('Select the supplier who will supply the goods. You can still convert to proforma or invoice separately.') }}
                     </p>
                     {{ Form::open(['route' => ['quotation.convert-purchase.store', \Crypt::encrypt($quotation->id)], 'method' => 'POST', 'class' => 'needs-validation']) }}
+                    @include('partials.convert_source_items', [
+                        'sourceLabel' => __('From Quotation'),
+                        'sourceValue' => Auth::user()->quotationNumberFormat($quotation->quotation_id),
+                        'sourceLines' => $quotation->items,
+                    ])
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             {{ Form::label('vender_id', __('Vendor'), ['class' => 'form-label']) }}<x-required></x-required>

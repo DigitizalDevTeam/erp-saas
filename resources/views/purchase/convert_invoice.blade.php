@@ -10,15 +10,20 @@
 
 @section('content')
     <div class="row justify-content-center">
-        <div class="col-lg-8">
+        <div class="col-lg-10">
             <div class="card">
                 <div class="card-body">
                     <p class="text-muted mb-4">
                         {{ __('Create a sales invoice from purchase order') }}
                         <strong>{{ Auth::user()->purchaseNumberFormat($purchase->purchase_id) }}</strong>.
-                        {{ __('Customer and prices are taken from the linked proforma when available.') }}
+                        {{ __('Uncheck products you will not include on the invoice.') }}
                     </p>
                     {{ Form::open(['route' => ['purchase.convert-invoice.store', \Crypt::encrypt($purchase->id)], 'method' => 'POST', 'class' => 'needs-validation']) }}
+                    @include('partials.convert_source_items', [
+                        'sourceLabel' => __('From Purchase Order'),
+                        'sourceValue' => Auth::user()->purchaseNumberFormat($purchase->purchase_id),
+                        'sourceLines' => $purchase->items,
+                    ])
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             {{ Form::label('customer_id', __('Customer'), ['class' => 'form-label']) }}<x-required></x-required>

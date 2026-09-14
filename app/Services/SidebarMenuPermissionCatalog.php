@@ -216,6 +216,7 @@ class SidebarMenuPermissionCatalog
                 self::node('Financial Goal', 'menu.accounting_system.goal', ['manage goal']),
                 self::node('Accounting Setup', 'menu.accounting_system.setup', ['manage constant tax', 'manage constant category', 'manage constant unit']),
                 self::node('Print Settings', 'menu.accounting_system.print_settings', ['manage print settings']),
+                self::node('Layout Management', 'menu.accounting_system.layout_management', ['manage print settings', 'manage document layouts']),
             ]),
 
             self::node('CRM System', 'menu.crm_system', ['manage lead', 'manage deal', 'manage form builder', 'manage contract'], [

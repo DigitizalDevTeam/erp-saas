@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Bill;
+use App\Models\ChartOfAccount;
 use App\Models\Invoice;
 use App\Models\Pos;
+use App\Models\ProductExpiryLot;
 use App\Models\ProductService;
 use App\Models\ProductServiceCategory;
 use App\Models\Purchase;
@@ -14,11 +16,14 @@ use App\Models\StockAuditLine;
 use App\Models\StockReport;
 use App\Models\Utility;
 use App\Models\warehouse;
+use App\Models\WarehouseLoss;
 use App\Models\WarehouseProduct;
 use App\Models\WarehouseTransfer;
+use App\Services\Accounting\JournalEntryPoster;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class ProductReportsController extends Controller
@@ -49,7 +54,172 @@ class ProductReportsController extends Controller
     {
         $this->ensureStockReport('menu.dashboard.product_system.overview');
 
-        return view('reports.product.index');
+        $kpis = $this->dashboardKpis();
+
+        return view('reports.product.index', compact('kpis'));
+    }
+
+    /**
+     * Lightweight stock overview KPIs for the product-system dashboard.
+     * Unavailable workflows are returned as available=false (N/A), never as fake zeros.
+     */
+    protected function dashboardKpis(): array
+    {
+        $creatorId = $this->creatorId();
+        $globalThreshold = (float) (Utility::getValByName('pos_low_stock_threshold') ?: 10);
+        $today = now()->toDateString();
+        $nearUntil = now()->addDays(30)->toDateString();
+        $dateFrom = now()->subDays(30)->format('Y-m-d');
+        $dateTo = now()->format('Y-m-d');
+
+        $totalStockValue = (float) ProductService::query()
+            ->where('created_by', $creatorId)
+            ->where('type', 'product')
+            ->where('quantity', '!=', 0)
+            ->selectRaw('COALESCE(SUM(quantity * COALESCE(purchase_price, 0)), 0) as total')
+            ->value('total');
+
+        $stockByWarehouse = WarehouseProduct::query()
+            ->join('warehouses', 'warehouse_products.warehouse_id', '=', 'warehouses.id')
+            ->join('product_services', 'warehouse_products.product_id', '=', 'product_services.id')
+            ->where('warehouse_products.created_by', $creatorId)
+            ->where('product_services.created_by', $creatorId)
+            ->where('product_services.type', 'product')
+            ->groupBy('warehouses.id', 'warehouses.name')
+            ->orderBy('warehouses.name')
+            ->select([
+                'warehouses.id',
+                'warehouses.name',
+                DB::raw('COALESCE(SUM(warehouse_products.quantity), 0) as qty'),
+                DB::raw('COALESCE(SUM(warehouse_products.quantity * COALESCE(product_services.purchase_price, 0)), 0) as value'),
+            ])
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'id' => (int) $row->id,
+                    'name' => (string) $row->name,
+                    'qty' => round((float) $row->qty, 2),
+                    'value' => round((float) $row->value, 2),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $belowMin = (int) WarehouseProduct::query()
+            ->join('product_services', 'warehouse_products.product_id', '=', 'product_services.id')
+            ->where('warehouse_products.created_by', $creatorId)
+            ->where('product_services.created_by', $creatorId)
+            ->whereIn('product_services.type', ['product', 'kit'])
+            ->where(function ($qq) use ($globalThreshold) {
+                $qq->where(function ($q2) {
+                    $q2->whereNotNull('product_services.low_stock_threshold')
+                        ->whereRaw('warehouse_products.quantity <= product_services.low_stock_threshold');
+                })->orWhere(function ($q2) use ($globalThreshold) {
+                    $q2->whereNull('product_services.low_stock_threshold')
+                        ->whereRaw('warehouse_products.quantity <= ?', [$globalThreshold]);
+                });
+            })
+            ->count();
+
+        $outOfStock = (int) ProductService::query()
+            ->where('created_by', $creatorId)
+            ->whereIn('type', ['product', 'kit'])
+            ->where('quantity', '<=', 0)
+            ->count();
+
+        $nearExpiry = (int) DB::table('product_expiry_lots as l')
+            ->join('product_services as p', 'p.id', '=', 'l.product_id')
+            ->where('l.created_by', $creatorId)
+            ->where('p.created_by', $creatorId)
+            ->where('l.quantity_remaining', '>', 0)
+            ->whereNotNull('l.expiry_date')
+            ->where('l.expiry_date', '>=', $today)
+            ->where('l.expiry_date', '<=', $nearUntil)
+            ->count();
+
+        $expired = (int) DB::table('product_expiry_lots as l')
+            ->join('product_services as p', 'p.id', '=', 'l.product_id')
+            ->where('l.created_by', $creatorId)
+            ->where('p.created_by', $creatorId)
+            ->whereNotNull('l.expiry_date')
+            ->where('l.expiry_date', '<', $today)
+            ->where('l.quantity_remaining', '>', 0)
+            ->count();
+
+        $openDeliveries = (int) Purchase::query()
+            ->where('created_by', $creatorId)
+            ->whereIn('status', [0, 1, 2, 3]) // Draft, Sent, Unpaid, Partially Paid
+            ->count();
+
+        $highValueMovements = (int) DB::table('stock_reports as sr')
+            ->join('product_services as p', 'p.id', '=', 'sr.product_id')
+            ->where('sr.created_by', $creatorId)
+            ->where('p.created_by', $creatorId)
+            ->whereIn('sr.type', ['invoice', 'pos'])
+            ->whereDate('sr.created_at', '>=', $dateFrom)
+            ->whereDate('sr.created_at', '<=', $dateTo)
+            ->selectRaw('COUNT(DISTINCT sr.product_id) as c')
+            ->value('c');
+
+        return [
+            'total_stock_value' => [
+                'available' => true,
+                'value' => round($totalStockValue, 2),
+                'display' => 'currency',
+                'route' => 'reports.product.total-stock-value',
+                'label' => __('Total stock value'),
+            ],
+            'stock_by_warehouse' => [
+                'available' => true,
+                'value' => count($stockByWarehouse),
+                'warehouses' => $stockByWarehouse,
+                'display' => 'warehouse_list',
+                'route' => 'reports.product.warehouse-stock',
+                'label' => __('Stock by warehouse'),
+            ],
+            'below_min' => [
+                'available' => true,
+                'value' => $belowMin,
+                'display' => 'count',
+                'route' => 'reports.product.minimum-stock-alert',
+                'label' => __('Products below minimum stock'),
+            ],
+            'out_of_stock' => [
+                'available' => true,
+                'value' => $outOfStock,
+                'display' => 'count',
+                'route' => 'reports.product.out-of-stock',
+                'label' => __('Out-of-stock products'),
+            ],
+            'near_expiry' => [
+                'available' => true,
+                'value' => $nearExpiry,
+                'display' => 'count',
+                'route' => 'reports.product.near-expiry',
+                'label' => __('Products near expiry'),
+            ],
+            'expired' => [
+                'available' => true,
+                'value' => $expired,
+                'display' => 'count',
+                'route' => 'reports.product.expired-products',
+                'label' => __('Expired products'),
+            ],
+            'open_deliveries' => [
+                'available' => true,
+                'value' => $openDeliveries,
+                'display' => 'count',
+                'route' => 'purchase.index',
+                'label' => __('Open supplier deliveries'),
+            ],
+            'high_value_movements' => [
+                'available' => true,
+                'value' => $highValueMovements,
+                'display' => 'count',
+                'route' => 'reports.product.high-rotation',
+                'label' => __('High-value stock movements'),
+            ],
+        ];
     }
 
     /**
@@ -446,6 +616,8 @@ class ProductReportsController extends Controller
                 __('Description'),
                 __('Warehouse'),
                 __('QTY'),
+                __('Unit Price (Purchase)'),
+                __('Unit Price (Sale)'),
                 __('Purchase Value (without VAT)'),
                 __('Purchase Value (with VAT)'),
                 __('Sale Value (without VAT)'),
@@ -459,6 +631,8 @@ class ProductReportsController extends Controller
                     $r->description,
                     $r->warehouse_name ?: '',
                     $r->qty,
+                    $r->unit_purchase_price ?? 0,
+                    $r->unit_sale_price ?? 0,
                     $r->purchase_ex_vat,
                     $r->purchase_inc_vat,
                     $r->sale_ex_vat,
@@ -473,6 +647,8 @@ class ProductReportsController extends Controller
                 __('Total'),
                 '',
                 $totals['qty'],
+                '',
+                '',
                 $totals['purchase_ex_vat'],
                 $totals['purchase_inc_vat'],
                 $totals['sale_ex_vat'],
@@ -593,6 +769,8 @@ class ProductReportsController extends Controller
                 'description' => $desc,
                 'warehouse_name' => $warehouseId > 0 ? ($item->warehouse_name ?? '') : __('All warehouses'),
                 'qty' => $qty,
+                'unit_purchase_price' => round($purchaseUnit, 4),
+                'unit_sale_price' => round($saleUnit, 4),
                 'purchase_ex_vat' => round($purchaseEx, 2),
                 'purchase_inc_vat' => round($purchaseInc, 2),
                 'sale_ex_vat' => round($saleEx, 2),
@@ -1237,6 +1415,7 @@ class ProductReportsController extends Controller
 
         $rows = $q->select([
                 'l.id',
+                'l.product_id',
                 'l.batch_no',
                 'l.expiry_date',
                 'l.mfg_date',
@@ -1244,6 +1423,7 @@ class ProductReportsController extends Controller
                 'l.warehouse_id',
                 'p.name as product_name',
                 'p.sku',
+                'p.purchase_price',
                 'w.name as warehouse_name',
             ])
             ->orderBy('l.expiry_date')
@@ -1251,6 +1431,175 @@ class ProductReportsController extends Controller
             ->get();
 
         return compact('rows', 'warehouses');
+    }
+
+    /**
+     * Convert selected expired lots into warehouse loss write-offs.
+     */
+    public function convertExpiredToLoss(Request $request)
+    {
+        $this->ensureStockReport('menu.dashboard.product_system.expired_products');
+
+        if (! \Auth::user()->can('create warehouse') && ! \Auth::user()->can('manage warehouse') && \Auth::user()->type !== 'company') {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $validated = $request->validate([
+            'lot_ids' => 'required|array|min:1',
+            'lot_ids.*' => 'integer',
+            'issuer_name' => 'nullable|string|max:150',
+            'authorized_by' => 'nullable|string|max:150',
+            'witness_name' => 'nullable|string|max:150',
+        ]);
+
+        $creatorId = $this->creatorId();
+        $lotIds = array_values(array_unique(array_map('intval', $validated['lot_ids'])));
+        $userName = \Auth::user()->name ?? __('System');
+        $issuer = trim((string) ($validated['issuer_name'] ?? '')) ?: $userName;
+        $authorized = trim((string) ($validated['authorized_by'] ?? '')) ?: $userName;
+        $witness = trim((string) ($validated['witness_name'] ?? '')) ?: $userName;
+        $date = now()->toDateString();
+
+        $lots = ProductExpiryLot::query()
+            ->where('created_by', $creatorId)
+            ->whereIn('id', $lotIds)
+            ->where('quantity_remaining', '>', 0)
+            ->whereNotNull('expiry_date')
+            ->where('expiry_date', '<', $date)
+            ->get();
+
+        if ($lots->isEmpty()) {
+            return redirect()->back()->with('error', __('No expired lots with remaining stock were selected.'));
+        }
+
+        $writeOffNos = [];
+
+        DB::transaction(function () use ($lots, $creatorId, $issuer, $authorized, $witness, $date, &$writeOffNos) {
+            $byWarehouse = $lots->groupBy(function ($lot) {
+                return (int) ($lot->warehouse_id ?: 0);
+            });
+
+            $seq = (int) (WarehouseLoss::where('created_by', $creatorId)->max('id') ?? 0);
+
+            foreach ($byWarehouse as $warehouseId => $warehouseLots) {
+                if ($warehouseId <= 0) {
+                    continue;
+                }
+
+                $seq++;
+                $writeOffNo = 'WO-' . str_pad((string) $seq, 6, '0', STR_PAD_LEFT);
+                $writeOffNos[] = $writeOffNo;
+                $totalCost = 0.0;
+
+                foreach ($warehouseLots as $lot) {
+                    $qty = (float) $lot->quantity_remaining;
+                    if ($qty <= 0) {
+                        continue;
+                    }
+
+                    $product = ProductService::where('created_by', $creatorId)->find($lot->product_id);
+                    if (! $product) {
+                        continue;
+                    }
+
+                    $warehouseProduct = WarehouseProduct::where('warehouse_id', $warehouseId)
+                        ->where('product_id', $lot->product_id)
+                        ->first();
+                    $available = $warehouseProduct ? (float) $warehouseProduct->quantity : 0.0;
+                    $deductQty = min($qty, $available);
+                    if ($deductQty <= 0) {
+                        // Still clear the expired lot remainder even if warehouse qty already zero.
+                        $lot->quantity_remaining = 0;
+                        $lot->save();
+                        continue;
+                    }
+
+                    $unitCost = max(0, round((float) ($product->purchase_price ?? 0), 4));
+                    $lineCost = round($deductQty * $unitCost, 2);
+                    $totalCost += $lineCost;
+
+                    $batchLabel = trim((string) ($lot->batch_no ?? ''));
+                    $reason = __('Expired product write-off')
+                        . ($batchLabel !== '' ? ' — ' . __('Batch') . ': ' . $batchLabel : '')
+                        . ' — ' . __('Expiry') . ': ' . optional($lot->expiry_date)->format('Y-m-d');
+
+                    $loss = WarehouseLoss::create([
+                        'write_off_no' => $writeOffNo,
+                        'warehouse_id' => $warehouseId,
+                        'product_id' => (int) $lot->product_id,
+                        'quantity' => $deductQty,
+                        'unit_cost' => $unitCost,
+                        'cost_of_goods' => $lineCost,
+                        'date' => $date,
+                        'reason' => $reason,
+                        'issuer_name' => $issuer,
+                        'authorized_by' => $authorized,
+                        'witness_name' => $witness,
+                        'delivery_note_required' => false,
+                        'delivery_destination' => null,
+                        'created_by' => $creatorId,
+                    ]);
+                    $seq = max($seq, (int) $loss->id);
+
+                    Utility::warehouse_quantity('minus', $deductQty, (int) $lot->product_id, $warehouseId);
+                    Utility::total_quantity('minus', $deductQty, (int) $lot->product_id);
+                    Utility::addProductStock((int) $lot->product_id, $deductQty, 'warehouse_loss', $reason, 0);
+
+                    $lot->quantity_remaining = 0;
+                    $lot->save();
+                }
+
+                $this->postExpiredLossJournal($creatorId, $date, $writeOffNo, $totalCost);
+            }
+        });
+
+        if ($writeOffNos === []) {
+            return redirect()->back()->with('error', __('Could not convert lots: warehouse is required on expired lots.'));
+        }
+
+        return redirect()
+            ->route('warehouse-loss.index')
+            ->with('success', __('Expired products converted to warehouse loss:') . ' ' . implode(', ', $writeOffNos));
+    }
+
+    protected function postExpiredLossJournal(int $creatorId, string $date, string $writeOffNo, float $totalCost): void
+    {
+        if ($totalCost <= 0) {
+            return;
+        }
+
+        $expenseAccount = ChartOfAccount::where('created_by', $creatorId)->where('code', '5025')->orderBy('id')->first();
+        $inventoryAccount = ChartOfAccount::where('created_by', $creatorId)->where('code', '1510')->orderBy('id')->first();
+        if (! $expenseAccount || ! $inventoryAccount) {
+            Log::warning('Expired-to-loss journal skipped: missing chart accounts 5025/1510', [
+                'created_by' => $creatorId,
+                'write_off_no' => $writeOffNo,
+            ]);
+
+            return;
+        }
+
+        $description = __('Expired product write-off') . ' ' . $writeOffNo;
+        app(JournalEntryPoster::class)->post(
+            $creatorId,
+            $date,
+            $writeOffNo,
+            $description,
+            [
+                [
+                    'account' => (int) $expenseAccount->id,
+                    'debit' => $totalCost,
+                    'credit' => 0,
+                    'description' => $description,
+                ],
+                [
+                    'account' => (int) $inventoryAccount->id,
+                    'debit' => 0,
+                    'credit' => $totalCost,
+                    'description' => $description,
+                ],
+            ]
+        );
     }
 
     /**

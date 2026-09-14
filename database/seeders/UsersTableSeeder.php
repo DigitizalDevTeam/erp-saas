@@ -156,6 +156,12 @@ class UsersTableSeeder extends Seeder
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
             [
+                'name' => 'manage document layouts',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
                 'name' => 'manage business settings',
                 'guard_name' => 'web',
                 'created_at' => date('Y-m-d H:i:s'),
@@ -3792,6 +3798,7 @@ class UsersTableSeeder extends Seeder
             'edit bug status',
             'delete bug status',
             'manage print settings',
+            'manage document layouts',
             'manage company plan',
             'buy plan',
             'copy invoice',
@@ -4016,6 +4023,7 @@ class UsersTableSeeder extends Seeder
             'ledger report',
             'trial balance report',
             'manage print settings',
+            'manage document layouts',
             'manage budget plan',
             'create budget plan',
             'edit budget plan',

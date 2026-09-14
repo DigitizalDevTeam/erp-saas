@@ -66,12 +66,21 @@
                         <table class="table table-sm" id="wl-items-table">
                             <thead>
                                 <tr>
-                                    <th style="width:55%;">{{ __('Product') }}</th>
-                                    <th style="width:25%;">{{ __('Lost Qty') }}</th>
-                                    <th style="width:20%;"></th>
+                                    <th style="width:40%;">{{ __('Product') }}</th>
+                                    <th style="width:15%;">{{ __('Lost Qty') }}</th>
+                                    <th style="width:18%;">{{ __('Unit Cost') }}</th>
+                                    <th style="width:17%;">{{ __('Cost of Goods') }}</th>
+                                    <th style="width:10%;"></th>
                                 </tr>
                             </thead>
                             <tbody id="wl-items-body"></tbody>
+                            <tfoot>
+                                <tr>
+                                    <th colspan="3" class="text-end">{{ __('Total Cost of Goods') }}</th>
+                                    <th><span id="wl-total-cost">0.00</span></th>
+                                    <th></th>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
 
@@ -109,6 +118,7 @@
                                     <th>{{ __('Product') }}</th>
                                     <th>{{ __('Lines') }}</th>
                                     <th>{{ __('Qty') }}</th>
+                                    <th>{{ __('Cost of Goods') }}</th>
                                     <th>{{ __('Reason') }}</th>
                                     <th>{{ __('Issued / Authorized / Witness') }}</th>
                                     <th>{{ __('Delivery Option') }}</th>
@@ -127,6 +137,7 @@
                                         <td>{{ $r->product_label }}</td>
                                         <td>{{ $r->line_count }}</td>
                                         <td>{{ $r->quantity }}</td>
+                                        <td>{{ \Auth::user()->priceFormat($r->cost_of_goods ?? 0) }}</td>
                                         <td>{{ $r->reason ?? '-' }}</td>
                                         <td>
                                             {{ $r->issuer_name ?? '-' }} /
@@ -161,6 +172,7 @@
 <script>
 (function () {
     var products = @json($products);
+    var productCosts = @json($productCosts);
     var lineIndex = 0;
     var bulkPrintUrl = @json(route('warehouse-loss.print-bulk'));
 
@@ -172,18 +184,57 @@
         return html;
     }
 
-    function addLine(productId, qty) {
+    function round2(n) {
+        return Math.round((n + Number.EPSILON) * 100) / 100;
+    }
+
+    function syncLineCost(tr) {
+        var qty = parseFloat(tr.querySelector('.wl-qty').value) || 0;
+        var unit = parseFloat(tr.querySelector('.wl-unit-cost').value) || 0;
+        var lineCost = round2(qty * unit);
+        tr.querySelector('.wl-line-cost').value = lineCost.toFixed(2);
+        syncTotalCost();
+    }
+
+    function syncTotalCost() {
+        var total = 0;
+        document.querySelectorAll('#wl-items-body .wl-line-cost').forEach(function (el) {
+            total += parseFloat(el.value) || 0;
+        });
+        var out = document.getElementById('wl-total-cost');
+        if (out) {
+            out.textContent = round2(total).toFixed(2);
+        }
+    }
+
+    function fillUnitCostFromProduct(tr) {
+        var pid = tr.querySelector('.wl-product').value;
+        var unitInput = tr.querySelector('.wl-unit-cost');
+        if (pid && productCosts[pid] !== undefined) {
+            unitInput.value = parseFloat(productCosts[pid] || 0).toFixed(4);
+        }
+        syncLineCost(tr);
+    }
+
+    function addLine(productId, qty, unitCost) {
         var idx = lineIndex++;
         var tr = document.createElement('tr');
         tr.className = 'wl-line';
+        var cost = unitCost;
+        if (cost === undefined || cost === null || cost === '') {
+            cost = (productId && productCosts[productId] !== undefined) ? productCosts[productId] : '';
+        }
         tr.innerHTML =
             '<td><select name="items[' + idx + '][product_id]" class="form-control select wl-product" required>' + productOptionsHtml(productId || '') + '</select></td>' +
-            '<td><input type="number" name="items[' + idx + '][quantity]" class="form-control" step="0.0001" min="0.0001" required value="' + (qty || '') + '"></td>' +
+            '<td><input type="number" name="items[' + idx + '][quantity]" class="form-control wl-qty" step="0.0001" min="0.0001" required value="' + (qty || '') + '"></td>' +
+            '<td><input type="number" name="items[' + idx + '][unit_cost]" class="form-control wl-unit-cost" step="0.0001" min="0" required value="' + (cost !== '' ? parseFloat(cost).toFixed(4) : '') + '"></td>' +
+            '<td><input type="number" class="form-control wl-line-cost" step="0.01" min="0" readonly tabindex="-1" value="0.00"></td>' +
             '<td><button type="button" class="btn btn-sm btn-outline-danger wl-remove-line">{{ __("Remove") }}</button></td>';
         document.getElementById('wl-items-body').appendChild(tr);
         if (window.$ && $.fn.select2) {
             $(tr).find('select').select2({ width: '100%' });
         }
+        syncLineCost(tr);
     }
 
     function selectedPrintIds() {
@@ -209,8 +260,31 @@
                 return;
             }
             e.target.closest('tr').remove();
+            syncTotalCost();
         }
     });
+    document.getElementById('wl-items-body').addEventListener('change', function (e) {
+        var tr = e.target.closest('tr');
+        if (!tr) return;
+        if (e.target.classList.contains('wl-product')) {
+            fillUnitCostFromProduct(tr);
+        } else if (e.target.classList.contains('wl-qty') || e.target.classList.contains('wl-unit-cost')) {
+            syncLineCost(tr);
+        }
+    });
+    document.getElementById('wl-items-body').addEventListener('input', function (e) {
+        var tr = e.target.closest('tr');
+        if (!tr) return;
+        if (e.target.classList.contains('wl-qty') || e.target.classList.contains('wl-unit-cost')) {
+            syncLineCost(tr);
+        }
+    });
+    if (window.$) {
+        $(document).on('select2:select', '#wl-items-body .wl-product', function () {
+            fillUnitCostFromProduct(this.closest('tr'));
+        });
+    }
+
     addLine('', '');
 
     var selectAll = document.getElementById('wl-select-all');

@@ -381,6 +381,99 @@ class ProductStockController extends Controller
         return redirect()->back();
     }
 
+    public function printStock(Request $request)
+    {
+        if (! \Auth::user()->can('manage product & service')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $creatorId = (int) \Auth::user()->creatorId();
+        $warehouses = warehouse::where('created_by', $creatorId)->orderBy('name')->get();
+        $warehouseId = $request->get('warehouse_id');
+        if ($warehouseId !== null && $warehouseId !== '' && ! $warehouses->contains('id', (int) $warehouseId)) {
+            $warehouseId = null;
+        }
+
+        $productServices = ProductService::where('created_by', $creatorId)
+            ->where('type', 'product')
+            ->orderBy('name')
+            ->get();
+
+        $warehouseName = null;
+        if ($warehouseId) {
+            $warehouseName = optional($warehouses->firstWhere('id', (int) $warehouseId))->name;
+            foreach ($productServices as $productService) {
+                $productService->display_quantity = $productService->warehouseProduct($productService->id, (int) $warehouseId);
+            }
+        } else {
+            foreach ($productServices as $productService) {
+                $productService->display_quantity = $productService->quantity;
+            }
+        }
+
+        $user = \Auth::user();
+        $rows = [];
+        $stockValue = 0.0;
+        $belowMin = 0;
+        $outOfStock = 0;
+        foreach ($productServices as $productService) {
+            $qty = (float) ($productService->display_quantity ?? $productService->quantity ?? 0);
+            $min = (float) ($productService->low_stock_threshold ?? 0);
+            $unitCost = (float) ($productService->purchase_price ?? 0);
+            $value = $qty * $unitCost;
+            $stockValue += $value;
+            if ($qty <= 0) {
+                $outOfStock++;
+                $status = __('OUT OF STOCK');
+                $badge = 'zero';
+            } elseif ($min > 0 && $qty <= $min) {
+                $belowMin++;
+                $status = __('RESTOCK');
+                $badge = 'warn';
+            } else {
+                $status = __('NORMAL');
+                $badge = 'ok';
+            }
+            $locParts = array_filter([
+                $productService->shelf_no ?? null,
+                $productService->row_no ?? null,
+            ]);
+            $rows[] = [
+                'sku' => $productService->sku ?: ('#' . $productService->id),
+                'name' => $productService->name,
+                'warehouse' => $warehouseName ?: __('All Warehouses'),
+                'location' => $locParts !== [] ? implode('-', $locParts) : '—',
+                'stock' => rtrim(rtrim(number_format($qty, 2, '.', ''), '0'), '.') ?: '0',
+                'minimum' => $min > 0 ? rtrim(rtrim(number_format($min, 2, '.', ''), '0'), '.') : '—',
+                'value_fmt' => $user->priceFormat($value),
+                'status' => $status,
+                'badge_class' => $badge,
+            ];
+        }
+
+        $kpis = [
+            'articles' => count($rows),
+            'stock_value' => $stockValue,
+            'below_min' => $belowMin,
+            'out_of_stock' => $outOfStock,
+        ];
+
+        return view('print.uthara.mapa_inventario', compact('productServices', 'warehouseId', 'warehouseName', 'rows', 'kpis'));
+    }
+
+    public function printIntroduction($id)
+    {
+        if (! \Auth::user()->can('manage product & service')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $intro = StockIntroduction::with(['warehouse', 'lines.product'])
+            ->where('created_by', \Auth::user()->creatorId())
+            ->findOrFail($id);
+
+        return view('productstock.print_introduction', compact('intro'));
+    }
+
     protected function nextIntroNumber(int $creatorId): string
     {
         $latest = StockIntroduction::where('created_by', $creatorId)->orderByDesc('id')->value('intro_no');

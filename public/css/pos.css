@@ -448,6 +448,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
     max-width: 100%;
 }
 .pos-cart-table--restaurant .pos-cart-line__badge.pos-line-status {

@@ -10,15 +10,20 @@
 
 @section('content')
     <div class="row justify-content-center">
-        <div class="col-lg-8">
+        <div class="col-lg-10">
             <div class="card">
                 <div class="card-body">
                     <p class="text-muted mb-4">
                         {{ __('Create a supplier invoice (bill) from proforma') }}
                         <strong>{{ Auth::user()->proformaNumberFormat($proforma->proforma_id) }}</strong>.
-                        {{ __('You can add payment on the bill after it is created.') }}
+                        {{ __('Uncheck products you will not include on the bill.') }}
                     </p>
                     {{ Form::open(['route' => ['proforma.convert-bill.store', \Crypt::encrypt($proforma->id)], 'method' => 'POST', 'class' => 'needs-validation']) }}
+                    @include('partials.convert_source_items', [
+                        'sourceLabel' => __('From Proforma'),
+                        'sourceValue' => Auth::user()->proformaNumberFormat($proforma->proforma_id),
+                        'sourceLines' => $proforma->items,
+                    ])
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             {{ Form::label('vender_id', __('Vendor'), ['class' => 'form-label']) }}<x-required></x-required>

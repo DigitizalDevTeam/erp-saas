@@ -1046,6 +1046,17 @@
             }
         });
 
+        function parsePosWarehousesResponse(data) {
+            var list = (data && data.warehouses) ? data.warehouses : (data || {});
+            if (list.warehouses || list.default_warehouse_id) {
+                list = list.warehouses || {};
+            }
+            var ids = Object.keys(list || {});
+            var def = data && data.default_warehouse_id != null ? String(data.default_warehouse_id) : '';
+            var preferred = (def && ids.indexOf(def) !== -1) ? def : (ids[0] || null);
+            return { list: list || {}, ids: ids, preferred: preferred };
+        }
+
         $( document ).ready(function() {
 
             var abc = $( "#warehouse_name_hidden" ).val($('.warehouse_select').val());
@@ -1314,14 +1325,15 @@
                         success: function () {},
                         complete: function () {
                             $.get('{{ route("pos.warehouses.by.branch") }}', { branch_id: branchId }, function (data) {
+                                var parsed = parsePosWarehousesResponse(data);
                                 var $whSelect = $('#pos-restaurant-warehouse');
                                 $whSelect.empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
-                                $.each(data, function (id, name) {
+                                $.each(parsed.list, function (id, name) {
                                     $whSelect.append($('<option></option>').val(id).text(name));
                                 });
-                                var ids = Object.keys(data);
+                                var ids = parsed.ids;
                                 if (ids.length) {
-                                    var wh = ids[0];
+                                    var wh = parsed.preferred;
                                     $whSelect.val(wh);
                                     $('#pos_restaurant_warehouse_hidden').val(wh);
                                     resetRestaurantCategories(true);
@@ -1416,14 +1428,15 @@
                     $('#pos-restaurant-order').removeClass('d-none');
                     $('#pos-restaurant-order-right').removeClass('d-none');
                     $.get('{{ route("pos.warehouses.by.branch") }}', { branch_id: initRestBranch }, function (data) {
+                        var parsed = parsePosWarehousesResponse(data);
                         var $whSelect = $('#pos-restaurant-warehouse');
                         $whSelect.empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
-                        $.each(data, function (id, name) {
+                        $.each(parsed.list, function (id, name) {
                             $whSelect.append($('<option></option>').val(id).text(name));
                         });
-                        var ids = Object.keys(data);
+                        var ids = parsed.ids;
                         if (ids.length) {
-                            var wh = ids[0];
+                            var wh = parsed.preferred;
                             $whSelect.val(wh);
                             $('#pos_restaurant_warehouse_hidden').val(wh);
                             resetRestaurantCategories(true);
@@ -1587,9 +1600,10 @@
                 var qty = it.quantity || 0;
                 var cartKey = it.cart_line_key || it.id;
                 var note = String(it.description || '').trim();
-                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(it.name) + '" data-price="' + it.price + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '">';
+                var lineName = String(it.name || '').trim() || ('{{ __("Product") }} #' + (it.id || ''));
+                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '">';
                 html += '<td class="pos-cart-line-cell p-0 border-0"><div class="pos-cart-line"><div class="pos-cart-line__row">';
-                html += '<div class="pos-cart-line__main min-w-0"><span class="pos-cart-line__name name">' + esc(it.name) + '</span>';
+                html += '<div class="pos-cart-line__main min-w-0"><span class="pos-cart-line__name name" title="' + esc(lineName) + '">' + esc(lineName) + '</span>';
                 html += '<span class="pos-cart-line__badge badge pos-line-status">' + esc(statusText) + '</span></div>';
                 if (it.is_sent) {
                     html += '<span class="pos-cart-line__qty-label">' + qty + '×</span>';
@@ -1602,7 +1616,7 @@
                     if (isVoided) {
                         html += '<span class="badge pos-cart-line__void-badge">{{ __("pos.voided") }}</span>';
                     } else if (canShowVoid && it.line_id) {
-                        html += '<button type="button" class="btn btn-warning btn-sm pos-void-line pos-cart-line__void-btn" data-line-id="' + it.line_id + '" data-name="' + esc(it.name) + '" title="{{ __("pos.void") }}">{{ __("pos.void") }}</button>';
+                        html += '<button type="button" class="btn btn-warning btn-sm pos-void-line pos-cart-line__void-btn" data-line-id="' + it.line_id + '" data-name="' + esc(lineName) + '" title="{{ __("pos.void") }}">{{ __("pos.void") }}</button>';
                     }
                 } else {
                     var delId = 'delete-form-r-' + cartKey + '-' + idx;
@@ -1648,7 +1662,7 @@
                     var sessionItems = res.session_items || [];
                     var list = [];
                     orderLines.forEach(function (it) {
-                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null });
+                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null });
                     });
                     sessionItems.forEach(function (it) {
                         var id = it.id;
@@ -1656,7 +1670,7 @@
                         var price = parseFloat(it.price) || 0;
                         var tax = parseFloat(it.tax) || 0;
                         var sub = (it.subtotal != null) ? parseFloat(it.subtotal) : (price * (1 + (tax || 0) / 100) * qty);
-                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false });
+                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null });
                     });
                     if (res.order_type && $('#pos-restaurant-order-type').length) {
                         $('#pos-restaurant-order-type').val(res.order_type);
@@ -1685,7 +1699,10 @@
                         var rows = '';
                         list.forEach(function (it, idx) {
                             var isVoidedLine = it.status === 'cancelled' || it.voided_at;
-                            var sub = (it.price * it.quantity * (1 + (it.tax || 0) / 100));
+                            var taxRate = parseFloat(it.tax) || 0;
+                            var sub = (it.subtotal != null && !isNaN(parseFloat(it.subtotal)))
+                                ? parseFloat(it.subtotal)
+                                : (it.price * it.quantity * (1 + taxRate / 100));
                             if (!isVoidedLine) {
                                 total += sub;
                             }
@@ -2858,15 +2875,16 @@
             if (initBranchId) {
                 toggleRestaurantOptions(initBranchId);
                 $.get('{{ route("pos.warehouses.by.branch") }}', { branch_id: initBranchId }, function(data) {
+                    var parsed = parsePosWarehousesResponse(data);
                     var $warehouse = $( '#warehouse' );
-                    var ids = Object.keys(data || {});
+                    var ids = parsed.ids;
                     if (ids.length) {
                         var prevVal = $warehouse.val();
                         $warehouse.empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
-                        $.each(data, function(id, name) {
+                        $.each(parsed.list, function(id, name) {
                             $warehouse.append($('<option></option>').val(id).text(name));
                         });
-                        var wh = ids.indexOf(String(prevVal)) !== -1 ? prevVal : ids[0];
+                        var wh = ids.indexOf(String(prevVal)) !== -1 ? prevVal : parsed.preferred;
                         $warehouse.val(wh);
                         $( "#warehouse_name_hidden" ).val(wh);
                     }
@@ -2886,16 +2904,17 @@
                     url: '{{ route("pos.warehouses.by.branch") }}',
                     data: { branch_id: branchId },
                     success: function (data) {
+                        var parsed = parsePosWarehousesResponse(data);
                         var $warehouse = $( '#warehouse' );
-                        var ids = Object.keys(data || {});
+                        var ids = parsed.ids;
                         if (!ids.length) {
                             return;
                         }
                         $warehouse.empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
-                        $.each(data, function(id, name) {
+                        $.each(parsed.list, function(id, name) {
                             $warehouse.append($('<option></option>').val(id).text(name));
                         });
-                        var wh = ids[0];
+                        var wh = parsed.preferred;
                         $warehouse.val(wh);
                         $( "#warehouse_name_hidden" ).val(wh);
                         // Empty cart when branch changes
@@ -3673,7 +3692,7 @@
                             var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id + '&source=restaurant';
                             $.get(receiptUrl, function (html) {
                                 $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
-                                $('#commonModal .modal-dialog').removeClass('modal-xl').addClass('modal-lg');
+                                $('#commonModal .modal-dialog').removeClass('modal-xl modal-lg').addClass('modal-sm');
                                 $('#commonModal .body').html(html);
                                 $('#commonModal').modal('show');
                             });

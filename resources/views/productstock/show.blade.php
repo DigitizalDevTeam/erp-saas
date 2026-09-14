@@ -8,6 +8,14 @@
     <li class="breadcrumb-item">{{ $intro->intro_no }}</li>
 @endsection
 
+@section('action-btn')
+    <div class="float-end">
+        <a href="{{ route('productstock.print-intro', $intro->id) }}" target="_blank" class="btn btn-sm btn-primary">
+            <i class="ti ti-printer"></i> {{ __('Print') }}
+        </a>
+    </div>
+@endsection
+
 @section('content')
     <div class="card">
         <div class="card-body">
@@ -46,6 +54,9 @@
                 </table>
             </div>
             <a href="{{ route('productstock.index') }}" class="btn btn-outline-primary btn-sm">{{ __('Back') }}</a>
+            <a href="{{ route('productstock.print-intro', $intro->id) }}" target="_blank" class="btn btn-primary btn-sm">
+                <i class="ti ti-printer"></i> {{ __('Print') }}
+            </a>
         </div>
     </div>
 @endsection

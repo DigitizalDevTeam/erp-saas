@@ -60,20 +60,25 @@ var posDirectPrint = {{ $directPrint ? 'true' : 'false' }};
             if (styleEl && styleEl.innerHTML) styleChunks.push(styleEl.innerHTML);
         }
         var receiptStyles = styleChunks.join('\n');
-        var printWin = window.open('', '_blank', 'width=800,height=600');
+        var layout = (typeof posPrintLayout !== 'undefined' ? posPrintLayout : 'slip');
+        if (layout === 'receipt') layout = 'slip';
+        var winW = layout === 'slip' ? 420 : (layout === 'a5' ? 620 : 800);
+        var printWin = window.open('', '_blank', 'width=' + winW + ',height=700');
         if (!printWin) {
             window.print();
             return;
         }
         var doc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{{ __("Receipt") }}</title>';
-        var layout = (typeof posPrintLayout !== 'undefined' ? posPrintLayout : 'receipt');
         doc += '<style>body{background:#fff;margin:0;padding:12px;font-family:Arial,Helvetica,sans-serif;color:#111}';
         if (layout === 'slip') {
-            doc += '#printarea{width:80mm;max-width:100%;margin:0 auto}';
+            doc += '#printarea{width:80mm;max-width:80mm;margin:0 auto}';
+            doc += '@page{size:80mm auto;margin:3mm}';
         } else if (layout === 'a5') {
             doc += '#printarea{width:100%;max-width:148mm;margin:0 auto}';
+            doc += '@page{size:A5 portrait;margin:8mm}';
         } else {
             doc += '#printarea{width:100%;max-width:210mm;margin:0 auto}';
+            doc += '@page{size:A4 portrait;margin:10mm}';
         }
         doc += receiptStyles + '</style></head><body class="pos-print-layout-' + layout + '"><div id="printarea" class="pos-print-layout-' + layout + '">' + html + '</div></body></html>';
         printWin.document.write(doc);

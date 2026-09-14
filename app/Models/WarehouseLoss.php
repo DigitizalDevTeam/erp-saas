@@ -11,6 +11,8 @@ class WarehouseLoss extends Model
         'warehouse_id',
         'product_id',
         'quantity',
+        'unit_cost',
+        'cost_of_goods',
         'date',
         'reason',
         'issuer_name',
@@ -23,6 +25,9 @@ class WarehouseLoss extends Model
 
     protected $casts = [
         'date' => 'date',
+        'quantity' => 'float',
+        'unit_cost' => 'float',
+        'cost_of_goods' => 'float',
     ];
 
     public function warehouse()

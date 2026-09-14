@@ -50,6 +50,7 @@ use App\Http\Controllers\DeductionOptionController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DesignationController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\DocumentLayoutController;
 use App\Http\Controllers\DucumentUploadController;
 use App\Http\Controllers\EasebuzzController;
 use App\Http\Controllers\DocumentVoidLogController;
@@ -939,6 +940,15 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('telegram-settings', [SystemController::class, 'saveTelegramSettings'])->name('telegram.settings');
             Route::post('twilio-settings', [SystemController::class, 'saveTwilioSettings'])->name('twilio.setting');
             Route::get('print-setting', [SystemController::class, 'printIndex'])->name('print.setting');
+            Route::get('document-layouts', [DocumentLayoutController::class, 'index'])->name('document-layouts.index');
+            Route::get('document-layouts/create', [DocumentLayoutController::class, 'create'])->name('document-layouts.create');
+            Route::post('document-layouts', [DocumentLayoutController::class, 'store'])->name('document-layouts.store');
+            Route::get('document-layouts/preview/{id?}', [DocumentLayoutController::class, 'preview'])->name('document-layouts.preview');
+            Route::get('document-layouts/{id}/edit', [DocumentLayoutController::class, 'edit'])->name('document-layouts.edit');
+            Route::put('document-layouts/{id}', [DocumentLayoutController::class, 'update'])->name('document-layouts.update');
+            Route::delete('document-layouts/{id}', [DocumentLayoutController::class, 'destroy'])->name('document-layouts.destroy');
+            Route::post('document-layouts/{id}/activate', [DocumentLayoutController::class, 'activate'])->name('document-layouts.activate');
+            Route::post('document-layouts/{id}/deactivate', [DocumentLayoutController::class, 'deactivate'])->name('document-layouts.deactivate');
             Route::get('settings', [SystemController::class, 'companyIndex'])->name('settings')->middleware(['XSS']);
             Route::post('business-setting', [SystemController::class, 'saveBusinessSettings'])->name('business.setting');
             Route::post('company-payment-setting', [SystemController::class, 'saveCompanyPaymentSettings'])->name('company.payment.settings');
@@ -983,6 +993,8 @@ Route::group(['middleware' => ['verified']], function () {
 
     //Product Stock
     Route::get('product-batches', [ProductBatchMonitorController::class, 'index'])->name('product-batches.index')->middleware(['auth', 'XSS']);
+    Route::get('productstock/print', [ProductStockController::class, 'printStock'])->name('productstock.print')->middleware(['auth', 'XSS']);
+    Route::get('productstock/{id}/print', [ProductStockController::class, 'printIntroduction'])->name('productstock.print-intro')->middleware(['auth', 'XSS']);
     Route::resource('productstock', ProductStockController::class)->middleware(['auth', 'XSS']);
 
     //Customer
@@ -1311,6 +1323,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('reports/product-system/near-expiry/export', [ProductReportsController::class, 'nearExpiryExport'])->name('reports.product.near-expiry.export');
             Route::get('reports/product-system/expired-products', [ProductReportsController::class, 'expiredProducts'])->name('reports.product.expired-products');
             Route::get('reports/product-system/expired-products/export', [ProductReportsController::class, 'expiredProductsExport'])->name('reports.product.expired-products.export');
+            Route::post('reports/product-system/expired-products/convert-to-loss', [ProductReportsController::class, 'convertExpiredToLoss'])->name('reports.product.expired-products.convert-to-loss');
             Route::get('reports/product-system/transactions', [ProductReportsController::class, 'transactions'])->name('reports.product.transactions');
             Route::get('reports/product-system/transactions/export', [ProductReportsController::class, 'transactionsExport'])->name('reports.product.transactions.export');
             Route::get('reports/product-system/document/{docType}/{id}', [ProductReportsController::class, 'document'])->name('reports.product.document');

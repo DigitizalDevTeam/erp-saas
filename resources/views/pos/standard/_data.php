@@ -20,9 +20,14 @@ $isBalancePayment = $isBalancePayment ?? false;
 $balancePaymentExtra = $balancePaymentExtra ?? null;
 $receiptUser = $receiptUser ?? null;
 $priceUser = $receiptUser ?? Auth::user();
-$printLayout = Utility::normalizePosPrintLayout($settings['pos_print_layout'] ?? 'receipt');
-// For existing printview + restaurant, prefer 80mm slip paper when not already set.
-if ($printSource === 'restaurant' && $printLayout === 'receipt') {
+$printLayout = Utility::normalizePosPrintLayout($settings['pos_print_layout'] ?? 'slip');
+// Ambiguous "receipt" / restaurant → real 80mm thermal (never A4 factura).
+if ($printLayout === 'receipt' || $printSource === 'restaurant') {
+    if ($printLayout === 'receipt') {
+        $printLayout = 'slip';
+    }
+}
+if ($printSource === 'restaurant' && ! in_array($printLayout, ['slip', 'a5', 'a4'], true)) {
     $printLayout = 'slip';
 }
 $directPrint = (isset($settings['pos_direct_print']) && $settings['pos_direct_print'] === 'on');

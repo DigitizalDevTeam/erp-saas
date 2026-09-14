@@ -215,9 +215,13 @@ namespace App\Models;
         */
         public static function normalizePosPrintLayout(?string $layout): string
         {
-            $layout = ($layout !== null && $layout !== '') ? $layout : 'receipt';
+            $layout = ($layout !== null && $layout !== '') ? $layout : 'slip';
+            if ($layout === 'receipt') {
+                // Legacy alias — treat as 80mm thermal, not A4.
+                return 'slip';
+            }
 
-            return in_array($layout, ['slip', 'a5', 'a4', 'receipt'], true) ? $layout : 'receipt';
+            return in_array($layout, ['slip', 'a5', 'a4'], true) ? $layout : 'slip';
         }
 
         /**
@@ -359,9 +363,11 @@ namespace App\Models;
                 "pos_color" => "ffffff",
                 "pos_template" => "template1",
                 "pos_prefix" => "#PDV",
-                "pos_print_layout" => "receipt",
+                "pos_print_layout" => "slip",
                 "pos_receipt_layout" => "existing",
                 "quotation_receipt_layout" => "existing",
+                "uthara_print_pack" => "on",
+                "uthara_factura_paper" => "a4",
                 "pos_receipt_printer" => "browser",
                 "pos_qr_display" => "on",
                 "pos_direct_print" => "off",

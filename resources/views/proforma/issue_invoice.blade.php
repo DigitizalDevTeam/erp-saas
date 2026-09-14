@@ -10,7 +10,7 @@
 
 @section('content')
     <div class="row justify-content-center">
-        <div class="col-lg-8">
+        <div class="col-lg-10">
             @if (session('error'))
                 <div class="alert alert-danger">{{ session('error') }}</div>
             @endif
@@ -20,10 +20,15 @@
             <div class="card">
                 <div class="card-body">
                     <p class="text-muted mb-4">
-                        {{ __('Lines and amounts are taken from the proforma. Confirm dates, client PO and category, then create the sales invoice.') }}
+                        {{ __('Confirm dates, client PO and category, then create the sales invoice. Uncheck products you will not include.') }}
                         <strong>{{ Auth::user()->proformaNumberFormat($proforma->proforma_id) }}</strong>
                     </p>
                     {{ Form::open(['route' => ['proforma.issue-invoice.store', \Crypt::encrypt($proforma->id)], 'method' => 'POST', 'class' => 'needs-validation', 'novalidate' => true]) }}
+                    @include('partials.convert_source_items', [
+                        'sourceLabel' => __('From Proforma'),
+                        'sourceValue' => Auth::user()->proformaNumberFormat($proforma->proforma_id),
+                        'sourceLines' => $proforma->items,
+                    ])
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             {{ Form::label('issue_date', __('Issue date'), ['class' => 'form-label']) }}<x-required></x-required>

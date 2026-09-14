@@ -23,6 +23,7 @@ use App\Models\Utility;
 use App\Models\Vender;
 use App\Models\TransactionLines;
 use App\Services\DocumentVoidService;
+use App\Services\DocumentLayoutRenderer;
 use App\Services\Accounting\DocumentLedgerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -1451,6 +1452,28 @@ class BillController extends Controller
         {
             $color      = '#' . $settings['bill_color'];
             $font_color = Utility::getFontColor($color);
+
+            $custom = \App\Services\UtharaPrintRenderer::tryRenderFactura('bill', $bill, [
+                'settings' => $settings,
+                'color' => $color,
+                'font_color' => $font_color,
+                'img' => $img,
+                'party' => $vendor,
+            ]);
+            if ($custom) {
+                return $custom;
+            }
+
+            $custom = DocumentLayoutRenderer::tryRender('bill', $bill, [
+                'settings' => $settings,
+                'color' => $color,
+                'font_color' => $font_color,
+                'img' => $img,
+                'party' => $vendor,
+            ]);
+            if ($custom) {
+                return $custom;
+            }
 
             return view('bill.templates.' . $settings['bill_template'], compact('bill', 'color', 'settings', 'vendor', 'img', 'font_color', 'customFields'));
         }

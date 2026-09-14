@@ -40,6 +40,11 @@
                     <th>#</th>
                     <th>{{ __('Product') }}</th>
                     <th class="num">{{ __('Quantity') }}</th>
+                    <th class="num">{{ __('VAT %') }}</th>
+                    <th class="num">{{ __('Unit Cost (without VAT)') }}</th>
+                    <th class="num">{{ __('Unit Cost (with VAT)') }}</th>
+                    <th class="num">{{ __('Cost of Goods (without VAT)') }}</th>
+                    <th class="num">{{ __('Cost of Goods (with VAT)') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -48,10 +53,29 @@
                         <td>{{ $i + 1 }}</td>
                         <td>{{ $line->product->name ?? '-' }}</td>
                         <td class="num">{{ $line->quantity }}</td>
+                        <td class="num">{{ number_format((float) ($line->tax_rate ?? 0), 2) }}%</td>
+                        <td class="num">{{ \Auth::user()->priceFormat($line->unit_cost ?? 0) }}</td>
+                        <td class="num">{{ \Auth::user()->priceFormat($line->unit_cost_with_vat ?? $line->unit_cost ?? 0) }}</td>
+                        <td class="num">{{ \Auth::user()->priceFormat($line->cost_of_goods ?? 0) }}</td>
+                        <td class="num">{{ \Auth::user()->priceFormat($line->cost_of_goods_with_vat ?? $line->cost_of_goods ?? 0) }}</td>
                     </tr>
                 @endforeach
             </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="6" style="text-align:right;">{{ __('Total Cost of Goods') }}</th>
+                    <th class="num">{{ \Auth::user()->priceFormat($totalCost ?? $lines->sum(fn ($l) => (float) ($l->cost_of_goods ?? 0))) }}</th>
+                    <th class="num">{{ \Auth::user()->priceFormat($totalCostWithVat ?? $lines->sum(fn ($l) => (float) ($l->cost_of_goods_with_vat ?? $l->cost_of_goods ?? 0))) }}</th>
+                </tr>
+            </tfoot>
         </table>
+
+        <div class="row" style="margin-top:12px;">
+            <div class="col">
+                <div class="label">{{ __('Accounting note') }}</div>
+                <div class="value muted">{{ __('Cost without VAT is used for accounting (breakage / inventory loss). Cost with VAT uses each product tax rate for reference.') }}</div>
+            </div>
+        </div>
     </div>
 
     <div class="sign-wrap">

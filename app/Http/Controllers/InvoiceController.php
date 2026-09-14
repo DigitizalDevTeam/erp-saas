@@ -26,6 +26,7 @@ use App\Models\User;
 use App\Models\Utility;
 use App\Models\TransactionLines;
 use App\Services\DocumentVoidService;
+use App\Services\DocumentLayoutRenderer;
 use App\Services\Accounting\DocumentLedgerService;
 use App\Services\Accounting\CustomerCreditLimitService;
 use App\Support\SalesPurchaseNotifier;
@@ -1475,6 +1476,28 @@ class InvoiceController extends Controller
         if ($invoice) {
             $color = '#' . $settings['invoice_color'];
             $font_color = Utility::getFontColor($color);
+
+            $custom = \App\Services\UtharaPrintRenderer::tryRenderFactura('invoice', $invoice, [
+                'settings' => $settings,
+                'color' => $color,
+                'font_color' => $font_color,
+                'img' => $img,
+                'party' => $customer,
+            ]);
+            if ($custom) {
+                return $custom;
+            }
+
+            $custom = DocumentLayoutRenderer::tryRender('invoice', $invoice, [
+                'settings' => $settings,
+                'color' => $color,
+                'font_color' => $font_color,
+                'img' => $img,
+                'party' => $customer,
+            ]);
+            if ($custom) {
+                return $custom;
+            }
 
             return view('invoice.templates.' . $settings['invoice_template'], compact('invoice', 'color', 'settings', 'customer', 'img', 'font_color', 'customFields'));
         } else {

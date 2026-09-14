@@ -1213,9 +1213,16 @@
 
                                 @if (menu_can('menu.accounting_system.print_settings'))
                                     <li
-                                        class="dash-item {{ Request::route()->getName() == 'print-setting' ? ' active' : '' }}">
+                                        class="dash-item {{ Request::route()->getName() == 'print.setting' ? ' active' : '' }}">
                                         <a class="dash-link"
                                             href="{{ route('print.setting') }}">{{ __('Print Settings') }}</a>
+                                    </li>
+                                @endif
+                                @if (menu_can('menu.accounting_system.layout_management'))
+                                    <li
+                                        class="dash-item {{ str_starts_with((string) optional(Request::route())->getName(), 'document-layouts.') ? ' active' : '' }}">
+                                        <a class="dash-link"
+                                            href="{{ route('document-layouts.index') }}">{{ __('Layout Management') }}</a>
                                     </li>
                                 @endif
 

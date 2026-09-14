@@ -8,6 +8,13 @@
 @endsection
 @section('action-btn')
     <div class="float-end">
+        <a href="{{ route('productstock.print', array_filter(['warehouse_id' => $warehouseId])) }}"
+           target="_blank"
+           class="btn btn-sm btn-outline-primary"
+           data-bs-toggle="tooltip"
+           title="{{ __('Print Product Stock') }}">
+            <i class="ti ti-printer"></i> {{ __('Print') }}
+        </a>
         @can('edit product & service')
             <a href="#" data-size="lg" data-url="{{ route('productstock.create') }}" data-ajax-popup="true"
                 data-bs-toggle="tooltip" title="{{ __('Stock Introduction') }}" data-title="{{ __('Stock Introduction') }}"
@@ -52,8 +59,11 @@
                                             @if($intro->lines->count() > 3)…@endif
                                         </td>
                                         <td>
-                                            <a href="{{ route('productstock.show', $intro->id) }}" class="btn btn-sm btn-outline-primary">
+                                            <a href="{{ route('productstock.show', $intro->id) }}" class="btn btn-sm btn-outline-primary" title="{{ __('View') }}">
                                                 <i class="ti ti-eye"></i>
+                                            </a>
+                                            <a href="{{ route('productstock.print-intro', $intro->id) }}" target="_blank" class="btn btn-sm btn-primary" title="{{ __('Print') }}">
+                                                <i class="ti ti-printer"></i>
                                             </a>
                                         </td>
                                     </tr>
@@ -96,6 +106,11 @@
                             @if($warehouseId)
                                 <a href="{{ route('productstock.index') }}" class="btn btn-secondary btn-sm">{{ __('Clear') }}</a>
                             @endif
+                            <a href="{{ route('productstock.print', array_filter(['warehouse_id' => $warehouseId])) }}"
+                               target="_blank"
+                               class="btn btn-outline-primary btn-sm">
+                                <i class="ti ti-printer"></i> {{ __('Print') }}
+                            </a>
                         </div>
                     </form>
                     <div class="table-responsive">

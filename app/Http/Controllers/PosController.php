@@ -17,6 +17,7 @@ use App\Models\PosAuditLog;
 use App\Services\BusinessDayLockService;
 use App\Services\PosActorService;
 use App\Services\DocumentVoidService;
+use App\Services\DocumentLayoutRenderer;
 use App\Services\PosAuditLogService;
 use App\Services\InvoiceSaleDeductionService;
 use App\Services\PosKitDeductionService;
@@ -81,6 +82,151 @@ class PosController extends Controller
         }
 
         return $actor;
+    }
+
+    /**
+     * Resolve POS line tax as a percentage rate (not tax_id stored on the row).
+     */
+    protected function resolvePosLineTaxRate(?PosProduct $line, ?ProductService $product): float
+    {
+        $taxRate = 0.0;
+        $taxIds = [];
+        if ($product && ! empty($product->tax_id)) {
+            $taxIds = array_filter(array_map('trim', explode(',', (string) $product->tax_id)));
+        } elseif ($line && ! empty($line->tax) && ! is_numeric($line->tax)) {
+            $taxIds = array_filter(array_map('trim', explode(',', (string) $line->tax)));
+        } elseif ($line && is_numeric($line->tax)) {
+            $maybeId = (int) $line->tax;
+            $taxModel = \App\Models\Tax::find($maybeId);
+            if ($taxModel) {
+                return (float) ($taxModel->rate ?? 0);
+            }
+
+            return (float) $line->tax;
+        }
+        if ($taxIds !== []) {
+            foreach (\App\Models\Tax::whereIn('id', $taxIds)->get() as $t) {
+                $taxRate += (float) ($t->rate ?? 0);
+            }
+        }
+
+        return $taxRate;
+    }
+
+    /**
+     * Human-readable cart/order line name (product + variant + options).
+     */
+    protected function resolvePosLineDisplayName(?PosProduct $line, ?ProductService $product): string
+    {
+        $productId = $line ? (int) $line->product_id : 0;
+        if (! $product && $productId > 0) {
+            $product = ProductService::find($productId);
+        }
+        $base = $product ? trim((string) $product->name) : '';
+        if ($line && ! empty($line->selected_options_json) && $product) {
+            $selected = ProductOptionService::normalizeSelectedOptions($line->selected_options_json);
+            if ($selected !== []) {
+                $formatted = trim(ProductOptionService::formatLineName($product, $selected));
+                if ($formatted !== '') {
+                    return $formatted;
+                }
+            }
+        }
+        if ($line && $product && ! empty($line->product_variant_id)) {
+            $variant = $line->relationLoaded('variant') ? $line->variant : ProductVariant::find($line->product_variant_id);
+            if ($variant) {
+                $base = trim($base . ' — ' . $variant->displayLabel($product));
+            }
+        }
+        if ($base === '') {
+            return $productId > 0 ? (__('Product') . ' #' . $productId) : __('Product');
+        }
+
+        return $base;
+    }
+
+    /**
+     * Ensure a POS line has a valid product_variant_id when the product uses variants.
+     * Auto-assigns when exactly one variant exists. Returns a user-facing error or null.
+     *
+     * @return string|null Error message, or null when OK / not applicable
+     */
+    protected function ensurePosLineProductVariant(?PosProduct $line, ?ProductService $product, bool $persist = true): ?string
+    {
+        if (! $line || ! $product || ! ($product->variants_enabled ?? false)) {
+            return null;
+        }
+
+        $productName = trim((string) ($product->name ?? '')) ?: (__('Product') . ' #' . $product->id);
+        $lvid = (int) ($line->product_variant_id ?? 0);
+        if ($lvid > 0 && ProductVariant::where('id', $lvid)->where('product_service_id', $product->id)->exists()) {
+            return null;
+        }
+
+        $variants = ProductVariant::where('product_service_id', $product->id)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        if ($variants->isEmpty()) {
+            // Flag enabled but no variants defined — do not block payment/send.
+            if ($lvid > 0 && $persist) {
+                $line->product_variant_id = null;
+                $line->save();
+            }
+
+            return null;
+        }
+
+        if ($variants->count() === 1) {
+            $line->product_variant_id = (int) $variants->first()->id;
+            if ($persist) {
+                $line->save();
+            }
+
+            return null;
+        }
+
+        return __('pos.variant_required_for_product', ['product' => $productName]);
+    }
+
+    /**
+     * Resolve variant id from request item for a variants-enabled product.
+     * Returns [variantId|null, errorMessage|null].
+     *
+     * @return array{0: int|null, 1: string|null}
+     */
+    protected function resolveRequestProductVariantId(ProductService $product, array $item): array
+    {
+        if (! ($product->variants_enabled ?? false)) {
+            $vid = isset($item['product_variant_id']) ? (int) $item['product_variant_id'] : null;
+            if ($vid !== null && $vid <= 0) {
+                $vid = null;
+            }
+
+            return [$vid, null];
+        }
+
+        $productName = trim((string) ($product->name ?? '')) ?: (__('Product') . ' #' . $product->id);
+        $vid = isset($item['product_variant_id']) ? (int) $item['product_variant_id'] : 0;
+        if ($vid > 0 && ProductVariant::where('id', $vid)->where('product_service_id', $product->id)->exists()) {
+            return [$vid, null];
+        }
+
+        $variants = ProductVariant::where('product_service_id', $product->id)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        if ($variants->isEmpty()) {
+            return [null, null];
+        }
+
+        if ($variants->count() === 1) {
+            return [(int) $variants->first()->id, null];
+        }
+
+        return [null, __('pos.variant_required_for_product', ['product' => $productName])];
     }
 
     /**
@@ -236,7 +382,12 @@ class PosController extends Controller
             $userOpenShift = $userOpenShifts->first();
             $defaultBranchIdFromShift = $userOpenShift ? $userOpenShift->branch_id : null;
             if ($defaultBranchIdFromShift && $id == 0) {
-                $wh = warehouse::where('branch_id', $defaultBranchIdFromShift)->where('created_by', $creatorId)->value('id');
+                $branchForDefault = Branch::where('id', $defaultBranchIdFromShift)
+                    ->where('created_by', $creatorId)
+                    ->first();
+                $wh = $branchForDefault
+                    ? $branchForDefault->resolveDefaultWarehouseId()
+                    : warehouse::where('branch_id', $defaultBranchIdFromShift)->where('created_by', $creatorId)->value('id');
                 if ($wh) {
                     $warehouseId = $wh;
                 }
@@ -248,58 +399,103 @@ class PosController extends Controller
     }
 
     /**
-     * Open order total for a dine-in table (sent lines + unsent session cart).
+     * Open order totals for dine-in tables (sent lines + unsent session cart).
+     * Matches how opening a table loads the order: any unpaid check on an open shift
+     * for the branch (not only the currently selected shift_id).
+     *
+     * @param  int[]  $tableIds
+     * @return array<int, float> table_id => total
      */
-    protected function computeRestaurantTableCartTotal(Request $request, int $tableId, int $shiftId): float
+    protected function computeRestaurantTableCartTotalsBatch(Request $request, array $tableIds, int $branchId, int $shiftId): array
     {
-        if ($tableId <= 0 || $shiftId <= 0) {
-            return 0.0;
+        $tableIds = array_values(array_unique(array_filter(array_map('intval', $tableIds))));
+        $totals = [];
+        foreach ($tableIds as $tid) {
+            $totals[$tid] = 0.0;
         }
+        if ($tableIds === []) {
+            return $totals;
+        }
+
         $creatorId = Auth::user()->creatorId();
-        $posQuery = Pos::where('table_id', $tableId)
-            ->where('shift_id', $shiftId)
+        $posQuery = Pos::whereIn('table_id', $tableIds)
             ->where('created_by', $creatorId)
             ->whereNull('cancelled_at')
-            ->whereDoesntHave('posPayments');
+            ->whereDoesntHave('posPayments')
+            ->with(['items.product']);
 
-        $posRecords = (clone $posQuery)->with('items')->get();
-        if ($posRecords->isEmpty()) {
-            $posRecords = collect();
+        if ($branchId > 0) {
+            $posQuery->where('branch_id', $branchId);
         }
 
-        $lines = [];
-        foreach ($posRecords as $pos) {
+        $posQuery->where(function ($q) use ($shiftId) {
+            $q->whereHas('shift', function ($sq) {
+                $sq->where('status', \App\Models\PosShift::STATUS_OPEN);
+            });
+            if ($shiftId > 0) {
+                $q->orWhere('shift_id', $shiftId);
+            }
+        });
+
+        foreach ($posQuery->get() as $pos) {
+            $tid = (int) $pos->table_id;
+            if (! isset($totals[$tid])) {
+                $totals[$tid] = 0.0;
+            }
             foreach ($pos->items as $line) {
                 if ($line->voided_at) {
                     continue;
                 }
-                $pid = (int) $line->product_id;
-                $lines[$pid] = ($lines[$pid] ?? 0) + (float) ($line->price * $line->quantity - $line->discount);
+                $taxRate = $this->resolvePosLineTaxRate($line, $line->product);
+                $lineNet = (float) $line->price * (int) $line->quantity - (float) $line->discount;
+                $totals[$tid] += $lineNet * (1 + $taxRate / 100);
             }
         }
 
-        $tableKey = $tableId . '_' . $shiftId;
         $allCarts = $request->session()->get('pos_restaurant_cart', []);
-        if (!empty($allCarts[$tableKey])) {
-            foreach ($allCarts[$tableKey] as $pid => $v) {
-                $v = (array) $v;
-                $pid = is_numeric($pid) ? (int) $pid : $pid;
-                $sub = (float) ($v['subtotal'] ?? 0);
-                if ($sub <= 0) {
-                    $qty = (int) ($v['quantity'] ?? 1);
-                    $price = (float) ($v['price'] ?? 0);
-                    $tax = (float) ($v['tax'] ?? 0);
-                    $sub = $price * $qty * (1 + $tax / 100);
+        if (! is_array($allCarts) || $allCarts === []) {
+            return $totals;
+        }
+
+        foreach ($tableIds as $tableId) {
+            $keys = [];
+            if ($shiftId > 0) {
+                $keys[] = $tableId . '_' . $shiftId;
+            }
+            foreach (array_keys($allCarts) as $key) {
+                if (preg_match('/^' . preg_quote((string) $tableId, '/') . '_\d+$/', (string) $key)) {
+                    $keys[] = $key;
                 }
-                if (isset($lines[$pid])) {
-                    $lines[$pid] += $sub;
-                } else {
-                    $lines[$pid] = $sub;
+            }
+            foreach (array_unique($keys) as $tableKey) {
+                if (empty($allCarts[$tableKey]) || ! is_array($allCarts[$tableKey])) {
+                    continue;
+                }
+                foreach ($allCarts[$tableKey] as $v) {
+                    $v = (array) $v;
+                    $sub = (float) ($v['subtotal'] ?? 0);
+                    if ($sub <= 0) {
+                        $qty = (int) ($v['quantity'] ?? 1);
+                        $price = (float) ($v['price'] ?? 0);
+                        $tax = (float) ($v['tax'] ?? 0);
+                        $sub = $price * $qty * (1 + $tax / 100);
+                    }
+                    $totals[$tableId] += $sub;
                 }
             }
         }
 
-        return array_sum($lines);
+        return $totals;
+    }
+
+    /**
+     * @deprecated Use computeRestaurantTableCartTotalsBatch for layout grids.
+     */
+    protected function computeRestaurantTableCartTotal(Request $request, int $tableId, int $shiftId, int $branchId = 0): float
+    {
+        $batch = $this->computeRestaurantTableCartTotalsBatch($request, [$tableId], $branchId, $shiftId);
+
+        return (float) ($batch[$tableId] ?? 0.0);
     }
 
     protected function closeRestaurantTableIfFullyPaid(int $tableId, int $userId): void
@@ -321,11 +517,17 @@ class PosController extends Controller
 
     /**
      * Map table model to layout JSON (customer, guests, cart total).
+     *
+     * @param  array<int, float>|null  $cartTotalsByTable
      */
-    protected function mapRestaurantLayoutTable(Request $request, $t, int $shiftId): array
+    protected function mapRestaurantLayoutTable(Request $request, $t, int $shiftId, int $branchId = 0, ?array $cartTotalsByTable = null): array
     {
         $tableId = (int) $t->id;
-        $cartTotal = $shiftId > 0 ? $this->computeRestaurantTableCartTotal($request, $tableId, $shiftId) : 0.0;
+        if (is_array($cartTotalsByTable) && array_key_exists($tableId, $cartTotalsByTable)) {
+            $cartTotal = (float) $cartTotalsByTable[$tableId];
+        } else {
+            $cartTotal = $this->computeRestaurantTableCartTotal($request, $tableId, $shiftId, $branchId);
+        }
 
         return [
             'id' => $tableId,
@@ -400,11 +602,20 @@ class PosController extends Controller
 
         $tables = $tablesQuery->orderBy('area_id')->orderBy('name')->get();
         $knownAreaIds = $areas->pluck('id');
-        $result = $areas->map(function ($area) use ($tables, $request, $shiftId) {
+        $branchIdInt = (int) $branchId;
+        $cartTotalsByTable = $this->computeRestaurantTableCartTotalsBatch(
+            $request,
+            $tables->pluck('id')->all(),
+            $branchIdInt,
+            $shiftId
+        );
+        $result = $areas->map(function ($area) use ($tables, $request, $shiftId, $branchIdInt, $cartTotalsByTable) {
             return [
                 'id' => $area->id,
                 'name' => $area->name,
-                'tables' => $tables->where('area_id', $area->id)->values()->map(fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId))->toArray(),
+                'tables' => $tables->where('area_id', $area->id)->values()->map(
+                    fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId, $branchIdInt, $cartTotalsByTable)
+                )->toArray(),
             ];
         })->toArray();
         // Tables without area, or with an area not in this branch's area list
@@ -415,7 +626,9 @@ class PosController extends Controller
             $result[] = [
                 'id' => 0,
                 'name' => __('Other'),
-                'tables' => $orphanTables->values()->map(fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId))->toArray(),
+                'tables' => $orphanTables->values()->map(
+                    fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId, $branchIdInt, $cartTotalsByTable)
+                )->toArray(),
             ];
         }
         return response()->json(['areas' => $result]);
@@ -1005,19 +1218,19 @@ class PosController extends Controller
             return response()->json(['code' => 404, 'success' => __('Items not found!')], 404);
         }
 
-        foreach ($sales as $v) {
+        foreach ($sales as $saleKey => $v) {
             $pid = (int) ($v['id'] ?? 0);
             if ($pid <= 0) {
                 continue;
             }
             $cartProduct = ProductService::where('id', $pid)->where('created_by', $user_id)->first();
             if ($cartProduct && ($cartProduct->variants_enabled ?? false)) {
-                $vid = isset($v['product_variant_id']) ? (int) $v['product_variant_id'] : 0;
-                if ($vid <= 0) {
-                    return response()->json(['code' => 400, 'error' => __('Select size / color variant for each line of this product.')], 400);
+                [$resolvedVid, $variantError] = $this->resolveRequestProductVariantId($cartProduct, is_array($v) ? $v : []);
+                if ($variantError) {
+                    return response()->json(['code' => 400, 'error' => $variantError], 400);
                 }
-                if (! ProductVariant::where('id', $vid)->where('product_service_id', $cartProduct->id)->exists()) {
-                    return response()->json(['code' => 400, 'error' => __('Invalid product variant.')], 400);
+                if ($resolvedVid) {
+                    $sales[$saleKey]['product_variant_id'] = $resolvedVid;
                 }
             }
             if ($cartProduct && ($cartProduct->identifier_tracking ?? false)) {
@@ -1074,10 +1287,23 @@ class PosController extends Controller
             }
         }
 
-        // Resolve warehouse_id: required, cannot be null. Use request value if valid, else first warehouse for creator.
+        // Resolve warehouse_id: required, cannot be null. Use request value if valid, else branch default / first warehouse.
         $warehouse_id = warehouse::warehouse_id($request->warehouse_name);
         if (empty($request->warehouse_name) || $warehouse_id <= 0) {
-            $defaultWarehouse = warehouse::where('created_by', $user_id)->first();
+            $fallbackBranchId = (int) ($request->branch_id ?? 0);
+            $defaultWarehouse = null;
+            if ($fallbackBranchId > 0) {
+                $branchForDefault = Branch::where('id', $fallbackBranchId)->where('created_by', $user_id)->first();
+                if ($branchForDefault) {
+                    $resolved = $branchForDefault->resolveDefaultWarehouseId();
+                    if ($resolved) {
+                        $defaultWarehouse = warehouse::find($resolved);
+                    }
+                }
+            }
+            if (!$defaultWarehouse) {
+                $defaultWarehouse = warehouse::where('created_by', $user_id)->first();
+            }
             if (!$defaultWarehouse) {
                 return response()->json(['code' => 404, 'success' => __('Please create or select a warehouse.')], 404);
             }
@@ -1541,10 +1767,10 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $pos->save();
                     foreach ($pos->items as $line) {
                         $lineProduct = ProductService::whereId($line->product_id)->where('created_by', $user_id)->first();
-                        if ($lineProduct && ($lineProduct->variants_enabled ?? false)) {
-                            $lvid = (int) ($line->product_variant_id ?? 0);
-                            if ($lvid <= 0 || ! ProductVariant::where('id', $lvid)->where('product_service_id', $lineProduct->id)->exists()) {
-                                return response()->json(['code' => 400, 'error' => __('Invalid or missing product variant on order line.')], 400);
+                        if ($lineProduct) {
+                            $variantError = $this->ensurePosLineProductVariant($line, $lineProduct, true);
+                            if ($variantError) {
+                                return response()->json(['code' => 400, 'error' => $variantError], 400);
                             }
                         }
                         if ($lineProduct && ($lineProduct->identifier_tracking ?? false)) {
@@ -2179,21 +2405,29 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $branchId = $request->branch_id;
         $branchScopeUser = $this->restaurantBranchScopeUser();
         $warehouses = warehouse::where('created_by', \Auth::user()->creatorId());
+        $defaultWarehouseId = null;
 
         if ($branchId) {
             $b = Branch::where('id', $branchId)->where('created_by', \Auth::user()->creatorId())->where('is_active', true)->first();
             if ($b) {
                 $mode = $b->isRestaurant() ? 'restaurant' : 'retail';
                 if (! $branchScopeUser->canAccessBranchForPos((int) $branchId, $mode)) {
-                    return response()->json([]);
+                    return response()->json([
+                        'warehouses' => [],
+                        'default_warehouse_id' => null,
+                    ]);
                 }
+                $defaultWarehouseId = $b->resolveDefaultWarehouseId();
             }
             $warehouses->where('branch_id', $branchId);
         }
 
-        $warehouses = $warehouses->get()->pluck('name', 'id')->toArray();
+        $list = $warehouses->orderBy('name')->get()->pluck('name', 'id')->toArray();
 
-        return response()->json($warehouses);
+        return response()->json([
+            'warehouses' => $list,
+            'default_warehouse_id' => $defaultWarehouseId,
+        ]);
     }
 
     /**
@@ -2230,7 +2464,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     ->where('created_by', $creatorId)
                     ->whereNull('cancelled_at')
                     ->whereDoesntHave('posPayments')
-                    ->with(['items.product.posPrinter', 'items.posPrinter'])
+                    ->with(['items.product.posPrinter', 'items.posPrinter', 'items.variant'])
                     ->first();
             }
             if (! $pos && $tableId && $branchId) {
@@ -2240,7 +2474,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     ->whereNull('cancelled_at')
                     ->whereDoesntHave('posPayments')
                     ->whereHas('shift', fn ($q) => $q->where('status', \App\Models\PosShift::STATUS_OPEN))
-                    ->with(['items.product.posPrinter', 'items.posPrinter'])
+                    ->with(['items.product.posPrinter', 'items.posPrinter', 'items.variant'])
                     ->first();
             }
             if (!$pos && $tableId && $shiftId) {
@@ -2249,7 +2483,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     ->where('created_by', $creatorId)
                     ->whereNull('cancelled_at')
                     ->whereDoesntHave('posPayments')
-                    ->with(['items.product.posPrinter', 'items.posPrinter'])
+                    ->with(['items.product.posPrinter', 'items.posPrinter', 'items.variant'])
                     ->first();
             }
             if ($pos) {
@@ -2269,7 +2503,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     ->whereNull('cancelled_at')
                     ->whereDoesntHave('posPayments')
                     ->whereHas('shift', fn ($q) => $q->where('status', \App\Models\PosShift::STATUS_OPEN))
-                    ->with(['items.product.posPrinter', 'items.posPrinter'])
+                    ->with(['items.product.posPrinter', 'items.posPrinter', 'items.variant'])
                     ->first();
                 if ($pos) {
                     $sessionCartKey = 'pos_' . $pos->id;
@@ -2298,16 +2532,21 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         if ($pos) {
             foreach ($pos->items as $line) {
                 $printer = $line->posPrinter ?? ($line->product ? $line->product->posPrinter : null);
+                $product = $line->product;
+                $taxRate = $this->resolvePosLineTaxRate($line, $product);
+                $displayName = $this->resolvePosLineDisplayName($line, $product);
+                $lineNet = (float) $line->price * (int) $line->quantity - (float) $line->discount;
                 $orderLines[] = [
                     'line_id' => $line->id,
                     'id' => $line->product_id,
                     'product_id' => $line->product_id,
-                    'name' => $line->product ? $line->product->name : '',
+                    'product_variant_id' => $line->product_variant_id ? (int) $line->product_variant_id : null,
+                    'name' => $displayName,
                     'quantity' => (int) $line->quantity,
                     'price' => (float) $line->price,
                     'discount' => (float) $line->discount,
-                    'tax' => $line->tax,
-                    'subtotal' => (float) ($line->price * $line->quantity - $line->discount),
+                    'tax' => $taxRate,
+                    'subtotal' => $lineNet * (1 + $taxRate / 100),
                     'description' => $line->description ?? '',
                     'print_zone' => $line->print_zone ?? '',
                     'pos_printer_id' => $printer ? $printer->id : null,
@@ -2317,7 +2556,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     'is_sent' => $line->sent_at !== null,
                     'voided_at' => $line->voided_at ? $line->voided_at->toIso8601String() : null,
                     'void_reason' => $line->void_reason ?? null,
-                    'pro_image' => $line->product && $line->product->pro_image ? $line->product->pro_image : 'default.png',
+                    'pro_image' => $product && $product->pro_image ? $product->pro_image : 'default.png',
                 ];
             }
         }
@@ -2329,6 +2568,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         foreach ($orderLines as &$line) {
             if (isset($productsWithPrinter[$line['id']])) {
                 $product = $productsWithPrinter[$line['id']];
+                if (empty(trim((string) ($line['name'] ?? ''))) || ($line['name'] ?? '') === __('Product') . ' #' . $line['id']) {
+                    $line['name'] = $product->name ?: ($line['name'] ?? __('Product'));
+                }
                 if (empty($line['print_zone'])) {
                     $line['print_zone'] = PosPrintRoutingService::resolvePrintZoneForProduct($product);
                 }
@@ -2341,23 +2583,33 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $line['pos_printer_id'] = $pr ? $pr->id : null;
                     $line['printer_name'] = $pr ? $pr->name : null;
                 }
+            } elseif (empty(trim((string) ($line['name'] ?? '')))) {
+                $line['name'] = __('Product') . ' #' . ($line['id'] ?? '');
             }
         }
+        unset($line);
         foreach ($sessionItems as &$item) {
             $item = (array) $item;
             if (isset($productsWithPrinter[$item['id'] ?? 0])) {
                 $product = $productsWithPrinter[$item['id']];
+                if (empty(trim((string) ($item['name'] ?? '')))) {
+                    $item['name'] = $product->name ?: (__('Product') . ' #' . $item['id']);
+                }
                 $item['print_zone'] = PosPrintRoutingService::resolvePrintZoneForProduct($product);
                 $printerId = PosPrintRoutingService::resolvePosPrinterIdForProduct($product);
                 $pr = $printerId ? \App\Models\PosPrinter::find($printerId) : $product->posPrinter;
                 $item['pos_printer_id'] = $pr ? $pr->id : null;
                 $item['printer_name'] = $pr ? $pr->name : null;
             } else {
+                if (empty(trim((string) ($item['name'] ?? '')))) {
+                    $item['name'] = __('Product') . ' #' . ($item['id'] ?? '');
+                }
                 $item['print_zone'] = $item['print_zone'] ?? '';
                 $item['pos_printer_id'] = null;
                 $item['printer_name'] = null;
             }
         }
+        unset($item);
         $sessionItems = array_values($sessionItems);
 
         $checks = [];
@@ -2562,9 +2814,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $printZone = PosPrintRoutingService::resolvePrintZoneForProduct($product);
             $resolvedPrinterId = PosPrintRoutingService::resolvePosPrinterIdForProduct($product);
             $taxId = is_string($product->tax_id ?? null) ? $product->tax_id : ($product->tax_id ?? '0');
-            $variantId = isset($item['product_variant_id']) ? (int) $item['product_variant_id'] : null;
-            if ($variantId !== null && $variantId <= 0) {
-                $variantId = null;
+            [$variantId, $variantError] = $this->resolveRequestProductVariantId($product, is_array($item) ? $item : []);
+            if ($variantError) {
+                return response()->json(['error' => $variantError], 422);
             }
             $linePrep = isset($item['prep_minutes']) ? (int) $item['prep_minutes'] : $prepMinutes;
             if ($linePrep < 1) {
@@ -3289,6 +3541,17 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $color = '#' . $settings['pos_color'];
             $font_color = Utility::getFontColor($color);
 
+            $custom = DocumentLayoutRenderer::tryRender('pos', $pos, [
+                'settings' => $settings,
+                'color' => $color,
+                'font_color' => $font_color,
+                'img' => $img,
+                'party' => $customer,
+            ]);
+            if ($custom) {
+                return $custom;
+            }
+
             return view('pos.templates.' . $settings['pos_template'], compact('pos', 'posPayment', 'color', 'settings', 'customer', 'img', 'font_color'));
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
@@ -3402,6 +3665,9 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $post['pos_qr_display'] = ($request->input('pos_qr_display') === 'on') ? 'on' : 'off';
         $post['pos_print_layout'] = Utility::normalizePosPrintLayout($request->input('pos_print_layout'));
         $post['pos_receipt_layout'] = Utility::normalizeReceiptLayout($request->input('pos_receipt_layout'));
+        $post['uthara_print_pack'] = ($request->input('uthara_print_pack') === 'on') ? 'on' : 'off';
+        $ufp = strtolower((string) $request->input('uthara_factura_paper', 'a4'));
+        $post['uthara_factura_paper'] = in_array($ufp, ['a4', 'a5'], true) ? $ufp : 'a4';
 
         if ($request->pos_logo) {
             $dir = 'pos_logo/';

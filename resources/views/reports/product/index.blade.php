@@ -8,6 +8,78 @@
 @endsection
 
 @section('content')
+    <div class="row mb-2">
+        <div class="col-12">
+            <h4 class="mb-1">{{ __('Stock overview') }}</h4>
+            <p class="text-muted small mb-3">{{ __('Quick status of stock, alerts, and pending actions.') }}</p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        @foreach ($kpis as $key => $kpi)
+            @php
+                $available = !empty($kpi['available']);
+                $label = $kpi['label'] ?? $key;
+                $display = $kpi['display'] ?? 'count';
+                $routeName = $kpi['route'] ?? null;
+                $canLink = $available && $routeName && \Illuminate\Support\Facades\Route::has($routeName);
+            @endphp
+            <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
+                @if ($canLink)
+                    <a href="{{ route($routeName) }}" class="text-decoration-none text-reset d-block h-100">
+                @endif
+                <div class="card h-100 {{ $available ? '' : 'bg-light border-0' }} {{ $canLink ? 'border-primary border-opacity-25' : '' }}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <h6 class="card-title mb-2 text-muted">{{ $label }}</h6>
+                            @if ($available && $canLink)
+                                <span class="small text-primary">{{ __('View') }}</span>
+                            @endif
+                        </div>
+
+                        @if (!$available)
+                            <div class="fs-3 fw-semibold text-secondary">{{ __('N/A') }}</div>
+                            <p class="mb-0 small text-muted">{{ $kpi['hint'] ?? __('Workflow not available yet') }}</p>
+                        @elseif ($display === 'warehouse_list')
+                            @php $warehouses = $kpi['warehouses'] ?? []; @endphp
+                            <div class="fs-4 fw-semibold mb-2">{{ count($warehouses) }} <span class="fs-6 fw-normal text-muted">{{ __('warehouses') }}</span></div>
+                            @if (count($warehouses) === 0)
+                                <p class="mb-0 small text-muted">{{ __('No warehouse stock recorded.') }}</p>
+                            @else
+                                <ul class="list-unstyled mb-0 small" style="max-height: 9rem; overflow-y: auto;">
+                                    @foreach ($warehouses as $wh)
+                                        <li class="d-flex justify-content-between gap-2 py-1 border-bottom border-light">
+                                            <span class="text-truncate">{{ $wh['name'] }}</span>
+                                            <span class="text-nowrap text-muted">
+                                                {{ number_format((float) $wh['qty'], 2) }}
+                                                · {{ Auth::user()->priceFormat($wh['value'] ?? 0) }}
+                                            </span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                        @elseif ($display === 'currency')
+                            <div class="fs-3 fw-semibold">{{ Auth::user()->priceFormat($kpi['value'] ?? 0) }}</div>
+                            <p class="mb-0 small text-muted">{{ __('Purchase value (ex VAT)') }}</p>
+                        @else
+                            <div class="fs-3 fw-semibold">{{ number_format((int) ($kpi['value'] ?? 0)) }}</div>
+                        @endif
+                    </div>
+                </div>
+                @if ($canLink)
+                    </a>
+                @endif
+            </div>
+        @endforeach
+    </div>
+
+    <div class="row mb-2">
+        <div class="col-12">
+            <h4 class="mb-1">{{ __('Reports') }}</h4>
+            <p class="text-muted small mb-3">{{ __('Open full report screens for filters, export, and detail.') }}</p>
+        </div>
+    </div>
+
     <div class="row">
         <div class="col-md-6 col-lg-4 mb-4">
             <div class="card h-100">

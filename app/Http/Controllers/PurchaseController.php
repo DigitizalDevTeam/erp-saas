@@ -24,6 +24,7 @@ use App\Models\User;
 use App\Models\Utility;
 use App\Models\WarehouseProduct;
 use App\Models\WarehouseTransfer;
+use App\Services\DocumentLayoutRenderer;
 use Illuminate\Support\Facades\Crypt;
 use App\Models\warehouse;
 use App\Support\SalesPurchaseNotifier;
@@ -599,8 +600,22 @@ class PurchaseController extends Controller
             }
         }
 
+        $selected = $request->input('items', []);
+        if (! is_array($selected) || $selected === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
         $items = [];
         foreach ($purchase->items as $line) {
+            $payload = $selected[$line->id] ?? null;
+            if (! is_array($payload) || empty($payload['selected'])) {
+                continue;
+            }
+            $qty = (float) ($payload['quantity'] ?? $line->quantity);
+            if ($qty <= 0) {
+                return redirect()->back()->with('error', __('Quantity must be greater than zero.'))->withInput();
+            }
+
             $product = ProductService::find($line->product_id);
             $salePrice = $product && (float) ($product->sale_price ?? 0) > 0
                 ? (float) $product->sale_price
@@ -611,13 +626,18 @@ class PurchaseController extends Controller
                 ?? $proformaPricesByProduct[$productKey]
                 ?? $salePrice
                 ?? (float) $line->price;
+            $discount = (float) $line->discount;
+            $originalQty = (float) $line->quantity;
+            if ($originalQty > 0 && abs($qty - $originalQty) > 0.00001) {
+                $discount = $discount * ($qty / $originalQty);
+            }
 
             $items[] = [
                 'item' => $line->product_id,
-                'quantity' => $line->quantity,
+                'quantity' => $qty,
                 'price' => $price,
                 'tax' => $line->tax,
-                'discount' => $line->discount,
+                'discount' => $discount,
                 'description' => $line->description,
                 'product_variant_id' => $line->product_variant_id ?: '',
                 'identifiers' => '',
@@ -625,7 +645,7 @@ class PurchaseController extends Controller
         }
 
         if ($items === []) {
-            return redirect()->back()->with('error', __('Purchase has no line items.'));
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
         }
 
         $quotationReference = '';
@@ -1156,6 +1176,18 @@ class PurchaseController extends Controller
         {
             $color      = '#' . $settings['purchase_color'];
             $font_color = Utility::getFontColor($color);
+
+            $custom = DocumentLayoutRenderer::tryRender('purchase', $purchase, [
+                'settings' => $settings,
+                'color' => $color,
+                'font_color' => $font_color,
+                'img' => $img,
+                'party' => $vendor,
+                'vendor' => $vendor,
+            ]);
+            if ($custom) {
+                return $custom;
+            }
 
             return view('purchase.templates.' . $settings['purchase_template'], compact('purchase', 'color', 'settings', 'vendor', 'img', 'font_color'));
         }

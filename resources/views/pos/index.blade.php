@@ -1366,6 +1366,17 @@
             }
         });
 
+        function parsePosWarehousesResponse(data) {
+            var list = (data && data.warehouses) ? data.warehouses : (data || {});
+            if (list.warehouses || list.default_warehouse_id) {
+                list = list.warehouses || {};
+            }
+            var ids = Object.keys(list || {});
+            var def = data && data.default_warehouse_id != null ? String(data.default_warehouse_id) : '';
+            var preferred = (def && ids.indexOf(def) !== -1) ? def : (ids[0] || null);
+            return { list: list || {}, ids: ids, preferred: preferred };
+        }
+
         $( document ).ready(function() {
 
             var abc = $( "#warehouse_name_hidden" ).val($('.warehouse_select').val());
@@ -1625,16 +1636,17 @@
                         success: function () {},
                         complete: function () {
                             $.get('{{ route("pos.warehouses.by.branch") }}', { branch_id: branchId }, function (data) {
+                                var parsed = parsePosWarehousesResponse(data);
                                 var $whSelect = $('#pos-restaurant-warehouse');
                                 if ($whSelect.length) {
                                     $whSelect.empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
-                                    $.each(data, function (id, name) {
+                                    $.each(parsed.list, function (id, name) {
                                         $whSelect.append($('<option></option>').val(id).text(name));
                                     });
                                 }
-                                var ids = Object.keys(data);
+                                var ids = parsed.ids;
                                 if (ids.length) {
-                                    var wh = ids[0];
+                                    var wh = parsed.preferred;
                                     $('#warehouse').val(wh);
                                     $('#warehouse_name_hidden').val(wh);
                                     if ($whSelect.length) $whSelect.val(wh);
@@ -1675,14 +1687,15 @@
                     $('#pos-restaurant-order').removeClass('d-none');
                     $('#pos-restaurant-order-right').removeClass('d-none');
                     $.get('{{ route("pos.warehouses.by.branch") }}', { branch_id: initRestBranch }, function (data) {
+                        var parsed = parsePosWarehousesResponse(data);
                         var $whSelect = $('#pos-restaurant-warehouse');
                         $whSelect.empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
-                        $.each(data, function (id, name) {
+                        $.each(parsed.list, function (id, name) {
                             $whSelect.append($('<option></option>').val(id).text(name));
                         });
-                        var ids = Object.keys(data);
+                        var ids = parsed.ids;
                         if (ids.length) {
-                            var wh = ids[0];
+                            var wh = parsed.preferred;
                             $whSelect.val(wh);
                             $('#pos_restaurant_warehouse_hidden').val(wh);
                             $('#warehouse').val(wh);
@@ -2090,15 +2103,16 @@
                 toggleRestaurantOptions(initBranchId);
                 loadBranchShifts(initBranchId);
                 $.get('{{ route("pos.warehouses.by.branch") }}', { branch_id: initBranchId }, function(data) {
+                    var parsed = parsePosWarehousesResponse(data);
                     var $warehouse = $( '#warehouse' );
-                    var ids = Object.keys(data || {});
+                    var ids = parsed.ids;
                     if (ids.length) {
                         var prevVal = $warehouse.val();
                         $warehouse.empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
-                        $.each(data, function(id, name) {
+                        $.each(parsed.list, function(id, name) {
                             $warehouse.append($('<option></option>').val(id).text(name));
                         });
-                        var wh = ids.indexOf(String(prevVal)) !== -1 ? prevVal : ids[0];
+                        var wh = ids.indexOf(String(prevVal)) !== -1 ? prevVal : parsed.preferred;
                         $warehouse.val(wh);
                         $( "#warehouse_name_hidden" ).val(wh);
                     }
@@ -2119,16 +2133,17 @@
                     url: '{{ route("pos.warehouses.by.branch") }}',
                     data: { branch_id: branchId },
                     success: function (data) {
+                        var parsed = parsePosWarehousesResponse(data);
                         var $warehouse = $( '#warehouse' );
-                        var ids = Object.keys(data || {});
+                        var ids = parsed.ids;
                         if (!ids.length) {
                             return;
                         }
                         $warehouse.empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
-                        $.each(data, function(id, name) {
+                        $.each(parsed.list, function(id, name) {
                             $warehouse.append($('<option></option>').val(id).text(name));
                         });
-                        var wh = ids[0];
+                        var wh = parsed.preferred;
                         $warehouse.val(wh);
                         $( "#warehouse_name_hidden" ).val(wh);
                         // Empty cart when branch changes

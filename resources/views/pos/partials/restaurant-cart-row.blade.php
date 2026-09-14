@@ -16,6 +16,10 @@
     $hasNote = $noteText !== '';
     $isCancelled = ($line->status ?? '') === 'cancelled' || !empty($line->voided_at);
     $rowVoidClass = $isCancelled ? ' pos-cart-row--voided' : '';
+    $lineName = trim((string) ($line->name ?? ''));
+    if ($lineName === '') {
+        $lineName = __('Product') . ' #' . ($line->id ?? '');
+    }
 @endphp
 <tr class="pos-cart-row-compact {{ $rowClass }}{{ $rowVoidClass }} {{ $isSent ? 'pos-cart-row--sent' : 'pos-cart-row--draft' }}"
     data-product-id="{{ $line->id ?? '' }}"
@@ -25,7 +29,7 @@
     data-is-sent="{{ $isSent ? '1' : '0' }}"
     data-status="{{ $line->status ?? 'not_sent' }}"
     id="{{ $rowId }}"
-    data-name="{{ $line->name ?? '' }}"
+    data-name="{{ $lineName }}"
     data-price="{{ $line->price ?? 0 }}"
     data-quantity="{{ $qty }}"
     data-tax="{{ $line->tax ?? 0 }}"
@@ -38,7 +42,7 @@
         <div class="pos-cart-line">
             <div class="pos-cart-line__row">
                 <div class="pos-cart-line__main min-w-0">
-                    <span class="pos-cart-line__name name">{{ $line->name ?? '' }}</span>
+                    <span class="pos-cart-line__name name" title="{{ $lineName }}">{{ $lineName }}</span>
                     <span class="pos-cart-line__badge badge pos-line-status">{{ $statusText }}</span>
                 </div>
 
@@ -63,7 +67,7 @@
                             <span class="badge pos-cart-line__void-badge">{{ __('pos.voided') }}</span>
                         @elseif(!empty($canShowVoid) && !empty($line->line_id))
                             <button type="button" class="btn btn-warning btn-sm pos-void-line pos-cart-line__void-btn"
-                                data-line-id="{{ $line->line_id }}" data-name="{{ $line->name ?? '' }}"
+                                data-line-id="{{ $line->line_id }}" data-name="{{ $lineName }}"
                                 title="{{ __('pos.void') }}">{{ __('pos.void') }}</button>
                         @endif
                     @else

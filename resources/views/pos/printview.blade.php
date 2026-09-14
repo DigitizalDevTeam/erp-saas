@@ -1,7 +1,17 @@
 {{-- Require (not @include) so $printLayout / $standardPartial stay in this view's scope --}}
 @php include resource_path('views/pos/standard/_data.php'); @endphp
 <style id="pos-receipt-styles">
-    .segunda-via-watermark { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 10; opacity: 0.12; font-size: 4rem; font-weight: bold; color: #000; transform: rotate(-35deg); white-space: nowrap; }
+    .receipt-copy { position: relative; overflow: hidden; }
+    .segunda-via-watermark {
+        position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+        pointer-events: none; z-index: 10; opacity: 0.1; font-size: 22px; font-weight: 800;
+        color: #000; transform: rotate(-28deg); white-space: nowrap; letter-spacing: 2px;
+        overflow: hidden; max-width: 100%;
+    }
+    #printarea.pos-print-layout-slip .segunda-via-watermark,
+    .pos-print-layout-slip .segunda-via-watermark {
+        font-size: 18px; opacity: 0.12; letter-spacing: 1px;
+    }
     .view-qrcode-receipt img { max-width: 70px; height: auto; display: block; }
     .view-qrcode-receipt-svg { line-height: 0; }
     .view-qrcode-receipt-svg svg { display: block !important; width: 100% !important; height: 100% !important; max-width: 100%; max-height: 100%; }
@@ -14,7 +24,9 @@
     #printarea.modal-body img.mz-receipt-logo,
     #printarea .mz-factura img.logo,
     #printarea .mz-talao img.logo,
-    #printarea .mz-talao img.mz-receipt-logo {
+    #printarea .mz-talao img.mz-receipt-logo,
+    #printarea .mz-talao-uthara img.logo,
+    #printarea .mz-talao-uthara img.mz-receipt-logo {
         max-width: 96px !important;
         max-height: 48px !important;
         width: auto !important;
@@ -35,6 +47,14 @@
     #printarea.pos-print-layout-slip,
     .pos-print-layout-slip #printarea {
         max-width: 80mm;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    /* Narrow receipt modal so the 80mm slip is the focus */
+    #commonModal.pos-receipt-modal-slip .modal-dialog {
+        max-width: 420px;
+    }
+    #commonModal.pos-receipt-modal-slip .modal-content {
         margin-left: auto;
         margin-right: auto;
     }
@@ -69,7 +89,7 @@
         #printarea.pos-print-layout-receipt { page: pos-a4; width: 100% !important; max-width: 210mm !important; }
         .receipt-copy { page-break-after: always; }
         .receipt-copy:last-child { page-break-after: auto; }
-        .segunda-via-watermark { opacity: 0.15; font-size: 3.5rem; }
+        .segunda-via-watermark { opacity: 0.12; font-size: 16px; letter-spacing: 1px; }
         .no-print-copies { display: none !important; }
         .view-qrcode-receipt, .view-qrcode-receipt * { visibility: visible !important; }
         .view-qrcode-receipt svg { display: block !important; visibility: visible !important; }
@@ -122,6 +142,20 @@
 var posPrintLayout = '{{ $printLayout }}';
 var posDirectPrint = {{ $directPrint ? 'true' : 'false' }};
 (function() {
+    // Size the Receipt modal to fit an 80mm slip preview
+    try {
+        var $modal = $('#commonModal');
+        if ($modal.length) {
+            $modal.removeClass('pos-receipt-modal-slip pos-receipt-modal-a5 pos-receipt-modal-a4');
+            if (posPrintLayout === 'slip' || posPrintLayout === 'receipt') {
+                $modal.addClass('pos-receipt-modal-slip');
+            } else if (posPrintLayout === 'a5') {
+                $modal.addClass('pos-receipt-modal-a5');
+            } else {
+                $modal.addClass('pos-receipt-modal-a4');
+            }
+        }
+    } catch (e) {}
     function doPrint(copies) {
         var printarea = document.getElementById("printarea");
         var receipt = printarea ? printarea.querySelector(".receipt-copy") : null;
@@ -155,14 +189,23 @@ var posDirectPrint = {{ $directPrint ? 'true' : 'false' }};
             if (styleEl && styleEl.innerHTML) styleChunks.push(styleEl.innerHTML);
         }
         var receiptStyles = styleChunks.join('\n');
-        var printWin = window.open('', '_blank', 'width=900,height=700');
+        var layout = (typeof posPrintLayout !== 'undefined' ? posPrintLayout : 'slip');
+        if (layout === 'receipt') layout = 'slip';
+        var winW = layout === 'slip' ? 420 : (layout === 'a5' ? 620 : 900);
+        var printWin = window.open('', '_blank', 'width=' + winW + ',height=700');
         if (!printWin) { window.print(); return; }
-        var layout = (typeof posPrintLayout !== 'undefined' ? posPrintLayout : 'receipt');
         var doc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{{ __("Receipt") }}</title>';
         doc += '<style>body{background:#fff;margin:0;padding:12px;font-family:Arial,Helvetica,sans-serif;color:#111}';
-        if (layout === 'slip') doc += '#printarea{width:80mm;max-width:100%;margin:0 auto}';
-        else if (layout === 'a5') doc += '#printarea{width:100%;max-width:148mm;margin:0 auto}';
-        else doc += '#printarea{width:100%;max-width:210mm;margin:0 auto}';
+        if (layout === 'slip') {
+            doc += '#printarea{width:80mm;max-width:80mm;margin:0 auto}';
+            doc += '@page{size:80mm auto;margin:3mm}';
+        } else if (layout === 'a5') {
+            doc += '#printarea{width:100%;max-width:148mm;margin:0 auto}';
+            doc += '@page{size:A5 portrait;margin:8mm}';
+        } else {
+            doc += '#printarea{width:100%;max-width:210mm;margin:0 auto}';
+            doc += '@page{size:A4 portrait;margin:10mm}';
+        }
         doc += receiptStyles + '</style></head><body class="pos-print-layout-' + layout + '"><div id="printarea" class="pos-print-layout-' + layout + '">' + html + '</div></body></html>';
         printWin.document.write(doc);
         printWin.document.close();

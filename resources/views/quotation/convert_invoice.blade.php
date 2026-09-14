@@ -10,15 +10,20 @@
 
 @section('content')
     <div class="row justify-content-center">
-        <div class="col-lg-8">
+        <div class="col-lg-10">
             <div class="card">
                 <div class="card-body">
                     <p class="text-muted mb-4">
                         {{ __('Create a sales invoice directly from quotation') }}
                         <strong>{{ Auth::user()->quotationNumberFormat($quotation->quotation_id) }}</strong>.
-                        {{ __('You can still convert this quotation to a proforma or purchase order separately.') }}
+                        {{ __('Uncheck products you will not include on the invoice.') }}
                     </p>
                     {{ Form::open(['route' => ['quotation.convert-invoice.store', \Crypt::encrypt($quotation->id)], 'method' => 'POST', 'class' => 'needs-validation']) }}
+                    @include('partials.convert_source_items', [
+                        'sourceLabel' => __('From Quotation'),
+                        'sourceValue' => Auth::user()->quotationNumberFormat($quotation->quotation_id),
+                        'sourceLines' => $quotation->items,
+                    ])
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             {{ Form::label('issue_date', __('Issue date'), ['class' => 'form-label']) }}<x-required></x-required>

@@ -59,6 +59,8 @@
                                 <th>{{ __('Description') }}</th>
                                 <th>{{ __('Warehouse') }}</th>
                                 <th class="text-end">{{ __('QTY') }}</th>
+                                <th class="text-end">{{ __('Unit Price') }}</th>
+                                <th class="text-end">{{ __('Sale Unit Price') }}</th>
                                 <th class="text-end">{{ __('Purchase Value (without VAT)') }}</th>
                                 <th class="text-end">{{ __('Purchase Value (with VAT)') }}</th>
                                 <th class="text-end">{{ __('Sale Value (without VAT)') }}</th>
@@ -73,6 +75,8 @@
                                     <td>{{ $r->description ?: '—' }}</td>
                                     <td>{{ $r->warehouse_name ?: '—' }}</td>
                                     <td class="text-end">{{ number_format((float) $r->qty, 2) }}</td>
+                                    <td class="text-end">{{ Auth::user()->priceFormat($r->unit_purchase_price ?? 0) }}</td>
+                                    <td class="text-end">{{ Auth::user()->priceFormat($r->unit_sale_price ?? 0) }}</td>
                                     <td class="text-end">{{ Auth::user()->priceFormat($r->purchase_ex_vat) }}</td>
                                     <td class="text-end">{{ Auth::user()->priceFormat($r->purchase_inc_vat) }}</td>
                                     <td class="text-end">{{ Auth::user()->priceFormat($r->sale_ex_vat) }}</td>
@@ -80,7 +84,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted">{{ __('No stock found for the selected filters.') }}</td>
+                                    <td colspan="11" class="text-center text-muted">{{ __('No stock found for the selected filters.') }}</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -89,6 +93,8 @@
                                 <tr class="fw-semibold">
                                     <td colspan="4" class="text-end">{{ __('Total') }}</td>
                                     <td class="text-end">{{ number_format((float) $totals['qty'], 2) }}</td>
+                                    <td></td>
+                                    <td></td>
                                     <td class="text-end">{{ Auth::user()->priceFormat($totals['purchase_ex_vat']) }}</td>
                                     <td class="text-end">{{ Auth::user()->priceFormat($totals['purchase_inc_vat']) }}</td>
                                     <td class="text-end">{{ Auth::user()->priceFormat($totals['sale_ex_vat']) }}</td>

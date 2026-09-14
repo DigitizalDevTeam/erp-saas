@@ -476,19 +476,38 @@ class ProformaController extends Controller
             return redirect()->back()->with('error', $validator->getMessageBag()->first())->withInput();
         }
 
+        $selected = $request->input('items', []);
+        if (! is_array($selected) || $selected === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
         $items = [];
         foreach ($proforma->items as $row) {
+            $payload = $selected[$row->id] ?? null;
+            if (! is_array($payload) || empty($payload['selected'])) {
+                continue;
+            }
+            $qty = (float) ($payload['quantity'] ?? $row->quantity);
+            if ($qty <= 0) {
+                return redirect()->back()->with('error', __('Quantity must be greater than zero.'))->withInput();
+            }
+
             $product = ProductService::find($row->product_id);
             $price = $product && (float) $product->purchase_price > 0
                 ? (float) $product->purchase_price
                 : (float) $row->price;
+            $discount = (float) $row->discount;
+            $originalQty = (float) $row->quantity;
+            if ($originalQty > 0 && abs($qty - $originalQty) > 0.00001) {
+                $discount = $discount * ($qty / $originalQty);
+            }
 
             $items[] = [
                 'item' => $row->product_id,
-                'quantity' => $row->quantity,
+                'quantity' => $qty,
                 'price' => $price,
                 'tax' => $row->tax,
-                'discount' => $row->discount,
+                'discount' => $discount,
                 'description' => $row->description,
                 'product_variant_id' => $row->product_variant_id ?: '',
                 'allow_default_variant' => empty($row->product_variant_id) ? 1 : 0,
@@ -502,7 +521,7 @@ class ProformaController extends Controller
         }
 
         if ($items === []) {
-            return redirect()->back()->with('error', __('Proforma has no line items.'));
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
         }
 
         $payload = [
@@ -590,21 +609,43 @@ class ProformaController extends Controller
             return redirect()->back()->with('error', $validator->getMessageBag()->first());
         }
 
+        $selected = $request->input('items', []);
+        if (! is_array($selected) || $selected === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
         $items = [];
         foreach ($proforma->items as $row) {
+            $payload = $selected[$row->id] ?? null;
+            if (! is_array($payload) || empty($payload['selected'])) {
+                continue;
+            }
+            $qty = (float) ($payload['quantity'] ?? $row->quantity);
+            if ($qty <= 0) {
+                return redirect()->back()->with('error', __('Quantity must be greater than zero.'))->withInput();
+            }
+
             $product = ProductService::find($row->product_id);
             $price = $product && (float) $product->purchase_price > 0
                 ? (float) $product->purchase_price
                 : (float) $row->price;
+            $discount = (float) $row->discount;
+            $originalQty = (float) $row->quantity;
+            if ($originalQty > 0 && abs($qty - $originalQty) > 0.00001) {
+                $discount = $discount * ($qty / $originalQty);
+            }
 
             $items[] = [
                 'item' => $row->product_id,
-                'quantity' => $row->quantity,
+                'quantity' => $qty,
                 'price' => $price,
                 'tax' => $row->tax,
-                'discount' => $row->discount,
+                'discount' => $discount,
                 'description' => $row->description,
             ];
+        }
+        if ($items === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
         }
 
         $req = Request::create('/bill', 'POST', [
@@ -697,21 +738,40 @@ class ProformaController extends Controller
             return redirect()->back()->with('error', __('Proforma has no customer.'))->withInput();
         }
 
+        $selected = $request->input('items', []);
+        if (! is_array($selected) || $selected === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
         $items = [];
         foreach ($proforma->items as $row) {
+            $payload = $selected[$row->id] ?? null;
+            if (! is_array($payload) || empty($payload['selected'])) {
+                continue;
+            }
+            $qty = (float) ($payload['quantity'] ?? $row->quantity);
+            if ($qty <= 0) {
+                return redirect()->back()->with('error', __('Quantity must be greater than zero.'))->withInput();
+            }
+            $discount = (float) $row->discount;
+            $originalQty = (float) $row->quantity;
+            if ($originalQty > 0 && abs($qty - $originalQty) > 0.00001) {
+                $discount = $discount * ($qty / $originalQty);
+            }
+
             $items[] = [
                 'item' => $row->product_id,
-                'quantity' => $row->quantity,
+                'quantity' => $qty,
                 'price' => $row->price,
                 'tax' => $row->tax,
-                'discount' => $row->discount,
+                'discount' => $discount,
                 'description' => $row->description,
                 'product_variant_id' => $row->product_variant_id ?: '',
                 'identifiers' => '',
             ];
         }
         if ($items === []) {
-            return redirect()->back()->with('error', __('Proforma has no line items.'));
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
         }
 
         $quotationReference = $request->input('quotation_reference');

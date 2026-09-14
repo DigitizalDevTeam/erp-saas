@@ -14,6 +14,7 @@ use App\Models\WarehouseProduct;
 use App\Models\warehouse;
 use App\Models\QuotationProduct;
 use App\Models\Vender;
+use App\Services\DocumentLayoutRenderer;
 use Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
@@ -696,21 +697,40 @@ class QuotationController extends Controller
             return redirect()->back()->with('error', $validator->getMessageBag()->first())->withInput();
         }
 
+        $selected = $request->input('items', []);
+        if (! is_array($selected) || $selected === []) {
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
+        }
+
         $items = [];
         foreach ($quotation->items as $row) {
+            $payload = $selected[$row->id] ?? null;
+            if (! is_array($payload) || empty($payload['selected'])) {
+                continue;
+            }
+            $qty = (float) ($payload['quantity'] ?? $row->quantity);
+            if ($qty <= 0) {
+                return redirect()->back()->with('error', __('Quantity must be greater than zero.'))->withInput();
+            }
+            $discount = (float) $row->discount;
+            $originalQty = (float) $row->quantity;
+            if ($originalQty > 0 && abs($qty - $originalQty) > 0.00001) {
+                $discount = $discount * ($qty / $originalQty);
+            }
+
             $items[] = [
                 'item' => $row->product_id,
-                'quantity' => $row->quantity,
+                'quantity' => $qty,
                 'price' => $row->price,
                 'tax' => $row->tax,
-                'discount' => $row->discount,
+                'discount' => $discount,
                 'description' => $row->description,
                 'product_variant_id' => $row->product_variant_id ?: '',
                 'identifiers' => '',
             ];
         }
         if ($items === []) {
-            return redirect()->back()->with('error', __('Quotation has no line items.'));
+            return redirect()->back()->with('error', __('Select at least one item.'))->withInput();
         }
 
         $quotationReference = $request->input('quotation_reference')
@@ -962,6 +982,28 @@ class QuotationController extends Controller
             $color = '#' . $settings['quotation_color'];
             $font_color = Utility::getFontColor($color);
             $receiptLayout = Utility::normalizeReceiptLayout($settings['quotation_receipt_layout'] ?? 'existing');
+
+            $custom = \App\Services\UtharaPrintRenderer::tryRenderFactura('quotation', $quotation, [
+                'settings' => $settings,
+                'color' => $color,
+                'font_color' => $font_color,
+                'img' => $img,
+                'party' => $customer,
+            ]);
+            if ($custom) {
+                return $custom;
+            }
+
+            $custom = DocumentLayoutRenderer::tryRender('quotation', $quotation, [
+                'settings' => $settings,
+                'color' => $color,
+                'font_color' => $font_color,
+                'img' => $img,
+                'party' => $customer,
+            ]);
+            if ($custom) {
+                return $custom;
+            }
 
             if ($receiptLayout === 'compact1') {
                 return view('quotation.receipts.compact1', compact('quotation', 'color', 'settings', 'customer', 'img', 'font_color'));

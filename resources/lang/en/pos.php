@@ -277,4 +277,5 @@ return [
     'preparation_time' => 'Preparation time',
     'minutes_until_ready' => 'Minutes until ready',
     'prep_overtime_alert' => 'Preparation overtime: :count order(s) exceeded prep time before Ready.',
+    'variant_required_for_product' => '":product" needs a size/color. Remove or void this line, add the product again and choose size/color, then pay.',
 ];

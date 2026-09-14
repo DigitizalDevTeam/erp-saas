@@ -12,6 +12,7 @@ class Branch extends Model
         'timezone',
         'is_active',
         'pos_type',
+        'default_warehouse_id',
         'created_by',
     ];
 
@@ -25,6 +26,37 @@ class Branch extends Model
     public function warehouses()
     {
         return $this->hasMany(\App\Models\warehouse::class, 'branch_id');
+    }
+
+    public function defaultWarehouse()
+    {
+        return $this->belongsTo(\App\Models\warehouse::class, 'default_warehouse_id');
+    }
+
+    /**
+     * Warehouse to preselect for this POS/branch (configured default, else first linked warehouse).
+     */
+    public function resolveDefaultWarehouseId(): ?int
+    {
+        if ($this->default_warehouse_id) {
+            $ok = \App\Models\warehouse::query()
+                ->where('id', $this->default_warehouse_id)
+                ->where(function ($q) {
+                    $q->where('branch_id', $this->id)->orWhereNull('branch_id');
+                })
+                ->exists();
+            if ($ok) {
+                return (int) $this->default_warehouse_id;
+            }
+        }
+
+        $first = \App\Models\warehouse::query()
+            ->where('branch_id', $this->id)
+            ->when($this->created_by, fn ($q) => $q->where('created_by', $this->created_by))
+            ->orderBy('id')
+            ->value('id');
+
+        return $first ? (int) $first : null;
     }
 
     public function users()

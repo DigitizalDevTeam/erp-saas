@@ -37,6 +37,8 @@
                 'record' => $doc['record'],
                 'lines' => $doc['lines'],
                 'writeOffNo' => $doc['writeOffNo'],
+                'totalCost' => $doc['totalCost'] ?? 0,
+                'totalCostWithVat' => $doc['totalCostWithVat'] ?? 0,
             ])
         </div>
     @endforeach

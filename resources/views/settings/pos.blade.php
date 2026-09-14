@@ -302,14 +302,33 @@
                                                 <label for="pos_print_layout" class="form-label fw-semibold">{{ __('Receipt paper / layout') }}</label>
                                                 <select class="form-control" name="pos_print_layout" id="pos_print_layout">
                                                     @php
-                                                        $pl = \App\Models\Utility::normalizePosPrintLayout($settings['pos_print_layout'] ?? 'receipt');
+                                                        $pl = \App\Models\Utility::normalizePosPrintLayout($settings['pos_print_layout'] ?? 'slip');
                                                     @endphp
-                                                    <option value="slip" {{ $pl === 'slip' ? 'selected' : '' }}>{{ __('Thermal roll 80 mm') }}</option>
-                                                    <option value="a5" {{ $pl === 'a5' ? 'selected' : '' }}>{{ __('A5 (148 × 210 mm)') }}</option>
-                                                    <option value="a4" {{ $pl === 'a4' ? 'selected' : '' }}>{{ __('A4 (210 × 297 mm)') }}</option>
-                                                    <option value="receipt" {{ $pl === 'receipt' ? 'selected' : '' }}>{{ __('Standard (flexible—use system default paper)') }}</option>
+                                                    <option value="slip" {{ $pl === 'slip' ? 'selected' : '' }}>{{ __('Thermal roll 80 mm (UTHARA Talão)') }}</option>
+                                                    <option value="a5" {{ $pl === 'a5' ? 'selected' : '' }}>{{ __('A5 Factura (148 × 210 mm)') }}</option>
+                                                    <option value="a4" {{ $pl === 'a4' ? 'selected' : '' }}>{{ __('A4 Factura (210 × 297 mm)') }}</option>
                                                 </select>
-                                                <small class="text-muted">{{ __('Thermal: narrow ticket. A5/A4: full page with fixed print margins. Standard: safest if the printer driver handles sizing.') }}</small>
+                                                <small class="text-muted">{{ __('Thermal: narrow UTHARA ticket. A5/A4: Mozambique factura page. Preview matches paper size before print.') }}</small>
+                                            </div>
+                                            <div class="form-group mb-3">
+                                                <label for="uthara_factura_paper" class="form-label fw-semibold">{{ __('UTHARA Invoice / Quotation paper') }}</label>
+                                                <select class="form-control" name="uthara_factura_paper" id="uthara_factura_paper">
+                                                    @php
+                                                        $ufp = strtolower((string) ($settings['uthara_factura_paper'] ?? 'a4'));
+                                                        if (! in_array($ufp, ['a4', 'a5'], true)) { $ufp = 'a4'; }
+                                                    @endphp
+                                                    <option value="a4" {{ $ufp === 'a4' ? 'selected' : '' }}>{{ __('A4') }}</option>
+                                                    <option value="a5" {{ $ufp === 'a5' ? 'selected' : '' }}>{{ __('A5') }}</option>
+                                                </select>
+                                                <small class="text-muted">{{ __('Used for Invoice, Quotation and Bill formal prints (UTHARA Mozambique layout).') }}</small>
+                                            </div>
+                                            <div class="form-group mb-3">
+                                                <label class="form-label fw-semibold">{{ __('UTHARA print pack') }}</label>
+                                                <div class="form-check form-switch">
+                                                    <input type="hidden" name="uthara_print_pack" value="off">
+                                                    <input class="form-check-input" type="checkbox" name="uthara_print_pack" id="uthara_print_pack" value="on" {{ (($settings['uthara_print_pack'] ?? 'on') !== 'off') ? 'checked' : '' }}>
+                                                    <label class="form-check-label" for="uthara_print_pack">{{ __('Use UTHARA Factura / Talão layouts (recommended)') }}</label>
+                                                </div>
                                             </div>
                                             <div class="form-group mb-3">
                                                 <label for="pos_receipt_printer" class="form-label fw-semibold">{{ __('Print target') }}</label>
