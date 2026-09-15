@@ -48,7 +48,13 @@
         <div class="col-md-6">
             <div class="form-group">
                 {{ Form::label('sale_price', __('Sale Price'),['class'=>'form-label']) }}<x-required></x-required>
-                {{ Form::number('sale_price', null, array('class' => 'form-control','required'=>'required','step'=>'0.01', 'placeholder' => __('Enter Sale Price'))) }}
+                {{ Form::text('sale_price', null, array('class' => 'form-control money-amount-input','required'=>'required', 'inputmode' => 'decimal', 'autocomplete' => 'off', 'placeholder' => __('Enter Sale Price'))) }}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group">
+                {{ Form::label('purchase_price', __('Purchase Price'),['class'=>'form-label']) }}<x-required></x-required>
+                {{ Form::text('purchase_price', null, array('class' => 'form-control money-amount-input','required'=>'required', 'inputmode' => 'decimal', 'autocomplete' => 'off', 'placeholder' => __('Enter Purchase Price'))) }}
             </div>
         </div>
         <div class="col-md-6">
@@ -58,6 +64,38 @@
                     <option value="exclusive" {{ ($productService->sale_price_type ?? 'exclusive') === 'exclusive' ? 'selected' : '' }}>{{ __('Exclusive VAT') }} ({{ __('VAT will be added on top') }})</option>
                     <option value="inclusive" {{ ($productService->sale_price_type ?? '') === 'inclusive' ? 'selected' : '' }}>{{ __('Inclusive VAT') }} ({{ __('VAT is included in price') }})</option>
                 </select>
+            </div>
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('tax_id', __('Tax'),['class'=>'form-label']) }}
+            {{ Form::select('tax_id[]', $tax,null, array('class' => 'form-control select2','id'=>'choices-multiple1','multiple'=>'')) }}
+            <div class=" text-xs mt-1">
+                {{__('Create tax here. ')}}<a href="{{route('taxes.index')}}"><b>{{__('Create tax')}}</b></a>
+            </div>
+        </div>
+        <div class="form-group col-md-6">
+            <div class="form-group">
+                {{ Form::label('price_level_id', __('Discount Type'), ['class' => 'form-label']) }}
+                <select name="price_level_id" class="form-control select">
+                    <option value="">{{ __('Select Discount Type') }}</option>
+                    @foreach($priceLevels as $level)
+                        @php
+                            $type = ucfirst($level->type); // Fixed or Percentage
+                            $value = $level->type === 'percentage' ? $level->value . '%' : '$' . $level->value;
+                        @endphp
+                        <option value="{{ $level->id }}" {{ $level->id == $productService->price_level_id ? 'selected' : '' }}>{{ $level->name }} - {{ $type }} - {{ $value }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class=" text-xs mt-1">
+                {{__('Create discount type here. ')}}<a href="{{route('price-levels.index')}}"><b>{{__('Create discount type')}}</b></a>
+            </div>
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('category_id', __('Category'),['class'=>'form-label']) }}<x-required></x-required>
+            {{ Form::select('category_id', $category,null, array('class' => 'form-control select','required'=>'required')) }}
+            <div class=" text-xs mt-1">
+                {{__('Create category here. ')}}<a href="{{route('product-category.index')}}"><b>{{__('Create Category')}}</b></a>
             </div>
         </div>
         <div class="form-group col-md-6">
@@ -76,12 +114,6 @@
                 {{ __('Create account here.') }} <a href="{{ route('chart-of-account.index') }}"><b>{{ __('Create account') }}</b></a>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="form-group">
-                {{ Form::label('purchase_price', __('Purchase Price'),['class'=>'form-label']) }}<x-required></x-required>
-                {{ Form::number('purchase_price', null, array('class' => 'form-control','required'=>'required','step'=>'0.01', 'placeholder' => __('Enter Purchase Price'))) }}
-            </div>
-        </div>
         <div class="form-group col-md-6">
             {{ Form::label('expense_chartaccount_id', __('Expense Account'),['class'=>'form-label']) }}
             <select name="expense_chartaccount_id" class="form-control" required="required">
@@ -98,40 +130,7 @@
                 {{ __('Create account here.') }} <a href="{{ route('chart-of-account.index') }}"><b>{{ __('Create account') }}</b></a>
             </div>
         </div>
-
-        <div class="form-group  col-md-6">
-            {{ Form::label('tax_id', __('Tax'),['class'=>'form-label']) }}
-            {{ Form::select('tax_id[]', $tax,null, array('class' => 'form-control select2','id'=>'choices-multiple1','multiple'=>'')) }}
-            <div class=" text-xs mt-1">
-                {{__('Create tax here. ')}}<a href="{{route('taxes.index')}}"><b>{{__('Create tax')}}</b></a>
-            </div>
-        </div>
-        <div class="form-group  col-md-6">
-            <div class="form-group">
-                {{ Form::label('price_level_id', __('Discount Type'), ['class' => 'form-label']) }}
-                <select name="price_level_id" class="form-control select">
-                    <option value="">{{ __('Select Discount Type') }}</option>
-                    @foreach($priceLevels as $level)
-                        @php
-                            $type = ucfirst($level->type); // Fixed or Percentage
-                            $value = $level->type === 'percentage' ? $level->value . '%' : '$' . $level->value;
-                        @endphp
-                        <option value="{{ $level->id }}" {{ $level->id == $productService->price_level_id ? 'selected' : '' }}>{{ $level->name }} - {{ $type }} - {{ $value }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class=" text-xs mt-1">
-                {{__('Create discount type here. ')}}<a href="{{route('price-levels.index')}}"><b>{{__('Create discount type')}}</b></a>
-            </div>
-        </div>
-        <div class="form-group  col-md-6">
-            {{ Form::label('category_id', __('Category'),['class'=>'form-label']) }}<x-required></x-required>
-            {{ Form::select('category_id', $category,null, array('class' => 'form-control select','required'=>'required')) }}
-            <div class=" text-xs mt-1">
-                {{__('Create category here. ')}}<a href="{{route('product-category.index')}}"><b>{{__('Create Category')}}</b></a>
-            </div>
-        </div>
-        <div class="form-group  col-md-6">
+        <div class="form-group col-md-6">
             {{ Form::label('unit_id', __('Unit'),['class'=>'form-label']) }}<x-required></x-required>
             {{ Form::select('unit_id', $unit,null, array('class' => 'form-control select','required'=>'required')) }}
             <div class=" text-xs mt-1">
@@ -363,8 +362,8 @@
                                     </td>
                                     <td><input type="text" name="variant_rows[{{ $vIdx }}][color]" class="form-control form-control-sm" maxlength="64" value="{{ $v->color }}"></td>
                                     <td><input type="text" name="variant_rows[{{ $vIdx }}][sku]" class="form-control form-control-sm" maxlength="191" value="{{ $v->sku }}"></td>
-                                    <td><input type="number" step="0.01" min="0" name="variant_rows[{{ $vIdx }}][sale_price]" class="form-control form-control-sm text-end" value="{{ $v->sale_price }}"></td>
-                                    <td><input type="number" step="0.01" min="0" name="variant_rows[{{ $vIdx }}][purchase_price]" class="form-control form-control-sm text-end" value="{{ $v->purchase_price }}"></td>
+                                    <td><input type="text" inputmode="decimal" autocomplete="off" name="variant_rows[{{ $vIdx }}][sale_price]" class="form-control form-control-sm text-end money-amount-input" value="{{ $v->sale_price }}"></td>
+                                    <td><input type="text" inputmode="decimal" autocomplete="off" name="variant_rows[{{ $vIdx }}][purchase_price]" class="form-control form-control-sm text-end money-amount-input" value="{{ $v->purchase_price }}"></td>
                                     <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger product-variant-remove"><i class="ti ti-trash"></i></button></td>
                                 </tr>
                                 @php $vIdx++; @endphp
@@ -744,8 +743,8 @@
                     <td><input type="text" name="variant_rows[${vIdx}][size]" class="form-control form-control-sm" maxlength="64"></td>
                     <td><input type="text" name="variant_rows[${vIdx}][color]" class="form-control form-control-sm" maxlength="64"></td>
                     <td><input type="text" name="variant_rows[${vIdx}][sku]" class="form-control form-control-sm" maxlength="191"></td>
-                    <td><input type="number" step="0.01" min="0" name="variant_rows[${vIdx}][sale_price]" class="form-control form-control-sm text-end"></td>
-                    <td><input type="number" step="0.01" min="0" name="variant_rows[${vIdx}][purchase_price]" class="form-control form-control-sm text-end"></td>
+                    <td><input type="text" inputmode="decimal" autocomplete="off" name="variant_rows[${vIdx}][sale_price]" class="form-control form-control-sm text-end money-amount-input"></td>
+                    <td><input type="text" inputmode="decimal" autocomplete="off" name="variant_rows[${vIdx}][purchase_price]" class="form-control form-control-sm text-end money-amount-input"></td>
                     <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger product-variant-remove"><i class="ti ti-trash"></i></button></td>
                 </tr>`;
             $tbody.append(row);

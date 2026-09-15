@@ -48,7 +48,13 @@
         <div class="col-md-6">
             <div class="form-group">
                 {{ Form::label('sale_price', __('Sale Price'),['class'=>'form-label']) }}<x-required></x-required>
-                {{ Form::number('sale_price', '', array('class' => 'form-control','required'=>'required','step'=>'0.01', 'placeholder' => __('Enter Sale Price'))) }}
+                {{ Form::text('sale_price', '', array('class' => 'form-control money-amount-input','required'=>'required', 'inputmode' => 'decimal', 'autocomplete' => 'off', 'placeholder' => __('Enter Sale Price'))) }}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group">
+                {{ Form::label('purchase_price', __('Purchase Price'),['class'=>'form-label']) }}<x-required></x-required>
+                {{ Form::text('purchase_price', '', array('class' => 'form-control money-amount-input','required'=>'required', 'inputmode' => 'decimal', 'autocomplete' => 'off', 'placeholder' => __('Enter Purchase Price'))) }}
             </div>
         </div>
         <div class="col-md-6">
@@ -60,45 +66,6 @@
                 </select>
             </div>
         </div>
-        <div class="form-group col-md-6">
-            {{ Form::label('sale_chartaccount_id', __('Income Account'),['class'=>'form-label']) }}<x-required></x-required>
-            <select name="sale_chartaccount_id" class="form-control" required="required">
-                @foreach ($incomeChartAccounts as $key => $chartAccount)
-                    <option value="{{ $key }}" class="subAccount">{{ $chartAccount }}</option>
-                    @foreach ($incomeSubAccounts as $subAccount)
-                        @if ($key == $subAccount['account'])
-                            <option value="{{ $subAccount['id'] }}" class="ms-5"> &nbsp; &nbsp;&nbsp; {{ $subAccount['code_name'] }}</option>
-                        @endif
-                    @endforeach
-                @endforeach
-            </select>
-            <div class="text-xs mt-1">
-                {{ __('Create account here.') }} <a href="{{ route('chart-of-account.index') }}"><b>{{ __('Create account') }}</b></a>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="form-group">
-                {{ Form::label('purchase_price', __('Purchase Price'),['class'=>'form-label']) }}<x-required></x-required>
-                {{ Form::number('purchase_price', '', array('class' => 'form-control','required'=>'required','step'=>'0.01', 'placeholder' => __('Enter Purchase Price'))) }}
-            </div>
-        </div>
-        <div class="form-group col-md-6">
-            {{ Form::label('expense_chartaccount_id', __('Expense Account'),['class'=>'form-label']) }}
-            <select name="expense_chartaccount_id" class="form-control" required="required">
-                @foreach ($expenseChartAccounts as $key => $chartAccount)
-                    <option value="{{ $key }}" class="subAccount">{{ $chartAccount }}</option>
-                    @foreach ($expenseSubAccounts as $subAccount)
-                        @if ($key == $subAccount['account'])
-                            <option value="{{ $subAccount['id'] }}" class="ms-5"> &nbsp; &nbsp;&nbsp; {{ $subAccount['code_name'] }}</option>
-                        @endif
-                    @endforeach
-                @endforeach
-            </select>
-            <div class="text-xs mt-1">
-                {{ __('Create account here.') }} <a href="{{ route('chart-of-account.index') }}"><b>{{ __('Create account') }}</b></a>
-            </div>
-        </div>
-
         <div class="form-group col-md-6">
             {{ Form::label('tax_id', __('Tax'),['class'=>'form-label']) }}
             {{ Form::select('tax_id[]', $tax,null, array('class' => 'form-control select2','id'=>'choices-multiple1','multiple')) }}
@@ -130,6 +97,38 @@
 
             <div class=" text-xs mt-1">
                 {{__('Create category here. ')}}<a href="{{route('product-category.index')}}"><b>{{__('Create Category')}}</b></a>
+            </div>
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('sale_chartaccount_id', __('Income Account'),['class'=>'form-label']) }}<x-required></x-required>
+            <select name="sale_chartaccount_id" class="form-control" required="required">
+                @foreach ($incomeChartAccounts as $key => $chartAccount)
+                    <option value="{{ $key }}" class="subAccount">{{ $chartAccount }}</option>
+                    @foreach ($incomeSubAccounts as $subAccount)
+                        @if ($key == $subAccount['account'])
+                            <option value="{{ $subAccount['id'] }}" class="ms-5"> &nbsp; &nbsp;&nbsp; {{ $subAccount['code_name'] }}</option>
+                        @endif
+                    @endforeach
+                @endforeach
+            </select>
+            <div class="text-xs mt-1">
+                {{ __('Create account here.') }} <a href="{{ route('chart-of-account.index') }}"><b>{{ __('Create account') }}</b></a>
+            </div>
+        </div>
+        <div class="form-group col-md-6">
+            {{ Form::label('expense_chartaccount_id', __('Expense Account'),['class'=>'form-label']) }}
+            <select name="expense_chartaccount_id" class="form-control" required="required">
+                @foreach ($expenseChartAccounts as $key => $chartAccount)
+                    <option value="{{ $key }}" class="subAccount">{{ $chartAccount }}</option>
+                    @foreach ($expenseSubAccounts as $subAccount)
+                        @if ($key == $subAccount['account'])
+                            <option value="{{ $subAccount['id'] }}" class="ms-5"> &nbsp; &nbsp;&nbsp; {{ $subAccount['code_name'] }}</option>
+                        @endif
+                    @endforeach
+                @endforeach
+            </select>
+            <div class="text-xs mt-1">
+                {{ __('Create account here.') }} <a href="{{ route('chart-of-account.index') }}"><b>{{ __('Create account') }}</b></a>
             </div>
         </div>
         <div class="form-group col-md-6">
@@ -761,8 +760,8 @@
                     <td><input type="text" name="variant_rows[${vIdx}][size]" class="form-control form-control-sm" maxlength="64" value="${$('<div>').text(size).html()}"></td>
                     <td><input type="text" name="variant_rows[${vIdx}][color]" class="form-control form-control-sm" maxlength="64" value="${$('<div>').text(color).html()}"></td>
                     <td><input type="text" name="variant_rows[${vIdx}][sku]" class="form-control form-control-sm" maxlength="191" value="${$('<div>').text(sku).html()}"></td>
-                    <td><input type="number" step="0.01" min="0" name="variant_rows[${vIdx}][sale_price]" class="form-control form-control-sm text-end" value="${salePrice}"></td>
-                    <td><input type="number" step="0.01" min="0" name="variant_rows[${vIdx}][purchase_price]" class="form-control form-control-sm text-end" value="${purchasePrice}"></td>
+                    <td><input type="text" inputmode="decimal" autocomplete="off" name="variant_rows[${vIdx}][sale_price]" class="form-control form-control-sm text-end money-amount-input" value="${salePrice}"></td>
+                    <td><input type="text" inputmode="decimal" autocomplete="off" name="variant_rows[${vIdx}][purchase_price]" class="form-control form-control-sm text-end money-amount-input" value="${purchasePrice}"></td>
                     <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger product-variant-remove"><i class="ti ti-trash"></i></button></td>
                 </tr>`;
             $tbody.append(row);

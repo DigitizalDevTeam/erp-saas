@@ -104,6 +104,30 @@ class ProductService extends Model
      *
      * @return array{variants_enabled: bool, variants: list<array{id: int, label: string, sale_price: float|null, purchase_price: float|null, price: float|null}>}
      */
+    public function isSalePriceInclusive(): bool
+    {
+        return ($this->sale_price_type ?? 'exclusive') === 'inclusive';
+    }
+
+    /**
+     * Unit sale price exclusive of VAT (documents / POS always add tax on top).
+     * If sale_price_type is inclusive, strips VAT using the product tax rate.
+     */
+    public function exclusiveSaleUnitPrice(?float $price = null): float
+    {
+        $price = (float) ($price ?? $this->sale_price ?? 0);
+        if ($price <= 0 || ! $this->isSalePriceInclusive()) {
+            return round($price, 2);
+        }
+
+        $taxRate = ! empty($this->tax_id) ? (float) $this->taxRate($this->tax_id) : 0.0;
+        if ($taxRate <= 0) {
+            return round($price, 2);
+        }
+
+        return round($price / (1 + ($taxRate / 100)), 2);
+    }
+
     public function variantsForDocumentJson(string $priceField = 'sale_price'): array
     {
         if (! ($this->variants_enabled ?? false)) {
@@ -118,7 +142,8 @@ class ProductService extends Model
         return [
             'variants_enabled' => true,
             'variants' => $this->variants->map(function ($v) use ($priceField) {
-                $sale = $v->sale_price !== null ? (float) $v->sale_price : null;
+                $saleRaw = $v->sale_price !== null ? (float) $v->sale_price : null;
+                $sale = $saleRaw !== null ? $this->exclusiveSaleUnitPrice($saleRaw) : null;
                 $purchase = $v->purchase_price !== null ? (float) $v->purchase_price : null;
                 $price = $priceField === 'purchase_price' ? $purchase : $sale;
 

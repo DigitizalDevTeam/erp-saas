@@ -27,6 +27,7 @@ use App\Services\PosFefoDeductionService;
 use App\Services\PosPrintRoutingService;
 use App\Services\ProductOptionService;
 use App\Models\ProductOptionItem;
+use App\Support\MoneyAmount;
 use Google\Service\Dataproc\Session;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -600,6 +601,7 @@ class ProductServiceController extends Controller
     {
 
         if (\Auth::user()->can('create product & service')) {
+            $this->normalizeProductPriceInputs($request);
 
             $rules = [
                 'name' => 'required',
@@ -880,6 +882,8 @@ class ProductServiceController extends Controller
         if (\Auth::user()->can('edit product & service')) {
             $productService = ProductService::find($id);
             if ($productService->created_by == \Auth::user()->creatorId()) {
+                $this->normalizeProductPriceInputs($request);
+
                 $rules = [
                     'name' => 'required',
                     'sku' => $this->productSkuRules((int) $productService->id),
@@ -2170,9 +2174,9 @@ class ProductServiceController extends Controller
             $color = mb_substr(trim((string) ($row['color'] ?? '')), 0, 64);
             $sku = mb_substr(trim((string) ($row['sku'] ?? '')), 0, 191);
             $salePrice = array_key_exists('sale_price', $row) && $row['sale_price'] !== '' && $row['sale_price'] !== null
-                ? round((float) $row['sale_price'], 2) : null;
+                ? MoneyAmount::parse($row['sale_price']) : null;
             $purchasePrice = array_key_exists('purchase_price', $row) && $row['purchase_price'] !== '' && $row['purchase_price'] !== null
-                ? round((float) $row['purchase_price'], 2) : null;
+                ? MoneyAmount::parse($row['purchase_price']) : null;
 
             if ($size === '' && $color === '') {
                 continue;
@@ -2296,6 +2300,33 @@ class ProductServiceController extends Controller
         return response()->json([
             'sku' => $this->nextAvailableSku((int) \Auth::user()->creatorId()),
         ]);
+    }
+
+    private function normalizeProductPriceInputs(Request $request): void
+    {
+        $request->merge([
+            'sale_price' => MoneyAmount::parse($request->sale_price),
+            'purchase_price' => MoneyAmount::parse($request->purchase_price),
+        ]);
+
+        $variantRows = $request->input('variant_rows', []);
+        if (! is_array($variantRows)) {
+            return;
+        }
+
+        foreach ($variantRows as $index => $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            if (array_key_exists('sale_price', $row) && $row['sale_price'] !== '' && $row['sale_price'] !== null) {
+                $variantRows[$index]['sale_price'] = MoneyAmount::parse($row['sale_price']);
+            }
+            if (array_key_exists('purchase_price', $row) && $row['purchase_price'] !== '' && $row['purchase_price'] !== null) {
+                $variantRows[$index]['purchase_price'] = MoneyAmount::parse($row['purchase_price']);
+            }
+        }
+
+        $request->merge(['variant_rows' => $variantRows]);
     }
 
     private function productSkuRules(?int $ignoreId = null): array

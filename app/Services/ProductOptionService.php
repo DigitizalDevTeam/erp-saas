@@ -99,7 +99,7 @@ class ProductOptionService
                 'product_id' => (int) $op->id,
                 'name' => $op->name,
                 'sku' => $op->sku,
-                'sale_price' => (float) ($op->sale_price ?? 0),
+                'sale_price' => $op->exclusiveSaleUnitPrice(),
                 'purchase_price' => (float) ($op->purchase_price ?? 0),
                 'option_group' => $item->option_group ? (string) $item->option_group : null,
                 'is_required' => (bool) ($item->is_required ?? false),
@@ -204,7 +204,9 @@ class ProductOptionService
             }
             $price = isset($row['price'])
                 ? round((float) $row['price'], 2)
-                : round((float) ($forPurchase ? $opt->purchase_price : $opt->sale_price), 2);
+                : ($forPurchase
+                    ? round((float) ($opt->purchase_price ?? 0), 2)
+                    : $opt->exclusiveSaleUnitPrice());
             $validated[] = [
                 'product_id' => $optId,
                 'quantity' => (float) $row['quantity'],
@@ -222,7 +224,7 @@ class ProductOptionService
     {
         $base = $forPurchase
             ? (float) ($parent->purchase_price ?? 0)
-            : (float) ($parent->sale_price ?? 0);
+            : $parent->exclusiveSaleUnitPrice();
 
         $sum = 0.0;
         foreach ($selected as $row) {
@@ -233,7 +235,9 @@ class ProductOptionService
             } else {
                 $opt = ProductService::find($optId);
                 if ($opt) {
-                    $p = $forPurchase ? (float) ($opt->purchase_price ?? 0) : (float) ($opt->sale_price ?? 0);
+                    $p = $forPurchase
+                        ? (float) ($opt->purchase_price ?? 0)
+                        : $opt->exclusiveSaleUnitPrice();
                     $sum += $p * $optQty;
                 }
             }

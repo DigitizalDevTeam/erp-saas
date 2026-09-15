@@ -127,10 +127,13 @@ class InvoiceController extends Controller
         $data['unit'] = (!empty($product->unit)) ? $product->unit->name : '';
         $data['taxRate'] = $taxRate = !empty($product->tax_id) ? $product->taxRate($product->tax_id) : 0;
         $data['taxes'] = !empty($product->tax_id) ? $product->tax($product->tax_id) : 0;
-        $salePrice = $product->sale_price;
+        // Documents always store exclusive unit price and add VAT on top
+        $salePrice = $product->exclusiveSaleUnitPrice();
+        $product->sale_price = $salePrice;
         $quantity = 1;
         $taxPrice = ($taxRate / 100) * ($salePrice * $quantity);
         $data['totalAmount'] = ($salePrice * $quantity);
+        $data['sale_price_type'] = $product->sale_price_type ?? 'exclusive';
         $data['identifier_tracking'] = (bool) ($product->identifier_tracking ?? false);
         $data['identifier_type'] = $product->identifier_type ?? 'serial';
         $data['unit_type'] = $product->unit_type;
