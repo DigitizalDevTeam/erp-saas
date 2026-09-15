@@ -20,7 +20,13 @@
         <div class="card-body">
             <h4>{{ __('Warehouse transfer') }} #{{ $doc->id }}</h4>
             <p class="text-muted">{{ __('Date') }}: {{ $doc->date }}</p>
-            <p><strong>{{ __('Product') }}:</strong> {{ $doc->product->name ?? ('#' . $doc->product_id) }}</p>
+            <p><strong>{{ __('Product') }}:</strong>
+                @if(!empty($doc->product))
+                    {{ $doc->product->name }}@if(method_exists($doc->product, 'trashed') && $doc->product->trashed()) ({{ __('Product deleted') }})@endif
+                @else
+                    {{ __('Product deleted') }} (#{{ $doc->product_id }})
+                @endif
+            </p>
             <p><strong>{{ __('Quantity') }}:</strong> {{ number_format((float) $doc->quantity, 2) }}</p>
             <p><strong>{{ __('From') }}:</strong> {{ $doc->fromWarehouse->name ?? ('#' . $doc->from_warehouse) }}</p>
             <p><strong>{{ __('To') }}:</strong> {{ $doc->toWarehouse->name ?? ('#' . $doc->to_warehouse) }}</p>

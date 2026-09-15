@@ -537,19 +537,23 @@ class ProductReportsController extends Controller
         $warehouses = warehouse::where('created_by', $creatorId)->orderBy('name')->get();
 
         $query = WarehouseProduct::query()
-            ->join('product_services', 'warehouse_products.product_id', '=', 'product_services.id')
+            ->leftJoin('product_services', 'warehouse_products.product_id', '=', 'product_services.id')
             ->join('warehouses', 'warehouse_products.warehouse_id', '=', 'warehouses.id')
             ->where('warehouse_products.created_by', $creatorId)
-            ->where('product_services.created_by', $creatorId)
+            ->where(function ($q) use ($creatorId) {
+                $q->whereNull('product_services.id')
+                    ->orWhere('product_services.created_by', $creatorId);
+            })
             ->select([
                 'warehouse_products.id',
                 'warehouse_products.warehouse_id',
                 'warehouse_products.product_id',
                 'warehouse_products.quantity',
                 'warehouses.name as warehouse_name',
-                'product_services.name as product_name',
                 'product_services.sku',
+                'product_services.deleted_at',
             ])
+            ->selectRaw('COALESCE(product_services.name, ?) as product_name_raw', [__('Product deleted')])
             ->selectRaw('COALESCE(NULLIF(warehouse_products.row_no, ""), NULLIF(product_services.row_no, "")) as row_no')
             ->selectRaw('COALESCE(NULLIF(warehouse_products.shelf_no, ""), NULLIF(product_services.shelf_no, "")) as shelf_no');
 
@@ -559,11 +563,23 @@ class ProductReportsController extends Controller
         if ($request->filled('search')) {
             $s = '%' . trim((string) $request->search) . '%';
             $query->where(function ($qq) use ($s) {
-                $qq->where('product_services.name', 'like', $s)->orWhere('product_services.sku', 'like', $s);
+                $qq->where('product_services.name', 'like', $s)
+                    ->orWhere('product_services.sku', 'like', $s)
+                    ->orWhereRaw('CAST(warehouse_products.product_id AS CHAR) like ?', [$s]);
             });
         }
 
-        $rows = $query->orderBy('warehouses.name')->orderBy('product_services.name')->get();
+        $rows = $query->orderBy('warehouses.name')->orderBy('product_name_raw')->get()->map(function ($r) {
+            $name = $r->product_name_raw ?: __('Product deleted');
+            if (empty($r->sku) && (empty($r->product_name_raw) || $r->product_name_raw === __('Product deleted'))) {
+                $name = __('Product deleted') . ' (#' . $r->product_id . ')';
+            } elseif (! empty($r->deleted_at)) {
+                $name .= ' (' . __('Product deleted') . ')';
+            }
+            $r->product_name = $name;
+
+            return $r;
+        });
 
         if ($request->boolean('print')) {
             return $this->printResponse('reports.product.print.warehouse_stock', __('Warehouse stock'), compact('rows'));
@@ -1670,11 +1686,19 @@ class ProductReportsController extends Controller
     protected function transactionsData(Request $request): array
     {
         $creatorId = $this->creatorId();
-        $products = ProductService::where('created_by', $creatorId)
+        $products = ProductService::withTrashed()
+            ->where('created_by', $creatorId)
             ->where('type', 'product')
             ->orderBy('name')
             ->get()
-            ->pluck('name', 'id');
+            ->mapWithKeys(function ($p) {
+                $label = $p->name;
+                if ($p->trashed()) {
+                    $label .= ' (' . __('Product deleted') . ')';
+                }
+
+                return [$p->id => $label];
+            });
 
         $movements = collect();
 
@@ -1703,7 +1727,7 @@ class ProductReportsController extends Controller
             $movements->push((object) [
                 'at' => $sr->created_at,
                 'product_id' => $sr->product_id,
-                'product_name' => $sr->product->name ?? ('#' . $sr->product_id),
+                'product_name' => $this->formatProductLabel($sr->product, $sr->product_id),
                 'direction' => $direction,
                 'quantity' => (float) $sr->quantity,
                 'kind' => $sr->type,
@@ -1733,7 +1757,7 @@ class ProductReportsController extends Controller
         }
 
         foreach ($wtQuery->orderByDesc('date')->orderByDesc('id')->limit(2000)->get() as $wt) {
-            $name = $wt->product->name ?? ('#' . $wt->product_id);
+            $name = $this->formatProductLabel($wt->product, $wt->product_id);
             $date = $wt->date ? Carbon::parse($wt->date)->startOfDay() : $wt->created_at;
             $qty = (float) $wt->quantity;
             $from = $wt->fromWarehouse->name ?? ('#' . $wt->from_warehouse);
@@ -1770,6 +1794,20 @@ class ProductReportsController extends Controller
         })->values();
 
         return compact('movements', 'products');
+    }
+
+    protected function formatProductLabel($product, $productId): string
+    {
+        if (! $product) {
+            return __('Product deleted') . ' (#' . $productId . ')';
+        }
+
+        $name = $product->name ?? ('#' . $productId);
+        if (method_exists($product, 'trashed') && $product->trashed()) {
+            return $name . ' (' . __('Product deleted') . ')';
+        }
+
+        return $name;
     }
 
     protected function stockDirection(string $type): string

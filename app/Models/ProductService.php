@@ -4,11 +4,14 @@ namespace App\Models;
 
 use App\Models\Tax;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class ProductService extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'name',
         'sku',

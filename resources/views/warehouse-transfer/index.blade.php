@@ -8,11 +8,13 @@
 @endsection
 @section('action-btn')
     <div class="float-end">
+        @if(Auth::user()->can('create warehouse') || Auth::user()->can('menu.products_system.transfer'))
         <a href="#" data-size="lg" data-url="{{ route('warehouse-transfer.create') }}" data-ajax-popup="true"
             data-bs-toggle="tooltip" title="{{ __('Create') }}" data-title="{{ __('Create Warehouse Transfer') }}"
             class="btn btn-sm btn-primary">
             <i class="ti ti-plus"></i>
         </a>
+        @endif
     </div>
 @endsection
 
@@ -49,7 +51,13 @@
                                         </td>
                                         <td>{{ !empty($warehouse_transfer->toWarehouse) ? $warehouse_transfer->toWarehouse->name : '' }}
                                         </td>
-                                        <td>{{ !empty($warehouse_transfer->product) ? $warehouse_transfer->product->name : '—' }}</td>
+                                        <td>
+                                            @if(!empty($warehouse_transfer->product))
+                                                {{ $warehouse_transfer->product->name }}@if(method_exists($warehouse_transfer->product, 'trashed') && $warehouse_transfer->product->trashed()) <span class="text-muted">({{ __('Product deleted') }})</span>@endif
+                                            @else
+                                                {{ __('Product deleted') }}
+                                            @endif
+                                        </td>
                                         <td>{{ $warehouse_transfer->quantity }}</td>
                                         <td>{{ Auth::user()->dateFormat($warehouse_transfer->date) }}</td>
                                         <td class="Action">
@@ -62,7 +70,7 @@
                                                         <i class="ti ti-printer text-white"></i>
                                                     </a>
                                                 </div>
-                                                @can('delete warehouse')
+                                                @if(Auth::user()->can('delete warehouse') || Auth::user()->can('menu.products_system.transfer'))
                                                     <div class="action-btn">
                                                         {!! Form::open([
                                                             'method' => 'DELETE',
@@ -75,7 +83,7 @@
                                                                 class="ti ti-trash text-white"></i></a>
                                                         {!! Form::close() !!}
                                                     </div>
-                                                @endcan
+                                                @endif
                                             </span>
                                         </td>
                                     </tr>

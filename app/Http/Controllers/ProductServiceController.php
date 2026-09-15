@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Models\Utility;
 use App\Models\Vender;
 use App\Models\WarehouseProduct;
+use App\Models\WarehouseTransfer;
 use App\Models\PriceLevel;
 use App\Models\PosPrinter;
 use App\Models\ProductKitItem;
@@ -1031,16 +1032,78 @@ class ProductServiceController extends Controller
     {
         if (\Auth::user()->can('delete product & service')) {
             $productService = ProductService::find($id);
+            if (! $productService) {
+                return redirect()->back()->with('error', __('Product not found.'));
+            }
             if ($productService->created_by == \Auth::user()->creatorId()) {
-                if (!empty($productService->pro_image)) {
-                    //storage limit
+                if (! empty($productService->pro_image)) {
                     $file_path = '/uploads/pro_image/' . $productService->pro_image;
-                    $result = Utility::changeStorageLimit(\Auth::user()->creatorId(), $file_path);
+                    Utility::changeStorageLimit(\Auth::user()->creatorId(), $file_path);
                 }
 
-                $productService->delete();
+                $productName = $productService->name;
+                $productId = (int) $productService->id;
+                $creatorId = (int) \Auth::user()->creatorId();
 
-                $this->bumpProductServiceDatatableCountCache(\Auth::user()->creatorId());
+                try {
+                    DB::transaction(function () use ($productService, $productName, $productId, $creatorId) {
+                        $transfers = WarehouseTransfer::where('product_id', $productId)
+                            ->where('created_by', $creatorId)
+                            ->get();
+
+                        foreach ($transfers as $transfer) {
+                            Utility::warehouse_transfer_qty(
+                                $transfer->to_warehouse,
+                                $transfer->from_warehouse,
+                                $transfer->product_id,
+                                $transfer->quantity,
+                                'delete'
+                            );
+
+                            Utility::addProductStock(
+                                $productId,
+                                $transfer->quantity,
+                                'product_delete',
+                                __('Product deleted') . ': ' . $productName . ' — ' . __('Transfer reversed') . ' #' . $transfer->id,
+                                $transfer->id
+                            );
+
+                            $transfer->delete();
+                        }
+
+                        $warehouseRows = WarehouseProduct::where('product_id', $productId)
+                            ->where('created_by', $creatorId)
+                            ->get();
+
+                        foreach ($warehouseRows as $row) {
+                            $qty = (float) $row->quantity;
+                            if ($qty > 0) {
+                                Utility::addProductStock(
+                                    $productId,
+                                    $qty,
+                                    'product_delete',
+                                    __('Product deleted') . ': ' . $productName . ' — ' . __('Warehouse stock cleared') . ' (WH #' . $row->warehouse_id . ')',
+                                    $row->warehouse_id
+                                );
+                            }
+                            $row->delete();
+                        }
+
+                        Utility::addProductStock(
+                            $productId,
+                            0,
+                            'product_delete',
+                            __('Product deleted') . ': ' . $productName,
+                            $productId
+                        );
+
+                        $productService->delete();
+                    });
+                } catch (\Throwable $e) {
+                    return redirect()->back()->with('error', $e->getMessage());
+                }
+
+                $this->bumpProductServiceDatatableCountCache($creatorId);
 
                 return redirect()->route('productservice.index')->with('success', __('Product successfully deleted.'));
             } else {

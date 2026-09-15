@@ -44,7 +44,7 @@
                         <a class="nav-link" id="pills-account-tab" data-bs-toggle="pill" href="#account" role="tab" aria-controls="account" aria-selected="false">{{ __('Account') }}</a>
                     </li>
                 @endif
-                @if (!empty($userPlan) && $userPlan->pos == 1)
+                @if (!empty($userPlan) && ($userPlan->pos == 1 || ($userPlan->stock ?? 0) == 1))
                     <li class="nav-item">
                         <a class="nav-link" id="pills-pos-tab" data-bs-toggle="pill" href="#pos" role="tab" aria-controls="pos" aria-selected="false">{{ __('POS') }}</a>
                     </li>
@@ -116,15 +116,17 @@
                         ])
                     </div>
                 @endif
-                @if (!empty($userPlan) && $userPlan->pos == 1)
+                @if (!empty($userPlan) && ($userPlan->pos == 1 || ($userPlan->stock ?? 0) == 1))
                     <div class="tab-pane fade" id="pos" role="tabpanel" aria-labelledby="pills-pos-tab">
                         @include('role.partials.module_permissions', [
-                            'modules' => RolePermissionUiCatalog::posModules(),
+                            'modules' => ($userPlan->pos == 1)
+                                ? RolePermissionUiCatalog::posModules()
+                                : ['warehouse'],
                             'permissions' => $permissions,
                             'role' => null,
                             'checkallClass' => 'pos_checkall',
                             'sectionTitle' => __('Assign POS related Permission to Roles'),
-                            'specialsTab' => 'pos',
+                            'specialsTab' => $userPlan->pos == 1 ? 'pos' : null,
                         ])
                     </div>
                 @endif

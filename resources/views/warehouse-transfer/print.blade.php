@@ -70,7 +70,13 @@
                 @foreach($lines as $i => $line)
                     <tr>
                         <td>{{ $i + 1 }}</td>
-                        <td>{{ $line->product->name ?? '-' }}</td>
+                        <td>
+                            @if(!empty($line->product))
+                                {{ $line->product->name }}@if(method_exists($line->product, 'trashed') && $line->product->trashed()) ({{ __('Product deleted') }})@endif
+                            @else
+                                {{ __('Product deleted') }}
+                            @endif
+                        </td>
                         <td class="num">{{ $line->quantity }}</td>
                     </tr>
                 @endforeach

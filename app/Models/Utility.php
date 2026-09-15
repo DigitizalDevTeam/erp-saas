@@ -4462,17 +4462,15 @@ namespace App\Models;
         //warehouse transfer
         public static function warehouse_transfer_qty($from_warehouse, $to_warehouse, $product_id, $quantity, $delete = null)
         {
-
             $toWarehouse = WarehouseProduct::where('warehouse_id', $to_warehouse)->where('product_id', $product_id)->first();
             if (empty($toWarehouse)) {
-                if ($delete != 'delete') {
-                    $transfer = new WarehouseProduct();
-                    $transfer->warehouse_id = $to_warehouse;
-                    $transfer->product_id = $product_id;
-                    $transfer->quantity = $quantity;
-                    $transfer->created_by = \Auth::user()->creatorId();
-                    $transfer->save();
-                }
+                // Recreate row when reversing a transfer that had zeroed (deleted) the source stock.
+                $transfer = new WarehouseProduct();
+                $transfer->warehouse_id = $to_warehouse;
+                $transfer->product_id = $product_id;
+                $transfer->quantity = $quantity;
+                $transfer->created_by = \Auth::user()->creatorId();
+                $transfer->save();
             } else {
                 $toWarehouse->quantity = $toWarehouse->quantity + $quantity;
                 $toWarehouse->save();
@@ -4486,7 +4484,6 @@ namespace App\Models;
                     $fromWarehouse->save();
                 }
             }
-
         }
 
         //add quantity in product stock
