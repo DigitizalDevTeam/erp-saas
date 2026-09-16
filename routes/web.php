@@ -1315,6 +1315,9 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('reports/product-system/total-stock-value/export', [ProductReportsController::class, 'totalStockValueExport'])->name('reports.product.total-stock-value.export');
             Route::get('reports/product-system/high-rotation', [ProductReportsController::class, 'highRotation'])->name('reports.product.high-rotation');
             Route::get('reports/product-system/high-rotation/export', [ProductReportsController::class, 'highRotationExport'])->name('reports.product.high-rotation.export');
+            Route::get('reports/product-system/stock-movement', [ProductReportsController::class, 'stockMovement'])->name('reports.product.stock-movement');
+            Route::get('reports/product-system/stock-movement/export', [ProductReportsController::class, 'stockMovementExport'])->name('reports.product.stock-movement.export');
+            Route::get('reports/product-system/stock-movement/{kind}/{id}/detail', [ProductReportsController::class, 'stockMovementDetail'])->name('reports.product.stock-movement.detail');
             Route::get('reports/product-system/out-of-stock', [ProductReportsController::class, 'outOfStock'])->name('reports.product.out-of-stock');
             Route::get('reports/product-system/out-of-stock/export', [ProductReportsController::class, 'outOfStockExport'])->name('reports.product.out-of-stock.export');
             Route::get('reports/product-system/minimum-stock-alert', [ProductReportsController::class, 'minimumStockAlert'])->name('reports.product.minimum-stock-alert');

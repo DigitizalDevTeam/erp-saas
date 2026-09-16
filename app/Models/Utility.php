@@ -4487,7 +4487,7 @@ namespace App\Models;
         }
 
         //add quantity in product stock
-        public static function addProductStock($product_id, $quantity, $type, $description, $type_id)
+        public static function addProductStock($product_id, $quantity, $type, $description, $type_id, $warehouse_loss_id = null)
         {
 
             $stocks = new StockReport();
@@ -4495,6 +4495,7 @@ namespace App\Models;
             $stocks->quantity = $quantity;
             $stocks->type = $type;
             $stocks->type_id = $type_id;
+            $stocks->warehouse_loss_id = $warehouse_loss_id;
             $stocks->description = $description;
             $stocks->created_by = \Auth::user()->creatorId();
             $stocks->save();

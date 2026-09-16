@@ -121,6 +121,15 @@
         <div class="col-md-6 col-lg-4 mb-4">
             <div class="card h-100">
                 <div class="card-body">
+                    <h5 class="card-title">{{ __('Stock Movement report') }}</h5>
+                    <p class="text-muted small">{{ __('Warehouse transfers, losses, and deleted transfers with from/to warehouses and reasons.') }}</p>
+                    <a href="{{ route('reports.product.stock-movement') }}" class="btn btn-primary btn-sm">{{ __('Open') }}</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
                     <h5 class="card-title">{{ __('Out-of-stock products') }}</h5>
                     <p class="text-muted small">{{ __('Products and kits with stock equal to zero or below.') }}</p>
                     <a href="{{ route('reports.product.out-of-stock') }}" class="btn btn-primary btn-sm">{{ __('Open') }}</a>

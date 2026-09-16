@@ -14,8 +14,14 @@ class StockReport extends Model
         'quantity',
         'type',
         'type_id',
+        'warehouse_loss_id',
         'description',
     ];
+
+    public function warehouseLoss()
+    {
+        return $this->belongsTo(WarehouseLoss::class, 'warehouse_loss_id');
+    }
 
 
     public function product()

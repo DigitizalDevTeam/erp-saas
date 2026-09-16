@@ -969,6 +969,352 @@ class ProductReportsController extends Controller
     }
 
     /**
+     * Warehouse transfer / loss / delete stock movements.
+     */
+    public function stockMovement(Request $request)
+    {
+        $this->ensureStockReport('menu.dashboard.product_system.stock_movement');
+
+        [
+            'rows' => $rows,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'sortBy' => $sortBy,
+            'limit' => $limit,
+        ] = $this->stockMovementData($request);
+
+        if ($request->boolean('print')) {
+            return $this->printResponse('reports.product.print.stock_movement', __('Stock Movement report'), compact('rows', 'dateFrom', 'dateTo'));
+        }
+
+        return view('reports.product.stock_movement', compact('rows', 'dateFrom', 'dateTo', 'sortBy', 'limit'));
+    }
+
+    public function stockMovementExport(Request $request)
+    {
+        $this->ensureStockReport('menu.dashboard.product_system.stock_movement');
+
+        ['rows' => $rows] = $this->stockMovementData($request);
+
+        $fileName = 'stock_movement_report_' . date('Y-m-d_His') . '.csv';
+        $headers = [
+            'Content-type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=$fileName",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($rows) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($file, [
+                __('#'),
+                __('ID'),
+                __('SKU'),
+                __('Description'),
+                __('Movement'),
+                __('From'),
+                __('To'),
+                __('Current stock'),
+                __('Reason'),
+                __('Type'),
+            ]);
+
+            foreach ($rows as $i => $r) {
+                fputcsv($file, [
+                    $i + 1,
+                    $r->product_id,
+                    $r->sku ?: '',
+                    $r->description,
+                    $r->movement,
+                    $r->from_warehouse,
+                    $r->to_warehouse,
+                    $r->to_warehouse_stock !== null ? $r->to_warehouse_stock : '',
+                    $r->reason,
+                    $r->transaction_kind,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    public function stockMovementDetail(Request $request, string $kind, int $id)
+    {
+        $this->ensureStockReport('menu.dashboard.product_system.stock_movement');
+        $creatorId = $this->creatorId();
+
+        if ($kind === 'loss') {
+            $loss = WarehouseLoss::with(['warehouse', 'product'])
+                ->where('created_by', $creatorId)
+                ->where('id', $id)
+                ->firstOrFail();
+
+            return response()->json([
+                'kind' => 'loss',
+                'title' => __('Loss / write-off'),
+                'write_off_no' => $loss->write_off_no,
+                'product' => $loss->product->name ?? ('#' . $loss->product_id),
+                'sku' => $loss->product->sku ?? '',
+                'quantity' => (float) $loss->quantity,
+                'date' => optional($loss->date)->format('Y-m-d'),
+                'datetime' => optional($loss->created_at)->format('Y-m-d H:i:s'),
+                'reason' => $loss->reason ?: '—',
+                'from_warehouse' => $loss->warehouse->name ?? ('#' . $loss->warehouse_id),
+                'to_warehouse' => '—',
+                'performed_by' => $loss->issuer_name ?: '—',
+                'authorized_by' => $loss->authorized_by ?: '—',
+                'witness_name' => $loss->witness_name ?: '—',
+                'unit_cost' => (float) ($loss->unit_cost ?? 0),
+                'cost_of_goods' => (float) ($loss->cost_of_goods ?? 0),
+                'delivery_destination' => $loss->delivery_destination ?: '—',
+            ]);
+        }
+
+        if ($kind === 'delete') {
+            $sr = StockReport::with('product')
+                ->where('created_by', $creatorId)
+                ->where('id', $id)
+                ->whereIn('type', ['transfer_reversal_out', 'transfer_reversal_in', 'product_delete'])
+                ->firstOrFail();
+
+            $from = '—';
+            $to = '—';
+            $desc = (string) ($sr->description ?? '');
+            if (preg_match('/:\s*(.+?)\s*→\s*(.+)$/u', $desc, $m)) {
+                $from = trim($m[1]);
+                $to = trim($m[2]);
+            }
+
+            return response()->json([
+                'kind' => 'delete',
+                'title' => __('Delete'),
+                'product' => $sr->product->name ?? ('#' . $sr->product_id),
+                'sku' => $sr->product->sku ?? '',
+                'quantity' => (float) $sr->quantity,
+                'date' => optional($sr->created_at)->format('Y-m-d'),
+                'datetime' => optional($sr->created_at)->format('Y-m-d H:i:s'),
+                'reason' => $desc !== '' ? $desc : '—',
+                'from_warehouse' => $from,
+                'to_warehouse' => $to,
+                'performed_by' => '—',
+                'type' => $sr->type,
+                'reference_id' => (int) $sr->type_id,
+            ]);
+        }
+
+        abort(404);
+    }
+
+    protected function stockMovementData(Request $request): array
+    {
+        $creatorId = $this->creatorId();
+        $dateFrom = $request->input('date_from', now()->subDays(30)->format('Y-m-d'));
+        $dateTo = $request->input('date_to', now()->format('Y-m-d'));
+        $sortBy = in_array($request->input('sort_by'), ['date', 'qty'], true)
+            ? $request->input('sort_by')
+            : 'date';
+        $limit = max(10, min(500, (int) $request->input('limit', 50)));
+        $source = $request->input('source', '');
+        $search = trim((string) $request->input('search', ''));
+
+        $rows = collect();
+
+        if ($source === '' || $source === 'transfer') {
+            $transferQ = DB::table('warehouse_transfers as wt')
+                ->join('product_services as p', 'p.id', '=', 'wt.product_id')
+                ->leftJoin('warehouses as wf', 'wf.id', '=', 'wt.from_warehouse')
+                ->leftJoin('warehouses as wto', 'wto.id', '=', 'wt.to_warehouse')
+                ->where('wt.created_by', $creatorId)
+                ->where('p.created_by', $creatorId)
+                ->whereDate('wt.date', '>=', $dateFrom)
+                ->whereDate('wt.date', '<=', $dateTo)
+                ->select([
+                    'wt.id as ref_id',
+                    'wt.product_id',
+                    'p.sku',
+                    'p.name',
+                    'p.description as product_description',
+                    'wt.quantity',
+                    'wt.date',
+                    'wt.created_at',
+                    'wf.name as from_name',
+                    'wto.name as to_name',
+                    DB::raw('(SELECT COALESCE(SUM(wp.quantity), 0) FROM warehouse_products wp WHERE wp.warehouse_id = wt.to_warehouse AND wp.product_id = wt.product_id) as to_stock'),
+                ]);
+
+            if ($search !== '') {
+                $s = '%' . $search . '%';
+                $transferQ->where(function ($qq) use ($s) {
+                    $qq->where('p.name', 'like', $s)
+                        ->orWhere('p.sku', 'like', $s)
+                        ->orWhere('p.description', 'like', $s)
+                        ->orWhere('p.id', 'like', $s)
+                        ->orWhere('wf.name', 'like', $s)
+                        ->orWhere('wto.name', 'like', $s);
+                });
+            }
+
+            foreach ($transferQ->get() as $item) {
+                $desc = trim((string) ($item->name ?? ''));
+                $extra = trim((string) ($item->product_description ?? ''));
+                if ($extra !== '') {
+                    $desc = $desc !== '' ? ($desc . ' — ' . $extra) : $extra;
+                }
+
+                $rows->push((object) [
+                    'detail_kind' => null,
+                    'detail_id' => null,
+                    'transaction_kind' => 'transfer',
+                    'product_id' => (int) $item->product_id,
+                    'sku' => $item->sku,
+                    'description' => $desc,
+                    'movement' => round((float) $item->quantity, 2),
+                    'from_warehouse' => $item->from_name ?: '—',
+                    'to_warehouse' => $item->to_name ?: '—',
+                    'to_warehouse_stock' => $item->to_stock !== null ? round((float) $item->to_stock, 2) : null,
+                    'reason' => '—',
+                    'sort_date' => $item->created_at ?: ($item->date . ' 00:00:00'),
+                ]);
+            }
+        }
+
+        if ($source === '' || $source === 'loss') {
+            $lossQ = DB::table('warehouse_losses as wl')
+                ->join('product_services as p', 'p.id', '=', 'wl.product_id')
+                ->leftJoin('warehouses as wh', 'wh.id', '=', 'wl.warehouse_id')
+                ->where('wl.created_by', $creatorId)
+                ->where('p.created_by', $creatorId)
+                ->whereDate('wl.date', '>=', $dateFrom)
+                ->whereDate('wl.date', '<=', $dateTo)
+                ->select([
+                    'wl.id as ref_id',
+                    'wl.product_id',
+                    'p.sku',
+                    'p.name',
+                    'p.description as product_description',
+                    'wl.quantity',
+                    'wl.date',
+                    'wl.created_at',
+                    'wl.reason',
+                    'wh.name as from_name',
+                ]);
+
+            if ($search !== '') {
+                $s = '%' . $search . '%';
+                $lossQ->where(function ($qq) use ($s) {
+                    $qq->where('p.name', 'like', $s)
+                        ->orWhere('p.sku', 'like', $s)
+                        ->orWhere('p.description', 'like', $s)
+                        ->orWhere('p.id', 'like', $s)
+                        ->orWhere('wl.reason', 'like', $s)
+                        ->orWhere('wh.name', 'like', $s)
+                        ->orWhere('wl.write_off_no', 'like', $s);
+                });
+            }
+
+            foreach ($lossQ->get() as $item) {
+                $desc = trim((string) ($item->name ?? ''));
+                $extra = trim((string) ($item->product_description ?? ''));
+                if ($extra !== '') {
+                    $desc = $desc !== '' ? ($desc . ' — ' . $extra) : $extra;
+                }
+
+                $rows->push((object) [
+                    'detail_kind' => 'loss',
+                    'detail_id' => (int) $item->ref_id,
+                    'transaction_kind' => 'loss',
+                    'product_id' => (int) $item->product_id,
+                    'sku' => $item->sku,
+                    'description' => $desc,
+                    'movement' => round((float) $item->quantity, 2),
+                    'from_warehouse' => $item->from_name ?: '—',
+                    'to_warehouse' => '—',
+                    'to_warehouse_stock' => null,
+                    'reason' => $item->reason ?: '—',
+                    'sort_date' => $item->created_at ?: ($item->date . ' 00:00:00'),
+                ]);
+            }
+        }
+
+        if ($source === '' || $source === 'delete') {
+            $deleteQ = DB::table('stock_reports as sr')
+                ->join('product_services as p', 'p.id', '=', 'sr.product_id')
+                ->where('sr.created_by', $creatorId)
+                ->where('p.created_by', $creatorId)
+                ->whereIn('sr.type', ['transfer_reversal_out', 'product_delete'])
+                ->whereDate('sr.created_at', '>=', $dateFrom)
+                ->whereDate('sr.created_at', '<=', $dateTo)
+                ->select([
+                    'sr.id as ref_id',
+                    'sr.product_id',
+                    'p.sku',
+                    'p.name',
+                    'p.description as product_description',
+                    'sr.quantity',
+                    'sr.created_at',
+                    'sr.description as ledger_description',
+                    'sr.type',
+                ]);
+
+            if ($search !== '') {
+                $s = '%' . $search . '%';
+                $deleteQ->where(function ($qq) use ($s) {
+                    $qq->where('p.name', 'like', $s)
+                        ->orWhere('p.sku', 'like', $s)
+                        ->orWhere('p.description', 'like', $s)
+                        ->orWhere('p.id', 'like', $s)
+                        ->orWhere('sr.description', 'like', $s);
+                });
+            }
+
+            foreach ($deleteQ->get() as $item) {
+                $desc = trim((string) ($item->name ?? ''));
+                $extra = trim((string) ($item->product_description ?? ''));
+                if ($extra !== '') {
+                    $desc = $desc !== '' ? ($desc . ' — ' . $extra) : $extra;
+                }
+
+                $from = '—';
+                $to = '—';
+                $ledgerDesc = (string) ($item->ledger_description ?? '');
+                if (preg_match('/:\s*(.+?)\s*→\s*(.+)$/u', $ledgerDesc, $m)) {
+                    $from = trim($m[1]);
+                    $to = trim($m[2]);
+                }
+
+                $rows->push((object) [
+                    'detail_kind' => 'delete',
+                    'detail_id' => (int) $item->ref_id,
+                    'transaction_kind' => 'delete',
+                    'product_id' => (int) $item->product_id,
+                    'sku' => $item->sku,
+                    'description' => $desc,
+                    'movement' => round((float) $item->quantity, 2),
+                    'from_warehouse' => $from,
+                    'to_warehouse' => $to,
+                    'to_warehouse_stock' => null,
+                    'reason' => $ledgerDesc !== '' ? $ledgerDesc : '—',
+                    'sort_date' => $item->created_at,
+                ]);
+            }
+        }
+
+        if ($sortBy === 'qty') {
+            $rows = $rows->sortByDesc('movement')->values();
+        } else {
+            $rows = $rows->sortByDesc('sort_date')->values();
+        }
+
+        $rows = $rows->take($limit)->values();
+
+        return compact('rows', 'dateFrom', 'dateTo', 'sortBy', 'limit');
+    }
+
+    /**
      * Products with zero or negative on-hand quantity.
      */
     public function outOfStock(Request $request)
@@ -1559,7 +1905,7 @@ class ProductReportsController extends Controller
 
                     Utility::warehouse_quantity('minus', $deductQty, (int) $lot->product_id, $warehouseId);
                     Utility::total_quantity('minus', $deductQty, (int) $lot->product_id);
-                    Utility::addProductStock((int) $lot->product_id, $deductQty, 'warehouse_loss', $reason, 0);
+                    Utility::addProductStock((int) $lot->product_id, $deductQty, 'warehouse_loss', $reason, $loss->id, $loss->id);
 
                     $lot->quantity_remaining = 0;
                     $lot->save();

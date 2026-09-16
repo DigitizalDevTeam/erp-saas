@@ -334,6 +334,11 @@
                                             <a class="dash-link" href="{{ route('reports.product.high-rotation') }}">{{ __('High-value stock movements') }}</a>
                                         </li>
                                         @endif
+                                        @if (menu_can('menu.dashboard.product_system.stock_movement'))
+                                        <li class="dash-item {{ Request::route()->getName() == 'reports.product.stock-movement' ? ' active' : '' }}">
+                                            <a class="dash-link" href="{{ route('reports.product.stock-movement') }}">{{ __('Stock Movement report') }}</a>
+                                        </li>
+                                        @endif
                                         @if (menu_can('menu.dashboard.product_system.out_of_stock'))
                                         <li class="dash-item {{ Request::route()->getName() == 'reports.product.out-of-stock' ? ' active' : '' }}">
                                             <a class="dash-link" href="{{ route('reports.product.out-of-stock') }}">{{ __('Out-of-stock products') }}</a>

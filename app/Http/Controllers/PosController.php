@@ -2338,7 +2338,13 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         if (\Auth::user()->canManagePos()) {
             $settings = Utility::settings();
 
-            return view('pos.setting', compact('settings'));
+            // AJAX modal (barcode page) expects a form fragment only.
+            // Direct /setting/pos visits need the admin layout — otherwise bare HTML shows.
+            if (request()->ajax()) {
+                return view('pos.setting', compact('settings'));
+            }
+
+            return view('pos.setting_page', compact('settings'));
         } else {
             return redirect()->back()->with('error', 'Permission denied.');
         }

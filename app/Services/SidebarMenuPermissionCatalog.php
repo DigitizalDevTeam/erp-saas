@@ -76,6 +76,7 @@ class SidebarMenuPermissionCatalog
                     self::node('Warehouse stock', 'menu.dashboard.product_system.warehouse_stock', ['stock report']),
                     self::node('Total stock value', 'menu.dashboard.product_system.total_stock_value', ['stock report']),
                     self::node('High-value stock movements', 'menu.dashboard.product_system.high_rotation', ['stock report']),
+                    self::node('Stock Movement report', 'menu.dashboard.product_system.stock_movement', ['stock report']),
                     self::node('Out-of-stock products', 'menu.dashboard.product_system.out_of_stock', ['stock report']),
                     self::node('Minimum Stock Alert', 'menu.dashboard.product_system.minimum_stock_alert', ['stock report']),
                     self::node('Products near expiry', 'menu.dashboard.product_system.near_expiry', ['stock report']),

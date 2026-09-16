@@ -178,7 +178,7 @@ class WarehouseLossController extends Controller
 
         DB::transaction(function () use ($request, $lines, $warehouseId, $writeOffNo, $date, $creatorId, $totalCost) {
             foreach ($lines as $line) {
-                WarehouseLoss::create([
+                $loss = WarehouseLoss::create([
                     'write_off_no' => $writeOffNo,
                     'warehouse_id' => $warehouseId,
                     'product_id' => $line['product_id'],
@@ -197,7 +197,14 @@ class WarehouseLossController extends Controller
 
                 Utility::warehouse_quantity('minus', $line['quantity'], $line['product_id'], $warehouseId);
                 Utility::total_quantity('minus', $line['quantity'], $line['product_id']);
-                Utility::addProductStock($line['product_id'], $line['quantity'], 'warehouse_loss', __('Stock loss/damage write-off'), 0);
+                Utility::addProductStock(
+                    $line['product_id'],
+                    $line['quantity'],
+                    'warehouse_loss',
+                    __('Stock loss/damage write-off'),
+                    $loss->id,
+                    $loss->id
+                );
             }
 
             $this->postLossJournal($creatorId, $date, $writeOffNo, (float) $totalCost, (string) ($request->reason ?? ''));
