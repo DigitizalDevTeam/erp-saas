@@ -1068,7 +1068,7 @@ class ProductServiceController extends Controller
                                 $transfer->id
                             );
 
-                            $transfer->delete();
+                            // Keep warehouse_transfers row for audit history (stock already reversed above).
                         }
 
                         $warehouseRows = WarehouseProduct::where('product_id', $productId)
@@ -1316,10 +1316,14 @@ class ProductServiceController extends Controller
                     $imgSrc = rtrim($baseImgUrl, '/') . '/' . $imgFile;
                     if ($request->session_key == 'purchases') {
                         $productprice = $product->purchase_price != 0 ? $product->purchase_price : 0;
+                        $displayPrice = $productprice;
                     } elseif (in_array($request->session_key, ['pos', 'pos-restaurant'], true)) {
-                        $productprice = $product->sale_price != 0 ? $product->sale_price : 0;
+                        // Cart math always uses exclusive unit price; shelf label keeps catalog (often inclusive) amount
+                        $displayPrice = $product->sale_price != 0 ? (float) $product->sale_price : 0;
+                        $productprice = $displayPrice != 0 ? $product->exclusiveSaleUnitPrice($displayPrice) : 0;
                     } else {
                         $productprice = $product->sale_price != 0 ? $product->sale_price : $product->purchase_price;
+                        $displayPrice = $productprice;
                     }
                     $taxRate = $taxRateMap[$product->tax_id ?? ''] ?? 0;
                     $printZone = PosPrintRoutingService::resolvePrintZoneForProduct($product);
@@ -1327,10 +1331,12 @@ class ProductServiceController extends Controller
                     $variantsPayload = '[]';
                     if ($isPos && ($product->variants_enabled ?? false) && $product->relationLoaded('variants') && $product->variants->isNotEmpty()) {
                         $variantsPayload = htmlspecialchars(json_encode($product->variants->map(function ($v) use ($product) {
+                            $saleRaw = $v->sale_price !== null ? (float) $v->sale_price : null;
                             return [
                                 'id' => $v->id,
                                 'label' => $v->displayLabel($product),
-                                'sale_price' => $v->sale_price !== null ? (float) $v->sale_price : null,
+                                'sale_price' => $saleRaw !== null ? $product->exclusiveSaleUnitPrice($saleRaw) : null,
+                                'sale_price_display' => $saleRaw,
                             ];
                         })->values()->all()), ENT_QUOTES, 'UTF-8');
                     }
@@ -1348,7 +1354,7 @@ class ProductServiceController extends Controller
                                 'product_id' => (int) $op->id,
                                 'name' => $op->name,
                                 'sku' => $op->sku,
-                                'sale_price' => (float) ($op->sale_price ?? 0),
+                                'sale_price' => $op->exclusiveSaleUnitPrice(),
                                 'purchase_price' => (float) ($op->purchase_price ?? 0),
                                 'option_group' => $oi->option_group ? (string) $oi->option_group : null,
                                 'is_required' => (bool) ($oi->is_required ?? false),
@@ -1358,7 +1364,7 @@ class ProductServiceController extends Controller
                     }
                     $dimUnit = $product->dimension_unit ?: ($product->unit->length_unit ?? 'cm');
                     $volDiv = $product->volumetric_divisor ?: ($product->unit->volumetric_divisor ?? '');
-                    $output .= '<div class="' . self::POS_PRODUCT_CARD_COL_CLASS . '"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-product-printer-id="' . e((string) $printerId) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\' data-options-enabled="' . $optionsEnabledAttr . '" data-options=\'' . $optionsPayload . '\' data-unit-type="' . e($product->unit_type ?? '') . '" data-dimension-unit="' . e($dimUnit) . '" data-volumetric-divisor="' . e((string) $volDiv) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="mb-2 d-flex align-items-center justify-content-between gap-2 flex-wrap"><span class="product-card-price">' . $priceFormatted($productprice) . '</span><small class="badge bg-danger mb-0 rounded qty_badge">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Cart') . '</button></div></div></div></div></div>';
+                    $output .= '<div class="' . self::POS_PRODUCT_CARD_COL_CLASS . '"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-price-type="exclusive" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-product-printer-id="' . e((string) $printerId) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\' data-options-enabled="' . $optionsEnabledAttr . '" data-options=\'' . $optionsPayload . '\' data-unit-type="' . e($product->unit_type ?? '') . '" data-dimension-unit="' . e($dimUnit) . '" data-volumetric-divisor="' . e((string) $volDiv) . '"><div class="position-relative card"><img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="mb-2 d-flex align-items-center justify-content-between gap-2 flex-wrap"><span class="product-card-price">' . $priceFormatted($displayPrice) . '</span><small class="badge bg-danger mb-0 rounded qty_badge">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Cart') . '</button></div></div></div></div></div>';
                 }
                 if ($cacheKey) {
                     Cache::put($cacheKey, $output, 90);
@@ -1537,14 +1543,18 @@ class ProductServiceController extends Controller
             if ($session_key == 'purchases') {
                 $productprice = $product->purchase_price != 0 ? $product->purchase_price : 0;
             } elseif ($isPosSession) {
-                $productprice = $product->sale_price != 0 ? $product->sale_price : 0;
+                // POS always stores exclusive unit price and adds VAT on top
+                $productprice = $product->sale_price != 0 ? $product->exclusiveSaleUnitPrice() : 0;
             } else {
                 $productprice = $product->sale_price != 0 ? $product->sale_price : $product->purchase_price;
             }
             $measurementJson = $request->get('measurement_json');
             $measuredPrice = $request->get('measured_price');
+            $usedMeasuredPrice = false;
             if ($isPosSession && is_numeric($measuredPrice) && (float) $measuredPrice > 0) {
+                // measured_price comes from exclusive data-product-price on the card
                 $productprice = (float) $measuredPrice;
+                $usedMeasuredPrice = true;
             }
 
             if ($variantId !== null && $product) {
@@ -1553,7 +1563,9 @@ class ProductServiceController extends Controller
                     if ($session_key == 'purchases' && $vrD->purchase_price !== null && (float) $vrD->purchase_price >= 0) {
                         $productprice = (float) $vrD->purchase_price;
                     } elseif ($isPosSession && $vrD->sale_price !== null && (float) $vrD->sale_price >= 0) {
-                        $productprice = (float) $vrD->sale_price;
+                        $productprice = $usedMeasuredPrice
+                            ? $productprice
+                            : $product->exclusiveSaleUnitPrice((float) $vrD->sale_price);
                     }
                     $displayName = $productname . ' — ' . $vrD->displayLabel($product);
                 }
@@ -1600,13 +1612,20 @@ class ProductServiceController extends Controller
             }
             $producttax = $totalTaxRate;
 
-            $priceType = in_array($product->sale_price_type ?? 'exclusive', ['inclusive', 'exclusive'], true) ? $product->sale_price_type : 'exclusive';
-            if ($priceType === 'inclusive' && $producttax > 0) {
-                $subtotal = $productprice;
-                $tax = $productprice - ($productprice / (1 + $producttax / 100));
-            } else {
-                $tax = ($productprice * $producttax) / 100;
-                $subtotal = $productprice + $tax;
+            // After exclusiveSaleUnitPrice / options / measured exclusive base, always treat as exclusive
+            $priceType = 'exclusive';
+            $tax = round(($productprice * $producttax) / 100, 2);
+            $subtotal = round($productprice + $tax, 2);
+            // Prefer exact shelf total when price came from inclusive catalog (avoids 0.01 drift)
+            if ($isPosSession && ! $usedMeasuredPrice && $selectedOptions === [] && $product->isSalePriceInclusive() && $producttax > 0) {
+                $catalogInclusive = (float) ($product->sale_price ?? 0);
+                if ($variantId !== null && isset($vrD) && $vrD && $vrD->sale_price !== null) {
+                    $catalogInclusive = (float) $vrD->sale_price;
+                }
+                if ($catalogInclusive > 0) {
+                    $subtotal = round($catalogInclusive, 2);
+                    $tax = round($subtotal - $productprice, 2);
+                }
             }
 
             if ($tableKey !== null) {
@@ -1646,6 +1665,7 @@ class ProductServiceController extends Controller
                         'quantity' => 1,
                         'price' => $productprice,
                         'tax' => $producttax,
+                        'price_type' => $priceType,
                         'description' => '',
                         'is_sent' => false,
                         'status' => 'not_sent',
@@ -1665,7 +1685,7 @@ class ProductServiceController extends Controller
                         'canShowVoid' => false,
                     ])->render();
                 } else {
-                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" id="product-id-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '" data-measurement-json="' . $measurementJsonEsc . '">';
+                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" id="product-id-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-price-type="' . e($priceType) . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '" data-measurement-json="' . $measurementJsonEsc . '">';
                 $carthtml .= '<div class="card-body p-2">';
                 $carthtml .= '<div class="d-flex justify-content-between align-items-start gap-2">';
                 $carthtml .= '<div class="flex-grow-1 min-w-0"><h6 class="mb-0 text-dark fw-bold text-truncate name">' . e($displayName) . '</h6>';
@@ -1793,10 +1813,9 @@ class ProductServiceController extends Controller
                 $pr = $cart[$cartLineKey]['price'];
                 $tx = $cart[$cartLineKey]['tax'] ?? 0;
                 if ($pt === 'inclusive' && $tx > 0) {
-                    $cart[$cartLineKey]['subtotal'] = $pr * $qty;
+                    $cart[$cartLineKey]['subtotal'] = round($pr * $qty, 2);
                 } else {
-                    $subtotal = $pr * $qty;
-                    $cart[$cartLineKey]['subtotal'] = $subtotal * (1 + $tx / 100);
+                    $cart[$cartLineKey]['subtotal'] = round($pr * $qty * (1 + $tx / 100), 2);
                 }
                 $cart[$cartLineKey]['originalquantity'] = $originalquantity;
 
@@ -1933,11 +1952,9 @@ class ProductServiceController extends Controller
                 $priceType    = $cart[$lineKey]['price_type'] ?? 'exclusive';
 
                 if ($priceType === 'inclusive' && $producttax > 0) {
-                    $cart[$lineKey]['subtotal'] = $productprice * $quantity;
+                    $cart[$lineKey]['subtotal'] = round($productprice * $quantity, 2);
                 } else {
-                    $subtotal = $productprice * $quantity;
-                    $tax = ($subtotal * $producttax) / 100;
-                    $cart[$lineKey]['subtotal'] = $subtotal + $tax;
+                    $cart[$lineKey]['subtotal'] = round($productprice * $quantity * (1 + $producttax / 100), 2);
                 }
             }
 
@@ -2321,13 +2338,16 @@ class ProductServiceController extends Controller
             'unit_volume_cbm' => $productservice->unit_volume_cbm,
             'unit_area_sqm' => $productservice->unit_area_sqm,
             'variants' => $productservice->variants->map(function ($v) use ($productservice) {
+                $saleRaw = $v->sale_price !== null ? (float) $v->sale_price : null;
+
                 return [
                     'id' => $v->id,
                     'size' => $v->size,
                     'color' => $v->color,
                     'sku' => $v->sku,
                     'label' => $v->displayLabel($productservice),
-                    'sale_price' => $v->sale_price,
+                    'sale_price' => $saleRaw !== null ? $productservice->exclusiveSaleUnitPrice($saleRaw) : null,
+                    'sale_price_display' => $saleRaw,
                     'purchase_price' => $v->purchase_price,
                 ];
             })->values(),

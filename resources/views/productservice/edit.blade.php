@@ -64,6 +64,9 @@
                     <option value="exclusive" {{ ($productService->sale_price_type ?? 'exclusive') === 'exclusive' ? 'selected' : '' }}>{{ __('Exclusive VAT') }} ({{ __('VAT will be added on top') }})</option>
                     <option value="inclusive" {{ ($productService->sale_price_type ?? '') === 'inclusive' ? 'selected' : '' }}>{{ __('Inclusive VAT') }} ({{ __('VAT is included in price') }})</option>
                 </select>
+                <div class="text-xs text-muted mt-1">
+                    {{ __('Applies to Sale Price and Purchase Price on Invoice, Bill, Purchase and POS.') }}
+                </div>
             </div>
         </div>
         <div class="form-group col-md-6">

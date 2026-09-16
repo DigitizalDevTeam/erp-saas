@@ -880,7 +880,13 @@
                 var qty = parseInt($row.find('input.input-number').val() || 1, 10);
                 var price = parseFloat($row.attr('data-price')) || 0;
                 var tax = parseFloat($row.attr('data-tax')) || 0;
-                var subtotal = price * qty;
+                var priceType = ($row.attr('data-price-type') || 'exclusive').toLowerCase();
+                var subtotal;
+                if (priceType === 'inclusive' && tax > 0) {
+                    subtotal = price * qty;
+                } else {
+                    subtotal = (price + price * tax / 100) * qty;
+                }
                 var discount = parseFloat($row.attr('data-discount')) || 0;
                 var netPrice = subtotal - discount;
                 var selRaw = $row.attr('data-selected-options') || '';
@@ -896,6 +902,7 @@
                     subtotal: subtotal,
                     discount: discount,
                     netPrice: netPrice,
+                    price_type: priceType,
                     selected_options: selOpts,
                     selected_options_json: selRaw || null
                 };
@@ -1601,7 +1608,7 @@
                 var cartKey = it.cart_line_key || it.id;
                 var note = String(it.description || '').trim();
                 var lineName = String(it.name || '').trim() || ('{{ __("Product") }} #' + (it.id || ''));
-                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '">';
+                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '">';
                 html += '<td class="pos-cart-line-cell p-0 border-0"><div class="pos-cart-line"><div class="pos-cart-line__row">';
                 html += '<div class="pos-cart-line__main min-w-0"><span class="pos-cart-line__name name" title="' + esc(lineName) + '">' + esc(lineName) + '</span>';
                 html += '<span class="pos-cart-line__badge badge pos-line-status">' + esc(statusText) + '</span></div>';
@@ -3366,7 +3373,7 @@
                     } else {
                         var row = isRestaurant
                             ? buildRestaurantCartRow({ id: id, cart_line_key: id, name: name, quantity: qty, price: price, tax: taxRate, description: '', is_sent: false, status: 'not_sent' }, 0, { sub: subtotal })
-                            : ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>');
+                            : ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-price-type="exclusive" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>');
                         $(tbodySel + ' .no-found').addClass('d-none');
                         $(tbodySel).append(row);
                         if (!isRestaurant) {
@@ -3449,8 +3456,14 @@
                     if ($row.length && quantity > 0) {
                         var price = parseFloat($row.attr('data-price')) || 0;
                         var taxRate = parseFloat($row.attr('data-tax')) || 0;
-                        var tax = price * taxRate / 100;
-                        var subtotal = (price + tax) * quantity;
+                        var priceType = ($row.attr('data-price-type') || 'exclusive').toLowerCase();
+                        var subtotal;
+                        if (priceType === 'inclusive' && taxRate > 0) {
+                            subtotal = price * quantity;
+                        } else {
+                            var tax = price * taxRate / 100;
+                            subtotal = (price + tax) * quantity;
+                        }
                         $row.attr('data-subtotal', subtotal);
                         $row.find('.subtotal').text(addCommas(subtotal));
                         var total = 0;

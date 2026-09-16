@@ -46,4 +46,31 @@ class ProductServiceSalePriceTypeTest extends TestCase
         $this->assertSame(100.0, $product->exclusiveSaleUnitPrice());
         $this->assertSame(200.0, $product->exclusiveSaleUnitPrice(232));
     }
+
+    public function test_inclusive_purchase_strips_with_same_flag(): void
+    {
+        $product = new class extends ProductService {
+            public function taxRate($taxes)
+            {
+                return 16;
+            }
+        };
+        $product->purchase_price = 638;
+        $product->sale_price_type = 'inclusive';
+        $product->tax_id = '1';
+
+        $this->assertSame(550.0, $product->exclusivePurchaseUnitPrice());
+        $this->assertSame(550.0, $product->exclusivePurchaseUnitPrice(638));
+    }
+
+    public function test_exclusive_purchase_unchanged(): void
+    {
+        $product = new ProductService([
+            'purchase_price' => 550,
+            'sale_price_type' => 'exclusive',
+            'tax_id' => '',
+        ]);
+
+        $this->assertSame(550.0, $product->exclusivePurchaseUnitPrice());
+    }
 }

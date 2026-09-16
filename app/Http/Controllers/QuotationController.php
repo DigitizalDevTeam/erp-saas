@@ -349,7 +349,7 @@ class QuotationController extends Controller
         $data['unit']        = !empty($product->unit) ? $product->unit->name : '';
         $data['taxRate']     = $taxRate = !empty($product->tax_id) ? $product->taxRate($product->tax_id) : 0;
         $data['taxes']       = !empty($product->tax_id) ? $product->tax($product->tax_id) : 0;
-        // Documents always store exclusive unit price and add VAT on top
+        // Documents always store exclusive unit price and add VAT on top (same as POS)
         $salePrice           = $product->exclusiveSaleUnitPrice();
         $product->sale_price = $salePrice;
         $quantity            = 1;
@@ -357,11 +357,8 @@ class QuotationController extends Controller
         $data['totalAmount'] = ($salePrice * $quantity);
         $data['sale_price_type'] = $product->sale_price_type ?? 'exclusive';
 
-        $product = ProductService::find($request->product_id);
         $productquantity = 0;
-
         if ($product) {
-            $data['productquantityhj'] = 'gy';
             $productquantity = $product->getQuantity();
         }
         $data['productquantity'] = $productquantity;

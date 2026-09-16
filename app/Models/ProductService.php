@@ -118,7 +118,23 @@ class ProductService extends Model
      */
     public function exclusiveSaleUnitPrice(?float $price = null): float
     {
-        $price = (float) ($price ?? $this->sale_price ?? 0);
+        return $this->exclusiveUnitPrice((float) ($price ?? $this->sale_price ?? 0));
+    }
+
+    /**
+     * Unit purchase price exclusive of VAT.
+     * Uses the same "Price includes VAT?" flag (sale_price_type) as sale price.
+     */
+    public function exclusivePurchaseUnitPrice(?float $price = null): float
+    {
+        return $this->exclusiveUnitPrice((float) ($price ?? $this->purchase_price ?? 0));
+    }
+
+    /**
+     * Strip VAT from a unit price when the product is marked inclusive.
+     */
+    public function exclusiveUnitPrice(float $price): float
+    {
         if ($price <= 0 || ! $this->isSalePriceInclusive()) {
             return round($price, 2);
         }
@@ -147,7 +163,8 @@ class ProductService extends Model
             'variants' => $this->variants->map(function ($v) use ($priceField) {
                 $saleRaw = $v->sale_price !== null ? (float) $v->sale_price : null;
                 $sale = $saleRaw !== null ? $this->exclusiveSaleUnitPrice($saleRaw) : null;
-                $purchase = $v->purchase_price !== null ? (float) $v->purchase_price : null;
+                $purchaseRaw = $v->purchase_price !== null ? (float) $v->purchase_price : null;
+                $purchase = $purchaseRaw !== null ? $this->exclusivePurchaseUnitPrice($purchaseRaw) : null;
                 $price = $priceField === 'purchase_price' ? $purchase : $sale;
 
                 return [
@@ -206,7 +223,9 @@ class ProductService extends Model
         foreach($taxArr as $tax)
         {
             $tax     = Tax::find($tax);
-            $taxRate += $tax->rate;
+            if ($tax) {
+                $taxRate += $tax->rate;
+            }
         }
 
         return $taxRate;

@@ -455,6 +455,7 @@
                                             @endphp
                                             <div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="{{ $id }}" id="product-id-{{ $id }}"
                                                 data-name="{{ e($details['name']) }}" data-price="{{ $details['price'] }}"
+                                                data-price-type="{{ $details['price_type'] ?? 'exclusive' }}"
                                                 data-quantity="{{ $details['quantity'] }}" data-tax="{{ $details['tax'] ?? 0 }}"
                                                 data-subtotal="{{ $details['subtotal'] }}" data-discount="{{ $details['discount'] ?? 0 }}"
                                                 data-netprice="{{ $details['netPrice'] ?? $details['subtotal'] }}">
@@ -965,7 +966,13 @@
                 var qty = parseInt($(this).find('input.input-number').val() || 1, 10);
                 var price = parseFloat($(this).attr('data-price')) || 0;
                 var tax = parseFloat($(this).attr('data-tax')) || 0;
-                var subtotal = price * qty;
+                var priceType = ($(this).attr('data-price-type') || 'exclusive').toLowerCase();
+                var subtotal;
+                if (priceType === 'inclusive' && tax > 0) {
+                    subtotal = price * qty;
+                } else {
+                    subtotal = (price + price * tax / 100) * qty;
+                }
                 var discount = parseFloat($(this).attr('data-discount')) || 0;
                 var netPrice = subtotal - discount;
                 cart[id] = {
@@ -977,6 +984,7 @@
                     subtotal: subtotal,
                     discount: discount,
                     netPrice: netPrice,
+                    price_type: priceType,
                     measurement_json: decodeURIComponent($(this).attr('data-measurement-json') || '')
                 };
             });
@@ -1107,9 +1115,17 @@
                             var qty = parseInt($(this).find('input.input-number').val() || 1, 10);
                             var price = parseFloat($(this).attr('data-price')) || 0;
                             var tax = parseFloat($(this).attr('data-tax')) || 0;
-                            var lineSubtotal = (price + price * tax / 100) * qty;
+                            var priceType = ($(this).attr('data-price-type') || 'exclusive').toLowerCase();
+                            var lineSubtotal, lineTax;
+                            if (priceType === 'inclusive' && tax > 0) {
+                                lineSubtotal = price * qty;
+                                lineTax = lineSubtotal - (lineSubtotal / (1 + tax / 100));
+                            } else {
+                                lineTax = price * qty * tax / 100;
+                                lineSubtotal = (price + price * tax / 100) * qty;
+                            }
                             subTotalInclTax += lineSubtotal;
-                            taxTotal += price * qty * tax / 100;
+                            taxTotal += lineTax;
                             itemsCount += qty;
                         });
                         var discount = parseFloat($('#discount_hidden').val()) || 0;
@@ -1242,10 +1258,18 @@
                         var qty = parseInt($(this).find('input.input-number').val() || 1, 10);
                         var price = parseFloat($(this).attr('data-price')) || 0;
                         var tax = parseFloat($(this).attr('data-tax')) || 0;
-                        var subtotal = (price + price * tax / 100) * qty;
+                        var priceType = ($(this).attr('data-price-type') || 'exclusive').toLowerCase();
+                        var subtotal;
+                        if (priceType === 'inclusive' && tax > 0) {
+                            subtotal = price * qty;
+                        } else {
+                            subtotal = (price + price * tax / 100) * qty;
+                        }
                         receiptData.subTotal += subtotal;
-                        receiptData.taxTotal += price * qty * tax / 100;
-                        receiptData.items.push({ name: name, qty: qty, price: price, tax: tax, subtotal: subtotal });
+                        receiptData.taxTotal += priceType === 'inclusive' && tax > 0
+                            ? (subtotal - (subtotal / (1 + tax / 100)))
+                            : (price * qty * tax / 100);
+                        receiptData.items.push({ name: name, qty: qty, price: price, tax: tax, subtotal: subtotal, price_type: priceType });
                     });
                     posClearCartDom();
                     posUpdatePendingBadge();
@@ -1261,7 +1285,9 @@
                     var totalTax = 0;
                     var discountPerItem = receiptData.discount > 0 && receiptData.items.length > 0 ? receiptData.discount / receiptData.items.length : 0;
                     receiptData.items.forEach(function (it) {
-                        var taxAmt = it.price * it.qty * it.tax / 100;
+                        var taxAmt = (it.price_type === 'inclusive' && it.tax > 0)
+                            ? (it.subtotal - (it.subtotal / (1 + it.tax / 100)))
+                            : (it.price * it.qty * it.tax / 100);
                         totalTax += taxAmt;
                         itemRows += '<div class="mt-2"><div class="p-0"><b>' + esc(it.name) + '</b></div>' +
                             '<div class="d-flex product-border"><div>{{ __("pos.quantity_colon") }}</div><div class="text-end ms-auto">' + it.qty + '</div></div>' +
@@ -2760,7 +2786,7 @@
                         $row.attr('data-quantity', qty).attr('data-subtotal', subtotal);
                         $row.find('.subtotal').text(addCommas(subtotal));
                     } else {
-                        var row = isRestaurant ? ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '" data-measurement-json="' + (measureData ? encodeURIComponent(JSON.stringify(measureData)) : '') + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>') : ('<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '" data-measurement-json="' + (measureData ? encodeURIComponent(JSON.stringify(measureData)) : '') + '"><div class="card-body p-2"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 min-w-0"><h6 class="mb-0 fw-bold name">' + (name.replace(/</g, '&lt;')) + '</h6></div><div class="action-btn"><a href="#" class="btn btn-sm btn-danger p-1 pos-offline-remove" data-id="' + id + '"><i class="ti ti-trash"></i></a></div></div><div class="d-flex align-items-center justify-content-between mt-2"><span class="quantity buttons_added d-inline-flex align-items-center border rounded"><input type="button" value="-" class="minus btn btn-sm btn-outline-secondary border-0 py-0"><input type="number" step="1" min="1" name="quantity" class="input-number form-control form-control-sm border-0 text-center" style="width:2.5rem;" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus btn btn-sm btn-outline-secondary border-0 py-0"></span><div class="fw-bold subtotal">' + addCommas(subtotal) + '</div></div><small class="text-muted tax">Tax: -</small></div></div>');
+                        var row = isRestaurant ? ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-price-type="exclusive" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '" data-measurement-json="' + (measureData ? encodeURIComponent(JSON.stringify(measureData)) : '') + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>') : ('<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-price-type="exclusive" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '" data-measurement-json="' + (measureData ? encodeURIComponent(JSON.stringify(measureData)) : '') + '"><div class="card-body p-2"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 min-w-0"><h6 class="mb-0 fw-bold name">' + (name.replace(/</g, '&lt;')) + '</h6></div><div class="action-btn"><a href="#" class="btn btn-sm btn-danger p-1 pos-offline-remove" data-id="' + id + '"><i class="ti ti-trash"></i></a></div></div><div class="d-flex align-items-center justify-content-between mt-2"><span class="quantity buttons_added d-inline-flex align-items-center border rounded"><input type="button" value="-" class="minus btn btn-sm btn-outline-secondary border-0 py-0"><input type="number" step="1" min="1" name="quantity" class="input-number form-control form-control-sm border-0 text-center" style="width:2.5rem;" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus btn btn-sm btn-outline-secondary border-0 py-0"></span><div class="fw-bold subtotal">' + addCommas(subtotal) + '</div></div><small class="text-muted tax">Tax: -</small></div></div>');
                         $(tbodySel + ' .no-found').addClass('d-none');
                         $(tbodySel).append(row);
                         if (!isRestaurant) {
@@ -2935,8 +2961,14 @@
                     if ($row.length && quantity > 0) {
                         var price = parseFloat($row.attr('data-price')) || 0;
                         var taxRate = parseFloat($row.attr('data-tax')) || 0;
-                        var tax = price * taxRate / 100;
-                        var subtotal = (price + tax) * quantity;
+                        var priceType = ($row.attr('data-price-type') || 'exclusive').toLowerCase();
+                        var subtotal;
+                        if (priceType === 'inclusive' && taxRate > 0) {
+                            subtotal = price * quantity;
+                        } else {
+                            var tax = price * taxRate / 100;
+                            subtotal = (price + tax) * quantity;
+                        }
                         $row.attr('data-subtotal', subtotal);
                         $row.find('.subtotal').text(addCommas(subtotal));
                         var total = 0;
@@ -3184,7 +3216,12 @@
                         var p = parseFloat($(this).attr('data-price')) || 0;
                         var t = parseFloat($(this).attr('data-tax')) || 0;
                         var q = parseInt($(this).find('input.input-number').val() || 1, 10);
-                        subtotal += (p + p * t / 100) * q;
+                        var pt = ($(this).attr('data-price-type') || 'exclusive').toLowerCase();
+                        if (pt === 'inclusive' && t > 0) {
+                            subtotal += p * q;
+                        } else {
+                            subtotal += (p + p * t / 100) * q;
+                        }
                     });
                     var total = Math.max(0, subtotal - discount);
                     $('.totalamount').text(addCommas(total));

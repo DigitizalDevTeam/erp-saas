@@ -279,12 +279,14 @@ class PurchaseProformaController extends Controller
         $data['unit'] = ! empty($product->unit) ? $product->unit->name : '';
         $data['taxRate'] = $taxRate = ! empty($product->tax_id) ? $product->taxRate($product->tax_id) : 0;
         $data['taxes'] = ! empty($product->tax_id) ? $product->tax($product->tax_id) : 0;
-        $salePrice = $product->purchase_price;
+        $unitPrice = $product->exclusivePurchaseUnitPrice();
         $quantity = 1;
-        $data['totalAmount'] = ($salePrice * $quantity);
+        $data['totalAmount'] = ($unitPrice * $quantity);
         $data['productquantity'] = $product->getQuantity();
+        $data['sale_price_type'] = $product->sale_price_type ?? 'exclusive';
         $data['product'] = [
-            'sale_price' => $product->purchase_price,
+            'sale_price' => $unitPrice,
+            'purchase_price' => $unitPrice,
             'description' => $product->description ?? '',
         ];
 

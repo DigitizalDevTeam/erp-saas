@@ -107,10 +107,13 @@ class ProposalController extends Controller
 
         $data['taxes'] = !empty($product->tax_id) ? $product->tax($product->tax_id) : 0;
 
-        $salePrice           = $product->sale_price;
+        // Documents always store exclusive unit price and add VAT on top
+        $salePrice = $product->exclusiveSaleUnitPrice();
+        $product->sale_price = $salePrice;
         $quantity            = 1;
         $taxPrice            = ($taxRate / 100) * ($salePrice * $quantity);
         $data['totalAmount'] = ($salePrice * $quantity);
+        $data['sale_price_type'] = $product->sale_price_type ?? 'exclusive';
 
         $data = array_merge($data, \App\Services\ProductOptionService::productJsonExtras($product));
 

@@ -31,6 +31,7 @@
     id="{{ $rowId }}"
     data-name="{{ $lineName }}"
     data-price="{{ $line->price ?? 0 }}"
+    data-price-type="{{ $line->price_type ?? 'exclusive' }}"
     data-quantity="{{ $qty }}"
     data-tax="{{ $line->tax ?? 0 }}"
     data-subtotal="{{ $subtotal }}"

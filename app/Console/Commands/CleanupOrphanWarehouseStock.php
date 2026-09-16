@@ -95,7 +95,7 @@ class CleanupOrphanWarehouseStock extends Command
                         (int) $transfer->id,
                         (int) $transfer->created_by
                     );
-                    $transfer->delete();
+                    // Keep warehouse_transfers row for audit history.
                     $audits++;
                 }
                 $reversed++;

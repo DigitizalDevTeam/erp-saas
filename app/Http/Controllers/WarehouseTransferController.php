@@ -166,6 +166,9 @@ class WarehouseTransferController extends Controller
         try {
             DB::transaction(function () use ($request, $lines, $batchId, $fromId, $toId) {
                 $transferDate = $request->date ?: date('Y-m-d');
+                $fromName = warehouse::find($fromId)->name ?? ('#' . $fromId);
+                $toName = warehouse::find($toId)->name ?? ('#' . $toId);
+
                 foreach ($lines as $line) {
                     $fromWarehouse = WarehouseProduct::where('warehouse_id', $fromId)
                         ->where('product_id', $line['product_id'])
@@ -190,6 +193,22 @@ class WarehouseTransferController extends Controller
                         $toId,
                         $line['product_id'],
                         $line['quantity']
+                    );
+
+                    $route = $fromName . ' → ' . $toName;
+                    Utility::addProductStock(
+                        $line['product_id'],
+                        $line['quantity'],
+                        'transfer_out',
+                        __('Transfer out') . ': ' . $route,
+                        $warehouse_transfer->id
+                    );
+                    Utility::addProductStock(
+                        $line['product_id'],
+                        $line['quantity'],
+                        'transfer_in',
+                        __('Transfer in') . ': ' . $route,
+                        $warehouse_transfer->id
                     );
                 }
             });
@@ -216,7 +235,27 @@ class WarehouseTransferController extends Controller
         }
 
         if ($warehouseTransfer->created_by == \Auth::user()->creatorId()) {
+            $warehouseTransfer->load(['fromWarehouse', 'toWarehouse']);
+            $fromName = $warehouseTransfer->fromWarehouse->name ?? ('#' . $warehouseTransfer->from_warehouse);
+            $toName = $warehouseTransfer->toWarehouse->name ?? ('#' . $warehouseTransfer->to_warehouse);
+            $route = $fromName . ' → ' . $toName;
+
             Utility::warehouse_transfer_qty($warehouseTransfer->to_warehouse, $warehouseTransfer->from_warehouse, $warehouseTransfer->product_id, $warehouseTransfer->quantity, 'delete');
+
+            Utility::addProductStock(
+                $warehouseTransfer->product_id,
+                $warehouseTransfer->quantity,
+                'transfer_reversal_in',
+                __('Transfer cancelled') . ' — ' . __('Transfer in reversed') . ': ' . $route,
+                $warehouseTransfer->id
+            );
+            Utility::addProductStock(
+                $warehouseTransfer->product_id,
+                $warehouseTransfer->quantity,
+                'transfer_reversal_out',
+                __('Transfer cancelled') . ' — ' . __('Transfer out reversed') . ': ' . $route,
+                $warehouseTransfer->id
+            );
 
             $warehouseTransfer->delete();
 

@@ -76,9 +76,8 @@ class Quotation extends Model
 
             $productname = $product->name;
 
-
-            $productprice = $product->sale_price != 0 ? $product->sale_price : 0;
-
+            // Cart/POS always use exclusive unit price and add VAT on top
+            $productprice = $product->sale_price != 0 ? $product->exclusiveSaleUnitPrice() : 0;
 
             $originalquantity = (int) $productquantity;
 
@@ -131,6 +130,7 @@ class Quotation extends Model
                         "originalquantity" => $originalquantity,
                         "product_tax" => $product_tax,
                         "product_tax_id" => !empty($product_tax_id) ? implode(',', $product_tax_id) : 0,
+                        "price_type" => 'exclusive',
                     ],
                 ];
 
@@ -209,6 +209,8 @@ class Quotation extends Model
                 "id" => $id,
                 "originalquantity" => $originalquantity,
                 "product_tax" => $product_tax,
+                "product_tax_id" => !empty($product_tax_id) ? implode(',', $product_tax_id) : 0,
+                "price_type" => 'exclusive',
             ];
 
             if ($originalquantity < $cart[$id]['quantity'] && $session_key == 'pos') {

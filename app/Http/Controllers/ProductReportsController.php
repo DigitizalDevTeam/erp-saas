@@ -1710,7 +1710,7 @@ class ProductReportsController extends Controller
         }
         if ($request->filled('movement_type')) {
             if ($request->movement_type === 'transfer') {
-                $stockQuery->whereRaw('1 = 0');
+                $stockQuery->whereIn('type', ['transfer', 'transfer_in', 'transfer_out', 'transfer_reversal_in', 'transfer_reversal_out']);
             } else {
                 $stockQuery->where('type', $request->movement_type);
             }
@@ -1745,10 +1745,10 @@ class ProductReportsController extends Controller
             $wtQuery->where('product_id', (int) $request->product_id);
         }
         if ($request->filled('date_from')) {
-            $wtQuery->whereDate('date', '>=', $request->date_from);
+            $wtQuery->whereRaw('COALESCE(date, DATE(created_at)) >= ?', [$request->date_from]);
         }
         if ($request->filled('date_to')) {
-            $wtQuery->whereDate('date', '<=', $request->date_to);
+            $wtQuery->whereRaw('COALESCE(date, DATE(created_at)) <= ?', [$request->date_to]);
         }
         if ($request->filled('movement_type')) {
             if ($request->movement_type !== 'transfer') {
@@ -1756,7 +1756,15 @@ class ProductReportsController extends Controller
             }
         }
 
-        foreach ($wtQuery->orderByDesc('date')->orderByDesc('id')->limit(2000)->get() as $wt) {
+        $ledgerTransferIds = StockReport::where('created_by', $creatorId)
+            ->whereIn('type', ['transfer_in', 'transfer_out'])
+            ->where('type_id', '>', 0)
+            ->pluck('type_id')
+            ->unique()
+            ->all();
+
+        foreach ($wtQuery->when($ledgerTransferIds !== [], fn ($q) => $q->whereNotIn('id', $ledgerTransferIds))
+            ->orderByDesc('date')->orderByDesc('id')->limit(2000)->get() as $wt) {
             $name = $this->formatProductLabel($wt->product, $wt->product_id);
             $date = $wt->date ? Carbon::parse($wt->date)->startOfDay() : $wt->created_at;
             $qty = (float) $wt->quantity;
@@ -1812,7 +1820,7 @@ class ProductReportsController extends Controller
 
     protected function stockDirection(string $type): string
     {
-        $in = ['purchase', 'bill', 'manually'];
+        $in = ['purchase', 'bill', 'manually', 'transfer_in', 'transfer_reversal_in'];
 
         return in_array($type, $in, true) ? 'in' : 'out';
     }

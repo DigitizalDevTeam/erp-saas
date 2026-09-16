@@ -693,10 +693,13 @@ class BillController extends Controller
         $data['unit']        = !empty($product->unit) ? $product->unit->name : '';
         $data['taxRate']     = $taxRate = !empty($product->tax_id) ? $product->taxRate($product->tax_id) : 0;
         $data['taxes']       = !empty($product->tax_id) ? $product->tax($product->tax_id) : 0;
-        $salePrice           = $product->purchase_price;
+        // Documents always store exclusive unit price and add VAT on top (same as POS / Sales)
+        $unitPrice           = $product->exclusivePurchaseUnitPrice();
+        $product->purchase_price = $unitPrice;
         $quantity            = 1;
-        $taxPrice            = ($taxRate / 100) * ($salePrice * $quantity);
-        $data['totalAmount'] = ($salePrice * $quantity);
+        $taxPrice            = ($taxRate / 100) * ($unitPrice * $quantity);
+        $data['totalAmount'] = ($unitPrice * $quantity);
+        $data['sale_price_type'] = $product->sale_price_type ?? 'exclusive';
 
         $data = array_merge($data, \App\Services\ProductOptionService::productJsonExtras($product));
 

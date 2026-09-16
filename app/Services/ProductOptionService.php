@@ -100,7 +100,7 @@ class ProductOptionService
                 'name' => $op->name,
                 'sku' => $op->sku,
                 'sale_price' => $op->exclusiveSaleUnitPrice(),
-                'purchase_price' => (float) ($op->purchase_price ?? 0),
+                'purchase_price' => $op->exclusivePurchaseUnitPrice(),
                 'option_group' => $item->option_group ? (string) $item->option_group : null,
                 'is_required' => (bool) ($item->is_required ?? false),
             ];
@@ -205,7 +205,7 @@ class ProductOptionService
             $price = isset($row['price'])
                 ? round((float) $row['price'], 2)
                 : ($forPurchase
-                    ? round((float) ($opt->purchase_price ?? 0), 2)
+                    ? $opt->exclusivePurchaseUnitPrice()
                     : $opt->exclusiveSaleUnitPrice());
             $validated[] = [
                 'product_id' => $optId,
@@ -223,7 +223,7 @@ class ProductOptionService
     public static function calculateUnitPrice(ProductService $parent, array $selected, bool $forPurchase = false): float
     {
         $base = $forPurchase
-            ? (float) ($parent->purchase_price ?? 0)
+            ? $parent->exclusivePurchaseUnitPrice()
             : $parent->exclusiveSaleUnitPrice();
 
         $sum = 0.0;
@@ -236,7 +236,7 @@ class ProductOptionService
                 $opt = ProductService::find($optId);
                 if ($opt) {
                     $p = $forPurchase
-                        ? (float) ($opt->purchase_price ?? 0)
+                        ? $opt->exclusivePurchaseUnitPrice()
                         : $opt->exclusiveSaleUnitPrice();
                     $sum += $p * $optQty;
                 }
