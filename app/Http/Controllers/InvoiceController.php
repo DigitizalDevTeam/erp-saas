@@ -25,6 +25,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Utility;
 use App\Models\TransactionLines;
+use App\Models\DocumentLayout;
 use App\Services\DocumentVoidService;
 use App\Services\DocumentLayoutRenderer;
 use App\Services\Accounting\DocumentLedgerService;
@@ -322,10 +323,10 @@ class InvoiceController extends Controller
                         $invoiceProduct->product_variant_id = ! empty($products[$i]['product_variant_id'])
                             ? (int) $products[$i]['product_variant_id']
                             : null;
-                        $invoiceProduct->quantity = $products[$i]['quantity'];
+                        $invoiceProduct->quantity = \App\Support\MoneyAmount::parse($products[$i]['quantity'] ?? 0);
                         $invoiceProduct->tax = $products[$i]['tax'];
-                        $invoiceProduct->discount = $products[$i]['discount'];
-                        $invoiceProduct->price = $products[$i]['price'];
+                        $invoiceProduct->discount = \App\Support\MoneyAmount::parse($products[$i]['discount'] ?? 0);
+                        $invoiceProduct->price = \App\Support\MoneyAmount::parse($products[$i]['price'] ?? 0);
                         $invoiceProduct->description = $products[$i]['description'];
                         $invoiceProduct->identifiers = $products[$i]['identifiers'] ?? null;
                         $invoiceProduct->measurement_json = $products[$i]['measurement_json'] ?? null;
@@ -531,7 +532,9 @@ class InvoiceController extends Controller
 
                     }
 
-                    $updatePrice += ($products[$i]['price'] * $products[$i]['quantity']) + ($products[$i]['itemTaxPrice']) - ($products[$i]['discount']);
+                    $updatePrice += (\App\Support\MoneyAmount::parse($products[$i]['price'] ?? 0) * \App\Support\MoneyAmount::parse($products[$i]['quantity'] ?? 0))
+                        + \App\Support\MoneyAmount::parse($products[$i]['itemTaxPrice'] ?? 0)
+                        - \App\Support\MoneyAmount::parse($products[$i]['discount'] ?? 0);
 
 
 
@@ -540,10 +543,10 @@ class InvoiceController extends Controller
                         $invoiceProduct->product_id = $products[$i]['item'];
                     }
 
-                    $invoiceProduct->quantity = $products[$i]['quantity'];
+                    $invoiceProduct->quantity = \App\Support\MoneyAmount::parse($products[$i]['quantity'] ?? 0);
                     $invoiceProduct->tax = $products[$i]['tax'];
-                    $invoiceProduct->discount = $products[$i]['discount'];
-                    $invoiceProduct->price = $products[$i]['price'];
+                    $invoiceProduct->discount = \App\Support\MoneyAmount::parse($products[$i]['discount'] ?? 0);
+                    $invoiceProduct->price = \App\Support\MoneyAmount::parse($products[$i]['price'] ?? 0);
                     $invoiceProduct->description = $products[$i]['description'];
                     $invoiceProduct->product_variant_id = ! empty($products[$i]['product_variant_id'])
                         ? (int) $products[$i]['product_variant_id']
@@ -1381,6 +1384,24 @@ class InvoiceController extends Controller
             $img = asset($logo . '/' . (isset($company_logo) && !empty($company_logo) ? $company_logo : 'logo-dark.png'));
         }
 
+        if (
+            ! request()->boolean('layout_canvas')
+            && (str_starts_with((string) $template, 'layout_') || DocumentLayout::forPrintKey('invoice', (int) $objUser->creatorId(), (string) $template))
+        ) {
+            $custom = DocumentLayoutRenderer::tryRenderByTemplateKey('invoice', (string) $template, $invoice, [
+                'settings' => $settings,
+                'color' => $color,
+                'font_color' => $font_color,
+                'img' => $img,
+                'party' => $customer,
+                'preview' => true,
+                'created_by' => $objUser->creatorId(),
+            ]);
+            if ($custom) {
+                return $custom;
+            }
+        }
+
         return view('invoice.templates.' . $template, compact('invoice', 'preview', 'color', 'img', 'settings', 'customer', 'font_color', 'customFields'));
     }
 
@@ -1480,17 +1501,6 @@ class InvoiceController extends Controller
             $color = '#' . $settings['invoice_color'];
             $font_color = Utility::getFontColor($color);
 
-            $custom = \App\Services\UtharaPrintRenderer::tryRenderFactura('invoice', $invoice, [
-                'settings' => $settings,
-                'color' => $color,
-                'font_color' => $font_color,
-                'img' => $img,
-                'party' => $customer,
-            ]);
-            if ($custom) {
-                return $custom;
-            }
-
             $custom = DocumentLayoutRenderer::tryRender('invoice', $invoice, [
                 'settings' => $settings,
                 'color' => $color,
@@ -1514,6 +1524,11 @@ class InvoiceController extends Controller
 
         $post = $request->all();
         unset($post['_token']);
+
+        if (isset($post['invoice_layout_size'])) {
+            $size = strtolower((string) $post['invoice_layout_size']);
+            $post['invoice_layout_size'] = in_array($size, ['a4', 'a5'], true) ? $size : 'a4';
+        }
 
         if (isset($post['invoice_template']) && (!isset($post['invoice_color']) || empty($post['invoice_color']))) {
             $post['invoice_color'] = "ffffff";

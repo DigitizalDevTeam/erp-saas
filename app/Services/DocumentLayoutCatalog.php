@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Utility;
+
 class DocumentLayoutCatalog
 {
     public static function documentTypes(): array
@@ -15,9 +17,6 @@ class DocumentLayoutCatalog
         ];
     }
 
-    /**
-     * Fixed UTHARA Mozambique print pack labels (not drag-drop designer).
-     */
     public static function utharaPresets(): array
     {
         return [
@@ -29,10 +28,154 @@ class DocumentLayoutCatalog
     }
 
     /**
-     * Predefined blocks available in the designer.
-     *
-     * @return array<string, array{label: string, description: string, default_w: int, default_h: int}>
+     * @return array{templates: array<string, string>, template_sizes: array<string, string>}
      */
+    public static function printTemplatesForType(string $documentType): array
+    {
+        $data = Utility::templateData(false);
+        $templates = $data['templates'] ?? [];
+        $sizes = $data['template_sizes'] ?? [];
+
+        $builtIn = [];
+        foreach ($templates as $key => $label) {
+            if (str_starts_with((string) $key, 'layout_')) {
+                continue;
+            }
+            $builtIn[$key] = $label;
+        }
+
+        return [
+            'templates' => $builtIn,
+            'template_sizes' => array_intersect_key($sizes, $builtIn),
+        ];
+    }
+
+    /**
+     * @return array{width: int, height: int}
+     */
+    public static function pageSizeForTemplate(string $templateKey): array
+    {
+        $data = Utility::templateData(false);
+        $size = strtolower((string) (($data['template_sizes'][$templateKey] ?? 'a4')));
+
+        if ($size === 'a5' || $templateKey === 'template13') {
+            return ['width' => 559, 'height' => 794];
+        }
+
+        return ['width' => 794, 'height' => 1123];
+    }
+
+    /**
+     * Alias used by designer — always template-specific.
+     */
+    public static function regionMapForTemplate(string $templateKey): array
+    {
+        return self::presetElementsForTemplate($templateKey);
+    }
+
+    public static function presetElementsForTemplate(string $templateKey): array
+    {
+        return match ($templateKey) {
+            'template1' => self::cityPreset(1, 20, 20, 'left'),
+            'template2' => self::cityPreset(2, 40, 30, 'right'),
+            'template3' => self::cityPreset(3, 16, 24, 'center'),
+            'template4' => self::cityPreset(4, 28, 18, 'left'),
+            'template5' => self::cityPreset(5, 36, 40, 'right'),
+            'template6' => self::cityPreset(6, 22, 28, 'left'),
+            'template7' => self::cityPreset(7, 44, 22, 'center'),
+            'template8' => self::cityPreset(8, 18, 36, 'right'),
+            'template9' => self::cityPreset(9, 32, 16, 'left'),
+            'template10' => self::cityPreset(10, 26, 32, 'center'),
+            'template11' => self::mozambiqueLayoutElements(),
+            'template12' => self::mozambiqueStandardA4Elements(),
+            'template13' => self::mozambiqueStandardA5Elements(),
+            default => self::defaultElements(),
+        };
+    }
+
+    /**
+     * Distinct city-template region maps (offsets differ so Template A ≠ Template B).
+     *
+     * @param  'left'|'right'|'center'  $metaSide
+     */
+    protected static function cityPreset(int $seed, int $ox, int $oy, string $metaSide): array
+    {
+        $bankFields = array_keys(self::bankFieldOptions());
+        $pageW = 794;
+        $logoW = 140 + ($seed % 3) * 10;
+        $metaW = 220 + ($seed % 4) * 8;
+
+        if ($metaSide === 'right') {
+            $logoX = 24 + $ox;
+            $headerX = $logoX + $logoW + 16;
+            $metaX = $pageW - 24 - $metaW - $ox;
+            $headerW = max(200, $metaX - $headerX - 16);
+        } elseif ($metaSide === 'center') {
+            $metaX = (int) (($pageW - $metaW) / 2);
+            $logoX = 24 + $ox;
+            $headerX = $logoX + $logoW + 12;
+            $headerW = max(180, $metaX - $headerX - 12);
+        } else {
+            $logoX = 24 + $ox;
+            $headerX = $logoX + $logoW + 16;
+            $metaX = $pageW - 24 - $metaW;
+            $headerW = max(200, $metaX - $headerX - 16);
+        }
+
+        $partyY = 120 + $oy;
+        $itemsY = $partyY + 130;
+        $taxY = $itemsY + 300;
+        $bankY = $taxY + 120;
+        $notesY = $bankY + 140;
+        $footerY = min(1040, $notesY + 90);
+
+        return [
+            self::el('logo', $logoX, 20 + (int) ($oy / 2), $logoW, 65),
+            self::el('company_header', $headerX, 20 + (int) ($oy / 2), $headerW, 80),
+            self::el('document_meta', $metaX, 20 + (int) ($oy / 2), $metaW, 100),
+            self::el('party', 24 + $ox, $partyY, 420 + ($seed % 5) * 10, 110),
+            self::el('totals', 500 + ($seed % 3) * 8, $partyY, 270, 110),
+            self::el('line_items', 24 + (int) ($ox / 2), $itemsY, 746 - $ox, 280),
+            self::el('tax_breakdown', 24 + $ox, $taxY, 320, 100),
+            self::el('bank_accounts', 24 + $ox, $bankY, 440, 120, true, [
+                'limit' => 2,
+                'fields' => $bankFields,
+                'custom_text' => '',
+            ]),
+            self::el('qr_code', 520 + ($seed % 4) * 10, $bankY, 100, 100),
+            self::el('notes', 24 + $ox, $notesY, 380, 70),
+            self::el('footer', 24, $footerY, 746, 50),
+        ];
+    }
+
+    public static function mozambiqueLayoutElements(): array
+    {
+        $bankFields = array_keys(self::bankFieldOptions());
+
+        return [
+            self::el('logo', 24, 20, 140, 70),
+            self::el('company_header', 180, 20, 340, 80),
+            self::el('document_meta', 540, 20, 230, 100),
+            self::el('party', 24, 130, 500, 120),
+            self::el('totals', 540, 130, 230, 110),
+            self::el('line_items', 24, 270, 746, 280),
+            self::el('tax_breakdown', 24, 570, 340, 100),
+            self::el('bank_accounts', 24, 690, 460, 130, true, [
+                'limit' => 2,
+                'fields' => $bankFields,
+                'custom_text' => '',
+            ]),
+            self::el('qr_code', 520, 690, 100, 100),
+            self::el('notes', 24, 840, 400, 70),
+            self::el('footer', 24, 940, 746, 50),
+        ];
+    }
+
+    public static function isMozambiqueTheme(?string $templateKey): bool
+    {
+        return in_array((string) $templateKey, ['template11', 'template12', 'template13'], true);
+    }
+
     public static function blocks(): array
     {
         return [
@@ -116,28 +259,54 @@ class DocumentLayoutCatalog
         ];
     }
 
-    /**
-     * Default Mozambique-like layout elements for a new layout.
-     */
     public static function defaultElements(): array
+    {
+        return self::cityPreset(0, 30, 30, 'left');
+    }
+
+    public static function mozambiqueStandardA4Elements(): array
     {
         $bankFields = array_keys(self::bankFieldOptions());
 
         return [
-            self::el('logo', 30, 30, 150, 60),
-            self::el('company_header', 200, 30, 360, 80),
-            self::el('document_meta', 500, 30, 260, 100),
-            self::el('party', 30, 130, 360, 110),
-            self::el('line_items', 30, 260, 734, 300),
-            self::el('tax_breakdown', 30, 580, 300, 100),
-            self::el('totals', 480, 580, 284, 130),
-            self::el('bank_accounts', 30, 730, 460, 130, true, [
+            self::el('logo', 30, 30, 180, 70),
+            self::el('company_header', 220, 30, 300, 90),
+            self::el('document_meta', 540, 30, 224, 100),
+            self::el('party', 30, 140, 400, 120),
+            self::el('line_items', 30, 280, 734, 280),
+            self::el('tax_breakdown', 30, 580, 320, 110),
+            self::el('totals', 460, 580, 304, 140),
+            self::el('bank_accounts', 30, 740, 480, 120, true, [
                 'limit' => 2,
                 'fields' => $bankFields,
+                'custom_text' => '',
             ]),
-            self::el('qr_code', 540, 730, 100, 100),
-            self::el('notes', 30, 880, 400, 80),
+            self::el('qr_code', 540, 740, 100, 100),
+            self::el('notes', 30, 880, 420, 70),
             self::el('footer', 30, 1040, 734, 50),
+        ];
+    }
+
+    public static function mozambiqueStandardA5Elements(): array
+    {
+        $bankFields = array_keys(self::bankFieldOptions());
+
+        return [
+            self::el('logo', 16, 16, 120, 50),
+            self::el('company_header', 146, 16, 200, 60),
+            self::el('document_meta', 360, 16, 180, 70),
+            self::el('party', 16, 90, 250, 90),
+            self::el('line_items', 16, 190, 527, 220),
+            self::el('tax_breakdown', 16, 420, 240, 80),
+            self::el('totals', 280, 420, 263, 100),
+            self::el('bank_accounts', 16, 540, 340, 90, true, [
+                'limit' => 2,
+                'fields' => $bankFields,
+                'custom_text' => '',
+            ]),
+            self::el('qr_code', 380, 540, 80, 80),
+            self::el('notes', 16, 640, 300, 60),
+            self::el('footer', 16, 720, 527, 40),
         ];
     }
 
@@ -151,7 +320,7 @@ class DocumentLayoutCatalog
         array $options = []
     ): array {
         return [
-            'id' => $key . '_' . substr(md5($key . $x . $y), 0, 8),
+            'id' => $key . '_' . substr(md5($key . $x . $y . $w), 0, 8),
             'key' => $key,
             'x' => $x,
             'y' => $y,

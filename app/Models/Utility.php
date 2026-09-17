@@ -298,6 +298,9 @@ namespace App\Models;
                 "invoice_template" => "template11",
                 "bill_template" => "template1",
                 "proposal_template" => "template1",
+                "invoice_layout_size" => "a4",
+                "bill_layout_size" => "a4",
+                "proposal_layout_size" => "a4",
                 "qr_display" => 'on',
                 "bill_qr_display" => 'on',
                 "invoice_qr_display" => 'on',
@@ -598,6 +601,9 @@ namespace App\Models;
                 "invoice_template" => "template11",
                 "bill_template" => "template1",
                 "proposal_template" => "template1",
+                "invoice_layout_size" => "a4",
+                "bill_layout_size" => "a4",
+                "proposal_layout_size" => "a4",
                 "qr_display" => 'on',
                 "bill_qr_display" => 'on',
                 "invoice_qr_display" => 'on',
@@ -1020,7 +1026,7 @@ namespace App\Models;
             return true;
         }
 
-        public static function templateData()
+        public static function templateData(bool $includeCustomLayouts = true)
         {
             $arr = [];
             $arr['colors'] = [
@@ -1067,7 +1073,58 @@ namespace App\Models;
                 "template9" => "Sydney",
                 "template10" => "Paris",
                 "template11" => "Mozambique Layout",
+                "template12" => "Mozambique Standard",
+                "template13" => "Mozambique Standard",
             ];
+            $arr['template_sizes'] = [
+                "template1" => "a4",
+                "template2" => "a4",
+                "template3" => "a4",
+                "template4" => "a4",
+                "template5" => "a4",
+                "template6" => "a4",
+                "template7" => "a4",
+                "template8" => "a4",
+                "template9" => "a4",
+                "template10" => "a4",
+                "template11" => "a4",
+                "template12" => "a4",
+                "template13" => "a5",
+            ];
+
+            if ($includeCustomLayouts) {
+                try {
+                    $creatorId = 0;
+                    if (\Auth::check() && \Auth::user()) {
+                        $creatorId = (int) \Auth::user()->creatorId();
+                    }
+                    if ($creatorId > 0) {
+                        $builtInKeys = array_keys($arr['templates']);
+                        $layouts = \App\Models\DocumentLayout::query()
+                            ->where('created_by', $creatorId)
+                            ->whereNotNull('print_template_key')
+                            ->where('print_template_key', '!=', '')
+                            ->orderBy('name')
+                            ->get();
+                        foreach ($layouts as $layout) {
+                            $key = (string) $layout->print_template_key;
+                            // Built-in keys (template1–13) override Blade silently — do not add a second dropdown option
+                            if (in_array($key, $builtInKeys, true) || ! str_starts_with($key, 'layout_')) {
+                                continue;
+                            }
+                            $arr['templates'][$key] = $layout->name;
+                            $base = (string) ($layout->base_template ?? 'template11');
+                            $size = $arr['template_sizes'][$base] ?? 'a4';
+                            if ((int) ($layout->page_width ?? 0) > 0 && (int) $layout->page_width < 650) {
+                                $size = 'a5';
+                            }
+                            $arr['template_sizes'][$key] = $size;
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    // Keep built-in catalog if layouts table/query fails
+                }
+            }
 
             return $arr;
         }

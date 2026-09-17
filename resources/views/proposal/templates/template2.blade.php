@@ -387,6 +387,7 @@
         </div>
     </div>
 </div>
+@include('partials.print.processed_by_computer')
 @if(!isset($preview))
     @include('proposal.script');
 @endif

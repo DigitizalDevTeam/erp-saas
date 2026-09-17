@@ -889,6 +889,11 @@ class ProposalController extends Controller
         $post = $request->all();
         unset($post['_token']);
 
+        if (isset($post['proposal_layout_size'])) {
+            $size = strtolower((string) $post['proposal_layout_size']);
+            $post['proposal_layout_size'] = in_array($size, ['a4', 'a5'], true) ? $size : 'a4';
+        }
+
         if(isset($post['proposal_template']) && (!isset($post['proposal_color']) || empty($post['proposal_color'])))
         {
             $post['proposal_color'] = "ffffff";

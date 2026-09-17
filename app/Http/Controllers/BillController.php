@@ -1336,7 +1336,24 @@ class BillController extends Controller
             $img          = asset($logo . '/' . (isset($company_logo) && !empty($company_logo) ? $company_logo : 'logo-dark.png'));
         }
 
-
+        if (
+            ! request()->boolean('layout_canvas')
+            && (str_starts_with((string) $template, 'layout_') || \App\Models\DocumentLayout::forPrintKey('bill', (int) \Auth::user()->creatorId(), (string) $template))
+        ) {
+            $bill->created_by = $bill->created_by ?? \Auth::user()->creatorId();
+            $custom = DocumentLayoutRenderer::tryRenderByTemplateKey('bill', (string) $template, $bill, [
+                'settings' => $settings,
+                'color' => $color,
+                'font_color' => $font_color,
+                'img' => $img,
+                'party' => $vendor,
+                'preview' => true,
+                'created_by' => \Auth::user()->creatorId(),
+            ]);
+            if ($custom) {
+                return $custom;
+            }
+        }
 
         return view('bill.templates.' . $template, compact('bill', 'preview', 'color', 'img', 'settings', 'vendor', 'font_color', 'customFields'));
     }
@@ -1456,17 +1473,6 @@ class BillController extends Controller
             $color      = '#' . $settings['bill_color'];
             $font_color = Utility::getFontColor($color);
 
-            $custom = \App\Services\UtharaPrintRenderer::tryRenderFactura('bill', $bill, [
-                'settings' => $settings,
-                'color' => $color,
-                'font_color' => $font_color,
-                'img' => $img,
-                'party' => $vendor,
-            ]);
-            if ($custom) {
-                return $custom;
-            }
-
             $custom = DocumentLayoutRenderer::tryRender('bill', $bill, [
                 'settings' => $settings,
                 'color' => $color,
@@ -1491,6 +1497,11 @@ class BillController extends Controller
     {
         $post = $request->all();
         unset($post['_token']);
+
+        if (isset($post['bill_layout_size'])) {
+            $size = strtolower((string) $post['bill_layout_size']);
+            $post['bill_layout_size'] = in_array($size, ['a4', 'a5'], true) ? $size : 'a4';
+        }
 
         if(isset($post['bill_template']) && (!isset($post['bill_color']) || empty($post['bill_color'])))
         {

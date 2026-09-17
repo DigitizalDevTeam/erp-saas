@@ -82,19 +82,26 @@
         .sheet {
             padding: 18px 24px 14px;
         }
-        .top-grid td { vertical-align: top; }
+        .top-grid { margin-bottom: 8px; }
+        .top-grid td { vertical-align: middle; }
         .logo-box { width: 200px; }
         .logo-box img { max-width: 180px; max-height: 90px; }
+        .header-info-grid {
+            width: 100%;
+            margin: 14px 0 0;
+        }
+        .header-info-grid td { vertical-align: top; }
         .address-pill {
             display: inline-block;
             min-width: 330px;
+            max-width: 420px;
             border: 2px solid #2f2f2f;
             border-radius: 14px;
             padding: 9px 18px;
             font-size: 14px;
             line-height: 1.15;
             font-weight: 900;
-            margin-top: 2px;
+            margin-top: 0;
             text-transform: uppercase;
         }
         .invoice-title {
@@ -110,6 +117,7 @@
             text-align: left;
             width: 162px;
             min-height: 72px;
+            margin-left: auto;
             font-family: DejaVu Sans, Arial, sans-serif;
         }
         .invoice-title-box .title {
@@ -272,18 +280,8 @@
                 <td class="logo-box">
                     <img src="{{$img}}" alt="logo">
                 </td>
-                <td>
-                    <div class="address-pill">
-                        {{$settings['company_address'] ?? ''}} {{$settings['company_city'] ?? ''}}<br>
-                        {{$settings['vat_number'] ?? ''}}
-                    </div>
-                </td>
-                <td class="invoice-title">
-                    <div class="invoice-title-box">
-                        <span class="title">{{ __('Invoice') ?: 'Invoice' }}</span>
-                        <span class="inv-no">{{ __('No.') ?: 'No.' }} {{ Utility::invoiceNumberFormat($settings,$invoice->invoice_id) }}</span>
-                    </div>
-                </td>
+                <td></td>
+                <td></td>
             </tr>
         </table>
 
@@ -424,6 +422,22 @@
                             </td>
                         </tr>
                     </table>
+                    <table class="header-info-grid">
+                        <tr>
+                            <td>
+                                <div class="address-pill">
+                                    {{$settings['company_address'] ?? ''}} {{$settings['company_city'] ?? ''}}<br>
+                                    {{$settings['vat_number'] ?? ''}}
+                                </div>
+                            </td>
+                            <td class="invoice-title">
+                                <div class="invoice-title-box">
+                                    <span class="title">{{ __('Invoice') ?: 'Invoice' }}</span>
+                                    <span class="inv-no">{{ __('No.') ?: 'No.' }} {{ Utility::invoiceNumberFormat($settings,$invoice->invoice_id) }}</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
                 </td>
                 <td class="totals-box">
                     <table class="discount-chip">
@@ -506,6 +520,7 @@
         <div class="clearfix"></div>
     </div>
 </div>
+@include('partials.print.processed_by_computer')
 @if(!isset($preview))
     @include('invoice.script');
 @endif

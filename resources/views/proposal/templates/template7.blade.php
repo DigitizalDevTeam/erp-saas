@@ -420,6 +420,7 @@
                 <b>{{ $settings['footer_title'] }}</b> <br>
                 {!! $settings['footer_notes'] !!}
             </div>
+            @include('partials.print.processed_by_computer')
         </div>
     </div>
 

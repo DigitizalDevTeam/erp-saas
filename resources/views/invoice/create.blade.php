@@ -16,7 +16,43 @@
     <script>
         var INVOICE_EDIT_ID = null;
         var INVOICE_IDENTIFIERS_URL = @json(route('invoice.product.identifiers'));
+        var FLOAT_SEP = @json((\App\Models\Utility::getValByName('float_number') ?: 'comma') === 'dot' ? '.' : ',');
         var selector = "body";
+
+        /** Parse locale money input (comma or dot as decimal). */
+        function parseNum(val) {
+            if (val === null || val === undefined || val === '') return 0;
+            if (typeof val === 'number') return isNaN(val) ? 0 : val;
+            var s = String(val).trim().replace(/\s/g, '');
+            if (!s) return 0;
+            s = s.replace(/[^\d.,\-]/g, '');
+            if (!s || s === '-' || s === '.') return 0;
+            var lastComma = s.lastIndexOf(',');
+            var lastDot = s.lastIndexOf('.');
+            if (lastComma > -1 && lastDot > -1) {
+                if (lastComma > lastDot) {
+                    s = s.replace(/\./g, '').replace(',', '.');
+                } else {
+                    s = s.replace(/,/g, '');
+                }
+            } else if (lastComma > -1) {
+                s = s.replace(',', '.');
+            }
+            var n = parseFloat(s);
+            return isNaN(n) ? 0 : n;
+        }
+
+        function formatNum(n) {
+            var x = parseNum(n);
+            return x.toFixed(2).replace('.', FLOAT_SEP);
+        }
+
+        function normalizeMoneyInputs($form) {
+            $form.find('.price, .discount, .quantity').each(function () {
+                var n = parseNum($(this).val());
+                $(this).val(String(n));
+            });
+        }
         if ($(selector + " .repeater").length) {
             var $dragAndDrop = $("body .repeater tbody").sortable({
                 handle: '.sort-handler'
@@ -56,10 +92,10 @@
                         var inputs = $(".amount");
                         var subTotal = 0;
                         for (var i = 0; i < inputs.length; i++) {
-                            subTotal = parseFloat(subTotal) + parseFloat($(inputs[i]).html());
+                            subTotal = parseNum(subTotal) + parseNum($(inputs[i]).html());
                         }
-                        $('.subTotal').html(subTotal.toFixed(2));
-                        $('.totalAmount').html(subTotal.toFixed(2));
+                        $('.subTotal').html(formatNum(subTotal));
+                        $('.totalAmount').html(formatNum(subTotal));
                     }
                 },
                 ready: function (setIndexes) {
@@ -368,6 +404,7 @@
             $(this).find('#sortable-table [data-repeater-item]').each(function () {
                 invoiceSyncIdentifiersHidden($(this));
             });
+            normalizeMoneyInputs($(this));
         });
 
         $(document).on('change', '.item', function () {
@@ -397,7 +434,7 @@
 
                     function finishInvoiceLine(finalPrice, selectedJson) {
                         $(el.parent().parent().find('.quantity')).val(1);
-                        $(el.parent().parent().find('.price')).val(parseFloat(finalPrice).toFixed(2));
+                        $(el.parent().parent().find('.price')).val(formatNum(finalPrice));
                         $line.find('.selected-options-json').val(selectedJson || '');
                         $(el.parent().parent().parent().find('.pro_description')).val(item.product.description);
 
@@ -427,45 +464,39 @@
                             for (var i = 0; i < item.taxes.length; i++) {
                                 taxes += '<span class="badge bg-primary mt-1 mr-2">' + item.taxes[i].name + ' ' + '(' + item.taxes[i].rate + '%)' + '</span>';
                                 tax.push(item.taxes[i].id);
-                                totalItemTaxRate += parseFloat(item.taxes[i].rate);
+                                totalItemTaxRate += parseNum(item.taxes[i].rate);
                             }
                         }
-                        var itemTaxPrice = parseFloat((totalItemTaxRate / 100)) * parseFloat(finalPrice);
+                        var itemTaxPrice = (totalItemTaxRate / 100) * parseNum(finalPrice);
                         $(el.parent().parent().find('.itemTaxPrice')).val(itemTaxPrice.toFixed(2));
                         $(el.parent().parent().find('.itemTaxRate')).val(totalItemTaxRate.toFixed(2));
                         $(el.parent().parent().find('.taxes')).html(taxes);
                         $(el.parent().parent().find('.tax')).val(tax);
                         $(el.parent().parent().find('.unit')).html(item.unit);
-                        $(el.parent().parent().find('.discount')).val(0);
+                        $(el.parent().parent().find('.discount')).val(formatNum(0));
 
                         var totalItemPrice = 0;
                         var priceInput = $('.price');
                         for (var j = 0; j < priceInput.length; j++) {
-                            if (!isNaN(parseFloat(priceInput[j].value))) {
-                                totalItemPrice += parseFloat(priceInput[j].value);
-                            }
+                            totalItemPrice += parseNum(priceInput[j].value);
                         }
 
                         var totalItemTaxPrice = 0;
                         var itemTaxPriceInput = $('.itemTaxPrice');
                         for (var j = 0; j < itemTaxPriceInput.length; j++) {
-                            if (!isNaN(parseFloat(itemTaxPriceInput[j].value))) {
-                                totalItemTaxPrice += parseFloat(itemTaxPriceInput[j].value);
-                            }
+                            totalItemTaxPrice += parseNum(itemTaxPriceInput[j].value);
                         }
-                        $(el.parent().parent().find('.amount')).html((parseFloat(finalPrice) + itemTaxPrice).toFixed(2));
+                        $(el.parent().parent().find('.amount')).html(formatNum(parseNum(finalPrice) + itemTaxPrice));
 
                         var totalItemDiscountPrice = 0;
                         var itemDiscountPriceInput = $('.discount');
                         for (var k = 0; k < itemDiscountPriceInput.length; k++) {
-                            if (!isNaN(parseFloat(itemDiscountPriceInput[k].value))) {
-                                totalItemDiscountPrice += parseFloat(itemDiscountPriceInput[k].value);
-                            }
+                            totalItemDiscountPrice += parseNum(itemDiscountPriceInput[k].value);
                         }
 
-                        $('.subTotal').html(totalItemPrice.toFixed(2));
-                        $('.totalTax').html(totalItemTaxPrice.toFixed(2));
-                        $('.totalAmount').html((parseFloat(totalItemPrice) - parseFloat(totalItemDiscountPrice) + parseFloat(totalItemTaxPrice)).toFixed(2));
+                        $('.subTotal').html(formatNum(totalItemPrice));
+                        $('.totalTax').html(formatNum(totalItemTaxPrice));
+                        $('.totalAmount').html(formatNum(totalItemPrice - totalItemDiscountPrice + totalItemTaxPrice));
                     }
 
                     invoiceMeasurementPopup(item, $line, function (m) {
@@ -473,7 +504,7 @@
                             $(el).val('');
                             return;
                         }
-                        var basePrice = parseFloat(item.product.sale_price || 0);
+                        var basePrice = parseNum(item.product.sale_price || 0);
                         var parentPrice = m ? (basePrice * m.factor) : basePrice;
                         var itemForOpts = $.extend(true, {}, item);
                         itemForOpts.product = $.extend({}, item.product, { sale_price: parentPrice });
@@ -490,175 +521,59 @@
             });
         });
 
-        $(document).on('keyup', '.quantity', function () {
-            var quntityTotalTaxPrice = 0;
-
-            var el = $(this).parent().parent().parent().parent();
-
-            var quantity = $(this).val();
-            var price = $(el.find('.price')).val();
-            var discount = $(el.find('.discount')).val();
-            if(discount.length <= 0)
-            {
-                discount = 0 ;
+        function recalcInvoiceLineTotals($field) {
+            var el = $field.closest('[data-repeater-item]');
+            if (!el.length) {
+                el = $field.parent().parent().parent().parent();
             }
 
+            var quantity = parseNum(el.find('.quantity').val());
+            var price = parseNum(el.find('.price').val());
+            var discount = parseNum(el.find('.discount').val());
             var totalItemPrice = (quantity * price) - discount;
-
-            var amount = (totalItemPrice);
-
-
-            var totalItemTaxRate = $(el.find('.itemTaxRate')).val();
-            var itemTaxPrice = parseFloat((totalItemTaxRate / 100) * (totalItemPrice));
-            $(el.find('.itemTaxPrice')).val(itemTaxPrice.toFixed(2));
-
-            $(el.find('.amount')).html(parseFloat(itemTaxPrice)+parseFloat(amount));
+            var totalItemTaxRate = parseNum(el.find('.itemTaxRate').val());
+            var itemTaxPrice = (totalItemTaxRate / 100) * totalItemPrice;
+            el.find('.itemTaxPrice').val(itemTaxPrice.toFixed(2));
+            el.find('.amount').html(formatNum(itemTaxPrice + totalItemPrice));
 
             var totalItemTaxPrice = 0;
-            var itemTaxPriceInput = $('.itemTaxPrice');
-            for (var j = 0; j < itemTaxPriceInput.length; j++) {
-                totalItemTaxPrice += parseFloat(itemTaxPriceInput[j].value);
-            }
+            $('.itemTaxPrice').each(function () {
+                totalItemTaxPrice += parseNum(this.value);
+            });
 
-
-            var totalItemPrice = 0;
-            var inputs_quantity = $(".quantity");
-
-            var priceInput = $('.price');
-            for (var j = 0; j < priceInput.length; j++) {
-                totalItemPrice += (parseFloat(priceInput[j].value) * parseFloat(inputs_quantity[j].value));
-            }
-
-            var inputs = $(".amount");
+            var sumPrice = 0;
+            var $qtys = $('.quantity');
+            $('.price').each(function (j) {
+                sumPrice += parseNum(this.value) * parseNum($qtys[j] ? $qtys[j].value : 0);
+            });
 
             var subTotal = 0;
-            for (var i = 0; i < inputs.length; i++) {
-                subTotal = parseFloat(subTotal) + parseFloat($(inputs[i]).html());
-            }
-
-            $('.subTotal').html(totalItemPrice.toFixed(2));
-            $('.totalTax').html(totalItemTaxPrice.toFixed(2));
-
-            $('.totalAmount').html((parseFloat(subTotal)).toFixed(2));
-
-        })
-
-        $(document).on('keyup change', '.price', function () {
-            var el = $(this).parent().parent().parent().parent();
-            var price = $(this).val();
-            var quantity = $(el.find('.quantity')).val();
-
-            var discount = $(el.find('.discount')).val();
-            if(discount.length <= 0)
-            {
-                discount = 0 ;
-            }
-            var totalItemPrice = (quantity * price)-discount;
-
-            var amount = (totalItemPrice);
-
-
-            var totalItemTaxRate = $(el.find('.itemTaxRate')).val();
-            var itemTaxPrice = parseFloat((totalItemTaxRate / 100) * (totalItemPrice));
-            $(el.find('.itemTaxPrice')).val(itemTaxPrice.toFixed(2));
-
-            $(el.find('.amount')).html(parseFloat(itemTaxPrice)+parseFloat(amount));
-
-            var totalItemTaxPrice = 0;
-            var itemTaxPriceInput = $('.itemTaxPrice');
-            for (var j = 0; j < itemTaxPriceInput.length; j++) {
-                totalItemTaxPrice += parseFloat(itemTaxPriceInput[j].value);
-            }
-
-
-            var totalItemPrice = 0;
-            var inputs_quantity = $(".quantity");
-
-            var priceInput = $('.price');
-            for (var j = 0; j < priceInput.length; j++) {
-                totalItemPrice += (parseFloat(priceInput[j].value) * parseFloat(inputs_quantity[j].value));
-            }
-
-            var inputs = $(".amount");
-
-            var subTotal = 0;
-            for (var i = 0; i < inputs.length; i++) {
-                subTotal = parseFloat(subTotal) + parseFloat($(inputs[i]).html());
-            }
-
-            $('.subTotal').html(totalItemPrice.toFixed(2));
-            $('.totalTax').html(totalItemTaxPrice.toFixed(2));
-
-            $('.totalAmount').html((parseFloat(subTotal)).toFixed(2));
-
-
-        })
-
-        $(document).on('keyup change', '.discount', function () {
-            var el = $(this).parent().parent().parent();
-            var discount = $(this).val();
-            if(discount.length <= 0)
-            {
-                discount = 0 ;
-            }
-
-            var price = $(el.find('.price')).val();
-            var quantity = $(el.find('.quantity')).val();
-            var totalItemPrice = (quantity * price) - discount;
-
-
-            var amount = (totalItemPrice);
-
-
-            var totalItemTaxRate = $(el.find('.itemTaxRate')).val();
-            var itemTaxPrice = parseFloat((totalItemTaxRate / 100) * (totalItemPrice));
-            $(el.find('.itemTaxPrice')).val(itemTaxPrice.toFixed(2));
-
-            $(el.find('.amount')).html(parseFloat(itemTaxPrice)+parseFloat(amount));
-
-            var totalItemTaxPrice = 0;
-            var itemTaxPriceInput = $('.itemTaxPrice');
-            for (var j = 0; j < itemTaxPriceInput.length; j++) {
-                totalItemTaxPrice += parseFloat(itemTaxPriceInput[j].value);
-            }
-
-
-            var totalItemPrice = 0;
-            var inputs_quantity = $(".quantity");
-
-            var priceInput = $('.price');
-            for (var j = 0; j < priceInput.length; j++) {
-                totalItemPrice += (parseFloat(priceInput[j].value) * parseFloat(inputs_quantity[j].value));
-            }
-
-            var inputs = $(".amount");
-
-            var subTotal = 0;
-            for (var i = 0; i < inputs.length; i++) {
-                subTotal = parseFloat(subTotal) + parseFloat($(inputs[i]).html());
-            }
-
+            $('.amount').each(function () {
+                subTotal += parseNum($(this).html());
+            });
 
             var totalItemDiscountPrice = 0;
-            var itemDiscountPriceInput = $('.discount');
+            $('.discount').each(function () {
+                totalItemDiscountPrice += parseNum(this.value);
+            });
 
-            for (var k = 0; k < itemDiscountPriceInput.length; k++) {
-                if (!isNaN(parseFloat(itemDiscountPriceInput[k].value))) {
-                    totalItemDiscountPrice += parseFloat(itemDiscountPriceInput[k].value);
-                }
-            }
+            $('.subTotal').html(formatNum(sumPrice));
+            $('.totalTax').html(formatNum(totalItemTaxPrice));
+            $('.totalDiscount').html(formatNum(totalItemDiscountPrice));
+            $('.totalAmount').html(formatNum(subTotal));
+        }
 
+        $(document).on('keyup change', '.quantity', function () {
+            recalcInvoiceLineTotals($(this));
+        });
 
-            $('.subTotal').html(totalItemPrice.toFixed(2));
-            $('.totalTax').html(totalItemTaxPrice.toFixed(2));
+        $(document).on('keyup change', '.price', function () {
+            recalcInvoiceLineTotals($(this));
+        });
 
-            $('.totalAmount').html((parseFloat(subTotal)).toFixed(2));
-            $('.totalDiscount').html(totalItemDiscountPrice.toFixed(2));
-
-
-
-
-        })
+        $(document).on('keyup change', '.discount', function () {
+            recalcInvoiceLineTotals($(this));
+        });
 
         $(document).on('change', '.item', function () {
             $('.item option').prop('hidden', false);
@@ -871,7 +786,7 @@
                                 </td>
                                 <td>
                                     <div class="form-group price-input input-group search-form">
-                                        {{ Form::number('quantity','', array('class' => 'form-control quantity','required'=>'required','placeholder'=>__('Qty'),'required'=>'required')) }}
+                                        {{ Form::text('quantity','', array('class' => 'form-control quantity','required'=>'required','placeholder'=>__('Qty'),'inputmode'=>'decimal','autocomplete'=>'off')) }}
                                         <span class="unit input-group-text bg-transparent"></span>
                                     </div>
                                 </td>
@@ -879,13 +794,13 @@
 
                                 <td>
                                     <div class="form-group price-input input-group search-form">
-                                        {{ Form::number('price','', array('class' => 'form-control price','required'=>'required','placeholder'=>__('Price'),'required'=>'required')) }}
+                                        {{ Form::text('price','', array('class' => 'form-control price','required'=>'required','placeholder'=>__('Price'),'inputmode'=>'decimal','autocomplete'=>'off')) }}
                                         <span class="input-group-text bg-transparent">{{\Auth::user()->currencySymbol()}}</span>
                                     </div>
                                 </td>
                                 <td>
                                     <div class="form-group price-input input-group search-form">
-                                        {{ Form::number('discount','', array('class' => 'form-control discount','required'=>'required','placeholder'=>__('Discount'))) }}
+                                        {{ Form::text('discount','', array('class' => 'form-control discount','required'=>'required','placeholder'=>__('Discount'),'inputmode'=>'decimal','autocomplete'=>'off')) }}
                                         <span class="input-group-text bg-transparent">{{\Auth::user()->currencySymbol()}}</span>
                                     </div>
                                 </td>

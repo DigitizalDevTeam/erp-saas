@@ -1,9 +1,12 @@
 @php
     $pageW = (int) ($layout->page_width ?: 794);
     $pageH = (int) ($layout->page_height ?: 1123);
-    $elements = collect($layout->elements ?: [])->filter(fn ($e) => !empty($e['visible']));
-    $color = $payload['color'] ?? '#6fd943';
+    $elements = collect($layout->elements ?: [])->filter(fn ($e) => ($e['visible'] ?? true) !== false);
+    $color = $payload['color'] ?? '#f9b034';
     $settings = $payload['settings'] ?? [];
+    $baseTemplate = (string) ($layout->base_template ?? '');
+    $isMoz = \App\Services\DocumentLayoutCatalog::isMozambiqueTheme($baseTemplate);
+    $themeClass = $isMoz ? 'dl-theme-mozambique' : 'dl-theme-default';
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -49,11 +52,72 @@
             background: #fff;
             z-index: 20;
         }
+
+        /* Mozambique Layout theme (template11 / Standard) */
+        .dl-theme-mozambique .dl-company-box {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 8px 10px;
+            background: #fafafa;
+        }
+        .dl-theme-mozambique .dl-doc-badge {
+            background: {{ $color }};
+            color: #fff;
+            border-radius: 6px;
+            padding: 10px 12px;
+            text-align: center;
+        }
+        .dl-theme-mozambique .dl-doc-badge h4 {
+            color: #fff !important;
+            font-size: 18px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin: 0 0 6px;
+        }
+        .dl-theme-mozambique .dl-doc-badge .dl-doc-num {
+            font-weight: 700;
+            font-size: 13px;
+        }
+        .dl-theme-mozambique .dl-party-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .dl-theme-mozambique .dl-party-col h4 {
+            text-transform: uppercase;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+        .dl-theme-mozambique .dl-due-box {
+            text-align: right;
+        }
+        .dl-theme-mozambique .dl-due-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .dl-theme-mozambique .dl-due-amount {
+            font-size: 22px;
+            font-weight: 800;
+            color: {{ $color }};
+            margin: 4px 0 8px;
+        }
+        .dl-theme-mozambique .dl-el th {
+            background: {{ $color }};
+            color: #fff;
+            text-transform: uppercase;
+            font-size: 10px;
+        }
+        .dl-theme-mozambique .dl-el table tr:nth-child(even) td { background: #fafafa; }
+
         @media print {
             body { background: #fff; }
             .dl-page { margin: 0; border: none; box-shadow: none; }
             .no-print { display: none !important; }
-            .dl-processed-by { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .dl-processed-by, .dl-theme-mozambique .dl-doc-badge, .dl-theme-mozambique .dl-el th {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
     </style>
 </head>
@@ -65,7 +129,7 @@
     </div>
 @endif
 
-<div class="dl-page">
+<div class="dl-page {{ $themeClass }}">
     @foreach ($elements as $el)
         @php
             $key = $el['key'] ?? '';
@@ -79,6 +143,7 @@
                     'settings' => $settings,
                     'options' => $options,
                     'color' => $color,
+                    'isMoz' => $isMoz,
                 ])
             </div>
         @endif
@@ -86,9 +151,5 @@
 
     <div class="dl-processed-by">{{ __('pos.document_processed_by_computer') }}</div>
 </div>
-
-@if(empty($preview))
-<script>window.addEventListener('load', function () { /* print ready */ });</script>
-@endif
 </body>
 </html>

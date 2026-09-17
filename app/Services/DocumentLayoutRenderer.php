@@ -31,7 +31,49 @@ class DocumentLayoutRenderer
             return null;
         }
 
-        $layout = self::activeLayout($documentType, $createdBy);
+        $settings = $extra['settings'] ?? Utility::settingsById($createdBy);
+        $selectedKey = (string) ($settings[$documentType . '_template'] ?? '');
+
+        $layout = null;
+        if ($selectedKey !== '') {
+            $layout = DocumentLayout::forPrintKey($documentType, $createdBy, $selectedKey);
+            if (! $layout) {
+                // Override bound by base_template when print_template_key matches / will be synced
+                $layout = DocumentLayout::forBaseTemplate($documentType, $createdBy, $selectedKey);
+            }
+        }
+
+        if (! $layout) {
+            return null;
+        }
+
+        // Only use override when it is keyed to the selected Print Settings template
+        $layoutKey = (string) ($layout->print_template_key ?: $layout->base_template);
+        if ($selectedKey !== '' && $layoutKey !== $selectedKey) {
+            return null;
+        }
+
+        $payload = self::buildPayload($documentType, $document, $extra + ['settings' => $settings]);
+
+        return view('document_layouts.render', [
+            'layout' => $layout,
+            'documentType' => $documentType,
+            'payload' => $payload,
+            'preview' => (bool) ($extra['preview'] ?? false),
+        ]);
+    }
+
+    /**
+     * Render a specific layout by print_template_key or id for Print Settings preview.
+     */
+    public static function tryRenderByTemplateKey(string $documentType, string $templateKey, $document, array $extra = [])
+    {
+        $createdBy = (int) ($document->created_by ?? ($extra['created_by'] ?? 0));
+        if ($createdBy <= 0 || $templateKey === '') {
+            return null;
+        }
+
+        $layout = DocumentLayout::forPrintKey($documentType, $createdBy, $templateKey);
         if (! $layout) {
             return null;
         }
@@ -42,7 +84,7 @@ class DocumentLayoutRenderer
             'layout' => $layout,
             'documentType' => $documentType,
             'payload' => $payload,
-            'preview' => (bool) ($extra['preview'] ?? false),
+            'preview' => (bool) ($extra['preview'] ?? true),
         ]);
     }
 

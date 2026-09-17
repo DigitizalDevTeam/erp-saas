@@ -12,6 +12,8 @@ class DocumentLayout extends Model
         'created_by',
         'document_type',
         'name',
+        'base_template',
+        'print_template_key',
         'is_active',
         'page_width',
         'page_height',
@@ -31,6 +33,45 @@ class DocumentLayout extends Model
             ->where('created_by', $createdBy)
             ->where('document_type', $documentType)
             ->where('is_active', true)
+            ->first();
+    }
+
+    public static function forPrintKey(string $documentType, int $createdBy, string $printTemplateKey): ?self
+    {
+        if ($printTemplateKey === '') {
+            return null;
+        }
+
+        return static::query()
+            ->where('created_by', $createdBy)
+            ->where('document_type', $documentType)
+            ->where('print_template_key', $printTemplateKey)
+            ->first();
+    }
+
+    public static function forBaseTemplate(string $documentType, int $createdBy, string $baseTemplate): ?self
+    {
+        if ($baseTemplate === '') {
+            return null;
+        }
+
+        // Prefer exact print_template_key match (canonical override for that Print Settings key)
+        $byKey = static::forPrintKey($documentType, $createdBy, $baseTemplate);
+        if ($byKey) {
+            return $byKey;
+        }
+
+        return static::query()
+            ->where('created_by', $createdBy)
+            ->where('document_type', $documentType)
+            ->where('base_template', $baseTemplate)
+            ->where(function ($q) {
+                $q->whereNull('print_template_key')
+                    ->orWhere('print_template_key', '')
+                    ->orWhere('print_template_key', 'not like', 'layout_%');
+            })
+            ->orderByDesc('is_active')
+            ->orderByDesc('updated_at')
             ->first();
     }
 }

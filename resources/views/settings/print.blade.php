@@ -11,6 +11,8 @@
     $company_logo = Utility::getValByName('company_logo');
     $company_favicon = Utility::getValByName('company_favicon');
     $lang = Utility::getValByName('default_language');
+    $templateCatalog = Utility::templateData();
+    $templateSizes = $templateCatalog['template_sizes'] ?? [];
 @endphp
 @push('script-page')
     <script>
@@ -18,24 +20,74 @@
             target: '#useradd-sidenav',
             offset: 300
         })
-    </script>
-    <script>
+
+        function filterPrintTemplates(prefix, previewUrl) {
+            var size = ($("select[name='" + prefix + "_layout_size']").val() || 'a4').toLowerCase();
+            var $select = $("select[name='" + prefix + "_template']");
+            var current = $select.val();
+            var firstVisible = null;
+            var currentStillValid = false;
+
+            $select.find('option').each(function() {
+                var optSize = ($(this).data('size') || 'a4').toString().toLowerCase();
+                var match = optSize === size;
+                $(this).prop('disabled', !match).toggle(match);
+                if (match) {
+                    if (!firstVisible) {
+                        firstVisible = $(this).val();
+                    }
+                    if ($(this).val() === current) {
+                        currentStillValid = true;
+                    }
+                }
+            });
+
+            if (!currentStillValid && firstVisible) {
+                $select.val(firstVisible);
+            }
+
+            if ($select.hasClass('select2-hidden-accessible')) {
+                $select.trigger('change.select2');
+            }
+
+            refreshPrintPreview(prefix, previewUrl);
+        }
+
+        function refreshPrintPreview(prefix, previewUrl) {
+            var template = $("select[name='" + prefix + "_template']").val();
+            var color = $("input[name='" + prefix + "_color']:checked").val() || 'ffffff';
+            if (!template) {
+                return;
+            }
+            $('#' + prefix + '_frame').attr('src', previewUrl + '/' + template + '/' + color);
+        }
+
+        $(function() {
+            filterPrintTemplates('proposal', '{{ url('/proposal/preview') }}');
+            filterPrintTemplates('invoice', '{{ url('/invoices/preview') }}');
+            filterPrintTemplates('bill', '{{ url('/bill/preview') }}');
+        });
+
+        $(document).on("change", "select[name='proposal_layout_size']", function() {
+            filterPrintTemplates('proposal', '{{ url('/proposal/preview') }}');
+        });
+        $(document).on("change", "select[name='invoice_layout_size']", function() {
+            filterPrintTemplates('invoice', '{{ url('/invoices/preview') }}');
+        });
+        $(document).on("change", "select[name='bill_layout_size']", function() {
+            filterPrintTemplates('bill', '{{ url('/bill/preview') }}');
+        });
+
         $(document).on("change", "select[name='invoice_template'], input[name='invoice_color']", function() {
-            var template = $("select[name='invoice_template']").val();
-            var color = $("input[name='invoice_color']:checked").val();
-            $('#invoice_frame').attr('src', '{{ url('/invoices/preview') }}/' + template + '/' + color);
+            refreshPrintPreview('invoice', '{{ url('/invoices/preview') }}');
         });
 
         $(document).on("change", "select[name='proposal_template'], input[name='proposal_color']", function() {
-            var template = $("select[name='proposal_template']").val();
-            var color = $("input[name='proposal_color']:checked").val();
-            $('#proposal_frame').attr('src', '{{ url('/proposal/preview') }}/' + template + '/' + color);
+            refreshPrintPreview('proposal', '{{ url('/proposal/preview') }}');
         });
 
         $(document).on("change", "select[name='bill_template'], input[name='bill_color']", function() {
-            var template = $("select[name='bill_template']").val();
-            var color = $("input[name='bill_color']:checked").val();
-            $('#bill_frame').attr('src', '{{ url('/bill/preview') }}/' + template + '/' + color);
+            refreshPrintPreview('bill', '{{ url('/bill/preview') }}');
         });
 
         document.getElementById('proposal_logo').onchange = function() {
@@ -89,19 +141,30 @@
                             <div class="row company-setting">
                                 <div class="col-md-3">
                                     <div class="card-body px-0">
-                                        
+
                                         <form id="setting-form" method="post"
                                             action="{{ route('proposal.template.setting') }}"
                                             enctype="multipart/form-data">
                                             @csrf
+                                            <div class="form-group">
+                                                <label for="proposal_layout_size"
+                                                    class="col-form-label pt-0">{{ __('Layout Size') }}</label>
+                                                <select class="form-control" name="proposal_layout_size"
+                                                    id="proposal_layout_size">
+                                                    @php $pls = strtolower((string) ($settings['proposal_layout_size'] ?? 'a4')); @endphp
+                                                    <option value="a4" {{ $pls === 'a4' ? 'selected' : '' }}>A4</option>
+                                                    <option value="a5" {{ $pls === 'a5' ? 'selected' : '' }}>A5</option>
+                                                </select>
+                                            </div>
                                             <div class="row">
                                                 <div class="col-md-8">
                                                     <div class="form-group">
                                                         <label for="address"
                                                             class="col-form-label pt-0">{{ __('Proposal Template') }}</label>
                                                         <select class="form-control select2" name="proposal_template">
-                                                            @foreach (App\Models\Utility::templateData()['templates'] as $key => $template)
+                                                            @foreach ($templateCatalog['templates'] as $key => $template)
                                                                 <option value="{{ $key }}"
+                                                                    data-size="{{ $templateSizes[$key] ?? 'a4' }}"
                                                                     {{ isset($settings['proposal_template']) && $settings['proposal_template'] == $key ? 'selected' : '' }}>
                                                                     {{ $template }}</option>
                                                             @endforeach
@@ -129,7 +192,7 @@
                                             <div class="form-group">
                                                 <label class="col-form-label pt-0">{{ __('Color Input') }}</label>
                                                 <div class="row gutters-xs">
-                                                    @foreach (App\Models\Utility::templateData()['colors'] as $key => $color)
+                                                    @foreach ($templateCatalog['colors'] as $key => $color)
                                                         <div class="col-auto">
                                                             <label class="colorinput">
                                                                 <input name="proposal_color" type="radio"
@@ -183,18 +246,29 @@
                             <div class="row company-setting">
                                 <div class="col-md-3">
                                     <div class="card-body px-0">
-                                        
+
                                         <form id="setting-form" method="post" action="{{ route('template.setting') }}"
                                             enctype="multipart/form-data">
                                             @csrf
+                                            <div class="form-group">
+                                                <label for="invoice_layout_size"
+                                                    class="col-form-label pt-0">{{ __('Layout Size') }}</label>
+                                                <select class="form-control" name="invoice_layout_size"
+                                                    id="invoice_layout_size">
+                                                    @php $ils = strtolower((string) ($settings['invoice_layout_size'] ?? 'a4')); @endphp
+                                                    <option value="a4" {{ $ils === 'a4' ? 'selected' : '' }}>A4</option>
+                                                    <option value="a5" {{ $ils === 'a5' ? 'selected' : '' }}>A5</option>
+                                                </select>
+                                            </div>
                                             <div class="row">
                                                 <div class="col-md-8">
                                                     <div class="form-group">
                                                         <label for="address"
                                                             class="col-form-label pt-0">{{ __('Invoice Template') }}</label>
                                                         <select class="form-control select2" name="invoice_template">
-                                                            @foreach (Utility::templateData()['templates'] as $key => $template)
+                                                            @foreach ($templateCatalog['templates'] as $key => $template)
                                                                 <option value="{{ $key }}"
+                                                                    data-size="{{ $templateSizes[$key] ?? 'a4' }}"
                                                                     {{ isset($settings['invoice_template']) && $settings['invoice_template'] == $key ? 'selected' : '' }}>
                                                                     {{ $template }}</option>
                                                             @endforeach
@@ -223,7 +297,7 @@
                                             <div class="form-group">
                                                 <label class="col-form-label pt-0">{{ __('Color Input') }}</label>
                                                 <div class="row gutters-xs">
-                                                    @foreach (Utility::templateData()['colors'] as $key => $color)
+                                                    @foreach ($templateCatalog['colors'] as $key => $color)
                                                         <div class="col-auto">
                                                             <label class="colorinput">
                                                                 <input name="invoice_color" type="radio"
@@ -280,18 +354,29 @@
                             <div class="row company-setting">
                                 <div class="col-md-3">
                                     <div class="card-body px-0">
-                                        
+
                                         <form id="setting-form" method="post"
                                             action="{{ route('bill.template.setting') }}" enctype="multipart/form-data">
                                             @csrf
+                                            <div class="form-group">
+                                                <label for="bill_layout_size"
+                                                    class="col-form-label pt-0">{{ __('Layout Size') }}</label>
+                                                <select class="form-control" name="bill_layout_size"
+                                                    id="bill_layout_size">
+                                                    @php $bls = strtolower((string) ($settings['bill_layout_size'] ?? 'a4')); @endphp
+                                                    <option value="a4" {{ $bls === 'a4' ? 'selected' : '' }}>A4</option>
+                                                    <option value="a5" {{ $bls === 'a5' ? 'selected' : '' }}>A5</option>
+                                                </select>
+                                            </div>
                                             <div class="row">
                                                 <div class="col-md-8">
                                                     <div class="form-group">
                                                         <label for="address"
                                                             class="form-label">{{ __('Bill Template') }}</label>
                                                         <select class="form-control" name="bill_template">
-                                                            @foreach (App\Models\Utility::templateData()['templates'] as $key => $template)
+                                                            @foreach ($templateCatalog['templates'] as $key => $template)
                                                                 <option value="{{ $key }}"
+                                                                    data-size="{{ $templateSizes[$key] ?? 'a4' }}"
                                                                     {{ isset($settings['bill_template']) && $settings['bill_template'] == $key ? 'selected' : '' }}>
                                                                     {{ $template }}</option>
                                                             @endforeach
@@ -320,7 +405,7 @@
                                             <div class="form-group">
                                                 <label class="col-form-label pt-0">{{ __('Color Input') }}</label>
                                                 <div class="row gutters-xs">
-                                                    @foreach (Utility::templateData()['colors'] as $key => $color)
+                                                    @foreach ($templateCatalog['colors'] as $key => $color)
                                                         <div class="col-auto">
                                                             <label class="colorinput">
                                                                 <input name="bill_color" type="radio"
