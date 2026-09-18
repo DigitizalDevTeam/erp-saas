@@ -79,7 +79,7 @@ class InvoiceController extends Controller
                 });
             }
             $invoices = $query->get();
-
+            
             return view('invoice.index', compact('invoices', 'customer', 'status'));
         } else {
             return redirect()->back()->with('error', __('Permission Denied.'));

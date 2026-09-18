@@ -963,13 +963,25 @@
                                 </td>
                                 <td>
                                     <div class="form-group price-input input-group search-form">
-                                        {{ Form::number('price',null, array('class' => 'form-control price','required'=>'required','placeholder'=>__('Price'),'required'=>'required')) }}
+                                    {{ Form::text('price',null, array(
+                                        'class' => 'form-control price',
+                                        'required' => 'required',
+                                        'placeholder' => __('Price'),
+                                        'inputmode' => 'decimal',
+                                        'autocomplete' => 'off'
+                                    )) }}
                                         <span class="input-group-text bg-transparent">{{\Auth::user()->currencySymbol()}}</span>
                                     </div>
                                 </td>
                                 <td>
                                     <div class="form-group price-input input-group search-form">
-                                        {{ Form::number('discount',null, array('class' => 'form-control discount','required'=>'required','placeholder'=>__('Discount'))) }}
+                                        {{ Form::text('discount',null, array(
+                                            'class' => 'form-control discount',
+                                            'required' => 'required',
+                                            'placeholder' => __('Discount'),
+                                            'inputmode' => 'decimal',
+                                            'autocomplete' => 'off'
+                                        )) }}
                                         <span class="input-group-text bg-transparent">{{\Auth::user()->currencySymbol()}}</span>
                                     </div>
                                 </td>

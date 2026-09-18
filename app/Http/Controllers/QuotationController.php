@@ -30,7 +30,7 @@ class QuotationController extends Controller
         if (Auth::user()->can('manage quotation'))
         {
             $quotations      = Quotation::where('created_by', \Auth::user()->creatorId())->with(['customer', 'warehouse', 'proformaFromQuotation'])->get();
-
+            
             return view('quotation.index',compact('quotations'));
         }
         else
