@@ -84,7 +84,7 @@
             align-items: center;
             border-radius: 0.5rem;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            flex-wrap: nowrap !important;
+            /* flex-wrap: nowrap !important; */
             /* overflow-x: auto;
             -webkit-overflow-scrolling: touch; */
         }
@@ -192,6 +192,79 @@
             font-size: 12px;
             font-weight: 600;
         }
+        .pos-line-status{
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+/* ================= POS Top Bar Mobile Responsive (FINAL) ================= */
+@media (max-width: 991.98px) {
+    .pos-top-bar > div { flex-shrink: 1 !important; }
+    .pos-top-bar {
+        flex-wrap: wrap !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+        padding: 10px 12px !important;
+    }
+    .pos-top-bar > div:first-child {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        gap: 6px !important;
+        width: 100% !important;
+    }
+    .pos-top-bar .pos-brand {
+        font-size: 1rem !important;
+        white-space: normal !important;
+        line-height: 1.2;
+    }
+    .pos-top-bar > div:first-child > span,
+    .pos-top-bar > div:first-child > a {
+        font-size: 0.80rem !important;
+        padding: 3px 7px !important;
+        background: rgba(255,255,255,0.2);
+        border-radius: 4px;
+        white-space: nowrap;
+        border: none !important;
+        color: #fff !important;
+        margin-left: 0 !important;
+    }
+    .pos-top-bar > div:last-child {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+        gap: 5px !important;
+        width: 100% !important;
+        border-top: 1px solid rgba(255,255,255,0.25);
+        padding-top: 8px;
+    }
+    .pos-top-bar #pos-current-time { font-size: 0.72rem !important; min-width: auto !important; }
+    .pos-top-bar .badge { font-size: 0.65rem !important; padding: 3px 6px !important; }
+    .pos-top-bar .btn-sm { padding: 5px 7px !important; font-size: 0.7rem !important; line-height: 1.2 !important; }
+    .pos-top-bar .btn-sm span,
+    .pos-top-bar .btn-sm .d-none.d-sm-inline { display: none !important; }
+    .pos-top-bar > div:last-child > span.text-white.opacity-90 {
+        font-size: 0.65rem !important;
+        line-height: 1.1 !important;
+        margin-left: 0 !important;
+    }
+    .pos-top-bar .btn-sm i,
+    .pos-top-bar .btn-sm .ti { font-size: 1rem !important; }
+    .pos-top-bar #pos-reports-dropdown { padding: 5px 7px !important; }
+}
+@media (max-width: 400px) {
+    .pos-top-bar .pos-brand { font-size: 0.9rem !important; }
+    .pos-top-bar > div:first-child > span,
+    .pos-top-bar > div:first-child > a { font-size: 0.80rem !important; padding: 12px 5px !important;background: white !important; color: #000 !important; }
+    .pos-top-bar .btn-sm { padding: 4px 6px !important; }
+}
+
+    </style>
 
     </style>
 </head>

@@ -81,6 +81,9 @@
             position: relative;
             padding: 0 3.25rem;
         }
+
+
+
         .pos-category-scroll {
             overflow-x: auto;
             flex-wrap: nowrap;
@@ -188,6 +191,172 @@
             #commonModal #printarea .view-qrcode-receipt, #commonModal #printarea .view-qrcode-receipt * { visibility: visible !important; }
             #commonModal #printarea .view-qrcode-receipt img { display: block !important; visibility: visible !important; }
         }
+      /* ================= POS Top Bar Responsive (FINAL) ================= */
+
+.pos-top-bar {
+    padding: 0.6rem 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+@media (max-width: 767.98px) {
+
+    /* Main top bar - stack */
+    .pos-top-bar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+        padding: 10px 12px !important;
+    }
+
+    /* LEFT group: brand + OB + closing balance */
+    .pos-top-bar > div:first-child {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        gap: 6px !important;
+        width: 100%;
+    }
+
+    .pos-top-bar .pos-brand {
+        font-size: 1rem !important;
+        width: 100%;
+        margin-bottom: 2px;
+    }
+
+    /* OB / Closing Balance chips */
+    .pos-top-bar > div:first-child > span,
+    .pos-top-bar > div:first-child > a {
+        font-size: 0.78rem !important;
+        padding: 4px 8px !important;
+        background: rgba(255,255,255,0.18) !important;
+        border-radius: 4px;
+        white-space: nowrap;
+        border: none;
+        color: #fff !important;
+    }
+
+    /* RIGHT group: time + badges + icons */
+    .pos-top-bar > div:last-child {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+        gap: 6px !important;
+        width: 100%;
+        border-top: 1px solid rgba(255,255,255,0.25);
+        padding-top: 8px;
+    }
+
+    /* Time */
+    .pos-top-bar #pos-current-time {
+        font-size: 0.78rem !important;
+        min-width: auto !important;
+    }
+
+    /* Badges */
+    .pos-top-bar .badge {
+        font-size: 0.68rem !important;
+        padding: 3px 6px !important;
+    }
+
+    /* Buttons — compact */
+    .pos-top-bar .btn-sm {
+        padding: 5px 7px !important;
+        font-size: 0.72rem !important;
+        line-height: 1.2;
+    }
+
+    /* Icon-only on mobile (hide text) */
+    .pos-top-bar .btn-sm .d-none.d-sm-inline {
+        display: none !important;
+    }
+
+    /* Reports dropdown */
+    .pos-top-bar #pos-reports-dropdown {
+        padding: 5px 7px !important;
+    }
+
+    /* Make icon buttons uniform circle-ish */
+    .pos-top-bar > div:last-child > a.btn-sm {
+        padding: 5px 7px !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Branch / Warehouse / Order Type stacking (retail + restaurant) */
+    .pos-restaurant-top .row.g-1,
+    #pos-restaurant-panel .row.g-1,
+    #pos-retail-panel .row.g-1 {
+        flex-direction: column !important;
+    }
+    .pos-restaurant-top .col-6,
+    #pos-restaurant-panel .col-6,
+    #pos-retail-panel .col-6 {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: 0 0 100% !important;
+        margin-bottom: 8px;
+    }
+
+    /* Full-width selects */
+    .pos-restaurant-top select,
+    #pos-restaurant-panel select,
+    #pos-retail-panel select {
+        width: 100% !important;
+        font-size: 14px !important;
+    }
+
+    /* Page padding */
+    .pos-page.container-fluid.px-2 {
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+    }
+
+    /* Category arrows */
+    .pos-category-scroll-wrap {
+        padding: 0 2rem !important;
+    }
+    .pos-category-scroll-arrow {
+        min-width: 2rem !important;
+        min-height: 2rem !important;
+        padding: 2px 4px !important;
+    }
+
+    /* Cart/Products stacking */
+    #pos-retail-panel .col-lg-9,
+    #pos-retail-panel .col-lg-3 {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    #pos-retail-panel .border-right {
+        border-right: none !important;
+    }
+
+    /* Search bar */
+    .pos-search-bar .col-md-4 {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+        margin-bottom: 6px;
+    }
+}
+
+/* Very small phones */
+@media (max-width: 375.98px) {
+    .pos-top-bar .pos-brand {
+        font-size: 0.9rem !important;
+    }
+    .pos-top-bar > div:first-child > span,
+    .pos-top-bar > div:first-child > a {
+        font-size: 0.7rem !important;
+        padding: 3px 6px !important;
+    }
+    .pos-top-bar .btn-sm {
+        padding: 4px 6px !important;
+    }
+}
     </style>
 </head>
 
@@ -203,9 +372,9 @@
         <?php $lastsegment = request()->segment(count(request()->segments())); ?>
         <div class="row">
             <div class="col-12">
-                <div class="mt-2 pos-top-bar bg-primary d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div class="d-flex align-items-center flex-wrap gap-2">
-                        <span class="text-white pos-brand">{{ __('POS Retail') }}</span>
+            <div class="mt-2 pos-top-bar bg-primary d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center flex-wrap gap-2 pos-top-bar__left">
+                    <span class="text-white pos-brand">{{ __('POS Retail') }}</span
                         @if($userOpenShift)
                             <span class="ms-2 ms-lg-3 text-white opacity-90"><strong>{{ __('OB') }}:</strong> {{ Auth::user()->priceFormat($userOpenShift->opening_balance ?? 0) }}</span>
                             @if(isset($userOpenShift->closing_balance) && $userOpenShift->closing_balance !== null && $userOpenShift->closing_balance !== '')
@@ -219,8 +388,8 @@
                             </button>
                         @endif
                     </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <span id="pos-current-time" class="text-white opacity-90 align-middle" style="min-width: 5rem;">--:--:--</span>
+                    <div class="d-flex align-items-center gap-2 pos-top-bar__right">
+                    <span id="pos-current-time" class="text-white opacity-90 align-middle" style="min-width: 5rem;">--:--:--</span>
                         <span id="pos-status-badge" class="badge bg-success align-middle" style="font-size: 0.75rem;">{{ __('pos.online') }}</span>
                         <span id="pos-pending-badge" class="badge bg-warning text-dark d-none" style="font-size: 0.8rem; cursor: pointer;" data-msg="{{ __('pos.pending_sync_label') }}" title="{{ __('pos.sync_now') }}"></span>
                         <button type="button" id="pos-install-app-btn" class="btn btn-sm btn-light" title="{{ __('pos.install_app') }}">

@@ -11,34 +11,219 @@
         return $translated === $key ? __($fallback) : $translated;
     };
 @endphp
+
+{{-- ============ RESPONSIVE CSS ============ --}}
+<style>
+/* ===== Restaurant POS Mobile Responsive ===== */
+@media (max-width: 767.98px) {
+
+    /* --- Top controls row: stack vertically --- */
+    .pos-restaurant-controls-row {
+        flex-wrap: wrap !important;
+        align-items: stretch !important;
+    }
+    .pos-restaurant-controls-main {
+        flex-wrap: wrap !important;
+        overflow-x: visible !important;
+        width: 100%;
+    }
+    .pos-restaurant-control-item {
+        flex-shrink: 1 !important;
+        width: 100%;
+        margin-bottom: 6px;
+    }
+    .pos-restaurant-control-item select,
+    .pos-restaurant-control-item input {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+    }
+    #pos-restaurant-table-block {
+        flex-wrap: wrap !important;
+        width: 100%;
+    }
+    #pos-restaurant-table-block .btn,
+    #pos-restaurant-table-block .text-nowrap {
+        width: 100%;
+        margin-bottom: 4px;
+    }
+    #pos-restaurant-guest-block {
+        width: 100%;
+    }
+    #pos-restaurant-guest-block .d-flex {
+        flex-wrap: wrap !important;
+    }
+    #pos-restaurant-guest-block input {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin-bottom: 4px;
+    }
+    #pos-restaurant-manage-tables-wrap {
+        width: 100%;
+    }
+    #pos-restaurant-manage-tables-wrap .btn {
+        width: 100%;
+    }
+
+    /* --- Cart / Products columns: stack --- */
+    .pos-restaurant-layout .row.g-3 > [class*="col-"] {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    /* Cart ko products ke neeche rakhna ho to order change karein */
+    .pos-restaurant-layout .order-1 { order: 1 !important; }
+    .pos-restaurant-layout .order-2 { order: 2 !important; }
+
+    /* --- Invoice header buttons: 2 rows --- */
+    .pos-invoice-actions {
+        flex-direction: column;
+    }
+    .pos-invoice-actions__primary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        width: 100%;
+        margin-bottom: 6px;
+    }
+    .pos-invoice-actions__primary .btn {
+        flex: 1 1 auto;
+    }
+    .pos-invoice-actions__tools {
+        width: 100%;
+    }
+    .pos-invoice-actions__tools .btn {
+        flex: 1 1 0;
+        padding: 4px 2px;
+    }
+
+    /* --- Cart items table --- */
+    .pos-cart-table--restaurant {
+        font-size: 12px;
+    }
+    .pos-cart-table--restaurant td,
+    .pos-cart-table--restaurant th {
+        padding: 4px 2px;
+    }
+
+    /* --- Totals row --- */
+    .pos-totals__row--discount {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 4px;
+    }
+    .pos-totals__discount-controls {
+        width: 100%;
+        display: flex;
+        gap: 4px;
+    }
+    .pos-totals__discount-controls select {
+        width: 40%;
+    }
+    .pos-totals__discount-input {
+        flex: 1;
+    }
+
+    /* --- Category scroll arrows chhote --- */
+    .pos-category-scroll-wrap {
+        padding: 0 2rem !important;
+    }
+    .pos-category-scroll-arrow {
+        min-width: 2rem !important;
+        min-height: 2rem !important;
+        padding: 2px 4px !important;
+    }
+
+    /* --- Product grid: 2 columns on mobile --- */
+    #product-listing-restaurant .col-xl-3,
+    #product-listing-restaurant .col-lg-3,
+    #product-listing-restaurant .col-md-3,
+    #product-listing-restaurant .col-3 {
+        flex: 0 0 50% !important;
+        max-width: 50% !important;
+    }
+
+    /* --- Table grid: 2 columns --- */
+    #pos-table-grid .pos-table-btn {
+        flex: 1 1 45%;
+    }
+
+    /* --- Modal full width on mobile --- */
+    .modal-dialog {
+        margin: 0.5rem !important;
+    }
+    .modal-dialog.modal-lg,
+    .modal-dialog.modal-xl {
+        max-width: calc(100% - 1rem) !important;
+    }
+
+    /* --- Prep time / Open table modals --- */
+    .modal-body input,
+    .modal-body select,
+    .modal-body textarea {
+        font-size: 14px;
+    }
+}
+
+/* Extra small phones */
+@media (max-width: 375.98px) {
+    #product-listing-restaurant .col-xl-3,
+    #product-listing-restaurant .col-lg-3,
+    #product-listing-restaurant .col-md-3,
+    #product-listing-restaurant .col-3 {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+    .pos-invoice-actions__tools .btn {
+        font-size: 11px;
+    }
+}
+</style>
+
 <div class="pos-restaurant-layout">
     @if(!empty($posBranchAssignmentWarning))
         <div class="alert alert-warning mb-3 py-2 small">{{ $posBranchAssignmentWarning }}</div>
     @endif
+
     {{-- Top bar: Branch, Warehouse, Selected table + Tables grid --}}
     <div class="pos-restaurant-top card border-0 shadow-sm mb-3">
         <div class="card-body py-2 px-3">
             <div class="pos-restaurant-controls-row d-flex flex-nowrap align-items-end gap-2 mb-2">
                 <div class="pos-restaurant-controls-main d-flex flex-nowrap align-items-end gap-2 flex-grow-1 min-w-0 overflow-x-auto">
+
+                    {{-- Branch --}}
                     <div class="pos-restaurant-control-item flex-shrink-0">
-                        <label class="form-label small text-muted mb-0 text-nowrap">{{ $tp('pos.branch', 'Branch') }}@if(!empty($posBranchLocked)) <span class="text-muted">({{ __('Assigned') }})</span>@endif</label>
-                        <select class="form-control form-control-sm" id="pos-restaurant-branch" style="min-width: 120px; max-width: 160px;" @if(!empty($posBranchLocked)) disabled @endif>
+                        <label class="form-label small text-muted mb-0 text-nowrap">
+                            {{ $tp('pos.branch', 'Branch') }}
+                            @if(!empty($posBranchLocked)) <span class="text-muted">({{ __('Assigned') }})</span>@endif
+                        </label>
+                        <select class="form-control form-control-sm" id="pos-restaurant-branch"
+                                style="min-width: 120px; max-width: 160px;" @if(!empty($posBranchLocked)) disabled @endif>
                             <option value="">{{ $tp('pos.select_branch', 'Select Branch') }}</option>
                             @foreach($restaurantBranches as $id => $name)
-                                <option value="{{ $id }}" {{ ($posAssignedBranchId && (string)$id === (string)$posAssignedBranchId) || (!$posAssignedBranchId && $shiftBranchId && (string)$id === (string)$shiftBranchId) || (!empty($posBranchLocked) && $restaurantBranches->count() === 1) ? 'selected' : '' }}>{{ $name }}</option>
+                                <option value="{{ $id }}"
+                                    {{ ($posAssignedBranchId && (string)$id === (string)$posAssignedBranchId) || (!$posAssignedBranchId && $shiftBranchId && (string)$id === (string)$shiftBranchId) || (!empty($posBranchLocked) && $restaurantBranches->count() === 1) ? 'selected' : '' }}>
+                                    {{ $name }}
+                                </option>
                             @endforeach
                         </select>
                     </div>
+
+                    {{-- Warehouse --}}
                     <div class="pos-restaurant-control-item flex-shrink-0">
                         <label class="form-label small text-muted mb-0 text-nowrap">{{ $tp('pos.select_warehouse', 'Select Warehouse') }}</label>
-                        <select class="form-control form-control-sm" id="pos-restaurant-warehouse" style="min-width: 110px; max-width: 150px;">
+                        <select class="form-control form-control-sm" id="pos-restaurant-warehouse"
+                                style="min-width: 110px; max-width: 150px;">
                             <option value="">{{ $tp('pos.select_warehouse', 'Select Warehouse') }}</option>
                             @foreach($restaurantWarehouses as $id => $name)
                                 <option value="{{ $id }}">{{ $name }}</option>
                             @endforeach
                         </select>
-                        <small class="text-muted d-block text-nowrap" id="pos-restaurant-warehouse-hint" style="font-size: 0.7rem;">{{ $tp('pos.select_branch_first', 'Select branch first') }}</small>
+                        <small class="text-muted d-block text-nowrap" id="pos-restaurant-warehouse-hint"
+                               style="font-size: 0.7rem;">{{ $tp('pos.select_branch_first', 'Select branch first') }}</small>
                     </div>
+
+                    {{-- Order Type --}}
                     <div class="pos-restaurant-control-item flex-shrink-0">
                         <label class="form-label small text-muted mb-0 text-nowrap">{{ $tp('pos.order_type', 'Order Type') }}</label>
                         <select class="form-control form-control-sm" id="pos-restaurant-order-type" style="min-width: 95px;">
@@ -47,8 +232,13 @@
                             <option value="takeaway">{{ $tp('pos.takeaway', 'Takeaway') }}</option>
                         </select>
                     </div>
+
+                    {{-- Table block --}}
                     <div id="pos-restaurant-table-block" class="pos-restaurant-control-item flex-shrink-0 d-flex align-items-end gap-1 flex-nowrap">
-                        <button type="button" class="btn btn-sm btn-outline-primary text-nowrap" id="pos-open-table-panel-btn" aria-expanded="false" aria-controls="pos-restaurant-table-grid-wrap" title="{{ $tp('pos.open_table', 'Open Table') }}">
+                        <button type="button" class="btn btn-sm btn-outline-primary text-nowrap"
+                                id="pos-open-table-panel-btn" aria-expanded="false"
+                                aria-controls="pos-restaurant-table-grid-wrap"
+                                title="{{ $tp('pos.open_table', 'Open Table') }}">
                             <i class="ti ti-layout-grid me-1"></i>{{ $tp('pos.open_table', 'Open Table') }}
                         </button>
                         <div class="text-nowrap">
@@ -60,31 +250,43 @@
                             <select class="form-select form-select-sm" id="pos-check-selector" style="min-width: 9rem;"></select>
                         </div>
                         @if($canShowPayButton ?? true)
-                        <button type="button" class="btn btn-sm btn-outline-danger d-none flex-shrink-0" id="pos-close-table-btn" title="{{ $tp('pos.close_table', 'Close Table') }} ({{ $tp('pos.manager_emergency', 'Manager Emergency') }})">
-                            <i class="ti ti-door-exit"></i>
-                        </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger d-none flex-shrink-0"
+                                    id="pos-close-table-btn"
+                                    title="{{ $tp('pos.close_table', 'Close Table') }} ({{ $tp('pos.manager_emergency', 'Manager Emergency') }})">
+                                <i class="ti ti-door-exit"></i>
+                            </button>
                         @endif
                     </div>
+
+                    {{-- Guest block (delivery/takeaway) --}}
                     <div id="pos-restaurant-guest-block" class="pos-restaurant-control-item flex-shrink-0 d-none">
                         <label class="form-label small text-muted mb-0 text-nowrap d-block">{{ $tp('pos.customer_details_required', 'Customer Details Required') }}</label>
                         <div class="d-flex flex-nowrap gap-1">
-                            <input type="text" class="form-control form-control-sm" id="pos-guest-name" placeholder="{{ $tp('pos.guest_name', 'Guest Name') }}" maxlength="255" style="min-width: 100px;">
-                            <input type="email" class="form-control form-control-sm" id="pos-guest-email" placeholder="{{ $tp('pos.guest_email', 'Guest Email') }}" maxlength="255" style="min-width: 110px;">
-                            <input type="text" class="form-control form-control-sm" id="pos-guest-phone" placeholder="{{ $tp('pos.guest_phone', 'Guest Phone') }}" maxlength="64" style="min-width: 95px;">
+                            <input type="text" class="form-control form-control-sm" id="pos-guest-name"
+                                   placeholder="{{ $tp('pos.guest_name', 'Guest Name') }}" maxlength="255" style="min-width: 100px;">
+                            <input type="email" class="form-control form-control-sm" id="pos-guest-email"
+                                   placeholder="{{ $tp('pos.guest_email', 'Guest Email') }}" maxlength="255" style="min-width: 110px;">
+                            <input type="text" class="form-control form-control-sm" id="pos-guest-phone"
+                                   placeholder="{{ $tp('pos.guest_phone', 'Guest Phone') }}" maxlength="64" style="min-width: 95px;">
                         </div>
                     </div>
                 </div>
+
+                {{-- Manage tables --}}
                 <div class="pos-restaurant-control-item flex-shrink-0" id="pos-restaurant-manage-tables-wrap">
-                    <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap" id="pos-manage-tables-btn" title="{{ $tp('pos.manage_tables', 'Manage Tables') }}">
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap"
+                            id="pos-manage-tables-btn" title="{{ $tp('pos.manage_tables', 'Manage Tables') }}">
                         <i class="ti ti-settings"></i> {{ $tp('pos.manage_tables', 'Manage Tables') }}
                     </button>
                 </div>
             </div>
+
             <div id="pos-restaurant-table-grid-wrap" class="border-top pt-2 d-none">
                 <div class="d-flex flex-wrap gap-2 align-items-center" id="pos-table-grid">
                     <p class="text-muted small mb-0">{{ $tp('pos.select_branch_first', 'Select branch first') }}</p>
                 </div>
             </div>
+
             <div id="pos-restaurant-customer-grid-wrap" class="border-top pt-2 d-none">
                 <label class="form-label small text-muted mb-1">{{ $tp('pos.select_customer', 'Select Customer') }}</label>
                 <div class="d-flex flex-wrap gap-2 align-items-center" id="pos-customer-grid">
@@ -105,17 +307,27 @@
                     <div class="card-header p-2 pos-invoice-header bg-light">
                         <div class="pos-invoice-actions">
                             <div class="pos-invoice-actions__primary">
-                                <button type="button" class="btn btn-sm btn-success m-0" id="pos-send-to-production" title="{{ __('Send to production') }}">
-                                    <i class="ti ti-send me-1"></i><span class="pos-invoice-btn-label">{{ __('Send to production') }}</span>
+                                <button type="button" class="btn btn-sm btn-success m-0" id="pos-send-to-production"
+                                        title="{{ __('Send to production') }}">
+                                    <i class="ti ti-send me-1"></i>
+                                    <span class="pos-invoice-btn-label">{{ __('Send to production') }}</span>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary pos-invoice-btn-icon" id="pos-print-kitchen-slip" title="{{ __('pos.print_kitchen_slip') }}" aria-label="{{ __('pos.print_kitchen_slip') }}">
+                                <button type="button" class="btn btn-sm btn-outline-secondary pos-invoice-btn-icon"
+                                        id="pos-print-kitchen-slip" title="{{ __('pos.print_kitchen_slip') }}"
+                                        aria-label="{{ __('pos.print_kitchen_slip') }}">
                                     <i class="ti ti-printer"></i>
                                 </button>
                                 @if($canShowPayButton ?? true)
-                                <button type="button" id="pos-pay-btn-restaurant" class="btn btn-sm btn-success pos-invoice-btn-pay m-0" data-size="xl" data-url="{{ route('pos.create') }}" data-title="{{ $tp('pos.pos_invoice', 'POS Invoice') }}" disabled>{{ $tp('pos.pay', 'Pay') }}</button>
+                                    <button type="button" id="pos-pay-btn-restaurant"
+                                            class="btn btn-sm btn-success pos-invoice-btn-pay m-0"
+                                            data-size="xl" data-url="{{ route('pos.create') }}"
+                                            data-title="{{ $tp('pos.pos_invoice', 'POS Invoice') }}" disabled>
+                                        {{ $tp('pos.pay', 'Pay') }}
+                                    </button>
                                 @endif
                             </div>
-                            <div class="btn-group btn-group-sm w-100 pos-invoice-actions__tools" role="group" aria-label="{{ $tp('pos.invoice_tools', 'Invoice tools') }}">
+                            <div class="btn-group btn-group-sm w-100 pos-invoice-actions__tools" role="group"
+                                 aria-label="{{ $tp('pos.invoice_tools', 'Invoice tools') }}">
                                 <button type="button" class="btn btn-outline-secondary pos-open-drawer-btn" title="{{ $tp('pos.open_drawer', 'Open Drawer') }}">
                                     <i class="ti ti-cash d-block"></i>
                                 </button>
@@ -137,12 +349,15 @@
                             </div>
                         </div>
                     </div>
+
                     <div class="pos-status-legend" aria-label="{{ __('pos.status') }}">
                         <span class="pos-status-legend__item"><span class="pos-status-legend__dot pos-status-legend__dot--sent"></span>{{ __('pos.status_legend_sent') }}</span>
                         <span class="pos-status-legend__item"><span class="pos-status-legend__dot pos-status-legend__dot--prep"></span>{{ __('pos.status_legend_preparation') }}</span>
                         <span class="pos-status-legend__item"><span class="pos-status-legend__dot pos-status-legend__dot--done"></span>{{ __('pos.status_legend_done') }}</span>
                     </div>
-                    <div class="card-body p-2 carttable carttable-scroll pos-cart-restaurant-wrap" id="carthtml-restaurant" style="max-height: 55vh; overflow-y: auto; overflow-x: hidden;">
+
+                    <div class="card-body p-2 carttable carttable-scroll pos-cart-restaurant-wrap"
+                         id="carthtml-restaurant" style="max-height: 55vh; overflow-y: auto; overflow-x: hidden;">
                         <table class="table table-sm pos-cart-table pos-cart-table--restaurant mb-0 w-100">
                             <tbody id="tbody-restaurant"></tbody>
                         </table>
@@ -151,16 +366,20 @@
                                 <span class="pos-totals__label">{{ $tp('pos.sub_total', 'Sub Total') }}</span>
                                 <span id="pos-restaurant-subtotal" class="pos-totals__value">0</span>
                             </div>
-                            <div class="pos-totals__row pos-totals__row--discount discount-wrap-restaurant" data-currency-symbol="{{ \Auth::user()->currencySymbol() }}">
+                            <div class="pos-totals__row pos-totals__row--discount discount-wrap-restaurant"
+                                 data-currency-symbol="{{ \Auth::user()->currencySymbol() }}">
                                 <span class="pos-totals__label">{{ $tp('pos.discount', 'Discount') }}</span>
                                 <div class="pos-totals__discount-controls">
-                                    <select class="form-select form-select-sm pos-discount-type-restaurant" id="pos_discount_type_restaurant" aria-label="{{ __('pos.discount') }}">
+                                    <select class="form-select form-select-sm pos-discount-type-restaurant"
+                                            id="pos_discount_type_restaurant" aria-label="{{ __('pos.discount') }}">
                                         <option value="fixed">{{ __('Fixed') }}</option>
                                         <option value="percentage">{{ __('Percentage') }}</option>
                                     </select>
                                     <div class="input-group input-group-sm pos-totals__discount-input">
                                         <span class="input-group-text pos-discount-prefix-restaurant">{{ \Auth::user()->currencySymbol() }}</span>
-                                        <input type="number" step="0.01" min="0" class="form-control pos-discount-value-restaurant" id="discount_restaurant" value="0" placeholder="0" inputmode="decimal">
+                                        <input type="number" step="0.01" min="0"
+                                               class="form-control pos-discount-value-restaurant"
+                                               id="discount_restaurant" value="0" placeholder="0" inputmode="decimal">
                                     </div>
                                 </div>
                             </div>
@@ -173,6 +392,7 @@
                     </div>
                 </div>
             </div>
+
             <div id="pos-restaurant-placeholder" class="card border-0 shadow-sm">
                 <div class="card-body text-center py-5 text-muted">
                     <i class="ti ti-building-store" style="font-size: 3rem; opacity: 0.5;"></i>
@@ -180,6 +400,7 @@
                 </div>
             </div>
         </div>
+
         {{-- Right: Products --}}
         <div class="col-lg-8 col-md-7 order-1 order-lg-2">
             <div id="pos-restaurant-order-right" class="d-none">
@@ -189,7 +410,9 @@
                             <div class="col-12">
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text" style="padding:11px !important"><i class="ti ti-search"></i></span>
-                                    <input type="text" class="form-control searchproduct-restaurant" placeholder="{{ __('pos.search_product') }}" data-url="{{ route('search.products') }}">
+                                    <input type="text" class="form-control searchproduct-restaurant"
+                                           placeholder="{{ __('pos.search_product') }}"
+                                           data-url="{{ route('search.products') }}">
                                 </div>
                             </div>
                             <div class="col-12">
@@ -216,13 +439,16 @@
         </div>
     </div>
 </div>
+
 {{ Form::hidden('pos_restaurant_table_id', '', ['id' => 'pos_restaurant_table_id']) }}
 {{ Form::hidden('pos_restaurant_table_name', '', ['id' => 'pos_restaurant_table_name']) }}
 {{ Form::hidden('pos_shift_id_hidden', '', ['id' => 'pos_shift_id_hidden']) }}
 {{ Form::hidden('pos_restaurant_warehouse_hidden', '', ['id' => 'pos_restaurant_warehouse_hidden']) }}
 {{ Form::hidden('pos_restaurant_pos_id', '', ['id' => 'pos_restaurant_pos_id']) }}
 
-{{-- Open table modal (guest count) --}}
+{{-- ================= MODALS (same as before, no change) ================= --}}
+
+{{-- Open table modal --}}
 <div class="modal fade" id="posOpenTableModal" tabindex="-1" aria-labelledby="posOpenTableModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-sm">
         <div class="modal-content">
@@ -363,7 +589,7 @@
     </div>
 </div>
 
-{{-- Void line modal (Manager/Cashier only) --}}
+{{-- Void line modal --}}
 @if($canShowVoid ?? false)
 <div class="modal fade" id="posVoidLineModal" tabindex="-1" aria-labelledby="posVoidLineModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -386,7 +612,7 @@
 </div>
 @endif
 
-{{-- Preparation time before send to kitchen/bar --}}
+{{-- Preparation time modal --}}
 <div class="modal fade" id="posPrepTimeModal" tabindex="-1" aria-labelledby="posPrepTimeModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-sm">
         <div class="modal-content">
