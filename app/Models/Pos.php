@@ -24,6 +24,7 @@ class Pos extends Model
         'warehouse_id',
         'pos_date',
         'payment_method',
+        'document_type',
         'category_id',
         'status',
         'shipping_display',
@@ -41,6 +42,44 @@ class Pos extends Model
     const ORDER_TYPE_TAKEAWAY = 'takeaway';
     const ORDER_TYPE_DELIVERY = 'delivery';
     const ORDER_TYPE_KIOSK = 'kiosk';
+
+    const DOCUMENT_TYPE_CASH_SALE = 'cash_sale';
+    const DOCUMENT_TYPE_CREDIT_SALE = 'credit_sale';
+    const DOCUMENT_TYPE_INTERNAL_CONSUMPTION = 'internal_consumption';
+
+    public static function normalizeDocumentType(?string $documentType, ?string $paymentMethod = null): string
+    {
+        $value = strtolower(trim((string) ($documentType ?? '')));
+        if ($value === '') {
+            $payment = strtolower(trim((string) ($paymentMethod ?? '')));
+            if ($payment === 'credit') {
+                return self::DOCUMENT_TYPE_CREDIT_SALE;
+            }
+
+            return self::DOCUMENT_TYPE_CASH_SALE;
+        }
+
+        $mapping = [
+            'cash_sale' => self::DOCUMENT_TYPE_CASH_SALE,
+            'cash' => self::DOCUMENT_TYPE_CASH_SALE,
+            'credit_sale' => self::DOCUMENT_TYPE_CREDIT_SALE,
+            'credit' => self::DOCUMENT_TYPE_CREDIT_SALE,
+            'internal_consumption' => self::DOCUMENT_TYPE_INTERNAL_CONSUMPTION,
+            'internal consumption' => self::DOCUMENT_TYPE_INTERNAL_CONSUMPTION,
+            'internal-consumption' => self::DOCUMENT_TYPE_INTERNAL_CONSUMPTION,
+        ];
+
+        return $mapping[$value] ?? self::DOCUMENT_TYPE_CASH_SALE;
+    }
+
+    public static function documentTypeLabel(?string $documentType): string
+    {
+        return match (self::normalizeDocumentType($documentType)) {
+            self::DOCUMENT_TYPE_CREDIT_SALE => __('Credit Sale'),
+            self::DOCUMENT_TYPE_INTERNAL_CONSUMPTION => __('Internal Consumption'),
+            default => __('Cash Sale'),
+        };
+    }
 
     public function branch()
     {

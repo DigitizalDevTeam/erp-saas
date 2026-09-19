@@ -270,6 +270,7 @@
                                    placeholder="{{ $tp('pos.guest_phone', 'Guest Phone') }}" maxlength="64" style="min-width: 95px;">
                         </div>
                     </div>
+
                 </div>
 
                 {{-- Manage tables --}}
@@ -278,6 +279,45 @@
                             id="pos-manage-tables-btn" title="{{ $tp('pos.manage_tables', 'Manage Tables') }}">
                         <i class="ti ti-settings"></i> {{ $tp('pos.manage_tables', 'Manage Tables') }}
                     </button>
+                </div>
+            </div>
+
+            @php
+                $customersForPos = $customersForPos ?? collect();
+                $selCustomer = $customersForPos->firstWhere('name', $customer ?? 'Walk-in-customer') ?? $customersForPos->first();
+            @endphp
+            <div class="border-top pt-2 mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-muted small fw-semibold d-flex align-items-center gap-1">
+                        <i class="ti ti-user"></i> {{ __('Customer') }}
+                    </span>
+                    <div class="d-flex align-items-center gap-1">
+                        <a href="#" class="text-muted small pos-restaurant-customer-edit d-none" id="pos-restaurant-customer-edit" title="{{ __('Add New Customer') }}"><i class="ti ti-edit"></i> {{ __('Edit') }}</a>
+                        <a href="#" class="text-muted small pos-restaurant-customer-change" id="pos-restaurant-customer-change">{{ __('Change') }}</a>
+                    </div>
+                </div>
+                <select class="form-control form-control-sm select pos-restaurant-customer-select d-none" id="pos-restaurant-customer" required>
+                    @foreach($customersForPos as $c)
+                        <option value="{{ $c->name }}" data-email="{{ e($c->email ?? '') }}" data-contact="{{ e($c->contact ?? '') }}" data-type="{{ $c->name === 'Walk-in-customer' ? 'walk-in' : 'customer' }}" {{ (($customer ?? '') === $c->name || (($customer ?? '') === '' && $c->name === 'Walk-in-customer')) ? 'selected' : '' }}>{{ $c->name }}</option>
+                    @endforeach
+                </select>
+                {{ Form::hidden('vc_name_hidden_restaurant', ($customer ?? '') ?: 'Walk-in-customer', ['id' => 'pos-restaurant-vc-name-hidden']) }}
+                <div class="card border rounded-2 shadow-sm p-2 bg-white" id="pos-restaurant-customer-card">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div class="min-w-0">
+                            <div class="fw-bold text-dark text-truncate" id="pos-restaurant-customer-name">{{ $selCustomer->name ?? __('Walk-in-customer') }}</div>
+                            <small class="text-muted d-block text-truncate" id="pos-restaurant-customer-email">{{ $selCustomer->email ?? 'walkin@default.com' }}</small>
+                            <small class="text-muted d-block" id="pos-restaurant-customer-phone">{{ $selCustomer->contact ?? '0000000000' }}</small>
+                        </div>
+                        <span class="badge bg-light text-dark border" id="pos-restaurant-customer-badge">{{ $selCustomer && $selCustomer->name === 'Walk-in-customer' ? __('Walk-in') : __('Customer') }}</span>
+                    </div>
+                    <div id="pos-restaurant-customer-balance-wrap" class="mt-2 pt-2 border-top d-none">
+                        <div class="d-flex justify-content-between align-items-center small">
+                            <span class="text-muted">{{ __('Balance due') }}:</span>
+                            <span id="pos-restaurant-customer-balance" class="fw-semibold text-danger" data-raw="0">0</span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-1 w-100" id="pos-restaurant-pay-balance-btn"><i class="ti ti-cash me-1"></i> {{ __('Pay balance') }}</button>
+                    </div>
                 </div>
             </div>
 

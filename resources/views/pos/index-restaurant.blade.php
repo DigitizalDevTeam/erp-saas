@@ -7,87 +7,22 @@
     if (!empty($setting['color'])) {
         $color = $setting['color'];
     }
-
-    if (isset($setting['color_flag']) && $setting['color_flag'] == 'true') {
-        $themeColor = 'theme-3';
-    } else {
-        $themeColor = $color;
-    }
+    $themeColor = (isset($setting['color_flag']) && $setting['color_flag'] == 'true') ? 'theme-3' : $color;
     $tp = function (string $key, string $fallback) {
         $translated = __($key);
         return $translated === $key ? __($fallback) : $translated;
     };
-
 @endphp
 <!DOCTYPE html>
-
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover">
-    <meta name="theme-color" content="#2563eb">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="mobile-web-app-capable" content="yes">
-    <link rel="manifest" href="{{ asset('pos-manifest.json') }}">
-    <link rel="stylesheet" href="{{ asset('css/pos.css') }}?v=5">
-    <title>
-        {{ !empty($companySettings['header_text']) ? $companySettings['header_text']->value : config('app.name', 'ERP SaaS') }}
-        - {{ __('POS Restaurant') }}</title>
-
-    <link rel="icon"
-        href="{{ asset(Storage::url('uploads/logo/')) . '/' . (isset($companySettings['company_favicon']) && !empty($companySettings['company_favicon']) ? $companySettings['company_favicon']->value : 'favicon.png') }}"
-        type="image" sizes="16x16">
-    <link rel="stylesheet" href="{{ asset('assets/fonts/tabler-icons.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/site.css') }}" id="stylesheet">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-
-    <!-- font css -->
+    <link rel="stylesheet" href="{{ asset('css/pos.css') }}?v=5">
     <link rel="stylesheet" href="{{ asset('assets/fonts/tabler-icons.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('assets/fonts/feather.css') }}">
-    <link rel="stylesheet" href="{{ asset('assets/fonts/fontawesome.css') }}">
-    <link rel="stylesheet" href="{{ asset('assets/fonts/material.css') }}">
-
-    <!--bootstrap switch-->
-    <link rel="stylesheet" href="{{ asset('assets/css/plugins/bootstrap-switch-button.min.css') }}">
-
-    <!-- vendor css -->
-    @if ($SITE_RTL == 'on')
-        <link rel="stylesheet" href="{{ asset('assets/css/style-rtl.css') }}">
-    @endif
-    @if ($setting['cust_darklayout'] == 'on')
-        <link rel="stylesheet" href="{{ asset('assets/css/style-dark.css') }}">
-    @else
-        <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}" id="main-style-link">
-    @endif
-
-    <link rel="stylesheet" href="{{ asset('assets/css/customizer.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/custom.css') }}?v=4" id="main-style-link">
-
+    <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}" id="main-style-link">
     <style>
-        .main_div{
-            position: relative;
-        }
-        .disabled_div{
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            z-index: 1000;
-            background: #c2c2c28c;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .pos-top-bar {
-            padding: 0.6rem 1rem;
-            align-items: center;
-            border-radius: 0.5rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            /* flex-wrap: nowrap !important; */
-            /* overflow-x: auto;
-            -webkit-overflow-scrolling: touch; */
-        }
         .pos-top-bar > div {
             flex-shrink: 0;
         }
@@ -263,8 +198,6 @@
     .pos-top-bar > div:first-child > a { font-size: 0.80rem !important; padding: 12px 5px !important;background: white !important; color: #000 !important; }
     .pos-top-bar .btn-sm { padding: 4px 6px !important; }
 }
-
-    </style>
 
     </style>
 </head>
@@ -456,9 +389,44 @@
                                 </div>
                             </div>
                             <div class="col-sm-6 pr-1">
-                                {{ Form::select('customer_id', $customers, $customer, ['class' => 'form-control select customer_select', 'id' => 'customer', 'required' => 'required', 'placeholder' => __('pos.select_customer') ]) }}
-                                {{ Form::hidden('vc_name_hidden', '', ['id' => 'vc_name_hidden']) }}
-
+                                @php
+                                    $customersForPos = $customersForPos ?? collect();
+                                    $selCustomer = $customersForPos->firstWhere('name', $customer ?? 'Walk-in-customer') ?? $customersForPos->first();
+                                @endphp
+                                <div class="pos-customer-block mb-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="text-muted small fw-semibold d-flex align-items-center gap-1">
+                                            <i class="ti ti-user"></i> {{ __('Customer') }}
+                                        </span>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <a href="#" class="text-muted small pos-customer-edit d-none" id="pos-customer-edit" title="{{ __('Add New Customer') }}"><i class="ti ti-edit"></i> {{ __('Edit') }}</a>
+                                            <a href="#" class="text-muted small pos-customer-change" id="pos-customer-change">{{ __('Change') }}</a>
+                                        </div>
+                                    </div>
+                                    <select class="form-control form-control-sm select customer_select d-none" id="customer" required>
+                                        @foreach($customersForPos as $c)
+                                            <option value="{{ $c->name }}" data-email="{{ e($c->email ?? '') }}" data-contact="{{ e($c->contact ?? '') }}" data-type="{{ $c->name === 'Walk-in-customer' ? 'walk-in' : 'customer' }}" {{ (($customer ?? '') === $c->name || (($customer ?? '') === '' && $c->name === 'Walk-in-customer')) ? 'selected' : '' }}>{{ $c->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    {{ Form::hidden('vc_name_hidden', ($customer ?? '') ?: 'Walk-in-customer', ['id' => 'vc_name_hidden']) }}
+                                    <div class="pos-customer-card card border rounded-2 shadow-sm p-2" id="pos-customer-card">
+                                        <div class="d-flex justify-content-between align-items-start gap-2">
+                                            <div class="min-w-0">
+                                                <div class="fw-bold text-dark text-truncate" id="pos-customer-name">{{ $selCustomer->name ?? __('Walk-in-customer') }}</div>
+                                                <small class="text-muted d-block text-truncate" id="pos-customer-email">{{ $selCustomer->email ?? 'walkin@default.com' }}</small>
+                                                <small class="text-muted d-block" id="pos-customer-phone">{{ $selCustomer->contact ?? '0000000000' }}</small>
+                                            </div>
+                                            <span class="badge bg-light text-dark border" id="pos-customer-badge">{{ $selCustomer && $selCustomer->name === 'Walk-in-customer' ? __('Walk-in') : __('Customer') }}</span>
+                                        </div>
+                                        <div id="pos-customer-balance-wrap" class="mt-2 pt-2 border-top d-none">
+                                            <div class="d-flex justify-content-between align-items-center small">
+                                                <span class="text-muted">{{ __('Balance due') }}:</span>
+                                                <span id="pos-customer-balance" class="fw-semibold text-danger" data-raw="0">0</span>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-outline-primary mt-1 w-100" id="pos-pay-balance-btn"><i class="ti ti-cash me-1"></i> {{ __('Pay balance') }}</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="col-sm-6 pl-1">
                                 <!-- {{ Form::label('warehouse_id', __('Warehouse'), ['class' => 'form-label d-none d-sm-block']) }} -->
@@ -637,6 +605,98 @@
             @include('pos.restaurant')
         </div>{{-- /pos-restaurant-panel --}}
     </div>{{-- /pos-page --}}
+
+    <div class="modal fade" id="posNewCustomerModal" tabindex="-1" aria-labelledby="posNewCustomerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="posNewCustomerModalLabel">{{ __('Add New Customer') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="pos-new-customer-form">
+                    <div class="modal-body">
+                        @csrf
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Name') }} <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required maxlength="255" placeholder="{{ __('Name') }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Contact') }} <span class="text-danger">*</span></label>
+                            <input type="text" name="contact" class="form-control" required maxlength="50" placeholder="{{ __('Contact') }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Email') }} <span class="text-danger">*</span></label>
+                            <input type="email" name="email" class="form-control" required placeholder="{{ __('Email') }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Tax Number') }} / {{ __('VAT') }}</label>
+                            <input type="text" name="tax_number" class="form-control" maxlength="50" placeholder="{{ __('Tax Number') }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Address') }}</label>
+                            <textarea name="billing_address" class="form-control" rows="2" placeholder="{{ __('Enter Address') }}"></textarea>
+                        </div>
+                        <div id="pos-new-customer-error" class="alert alert-danger py-2 d-none mb-0"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                        <button type="submit" class="btn btn-primary" id="pos-new-customer-submit">{{ __('Save') }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="posPayBalanceModal" tabindex="-1" aria-labelledby="posPayBalanceModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="posPayBalanceModalLabel">{{ __('Pay balance') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="pos-pay-balance-form">
+                    <div class="modal-body">
+                        @csrf
+                        <input type="hidden" name="vc_name" id="pos-pay-balance-vc-name" value="">
+                        <input type="hidden" name="pos_shift_id" id="pos-pay-balance-shift-id" value="">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">{{ __('Outstanding Invoices') }}</label>
+                            <div id="pos-pay-balance-invoices" class="border rounded p-2 bg-light" style="max-height: 200px; overflow-y: auto;">
+                                <p class="text-muted small mb-0">{{ __('Loading...') }}</p>
+                            </div>
+                            <p class="small text-muted mt-1 mb-0"><strong>{{ __('Total due') }}:</strong> <span id="pos-pay-balance-total-due">0</span></p>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{{ __('Amount to pay') }} <span class="text-danger">*</span></label>
+                                <input type="number" name="amount" id="pos-pay-balance-amount" class="form-control" required min="0.01" step="0.01" placeholder="0.00">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{{ __('Payment method') }} <span class="text-danger">*</span></label>
+                                <select name="payment_method" id="pos-pay-balance-payment-method" class="form-select" required>
+                                    <option value="cash">{{ __('pos.payment_cash') }}</option>
+                                    <option value="card">{{ __('pos.payment_card') }}</option>
+                                    <option value="visa">{{ __('pos.payment_visa') }}</option>
+                                    <option value="cheque">{{ __('pos.payment_cheque') }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ __('Bank account') }} <span class="text-danger">*</span></label>
+                            <select name="account_id" id="pos-pay-balance-account" class="form-select" required>
+                                <option value="">{{ __('Loading...') }}</option>
+                            </select>
+                        </div>
+                        <div id="pos-pay-balance-error" class="alert alert-danger py-2 d-none mb-0"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                        <button type="submit" class="btn btn-primary" id="pos-pay-balance-submit">{{ __('Pay') }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <div class="modal fade" id="commonModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
         aria-hidden="true" style="z-index: 9999999;">
@@ -3011,9 +3071,103 @@
                 });
             });
 
+            function posUpdateCustomerCard() {
+                var $sel = $('#customer option:selected');
+                var name = $sel.text();
+                var email = $sel.data('email') || '';
+                var contact = $sel.data('contact') || '';
+                var type = $sel.data('type') || 'customer';
+                $('#pos-customer-name').text(name || '{{ __('Walk-in-customer') }}');
+                $('#pos-customer-email').text(email || 'walkin@default.com');
+                $('#pos-customer-phone').text(contact || '0000000000');
+                $('#pos-customer-badge').text(type === 'walk-in' ? '{{ __('Walk-in') }}' : '{{ __('Customer') }}');
+                $('#vc_name_hidden').val($('#customer').val());
+                var isWalkIn = ($('#customer').val() || '').toString() === 'Walk-in-customer' || type === 'walk-in';
+                $('#pos-customer-edit').toggleClass('d-none', !isWalkIn);
+                posFetchCustomerBalance();
+            }
+            function posFetchCustomerBalance() {
+                var vc = ($('#vc_name_hidden').val() || $('#customer').val() || '').toString().trim();
+                if (vc === '' || vc === 'Walk-in-customer') {
+                    $('#pos-customer-balance-wrap').addClass('d-none');
+                    $('#pos-customer-balance').text('0');
+                    return;
+                }
+                $.get('{{ route("pos.customer.balance") }}', { vc_name: vc }, function(res) {
+                    if (res.success) {
+                        var bal = parseFloat(res.balance) || 0;
+                        $('#pos-customer-balance').text(res.formatted || '0').attr('data-raw', bal);
+                        if (bal > 0) {
+                            $('#pos-customer-balance-wrap').removeClass('d-none');
+                        } else {
+                            $('#pos-customer-balance-wrap').addClass('d-none');
+                        }
+                    } else {
+                        $('#pos-customer-balance-wrap').addClass('d-none');
+                    }
+                }).fail(function() {
+                    $('#pos-customer-balance-wrap').addClass('d-none');
+                });
+            }
+            $(document).on('click', '#pos-customer-change', function(e) {
+                e.preventDefault();
+                var $customerSelect = $(this).closest('.pos-customer-block').find('.customer_select');
+                var customerSelect = $customerSelect[0];
+                $customerSelect.removeClass('d-none');
+                if (customerSelect) {
+                    customerSelect.style.setProperty('display', 'block', 'important');
+                    customerSelect.focus();
+                }
+            });
+            $(document).on('click', '#pos-customer-edit', function(e) {
+                e.preventDefault();
+                $('#pos-new-customer-form')[0].reset();
+                $('#pos-new-customer-error').addClass('d-none').text('');
+                $('#posNewCustomerModal').modal('show');
+            });
+            $(document).on('submit', '#pos-new-customer-form', function(e) {
+                e.preventDefault();
+                var $form = $(this);
+                var $err = $('#pos-new-customer-error');
+                var $submit = $('#pos-new-customer-submit');
+                $err.addClass('d-none').text('');
+                $submit.prop('disabled', true);
+                $.ajax({
+                    url: '{{ route("customer.store.from.pos") }}',
+                    type: 'POST',
+                    data: $form.serialize(),
+                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    success: function(res) {
+                        if (res.success && res.customer) {
+                            var c = res.customer;
+                            var $opt = $('<option></option>').attr('value', c.name).text(c.name)
+                                .attr('data-email', c.email || '').attr('data-contact', c.contact || '').attr('data-type', 'customer');
+                            $('#customer').append($opt).val(c.name).addClass('d-none');
+                            posUpdateCustomerCard();
+                            $('#posNewCustomerModal').modal('hide');
+                            $form[0].reset();
+                        } else {
+                            $err.text(res.message || '{{ __("Error saving customer.") }}').removeClass('d-none');
+                        }
+                    },
+                    error: function(xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : (xhr.statusText || '{{ __("Error saving customer.") }}');
+                        $err.text(msg).removeClass('d-none');
+                    },
+                    complete: function() {
+                        $submit.prop('disabled', false);
+                    }
+                });
+            });
+            $(document).on('change blur', '#customer', function() {
+                posUpdateCustomerCard();
+                $('#customer').addClass('d-none');
+            });
             $( '.customer_select' ).change(function() {
                 $( "#vc_name_hidden" ).val($(this).val());
+                posUpdateCustomerCard();
             });
+            posUpdateCustomerCard();
             $( '.warehouse_select' ).change(function() {
                 $( "#warehouse_name_hidden" ).val($(this).val());
                 var ware_id = $( "#warehouse" ).val();
@@ -3696,6 +3850,7 @@
                         discount: $('#discount_hidden').val(),
                         quotation_id: $('#quotation_id').val(),
                         payment_method: $('#payment_method').length ? $('#payment_method').val() : 'cash',
+                        document_type: $('#document_type').length ? ($('#document_type').val() || 'cash_sale') : 'cash_sale',
                         pos_order_type: $('#pos_order_type_hidden').val() || '',
                         pos_table_id: $('#pos_table_id_hidden').val() || '',
                         pos_shift_id: $('#pos_shift_id_hidden').val() || '',
@@ -3973,5 +4128,178 @@
             updateFullscreenButton();
         })();
     </script>
+    <script>
+        $(function () {
+            var $customer = $('#pos-restaurant-customer');
+            var $modal = $('#posNewCustomerModal');
+            if (!$customer.length || !$modal.length) return;
+
+            function updateRestaurantCustomerCard() {
+                var $selected = $customer.find('option:selected');
+                var type = $selected.data('type') || 'customer';
+                var value = $customer.val() || '';
+                $('#pos-restaurant-customer-name').text($selected.text() || '{{ __('Walk-in-customer') }}');
+                $('#pos-restaurant-customer-email').text($selected.data('email') || 'walkin@default.com');
+                $('#pos-restaurant-customer-phone').text($selected.data('contact') || '0000000000');
+                $('#pos-restaurant-customer-badge').text(type === 'walk-in' ? '{{ __('Walk-in') }}' : '{{ __('Customer') }}');
+                $('#pos-restaurant-vc-name-hidden, #vc_name_hidden').val(value);
+                $('#pos-restaurant-customer-edit').toggleClass('d-none', value !== 'Walk-in-customer' && type !== 'walk-in');
+                fetchRestaurantCustomerBalance();
+            }
+
+            function fetchRestaurantCustomerBalance() {
+                var vc = ($customer.val() || '').toString().trim();
+                if (vc === '' || vc === 'Walk-in-customer') {
+                    $('#pos-restaurant-customer-balance-wrap').addClass('d-none');
+                    $('#pos-restaurant-customer-balance').text('0').attr('data-raw', 0);
+                    return;
+                }
+                $.get('{{ route("pos.customer.balance") }}', { vc_name: vc }, function (response) {
+                    var balance = parseFloat(response.balance) || 0;
+                    $('#pos-restaurant-customer-balance').text(response.formatted || '0').attr('data-raw', balance);
+                    $('#pos-restaurant-customer-balance-wrap').toggleClass('d-none', !response.success || balance <= 0);
+                }).fail(function () {
+                    $('#pos-restaurant-customer-balance-wrap').addClass('d-none');
+                });
+            }
+
+            $(document).on('click.restaurantCustomer', '#pos-restaurant-customer-change', function (event) {
+                event.preventDefault();
+                var customerSelect = $customer[0];
+                $customer.removeClass('d-none');
+                if (customerSelect) {
+                    customerSelect.style.setProperty('display', 'block', 'important');
+                    customerSelect.focus();
+                    if (typeof customerSelect.showPicker === 'function') {
+                        try { customerSelect.showPicker(); } catch (error) {}
+                    }
+                }
+            });
+            $(document).on('click.restaurantCustomer', '#pos-restaurant-customer-edit', function (event) {
+                event.preventDefault();
+                $('#pos-new-customer-form')[0].reset();
+                $('#pos-new-customer-error').addClass('d-none').text('');
+                $modal.modal('show');
+            });
+            $(document).on('change.restaurantCustomer', '#pos-restaurant-customer', function () {
+                updateRestaurantCustomerCard();
+                $customer[0].style.removeProperty('display');
+                $customer.addClass('d-none');
+            });
+            $(document).on('click.restaurantCustomer', '#pos-restaurant-pay-balance-btn', function (event) {
+                event.preventDefault();
+                var vc = ($customer.val() || '').toString().trim();
+                var balance = parseFloat($('#pos-restaurant-customer-balance').attr('data-raw')) || 0;
+                $('#pos-pay-balance-vc-name').val(vc);
+                $('#pos-pay-balance-shift-id').val($('#pos_shift_id_hidden').val() || '');
+                $('#pos-pay-balance-amount').val(balance > 0 ? balance.toFixed(2) : '');
+                $('#pos-pay-balance-error').addClass('d-none').text('');
+                $('#pos-pay-balance-invoices').html('<p class="text-muted small mb-0">{{ __('Loading...') }}</p>');
+                $('#pos-pay-balance-total-due').text('0');
+                $.get('{{ route("pos.customer.outstanding.invoices") }}', { vc_name: vc }, function (response) {
+                    if (response.success && response.invoices && response.invoices.length) {
+                        var html = '<div class="small">';
+                        response.invoices.forEach(function (invoice) {
+                            html += '<label class="d-flex align-items-center gap-2 py-1 border-bottom border-light"><input type="checkbox" name="invoice_ids[]" value="' + invoice.id + '" class="form-check-input pos-pay-inv-cb" checked> <span class="flex-grow-1">' + (invoice.ref_number || invoice.invoice_id) + '</span> <span class="text-end">' + invoice.due_formatted + '</span></label>';
+                        });
+                        $('#pos-pay-balance-invoices').html(html + '</div>');
+                    } else {
+                        $('#pos-pay-balance-invoices').html('<p class="text-muted small mb-0">{{ __('No outstanding invoices.') }}</p>');
+                    }
+                    $('#pos-pay-balance-total-due').text(response.formatted || '0');
+                }).fail(function () {
+                    $('#pos-pay-balance-invoices').html('<p class="text-danger small mb-0">{{ __('Error loading invoices.') }}</p>');
+                });
+                var $account = $('#pos-pay-balance-account');
+                $account.empty().append('<option value="">{{ __('Loading...') }}</option>');
+                $.get('{{ route("pos.bank.accounts") }}', function (response) {
+                    $account.empty().append('<option value="">{{ __('Select account') }}</option>');
+                    if (response.success && response.accounts) {
+                        $.each(response.accounts, function (index, account) {
+                            $account.append($('<option></option>').val(account.id).text(account.label));
+                        });
+                    }
+                });
+                $('#posPayBalanceModal').modal('show');
+            });
+            $(document).on('submit.restaurantCustomer', '#pos-new-customer-form', function (event) {
+                event.preventDefault();
+                var $form = $(this);
+                var $error = $('#pos-new-customer-error');
+                var $submit = $('#pos-new-customer-submit');
+                $error.addClass('d-none').text('');
+                $submit.prop('disabled', true);
+                $.ajax({
+                    url: '{{ route("customer.store.from.pos") }}',
+                    type: 'POST',
+                    data: $form.serialize(),
+                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    success: function (response) {
+                        if (response.success && response.customer) {
+                            var customer = response.customer;
+                            $('<option></option>')
+                                .val(customer.name)
+                                .text(customer.name)
+                                .attr('data-email', customer.email || '')
+                                .attr('data-contact', customer.contact || '')
+                                .attr('data-type', 'customer')
+                                .appendTo($customer);
+                            $customer.val(customer.name).addClass('d-none');
+                            updateRestaurantCustomerCard();
+                            $modal.modal('hide');
+                            $form[0].reset();
+                        } else {
+                            $error.text(response.message || '{{ __('Error saving customer.') }}').removeClass('d-none');
+                        }
+                    },
+                    error: function (xhr) {
+                        var message = xhr.responseJSON && xhr.responseJSON.message
+                            ? xhr.responseJSON.message
+                            : (xhr.statusText || '{{ __('Error saving customer.') }}');
+                        $error.text(message).removeClass('d-none');
+                    },
+                    complete: function () {
+                        $submit.prop('disabled', false);
+                    }
+                });
+            });
+            $(document).on('submit.restaurantCustomer', '#pos-pay-balance-form', function (event) {
+                event.preventDefault();
+                var $form = $(this);
+                var $error = $('#pos-pay-balance-error');
+                var $submit = $('#pos-pay-balance-submit');
+                $error.addClass('d-none').text('');
+                $submit.prop('disabled', true);
+                $.ajax({
+                    url: '{{ route("pos.customer.pay.balance") }}',
+                    type: 'POST',
+                    data: $form.serialize(),
+                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    success: function (response) {
+                        if (response.success) {
+                            $('#pos-restaurant-customer-balance').text(response.formatted || '0').attr('data-raw', response.balance || 0);
+                            $('#pos-restaurant-customer-balance-wrap').toggleClass('d-none', (parseFloat(response.balance) || 0) <= 0);
+                            $('#posPayBalanceModal').modal('hide');
+                            if (response.receipt_html) {
+                                $('#commonModal .modal-title').html('{{ __('pos.pos_invoice') }}');
+                                $('#commonModal .body').html(response.receipt_html);
+                                $('#commonModal').modal('show');
+                            }
+                        } else {
+                            $error.text(response.message || '{{ __('Error.') }}').removeClass('d-none');
+                        }
+                    },
+                    error: function (xhr) {
+                        var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : '{{ __('Error.') }}';
+                        $error.text(message).removeClass('d-none');
+                    },
+                    complete: function () {
+                        $submit.prop('disabled', false);
+                    }
+                });
+            });
+            updateRestaurantCustomerCard();
+        });
+    </script>
 </body>
-</html> 
+</html>

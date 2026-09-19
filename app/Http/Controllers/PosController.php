@@ -250,6 +250,14 @@ class PosController extends Controller
         return null;
     }
 
+    protected function resolvePosDocumentTypeFromRequest(Request $request): string
+    {
+        return Pos::normalizeDocumentType(
+            $request->input('document_type') ?? $request->input('documentType'),
+            $request->input('payment_method')
+        );
+    }
+
     /**
      * Restaurant branch ids visible in POS for the current actor (PIN user or company login).
      *
@@ -1357,6 +1365,7 @@ class PosController extends Controller
         $pos->warehouse_id = $warehouse_id;
         $pos->pos_date = date('Y-m-d');
         $pos->payment_method = $request->payment_method;
+        $pos->document_type = $this->resolvePosDocumentTypeFromRequest($request);
         $pos->created_by = $user_id;
         $pos->client_order_id = $clientOrderId;
         $pos->save();
@@ -1764,6 +1773,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $pos = $existingPos;
                     $pos->customer_id = $customer_id;
                     $pos->payment_method = $request->payment_method ?? $pos->payment_method;
+                    $pos->document_type = $this->resolvePosDocumentTypeFromRequest($request);
                     $pos->save();
                     foreach ($pos->items as $line) {
                         $lineProduct = ProductService::whereId($line->product_id)->where('created_by', $user_id)->first();
@@ -1957,6 +1967,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $pos->warehouse_id = $warehouse_id;
                     $pos->pos_date = date('Y-m-d');
                     $pos->payment_method = $request->payment_method;
+                    $pos->document_type = $this->resolvePosDocumentTypeFromRequest($request);
                     $pos->created_by = $user_id;
                     $pos->save();
 
@@ -2057,8 +2068,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     }
 
                     $mainsubtotal = 0;
-                    $sales = [];
-                    $sess = session()->get('pos');
+                    $sess = is_array($sales) ? $sales : [];
                     foreach ($sess as $key => $value) {
                         $priceType = $value['price_type'] ?? 'exclusive';
                         $lineSubtotal = (float) ($value['subtotal'] ?? 0);
@@ -4499,6 +4509,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         session()->forget('pos');
         $customers = Customer::where('created_by', $creatorId)->get()->pluck('name', 'name');
         $customers->prepend('Walk-in-customer', '');
+        $customersForPos = Customer::where('created_by', $creatorId)->get(['id', 'name', 'email', 'contact']);
+        $customersForPos = collect([(object) ['id' => 0, 'name' => 'Walk-in-customer', 'email' => 'walkin@default.com', 'contact' => '0000000000']])->merge($customersForPos);
         $posPinUser->loadMissing('branches');
         $branchScopeUser = $this->restaurantBranchScopeUser();
         $branchScopeUser->loadMissing('branches');
@@ -4556,7 +4568,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         if ($posDefaultPrepMinutes < 1) {
             $posDefaultPrepMinutes = 15;
         }
-        return view('pos.index-restaurant', compact('customers', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'posPinUser', 'posBranchAssignmentWarning', 'posDefaultPrepMinutes'));
+        return view('pos.index-restaurant', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'posPinUser', 'posBranchAssignmentWarning', 'posDefaultPrepMinutes'));
     }
 
     /**

@@ -60,6 +60,15 @@
                     </select>
                 </div>
 
+                <div class="mb-2">
+                    <label class="form-label small mb-1">{{ __('Document Type') }}</label>
+                    <select class="form-select form-select-sm" id="document_type" name="document_type">
+                        <option value="cash_sale" selected>{{ __('Cash Sale') }}</option>
+                        <option value="credit_sale">{{ __('Credit Sale') }}</option>
+                        <option value="internal_consumption">{{ __('Internal Consumption') }}</option>
+                    </select>
+                </div>
+
                 {{-- Single payment: amount / cash received --}}
                 <div class="mb-2" id="single_payment_wrap">
                     <label class="form-label small mb-1" id="payment_amount_label">{{ __('pos.cash_received') }}</label>
@@ -300,6 +309,7 @@
                 discount: ($('#discount_hidden_restaurant').length ? $('#discount_hidden_restaurant').val() : $('#discount_hidden').val()) || '0',
                 quotation_id: $('#quotation_id').val(),
                 payment_method: 'mixed',
+                document_type: $('#document_type').val() || 'cash_sale',
                 notes: $('#payment_notes').val() || '',
                 tip: parseFloat($('#payment_tip').val()) || 0,
                 pos_order_type: $('#pos_order_type_hidden').val() || '',
@@ -350,6 +360,7 @@
                 discount: ($('#discount_hidden_restaurant').length ? $('#discount_hidden_restaurant').val() : $('#discount_hidden').val()) || '0',
                 quotation_id: $('#quotation_id').val(),
                 payment_method: method,
+                document_type: $('#document_type').val() || 'cash_sale',
                 amount: amount.toFixed(2),
                 change_amount: $('#payment_change').val() || '0',
                 transaction_id: $('#payment_transaction_id').val() || '',
