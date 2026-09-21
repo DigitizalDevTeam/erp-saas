@@ -36,6 +36,7 @@
         <div class="pos-compact-section">
             <div class="pos-compact-kv"><span class="k">{{ __('Date') }}:</span><span class="v">{{ $details['date'] ?? date('Y-m-d') }}</span></div>
             <div class="pos-compact-kv"><span class="k">{{ __('Invoice No') }}:</span><span class="v">{{ $details['pos_id'] ?? '-' }}</span></div>
+            <div class="pos-compact-kv"><span class="k">{{ __('Operator') }}:</span><span class="v">{{ $operatorName }}</span></div>
             <div class="pos-compact-kv"><span class="k">{{ $segundaVia ? __('Copy') : __('Original') }}</span><span class="v">{{ $details['branch']['name'] ?? ($details['warehouse']['name'] ?? '-') }}</span></div>
             @if(!empty($details['table_name']))
                 <div class="pos-compact-kv"><span class="k">{{ __('pos.table') }}:</span><span class="v">{{ $details['table_name'] }}</span></div>

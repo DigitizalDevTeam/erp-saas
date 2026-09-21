@@ -3723,6 +3723,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $pos = Pos::with(['items', 'customer', 'warehouse', 'posPayments', 'table', 'branch'])->where('id', $request->pos_id)->where('created_by', $user->creatorId())->first();
             if ($pos) {
                 $posPayments = $pos->posPayments;
+                $receiptUser = ($pos->pos_user_id ? User::find((int) $pos->pos_user_id) : null) ?: $user;
                 $customer = $pos->customer_id ? $pos->customer : null;
                 $warehouse = $pos->warehouse;
                 $branch = $pos->branch;
@@ -3783,6 +3784,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         'isBalancePayment' => true,
                         'balancePaymentExtra' => $balancePaymentExtra,
                         'settings' => $settings,
+                        'receiptUser' => $receiptUser,
                     ]);
                 }
                 foreach ($pos->items as $item) {
@@ -3835,7 +3837,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $receiptLinkUrl = URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]);
                 \Log::info('Receipt link URL: ' . $receiptLinkUrl);
                 $printSource = in_array($request->get('source'), ['restaurant'], true) ? 'restaurant' : 'retail';
-                return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'printSource'));
+                return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'printSource', 'receiptUser'));
             }
         }
 
