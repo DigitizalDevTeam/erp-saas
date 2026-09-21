@@ -232,11 +232,6 @@
         @else
             <div></div>
         @endif
-        <div class="validation">
-            <strong>{{ __('Consult and validate the invoice') }}</strong><br>
-            @if($receiptLinkUrl)<span style="overflow-wrap:anywhere;">{{ $receiptLinkUrl }}</span><br>@endif
-            {{ __('Code') }}: <b>{{ $docNumber }}</b>
-        </div>
         <div class="powered">
             <strong>ERP SaaS UTHARA</strong>
             www.uthara.co.mz<br>

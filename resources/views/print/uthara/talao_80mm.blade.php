@@ -211,11 +211,6 @@
                 {!! $qrHtml !!}
             @endif
         </div>
-        <div class="validation">
-            <div class="bold">{{ __('Consult and validate the invoice') }}</div>
-            @if(!empty($receiptLinkUrl))<div style="overflow-wrap:anywhere;">{{ $receiptLinkUrl }}</div>@endif
-            <div>{{ __('Code') }}: <strong>{{ $docNumber }}</strong></div>
-        </div>
     </div>
 
     <div class="rule"></div>

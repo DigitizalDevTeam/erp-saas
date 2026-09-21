@@ -237,14 +237,6 @@
                 <div class="qr-placeholder"><span>QR</span></div>
             @endif
         </div>
-        <div class="validation">
-            <strong>{{ __('Consult and validate the invoice') }}</strong><br>
-            @if(!empty($validationUrl)){{ $validationUrl }}<br>@endif
-            {{ __('Code') }}: <b>{{ $validationCode }}</b>
-            @if(!empty($documentHash))
-                <div style="font-family:monospace;font-size:6.5pt;margin-top:1mm;">Hash: {{ $documentHash }}</div>
-            @endif
-        </div>
         <div class="powered">
             <strong>ERP SaaS UTHARA</strong>
             {{ $companyWebsite }}<br>

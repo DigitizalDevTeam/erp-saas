@@ -144,7 +144,6 @@
                 <div class="view-qrcode-receipt-svg d-inline-block" style="width:72px;height:72px;">
                     @if(!empty($qrSvg)){!! $qrSvg !!}@else{!! $qrHtml !!}@endif
                 </div>
-                <div class="small">{{ __('Consult and validate the invoice') }}</div>
             </div>
         @endif
 

@@ -49,7 +49,24 @@ class ProductServiceController extends Controller
     private const POS_PRODUCT_CARD_COL_CLASS = 'col-xl-3 col-lg-3 col-md-3 col-sm-4 col-6';
 
     /** Bump when POS product card HTML shape changes (invalidates Laravel + client caches). */
-    private const POS_PRODUCT_HTML_CACHE_VER = 'pv5';
+    private const POS_PRODUCT_HTML_CACHE_VER = 'pv6';
+
+    protected function restaurantPosWarehouseStock(ProductService $product, int $warehouseId, ?int $variantId = null): int
+    {
+        if ($warehouseId <= 0) {
+            return 0;
+        }
+
+        $query = WarehouseProduct::where('created_by', Auth::user()->creatorId())
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $product->id);
+
+        if ($variantId !== null && $variantId > 0) {
+            $query->where('product_variant_id', $variantId);
+        }
+
+        return (int) floor((float) $query->sum('quantity'));
+    }
 
     protected function buildCategoryOptions($categories, $parentId = null, string $prefix = ''): array
     {
@@ -1260,6 +1277,19 @@ class ProductServiceController extends Controller
             };
 
             $products = $runQuery();
+            $restaurantWarehouseId = ($lastsegment === 'pos-restaurant' && (int) $request->war_id > 0)
+                ? (int) $request->war_id
+                : 0;
+            $restaurantWarehouseQuantities = collect();
+            if ($restaurantWarehouseId > 0 && $products->isNotEmpty()) {
+                $restaurantWarehouseQuantities = WarehouseProduct::where('created_by', Auth::user()->creatorId())
+                    ->where('warehouse_id', $restaurantWarehouseId)
+                    ->whereIn('product_id', $products->pluck('id'))
+                    ->select('product_id')
+                    ->selectRaw('SUM(quantity) as quantity')
+                    ->groupBy('product_id')
+                    ->pluck('quantity', 'product_id');
+            }
             if ($isPos && $products->isNotEmpty()) {
                 $eager = [
                     'category',
@@ -1309,7 +1339,11 @@ class ProductServiceController extends Controller
                 foreach ($products as $product) {
                     $isKitOrNoStock = (($product->type ?? null) === 'kit') || !($product->affect_stock ?? true);
                     $quantity = $isPos
-                        ? ($isKitOrNoStock ? '—' : (int) $product->quantity)
+                        ? ($isKitOrNoStock
+                            ? '—'
+                            : ($restaurantWarehouseId > 0
+                                ? (int) ($restaurantWarehouseQuantities[$product->id] ?? 0)
+                                : ($lastsegment === 'pos-restaurant' ? 0 : (int) $product->quantity)))
                         : $product->warehouseProduct($product->id, $request->war_id != 0 ? $request->war_id : 7);
                     $unit = (!empty($product->unit)) ? $product->unit->name : '';
                     $imgFile = !empty($product->pro_image) ? $product->pro_image : 'default.png';
@@ -1491,6 +1525,7 @@ class ProductServiceController extends Controller
                         $affectStock = false;
                     }
                     $warId = (int) ($request->war_id ?? 0);
+                    $usesRestaurantWarehouse = $session_key === 'pos-restaurant' || $request->boolean('restaurant');
                     if (($product->options_enabled ?? false) && $selectedOptions !== []) {
                         $minOpt = PHP_INT_MAX;
                         foreach ($selectedOptions as $optRow) {
@@ -1499,16 +1534,26 @@ class ProductServiceController extends Controller
                                 continue;
                             }
                             $need = (float) ($optRow['quantity'] ?? 1);
-                            $have = (int) floor((float) ($opt->quantity ?? 0));
+                            $have = $usesRestaurantWarehouse
+                                ? $this->restaurantPosWarehouseStock($opt, $warId)
+                                : (int) floor((float) ($opt->quantity ?? 0));
                             $minOpt = min($minOpt, $need > 0 ? (int) floor($have / $need) : 0);
                         }
                         $productquantity = $minOpt === PHP_INT_MAX ? 999999 : max(0, $minOpt);
                     } elseif ($affectStock && ($product->variants_enabled ?? false)) {
-                        $productquantity = (int) floor($product->variantStockInWarehouse($warId, $variantId));
+                        $productquantity = ($usesRestaurantWarehouse && $warId <= 0)
+                            ? 0
+                            : (int) floor($product->variantStockInWarehouse($warId, $variantId));
                     } elseif ($affectStock && ! ($product->variants_enabled ?? false) && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product->id, $warId, (int) Auth::user()->creatorId()))) {
-                        $productquantity = (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warId, (int) Auth::user()->creatorId()));
+                        $productquantity = ($usesRestaurantWarehouse && $warId <= 0)
+                            ? 0
+                            : (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warId, (int) Auth::user()->creatorId()));
                     } else {
-                        $productquantity = $affectStock ? (int) $product->quantity : 999999;
+                        $productquantity = $affectStock
+                            ? ($usesRestaurantWarehouse
+                                ? $this->restaurantPosWarehouseStock($product, $warId)
+                                : (int) $product->quantity)
+                            : 999999;
                     }
                 } else {
                     $productquantity = $product->getTotalProductQuantity();
@@ -1968,14 +2013,27 @@ class ProductServiceController extends Controller
                 $affectStock = $product ? (($product->type === 'kit') ? false : ($product->affect_stock ?? true)) : true;
                 $warehouseId = (int) ($request->war_id ?? 0);
                 $creatorId = (int) Auth::user()->creatorId();
+                $usesRestaurantWarehouse = $session_key === 'pos-restaurant';
                 if ($product && $affectStock && ($product->variants_enabled ?? false) && $variantLineId) {
-                    $maxQty = (int) floor($product->variantStockInWarehouse($warehouseId, $variantLineId));
+                    $maxQty = ($usesRestaurantWarehouse && $warehouseId <= 0)
+                        ? 0
+                        : (int) floor($product->variantStockInWarehouse($warehouseId, $variantLineId));
                 } elseif ($product && $affectStock && ($product->variants_enabled ?? false) && ! $variantLineId) {
-                    $maxQty = (int) floor($product->variantStockInWarehouse($warehouseId, null));
+                    $maxQty = ($usesRestaurantWarehouse && $warehouseId <= 0)
+                        ? 0
+                        : (int) floor($product->variantStockInWarehouse($warehouseId, null));
                 } elseif ($product && $affectStock && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product->id, $warehouseId, $creatorId))) {
-                    $maxQty = (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warehouseId, $creatorId));
+                    $maxQty = ($usesRestaurantWarehouse && $warehouseId <= 0)
+                        ? 0
+                        : (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warehouseId, $creatorId));
                 } else {
-                    $maxQty = $product ? ($affectStock ? (int) $product->quantity : 999999) : 0;
+                    $maxQty = $product
+                        ? ($affectStock
+                            ? ($usesRestaurantWarehouse
+                                ? $this->restaurantPosWarehouseStock($product, $warehouseId)
+                                : (int) $product->quantity)
+                            : 999999)
+                        : 0;
                 }
                 if ($cart[$lineKey]['quantity'] > $maxQty) {
                     return response()->json(

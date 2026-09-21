@@ -185,12 +185,20 @@ class ProductService extends Model
 
     public function variantStockInWarehouse(?int $warehouseId, ?int $variantId): float
     {
-        $q = WarehouseProduct::where('product_id', $this->id);
+        $q = WarehouseProduct::where('product_id', $this->id)
+            ->where('created_by', $this->created_by);
         if ($warehouseId !== null && $warehouseId > 0) {
             $q->where('warehouse_id', $warehouseId);
         }
         if ($variantId !== null && $variantId > 0) {
-            $q->where('product_variant_id', $variantId);
+            $variantQuery = (clone $q)
+                ->where('product_variant_id', $variantId)
+                ;
+            if ($variantQuery->exists()) {
+                return (float) $variantQuery->sum('quantity');
+            }
+
+            $q->whereNull('product_variant_id');
         } else {
             $q->whereNull('product_variant_id');
         }

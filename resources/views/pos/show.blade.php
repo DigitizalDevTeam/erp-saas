@@ -145,6 +145,13 @@
 
 <script>
 (function() {
+    document.addEventListener('wheel', function(event) {
+        if (event.target && event.target.id === 'payment_amount') {
+            event.preventDefault();
+            event.target.blur();
+        }
+    }, { passive: false });
+
     var totalRaw = {{ $totalRaw }};
     var currencySymbol = @json(Auth::user()->currencySymbol() ?? '');
     var getWarehouseValue = function () {
