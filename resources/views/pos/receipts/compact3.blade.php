@@ -289,10 +289,6 @@
                 @else
                     <div class="view-qrcode-receipt">{!! $qrHtml !!}</div>
                 @endif
-                <div class="validation">
-                    @if($receiptLinkUrl)<div class="small" style="overflow-wrap:anywhere;">{{ $receiptLinkUrl }}</div>@endif
-                    <div>{{ __('Code') }}: <strong>{{ $docNumber }}</strong></div>
-                </div>
             </div>
             @endif
 

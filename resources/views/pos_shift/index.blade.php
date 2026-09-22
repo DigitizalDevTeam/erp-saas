@@ -76,9 +76,9 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="d-flex justify-content-end mt-2">
+                    {{-- <div class="d-flex justify-content-end mt-2">
                         {{ $shifts->links() }}
-                    </div>
+                    </div> --}}
                 </div>
             </div>
         </div>
