@@ -23,19 +23,19 @@
                     </div>
                     <div class="d-flex justify-content-between mb-1">
                         <span>{{ __('pos.sub_total') }}:</span>
-                        <span>{{ $subtotalFmt }}</span>
+                        <span id="order-summary-subtotal">{{ $subtotalFmt }}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-1">
                         <span>{{ __('Tax') }}:</span>
-                        <span>{{ $taxFmt }}</span>
+                        <span id="order-summary-tax">{{ $taxFmt }}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-1">
                         <span>{{ __('pos.discount') }}:</span>
-                        <span>{{ $discountFmt }}</span>
+                        <span id="order-summary-discount">{{ $discountFmt }}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-1">
                         <span>{{ __('pos.total') }}:</span>
-                        <strong>{{ $totalFmt }}</strong>
+                        <strong id="order-summary-total">{{ $totalFmt }}</strong>
                     </div>
                     <div class="d-flex justify-content-between mb-1" id="order-summary-tip-row">
                         <span>{{ __('Tip') }}:</span>
@@ -135,7 +135,7 @@
                     </div>
                 </div>
 
-                <button type="button" class="btn btn-success btn-sm w-100 payment-done-btn rounded" data-url="{{ route('pos.data.store') }}" data-bs-toggle="tooltip" data-title="{{ __('pos.pos_invoice') }}">
+                <button type="button" class="btn btn-success btn-sm w-100 payment-done-btn rounded" data-url="{{ route('pos.data.store') }}" data-bs-toggle="tooltip" data-title="">
                     {{ __('pos.pay_button') }}
                 </button>
             @endif
@@ -153,6 +153,13 @@
     }, { passive: false });
 
     var totalRaw = {{ $totalRaw }};
+    var saleTotalRaw = {{ (float) ($orderSummary['sale_total_raw'] ?? $totalRaw) }};
+    var costTotalRaw = {{ (float) ($orderSummary['cost_total_raw'] ?? $totalRaw) }};
+    var saleSubtotalRaw = {{ (float) ($orderSummary['sale_subtotal_raw'] ?? $totalRaw) }};
+    var costSubtotalRaw = {{ (float) ($orderSummary['cost_subtotal_raw'] ?? $totalRaw) }};
+    var saleTaxRaw = {{ (float) ($orderSummary['sale_tax_raw'] ?? 0) }};
+    var costTaxRaw = {{ (float) ($orderSummary['cost_tax_raw'] ?? 0) }};
+    var discountRaw = {{ (float) ($orderSummary['discount_raw'] ?? 0) }};
     var currencySymbol = @json(Auth::user()->currencySymbol() ?? '');
     var getWarehouseValue = function () {
         return $('#pos_restaurant_warehouse_hidden').val() || $('#warehouse_name_hidden').val() || '';
@@ -164,6 +171,29 @@
     };
     var canGivePosCredit = @json($canGivePosCredit ?? false);
     var payMethodOpts = '<option value="cash">{{ __("pos.payment_cash") }}</option><option value="card">{{ __("pos.payment_card") }}</option>' + (canGivePosCredit ? '<option value="credit">{{ __("pos.payment_credit") }}</option>' : '') + '<option value="visa">{{ __("pos.payment_visa") }}</option><option value="mpesa">{{ __("pos.payment_mpesa") }}</option><option value="bank_transfer">{{ __("pos.payment_bank_transfer") }}</option><option value="cheque">{{ __("pos.payment_cheque") }}</option>';
+
+    function applyDocumentTypePricing() {
+        var docType = $('#document_type').val() || 'cash_sale';
+        var useCost = docType === 'internal_consumption';
+        totalRaw = useCost ? costTotalRaw : saleTotalRaw;
+        $('#order-summary-subtotal').text(formatNum(useCost ? costSubtotalRaw : saleSubtotalRaw));
+        $('#order-summary-tax').text(formatNum(useCost ? costTaxRaw : saleTaxRaw));
+        $('#order-summary-discount').text(formatNum(discountRaw));
+        $('#order-summary-total').text(formatNum(totalRaw));
+        if ($('#payment_method').val() !== 'mixed') {
+            $('#payment_amount').val(Number(totalRaw).toFixed(2));
+        }
+        if (docType === 'credit_sale' && canGivePosCredit) {
+            $('#payment_method').val('credit');
+        } else if (docType === 'cash_sale' && $('#payment_method').val() === 'credit') {
+            $('#payment_method').val('cash');
+        } else if (docType === 'internal_consumption' && $('#payment_method').val() === 'credit') {
+            $('#payment_method').val('cash');
+        }
+        togglePaymentFields();
+        updateChange();
+        updateMixedTotals();
+    }
 
     function togglePaymentFields() {
         var method = $('#payment_method').val();
@@ -233,12 +263,14 @@
     }
 
     $('#payment_method').on('change', togglePaymentFields);
+    $('#document_type').on('change', applyDocumentTypePricing);
     $('#payment_amount').on('input change', updateChange);
     $('#mixed_add_row').on('click', addMixedRow);
     $('#payment_tip').on('input change', function () {
         var tip = parseFloat($(this).val()) || 0;
         $('#order-summary-tip-display').text(formatNum(tip));
     });
+    applyDocumentTypePricing();
     togglePaymentFields();
     updateChange();
 

@@ -1549,7 +1549,7 @@
             });
         });
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('{{ asset("sw-pos.js") }}').catch(function () {});
+            navigator.serviceWorker.register('{{ asset("sw-pos.js") }}?v=3').catch(function () {});
         }
     </script>
 

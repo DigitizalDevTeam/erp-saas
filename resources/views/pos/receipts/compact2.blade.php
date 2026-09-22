@@ -73,7 +73,7 @@
                         <td>{{ $value['sku'] ?? '-' }}</td>
                         <td>
                             {{ $value['name'] ?? '' }}
-                            @if(!empty($value['description']))<div class="small">{{ $value['description'] }}</div>@endif
+                            @if(!empty($value['description']))<div class="small item-note"><strong>{{ __('Note') }}:</strong> {{ $value['description'] }}</div>@endif
                         </td>
                         <td class="num">{{ $value['quantity'] ?? '' }}</td>
                         <td class="num">{{ preg_replace('/[^0-9.]/', '', (string)($value['tax'] ?? '0')) }}</td>
@@ -92,7 +92,9 @@
                     <div class="pos-compact-kv"><span class="k">{{ __('pos.tip') }}</span><span class="v">{{ $sales['tip'] }}</span></div>
                 @endif
                 <div class="pos-compact-kv"><span class="k"><b>{{ __('Grand Total') }}</b></span><span class="v"><b>{{ $sales['total'] ?? '' }}</b></span></div>
-                <div class="pos-compact-kv"><span class="k">{{ __('Paid') }}</span><span class="v">{{ $fmtMoney($paidTotal) }}</span></div>
+                @if(!empty($showPaidRow))
+                <div class="pos-compact-kv"><span class="k">{{ __('Paid') }}</span><span class="v">{{ $paidFmt }}</span></div>
+                @endif
                 <div class="pos-compact-kv"><span class="k">{{ $trocoPendenteLabel }}</span><span class="v">{{ $trocoPendenteValue }}</span></div>
             </div>
         @endif
@@ -103,6 +105,9 @@
                     <div class="pos-compact-kv"><span class="k">{{ __('Payment Method') }}</span><span class="v text-capitalize">{{ str_replace('_', ' ', $pmt->payment_method ?? '') }}</span></div>
                     <div class="pos-compact-kv"><span class="k">{{ __('Amount Paid') }}</span><span class="v">{{ $fmtMoney($pmt->amount ?? 0) }}</span></div>
                 @endforeach
+                @if(!empty($paymentNotes))
+                    <div class="pos-compact-kv"><span class="k">{{ __('Notes') }}</span><span class="v">{{ $paymentNotes }}</span></div>
+                @endif
             </div>
         @endif
 
@@ -110,7 +115,7 @@
             <div class="pos-compact-section" style="border:1px solid #333;padding:6px;margin-top:8px;">
                 <div class="bold small">{{ __('pos.client_signature_for_credit') }}</div>
                 <div style="min-height:28px;border-bottom:1px solid #333;margin:6px 0;"></div>
-                <div class="pos-compact-kv"><span class="k">{{ __('Pendente') }}</span><span class="v">{{ $trocoPendenteValue }}</span></div>
+                <div class="pos-compact-kv"><span class="k">{{ __('Due Amount') }}</span><span class="v">{{ $trocoPendenteValue }}</span></div>
             </div>
         @endif
 

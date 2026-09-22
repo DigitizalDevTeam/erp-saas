@@ -594,11 +594,12 @@ class User extends Authenticatable implements MustVerifyEmail
 
         return $prefix . sprintf('%05d', $number);
     }
-    public function posNumberFormat($number)
+    public function posNumberFormat($number, ?string $documentType = null)
     {
         $settings = Utility::settings();
+        $prefix = Pos::documentTypePrefix($documentType, $settings);
 
-        return $settings["pos_prefix"] . sprintf("%05d", $number);
+        return $prefix . sprintf('%05d', $number);
     }
 
     public function creditNoteNumberFormat($number)

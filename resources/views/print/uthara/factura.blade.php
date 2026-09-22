@@ -154,7 +154,7 @@
                 <td>
                     <span class="product-name">{{ $line['name'] }}</span>
                     @if(!empty($line['description']))
-                        <span class="detail">{{ $line['description'] }}</span>
+                        <span class="detail item-note"><strong>{{ __('Note') }}:</strong> {{ $line['description'] }}</span>
                     @endif
                 </td>
                 <td class="center">{{ $line['quantity'] }}</td>
@@ -207,6 +207,9 @@
 
     <section class="payment">
         <div><div class="label">{{ __('Payment Method') }}</div><div class="value">{{ $paymentMethod }}</div></div>
+        @if(!empty($paymentNotes))
+        <div><div class="label">{{ __('Notes') }}</div><div class="value">{{ $paymentNotes }}</div></div>
+        @endif
         <div><div class="label">{{ __('Reference') }}</div><div class="value">{{ $paymentRef }}</div></div>
         <div><div class="label">{{ __('Operator') }}</div><div class="value">{{ $operatorName }}</div></div>
     </section>

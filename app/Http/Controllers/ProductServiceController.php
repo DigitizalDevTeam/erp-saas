@@ -1798,6 +1798,7 @@ class ProductServiceController extends Controller
                 'price_type' => $priceType,
                 'identifier_tracking' => $identifierTracking,
                 'identifiers' => '',
+                'description' => '',
                 'measurement_json' => is_string($measurementJson) ? $measurementJson : null,
                 'selected_options' => $selectedOptions,
                 'selected_options_json' => $selectedOptionsJson,
@@ -1984,13 +1985,13 @@ class ProductServiceController extends Controller
                 $cart = [];
             }
 
-            if (isset($cart[$lineKey]) && $quantity == 0) {
+            if (isset($cart[$lineKey]) && $request->has('quantity') && (int) $quantity === 0) {
                 unset($cart[$lineKey]);
             }
 
-            if ($quantity) {
+            if ($request->has('quantity') && (int) $quantity > 0) {
 
-                $cart[$lineKey]['quantity'] = $quantity;
+                $cart[$lineKey]['quantity'] = (int) $quantity;
 
                 $producttax   = isset($cart[$lineKey]) ? $cart[$lineKey]['tax'] : 0;
                 $productprice = $cart[$lineKey]['price'];
@@ -2050,6 +2051,10 @@ class ProductServiceController extends Controller
 
             if ($request->has('identifiers') && isset($cart[$lineKey])) {
                 $cart[$lineKey]['identifiers'] = (string) $request->input('identifiers', '');
+            }
+
+            if ($request->has('description') && isset($cart[$lineKey])) {
+                $cart[$lineKey]['description'] = mb_substr(trim((string) $request->input('description', '')), 0, 200);
             }
 
             $subtotal = array_sum(array_column($cart, 'subtotal'));

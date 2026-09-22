@@ -970,13 +970,21 @@
                                     @enderror
                                 </div>
                                 <div class="form-group col-md-6">
-                                    {{ Form::label('pos_prefix', __('Pos Prefix'), ['class' => 'form-label']) }}
-                                    {{ Form::text('pos_prefix', null, ['class' => 'form-control', 'placeholder' => __('Enter Pos Prifix')]) }}
+                                    {{ Form::label('pos_prefix', __('POS Cash Sale Prefix'), ['class' => 'form-label']) }}
+                                    {{ Form::text('pos_prefix', null, ['class' => 'form-control', 'placeholder' => '#PDV']) }}
                                     @error('pos_prefix')
                                         <span class="invalid-pos_prefix" role="alert">
                                             <strong class="text-danger">{{ $message }}</strong>
                                         </span>
                                     @enderror
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('pos_credit_prefix', __('POS Credit Sale Prefix'), ['class' => 'form-label']) }}
+                                    {{ Form::text('pos_credit_prefix', null, ['class' => 'form-control', 'placeholder' => '#CRD']) }}
+                                </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('pos_internal_prefix', __('POS Internal Consumption Prefix'), ['class' => 'form-label']) }}
+                                    {{ Form::text('pos_internal_prefix', null, ['class' => 'form-control', 'placeholder' => '#INT']) }}
                                 </div>
                                 <div class="form-group col-md-6">
                                     {{ Form::label('journal_prefix', __('Journal Prefix'), ['class' => 'form-label']) }}
@@ -1175,6 +1183,7 @@
                                 </div>
                                 @php
                                     $internalEvents = [
+                                        ['key' => 'internal_ops_report_received', 'label' => __('Report Received At')],
                                         ['key' => 'internal_ops_invoice', 'label' => __('Invoice sent (sales)')],
                                         ['key' => 'internal_ops_invoice_payment', 'label' => __('Invoice payment')],
                                         ['key' => 'internal_ops_bill', 'label' => __('Vendor bill / purchase sent')],

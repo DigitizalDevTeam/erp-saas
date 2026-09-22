@@ -148,10 +148,12 @@
             <tr>
                 <td class="col-desc">
                     <span class="bold">{{ $value['name'] ?? '' }}</span>
-                    <span class="item-detail">
-                        @if(!empty($value['tax'])){{ __('VAT') }} {{ $value['tax'] }}@endif
-                        @if(!empty($value['description'])) · {{ $value['description'] }}@endif
-                    </span>
+                    @if(!empty($value['tax']))
+                    <span class="item-detail">{{ __('VAT') }} {{ $value['tax'] }}</span>
+                    @endif
+                    @if(!empty($value['description']))
+                    <span class="item-detail item-note"><strong>{{ __('Note') }}:</strong> {{ $value['description'] }}</span>
+                    @endif
                 </td>
                 <td class="qty">{{ $value['quantity'] ?? '' }}</td>
                 <td class="price">{{ $value['price'] ?? '' }}</td>
@@ -169,7 +171,9 @@
         <div class="row"><span>{{ __('VAT') }} / IVA</span><span>{{ $ivaTotalFmt }}</span></div>
         {{-- $salesTotal is already priceFormat()'d (includes currency symbol) — do not append $currency again --}}
         <div class="row grand bold"><span>{{ __('TOTAL') }}</span><span>{{ $salesTotal }}</span></div>
+        @if(!empty($showPaidRow))
         <div class="row"><span>{{ __('Paid') }}</span><span>{{ $paidFmt }}</span></div>
+        @endif
         <div class="row"><span>{{ $trocoPendenteLabel }}</span><span>{{ $trocoPendenteValue }}</span></div>
     </section>
 
@@ -192,6 +196,9 @@
 
     <div class="meta">
         <div class="meta-row"><span class="lbl">{{ __('Payment') }}:</span><span class="val text-capitalize">{{ $paymentMethodLabel }}</span></div>
+        @if(!empty($paymentNotes))
+        <div class="meta-row"><span class="lbl">{{ __('Notes') }}:</span><span class="val">{{ $paymentNotes }}</span></div>
+        @endif
         <div class="meta-row"><span class="lbl">{{ __('Reference') }}:</span><span class="val">{{ $paymentRefLabel }}</span></div>
         <div class="meta-row"><span class="lbl">{{ __('Operator') }}:</span><span class="val">{{ $operatorName }}</span></div>
         <div class="meta-row"><span class="lbl">{{ __('Branch') }}:</span><span class="val">{{ $branchName }}</span></div>

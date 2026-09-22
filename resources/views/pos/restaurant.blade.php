@@ -361,7 +361,7 @@
                                     <button type="button" id="pos-pay-btn-restaurant"
                                             class="btn btn-sm btn-success pos-invoice-btn-pay m-0"
                                             data-size="xl" data-url="{{ route('pos.create') }}"
-                                            data-title="{{ $tp('pos.pos_invoice', 'POS Invoice') }}" disabled>
+                                            data-title="" disabled>
                                         {{ $tp('pos.pay', 'Pay') }}
                                     </button>
                                 @endif

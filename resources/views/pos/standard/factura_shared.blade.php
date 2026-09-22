@@ -112,6 +112,9 @@
             <div class="line"><span>{{ __('Reference') }}</span><span>{{ $docNumber }}</span></div>
             <div class="line"><span>{{ __('Operator') }}</span><span>{{ $operatorName }}</span></div>
             <div class="line"><span>{{ __('Payment Method') }}</span><span class="text-capitalize">{{ $paymentMethodLabel }}</span></div>
+            @if(!empty($paymentNotes))
+                <div class="line"><span>{{ __('Notes') }}</span><span>{{ $paymentNotes }}</span></div>
+            @endif
             @if(!empty($details['table_name']))
                 <div class="line"><span>{{ __('pos.table') }}</span><span>{{ $details['table_name'] }}</span></div>
             @endif
@@ -135,10 +138,12 @@
                 <td>{{ $i + 1 }}</td>
                 <td>
                     <span class="product-name">{{ $value['name'] ?? '' }}</span>
-                    <span class="detail">
-                        @if(!empty($value['description'])){{ $value['description'] }} · @endif
-                        @if(!empty($value['tax'])){{ __('VAT') }} {{ $value['tax'] }}@endif
-                    </span>
+                    @if(!empty($value['tax']))
+                    <span class="detail">{{ __('VAT') }} {{ $value['tax'] }}</span>
+                    @endif
+                    @if(!empty($value['description']))
+                    <span class="detail item-note"><strong>{{ __('Note') }}:</strong> {{ $value['description'] }}</span>
+                    @endif
                 </td>
                 <td class="center">{{ $value['quantity'] ?? '' }}</td>
                 <td class="num">{{ $value['price'] ?? '' }}</td>
@@ -180,7 +185,9 @@
             <div class="line"><span>{{ __('Discount') }}</span><span>{{ $salesDiscount }}</span></div>
             <div class="line"><span>{{ __('VAT') }} / IVA</span><span>{{ $ivaTotalFmt }}</span></div>
             <div class="line grand"><span>{{ __('TOTAL') }}</span><span>{{ $salesTotal }} {{ $currency }}</span></div>
+            @if(!empty($showPaidRow))
             <div class="line"><span>{{ __('Paid') }}</span><span>{{ $paidFmt }}</span></div>
+            @endif
             <div class="line"><span>{{ $trocoPendenteLabel }}</span><span>{{ $trocoPendenteValue }}</span></div>
         </div>
     </section>
@@ -190,6 +197,12 @@
             <div class="label">{{ __('Payment Method') }}</div>
             <div class="value text-capitalize">{{ $paymentMethodLabel }}</div>
         </div>
+        @if(!empty($paymentNotes))
+        <div>
+            <div class="label">{{ __('Notes') }}</div>
+            <div class="value">{{ $paymentNotes }}</div>
+        </div>
+        @endif
         <div>
             <div class="label">{{ __('Reference') }}</div>
             <div class="value">{{ $paymentRefLabel }}</div>
@@ -220,7 +233,7 @@
         <div class="bold" style="font-size:8pt;">{{ __('pos.client_signature_for_credit') }}</div>
         <div class="sig-box"></div>
         <div class="line"><span>{{ __('Name') }}</span><span>_______________________</span></div>
-        <div class="line"><span>{{ __('Pendente') }}</span><span class="bold">{{ $trocoPendenteValue }}</span></div>
+        <div class="line"><span>{{ __('Due Amount') }}</span><span class="bold">{{ $trocoPendenteValue }}</span></div>
     </div>
     @endif
 

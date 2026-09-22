@@ -551,7 +551,7 @@
                                         </div>
                                         <button type="button" id="pos-pay-btn" class="btn btn-primary rounded pos-pay-btn" data-ajax-popup="true"
                                             data-size="xl" data-align="centered" data-url="{{ route('pos.create') }}"
-                                            data-title="{{ __('pos.pos_invoice') }}"
+                                            data-title=""
                                             @if (session($lastsegment) && !empty(session($lastsegment)) && count(session($lastsegment)) > 0) @else disabled="disabled" @endif>
                                             {{ __('pos.pay') }}
                                         </button>
@@ -1154,7 +1154,7 @@
                         var discount = parseFloat($('#discount_hidden').val()) || 0;
                         var total = Math.max(0, subTotal - discount);
                         var html = '<div class="card"><div class="card-body"><p class="text-muted small mb-3">{{ __("pos.offline_banner") }}</p><div class="table-responsive"><table class="table table-sm"><thead><tr><th class="text-left">{{ __("pos.items") }}</th><th>{{ __("pos.qty") }}</th><th class="text-right">{{ __("pos.price") }}</th><th class="text-right">{{ __("pos.tax") }}</th><th class="text-right">{{ __("pos.tax_amount") }}</th><th class="text-right">{{ __("pos.sub_total") }}</th></tr></thead><tbody>' + rows + '</tbody><tfoot><tr><td colspan="5" class="text-end">{{ __("pos.sub_total") }}</td><td class="text-right">' + (typeof addCommas === 'function' ? addCommas(subTotal) : subTotal) + '</td></tr><tr><td colspan="5" class="text-end">{{ __("pos.discount") }}</td><td class="text-right">' + (typeof addCommas === 'function' ? addCommas(discount) : discount) + '</td></tr><tr><td colspan="5" class="text-end"><strong>{{ __("pos.total") }}</strong></td><td class="text-right"><strong>' + (typeof addCommas === 'function' ? addCommas(total) : total) + '</strong></td></tr></tfoot></table></div><div class="d-flex align-items-center mt-4"><select class="form-control" id="payment_method"><option value="cash">{{ __("pos.payment_cash") }}</option><option value="visa">{{ __("pos.payment_visa") }}</option><option value="mpesa">{{ __("pos.payment_mpesa") }}</option><option value="bank_transfer">{{ __("pos.payment_bank_transfer") }}</option><option value="cheque">{{ __("pos.payment_cheque") }}</option></select><button type="button" id="pos-offline-pay-confirm" class="btn btn-success ms-2">{{ __("pos.pay_button") }}</button></div></div></div>';
-                        $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
+                        $('#commonModal .modal-title').html('');
                         $('#commonModal .modal-dialog').addClass('modal-xl');
                         $('#commonModal .body').html(html);
                         $('#commonModal').modal('show');
@@ -1174,7 +1174,7 @@
             });
         });
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('{{ asset("sw-pos.js") }}').catch(function () {});
+            navigator.serviceWorker.register('{{ asset("sw-pos.js") }}?v=3').catch(function () {});
         }
     </script>
 
@@ -1741,7 +1741,7 @@
                 var cartKey = it.cart_line_key || it.id;
                 var note = String(it.description || '').trim();
                 var lineName = String(it.name || '').trim() || ('{{ __("Product") }} #' + (it.id || ''));
-                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '">';
+                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '">';
                 html += '<td class="pos-cart-line-cell p-0 border-0"><div class="pos-cart-line"><div class="pos-cart-line__row">';
                 html += '<div class="pos-cart-line__main min-w-0"><span class="pos-cart-line__name name" title="' + esc(lineName) + '">' + esc(lineName) + '</span>';
                 html += '<span class="pos-cart-line__badge badge pos-line-status">' + esc(statusText) + '</span></div>';
@@ -1776,7 +1776,65 @@
                 html += '</div></td></tr>';
                 return html;
             }
+            function collectRestaurantCartNotes() {
+                var notes = {};
+                $('#tbody-restaurant tr[data-product-id]').each(function () {
+                    var $row = $(this);
+                    if ($row.attr('data-is-sent') === '1') return;
+                    var key = String($row.attr('data-cart-line-key') || $row.find('.input-number').data('id') || $row.attr('data-product-id') || '');
+                    var $n = $row.find('.notes');
+                    var note = ($n.length && ($n.is('input') || $n.is('textarea'))) ? ($n.val() || '').trim() : ($n.text() || '').trim();
+                    if (key) notes[key] = note;
+                    var pid = String($row.attr('data-product-id') || '');
+                    if (pid) notes['pid:' + pid] = note;
+                });
+                return notes;
+            }
+            function applyRestaurantCartNotes(list, notes) {
+                if (!list || !notes) return list;
+                list.forEach(function (it) {
+                    if (it.is_sent) return;
+                    var key = String(it.cart_line_key || it.id || '');
+                    var fromKey = notes[key];
+                    var fromPid = notes['pid:' + String(it.id || '')];
+                    var merged = (fromKey !== undefined && fromKey !== '') ? fromKey : ((fromPid !== undefined && fromPid !== '') ? fromPid : (it.description || ''));
+                    if (merged) it.description = merged;
+                });
+                return list;
+            }
+            function persistRestaurantLineNote($row) {
+                if (!$row || !$row.length || $row.attr('data-is-sent') === '1') return;
+                var $n = $row.find('.notes');
+                if (!$n.length || !($n.is('input') || $n.is('textarea'))) return;
+                var note = ($n.val() || '').trim();
+                var lineKey = String($row.attr('data-cart-line-key') || $row.find('.input-number').data('id') || $row.attr('data-product-id') || '');
+                var qty = parseInt($row.find('input[name="quantity"]').val() || $row.attr('data-quantity') || 1, 10) || 1;
+                if (!lineKey) return;
+                var payload = {
+                    id: lineKey,
+                    quantity: qty,
+                    description: note,
+                    session_key: 'pos-restaurant',
+                    _token: $('meta[name="csrf-token"]').attr('content')
+                };
+                if (posRestaurantCartKey) payload.cart_key = posRestaurantCartKey;
+                var tableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                var shiftId = $('#pos_shift_id_hidden').val();
+                var orderType = $('#pos-restaurant-order-type').val() || '';
+                if (tableId) payload.table_id = tableId;
+                if (shiftId) payload.shift_id = shiftId;
+                if (orderType) payload.order_type = orderType;
+                $.ajax({
+                    url: '{{ url("update-cart") }}',
+                    method: 'PATCH',
+                    data: payload
+                });
+            }
+            $(document).on('change blur', '#tbody-restaurant .pos-item-notes', function () {
+                persistRestaurantLineNote($(this).closest('tr'));
+            });
             function loadRestaurantOrder(tableId, shiftId, branchId, orderType, posId) {
+                var preservedNotes = collectRestaurantCartNotes();
                 var params = {};
                 if (tableId && (branchId || shiftId)) {
                     params.table_id = tableId;
@@ -1802,7 +1860,7 @@
                     var sessionItems = res.session_items || [];
                     var list = [];
                     orderLines.forEach(function (it) {
-                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null });
+                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || it.id });
                     });
                     sessionItems.forEach(function (it) {
                         var id = it.id;
@@ -1810,8 +1868,9 @@
                         var price = parseFloat(it.price) || 0;
                         var tax = parseFloat(it.tax) || 0;
                         var sub = (it.subtotal != null) ? parseFloat(it.subtotal) : (price * (1 + (tax || 0) / 100) * qty);
-                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null });
+                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || id });
                     });
+                    applyRestaurantCartNotes(list, preservedNotes);
                     if (res.order_type && $('#pos-restaurant-order-type').length) {
                         $('#pos-restaurant-order-type').val(res.order_type);
                     }
@@ -2053,7 +2112,7 @@
                     return false;
                 }
                 var url = $(this).data('url');
-                var title = $(this).data('title') || '{{ __("pos.pos_invoice") }}';
+                var title = $(this).attr('data-title') || '';
                 var data = {};
                 if ($('#vc_name_hidden').length) data['vc_name'] = $('#vc_name_hidden').val();
                 data['warehouse_name'] = warehouseId;
@@ -3852,6 +3911,8 @@
                         quotation_id: $('#quotation_id').val(),
                         payment_method: $('#payment_method').length ? $('#payment_method').val() : 'cash',
                         document_type: $('#document_type').length ? ($('#document_type').val() || 'cash_sale') : 'cash_sale',
+                        notes: $('#payment_notes').length ? ($('#payment_notes').val() || '') : '',
+                        tip: $('#payment_tip').length ? (parseFloat($('#payment_tip').val()) || 0) : 0,
                         pos_order_type: $('#pos_order_type_hidden').val() || '',
                         pos_table_id: $('#pos_table_id_hidden').val() || '',
                         pos_shift_id: $('#pos_shift_id_hidden').val() || '',
@@ -3933,7 +3994,7 @@
                         if (data && data.pos_id) {
                             var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id + '&source=restaurant';
                             $.get(receiptUrl, function (html) {
-                                $('#commonModal .modal-title').html('{{ __("pos.pos_invoice") }}');
+                                $('#commonModal .modal-title').html('');
                                 $('#commonModal .modal-dialog').removeClass('modal-xl modal-lg').addClass('modal-sm');
                                 $('#commonModal .body').html(html);
                                 $('#commonModal').modal('show');
@@ -4282,7 +4343,7 @@
                             $('#pos-restaurant-customer-balance-wrap').toggleClass('d-none', (parseFloat(response.balance) || 0) <= 0);
                             $('#posPayBalanceModal').modal('hide');
                             if (response.receipt_html) {
-                                $('#commonModal .modal-title').html('{{ __('pos.pos_invoice') }}');
+                                $('#commonModal .modal-title').html('');
                                 $('#commonModal .body').html(response.receipt_html);
                                 $('#commonModal').modal('show');
                             }

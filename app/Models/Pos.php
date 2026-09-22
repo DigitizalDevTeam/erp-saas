@@ -81,6 +81,39 @@ class Pos extends Model
         };
     }
 
+    /**
+     * Settings key for the POS serial prefix of a document type.
+     */
+    public static function documentTypePrefixSettingKey(?string $documentType): string
+    {
+        return match (self::normalizeDocumentType($documentType)) {
+            self::DOCUMENT_TYPE_CREDIT_SALE => 'pos_credit_prefix',
+            self::DOCUMENT_TYPE_INTERNAL_CONSUMPTION => 'pos_internal_prefix',
+            default => 'pos_prefix',
+        };
+    }
+
+    /**
+     * Configured display prefix for a POS document type (e.g. #PDV, #CRD, #INT).
+     */
+    public static function documentTypePrefix(?string $documentType, ?array $settings = null): string
+    {
+        $settings = $settings ?? Utility::settings();
+        $key = self::documentTypePrefixSettingKey($documentType);
+        $defaults = [
+            'pos_prefix' => '#PDV',
+            'pos_credit_prefix' => '#CRD',
+            'pos_internal_prefix' => '#INT',
+        ];
+
+        $prefix = $settings[$key] ?? null;
+        if ($prefix === null || $prefix === '') {
+            $prefix = $defaults[$key] ?? '#PDV';
+        }
+
+        return (string) $prefix;
+    }
+
     public function branch()
     {
         return $this->belongsTo(Branch::class, 'branch_id');

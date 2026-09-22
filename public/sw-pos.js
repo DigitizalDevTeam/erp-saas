@@ -1,24 +1,16 @@
 /**
  * POS PWA Service Worker – offline-first for POS page and assets.
  */
-const CACHE_NAME = 'pos-pwa-v2';
-const POS_PAGE_PATTERN = /\/pos(\?.*)?$/;  // matches /pos or /123/pos
+const CACHE_NAME = 'pos-pwa-v3';
+
 function isPosPageUrl(url) {
-  return url.pathname === '/pos' || url.pathname.slice(-4) === '/pos';
+  var path = url.pathname.replace(/\/+$/, '') || '/';
+  return path === '/pos'
+    || path === '/pos-restaurant'
+    || path.slice(-4) === '/pos'
+    || path.slice(-15) === '/pos-restaurant';
 }
 
-// Static assets to cache on install (relative to origin)
-const STATIC_URLS = [
-  '/css/pos.css',
-  '/css/site.css',
-  '/css/custom.css',
-  '/js/jquery.min.js',
-  '/assets/fonts/tabler-icons.min.css',
-  '/assets/css/style.css',
-  '/assets/js/plugins/bootstrap.min.js'
-];
-
-// Never cache these (APIs, mutations)
 function shouldNotCache(url) {
   const path = url.pathname;
   return path.indexOf('/pos/sync') !== -1 ||
@@ -34,11 +26,38 @@ function shouldNotCache(url) {
     path.indexOf('/pos-table/tables-by-branch') !== -1;
 }
 
+function canCacheRequest(request, url) {
+  return (url.protocol === 'http:' || url.protocol === 'https:')
+    && request.method === 'GET';
+}
+
+function putInCache(request, response) {
+  if (!canCacheRequest(request, new URL(request.url))) {
+    return Promise.resolve();
+  }
+  return caches.open(CACHE_NAME).then(function (cache) {
+    return cache.put(request, response).catch(function () {});
+  }).catch(function () {});
+}
+
+// Static assets to cache on install (relative to origin)
+const STATIC_URLS = [
+  '/css/pos.css',
+  '/css/site.css',
+  '/css/custom.css',
+  '/js/jquery.min.js',
+  '/assets/fonts/tabler-icons.min.css',
+  '/assets/css/style.css',
+  '/assets/js/plugins/bootstrap.min.js'
+];
+
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(function (cache) {
-        return cache.addAll(STATIC_URLS.map(function (u) { return new Request(self.location.origin + u, { cache: 'reload' }); })).catch(function () {});
+        return cache.addAll(STATIC_URLS.map(function (u) {
+          return new Request(self.location.origin + u, { cache: 'reload' });
+        })).catch(function () {});
       })
       .then(function () { return self.skipWaiting(); })
   );
@@ -56,42 +75,49 @@ self.addEventListener('activate', function (event) {
 
 self.addEventListener('fetch', function (event) {
   if (event.request.method !== 'GET') return;
-  var url = new URL(event.request.url);
+
+  var url;
+  try {
+    url = new URL(event.request.url);
+  } catch (e) {
+    return;
+  }
+
+  // Never intercept extension / non-http schemes (causes Cache.put failures + can break pages)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return;
+  }
 
   if (shouldNotCache(url)) return;
 
-  // POS page: network first, then cache; when offline serve from cache
-  if (isPosPageUrl(url) || POS_PAGE_PATTERN.test(url.pathname)) {
+  // POS pages: network first, then cache; when offline serve from cache
+  if (isPosPageUrl(url)) {
     event.respondWith(
       fetch(event.request)
         .then(function (response) {
           if (response && response.status === 200 && response.type === 'basic') {
-            var clone = response.clone();
-            caches.open(CACHE_NAME).then(function (cache) {
-              cache.put(event.request, clone);
-            });
+            putInCache(event.request, response.clone());
           }
           return response;
         })
         .catch(function () {
           return caches.match(event.request).then(function (cached) {
-            return cached || caches.match(self.location.origin + '/pos');
+            return cached
+              || caches.match(self.location.origin + '/pos-restaurant')
+              || caches.match(self.location.origin + '/pos');
           });
         })
     );
     return;
   }
 
-  // Static assets: cache-first when offline
+  // Static assets: network first, cache fallback
   if (url.pathname.match(/\.(css|js|woff2?|ttf|eot|png|jpg|jpeg|gif|svg|ico)$/) ||
       url.pathname.indexOf('/css/') === 0 || url.pathname.indexOf('/assets/') === 0) {
     event.respondWith(
       fetch(event.request).then(function (response) {
         if (response && response.status === 200 && response.type === 'basic') {
-          var clone = response.clone();
-          caches.open(CACHE_NAME).then(function (cache) {
-            cache.put(event.request, clone);
-          });
+          putInCache(event.request, response.clone());
         }
         return response;
       }).catch(function () {

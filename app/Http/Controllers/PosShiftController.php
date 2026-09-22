@@ -25,6 +25,7 @@ use App\Models\Utility;
 use App\Mail\InternalOperationalAlertMail;
 use Illuminate\Support\Facades\DB;
 use App\Support\LoggedMail;
+use App\Support\PosEodReportAlerts;
 
 class PosShiftController extends Controller
 {
@@ -428,6 +429,7 @@ class PosShiftController extends Controller
             PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
             $this->releaseShiftTables($pos_shift);
             $this->sendShiftClosedEmailToManagers($pos_shift, (float) $expectedCash);
+            PosEodReportAlerts::sendOnShiftClose($pos_shift);
             return redirect()->route('pos-shift.index')->with('success', __('Shift closed successfully.'));
         }
         return redirect()->back()->with('error', __('Permission denied.'));
@@ -449,6 +451,7 @@ class PosShiftController extends Controller
             ->where('status', PosShift::STATUS_OPEN)
             ->get();
 
+        $closedRestaurantShift = null;
         foreach ($openShifts as $pos_shift) {
             $posIds = Pos::where('shift_id', $pos_shift->id)->pluck('id');
             $salesTotal = PosPayment::whereIn('pos_id', $posIds)->sum('amount');
@@ -480,6 +483,15 @@ class PosShiftController extends Controller
             PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed (EOD)'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
             $this->releaseShiftTables($pos_shift);
             $this->sendShiftClosedEmailToManagers($pos_shift, (float) $expectedCash);
+
+            $pos_shift->loadMissing('branch');
+            if ($pos_shift->branch && $pos_shift->branch->isRestaurant() && $closedRestaurantShift === null) {
+                $closedRestaurantShift = $pos_shift;
+            }
+        }
+
+        if ($closedRestaurantShift) {
+            PosEodReportAlerts::sendForDate((int) $creatorId, $date, $closedRestaurantShift);
         }
 
         return redirect()->route('report.pos.eod', ['date' => $date])->with('success', __('All open shifts have been closed.'));

@@ -59,7 +59,16 @@ $currency = $settings['site_currency_symbol'] ?? ($settings['site_currency'] ?? 
 $hasCreditPayment = ! empty($posPayments) && $posPayments->isNotEmpty() && $posPayments->contains(function ($p) {
     return in_array(strtolower($p->payment_method ?? ''), ['credit'], true);
 });
-$paymentDocumentTitle = $hasCreditPayment ? __('Credit Sale') : __('Cash Sale');
+// Slip title: document_type only — never derive from payment method.
+$rawDocumentType = null;
+if (isset($pos) && ! empty($pos->document_type)) {
+    $rawDocumentType = $pos->document_type;
+} elseif (! empty($details['document_type'])) {
+    $rawDocumentType = $details['document_type'];
+}
+$posDocumentType = \App\Models\Pos::normalizeDocumentType($rawDocumentType);
+$isCreditDocument = ($posDocumentType === \App\Models\Pos::DOCUMENT_TYPE_CREDIT_SALE) || $hasCreditPayment;
+$paymentDocumentTitle = \App\Models\Pos::documentTypeLabel($posDocumentType);
 $fmtMoney = function ($amount) use ($priceUser) {
     if ($priceUser && method_exists($priceUser, 'priceFormat')) {
         return $priceUser->priceFormat($amount);
@@ -70,14 +79,18 @@ $fmtMoney = function ($amount) use ($priceUser) {
 $paidTotal = 0.0;
 $changeTotal = 0.0;
 $creditTotal = 0.0;
+$nonCreditPaidTotal = 0.0;
 $paymentMethods = [];
 $paymentRefs = [];
 if (! empty($posPayments)) {
     foreach ($posPayments as $pmt) {
-        $paidTotal += (float) ($pmt->amount ?? 0);
+        $amt = (float) ($pmt->amount ?? 0);
+        $paidTotal += $amt;
         $changeTotal += (float) ($pmt->change_amount ?? 0);
         if (strtolower($pmt->payment_method ?? '') === 'credit') {
-            $creditTotal += (float) ($pmt->amount ?? 0);
+            $creditTotal += $amt;
+        } else {
+            $nonCreditPaidTotal += $amt;
         }
         if (! empty($pmt->payment_method)) {
             $paymentMethods[] = str_replace('_', ' ', $pmt->payment_method);
@@ -89,6 +102,16 @@ if (! empty($posPayments)) {
 }
 $paymentMethodLabel = $paymentMethods ? implode(', ', array_unique($paymentMethods)) : '—';
 $paymentRefLabel = $paymentRefs ? implode(', ', $paymentRefs) : '—';
+$paymentNotes = '';
+if (! empty($posPayments)) {
+    foreach ($posPayments as $pmt) {
+        $note = trim((string) ($pmt->notes ?? ''));
+        if ($note !== '') {
+            $paymentNotes = $note;
+            break;
+        }
+    }
+}
 $operatorName = $receiptUser->name ?? (\Illuminate\Support\Facades\Auth::user()->name ?? '—');
 $branchName = $details['branch']['name'] ?? ($details['warehouse']['name'] ?? '—');
 $docNumber = $details['pos_id'] ?? '—';
@@ -103,13 +126,55 @@ foreach ($vatBreakdown as $row) {
     $ivaTotalNum += (float) ($row['vat'] ?? 0);
 }
 $ivaTotalFmt = $fmtMoney($ivaTotalNum);
-$paidFmt = $fmtMoney($paidTotal);
+
+$parseMoneyPrep = function ($v) {
+    if (is_numeric($v)) {
+        return (float) $v;
+    }
+    $s = preg_replace('/[^\d.,\-]/', '', (string) $v);
+    if ($s === null || $s === '') {
+        return 0.0;
+    }
+    if (strpos($s, ',') !== false && strpos($s, '.') !== false) {
+        $s = str_replace(',', '', $s);
+    } else {
+        $s = str_replace(',', '.', $s);
+    }
+
+    return (float) $s;
+};
+$saleTotalNum = $parseMoneyPrep($sales['total'] ?? 0);
+if ($saleTotalNum <= 0 && ! empty($sales['data'])) {
+    foreach ($sales['data'] as $line) {
+        $saleTotalNum += $parseMoneyPrep($line['subtotal'] ?? 0);
+    }
+}
+
+if ($isCreditDocument) {
+    $dueAmount = max(
+        0.0,
+        $creditTotal > 0 ? $creditTotal : ($saleTotalNum - $nonCreditPaidTotal),
+        $saleTotalNum - $nonCreditPaidTotal
+    );
+    if ($dueAmount <= 0 && $saleTotalNum > 0) {
+        $dueAmount = $saleTotalNum;
+    }
+    $displayPaidTotal = $nonCreditPaidTotal;
+    $showPaidRow = $displayPaidTotal > 0;
+    $showPendente = true;
+    $trocoPendenteLabel = __('Due Amount');
+    $trocoPendenteValue = $fmtMoney($dueAmount);
+    $paidFmt = $fmtMoney($displayPaidTotal);
+    $hasCreditPayment = true;
+} else {
+    $displayPaidTotal = $paidTotal;
+    $showPaidRow = true;
+    $showPendente = false;
+    $trocoPendenteLabel = __('Troco');
+    $trocoPendenteValue = $fmtMoney($changeTotal);
+    $paidFmt = $fmtMoney($paidTotal);
+}
 $hasPayments = ! empty($posPayments) && $posPayments->isNotEmpty() && $paidTotal > 0;
-$showPendente = $hasCreditPayment || $creditTotal > 0;
-$trocoPendenteLabel = $showPendente ? __('Pendente') : __('Troco');
-$trocoPendenteValue = $showPendente
-    ? $fmtMoney($creditTotal > 0 ? $creditTotal : 0)
-    : $fmtMoney($changeTotal);
 $companyWebsite = $settings['company_website'] ?? 'www.uthara.co.mz';
 $qrSvg = null;
 $qrHtml = '';

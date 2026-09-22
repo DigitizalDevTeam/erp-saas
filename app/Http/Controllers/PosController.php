@@ -259,6 +259,97 @@ class PosController extends Controller
     }
 
     /**
+     * Exclusive unit price for a POS line, using cost when document type is Internal Consumption.
+     */
+    protected function resolvePosLineUnitPriceForDocument(
+        ?ProductService $product,
+        string $documentType,
+        float $cartUnitPrice,
+        ?int $variantId = null,
+        string $priceType = 'exclusive',
+        float $taxRate = 0.0
+    ): float {
+        if ($product && $documentType === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+            $costRaw = null;
+            if ($variantId && ($product->variants_enabled ?? false)) {
+                $variant = $product->variants()->where('id', $variantId)->first();
+                if ($variant && $variant->purchase_price !== null) {
+                    $costRaw = (float) $variant->purchase_price;
+                }
+            }
+            if ($costRaw === null) {
+                $costRaw = (float) ($product->purchase_price ?? 0);
+            }
+
+            return (float) $product->exclusivePurchaseUnitPrice($costRaw);
+        }
+
+        $unitPrice = $cartUnitPrice;
+        if ($priceType === 'inclusive' && $taxRate > 0) {
+            $unitPrice = $unitPrice / (1 + $taxRate / 100);
+        }
+
+        return (float) $unitPrice;
+    }
+
+    /**
+     * Rewrite existing POS line prices to exclusive cost for Internal Consumption.
+     * Returns the inclusive bill total (price * qty * (1 + tax%)).
+     */
+    protected function applyInternalConsumptionCostToPosItems(Pos $pos, int $userId): float
+    {
+        $total = 0.0;
+        $pos->loadMissing('items');
+        foreach ($pos->items as $line) {
+            if (! empty($line->voided_at)) {
+                continue;
+            }
+            $product = ProductService::whereId($line->product_id)->where('created_by', $userId)->first();
+            if (! $product) {
+                $total += (float) $line->price * (float) $line->quantity;
+                continue;
+            }
+            $variantId = $line->product_variant_id ? (int) $line->product_variant_id : null;
+            $unitCost = $this->resolvePosLineUnitPriceForDocument(
+                $product,
+                Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION,
+                (float) $line->price,
+                $variantId
+            );
+            $line->price = $unitCost;
+            $line->save();
+
+            $taxRate = 0.0;
+            if (! empty($product->tax_id)) {
+                $taxIds = array_filter(array_map('trim', explode(',', (string) $product->tax_id)));
+                if (! empty($taxIds)) {
+                    $taxRate = (float) \App\Models\Tax::whereIn('id', $taxIds)->sum('rate');
+                }
+            }
+            $total += ($unitCost * (float) $line->quantity) * (1 + ($taxRate / 100));
+        }
+
+        return round($total, 2);
+    }
+
+    /**
+     * Exclusive cost unit price for payment-modal / cart display.
+     */
+    protected function resolveProductCostUnitPrice(?ProductService $product, ?int $variantId = null): float
+    {
+        if (! $product) {
+            return 0.0;
+        }
+
+        return $this->resolvePosLineUnitPriceForDocument(
+            $product,
+            Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION,
+            0.0,
+            $variantId
+        );
+    }
+
+    /**
      * Restaurant branch ids visible in POS for the current actor (PIN user or company login).
      *
      * @return int[]
@@ -1057,19 +1148,36 @@ class PosController extends Controller
 
             $mainsubtotal = 0;
             $taxTotal = 0;
+            $costSubtotal = 0;
+            $costTaxTotal = 0;
             $sales = [];
+            $summaryLines = [];
 
             foreach ($sess as $key => $value) {
                 $priceType = $value['price_type'] ?? 'exclusive';
                 $lineSubtotal = (float) ($value['subtotal'] ?? 0);
                 $taxRate = (float) ($value['tax'] ?? 0);
+                $qty = (float) ($value['quantity'] ?? 0);
+                $saleUnit = (float) ($value['price'] ?? 0);
                 if ($priceType === 'inclusive' && $taxRate > 0) {
                     $tax = $lineSubtotal - ($lineSubtotal / (1 + $taxRate / 100));
                 } else {
-                    $subtotal = ($value['price'] ?? 0) * ($value['quantity'] ?? 0);
+                    $subtotal = $saleUnit * $qty;
                     $tax = ($subtotal * $taxRate) / 100;
                 }
                 $taxTotal += $tax;
+                $productId = (int) ($value['id'] ?? $key);
+                $variantId = isset($value['product_variant_id']) ? (int) $value['product_variant_id'] : null;
+                if ($variantId !== null && $variantId <= 0) {
+                    $variantId = null;
+                }
+                $product = ProductService::whereId($productId)->where('created_by', $user->creatorId())->first();
+                $costUnit = $this->resolveProductCostUnitPrice($product, $variantId);
+                $costLineNet = $costUnit * $qty;
+                $costLineTax = ($costLineNet * $taxRate) / 100;
+                $costSubtotal += $costLineNet + $costLineTax;
+                $costTaxTotal += $costLineTax;
+
                 $sales['data'][$key]['name'] = $value['name'] ?? __('Product');
                 $sales['data'][$key]['quantity'] = $value['quantity'];
                 $sales['data'][$key]['price'] = Auth::user()->priceFormat($value['price']);
@@ -1078,10 +1186,20 @@ class PosController extends Controller
                 $sales['data'][$key]['tax_amount'] = Auth::user()->priceFormat($tax);
                 $sales['data'][$key]['subtotal'] = Auth::user()->priceFormat($value['subtotal']);
                 $mainsubtotal += $value['subtotal'];
+
+                $summaryLines[] = [
+                    'qty' => $qty,
+                    'sale_unit' => round($saleUnit, 2),
+                    'cost_unit' => round($costUnit, 2),
+                    'tax_rate' => $taxRate,
+                    'sale_line_total' => round((float) ($value['subtotal'] ?? 0), 2),
+                    'cost_line_total' => round($costLineNet + $costLineTax, 2),
+                ];
             }
 
             $discount = !empty($request->discount) ? (float) $request->discount : 0;
             $total = $mainsubtotal - $discount;
+            $costTotal = max(0, $costSubtotal - $discount);
             $sales['discount'] = Auth::user()->priceFormat($discount);
             $sales['sub_total'] = Auth::user()->priceFormat($mainsubtotal);
             $sales['total'] = Auth::user()->priceFormat($total);
@@ -1093,6 +1211,14 @@ class PosController extends Controller
                 'discount' => Auth::user()->priceFormat($discount),
                 'total' => Auth::user()->priceFormat($total),
                 'total_raw' => round($total, 2),
+                'sale_subtotal_raw' => round($mainsubtotal, 2),
+                'sale_tax_raw' => round($taxTotal, 2),
+                'sale_total_raw' => round($total, 2),
+                'cost_subtotal_raw' => round($costSubtotal, 2),
+                'cost_tax_raw' => round($costTaxTotal, 2),
+                'cost_total_raw' => round($costTotal, 2),
+                'discount_raw' => round($discount, 2),
+                'lines' => $summaryLines,
             ];
 
             $canGivePosCredit = Auth::user()->can('give pos credit') || Auth::user()->can('manage pos');
@@ -1220,7 +1346,8 @@ class PosController extends Controller
         }
 
         $customer_id = Customer::customer_id($request->vc_name);
-        $pos_id = $this->invoicePosNumber();
+        $documentType = $this->resolvePosDocumentTypeFromRequest($request);
+        $pos_id = $this->invoicePosNumber($documentType);
 
         if (!isset($sales) || empty($sales) || count($sales) == 0) {
             return response()->json(['code' => 404, 'success' => __('Items not found!')], 404);
@@ -1335,7 +1462,7 @@ class PosController extends Controller
             return response()->json(['code' => 403, 'error' => __('You are not allowed to give credit at POS.')], 403);
         }
 
-        $result = DB::table('pos')->where('pos_id', $pos_id)->where('created_by', $user_id)->get();
+        $result = DB::table('pos')->where('pos_id', $pos_id)->where('document_type', $documentType)->where('created_by', $user_id)->get();
         if (count($result) > 0) {
             return response()->json(['code' => 200, 'success' => __('Payment is already completed!')]);
         }
@@ -1365,7 +1492,7 @@ class PosController extends Controller
         $pos->warehouse_id = $warehouse_id;
         $pos->pos_date = date('Y-m-d');
         $pos->payment_method = $request->payment_method;
-        $pos->document_type = $this->resolvePosDocumentTypeFromRequest($request);
+        $pos->document_type = $documentType;
         $pos->created_by = $user_id;
         $pos->client_order_id = $clientOrderId;
         $pos->save();
@@ -1390,10 +1517,14 @@ class PosController extends Controller
             $tax_id = $product ? ProductService::tax_id($product_id) : '0';
             $priceType = $value['price_type'] ?? 'exclusive';
             $taxRate = (float) ($value['tax'] ?? 0);
-            $unitPrice = (float) ($value['price'] ?? 0);
-            if ($priceType === 'inclusive' && $taxRate > 0) {
-                $unitPrice = $unitPrice / (1 + $taxRate / 100);
-            }
+            $unitPrice = $this->resolvePosLineUnitPriceForDocument(
+                $product,
+                $pos->document_type ?? Pos::DOCUMENT_TYPE_CASH_SALE,
+                (float) ($value['price'] ?? 0),
+                $product_variant_id,
+                $priceType,
+                $taxRate
+            );
             $positems = new PosProduct();
             $positems->pos_id = $pos->id;
             $positems->product_id = $product_id;
@@ -1403,6 +1534,7 @@ class PosController extends Controller
             $positems->tax = $tax_id;
             $positems->discount = $discount;
             $positems->identifiers = $value['identifiers'] ?? null;
+            $positems->description = isset($value['description']) ? mb_substr(trim((string) $value['description']), 0, 200) : null;
             $positems->measurement_json = $value['measurement_json'] ?? null;
             $positems->selected_options_json = ProductOptionService::encodeOptions(
                 ProductOptionService::normalizeSelectedOptions($value['selected_options'] ?? $value['selected_options_json'] ?? null)
@@ -1410,7 +1542,7 @@ class PosController extends Controller
             $positems->save();
             $idNote = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
             $deductByVariant = ($product->variants_enabled ?? false) && $product_variant_id;
-            if (ProductOptionService::tryDeductPosLine($product, $value, $warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id), (int) $pos->id)) {
+            if (ProductOptionService::tryDeductPosLine($product, $value, $warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
                 // options only
             } elseif (($product->type ?? null) === 'kit') {
                 PosKitDeductionService::deductForSale(
@@ -1418,7 +1550,7 @@ class PosController extends Controller
                     (float) $value['quantity'],
                     $warehouse_id,
                     $user_id,
-                    \Auth::user()->posNumberFormat($pos->pos_id),
+                    \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                     (int) $pos->id
                 );
             } elseif ($deductByVariant) {
@@ -1427,7 +1559,7 @@ class PosController extends Controller
                     (float) $value['quantity'],
                     $warehouse_id,
                     $user_id,
-                    \Auth::user()->posNumberFormat($pos->pos_id),
+                    \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                     (int) $pos->id,
                     $idNote,
                     $product_variant_id
@@ -1439,7 +1571,7 @@ class PosController extends Controller
                     (float) $value['quantity'],
                     $warehouse_id,
                     $user_id,
-                    \Auth::user()->posNumberFormat($pos->pos_id),
+                    \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                     (int) $pos->id,
                     $idNote
                 );
@@ -1449,7 +1581,7 @@ class PosController extends Controller
                     (float) $value['quantity'],
                     $warehouse_id,
                     $user_id,
-                    \Auth::user()->posNumberFormat($pos->pos_id),
+                    \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                     (int) $pos->id,
                     $idNote,
                     $product_variant_id
@@ -1475,7 +1607,11 @@ class PosController extends Controller
         foreach (session()->get('pos', $sales) as $key => $value) {
             $mainsubtotal += $value['subtotal'] ?? ($value['price'] * $value['quantity']);
         }
+        if (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+            $mainsubtotal = $this->applyInternalConsumptionCostToPosItems($pos, $user_id);
+        }
         $totalPaid = $mainsubtotal - $discount;
+        $forceCreditPayment = ($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_CREDIT_SALE;
         $payments = $request->input('payments'); // optional: [{ payment_method, amount, credit_terms?, customer_id? }, ...]
         if (is_array($payments) && count($payments) > 0) {
             $firstPayment = true;
@@ -1484,34 +1620,49 @@ class PosController extends Controller
                 if ($amt <= 0) {
                     continue;
                 }
+                if ($forceCreditPayment || ($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+                    $amt = $totalPaid;
+                }
                 $posPayment = new PosPayment();
                 $posPayment->pos_id = $pos->id;
                 $posPayment->branch_id = $pos->branch_id;
                 $posPayment->date = $request->date ?? date('Y-m-d');
                 $allowedMethods = [PosPayment::METHOD_CASH, PosPayment::METHOD_CARD, PosPayment::METHOD_CREDIT, PosPayment::METHOD_MPESA, PosPayment::METHOD_BANK_TRANSFER, 'visa', 'cheque'];
-$posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMethods, true) ? $p['payment_method'] : PosPayment::METHOD_CASH;
-                $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
-                $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
+                $method = in_array($p['payment_method'] ?? '', $allowedMethods, true) ? $p['payment_method'] : PosPayment::METHOD_CASH;
+                if ($forceCreditPayment) {
+                    $method = PosPayment::METHOD_CREDIT;
+                }
+                $posPayment->payment_method = $method;
+                $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? $request->credit_terms ?? null) : null;
+                $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? $customer_id ?? null) : null;
                 $posPayment->transaction_id = !empty($p['transaction_id']) ? trim($p['transaction_id']) : null;
                 $posPayment->amount = $amt;
                 $posPayment->discount = $firstPayment ? (float) $discount : 0;
                 $posPayment->discount_amount = $amt;
                 $posPayment->tip = $firstPayment ? (float) ($request->tip ?? 0) : 0;
+                $posPayment->notes = $firstPayment ? ($request->notes ?: null) : null;
                 $posPayment->created_by = $user_id;
                 $posPayment->save();
                 $firstPayment = false;
+                if ($forceCreditPayment || ($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+                    break;
+                }
             }
         } else {
             $paidAmount = (float) ($request->amount ?? $totalPaid);
-            if ($paidAmount <= 0) {
+            if ($paidAmount <= 0 || ($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION || $forceCreditPayment) {
                 $paidAmount = $totalPaid;
             }
-            $changeAmount = (float) ($request->change_amount ?? 0);
+            $changeAmount = ($forceCreditPayment || ($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION)
+                ? 0
+                : (float) ($request->change_amount ?? 0);
             $posPayment = new PosPayment();
             $posPayment->pos_id = $pos->id;
             $posPayment->branch_id = $pos->branch_id;
             $posPayment->date = $request->date ?? date('Y-m-d');
-            $posPayment->payment_method = $request->payment_method ?? PosPayment::METHOD_CASH;
+            $posPayment->payment_method = $forceCreditPayment
+                ? PosPayment::METHOD_CREDIT
+                : ($request->payment_method ?? PosPayment::METHOD_CASH);
             $posPayment->credit_terms = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->credit_terms ?? null) : null;
             $posPayment->customer_id = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->customer_id ?: $customer_id) : null;
             $posPayment->transaction_id = $request->transaction_id ?: null;
@@ -1564,7 +1715,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
 
             $user_id = Auth::user()->creatorId();
             $customer_id = Customer::customer_id($request->vc_name);
-            $pos_id = $this->invoicePosNumber();
+            $documentType = $this->resolvePosDocumentTypeFromRequest($request);
+            $pos_id = $this->invoicePosNumber($documentType);
             $sales = $request->input('cart') ?: session()->get('pos');
 
             // Restaurant: pay existing table order from DB when session cart is empty
@@ -1760,7 +1912,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     }
                 }
 
-                $result = DB::table('pos')->where('pos_id', $pos_id)->where('created_by', $user_id)->get();
+                $result = DB::table('pos')->where('pos_id', $pos_id)->where('document_type', $documentType)->where('created_by', $user_id)->get();
                 if (count($result) > 0 && !$useExistingPos) {
                     return response()->json(
                         [
@@ -1773,8 +1925,13 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $pos = $existingPos;
                     $pos->customer_id = $customer_id;
                     $pos->payment_method = $request->payment_method ?? $pos->payment_method;
-                    $pos->document_type = $this->resolvePosDocumentTypeFromRequest($request);
+                    $this->assignPosSerialForDocumentType($pos, $documentType);
                     $pos->save();
+                    $internalConsumptionTotal = null;
+                    if (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+                        $internalConsumptionTotal = $this->applyInternalConsumptionCostToPosItems($pos, $user_id);
+                        $pos->load('items');
+                    }
                     foreach ($pos->items as $line) {
                         $lineProduct = ProductService::whereId($line->product_id)->where('created_by', $user_id)->first();
                         if ($lineProduct) {
@@ -1810,7 +1967,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         if (ProductOptionService::tryDeductPosLine($lineProduct, [
                             'quantity' => $line->quantity,
                             'selected_options_json' => $line->selected_options_json,
-                        ], (int) $pos->warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id), (int) $pos->id)) {
+                        ], (int) $pos->warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
                             // options only
                         } elseif (($lineProduct->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
@@ -1818,7 +1975,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 (float) $line->quantity,
                                 (int) $pos->warehouse_id,
                                 $user_id,
-                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id
                             );
                         } elseif ($deductLineByVariant) {
@@ -1827,7 +1984,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 (float) $line->quantity,
                                 (int) $pos->warehouse_id,
                                 $user_id,
-                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
                                 $lineIdNote,
                                 $lineVariantId
@@ -1838,7 +1995,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 (float) $line->quantity,
                                 (int) $pos->warehouse_id,
                                 $user_id,
-                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
                                 $lineIdNote
                             );
@@ -1848,7 +2005,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 (float) $line->quantity,
                                 (int) $pos->warehouse_id,
                                 $user_id,
-                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
                                 $lineIdNote,
                                 $lineVariantId
@@ -1874,38 +2031,57 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     foreach ($sessForTotal as $key => $value) {
                         $mainsubtotal += $value['subtotal'] ?? (($value['price'] ?? 0) * ($value['quantity'] ?? 0));
                     }
+                    if ($internalConsumptionTotal !== null) {
+                        $mainsubtotal = $internalConsumptionTotal;
+                    }
                     $total = $mainsubtotal - (float) $discount;
                     $payments = $request->input('payments');
+                    $forceCreditPayment = ($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_CREDIT_SALE;
                     if (is_array($payments) && count($payments) > 0) {
                         $firstPmt = true;
                         foreach ($payments as $p) {
                             $amt = (float) ($p['amount'] ?? 0);
                             if ($amt <= 0) continue;
+                            if ($forceCreditPayment || $internalConsumptionTotal !== null) {
+                                $amt = $total;
+                            }
                             $posPayment = new PosPayment();
                             $posPayment->pos_id = $pos->id;
                             $posPayment->branch_id = $pos->branch_id;
                             $posPayment->date = $request->date ?? date('Y-m-d');
-                            $posPayment->payment_method = !empty($p['payment_method']) ? $p['payment_method'] : PosPayment::METHOD_CASH;
-                            $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
-                            $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
+                            $method = !empty($p['payment_method']) ? $p['payment_method'] : PosPayment::METHOD_CASH;
+                            if ($forceCreditPayment) {
+                                $method = PosPayment::METHOD_CREDIT;
+                            }
+                            $posPayment->payment_method = $method;
+                            $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? $request->credit_terms ?? null) : null;
+                            $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? $customer_id ?? null) : null;
                             $posPayment->transaction_id = !empty($p['transaction_id']) ? trim($p['transaction_id']) : null;
                             $posPayment->amount = $amt;
                             $posPayment->discount = $firstPmt ? (float) $discount : 0;
                             $posPayment->discount_amount = $amt;
                             $posPayment->tip = $firstPmt ? (float) ($request->tip ?? 0) : 0;
+                            $posPayment->notes = $firstPmt ? ($request->notes ?: null) : null;
                             $posPayment->created_by = $user_id;
                             $posPayment->save();
                             $firstPmt = false;
+                            if ($forceCreditPayment || $internalConsumptionTotal !== null) {
+                                break;
+                            }
                         }
                     } else {
                         $paidAmount = (float) ($request->amount ?? $total);
-                        if ($paidAmount <= 0) $paidAmount = $total;
-                        $changeAmount = (float) ($request->change_amount ?? 0);
+                        if ($paidAmount <= 0 || $internalConsumptionTotal !== null || $forceCreditPayment) {
+                            $paidAmount = $total;
+                        }
+                        $changeAmount = ($forceCreditPayment || $internalConsumptionTotal !== null) ? 0 : (float) ($request->change_amount ?? 0);
                         $posPayment = new PosPayment();
                         $posPayment->pos_id = $pos->id;
                         $posPayment->branch_id = $pos->branch_id;
                         $posPayment->date = $request->date ?? date('Y-m-d');
-                        $posPayment->payment_method = $request->payment_method ?? PosPayment::METHOD_CASH;
+                        $posPayment->payment_method = $forceCreditPayment
+                            ? PosPayment::METHOD_CREDIT
+                            : ($request->payment_method ?? PosPayment::METHOD_CASH);
                         $posPayment->credit_terms = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->credit_terms ?? null) : null;
                         $posPayment->customer_id = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->customer_id ?: $customer_id) : null;
                         $posPayment->transaction_id = $request->transaction_id ?: null;
@@ -1967,7 +2143,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     $pos->warehouse_id = $warehouse_id;
                     $pos->pos_date = date('Y-m-d');
                     $pos->payment_method = $request->payment_method;
-                    $pos->document_type = $this->resolvePosDocumentTypeFromRequest($request);
+                    $pos->document_type = $documentType;
                     $pos->created_by = $user_id;
                     $pos->save();
 
@@ -1987,10 +2163,14 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $tax_id = $product ? ProductService::tax_id($product_id) : '0';
                         $priceType = $value['price_type'] ?? 'exclusive';
                         $taxRate = (float) ($value['tax'] ?? 0);
-                        $unitPrice = (float) ($value['price'] ?? 0);
-                        if ($priceType === 'inclusive' && $taxRate > 0) {
-                            $unitPrice = $unitPrice / (1 + $taxRate / 100);
-                        }
+                        $unitPrice = $this->resolvePosLineUnitPriceForDocument(
+                            $product,
+                            $pos->document_type ?? Pos::DOCUMENT_TYPE_CASH_SALE,
+                            (float) ($value['price'] ?? 0),
+                            $product_variant_id,
+                            $priceType,
+                            $taxRate
+                        );
                         $positems = new PosProduct();
                         $positems->pos_id = $pos->id;
                         $positems->product_id = $product_id;
@@ -2000,6 +2180,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $positems->tax = $tax_id;
                         $positems->discount = $discount;
                         $positems->identifiers = $value['identifiers'] ?? null;
+                        $positems->description = isset($value['description']) ? mb_substr(trim((string) $value['description']), 0, 200) : null;
                         $positems->measurement_json = $value['measurement_json'] ?? null;
                         $positems->selected_options_json = ProductOptionService::encodeOptions(
                             ProductOptionService::normalizeSelectedOptions($value['selected_options'] ?? $value['selected_options_json'] ?? null)
@@ -2007,7 +2188,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $positems->save();
                         $idNote2 = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
                         $deductByVariant2 = ($product->variants_enabled ?? false) && $product_variant_id;
-                        if (ProductOptionService::tryDeductPosLine($product, $value, $warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id), (int) $pos->id)) {
+                        if (ProductOptionService::tryDeductPosLine($product, $value, $warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
                             // options only
                         } elseif (($product->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
@@ -2015,7 +2196,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 (float) $value['quantity'],
                                 $warehouse_id,
                                 $user_id,
-                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id
                             );
                         } elseif ($deductByVariant2) {
@@ -2024,7 +2205,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 (float) $value['quantity'],
                                 $warehouse_id,
                                 $user_id,
-                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
                                 $idNote2,
                                 $product_variant_id
@@ -2035,7 +2216,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 (float) $value['quantity'],
                                 $warehouse_id,
                                 $user_id,
-                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
                                 $idNote2
                             );
@@ -2045,7 +2226,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                                 (float) $value['quantity'],
                                 $warehouse_id,
                                 $user_id,
-                                \Auth::user()->posNumberFormat($pos->pos_id),
+                                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
                                 $idNote2,
                                 $product_variant_id
@@ -2085,7 +2266,11 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                         $sales['data'][$key]['subtotal'] = Auth::user()->priceFormat($value['subtotal']);
                         $mainsubtotal += $value['subtotal'];
                     }
+                    if (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+                        $mainsubtotal = $this->applyInternalConsumptionCostToPosItems($pos, $user_id);
+                    }
                     $total = $mainsubtotal - $discount;
+                    $forceCreditPayment = ($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_CREDIT_SALE;
                     $payments = $request->input('payments');
                     if (is_array($payments) && count($payments) > 0) {
                         $firstPayment = true;
@@ -2094,33 +2279,48 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                             if ($amt <= 0) {
                                 continue;
                             }
+                            if ($forceCreditPayment || ($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+                                $amt = $total;
+                            }
                             $posPayment = new PosPayment();
                             $posPayment->pos_id = $pos->id;
                             $posPayment->branch_id = $pos->branch_id;
                             $posPayment->date = $request->date;
-                            $posPayment->payment_method = !empty($p['payment_method']) ? $p['payment_method'] : PosPayment::METHOD_CASH;
-                            $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? null) : null;
-                            $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? null) : null;
+                            $method = !empty($p['payment_method']) ? $p['payment_method'] : PosPayment::METHOD_CASH;
+                            if ($forceCreditPayment) {
+                                $method = PosPayment::METHOD_CREDIT;
+                            }
+                            $posPayment->payment_method = $method;
+                            $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? $request->credit_terms ?? null) : null;
+                            $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? $customer_id ?? null) : null;
                             $posPayment->transaction_id = !empty($p['transaction_id']) ? trim($p['transaction_id']) : null;
                             $posPayment->amount = $amt;
                             $posPayment->discount = $firstPayment ? (float) $discount : 0;
                             $posPayment->discount_amount = $amt;
                             $posPayment->tip = $firstPayment ? (float) ($request->tip ?? 0) : 0;
+                            $posPayment->notes = $firstPayment ? ($request->notes ?: null) : null;
                             $posPayment->created_by = $user_id;
                             $posPayment->save();
                             $firstPayment = false;
+                            if ($forceCreditPayment || ($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+                                break;
+                            }
                         }
                     } else {
                         $paidAmount = (float) ($request->amount ?? $total);
-                        if ($paidAmount <= 0) {
+                        if ($paidAmount <= 0 || ($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION || $forceCreditPayment) {
                             $paidAmount = $total;
                         }
-                        $changeAmount = (float) ($request->change_amount ?? 0);
+                        $changeAmount = ($forceCreditPayment || ($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION)
+                            ? 0
+                            : (float) ($request->change_amount ?? 0);
                         $posPayment = new PosPayment();
                         $posPayment->pos_id = $pos->id;
                         $posPayment->branch_id = $pos->branch_id;
                         $posPayment->date = $request->date ?? date('Y-m-d');
-                        $posPayment->payment_method = $request->payment_method ?? PosPayment::METHOD_CASH;
+                        $posPayment->payment_method = $forceCreditPayment
+                            ? PosPayment::METHOD_CREDIT
+                            : ($request->payment_method ?? PosPayment::METHOD_CASH);
                         $posPayment->credit_terms = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->credit_terms ?? null) : null;
                         $posPayment->customer_id = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->customer_id ?: $customer_id) : null;
                         $posPayment->transaction_id = $request->transaction_id ?: null;
@@ -2249,14 +2449,33 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         }
     }
 
-    public function invoicePosNumber()
+    public function invoicePosNumber(?string $documentType = null, ?int $excludePosId = null)
     {
-        if (Auth::user()->canManagePos()) {
-            $latest = Pos::where('created_by', '=', \Auth::user()->creatorId())->orderBy('id', 'desc')->first();
-
-            return $latest ? $latest->pos_id + 1 : 1;
-        } else {
+        if (! Auth::user()->canManagePos()) {
             return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $documentType = Pos::normalizeDocumentType($documentType);
+        $query = Pos::where('created_by', Auth::user()->creatorId())
+            ->where('document_type', $documentType);
+        if ($excludePosId) {
+            $query->where('id', '!=', $excludePosId);
+        }
+        $max = (int) $query->max('pos_id');
+
+        return $max > 0 ? $max + 1 : 1;
+    }
+
+    /**
+     * Assign / reassign pos.pos_id for the given document type (separate sequences + prefixes).
+     */
+    protected function assignPosSerialForDocumentType(Pos $pos, string $documentType): void
+    {
+        $documentType = Pos::normalizeDocumentType($documentType);
+        $sameType = ($pos->document_type ?? '') === $documentType && (int) ($pos->pos_id ?? 0) > 0;
+        $pos->document_type = $documentType;
+        if (! $sameType) {
+            $pos->pos_id = $this->invoicePosNumber($documentType, $pos->exists ? (int) $pos->id : null);
         }
     }
 
@@ -2316,7 +2535,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $customerName = !empty($pos->guest_name) ? $pos->guest_name : ($pos->customer ? $pos->customer->name : __('pos.walkin_customer'));
             return [
                 'id' => $pos->id,
-                'pos_number' => $user->posNumberFormat($pos->pos_id),
+                'pos_number' => $user->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                 'date' => $user->dateFormat($pos->pos_date ?? $pos->created_at),
                 'customer_name' => $customerName,
                 'total' => $user->priceFormat($total),
@@ -2776,7 +2995,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
 
         if (!$pos) {
             $pos = new Pos();
-            $pos->pos_id = $this->invoicePosNumber();
+            $pos->document_type = Pos::DOCUMENT_TYPE_CASH_SALE;
+            $pos->pos_id = $this->invoicePosNumber(Pos::DOCUMENT_TYPE_CASH_SALE);
             $pos->branch_id = $branchId;
             $pos->order_type = $orderType;
             $pos->table_id = $tableId;
@@ -2942,7 +3162,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             'user_id' => Auth::id(),
             'document_type' => DocumentVoidLog::TYPE_POS,
             'document_id' => $pos->id,
-            'document_number' => Auth::user()->posNumberFormat($pos->pos_id),
+            'document_number' => Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
             'reason' => $request->input('reason'),
             'stock_restored' => false,
             'accounting_note_created' => false,
@@ -3000,7 +3220,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         DocumentVoidService::logPosLineVoid(
             (int) $posProduct->id,
             (int) $pos->id,
-            Auth::user()->posNumberFormat($pos->pos_id),
+            Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
             $request->reason
         );
 
@@ -3061,7 +3281,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
 
         if (!$targetPos) {
             $targetPos = new Pos();
-            $targetPos->pos_id = $this->invoicePosNumber();
+            $targetPos->document_type = Pos::DOCUMENT_TYPE_CASH_SALE;
+            $targetPos->pos_id = $this->invoicePosNumber(Pos::DOCUMENT_TYPE_CASH_SALE);
             $targetPos->branch_id = $branchId;
             $targetPos->order_type = Pos::ORDER_TYPE_DINE_IN;
             $targetPos->table_id = $targetTableId;
@@ -3191,7 +3412,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
 
         if (! $targetPos) {
             $targetPos = new Pos();
-            $targetPos->pos_id = $this->invoicePosNumber();
+            $targetPos->document_type = Pos::DOCUMENT_TYPE_CASH_SALE;
+            $targetPos->pos_id = $this->invoicePosNumber(Pos::DOCUMENT_TYPE_CASH_SALE);
             $targetPos->branch_id = $branchId;
             $targetPos->order_type = Pos::ORDER_TYPE_DINE_IN;
             $targetPos->table_id = $targetTableId;
@@ -3378,7 +3600,8 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
             $lineIds = array_map('intval', $split['line_ids']);
 
             $checkPos = new Pos();
-            $checkPos->pos_id = $this->invoicePosNumber();
+            $checkPos->document_type = Pos::DOCUMENT_TYPE_CASH_SALE;
+            $checkPos->pos_id = $this->invoicePosNumber(Pos::DOCUMENT_TYPE_CASH_SALE);
             $checkPos->branch_id = $branchId;
             $checkPos->order_type = Pos::ORDER_TYPE_DINE_IN;
             $checkPos->table_id = $tableId;
@@ -3731,7 +3954,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
 
                 $clientName = !empty($pos->guest_name) ? $pos->guest_name : (!empty($customer->name) ? $customer->name : __('pos.walkin_customer'));
                 $details = [
-                    'pos_id' => $user->posNumberFormat($pos->pos_id),
+                    'pos_id' => $user->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                     'customer' => $customer ? $customer->toArray() : [],
                     'warehouse' => $warehouse ? $warehouse->toArray() : [],
                     'branch' => $branch ? $branch->toArray() : [],
@@ -3739,6 +3962,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                     'date' => $pos->pos_date ?? date('Y-m-d'),
                     'client_name' => $clientName,
                     'table_name' => $pos->table ? $pos->table->name : null,
+                    'document_type' => $pos->document_type ?? null,
                 ];
                 $warehouseName = $details['warehouse']['name'] ?? ($warehouse ? $warehouse->name : '-');
                 $details['warehouse']['details'] = '<h7 class="text-dark">' . ucfirst($warehouseName) . '</p></h7>';
@@ -3837,7 +4061,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
                 $receiptLinkUrl = URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]);
                 \Log::info('Receipt link URL: ' . $receiptLinkUrl);
                 $printSource = in_array($request->get('source'), ['restaurant'], true) ? 'restaurant' : 'retail';
-                return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'printSource', 'receiptUser'));
+                return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'printSource', 'receiptUser', 'pos'));
             }
         }
 
@@ -4223,7 +4447,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $warehouse = $pos->warehouse;
         $clientName = !empty($pos->guest_name) ? $pos->guest_name : (!empty($customer->name) ? $customer->name : __('pos.walkin_customer'));
         $details = [
-            'pos_id' => $user->posNumberFormat($pos->pos_id),
+            'pos_id' => $user->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
             'customer' => $customer ? $customer->toArray() : [],
             'warehouse' => $warehouse ? $warehouse->toArray() : [],
             'user' => $user->toArray(),
@@ -4294,7 +4518,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         $receiptLinkUrl = URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]);
         $printSource = 'retail';
         $receiptUser = $user;
-        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'settings', 'printSource', 'receiptUser'))->with('standalone', true);
+        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'settings', 'printSource', 'receiptUser', 'pos'))->with('standalone', true);
     }
 
     public function add_opening_balance()
@@ -4824,11 +5048,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
         ];
 
         // Create a Pos record so balance payment has reference number, QR link, and appears in Pay Receipts search
-        $nextPosId = 1;
-        $latestPos = Pos::where('created_by', $user->creatorId())->orderBy('id', 'desc')->first();
-        if ($latestPos) {
-            $nextPosId = (int) $latestPos->pos_id + 1;
-        }
+        $nextPosId = $this->invoicePosNumber(Pos::DOCUMENT_TYPE_CASH_SALE);
         $defaultWarehouse = warehouse::where('created_by', $user->creatorId())->orderBy('id')->first();
         $warehouseId = $defaultWarehouse ? (int) $defaultWarehouse->id : 0;
         $defaultBranch = Branch::where('created_by', $user->creatorId())->orderBy('id')->first();
@@ -4836,6 +5056,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
 
         $pos = new Pos();
         $pos->pos_id = $nextPosId;
+        $pos->document_type = Pos::DOCUMENT_TYPE_CASH_SALE;
         $pos->customer_id = $customerId;
         $pos->warehouse_id = $warehouseId;
         $pos->branch_id = $branchId;
@@ -4861,7 +5082,7 @@ $posPayment->payment_method = in_array($p['payment_method'] ?? '', $allowedMetho
 
         $settings = Utility::settings();
         $details = [
-            'pos_id' => $user->posNumberFormat($pos->pos_id),
+            'pos_id' => $user->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
             'client_name' => $receiptData['customer_name'],
             'customer' => $customer ? $customer->toArray() : [],
             'warehouse' => $defaultWarehouse ? $defaultWarehouse->toArray() : ['name' => '-'],

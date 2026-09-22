@@ -35,7 +35,16 @@ $directPrint = (isset($settings['pos_direct_print']) && $settings['pos_direct_pr
 $hasCreditPayment = ! empty($posPayments) && $posPayments->isNotEmpty() && $posPayments->contains(function ($p) {
     return in_array(strtolower($p->payment_method ?? ''), ['credit'], true);
 });
-$paymentDocumentTitle = $hasCreditPayment ? __('Credit Sale') : __('Cash Sale');
+// Slip title: document_type only — never derive from payment method.
+$rawDocumentType = null;
+if (isset($pos) && ! empty($pos->document_type)) {
+    $rawDocumentType = $pos->document_type;
+} elseif (! empty($details['document_type'])) {
+    $rawDocumentType = $details['document_type'];
+}
+$posDocumentType = \App\Models\Pos::normalizeDocumentType($rawDocumentType);
+$isCreditDocument = ($posDocumentType === \App\Models\Pos::DOCUMENT_TYPE_CREDIT_SALE) || $hasCreditPayment;
+$paymentDocumentTitle = \App\Models\Pos::documentTypeLabel($posDocumentType);
 if ($isBalancePayment) {
     $paymentDocumentTitle = __('Receipt');
 }
@@ -95,14 +104,18 @@ $qrCodeContent = $receiptLinkUrl
 $paidTotal = 0.0;
 $changeTotal = 0.0;
 $creditTotal = 0.0;
+$nonCreditPaidTotal = 0.0;
 $paymentMethods = [];
 $paymentRefs = [];
 if (! empty($posPayments)) {
     foreach ($posPayments as $pmt) {
-        $paidTotal += (float) ($pmt->amount ?? 0);
+        $amt = (float) ($pmt->amount ?? 0);
+        $paidTotal += $amt;
         $changeTotal += (float) ($pmt->change_amount ?? 0);
         if (strtolower($pmt->payment_method ?? '') === 'credit') {
-            $creditTotal += (float) ($pmt->amount ?? 0);
+            $creditTotal += $amt;
+        } else {
+            $nonCreditPaidTotal += $amt;
         }
         if (! empty($pmt->payment_method)) {
             $paymentMethods[] = str_replace('_', ' ', $pmt->payment_method);
@@ -114,6 +127,16 @@ if (! empty($posPayments)) {
 }
 $paymentMethodLabel = $paymentMethods ? implode(', ', array_unique($paymentMethods)) : '—';
 $paymentRefLabel = $paymentRefs ? implode(', ', $paymentRefs) : '—';
+$paymentNotes = '';
+if (! empty($posPayments)) {
+    foreach ($posPayments as $pmt) {
+        $note = trim((string) ($pmt->notes ?? ''));
+        if ($note !== '') {
+            $paymentNotes = $note;
+            break;
+        }
+    }
+}
 
 $fmt = function ($amount) use ($priceUser) {
     if ($priceUser && method_exists($priceUser, 'priceFormat')) {
@@ -157,20 +180,40 @@ if ($ivaTotalNum <= 0 && ! empty($sales['data'])) {
 }
 $ivaTotalFmt = $fmt($ivaTotalNum);
 
-$paidFmt = $fmt($paidTotal);
-$showTroco = $changeTotal > 0 && ! $hasCreditPayment;
-$showPendente = $hasCreditPayment || ($creditTotal > 0);
-$trocoPendenteLabel = $showPendente ? __('Pendente') : __('Troco');
-$trocoPendenteValue = $showPendente
-    ? $fmt($creditTotal > 0 ? $creditTotal : 0)
-    : $fmt($changeTotal);
-
 $saleTotalNum = $parseMoney($sales['total'] ?? 0);
 if ($saleTotalNum <= 0 && ! empty($sales['data'])) {
     foreach ($sales['data'] as $line) {
         $saleTotalNum += $parseMoney($line['subtotal'] ?? 0);
     }
 }
+
+if ($isCreditDocument) {
+    $dueAmount = max(
+        0.0,
+        $creditTotal > 0 ? $creditTotal : ($saleTotalNum - $nonCreditPaidTotal),
+        $saleTotalNum - $nonCreditPaidTotal
+    );
+    if ($dueAmount <= 0 && $saleTotalNum > 0) {
+        $dueAmount = $saleTotalNum;
+    }
+    $displayPaidTotal = $nonCreditPaidTotal;
+    $showPaidRow = $displayPaidTotal > 0;
+    $showPendente = true;
+    $showTroco = false;
+    $trocoPendenteLabel = __('Due Amount');
+    $trocoPendenteValue = $fmt($dueAmount);
+    $paidFmt = $fmt($displayPaidTotal);
+    $hasCreditPayment = true;
+} else {
+    $displayPaidTotal = $paidTotal;
+    $showPaidRow = true;
+    $showPendente = false;
+    $showTroco = $changeTotal > 0;
+    $trocoPendenteLabel = __('Troco');
+    $trocoPendenteValue = $fmt($changeTotal);
+    $paidFmt = $fmt($paidTotal);
+}
+
 $amountInWordsSource = $saleTotalNum > 0 ? $saleTotalNum : ($paidTotal > 0 ? $paidTotal : 0);
 $amountInWords = Utility::amountInWords($amountInWordsSource);
 

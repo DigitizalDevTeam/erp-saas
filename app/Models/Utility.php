@@ -366,6 +366,8 @@ namespace App\Models;
                 "pos_color" => "ffffff",
                 "pos_template" => "template1",
                 "pos_prefix" => "#PDV",
+                "pos_credit_prefix" => "#CRD",
+                "pos_internal_prefix" => "#INT",
                 "pos_print_layout" => "slip",
                 "pos_receipt_layout" => "existing",
                 "quotation_receipt_layout" => "existing",
@@ -396,6 +398,12 @@ namespace App\Models;
 
                 "operational_sms_enabled" => "off",
                 "operational_whatsapp_enabled" => "off",
+
+                "internal_ops_report_received_email_enabled" => "off",
+                "internal_ops_report_received_email_recipients" => "",
+                "internal_ops_report_received_sms_enabled" => "off",
+                "internal_ops_report_received_sms_recipients" => "",
+                "internal_ops_report_received_whatsapp_enabled" => "off",
 
                 "internal_ops_invoice_email_enabled" => "off",
                 "internal_ops_invoice_email_recipients" => "",
@@ -665,6 +673,8 @@ namespace App\Models;
                 "vendor_quote_prefix" => "#CotForn",
                 "purchase_proforma_prefix" => "#PPro",
                 "pos_prefix" => "#PDV",
+                "pos_credit_prefix" => "#CRD",
+                "pos_internal_prefix" => "#INT",
                 "contract_prefix" => "#Contr",
                 "quotation_logo"=>'',
                 "pos_color" => "ffffff",
@@ -689,6 +699,12 @@ namespace App\Models;
 
                 "operational_sms_enabled" => "off",
                 "operational_whatsapp_enabled" => "off",
+
+                "internal_ops_report_received_email_enabled" => "off",
+                "internal_ops_report_received_email_recipients" => "",
+                "internal_ops_report_received_sms_enabled" => "off",
+                "internal_ops_report_received_sms_recipients" => "",
+                "internal_ops_report_received_whatsapp_enabled" => "off",
 
                 "internal_ops_invoice_email_enabled" => "off",
                 "internal_ops_invoice_email_recipients" => "",
@@ -1187,11 +1203,11 @@ namespace App\Models;
             return $settings["quotation_prefix"] . sprintf("%05d", $number);
         }
 
-        public static function posNumberFormat($number)
+        public static function posNumberFormat($number, ?string $documentType = null)
         {
             $settings = Utility::settings();
 
-            return $settings["pos_prefix"] . sprintf("%05d", $number);
+            return \App\Models\Pos::documentTypePrefix($documentType, $settings) . sprintf('%05d', $number);
         }
 
         public static function contractNumberFormat($number)
@@ -1225,11 +1241,11 @@ namespace App\Models;
 
             return $settings["invoice_prefix"] . sprintf("%05d", $number);
         }
-        public static function customerPosNumberFormat($number)
+        public static function customerPosNumberFormat($number, ?string $documentType = null)
         {
             $settings = Utility::settings();
 
-            return $settings["pos_prefix"] . sprintf("%05d", $number);
+            return \App\Models\Pos::documentTypePrefix($documentType, $settings) . sprintf('%05d', $number);
         }
 
         public static function billNumberFormat($settings, $number)

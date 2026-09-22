@@ -6,7 +6,10 @@ document.addEventListener("DOMContentLoaded", function () {
   // feather icon end
   // remove pre-loader start
   setTimeout(function () {
-    document.querySelector(".loader-bg").remove();
+    var loaderBg = document.querySelector(".loader-bg");
+    if (loaderBg) {
+      loaderBg.remove();
+    }
   }, 400);
   // remove pre-loader end
   if (!document.querySelector("body").classList.contains("dash-horizontal")) {

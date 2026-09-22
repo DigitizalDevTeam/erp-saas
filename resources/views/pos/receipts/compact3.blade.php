@@ -223,10 +223,12 @@
                     <tr>
                         <td>
                             {{ $value['name'] ?? '' }}
-                            <span class="item-detail">
-                                @if(!empty($value['tax'])){{ __('VAT') }} {{ $value['tax'] }}@endif
-                                @if(!empty($value['description'])) · {{ $value['description'] }}@endif
-                            </span>
+                            @if(!empty($value['tax']))
+                            <span class="item-detail">{{ __('VAT') }} {{ $value['tax'] }}</span>
+                            @endif
+                            @if(!empty($value['description']))
+                            <span class="item-detail item-note"><strong>{{ __('Note') }}:</strong> {{ $value['description'] }}</span>
+                            @endif
                         </td>
                         <td class="qty">{{ $value['quantity'] ?? '' }}</td>
                         <td class="price">{{ $value['price'] ?? '' }}</td>
@@ -243,7 +245,9 @@
                 <div class="mz-kv"><span>{{ __('Discount') }}</span><span>{{ $salesDiscount }}</span></div>
                 <div class="mz-kv"><span>{{ __('VAT') }} / IVA</span><span>{{ $ivaTotalFmt }}</span></div>
                 <div class="mz-kv grand bold"><span>{{ __('TOTAL') }}</span><span>{{ $salesTotal }} {{ $currency }}</span></div>
+                @if(!empty($showPaidRow))
                 <div class="mz-kv"><span>{{ __('Paid') }}</span><span>{{ $paidFmt }}</span></div>
+                @endif
                 <div class="mz-kv"><span>{{ $trocoPendenteLabel }}</span><span>{{ $trocoPendenteValue }}</span></div>
             </section>
 
@@ -271,6 +275,9 @@
 
             <div class="rule"></div>
             <div class="mz-kv"><span>{{ __('Payment Method') }}:</span><span class="bold text-capitalize">{{ $paymentMethodLabel }}</span></div>
+            @if(!empty($paymentNotes))
+            <div class="mz-kv"><span>{{ __('Notes') }}:</span><span>{{ $paymentNotes }}</span></div>
+            @endif
             <div class="mz-kv"><span>{{ __('Reference') }}:</span><span>{{ $paymentRefLabel }}</span></div>
             <div class="mz-kv"><span>{{ __('Operator') }}:</span><span>{{ $operatorName }}</span></div>
             <div class="mz-kv"><span>{{ __('Branch') }}:</span><span>{{ $branchName }}</span></div>
@@ -279,7 +286,7 @@
                 <div class="rule"></div>
                 <div class="bold small">{{ __('pos.client_signature_for_credit') }}</div>
                 <div class="sig-box"></div>
-                <div class="mz-kv"><span>{{ __('Pendente') }}:</span><span class="bold">{{ $trocoPendenteValue }}</span></div>
+                <div class="mz-kv"><span>{{ __('Due Amount') }}:</span><span class="bold">{{ $trocoPendenteValue }}</span></div>
             @endif
 
             @if($posQrDisplay && (!empty($qrSvg) || !empty($qrHtml)))
