@@ -9,7 +9,7 @@
 @endsection
 
 @section('action-btn')
-    @if (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager'))
+    @if (Auth::user()->canManagePosShiftActions())
         <a href="{{ route('pos-shift.report', $pos_shift) }}" class="btn btn-sm btn-info">{{ __('Shift Report') }}</a>
         @if($pos_shift->status === 'open')
             <a href="{{ route('pos-shift.assign-table', $pos_shift) }}" class="btn btn-sm btn-warning">{{ __('Assign Tables') }}</a>
@@ -69,7 +69,7 @@
                             </tbody>
                         </table>
                     </div>
-                    @if($pos_shift->status === 'open' && (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')))
+                    @if($pos_shift->status === 'open' && Auth::user()->canManagePosShiftActions())
                     <hr>
                     <h6>{{ __('Cash drops') }}</h6>
                     <p class="text-muted small mb-2">{{ __('Withdrawals from register during shift.') }}</p>
@@ -143,7 +143,7 @@
         </div>
     </div>
 
-    @if (($pos_shift->status === 'open') && (Gate::check('manage pos') || Gate::check('pos restaurant full') || Gate::check('pos restaurant manager')))
+    @if (($pos_shift->status === 'open') && Auth::user()->canManagePosShiftActions())
     <div class="modal fade" id="cashDropModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">

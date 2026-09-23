@@ -2426,6 +2426,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos-restaurant/switch-user', [PosController::class, 'logoutRestaurantPin'])->name('pos.restaurant.switch-user')->middleware(['auth', 'XSS']);
     Route::post('pos-restaurant/logout-pin', [PosController::class, 'logoutRestaurantPin'])->name('pos.restaurant.logout-pin')->middleware(['auth', 'XSS']);
     Route::post('pos-restaurant/void-line/{line}', [PosController::class, 'voidRestaurantLine'])->name('pos.restaurant.void-line');
+    Route::post('pos-restaurant/delete-lines', [PosController::class, 'deleteRestaurantLines'])->name('pos.restaurant.delete-lines');
     Route::post('pos-restaurant/join-tables', [PosController::class, 'joinRestaurantTables'])->name('pos.restaurant.join-tables');
     Route::post('pos-restaurant/move-table', [PosController::class, 'moveRestaurantTable'])->name('pos.restaurant.move-table');
     Route::post('pos-restaurant/split-order', [PosController::class, 'splitRestaurantOrderByItems'])->name('pos.restaurant.split-order');

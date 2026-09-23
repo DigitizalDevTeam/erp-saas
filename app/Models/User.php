@@ -267,6 +267,17 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Whether the user can manage POS shift actions (view/report/assign/close).
+     * Managers and cashiers (full) included; waiter-only is not.
+     */
+    public function canManagePosShiftActions(): bool
+    {
+        return $this->can('manage pos')
+            || $this->can('pos restaurant full')
+            || $this->can('pos restaurant manager');
+    }
+
+    /**
      * Whether the user can access Hotel Management module (any hotel permission).
      */
     public function canManageHotel(): bool

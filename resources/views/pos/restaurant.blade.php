@@ -235,6 +235,11 @@
 
                     {{-- Table block --}}
                     <div id="pos-restaurant-table-block" class="pos-restaurant-control-item flex-shrink-0 d-flex align-items-end gap-1 flex-nowrap">
+                        <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap"
+                                id="pos-restaurant-reset-btn"
+                                title="{{ $tp('pos.reset', 'Reset') }}">
+                            <i class="ti ti-refresh me-1"></i>{{ $tp('pos.reset', 'Reset') }}
+                        </button>
                         <button type="button" class="btn btn-sm btn-outline-primary text-nowrap"
                                 id="pos-open-table-panel-btn" aria-expanded="false"
                                 aria-controls="pos-restaurant-table-grid-wrap"
@@ -250,10 +255,10 @@
                             <select class="form-select form-select-sm" id="pos-check-selector" style="min-width: 9rem;"></select>
                         </div>
                         @if($canShowPayButton ?? true)
-                            <button type="button" class="btn btn-sm btn-outline-danger d-none flex-shrink-0"
+                            <button type="button" class="btn btn-sm btn-danger d-none flex-shrink-0 text-nowrap"
                                     id="pos-close-table-btn"
-                                    title="{{ $tp('pos.close_table', 'Close Table') }} ({{ $tp('pos.manager_emergency', 'Manager Emergency') }})">
-                                <i class="ti ti-door-exit"></i>
+                                    title="{{ $tp('pos.close_table', 'Close Table') }} ({{ $tp('pos.manager_emergency', 'Manager / emergency') }})">
+                                <i class="ti ti-door-exit me-1"></i>{{ $tp('pos.close_table', 'Close Table') }}
                             </button>
                         @endif
                     </div>
@@ -381,9 +386,22 @@
                                 <button type="button" class="btn btn-outline-warning" id="pos-split-bill-restaurant" title="{{ __('pos.split_bill') }}">
                                     <i class="ti ti-separator-horizontal d-block"></i>
                                 </button>
-                                <button type="button" class="btn btn-outline-danger" id="pos-empty-cart-restaurant" title="{{ __('pos.empty_cart') }}" aria-label="{{ __('pos.empty_cart') }}">
+                                <button type="button"
+                                        class="btn btn-outline-danger"
+                                        id="pos-empty-cart-restaurant"
+                                        title="{{ __('pos.empty_cart') }}"
+                                        aria-label="{{ __('pos.empty_cart') }}"
+                                        data-can-delete-sent="{{ !empty($canDeleteSent) ? '1' : '0' }}">
                                     <i class="ti ti-trash d-block"></i>
                                 </button>
+                                @if(!empty($canDeleteSent))
+                                <button type="button" class="btn btn-danger d-none" id="pos-delete-selected-restaurant" title="{{ __('pos.delete_selected') }}">
+                                    <i class="ti ti-trash me-1"></i>{{ __('pos.delete_selected') }}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary d-none" id="pos-cancel-delete-select-restaurant" title="{{ __('pos.cancel') }}">
+                                    <i class="ti ti-x d-block"></i>
+                                </button>
+                                @endif
                                 <button type="button" class="btn btn-outline-secondary" id="pos-view-bill-restaurant" title="{{ $tp('pos.view_bill', 'View Bill') }}">
                                     <i class="ti ti-file-invoice d-block"></i>
                                 </button>
@@ -651,6 +669,13 @@
                 <p class="mb-2" id="pos-void-line-name"></p>
                 <label class="form-label">{{ __('Reason') }} <span class="text-danger">*</span></label>
                 <textarea id="pos-void-reason-input" class="form-control" rows="3" maxlength="500" placeholder="{{ __('pos.void_reason_required') }}"></textarea>
+                <div class="mt-3">
+                    <label class="form-label" for="pos-void-password-input">{{ __('pos.void_password_label') }} @if(empty($canVoidDirectly))<span class="text-danger">*</span>@endif</label>
+                    <input type="password" id="pos-void-password-input" class="form-control" autocomplete="new-password" placeholder="{{ __('pos.void_password_label') }}">
+                    @if(!empty($canVoidDirectly))
+                        <small class="text-muted">{{ __('pos.void_password_optional_manager') }}</small>
+                    @endif
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>

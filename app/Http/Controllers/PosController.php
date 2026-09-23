@@ -300,10 +300,13 @@ class PosController extends Controller
     {
         $total = 0.0;
         $pos->loadMissing('items');
-        foreach ($pos->items as $line) {
-            if (! empty($line->voided_at)) {
-                continue;
-            }
+            foreach ($pos->items as $line) {
+                if (! empty($line->voided_at)) {
+                    continue;
+                }
+                if (! empty($line->removed_from_cart_at)) {
+                    continue;
+                }
             $product = ProductService::whereId($line->product_id)->where('created_by', $userId)->first();
             if (! $product) {
                 $total += (float) $line->price * (float) $line->quantity;
@@ -542,7 +545,7 @@ class PosController extends Controller
                 $totals[$tid] = 0.0;
             }
             foreach ($pos->items as $line) {
-                if ($line->voided_at) {
+                if ($line->voided_at || $line->removed_from_cart_at) {
                     continue;
                 }
                 $taxRate = $this->resolvePosLineTaxRate($line, $line->product);
@@ -968,7 +971,7 @@ class PosController extends Controller
             if ($pos && $pos->items->isNotEmpty()) {
                 $sess = [];
                 foreach ($pos->items as $line) {
-                    if ($line->voided_at) {
+                    if ($line->voided_at || $line->removed_from_cart_at) {
                         continue;
                     }
                     $product = $line->product;
@@ -2770,6 +2773,9 @@ class PosController extends Controller
         $orderLines = [];
         if ($pos) {
             foreach ($pos->items as $line) {
+                if ($line->removed_from_cart_at) {
+                    continue;
+                }
                 $printer = $line->posPrinter ?? ($line->product ? $line->product->posPrinter : null);
                 $product = $line->product;
                 $taxRate = $this->resolvePosLineTaxRate($line, $product);
@@ -2867,7 +2873,7 @@ class PosController extends Controller
             foreach ($openChecks as $check) {
                 $checkTotal = 0.0;
                 foreach ($check->items as $line) {
-                    if ($line->voided_at) {
+                    if ($line->voided_at || $line->removed_from_cart_at) {
                         continue;
                     }
                     $checkTotal += (float) ($line->price * $line->quantity - $line->discount);
@@ -2877,7 +2883,7 @@ class PosController extends Controller
                     'label' => $check->guest_name ?: ('Check #' . $check->pos_id),
                     'total' => $checkTotal,
                     'total_formatted' => Auth::user()->priceFormat($checkTotal),
-                    'line_count' => $check->items->whereNull('voided_at')->count(),
+                    'line_count' => $check->items->whereNull('voided_at')->whereNull('removed_from_cart_at')->count(),
                 ];
             }
         }
@@ -3211,7 +3217,8 @@ class PosController extends Controller
     }
 
     /**
-     * Void a sent line (manager/cashier only). Reason is mandatory; void appears in shift report.
+     * Void a sent line. Managers/Admins void directly; Cashier/Waiter require Manager/Admin/POS password.
+     * Reason is mandatory; void appears in shift report.
      */
     public function voidRestaurantLine(Request $request, $line)
     {
@@ -3224,7 +3231,11 @@ class PosController extends Controller
             return $pinCheck;
         }
         $actor = $pinCheck;
-        if (! PosAuditLogService::canVoidRestaurantLine($actor)) {
+        if (! PosAuditLogService::authorizeVoidRestaurantLine($request, $actor)) {
+            if (PosAuditLogService::canVoidRestaurantLine($actor) && ! PosAuditLogService::canVoidRestaurantLineDirectly($actor)) {
+                return response()->json(['error' => __('pos.void_password_invalid')], 403);
+            }
+
             return response()->json(['error' => __('Only Manager can void items.')], 403);
         }
 
@@ -3265,6 +3276,89 @@ class PosController extends Controller
         );
 
         return response()->json(['success' => true, 'message' => __('Line voided.')]);
+    }
+
+    /**
+     * Admin/company admin: remove sent lines from the restaurant cart (hidden from POS, audit logged).
+     */
+    public function deleteRestaurantLines(Request $request)
+    {
+        if (! Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $pinCheck = $this->restaurantPinActorOrJsonError();
+        if ($pinCheck instanceof \Illuminate\Http\JsonResponse) {
+            return $pinCheck;
+        }
+        $actor = $pinCheck;
+        if (! PosAuditLogService::canDeleteSentRestaurantLines($actor)) {
+            return response()->json(['error' => __('Only Admin / Company Admin can delete sent items.')], 403);
+        }
+
+        $request->validate([
+            'line_ids' => 'required|array|min:1',
+            'line_ids.*' => 'integer',
+        ]);
+
+        $lineIds = array_values(array_unique(array_map('intval', $request->input('line_ids', []))));
+        $lines = PosProduct::whereIn('id', $lineIds)
+            ->whereHas('pos', function ($q) use ($actor) {
+                $q->where('created_by', $actor->creatorId());
+            })
+            ->with(['pos', 'product'])
+            ->get();
+
+        if ($lines->isEmpty()) {
+            return response()->json(['error' => __('No deletable lines found.')], 404);
+        }
+
+        $deleted = 0;
+        foreach ($lines as $posProduct) {
+            $pos = $posProduct->pos;
+            if (! $pos || $pos->posPayments()->exists()) {
+                continue;
+            }
+            if (! $posProduct->sent_at) {
+                continue;
+            }
+            if ($posProduct->voided_at) {
+                continue;
+            }
+            if ($posProduct->removed_from_cart_at) {
+                continue;
+            }
+
+            $posProduct->removed_from_cart_at = now();
+            $posProduct->removed_from_cart_by = $actor->id;
+            $posProduct->save();
+
+            $productName = $posProduct->product ? $posProduct->product->name : (__('Product') . ' #' . $posProduct->product_id);
+            PosAuditLogService::log(
+                PosAuditLog::ACTION_DELETE_LINE,
+                'pos_product',
+                (int) $posProduct->id,
+                __('Item deleted from cart: :product', ['product' => $productName]),
+                [
+                    'pos_id' => $pos->id,
+                    'line_id' => $posProduct->id,
+                    'product_id' => $posProduct->product_id,
+                    'product_name' => $productName,
+                    'quantity' => (int) $posProduct->quantity,
+                ]
+            );
+            $deleted++;
+        }
+
+        if ($deleted === 0) {
+            return response()->json(['error' => __('No deletable sent items were selected.')], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => __('Selected items deleted from cart.'),
+            'deleted' => $deleted,
+        ]);
     }
 
     /**
@@ -3618,8 +3712,8 @@ class PosController extends Controller
 
         $linePosMap = [];
         foreach ($sourcePosList as $pos) {
-            foreach ($pos->items as $line) {
-                if ($line->voided_at) {
+                foreach ($pos->items as $line) {
+                if ($line->voided_at || $line->removed_from_cart_at) {
                     continue;
                 }
                 $linePosMap[(int) $line->id] = $pos;
@@ -3669,7 +3763,7 @@ class PosController extends Controller
 
         foreach ($sourcePosList as $pos) {
             $pos->refresh();
-            $activeLines = $pos->items()->whereNull('voided_at')->count();
+            $activeLines = $pos->items()->whereNull('voided_at')->whereNull('removed_from_cart_at')->count();
             if ($activeLines === 0) {
                 $pos->cancelled_at = now();
                 $pos->save();
@@ -4829,7 +4923,9 @@ class PosController extends Controller
         $userOpenShiftByBranch = $userOpenShifts->pluck('id', 'branch_id')->toArray();
         $userOpenShift = $userOpenShifts->first();
         $canShowPayButton = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('pos restaurant cashier') || $user->can('manage pos');
-        $canShowVoid = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
+        $canShowVoid = $user->canManagePos();
+        $canVoidDirectly = PosAuditLogService::canVoidRestaurantLineDirectly($user);
+        $canDeleteSent = PosAuditLogService::canDeleteSentRestaurantLines($user);
         $posDefaultPrepMinutes = (int) (Utility::getValByName('pos_default_prep_minutes') ?: 15);
         if ($posDefaultPrepMinutes < 1) {
             $posDefaultPrepMinutes = 15;
@@ -4841,7 +4937,7 @@ class PosController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return view('pos.index-restaurant', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'posPinUser', 'posBranchAssignmentWarning', 'posDefaultPrepMinutes', 'companyUsers'));
+        return view('pos.index-restaurant', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'canVoidDirectly', 'canDeleteSent', 'posPinUser', 'posBranchAssignmentWarning', 'posDefaultPrepMinutes', 'companyUsers'));
     }
 
     /**

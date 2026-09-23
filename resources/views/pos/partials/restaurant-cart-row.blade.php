@@ -11,6 +11,9 @@
     $priceFmt = Auth::user()->priceFormat($line->price ?? 0);
     $subFmt = Auth::user()->priceFormat($subtotal);
     $qty = (int) ($line->quantity ?? 1);
+    $unitSubtotal = isset($line->unit_subtotal)
+        ? (float) $line->unit_subtotal
+        : ($qty > 0 ? round($subtotal / $qty, 2) : $subtotal);
     $cartLineKey = $line->cart_line_key ?? $line->id ?? '';
     $noteText = trim((string) ($line->description ?? ''));
     $hasNote = $noteText !== '';
@@ -27,6 +30,7 @@
     data-cart-line-key="{{ $cartLineKey }}"
     data-line-id="{{ $line->line_id ?? '' }}"
     data-is-sent="{{ $isSent ? '1' : '0' }}"
+    data-voided="{{ $isCancelled ? '1' : '0' }}"
     data-status="{{ $line->status ?? 'not_sent' }}"
     id="{{ $rowId }}"
     data-name="{{ $lineName }}"
@@ -35,6 +39,7 @@
     data-quantity="{{ $qty }}"
     data-tax="{{ $line->tax ?? 0 }}"
     data-subtotal="{{ $subtotal }}"
+    data-unit-subtotal="{{ $unitSubtotal }}"
     data-discount="0"
     data-print-zone="{{ $line->print_zone ?? '' }}"
     data-printer-id="{{ $line->pos_printer_id ?? '' }}"
@@ -63,10 +68,10 @@
                 <span class="d-none tax">{{ $taxDisplay }}</span>
 
                 <div class="pos-cart-line__action action-btn">
-                    @if($isSent)
-                        @if($isCancelled)
-                            <span class="badge pos-cart-line__void-badge">{{ __('pos.voided') }}</span>
-                        @elseif(!empty($canShowVoid) && !empty($line->line_id))
+                    @if($isCancelled)
+                        <span class="badge pos-cart-line__void-badge">{{ __('pos.voided') }}</span>
+                    @elseif($isSent)
+                        @if(!empty($canShowVoid) && !empty($line->line_id))
                             <button type="button" class="btn btn-warning btn-sm pos-void-line pos-cart-line__void-btn"
                                 data-line-id="{{ $line->line_id }}" data-name="{{ $lineName }}"
                                 title="{{ __('pos.void') }}">{{ __('pos.void') }}</button>

@@ -29,11 +29,82 @@ class PosAuditLogService
     }
 
     /**
-     * Whether the current POS actor may void sent restaurant lines.
+     * Manager / company admin may void restaurant lines without an extra password.
+     */
+    public static function canVoidRestaurantLineDirectly(User $actor): bool
+    {
+        return $actor->can('pos restaurant manager')
+            || $actor->can('manage pos')
+            || in_array($actor->type, ['company', 'super admin'], true);
+    }
+
+    /**
+     * Admin / company admin may delete sent lines from the restaurant cart.
+     */
+    public static function canDeleteSentRestaurantLines(User $actor): bool
+    {
+        return $actor->can('manage pos')
+            || in_array($actor->type, ['company', 'super admin'], true);
+    }
+
+    /**
+     * Whether the current POS actor may attempt to void sent restaurant lines
+     * (managers/admins directly; cashier/waiter with manager password).
      */
     public static function canVoidRestaurantLine(User $actor): bool
     {
-        return $actor->canManagePos() && self::canAuthorizeRestaurantSensitiveAction($actor);
+        return $actor->canManagePos();
+    }
+
+    /**
+     * Verify Manager/Admin account password or Manager/Admin POS PIN for the company.
+     */
+    public static function verifyManagerAdminOrPosPassword(Request $request, int $creatorId): bool
+    {
+        $password = $request->input('manager_password');
+        if ($password === null || $password === '') {
+            return false;
+        }
+
+        $pinCandidate = preg_replace('/\D/', '', (string) $password);
+        $authorizers = User::query()
+            ->where(function ($q) use ($creatorId) {
+                $q->where('created_by', $creatorId)->orWhere('id', $creatorId);
+            })
+            ->where('is_active', 1)
+            ->where(function ($q) {
+                $q->where('delete_status', 1)->orWhereNull('delete_status');
+            })
+            ->get();
+
+        foreach ($authorizers as $user) {
+            if (! self::canVoidRestaurantLineDirectly($user)) {
+                continue;
+            }
+            if (! empty($user->password) && Hash::check((string) $password, (string) $user->password)) {
+                return true;
+            }
+            if ($pinCandidate !== '' && ! empty($user->pos_pin) && (string) $user->pos_pin === (string) $pinCandidate) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Authorize void: managers/admins pass immediately; others need a valid manager/admin/POS password.
+     */
+    public static function authorizeVoidRestaurantLine(Request $request, User $actor): bool
+    {
+        if (! self::canVoidRestaurantLine($actor)) {
+            return false;
+        }
+        if (self::canVoidRestaurantLineDirectly($actor)) {
+            return true;
+        }
+
+        return self::verifyManagerAdminOrPosPassword($request, (int) $actor->creatorId());
     }
 
     /**

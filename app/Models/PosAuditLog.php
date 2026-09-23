@@ -18,6 +18,7 @@ class PosAuditLog extends Model
     const ACTION_REOPEN_TABLE = 'reopen_table';
     const ACTION_REFUND = 'refund';
     const ACTION_VOID_LINE = 'void_line';
+    const ACTION_DELETE_LINE = 'delete_line';
     const ACTION_SWITCH_USER = 'switch_user';
 
     protected $fillable = [

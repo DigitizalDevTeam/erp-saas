@@ -18,7 +18,7 @@
                             <label class="form-label">{{ __('Action') }}</label>
                             <select name="action" class="form-select form-select-sm" style="min-width:160px;">
                                 <option value="">{{ __('All') }}</option>
-                                @foreach([\App\Models\PosAuditLog::ACTION_OPEN_TABLE => __('Open table'), \App\Models\PosAuditLog::ACTION_CLOSE_TABLE => __('Close table'), \App\Models\PosAuditLog::ACTION_SEND_ORDER => __('Send order'), \App\Models\PosAuditLog::ACTION_CANCEL_ORDER => __('Cancel order'), \App\Models\PosAuditLog::ACTION_DISCOUNT => __('Discount'), \App\Models\PosAuditLog::ACTION_CASH_DROP => __('Cash drop'), \App\Models\PosAuditLog::ACTION_CLOSE_SHIFT => __('Close shift'), \App\Models\PosAuditLog::ACTION_REOPEN_TABLE => __('Reopen table'), \App\Models\PosAuditLog::ACTION_REFUND => __('Refund')] as $k => $v)
+                                @foreach([\App\Models\PosAuditLog::ACTION_OPEN_TABLE => __('Open table'), \App\Models\PosAuditLog::ACTION_CLOSE_TABLE => __('Close table'), \App\Models\PosAuditLog::ACTION_SEND_ORDER => __('Send order'), \App\Models\PosAuditLog::ACTION_CANCEL_ORDER => __('Cancel order'), \App\Models\PosAuditLog::ACTION_DISCOUNT => __('Discount'), \App\Models\PosAuditLog::ACTION_CASH_DROP => __('Cash drop'), \App\Models\PosAuditLog::ACTION_CLOSE_SHIFT => __('Close shift'), \App\Models\PosAuditLog::ACTION_REOPEN_TABLE => __('Reopen table'), \App\Models\PosAuditLog::ACTION_REFUND => __('Refund'), \App\Models\PosAuditLog::ACTION_VOID_LINE => __('Void line'), \App\Models\PosAuditLog::ACTION_DELETE_LINE => __('Delete line')] as $k => $v)
                                     <option value="{{ $k }}" {{ request('action') === $k ? 'selected' : '' }}>{{ $v }}</option>
                                 @endforeach
                             </select>
@@ -52,7 +52,7 @@
                                         <td>{{ $log->created_at ? $log->created_at->format('Y-m-d H:i:s') : '-' }}</td>
                                         <td><span class="badge bg-secondary">{{ $log->action }}</span></td>
                                         <td>{{ $log->user ? $log->user->name : '-' }}</td>
-                                        <td>{{ $log->description ?: '—' }} @if($log->meta)<br><small class="text-muted">{{ is_array($log->meta) ? json_encode($log->meta) : $log->meta }}</small>@endif</td>
+                                        <td>{{ $log->description ?: '—' }}</td>
                                         <td><small>{{ $log->ip ?: '—' }}</small></td>
                                     </tr>
                                 @empty

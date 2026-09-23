@@ -9,11 +9,11 @@
 @endsection
 
 @section('action-btn')
-    @can('manage pos')
+    @if (Auth::user()->canManagePosShiftActions())
         <a href="{{ route('pos-shift.create') }}" class="btn btn-sm btn-primary">
             <i class="ti ti-plus"></i> {{ __('Open Shift') }}
         </a>
-    @endcan
+    @endif
 @endsection
 
 @section('content')
@@ -60,16 +60,16 @@
                                             @endif
                                         </td>
                                         <td>
-                                            @can('manage pos')
-                                                @if($shift->created_by == Auth::user()->creatorId())
+                                            @if (Auth::user()->canManagePosShiftActions() && $shift->created_by == Auth::user()->creatorId())
+                                                <div class="action-btn d-inline-flex flex-wrap gap-1">
                                                     <a href="{{ route('pos-shift.show', $shift) }}" class="btn btn-sm btn-info" title="{{ __('View') }}"><i class="ti ti-eye text-white"></i></a>
                                                     <a href="{{ route('pos-shift.report', $shift) }}" class="btn btn-sm btn-primary" title="{{ __('Report') }}" target="_blank"><i class="ti ti-file-text text-white"></i></a>
                                                     @if($shift->status === 'open')
                                                         <a href="{{ route('pos-shift.assign-table', $shift) }}" class="btn btn-sm btn-warning" title="{{ __('Assign Tables') }}"><i class="ti ti-table text-white"></i></a>
                                                         <a href="{{ route('pos-shift.close-form', $shift) }}" class="btn btn-sm btn-danger" title="{{ __('Close Shift') }}"><i class="ti ti-lock text-white"></i></a>
                                                     @endif
-                                                @endif
-                                            @endcan
+                                                </div>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach

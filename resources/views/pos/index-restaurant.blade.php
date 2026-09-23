@@ -19,7 +19,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="stylesheet" href="{{ asset('css/pos.css') }}?v=7">
+    <link rel="stylesheet" href="{{ asset('css/pos.css') }}?v=9">
     <link rel="stylesheet" href="{{ asset('assets/fonts/tabler-icons.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}" id="main-style-link">
     <style>
@@ -1003,6 +1003,23 @@
                 badge.classList.add('d-none');
             }
         }
+        function posRoundMoney(n) {
+            return Math.round((parseFloat(n) || 0) * 100) / 100;
+        }
+        /** Round unit line (price+VAT) first, then × qty — avoids 200×2 → 399.99 float drift */
+        function posLineSubtotal(price, taxRate, qty, priceType, unitSubtotal) {
+            qty = parseInt(qty, 10) || 0;
+            if (qty <= 0) return 0;
+            var unit;
+            if (unitSubtotal != null && !isNaN(parseFloat(unitSubtotal)) && parseFloat(unitSubtotal) > 0) {
+                unit = posRoundMoney(unitSubtotal);
+            } else if ((priceType || '').toLowerCase() === 'inclusive' && (parseFloat(taxRate) || 0) > 0) {
+                unit = posRoundMoney(price);
+            } else {
+                unit = posRoundMoney((parseFloat(price) || 0) * (1 + (parseFloat(taxRate) || 0) / 100));
+            }
+            return posRoundMoney(unit * qty);
+        }
         function posGetCartFromDom() {
             var cart = {};
             $('#tbody tr[data-product-id]').each(function () {
@@ -1014,12 +1031,8 @@
                 var price = parseFloat($row.attr('data-price')) || 0;
                 var tax = parseFloat($row.attr('data-tax')) || 0;
                 var priceType = ($row.attr('data-price-type') || 'exclusive').toLowerCase();
-                var subtotal;
-                if (priceType === 'inclusive' && tax > 0) {
-                    subtotal = price * qty;
-                } else {
-                    subtotal = (price + price * tax / 100) * qty;
-                }
+                var unitSub = parseFloat($row.attr('data-unit-subtotal'));
+                var subtotal = posLineSubtotal(price, tax, qty, priceType, !isNaN(unitSub) ? unitSub : null);
                 var discount = parseFloat($row.attr('data-discount')) || 0;
                 var netPrice = subtotal - discount;
                 var selRaw = $row.attr('data-selected-options') || '';
@@ -1763,10 +1776,14 @@
             }
             var posStatusLabels = { 'pending': '{{ __("pos.status_pending") }}', 'in_preparation': '{{ __("pos.status_in_preparation") }}', 'ready': '{{ __("pos.status_ready") }}', 'served': '{{ __("pos.status_served") }}', 'cancelled': '{{ __("pos.status_cancelled") }}', 'not_sent': '{{ __("pos.status_not_sent") }}' };
             var canShowVoid = {{ ($canShowVoid ?? false) ? 'true' : 'false' }};
+            var canVoidDirectly = {{ ($canVoidDirectly ?? false) ? 'true' : 'false' }};
+            var canDeleteSent = {{ ($canDeleteSent ?? false) ? 'true' : 'false' }};
             var posRestaurantVoidLineUrl = '{{ route("pos.restaurant.void-line", ["line" => "__LINE__"]) }}';
+            var posRestaurantDeleteLinesUrl = '{{ route("pos.restaurant.delete-lines") }}';
+            var posDeleteSelectMode = false;
             function buildRestaurantCartRow(it, idx, opts) {
                 opts = opts || {};
-                var sub = opts.sub != null ? opts.sub : (parseFloat(it.price) * (it.quantity || 0) * (1 + (parseFloat(it.tax) || 0) / 100));
+                var sub = opts.sub != null ? opts.sub : posLineSubtotal(it.price, it.tax, it.quantity || 0, it.price_type, it.unit_subtotal);
                 var taxDisplay = (it.tax && it.tax !== 0) ? (it.tax + '%') : '-';
                 var rowId = it.line_id ? ('product-id-r-' + it.line_id) : ('product-id-r-s-' + it.id + '-' + idx);
                 var statusText = posStatusLabels[it.status] || it.status;
@@ -1784,9 +1801,10 @@
                 var cartKey = it.cart_line_key || it.id;
                 var note = String(it.description || '').trim();
                 var lineName = String(it.name || '').trim() || ('{{ __("Product") }} #' + (it.id || ''));
-                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '">';
+                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-voided="' + (isVoided ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-unit-subtotal="' + (it.unit_subtotal != null ? it.unit_subtotal : (qty > 0 ? posRoundMoney(sub / qty) : '')) + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '">';
                 html += '<td class="pos-cart-line-cell p-0 border-0"><div class="pos-cart-line"><div class="pos-cart-line__row">';
-                html += '<div class="pos-cart-line__main min-w-0"><span class="pos-cart-line__name name" title="' + esc(lineName) + '">' + esc(lineName) + '</span>';
+                html += '<div class="pos-cart-line__main min-w-0">';
+                html += '<span class="pos-cart-line__name name" title="' + esc(lineName) + '">' + esc(lineName) + '</span>';
                 html += '<span class="pos-cart-line__badge badge pos-line-status">' + esc(statusText) + '</span>';
                 var waiterLabel = (it.waiter_name && String(it.waiter_name).trim()) ? String(it.waiter_name).trim() : (posCurrentTableWaiter.name || '');
                 if (waiterLabel) {
@@ -1800,10 +1818,10 @@
                 }
                 html += '<span class="pos-cart-line__total subtotal">' + subFmt + '</span><span class="d-none price">' + priceFmt + '</span><span class="d-none tax">' + taxDisplay + '</span>';
                 html += '<div class="pos-cart-line__action action-btn">';
-                if (it.is_sent) {
-                    if (isVoided) {
-                        html += '<span class="badge pos-cart-line__void-badge">{{ __("pos.voided") }}</span>';
-                    } else if (canShowVoid && it.line_id) {
+                if (isVoided) {
+                    html += '<span class="badge pos-cart-line__void-badge">{{ __("pos.voided") }}</span>';
+                } else if (it.is_sent) {
+                    if (canShowVoid && it.line_id) {
                         html += '<button type="button" class="btn btn-warning btn-sm pos-void-line pos-cart-line__void-btn" data-line-id="' + it.line_id + '" data-name="' + esc(lineName) + '" title="{{ __("pos.void") }}">{{ __("pos.void") }}</button>';
                     }
                 } else {
@@ -1818,7 +1836,7 @@
                 html += '</div></div>';
                 if (it.is_sent && note) {
                     html += '<div class="pos-cart-line__note notes pos-item-note-readonly" title="' + esc(note) + '">' + esc(note) + '</div>';
-                } else if (!it.is_sent) {
+                } else if (!it.is_sent && !isVoided) {
                     html += '<textarea class="form-control form-control-sm notes pos-item-notes pos-cart-line__note-input" placeholder="{{ __("pos.note_placeholder") }}" maxlength="200" rows="1" title="{{ __("Note") }}">' + esc(note) + '</textarea>';
                 }
                 html += '</div></td></tr>';
@@ -1915,8 +1933,8 @@
                         var qty = (it.quantity || 0);
                         var price = parseFloat(it.price) || 0;
                         var tax = parseFloat(it.tax) || 0;
-                        var sub = (it.subtotal != null) ? parseFloat(it.subtotal) : (price * (1 + (tax || 0) / 100) * qty);
-                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || id, waiter_name: it.waiter_name || res.waiter_name || posCurrentTableWaiter.name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || posCurrentTableWaiter.id || '' });
+                        var sub = (it.subtotal != null) ? parseFloat(it.subtotal) : posLineSubtotal(price, tax, qty, it.price_type, it.unit_subtotal);
+                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, unit_subtotal: it.unit_subtotal != null ? parseFloat(it.unit_subtotal) : (qty > 0 ? posRoundMoney(sub / qty) : null), description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || id, waiter_name: it.waiter_name || res.waiter_name || posCurrentTableWaiter.name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || posCurrentTableWaiter.id || '' });
                     });
                     if (res.waiter_name || res.waiter_user_id) {
                         posCurrentTableWaiter = {
@@ -1956,7 +1974,7 @@
                             var taxRate = parseFloat(it.tax) || 0;
                             var sub = (it.subtotal != null && !isNaN(parseFloat(it.subtotal)))
                                 ? parseFloat(it.subtotal)
-                                : (it.price * it.quantity * (1 + taxRate / 100));
+                                : posLineSubtotal(it.price, taxRate, it.quantity, it.price_type, it.unit_subtotal);
                             if (!isVoidedLine) {
                                 total += sub;
                             }
@@ -1967,15 +1985,25 @@
                     updateRestaurantCartTotals(total);
                     var payBtn = document.getElementById('pos-pay-btn-restaurant');
                     if (payBtn) payBtn.disabled = list.length === 0;
+                    // Never leave select-checkboxes on a refreshed cart unless still in delete mode.
+                    $('#tbody-restaurant .pos-cart-line__select').remove();
+                    if (posDeleteSelectMode) {
+                        posRestaurantApplyDeleteCheckboxes();
+                        posRestaurantUpdateEmptyCartButtonState();
+                    } else {
+                        posRestaurantExitDeleteSelectMode();
+                    }
                 }).fail(function () {
                     $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="1">{{ __("pos.no_data_found") }}</td></tr>');
                     updateRestaurantCartTotals(0);
                     var payBtn = document.getElementById('pos-pay-btn-restaurant');
                     if (payBtn) payBtn.disabled = true;
+                    posRestaurantExitDeleteSelectMode();
                 });
             }
             function posRestaurantStatusPollTick() {
                 if (document.visibilityState === 'hidden') return;
+                if (posDeleteSelectMode) return;
                 if (!$('#pos-restaurant-order').length || $('#pos-restaurant-order').hasClass('d-none')) return;
                 var $focus = $(document.activeElement);
                 if ($focus.is('#pos-guest-name, #pos-guest-email, #pos-guest-phone')) {
@@ -2108,6 +2136,10 @@
                 posRestaurantToggleOrderTypeUI($('#pos-restaurant-order-type').val() || 'dine_in');
             }
 
+            $(document).on('click', '#pos-restaurant-reset-btn', function () {
+                window.location.reload();
+            });
+
             $(document).on('click', '.pos-void-line', function () {
                 var lineId = $(this).data('line-id');
                 var name = $(this).data('name') || '';
@@ -2115,21 +2147,29 @@
                 $('#posVoidLineModal').data('void-line-id', lineId);
                 $('#pos-void-line-name').text(name ? (name + ' — ' + '{{ __("pos.void_reason_required") }}') : '{{ __("pos.void_reason_required") }}');
                 $('#pos-void-reason-input').val('');
+                $('#pos-void-password-input').val('');
                 $('#posVoidLineModal').modal('show');
             });
             $('#pos-void-confirm-btn').on('click', function () {
                 var lineId = $('#posVoidLineModal').data('void-line-id');
                 var reason = ($('#pos-void-reason-input').val() || '').trim();
+                var managerPassword = ($('#pos-void-password-input').val() || '').trim();
                 if (!lineId) return;
                 if (!reason) {
                     show_toastr('{{ __("pos.error") }}', '{{ __("pos.void_reason_required") }}', 'error');
                     return;
                 }
+                if (!canVoidDirectly && !managerPassword) {
+                    show_toastr('{{ __("pos.error") }}', '{{ __("pos.void_password_required") }}', 'error');
+                    return;
+                }
                 var url = posRestaurantVoidLineUrl.replace('__LINE__', lineId);
+                var $btn = $(this);
+                $btn.prop('disabled', true);
                 $.ajax({
                     url: url,
                     type: 'POST',
-                    data: { _token: '{{ csrf_token() }}', reason: reason },
+                    data: { _token: '{{ csrf_token() }}', reason: reason, manager_password: managerPassword },
                     success: function () {
                         $('#posVoidLineModal').modal('hide');
                         var tableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
@@ -2146,8 +2186,21 @@
                     error: function (xhr) {
                         var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("pos.error") }}';
                         show_toastr('{{ __("pos.error") }}', msg, 'error');
+                    },
+                    complete: function () {
+                        $btn.prop('disabled', false);
                     }
                 });
+            });
+
+            $(document).on('click', '.pos-remove-from-cart', function (e) {
+                var $row = $(this).closest('tr');
+                if ($row.attr('data-voided') === '1' || $row.hasClass('pos-cart-row--voided')) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    show_toastr('{{ __("pos.error") }}', '{{ __("pos.voided_cannot_delete") }}', 'error');
+                    return false;
+                }
             });
 
             $(document).on('click', '#pos-pay-btn-restaurant', function (e) {
@@ -2248,7 +2301,23 @@
                 });
             });
 
-            $(document).on('click', '#pos-empty-cart-restaurant', function () {
+            $(document).on('click', '#pos-empty-cart-restaurant', function (e) {
+                var $btn = $(this);
+                if ($btn.prop('disabled') || $btn.hasClass('disabled') || $btn.hasClass('pos-empty-cart--locked') || $btn.attr('aria-disabled') === 'true') {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    show_toastr('{{ __("pos.error") }}', '{{ __("pos.delete_sent_admin_only") }}', 'error');
+                    return false;
+                }
+                var hasSent = posRestaurantOrderHasSentLines();
+                if (hasSent) {
+                    if (!canDeleteSent) {
+                        show_toastr('{{ __("pos.error") }}', '{{ __("pos.delete_sent_admin_only") }}', 'error');
+                        return;
+                    }
+                    posRestaurantEnterDeleteSelectMode();
+                    return;
+                }
                 if (!confirm('{{ __("pos.remove_all_items") }}')) return;
                 var sk = $( "#empty_cart" ).val() || sessionKey;
                 var data = { session_key: sk };
@@ -2267,13 +2336,122 @@
                         $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="1">{{ __("pos.no_data_found") }}</td></tr>');
                         updateRestaurantCartTotals(0);
                         $('#pos-pay-btn-restaurant').prop('disabled', true);
+                        posRestaurantExitDeleteSelectMode();
+                        posRestaurantUpdateEmptyCartButtonState();
                         show_toastr('success', '{{ __("Cart is empty!") }}', 'success');
                     }
                 });
             });
 
+            function posRestaurantUpdateEmptyCartButtonState() {
+                var $btn = $('#pos-empty-cart-restaurant');
+                if (!$btn.length) return;
+                var hasSent = posRestaurantOrderHasSentLines();
+                var allowDeleteSent = canDeleteSent === true || canDeleteSent === 1 || canDeleteSent === '1';
+                if (posDeleteSelectMode && allowDeleteSent) {
+                    $btn.addClass('d-none');
+                    return;
+                }
+                $btn.removeClass('d-none');
+                if (hasSent && !allowDeleteSent) {
+                    $btn.prop('disabled', true)
+                        .attr('disabled', 'disabled')
+                        .attr('aria-disabled', 'true')
+                        .addClass('disabled pos-empty-cart--locked')
+                        .attr('title', '{{ __("pos.delete_sent_admin_only") }}')
+                        .attr('aria-label', '{{ __("pos.delete_sent_admin_only") }}');
+                } else {
+                    $btn.prop('disabled', false)
+                        .removeAttr('disabled')
+                        .attr('aria-disabled', 'false')
+                        .removeClass('disabled pos-empty-cart--locked')
+                        .attr('title', hasSent && allowDeleteSent ? '{{ __("pos.select_items_to_delete") }}' : '{{ __("pos.empty_cart") }}')
+                        .attr('aria-label', '{{ __("pos.empty_cart") }}');
+                }
+            }
+
+            function posRestaurantApplyDeleteCheckboxes() {
+                $('#tbody-restaurant .pos-cart-line__select').remove();
+                if (!posDeleteSelectMode || !canDeleteSent) return;
+                $('#tbody-restaurant tr[data-product-id]').each(function () {
+                    var $row = $(this);
+                    if ($row.attr('data-is-sent') !== '1' || $row.attr('data-voided') === '1') return;
+                    var lineId = $row.attr('data-line-id');
+                    if (!lineId) return;
+                    $row.find('.pos-cart-line__main').prepend(
+                        '<label class="pos-cart-line__select me-1 mb-0"><input type="checkbox" class="form-check-input pos-delete-line-check" value="' + lineId + '"></label>'
+                    );
+                });
+            }
+
+            function posRestaurantEnterDeleteSelectMode() {
+                if (!canDeleteSent) {
+                    show_toastr('{{ __("pos.error") }}', '{{ __("pos.delete_sent_admin_only") }}', 'error');
+                    return;
+                }
+                posDeleteSelectMode = true;
+                $('#pos-empty-cart-restaurant').addClass('d-none');
+                $('#pos-delete-selected-restaurant, #pos-cancel-delete-select-restaurant').removeClass('d-none');
+                show_toastr('Info', '{{ __("pos.select_items_to_delete") }}', 'info');
+                posRestaurantApplyDeleteCheckboxes();
+                posRestaurantUpdateEmptyCartButtonState();
+            }
+
+            function posRestaurantExitDeleteSelectMode() {
+                posDeleteSelectMode = false;
+                $('#pos-delete-selected-restaurant, #pos-cancel-delete-select-restaurant').addClass('d-none');
+                $('#pos-empty-cart-restaurant').removeClass('d-none');
+                $('#tbody-restaurant .pos-cart-line__select').remove();
+                posRestaurantUpdateEmptyCartButtonState();
+            }
+
+            $(document).on('click', '#pos-cancel-delete-select-restaurant', function () {
+                posRestaurantExitDeleteSelectMode();
+            });
+
+            $(document).on('click', '#pos-delete-selected-restaurant', function () {
+                var lineIds = [];
+                $('#tbody-restaurant .pos-delete-line-check:checked').each(function () {
+                    var id = parseInt($(this).val(), 10);
+                    if (id) lineIds.push(id);
+                });
+                if (!lineIds.length) {
+                    show_toastr('{{ __("pos.error") }}', '{{ __("pos.select_at_least_one_item") }}', 'error');
+                    return;
+                }
+                if (!confirm('{{ __("pos.are_you_sure") }} {{ __("pos.delete_selected") }}?')) return;
+                var $btn = $(this);
+                $btn.prop('disabled', true);
+                $.ajax({
+                    url: posRestaurantDeleteLinesUrl,
+                    type: 'POST',
+                    data: { _token: '{{ csrf_token() }}', line_ids: lineIds },
+                    success: function (res) {
+                        posRestaurantExitDeleteSelectMode();
+                        show_toastr('success', (res && res.message) ? res.message : '{{ __("pos.items_deleted_from_cart") }}', 'success');
+                        var tableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                        var shiftId = $('#pos_shift_id_hidden').val();
+                        var branchId = $('#pos-restaurant-branch').val();
+                        var orderType = $('#pos-restaurant-order-type').val() || 'dine_in';
+                        var posId = $('#pos_restaurant_pos_id').val();
+                        if (orderType === 'delivery' || orderType === 'takeaway') {
+                            if (branchId && shiftId) loadRestaurantOrder(null, shiftId, branchId, orderType, posId || undefined);
+                        } else if (tableId) {
+                            loadRestaurantOrder(tableId, shiftId, branchId, 'dine_in');
+                        }
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("pos.error") }}';
+                        show_toastr('{{ __("pos.error") }}', msg, 'error');
+                    },
+                    complete: function () {
+                        $btn.prop('disabled', false);
+                    }
+                });
+            });
+
             function posRestaurantOrderHasSentLines() {
-                return $('#tbody-restaurant tr[data-product-id][data-is-sent="1"]').length > 0;
+                return $('#tbody-restaurant tr[data-product-id][data-is-sent="1"]:not([data-voided="1"])').length > 0;
             }
             function posRestaurantMarkUnsentRowsAsSent() {
                 $('#tbody-restaurant tr[data-product-id]').each(function () {
@@ -2287,6 +2465,9 @@
                         $badge.text(posStatusLabels.pending || '{{ __("pos.status_pending") }}');
                     }
                 });
+                if (typeof posRestaurantUpdateEmptyCartButtonState === 'function') {
+                    posRestaurantUpdateEmptyCartButtonState();
+                }
             }
             function posRestaurantGetKitchenBarRows(unsentOnly) {
                 var kitchenRows = [], barRows = [];
@@ -3526,7 +3707,12 @@
                                 }
                                 if (existingR.length && (data.carttotal && !data.carthtml)) {
                                     existingR.find('input.input-number').val(data.product.quantity);
-                                    var sub = (data.product.price * data.product.quantity * (1 + (data.product.tax || 0) / 100));
+                                    var sub = (data.product.subtotal != null)
+                                        ? parseFloat(data.product.subtotal)
+                                        : posLineSubtotal(data.product.price, data.product.tax, data.product.quantity, data.product.price_type, data.product.unit_subtotal);
+                                    if (data.product.unit_subtotal != null) {
+                                        existingR.attr('data-unit-subtotal', data.product.unit_subtotal);
+                                    }
                                     existingR.find('.subtotal').text(typeof addCommas === 'function' ? addCommas(sub) : sub);
                                     existingR.attr('data-subtotal', sub).attr('data-quantity', data.product.quantity);
                                 } else if (data.carthtml) {
@@ -3701,20 +3887,22 @@
                     var price = parseFloat($el.data('product-price')) || 0;
                     var taxRate = parseFloat($el.data('product-tax')) || 0;
                     var imgSrc = $el.data('product-image') || '';
-                    var tax = price * taxRate / 100;
-                    var subtotal = price + tax;
+                    var unitLine = posRoundMoney(price * (1 + taxRate / 100));
                     var qty = 1;
+                    var subtotal = unitLine;
                     var $row = $(tbodySel + ' tr[id="' + rowIdPrefix + id + '"]');
                     if ($row.length) {
                         qty = parseInt($row.find('input.input-number').val() || 1, 10) + 1;
-                        subtotal = (price + tax) * qty;
+                        var storedUnit = parseFloat($row.attr('data-unit-subtotal'));
+                        unitLine = (!isNaN(storedUnit) && storedUnit > 0) ? storedUnit : unitLine;
+                        subtotal = posRoundMoney(unitLine * qty);
                         $row.find('input.input-number').val(qty);
-                        $row.attr('data-quantity', qty).attr('data-subtotal', subtotal);
+                        $row.attr('data-quantity', qty).attr('data-subtotal', subtotal).attr('data-unit-subtotal', unitLine);
                         $row.find('.subtotal').text(addCommas(subtotal));
                     } else {
                         var row = isRestaurant
-                            ? buildRestaurantCartRow({ id: id, cart_line_key: id, name: name, quantity: qty, price: price, tax: taxRate, description: '', is_sent: false, status: 'not_sent' }, 0, { sub: subtotal })
-                            : ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-price-type="exclusive" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-discount="0" data-netprice="' + subtotal + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>');
+                            ? buildRestaurantCartRow({ id: id, cart_line_key: id, name: name, quantity: qty, price: price, tax: taxRate, unit_subtotal: unitLine, description: '', is_sent: false, status: 'not_sent' }, 0, { sub: subtotal })
+                            : ('<tr data-product-id="' + id + '" id="' + rowIdPrefix + id + '" data-name="' + (name.replace(/"/g, '&quot;')) + '" data-price="' + price + '" data-price-type="exclusive" data-quantity="' + qty + '" data-tax="' + taxRate + '" data-subtotal="' + subtotal + '" data-unit-subtotal="' + unitLine + '" data-discount="0" data-netprice="' + subtotal + '"><td class="cart-images"><img alt="" src="' + imgSrc + '" class="card-image avatar shadow hover-shadow-lg"></td><td class="name">' + (name.replace(/</g, '&lt;')) + '</td><td><span class="quantity buttons_added"><input type="button" value="-" class="minus"><input type="number" step="1" min="1" name="quantity" title="{{ __("pos.quantity") }}" class="input-number" data-url="{{ url('update-cart/') }}" data-id="' + id + '" value="1"><input type="button" value="+" class="plus"></span></td><td class="tax">-</td><td class="price">' + addCommas(price) + '</td><td class="subtotal">' + addCommas(subtotal) + '</td><td class="action-btn"><a href="#" class="btn btn-sm bg-danger pos-offline-remove" data-id="' + id + '" title="{{ __("pos.delete") }}"><i class="ti ti-trash text-white"></i></a></td></tr>');
                         $(tbodySel + ' .no-found').addClass('d-none');
                         $(tbodySel).append(row);
                         if (!isRestaurant) {
@@ -3798,13 +3986,8 @@
                         var price = parseFloat($row.attr('data-price')) || 0;
                         var taxRate = parseFloat($row.attr('data-tax')) || 0;
                         var priceType = ($row.attr('data-price-type') || 'exclusive').toLowerCase();
-                        var subtotal;
-                        if (priceType === 'inclusive' && taxRate > 0) {
-                            subtotal = price * quantity;
-                        } else {
-                            var tax = price * taxRate / 100;
-                            subtotal = (price + tax) * quantity;
-                        }
+                        var unitSub = parseFloat($row.attr('data-unit-subtotal'));
+                        var subtotal = posLineSubtotal(price, taxRate, quantity, priceType, !isNaN(unitSub) ? unitSub : null);
                         $row.attr('data-subtotal', subtotal);
                         $row.find('.subtotal').text(addCommas(subtotal));
                         var total = 0;
@@ -3858,6 +4041,9 @@
                                     if ($target.length) {
                                         $target.find('.subtotal').text(addCommas(value.subtotal));
                                         $target.attr('data-subtotal', value.subtotal).attr('data-quantity', value.quantity);
+                                        if (value.unit_subtotal != null) {
+                                            $target.attr('data-unit-subtotal', value.unit_subtotal);
+                                        }
                                     }
                                 });
                                 if (inRestaurant) {

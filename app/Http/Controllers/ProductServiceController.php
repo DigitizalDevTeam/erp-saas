@@ -1711,6 +1711,7 @@ class ProductServiceController extends Controller
                         'price' => $productprice,
                         'tax' => $producttax,
                         'price_type' => $priceType,
+                        'unit_subtotal' => $subtotal,
                         'description' => '',
                         'is_sent' => false,
                         'status' => 'not_sent',
@@ -1792,6 +1793,7 @@ class ProductServiceController extends Controller
                 'product_variant_id' => $variantId,
                 'tax' => $producttax,
                 'subtotal' => $subtotal,
+                'unit_subtotal' => $subtotal,
                 'originalquantity' => $originalquantity,
                 'product_tax' => $product_tax,
                 'product_tax_id' => ! empty($product_tax_id) ? implode(',', $product_tax_id) : 0,
@@ -1855,14 +1857,20 @@ class ProductServiceController extends Controller
                     $cart[$cartLineKey]['price_type'] = $priceType;
                 }
                 $pt = $cart[$cartLineKey]['price_type'] ?? 'exclusive';
-                $qty = $cart[$cartLineKey]['quantity'];
-                $pr = $cart[$cartLineKey]['price'];
-                $tx = $cart[$cartLineKey]['tax'] ?? 0;
-                if ($pt === 'inclusive' && $tx > 0) {
-                    $cart[$cartLineKey]['subtotal'] = round($pr * $qty, 2);
-                } else {
-                    $cart[$cartLineKey]['subtotal'] = round($pr * $qty * (1 + $tx / 100), 2);
+                $qty = (int) $cart[$cartLineKey]['quantity'];
+                $pr = (float) $cart[$cartLineKey]['price'];
+                $tx = (float) ($cart[$cartLineKey]['tax'] ?? 0);
+                if (! isset($cart[$cartLineKey]['unit_subtotal'])) {
+                    // Prefer shelf unit total from this add (catalog-inclusive when applicable)
+                    $cart[$cartLineKey]['unit_subtotal'] = round((float) $subtotal, 2);
                 }
+                $cart[$cartLineKey]['subtotal'] = $this->posCartLineSubtotal(
+                    $pr,
+                    $tx,
+                    $qty,
+                    $pt,
+                    (float) $cart[$cartLineKey]['unit_subtotal']
+                );
                 $cart[$cartLineKey]['originalquantity'] = $originalquantity;
 
                 if ($originalquantity < $cart[$cartLineKey]['quantity'] && $isPosSession) {
@@ -1993,15 +2001,19 @@ class ProductServiceController extends Controller
 
                 $cart[$lineKey]['quantity'] = (int) $quantity;
 
-                $producttax   = isset($cart[$lineKey]) ? $cart[$lineKey]['tax'] : 0;
-                $productprice = $cart[$lineKey]['price'];
+                $producttax   = isset($cart[$lineKey]) ? (float) ($cart[$lineKey]['tax'] ?? 0) : 0;
+                $productprice = (float) ($cart[$lineKey]['price'] ?? 0);
                 $priceType    = $cart[$lineKey]['price_type'] ?? 'exclusive';
-
-                if ($priceType === 'inclusive' && $producttax > 0) {
-                    $cart[$lineKey]['subtotal'] = round($productprice * $quantity, 2);
-                } else {
-                    $cart[$lineKey]['subtotal'] = round($productprice * $quantity * (1 + $producttax / 100), 2);
+                if (! isset($cart[$lineKey]['unit_subtotal'])) {
+                    $cart[$lineKey]['unit_subtotal'] = $this->posCartUnitLineTotal($productprice, $producttax, $priceType);
                 }
+                $cart[$lineKey]['subtotal'] = $this->posCartLineSubtotal(
+                    $productprice,
+                    $producttax,
+                    (int) $quantity,
+                    $priceType,
+                    (float) $cart[$lineKey]['unit_subtotal']
+                );
             }
 
             // POS: validate against product's quantity (stock); skip for products that do not affect stock (e.g. BOM dishes)
@@ -2526,5 +2538,39 @@ class ProductServiceController extends Controller
         }
 
         return $candidate;
+    }
+
+    /**
+     * Rounded shelf/unit line total (price + VAT) for one unit.
+     * Rounding before multiplying by qty avoids 0.01 drift (e.g. 200×2 → 399.99).
+     */
+    protected function posCartUnitLineTotal(float $unitPrice, float $taxRate, string $priceType = 'exclusive'): float
+    {
+        if ($priceType === 'inclusive' && $taxRate > 0) {
+            return round($unitPrice, 2);
+        }
+
+        return round($unitPrice * (1 + $taxRate / 100), 2);
+    }
+
+    /**
+     * Line subtotal for quantity: unit_line_total × qty (both money-rounded).
+     */
+    protected function posCartLineSubtotal(
+        float $unitPrice,
+        float $taxRate,
+        int $quantity,
+        string $priceType = 'exclusive',
+        ?float $unitSubtotal = null
+    ): float {
+        $quantity = max(0, $quantity);
+        if ($quantity === 0) {
+            return 0.0;
+        }
+        $unitTotal = ($unitSubtotal !== null && $unitSubtotal > 0)
+            ? round($unitSubtotal, 2)
+            : $this->posCartUnitLineTotal($unitPrice, $taxRate, $priceType);
+
+        return round($unitTotal * $quantity, 2);
     }
 }

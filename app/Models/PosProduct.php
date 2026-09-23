@@ -38,12 +38,15 @@ class PosProduct extends Model
         'voided_at',
         'void_reason',
         'voided_by',
+        'removed_from_cart_at',
+        'removed_from_cart_by',
     ];
 
     protected $casts = [
         'sent_at' => 'datetime',
         'ready_at' => 'datetime',
         'voided_at' => 'datetime',
+        'removed_from_cart_at' => 'datetime',
         'prep_minutes' => 'integer',
     ];
 
