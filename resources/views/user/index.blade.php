@@ -230,11 +230,11 @@
             if ($(this).is(':checked')) {
                 $('.ps_div').removeClass('d-none');
                 $('#password').attr("required", true);
-
+                $('#password_confirmation').attr("required", true);
             } else {
                 $('.ps_div').addClass('d-none');
-                $('#password').val(null);
-                $('#password').removeAttr("required");
+                $('#password').val(null).removeAttr("required");
+                $('#password_confirmation').val(null).removeAttr("required");
             }
         });
         $(document).on('click', '.login_enable', function() {

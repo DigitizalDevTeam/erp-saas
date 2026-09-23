@@ -69,6 +69,30 @@
             </div>
             @endif
         @endif
+        <div class="col-md-6 mb-3 form-group mt-4">
+            <label for="password_switch">{{ __('Change Password') }}</label>
+            <div class="form-check form-switch custom-switch-v1 float-end">
+                <input type="checkbox" name="password_switch" class="form-check-input input-primary pointer" value="on" id="password_switch">
+                <label class="form-check-label" for="password_switch"></label>
+            </div>
+        </div>
+        <div class="col-md-6 ps_div d-none">
+            <div class="form-group">
+                {{ Form::label('password', __('Password'), ['class' => 'form-label']) }}<x-required></x-required>
+                {{ Form::password('password', ['class' => 'form-control', 'placeholder' => __('Enter Password'), 'minlength' => '6', 'id' => 'password', 'autocomplete' => 'new-password']) }}
+                @error('password')
+                <small class="invalid-password" role="alert">
+                    <strong class="text-danger">{{ $message }}</strong>
+                </small>
+                @enderror
+            </div>
+        </div>
+        <div class="col-md-6 ps_div d-none">
+            <div class="form-group">
+                {{ Form::label('password_confirmation', __('Confirm Password'), ['class' => 'form-label']) }}<x-required></x-required>
+                {{ Form::password('password_confirmation', ['class' => 'form-control', 'placeholder' => __('Confirm Password'), 'minlength' => '6', 'id' => 'password_confirmation', 'autocomplete' => 'new-password']) }}
+            </div>
+        </div>
         @if(!$customFields->isEmpty())
                     @include('customFields.formBuilder')
         @endif

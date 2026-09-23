@@ -10,6 +10,8 @@ use App\Models\PosCashIn;
 use App\Models\PosPayment;
 use App\Models\PosProduct;
 use App\Models\PosShift;
+use App\Models\PosTable;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -137,13 +139,22 @@ class PosShiftReportService
             ->with(['product', 'pos', 'voidedByUser'])
             ->orderBy('voided_at')
             ->get();
-        $productQtySummary = PosProduct::selectRaw('product_id, SUM(quantity) as qty_total, SUM(price * quantity) as amount_total')
-            ->whereIn('pos_id', $posIds)
-            ->whereNull('voided_at')
-            ->groupBy('product_id')
+        $productQtySummary = PosProduct::query()
+            ->selectRaw('pos_products.product_id, pos.table_id, pos.pos_user_id, SUM(pos_products.quantity) as qty_total, SUM(pos_products.price * pos_products.quantity) as amount_total')
+            ->join('pos', 'pos_products.pos_id', '=', 'pos.id')
+            ->whereIn('pos_products.pos_id', $posIds)
+            ->whereNull('pos_products.voided_at')
+            ->groupBy('pos_products.product_id', 'pos.table_id', 'pos.pos_user_id')
             ->with('product')
-            ->orderByRaw('SUM(quantity) DESC')
+            ->orderByRaw('SUM(pos_products.quantity) DESC')
             ->get();
+
+        $tableNames = PosTable::whereIn('id', $productQtySummary->pluck('table_id')->filter()->unique())->pluck('name', 'id');
+        $waiterNames = User::whereIn('id', $productQtySummary->pluck('pos_user_id')->filter()->unique())->pluck('name', 'id');
+        $productQtySummary->each(function ($row) use ($tableNames, $waiterNames) {
+            $row->table_name = $row->table_id ? ($tableNames[$row->table_id] ?? null) : null;
+            $row->waiter_name = $row->pos_user_id ? ($waiterNames[$row->pos_user_id] ?? null) : null;
+        });
 
         return [
             'shift' => $shift,

@@ -338,9 +338,21 @@ class UserController extends Controller
                     return redirect()->back()->with('error', $messages->first());
                 }
 
+                if (!empty($request->password_switch) && $request->password_switch == 'on') {
+                    $passwordValidator = \Validator::make(
+                        $request->all(), [
+                            'password' => 'required|min:6|confirmed',
+                        ]
+                    );
+                    if ($passwordValidator->fails()) {
+                        return redirect()->back()->with('error', $passwordValidator->getMessageBag()->first());
+                    }
+                }
+
                 $role = Role::findByName('company');
                 $input = $request->all();
                 $input['type'] = $role->name;
+                unset($input['password'], $input['password_confirmation'], $input['password_switch']);
 
                 $user->fill($input)->save();
                 $this->syncCompanyMembership($user, [(int) $user->id], (int) $user->id);
@@ -348,6 +360,13 @@ class UserController extends Controller
 
                 $roles[] = $role->id;
                 $user->roles()->sync($roles);
+
+                if (!empty($request->password_switch) && $request->password_switch == 'on' && !empty($request->password)) {
+                    $user->forceFill([
+                        'password' => Hash::make($request->password),
+                        'is_enable_login' => 1,
+                    ])->save();
+                }
 
                 return redirect()->route('users.index')->with(
                     'success', 'company successfully updated.'
@@ -367,6 +386,17 @@ class UserController extends Controller
                     return redirect()->back()->with('error', $messages->first());
                 }
 
+                if (!empty($request->password_switch) && $request->password_switch == 'on') {
+                    $passwordValidator = \Validator::make(
+                        $request->all(), [
+                            'password' => 'required|min:6|confirmed',
+                        ]
+                    );
+                    if ($passwordValidator->fails()) {
+                        return redirect()->back()->with('error', $passwordValidator->getMessageBag()->first());
+                    }
+                }
+
                 $role = Role::findById($request->role);
                 if (CompanyUserRoleService::isReservedSystemType($role->name)) {
                     return redirect()->back()->with('error', __('This role name is reserved and cannot be assigned to users.'));
@@ -374,6 +404,7 @@ class UserController extends Controller
                 $companyId = (int) \Auth::user()->creatorId();
                 $input = $request->all();
                 $input['type'] = CompanyUserRoleService::userTypeFromRoleName($role->name);
+                unset($input['password'], $input['password_confirmation'], $input['password_switch']);
                 if ($redirect = PosRestaurantRoleService::applyPosBranchToUserInput($input, $request, $role, $companyId, (int) $user->id)) {
                     return $redirect;
                 }
@@ -396,6 +427,13 @@ class UserController extends Controller
                 CustomField::saveData($user, $request->customField);
 
                 $user->syncBranchesFromRequest($branchIdsForSync);
+
+                if (!empty($request->password_switch) && $request->password_switch == 'on' && !empty($request->password)) {
+                    $user->forceFill([
+                        'password' => Hash::make($request->password),
+                        'is_enable_login' => 1,
+                    ])->save();
+                }
 
                 return redirect()->route('users.index')->with(
                     'success', 'User successfully updated.'

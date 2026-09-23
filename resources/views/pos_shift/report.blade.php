@@ -172,6 +172,8 @@
                     <thead>
                         <tr>
                             <th>{{ __('Product') }}</th>
+                            <th>{{ __('Table No') }}</th>
+                            <th>{{ __('Waiter/User Name') }}</th>
                             <th class="text-center">{{ __('Qty') }}</th>
                             <th class="text-end">{{ __('Amount') }}</th>
                         </tr>
@@ -180,12 +182,14 @@
                         @forelse(($productQtySummary ?? collect()) as $row)
                             <tr>
                                 <td>{{ $row->product ? $row->product->name : __('Unknown product') }}</td>
+                                <td>{{ $row->table_name ?: '—' }}</td>
+                                <td>{{ $row->waiter_name ?: '—' }}</td>
                                 <td class="text-center">{{ (float) $row->qty_total }}</td>
                                 <td class="text-end">{{ \Auth::user()->priceFormat((float) $row->amount_total) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="3" class="text-center text-muted">{{ __('No sold products for this shift.') }}</td>
+                                <td colspan="5" class="text-center text-muted">{{ __('No sold products for this shift.') }}</td>
                             </tr>
                         @endforelse
                     </tbody>
