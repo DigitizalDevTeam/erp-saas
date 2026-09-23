@@ -19,7 +19,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="stylesheet" href="{{ asset('css/pos.css') }}?v=6">
+    <link rel="stylesheet" href="{{ asset('css/pos.css') }}?v=7">
     <link rel="stylesheet" href="{{ asset('assets/fonts/tabler-icons.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}" id="main-style-link">
     <style>
@@ -1594,11 +1594,13 @@
                 var statusClass = t.status === 'occupied' ? 'btn-warning' : (t.status === 'reserved' ? 'btn-secondary' : 'btn-outline-primary');
                 var name = posEscapeHtml(t.name || ('Table ' + t.id));
                 var customer = (t.customer_name && String(t.customer_name).trim()) ? posEscapeHtml(t.customer_name) : '—';
+                var waiter = (t.waiter_name && String(t.waiter_name).trim()) ? posEscapeHtml(t.waiter_name) : '—';
                 var guestsVal = (t.current_guests != null && t.current_guests !== '') ? String(t.current_guests) : '—';
                 var amount = (t.cart_total_formatted && String(t.cart_total_formatted).trim()) ? posEscapeHtml(t.cart_total_formatted) : '—';
-                return '<button type="button" class="btn ' + statusClass + ' btn-sm pos-table-btn pos-table-card" data-id="' + t.id + '" data-name="' + posEscapeHtml(t.name || '') + '" data-status="' + (t.status || '') + '">' +
+                return '<button type="button" class="btn ' + statusClass + ' btn-sm pos-table-btn pos-table-card" data-id="' + t.id + '" data-name="' + posEscapeHtml(t.name || '') + '" data-status="' + (t.status || '') + '" data-waiter-id="' + (t.waiter_user_id || '') + '" data-waiter-name="' + posEscapeHtml(t.waiter_name || '') + '" data-customer-name="' + posEscapeHtml(t.customer_name || '') + '">' +
                     '<span class="pos-table-card__name">' + name + '</span>' +
                     '<span class="pos-table-card__row"><span class="pos-table-card__label">{{ __("pos.guest_name") }}</span><span class="pos-table-card__value">' + customer + '</span></span>' +
+                    '<span class="pos-table-card__row"><span class="pos-table-card__label">{{ __("pos.waiter_user") }}</span><span class="pos-table-card__value">' + waiter + '</span></span>' +
                     '<span class="pos-table-card__row"><span class="pos-table-card__label">{{ __("pos.table_amount") }}</span><span class="pos-table-card__value">' + amount + '</span></span>' +
                     '<span class="pos-table-card__row"><span class="pos-table-card__label">{{ __("pos.table_guests") }}</span><span class="pos-table-card__value">' + guestsVal + '</span></span>' +
                     '</button>';
@@ -1635,6 +1637,7 @@
                 });
             }
             var posTableUpdateStatusUrl = '{{ url("pos-table") }}';
+            var posDefaultWaiterUserId = '{{ isset($posPinUser) ? (int) $posPinUser->id : "" }}';
             $(document).on('click', '.pos-table-btn', function () {
                 var id = $(this).data('id');
                 var name = $(this).data('name');
@@ -1644,11 +1647,18 @@
                     $('#pos-open-table-name').val(name || ('Table ' + id));
                     $('#pos-open-table-guests').val('');
                     $('#pos-open-table-customer-name').val('');
+                    if ($('#pos-open-table-waiter').length) {
+                        $('#pos-open-table-waiter').val(posDefaultWaiterUserId || $('#pos-open-table-waiter option:first').val());
+                    }
                     $('#posOpenTableModal').modal('show');
                     $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
                     return;
                 }
-                selectRestaurantTable(id, name, status);
+                selectRestaurantTable(id, name, status, {
+                    waiter_user_id: $(this).attr('data-waiter-id') || '',
+                    waiter_name: $(this).attr('data-waiter-name') || '',
+                    customer_name: $(this).attr('data-customer-name') || ''
+                });
             });
             $(document).on('click', '#pos-open-table-confirm', function () {
                 var id = $('#pos-open-table-id').val();
@@ -1659,13 +1669,20 @@
                 if (guests !== '' && guests !== null) data.guests_count = parseInt(guests, 10) || 0;
                 var customerName = $('#pos-open-table-customer-name').val();
                 if (customerName && customerName.trim()) data.customer_name = customerName.trim();
+                var waiterUserId = $('#pos-open-table-waiter').val();
+                if (waiterUserId) data.waiter_user_id = waiterUserId;
+                var waiterName = $('#pos-open-table-waiter option:selected').text() || '';
                 $.ajax({
                     url: posTableUpdateStatusUrl + '/' + id + '/status',
                     method: 'PATCH',
                     data: data,
-                    success: function () {
+                    success: function (res) {
                         $('#posOpenTableModal').modal('hide');
-                        selectRestaurantTable(id, name, 'occupied');
+                        selectRestaurantTable(id, name, 'occupied', {
+                            waiter_user_id: (res && res.waiter_user_id) ? res.waiter_user_id : waiterUserId,
+                            waiter_name: (res && res.waiter_name) ? res.waiter_name : waiterName,
+                            customer_name: customerName || ''
+                        });
                         var branchId = $('#pos-restaurant-branch').val();
                         if (branchId) loadRestaurantTables(branchId);
                     },
@@ -1688,6 +1705,8 @@
                         $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
                         $('#pos-selected-table').text('—');
                         $('#pos_table_id_hidden').val('');
+                        posCurrentTableWaiter = { id: '', name: '' };
+                        setRestaurantWaiterDisplay('');
                         var branchId = $('#pos-restaurant-branch').val();
                         if (branchId) loadRestaurantTables(branchId);
                     },
@@ -1698,12 +1717,36 @@
                 });
             });
             var posRestaurantCartKey = ''; // tableId_shiftId or delivery_shiftId / takeaway_shiftId
-            function selectRestaurantTable(id, name, status) {
+            var posCurrentTableWaiter = { id: '', name: '' };
+            function setRestaurantWaiterDisplay(waiterName, customerName) {
+                var $waiter = $('#pos-restaurant-waiter-name');
+                if ($waiter.length) {
+                    var name = (waiterName && String(waiterName).trim()) ? String(waiterName).trim() : '';
+                    if (name) {
+                        $waiter.text('{{ __("pos.waiter_user") }}: ' + name).removeClass('d-none');
+                    } else {
+                        $waiter.text('').addClass('d-none');
+                    }
+                }
+                if (customerName !== undefined && customerName !== null && String(customerName).trim() !== '') {
+                    var $custName = $('#pos-restaurant-customer-name');
+                    if ($custName.length && (!$custName.text() || $custName.text() === '{{ __("Walk-in-customer") }}')) {
+                        $custName.text(String(customerName).trim());
+                    }
+                }
+            }
+            function selectRestaurantTable(id, name, status, meta) {
+                meta = meta || {};
                 $('#pos_restaurant_table_id').val(id);
                 $('#pos_restaurant_table_name').val(name);
                 $('#pos_table_id_hidden').val(id);
                 $('#pos_order_type_hidden').val('dine_in');
                 $('#pos-selected-table').text(name || ('Table ' + id));
+                posCurrentTableWaiter = {
+                    id: meta.waiter_user_id || '',
+                    name: meta.waiter_name || ''
+                };
+                setRestaurantWaiterDisplay(posCurrentTableWaiter.name, meta.customer_name || '');
                 var $closeBtn = $('#pos-close-table-btn');
                 $closeBtn.data('table-id', id).data('table-status', status || '');
                 $closeBtn.toggleClass('d-none', (status || '') !== 'occupied');
@@ -1744,7 +1787,12 @@
                 var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '">';
                 html += '<td class="pos-cart-line-cell p-0 border-0"><div class="pos-cart-line"><div class="pos-cart-line__row">';
                 html += '<div class="pos-cart-line__main min-w-0"><span class="pos-cart-line__name name" title="' + esc(lineName) + '">' + esc(lineName) + '</span>';
-                html += '<span class="pos-cart-line__badge badge pos-line-status">' + esc(statusText) + '</span></div>';
+                html += '<span class="pos-cart-line__badge badge pos-line-status">' + esc(statusText) + '</span>';
+                var waiterLabel = (it.waiter_name && String(it.waiter_name).trim()) ? String(it.waiter_name).trim() : (posCurrentTableWaiter.name || '');
+                if (waiterLabel) {
+                    html += '<span class="pos-cart-line__waiter text-muted small d-block">' + esc('{{ __("pos.waiter_user") }}') + ': ' + esc(waiterLabel) + '</span>';
+                }
+                html += '</div>';
                 if (it.is_sent) {
                     html += '<span class="pos-cart-line__qty-label">' + qty + '×</span>';
                 } else {
@@ -1860,7 +1908,7 @@
                     var sessionItems = res.session_items || [];
                     var list = [];
                     orderLines.forEach(function (it) {
-                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || it.id });
+                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || it.id, waiter_name: it.waiter_name || res.waiter_name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || '' });
                     });
                     sessionItems.forEach(function (it) {
                         var id = it.id;
@@ -1868,8 +1916,15 @@
                         var price = parseFloat(it.price) || 0;
                         var tax = parseFloat(it.tax) || 0;
                         var sub = (it.subtotal != null) ? parseFloat(it.subtotal) : (price * (1 + (tax || 0) / 100) * qty);
-                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || id });
+                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || id, waiter_name: it.waiter_name || res.waiter_name || posCurrentTableWaiter.name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || posCurrentTableWaiter.id || '' });
                     });
+                    if (res.waiter_name || res.waiter_user_id) {
+                        posCurrentTableWaiter = {
+                            id: res.waiter_user_id || posCurrentTableWaiter.id || '',
+                            name: res.waiter_name || posCurrentTableWaiter.name || ''
+                        };
+                        setRestaurantWaiterDisplay(posCurrentTableWaiter.name, res.customer_name || '');
+                    }
                     applyRestaurantCartNotes(list, preservedNotes);
                     if (res.order_type && $('#pos-restaurant-order-type').length) {
                         $('#pos-restaurant-order-type').val(res.order_type);

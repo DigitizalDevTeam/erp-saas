@@ -53,6 +53,8 @@ return [
     'tip' => 'Tip',
     'by_writing' => 'by writing',
     'guest_name' => 'Customer Name',
+    'waiter_user' => 'Waiter / User',
+    'table_no' => 'Table No.',
     'table_guests' => 'Guests',
     'table_amount' => 'Amount',
     'guest_email' => 'Email',

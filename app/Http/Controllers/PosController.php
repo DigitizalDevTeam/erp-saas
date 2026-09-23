@@ -628,6 +628,8 @@ class PosController extends Controller
             $cartTotal = $this->computeRestaurantTableCartTotal($request, $tableId, $shiftId, $branchId);
         }
 
+        $t->loadMissing('waiterUser');
+
         return [
             'id' => $tableId,
             'name' => $t->name,
@@ -635,6 +637,8 @@ class PosController extends Controller
             'capacity' => $t->capacity,
             'current_guests' => $t->current_guests,
             'customer_name' => $t->customer_name,
+            'waiter_user_id' => $t->waiter_user_id ? (int) $t->waiter_user_id : null,
+            'waiter_name' => $t->waiterUser ? $t->waiterUser->name : null,
             'cart_total' => $cartTotal,
             'cart_total_formatted' => Auth::user()->priceFormat($cartTotal),
         ];
@@ -670,7 +674,7 @@ class PosController extends Controller
                         $aq->where('branch_id', $branchId);
                     });
             })
-            ->with('area');
+            ->with(['area', 'waiterUser']);
 
         $pinCheck = $this->restaurantPinActorOrJsonError();
         if ($pinCheck instanceof \Illuminate\Http\JsonResponse) {
@@ -2699,7 +2703,7 @@ class PosController extends Controller
                     ->where('created_by', $creatorId)
                     ->whereNull('cancelled_at')
                     ->whereDoesntHave('posPayments')
-                    ->with(['items.product.posPrinter', 'items.posPrinter', 'items.variant'])
+                    ->with(['items.product.posPrinter', 'items.posPrinter', 'items.variant', 'posUser'])
                     ->first();
             }
             if (! $pos && $tableId && $branchId) {
@@ -2709,7 +2713,7 @@ class PosController extends Controller
                     ->whereNull('cancelled_at')
                     ->whereDoesntHave('posPayments')
                     ->whereHas('shift', fn ($q) => $q->where('status', \App\Models\PosShift::STATUS_OPEN))
-                    ->with(['items.product.posPrinter', 'items.posPrinter', 'items.variant'])
+                    ->with(['items.product.posPrinter', 'items.posPrinter', 'items.variant', 'posUser'])
                     ->first();
             }
             if (!$pos && $tableId && $shiftId) {
@@ -2718,7 +2722,7 @@ class PosController extends Controller
                     ->where('created_by', $creatorId)
                     ->whereNull('cancelled_at')
                     ->whereDoesntHave('posPayments')
-                    ->with(['items.product.posPrinter', 'items.posPrinter', 'items.variant'])
+                    ->with(['items.product.posPrinter', 'items.posPrinter', 'items.variant', 'posUser'])
                     ->first();
             }
             if ($pos) {
@@ -2792,6 +2796,8 @@ class PosController extends Controller
                     'voided_at' => $line->voided_at ? $line->voided_at->toIso8601String() : null,
                     'void_reason' => $line->void_reason ?? null,
                     'pro_image' => $product && $product->pro_image ? $product->pro_image : 'default.png',
+                    'waiter_user_id' => $pos->pos_user_id ? (int) $pos->pos_user_id : null,
+                    'waiter_name' => $pos->posUser ? $pos->posUser->name : null,
                 ];
             }
         }
@@ -2884,7 +2890,25 @@ class PosController extends Controller
             'order_lines' => $orderLines,
             'session_items' => $sessionItems,
             'checks' => $checks,
+            'waiter_user_id' => null,
+            'waiter_name' => null,
         ];
+        if ($tableId) {
+            $tableMeta = PosTable::with('waiterUser')->where('id', $tableId)->where('created_by', $creatorId)->first();
+            if ($tableMeta) {
+                $payload['waiter_user_id'] = $tableMeta->waiter_user_id ? (int) $tableMeta->waiter_user_id : null;
+                $payload['waiter_name'] = $tableMeta->waiterUser ? $tableMeta->waiterUser->name : null;
+                $payload['customer_name'] = $tableMeta->customer_name;
+            }
+        }
+        if ($pos && empty($payload['waiter_name']) && $pos->posUser) {
+            $payload['waiter_user_id'] = (int) $pos->pos_user_id;
+            $payload['waiter_name'] = $pos->posUser->name;
+        } elseif ($pos && empty($payload['waiter_name']) && $pos->pos_user_id) {
+            $posUser = User::find($pos->pos_user_id);
+            $payload['waiter_user_id'] = $pos->pos_user_id ? (int) $pos->pos_user_id : null;
+            $payload['waiter_name'] = $posUser ? $posUser->name : null;
+        }
         if ($pos && in_array($pos->order_type, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
             $payload['guest_name'] = $pos->guest_name ?? null;
             $payload['guest_email'] = $pos->guest_email ?? null;
@@ -3006,7 +3030,14 @@ class PosController extends Controller
             $pos->pos_date = date('Y-m-d');
             $pos->payment_method = null;
             $pos->created_by = $creatorId;
-            $pos->pos_user_id = PosActorService::posActorId();
+            $waiterUserId = PosActorService::posActorId();
+            if (! $isNonDineIn && $tableId) {
+                $openedTable = PosTable::where('id', $tableId)->where('created_by', $creatorId)->first();
+                if ($openedTable && $openedTable->waiter_user_id) {
+                    $waiterUserId = (int) $openedTable->waiter_user_id;
+                }
+            }
+            $pos->pos_user_id = $waiterUserId;
             if ($isNonDineIn) {
                 $pos->guest_name = $request->guest_name;
                 $pos->guest_email = $request->guest_email;
@@ -3019,6 +3050,15 @@ class PosController extends Controller
                 $pos->guest_name = $request->filled('guest_name') ? $request->guest_name : $pos->guest_name;
                 $pos->guest_email = $request->filled('guest_email') ? $request->guest_email : $pos->guest_email;
                 $pos->guest_phone = $request->filled('guest_phone') ? $request->guest_phone : $pos->guest_phone;
+            }
+            // Keep / sync waiter from opened table when sending more items
+            if (! $isNonDineIn && $tableId && ! $pos->pos_user_id) {
+                $openedTable = PosTable::where('id', $tableId)->where('created_by', $creatorId)->first();
+                if ($openedTable && $openedTable->waiter_user_id) {
+                    $pos->pos_user_id = (int) $openedTable->waiter_user_id;
+                } else {
+                    $pos->pos_user_id = PosActorService::posActorId();
+                }
             }
             $pos->save();
         }
@@ -4794,7 +4834,14 @@ class PosController extends Controller
         if ($posDefaultPrepMinutes < 1) {
             $posDefaultPrepMinutes = 15;
         }
-        return view('pos.index-restaurant', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'posPinUser', 'posBranchAssignmentWarning', 'posDefaultPrepMinutes'));
+        $companyUsers = User::where(function ($q) use ($creatorId) {
+                $q->where('created_by', $creatorId)->orWhere('id', $creatorId);
+            })
+            ->where('type', '!=', 'client')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return view('pos.index-restaurant', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'posPinUser', 'posBranchAssignmentWarning', 'posDefaultPrepMinutes', 'companyUsers'));
     }
 
     /**

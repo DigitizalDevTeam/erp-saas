@@ -440,6 +440,12 @@
     flex-wrap: wrap;
     min-width: 0;
 }
+.pos-cart-line__waiter {
+    flex: 1 0 100%;
+    font-size: 0.68rem;
+    line-height: 1.2;
+    margin-top: -0.05rem;
+}
 .pos-cart-line__name {
     font-size: 0.78rem;
     font-weight: 600;
@@ -898,8 +904,8 @@
     flex-direction: column;
     align-items: stretch;
     text-align: left;
-    min-width: 8.5rem;
-    max-width: 11rem;
+    min-width: 9rem;
+    max-width: 12rem;
     padding: 0.45rem 0.55rem !important;
     line-height: 1.25;
     white-space: normal;

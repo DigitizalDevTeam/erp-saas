@@ -9,7 +9,7 @@
 @endsection
 
 @push('css-page')
-    <link rel="stylesheet" href="{{ asset('css/pos.css') }}?v=6">
+    <link rel="stylesheet" href="{{ asset('css/pos.css') }}?v=7">
 @endpush
 
 @section('content')
@@ -73,7 +73,8 @@
                         <table class="table table-hover align-middle" id="pos-production-table">
                             <thead>
                                 <tr>
-                                    <th>{{ __('Table') }}</th>
+                                    <th>{{ __('pos.table_no') }}</th>
+                                    <th>{{ __('pos.waiter_user') }}</th>
                                     <th>{{ __('Product') }}</th>
                                     <th>{{ __('Qty') }}</th>
                                     <th>{{ __('Notes') }}</th>
@@ -102,6 +103,13 @@
                                             $statusClass = 'pos-prod-status--prep';
                                             $statusLabel = __('pos.status_in_preparation');
                                         }
+                                        $tableName = ($line->pos && $line->pos->table) ? $line->pos->table->name : '—';
+                                        $waiterName = '—';
+                                        if ($line->pos && $line->pos->posUser) {
+                                            $waiterName = $line->pos->posUser->name;
+                                        } elseif ($line->pos && $line->pos->table && $line->pos->table->waiterUser) {
+                                            $waiterName = $line->pos->table->waiterUser->name;
+                                        }
                                     @endphp
                                     <tr data-line-id="{{ $line->id }}"
                                         data-sent-at="{{ $line->sent_at ? $line->sent_at->toIso8601String() : '' }}"
@@ -109,7 +117,8 @@
                                         data-ready-at="{{ $line->ready_at ? $line->ready_at->toIso8601String() : '' }}"
                                         data-status="{{ $line->status }}"
                                         class="{{ $isOverdue ? 'table-danger' : '' }}">
-                                        <td>{{ $line->pos && $line->pos->table ? $line->pos->table->name : '—' }}</td>
+                                        <td>{{ $tableName }}</td>
+                                        <td>{{ $waiterName }}</td>
                                         <td>
                                             <div class="fw-semibold">{{ $productName }}</div>
                                             @if($productSku)
@@ -157,7 +166,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="8" class="text-center text-muted py-4">{{ __('No orders for this zone.') }}</td>
+                                        <td colspan="9" class="text-center text-muted py-4">{{ __('No orders for this zone.') }}</td>
                                     </tr>
                                 @endforelse
                             </tbody>

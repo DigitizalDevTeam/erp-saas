@@ -81,7 +81,7 @@ class PosProductionController extends Controller
                 ->where('created_by', $creatorId)
                 ->pluck('id');
 
-            $lines = PosProduct::with(['pos.table', 'pos.shift', 'product'])
+            $lines = PosProduct::with(['pos.table.waiterUser', 'pos.shift', 'pos.posUser', 'product'])
                 ->whereHas('pos', function ($q) use ($openShiftIds, $creatorId, $warehouseId) {
                     $q->whereIn('shift_id', $openShiftIds)
                         ->where('created_by', $creatorId)

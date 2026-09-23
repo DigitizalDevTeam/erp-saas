@@ -17,6 +17,7 @@ class PosTable extends Model
         'capacity',
         'current_guests',
         'customer_name',
+        'waiter_user_id',
         'status',
         'created_by',
     ];
@@ -29,6 +30,11 @@ class PosTable extends Model
     public function branch()
     {
         return $this->belongsTo(Branch::class, 'branch_id');
+    }
+
+    public function waiterUser()
+    {
+        return $this->belongsTo(User::class, 'waiter_user_id');
     }
 
     public function posSales()

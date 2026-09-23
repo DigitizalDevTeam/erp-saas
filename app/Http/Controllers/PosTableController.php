@@ -180,23 +180,46 @@ class PosTableController extends Controller
         if ($request->has('customer_name')) {
             $table->customer_name = $request->input('customer_name') ? trim($request->input('customer_name')) : null;
         }
+        if ($request->has('waiter_user_id')) {
+            $waiterUserId = (int) $request->input('waiter_user_id');
+            if ($waiterUserId > 0) {
+                $creatorId = (int) \Auth::user()->creatorId();
+                $waiter = \App\Models\User::where('id', $waiterUserId)
+                    ->where(function ($q) use ($creatorId) {
+                        $q->where('created_by', $creatorId)->orWhere('id', $creatorId);
+                    })
+                    ->first();
+                if (! $waiter) {
+                    return response()->json(['error' => __('Invalid waiter/user.')], 422);
+                }
+                $table->waiter_user_id = $waiter->id;
+            } else {
+                $table->waiter_user_id = null;
+            }
+        } elseif ($oldStatus === PosTable::STATUS_AVAILABLE && $status === PosTable::STATUS_OCCUPIED && ! $table->waiter_user_id) {
+            $table->waiter_user_id = PosActorService::posActorId() ?: null;
+        }
         if ($status === PosTable::STATUS_AVAILABLE) {
             $table->current_guests = null;
             $table->customer_name = null;
+            $table->waiter_user_id = null;
         }
         $table->save();
         if ($oldStatus === PosTable::STATUS_AVAILABLE && $status === PosTable::STATUS_OCCUPIED) {
-            PosAuditLogService::log(PosAuditLog::ACTION_OPEN_TABLE, 'pos_table', (int) $table->id, __('Table opened'), ['table_name' => $table->name, 'guests' => $table->current_guests]);
+            PosAuditLogService::log(PosAuditLog::ACTION_OPEN_TABLE, 'pos_table', (int) $table->id, __('Table opened'), ['table_name' => $table->name, 'guests' => $table->current_guests, 'waiter_user_id' => $table->waiter_user_id]);
         } elseif ($status === PosTable::STATUS_OCCUPIED) {
-            PosAuditLogService::log(PosAuditLog::ACTION_OPEN_TABLE, 'pos_table', (int) $table->id, __('Table opened'), ['table_name' => $table->name, 'guests' => $table->current_guests]);
+            PosAuditLogService::log(PosAuditLog::ACTION_OPEN_TABLE, 'pos_table', (int) $table->id, __('Table opened'), ['table_name' => $table->name, 'guests' => $table->current_guests, 'waiter_user_id' => $table->waiter_user_id]);
         } elseif ($status === PosTable::STATUS_AVAILABLE) {
             PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_TABLE, 'pos_table', (int) $table->id, __('Table closed'), ['table_name' => $table->name]);
         }
+        $table->loadMissing('waiterUser');
         return response()->json([
             'success' => true,
             'status' => $table->status,
             'current_guests' => $table->current_guests,
             'customer_name' => $table->customer_name,
+            'waiter_user_id' => $table->waiter_user_id,
+            'waiter_name' => $table->waiterUser ? $table->waiterUser->name : null,
         ]);
     }
 
@@ -223,6 +246,7 @@ class PosTableController extends Controller
         $table->status = PosTable::STATUS_AVAILABLE;
         $table->current_guests = null;
         $table->customer_name = null;
+        $table->waiter_user_id = null;
         $table->save();
         PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_TABLE, 'pos_table', (int) $table->id, __('Table closed (force)'), ['table_name' => $table->name]);
         return response()->json(['success' => true, 'status' => $table->status]);

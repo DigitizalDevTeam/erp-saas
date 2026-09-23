@@ -116,4 +116,6 @@ return [
     'shift_report' => 'Relatório de turnos POS',
     'shift_user' => 'Caixa / Utilizador do turno',
     'sale_operator' => 'Operador de venda (PIN)',
+    'waiter_user' => 'Garçom / Utilizador',
+    'table_no' => 'Nº da Mesa',
 ];

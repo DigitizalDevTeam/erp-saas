@@ -129,6 +129,11 @@ class Pos extends Model
         return $this->belongsTo(PosTable::class, 'table_id');
     }
 
+    public function posUser()
+    {
+        return $this->belongsTo(User::class, 'pos_user_id');
+    }
+
     public function shift()
     {
         return $this->belongsTo(PosShift::class, 'shift_id');

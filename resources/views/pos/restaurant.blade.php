@@ -306,6 +306,7 @@
                     <div class="d-flex justify-content-between align-items-start gap-2">
                         <div class="min-w-0">
                             <div class="fw-bold text-dark text-truncate" id="pos-restaurant-customer-name">{{ $selCustomer->name ?? __('Walk-in-customer') }}</div>
+                            <small class="text-muted d-block text-truncate d-none" id="pos-restaurant-waiter-name"></small>
                             <small class="text-muted d-block text-truncate" id="pos-restaurant-customer-email">{{ $selCustomer->email ?? 'walkin@default.com' }}</small>
                             <small class="text-muted d-block" id="pos-restaurant-customer-phone">{{ $selCustomer->contact ?? '0000000000' }}</small>
                         </div>
@@ -499,6 +500,14 @@
             <div class="modal-body">
                 <input type="hidden" id="pos-open-table-id" value="">
                 <input type="hidden" id="pos-open-table-name" value="">
+                <div class="mb-3">
+                    <label class="form-label" for="pos-open-table-waiter">{{ __('pos.waiter_user') }}</label>
+                    <select id="pos-open-table-waiter" class="form-select">
+                        @foreach(($companyUsers ?? collect()) as $u)
+                            <option value="{{ $u->id }}" @selected(isset($posPinUser) && (int) $posPinUser->id === (int) $u->id)>{{ $u->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <div class="mb-3">
                     <label class="form-label">{{ __('pos.guests_count') }}</label>
                     <input type="number" id="pos-open-table-guests" class="form-control" min="0" value="" placeholder="{{ __('pos.optional') }}">
