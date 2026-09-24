@@ -1269,7 +1269,21 @@
             }
 
             function getRestaurantWarehouseId() {
-                return $('#pos-restaurant-warehouse').val() || $('#warehouse').val() || '0';
+                var wh = $('#pos-restaurant-warehouse').val()
+                    || $('#pos_restaurant_warehouse_hidden').val()
+                    || $('#warehouse').val()
+                    || $('#warehouse_name_hidden').val()
+                    || '0';
+                return wh ? String(wh) : '0';
+            }
+
+            function syncRestaurantWarehouseSelection(wh) {
+                wh = wh ? String(wh) : '';
+                $('#pos_restaurant_warehouse_hidden').val(wh);
+                if ($('#warehouse').length && wh) {
+                    $('#warehouse').val(wh);
+                }
+                $('#warehouse_name_hidden').val(wh);
             }
 
             function reloadRestaurantProductsByCategory() {
@@ -1488,7 +1502,7 @@
                                 if (ids.length) {
                                     var wh = parsed.preferred;
                                     $whSelect.val(wh);
-                                    $('#pos_restaurant_warehouse_hidden').val(wh);
+                                    syncRestaurantWarehouseSelection(wh);
                                     resetRestaurantCategories(true);
                                     searchProducts(posSearchProductsUrl, '', '0', wh, 'name', 'product-listing-restaurant');
                                 }
@@ -1515,7 +1529,7 @@
 
             $('#pos-restaurant-warehouse').on('change', function () {
                 var wh = $(this).val();
-                $('#pos_restaurant_warehouse_hidden').val(wh || '');
+                syncRestaurantWarehouseSelection(wh || '');
                 if (wh) {
                     resetRestaurantCategories(true);
                     searchProducts(posSearchProductsUrl, '', '0', wh, 'name', 'product-listing-restaurant');
@@ -1591,7 +1605,7 @@
                         if (ids.length) {
                             var wh = parsed.preferred;
                             $whSelect.val(wh);
-                            $('#pos_restaurant_warehouse_hidden').val(wh);
+                            syncRestaurantWarehouseSelection(wh);
                             resetRestaurantCategories(true);
                             searchProducts(posSearchProductsUrl, '', '0', wh, 'name', 'product-listing-restaurant');
                         }
@@ -3656,21 +3670,24 @@
                     var $iconGo = $btn.find('i');
                     if ($iconGo.length) $iconGo.removeClass('ti-plus').addClass('ti-loader ti-spin');
                 }
-                var addUrl = $el.data('url');
+                var addUrl = $el.attr('data-url') || $el.data('url');
                 try {
                     var parsedAddUrl = new URL(addUrl, window.location.origin);
                     parsedAddUrl.protocol = window.location.protocol;
                     parsedAddUrl.host = window.location.host;
                     addUrl = parsedAddUrl.toString();
                 } catch (e) {}
-                var warehouseId = '';
-                if (isRestaurant) {
-                    warehouseId = $('#pos-restaurant-warehouse').length ? ($('#pos-restaurant-warehouse').val() || '') : '';
+                var warehouseId = getRestaurantWarehouseId();
+                if (!warehouseId || warehouseId === '0') {
+                    warehouseId = '';
+                    if (isRestaurant) {
+                        warehouseId = $('#pos-restaurant-warehouse').length ? ($('#pos-restaurant-warehouse').val() || '') : '';
+                    }
+                    if (!warehouseId) {
+                        warehouseId = $('#warehouse').length ? ($('#warehouse').val() || '') : '';
+                    }
                 }
-                if (!warehouseId) {
-                    warehouseId = $('#warehouse').length ? ($('#warehouse').val() || '') : '';
-                }
-                if (warehouseId) {
+                if (warehouseId && warehouseId !== '0') {
                     addUrl += (addUrl.indexOf('?') !== -1 ? '&' : '?') + 'war_id=' + encodeURIComponent(warehouseId);
                 }
                 if (isRestaurant) {

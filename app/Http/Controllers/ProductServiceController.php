@@ -1545,9 +1545,15 @@ class ProductServiceController extends Controller
                             ? 0
                             : (int) floor($product->variantStockInWarehouse($warId, $variantId));
                     } elseif ($affectStock && ! ($product->variants_enabled ?? false) && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product->id, $warId, (int) Auth::user()->creatorId()))) {
-                        $productquantity = ($usesRestaurantWarehouse && $warId <= 0)
-                            ? 0
-                            : (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warId, (int) Auth::user()->creatorId()));
+                        // Restaurant cards show warehouse_products qty; keep add-to-cart in sync with that
+                        // (FEFO lots may be empty/expired while warehouse stock still exists).
+                        if ($usesRestaurantWarehouse) {
+                            $productquantity = $warId <= 0
+                                ? 0
+                                : $this->restaurantPosWarehouseStock($product, $warId);
+                        } else {
+                            $productquantity = (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warId, (int) Auth::user()->creatorId()));
+                        }
                     } else {
                         $productquantity = $affectStock
                             ? ($usesRestaurantWarehouse
@@ -2026,7 +2032,7 @@ class ProductServiceController extends Controller
                 $affectStock = $product ? (($product->type === 'kit') ? false : ($product->affect_stock ?? true)) : true;
                 $warehouseId = (int) ($request->war_id ?? 0);
                 $creatorId = (int) Auth::user()->creatorId();
-                $usesRestaurantWarehouse = $session_key === 'pos-restaurant';
+                $usesRestaurantWarehouse = $session_key === 'pos-restaurant' || $request->boolean('restaurant');
                 if ($product && $affectStock && ($product->variants_enabled ?? false) && $variantLineId) {
                     $maxQty = ($usesRestaurantWarehouse && $warehouseId <= 0)
                         ? 0
@@ -2036,14 +2042,18 @@ class ProductServiceController extends Controller
                         ? 0
                         : (int) floor($product->variantStockInWarehouse($warehouseId, null));
                 } elseif ($product && $affectStock && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product->id, $warehouseId, $creatorId))) {
-                    $maxQty = ($usesRestaurantWarehouse && $warehouseId <= 0)
-                        ? 0
-                        : (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warehouseId, $creatorId));
+                    if ($usesRestaurantWarehouse) {
+                        $maxQty = $warehouseId <= 0
+                            ? 0
+                            : $this->restaurantPosWarehouseStock($product, $warehouseId, $variantLineId);
+                    } else {
+                        $maxQty = (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warehouseId, $creatorId));
+                    }
                 } else {
                     $maxQty = $product
                         ? ($affectStock
                             ? ($usesRestaurantWarehouse
-                                ? $this->restaurantPosWarehouseStock($product, $warehouseId)
+                                ? $this->restaurantPosWarehouseStock($product, $warehouseId, $variantLineId)
                                 : (int) $product->quantity)
                             : 999999)
                         : 0;

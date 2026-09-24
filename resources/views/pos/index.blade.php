@@ -1653,7 +1653,12 @@
             }
 
             function getRestaurantWarehouseId() {
-                return $('#pos-restaurant-warehouse').val() || $('#warehouse').val() || '0';
+                var wh = $('#pos-restaurant-warehouse').val()
+                    || $('#pos_restaurant_warehouse_hidden').val()
+                    || $('#warehouse').val()
+                    || $('#warehouse_name_hidden').val()
+                    || '0';
+                return wh ? String(wh) : '0';
             }
 
             function reloadRestaurantProductsByCategory() {
@@ -2985,14 +2990,17 @@
                     parsedAddToCartUrl.host = window.location.host;
                     addToCartUrl = parsedAddToCartUrl.toString();
                 } catch (e) {}
-                var selectedWarId = '';
-                if (isRestaurant) {
-                    selectedWarId = $('#pos-restaurant-warehouse').length ? ($('#pos-restaurant-warehouse').val() || '') : '';
+                var selectedWarId = getRestaurantWarehouseId();
+                if (!selectedWarId || selectedWarId === '0') {
+                    selectedWarId = '';
+                    if (isRestaurant) {
+                        selectedWarId = $('#pos-restaurant-warehouse').length ? ($('#pos-restaurant-warehouse').val() || '') : '';
+                    }
+                    if (!selectedWarId) {
+                        selectedWarId = $('#warehouse').length ? ($('#warehouse').val() || '') : '';
+                    }
                 }
-                if (!selectedWarId) {
-                    selectedWarId = $('#warehouse').length ? ($('#warehouse').val() || '') : '';
-                }
-                if (selectedWarId) {
+                if (selectedWarId && selectedWarId !== '0') {
                     addToCartUrl += (addToCartUrl.indexOf('?') !== -1 ? '&' : '?') + 'war_id=' + encodeURIComponent(selectedWarId);
                 }
                 var taxRate = $el.data('product-tax');
