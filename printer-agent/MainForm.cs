@@ -8,12 +8,14 @@ public partial class MainForm : Form
     private bool _running;
     private bool _busy;
     private bool _autoStarting;
+    private bool _forceExit;
     private DateTime _lastPrinterSync = DateTime.MinValue;
 
     private readonly TextBox _txtBaseUrl = new();
     private readonly ComboBox _cboBranch = new();
     private readonly Button _btnConnect = new();
     private readonly Button _btnStop = new();
+    private readonly Button _btnExit = new();
     private readonly Label _lblStatus = new();
     private readonly Label _lblLastPoll = new();
     private readonly Label _lblPrinters = new();
@@ -87,6 +89,13 @@ public partial class MainForm : Form
         _btnStop.Enabled = false;
         _btnStop.Click += (_, _) => StopAgent();
         Controls.Add(_btnStop);
+
+        _btnExit.Text = "Exit";
+        _btnExit.Left = 250;
+        _btnExit.Top = y;
+        _btnExit.Width = 100;
+        _btnExit.Click += (_, _) => ExitApplication();
+        Controls.Add(_btnExit);
         y += 40;
 
         _lblStatus.AutoSize = false;
@@ -143,12 +152,19 @@ public partial class MainForm : Form
         _tray.Text = "POS Printer Agent";
         _tray.Icon = SystemIcons.Application;
         _tray.Visible = true;
-        _tray.DoubleClick += (_, _) =>
-        {
-            Show();
-            WindowState = FormWindowState.Normal;
-            Activate();
-        };
+        _tray.DoubleClick += (_, _) => ShowMainWindow();
+
+        var menu = new ContextMenuStrip();
+        menu.Items.Add("Open", null, (_, _) => ShowMainWindow());
+        menu.Items.Add("Exit", null, (_, _) => ExitApplication());
+        _tray.ContextMenuStrip = menu;
+    }
+
+    private void ShowMainWindow()
+    {
+        Show();
+        WindowState = FormWindowState.Normal;
+        Activate();
     }
 
     private void LoadConfigIntoUi()
@@ -316,6 +332,23 @@ public partial class MainForm : Form
         }
     }
 
+    private void ExitApplication()
+    {
+        _forceExit = true;
+        StopAgent(silent: true);
+        try
+        {
+            _tray.Visible = false;
+            _tray.Dispose();
+        }
+        catch
+        {
+            // Ignore tray disposal errors during shutdown.
+        }
+
+        Application.Exit();
+    }
+
     private async Task PollOnceAsync()
     {
         if (!_running || _busy)
@@ -419,7 +452,9 @@ public partial class MainForm : Form
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        if (e.CloseReason == CloseReason.UserClosing)
+        // Closing the window (X) keeps the agent alive in the tray.
+        // Use Exit to permanently stop polling and terminate the process.
+        if (!_forceExit && e.CloseReason == CloseReason.UserClosing)
         {
             e.Cancel = true;
             Hide();
@@ -428,8 +463,15 @@ public partial class MainForm : Form
         }
 
         StopAgent(silent: true);
-        _tray.Visible = false;
-        _tray.Dispose();
+        try
+        {
+            _tray.Visible = false;
+            _tray.Dispose();
+        }
+        catch
+        {
+            // Already disposed during ExitApplication.
+        }
     }
 
     protected override void OnResize(EventArgs e)

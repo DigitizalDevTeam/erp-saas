@@ -294,6 +294,15 @@ class PosController extends Controller
     }
 
     /**
+     * Active (billable) POS line: not voided and not removed from cart by admin.
+     * Voided lines stay in DB for audit but must not appear on bills/slips or be charged.
+     */
+    protected function isActivePosBillLine($line): bool
+    {
+        return empty($line->voided_at) && empty($line->removed_from_cart_at);
+    }
+
+    /**
      * Rewrite existing POS line prices to exclusive cost for Internal Consumption.
      * Returns the inclusive bill total (price * qty * (1 + tax%)).
      */
@@ -302,10 +311,7 @@ class PosController extends Controller
         $total = 0.0;
         $pos->loadMissing('items');
             foreach ($pos->items as $line) {
-                if (! empty($line->voided_at)) {
-                    continue;
-                }
-                if (! empty($line->removed_from_cart_at)) {
+                if (! $this->isActivePosBillLine($line)) {
                     continue;
                 }
             $product = ProductService::whereId($line->product_id)->where('created_by', $userId)->first();
@@ -895,6 +901,9 @@ class PosController extends Controller
             if ($pos && $pos->items->isNotEmpty()) {
                 $sess = [];
                 foreach ($pos->items as $line) {
+                    if (! $this->isActivePosBillLine($line)) {
+                        continue;
+                    }
                     $product = $line->product;
                     $price = (float) $line->price;
                     $qty = (int) $line->quantity;
@@ -1037,6 +1046,9 @@ class PosController extends Controller
                 if ($pos && $pos->items->isNotEmpty()) {
                     $sess = [];
                     foreach ($pos->items as $line) {
+                        if (! $this->isActivePosBillLine($line)) {
+                            continue;
+                        }
                         $product = $line->product;
                         $price = (float) $line->price;
                         $qty = (int) $line->quantity;
@@ -1746,6 +1758,9 @@ class PosController extends Controller
                 if ($existingPos && $existingPos->items->isNotEmpty()) {
                     $sales = [];
                     foreach ($existingPos->items as $line) {
+                        if (! $this->isActivePosBillLine($line)) {
+                            continue;
+                        }
                         $product = $line->product;
                         $price = (float) $line->price;
                         $qty = (int) $line->quantity;
@@ -1787,6 +1802,9 @@ class PosController extends Controller
                     if ($existingPos && $existingPos->items->isNotEmpty()) {
                         $sales = [];
                         foreach ($existingPos->items as $line) {
+                            if (! $this->isActivePosBillLine($line)) {
+                                continue;
+                            }
                             $product = $line->product;
                             $price = (float) $line->price;
                             $qty = (int) $line->quantity;
@@ -1941,6 +1959,9 @@ class PosController extends Controller
                         $pos->load('items');
                     }
                     foreach ($pos->items as $line) {
+                        if (! $this->isActivePosBillLine($line)) {
+                            continue;
+                        }
                         $lineProduct = ProductService::whereId($line->product_id)->where('created_by', $user_id)->first();
                         if ($lineProduct) {
                             $variantError = $this->ensurePosLineProductVariant($line, $lineProduct, true);
@@ -1962,6 +1983,9 @@ class PosController extends Controller
                         }
                     }
                     foreach ($pos->items as $line) {
+                        if (! $this->isActivePosBillLine($line)) {
+                            continue;
+                        }
                         $lineProduct = ProductService::whereId($line->product_id)->where('created_by', $user_id)->first();
                         if (! $lineProduct) {
                             continue;
@@ -3922,6 +3946,9 @@ class PosController extends Controller
         $items = [];
 
         foreach ($pos->items as $product) {
+            if (! $this->isActivePosBillLine($product)) {
+                continue;
+            }
 
             $item = new \stdClass();
             $item->name = !empty($product->product()) ? $product->product()->name : '';
@@ -4213,6 +4240,9 @@ class PosController extends Controller
                     ]);
                 }
                 foreach ($pos->items as $item) {
+                    if (! $this->isActivePosBillLine($item)) {
+                        continue;
+                    }
                     $product = ProductService::find($item->product_id);
                     $price = (float) $item->price;
                     $qty = (int) $item->quantity;
@@ -4239,6 +4269,9 @@ class PosController extends Controller
                 $sales['total'] = $user->priceFormat($mainsubtotal - $discount);
                 $vatBreakdown = [];
                 foreach ($pos->items as $item) {
+                    if (! $this->isActivePosBillLine($item)) {
+                        continue;
+                    }
                     $price = (float) $item->price;
                     $qty = (int) $item->quantity;
                     $taxRate = (float) Utility::totalTaxRate($item->tax);
@@ -4388,6 +4421,9 @@ class PosController extends Controller
             if ($pos && $pos->items->isNotEmpty()) {
                 $sess = [];
                 foreach ($pos->items as $line) {
+                    if (! $this->isActivePosBillLine($line)) {
+                        continue;
+                    }
                     $product = $line->product;
                     $price = (float) $line->price;
                     $qty = (int) $line->quantity;
@@ -4454,6 +4490,9 @@ class PosController extends Controller
                 if ($pos && $pos->items->isNotEmpty()) {
                     $sess = [];
                     foreach ($pos->items as $line) {
+                        if (! $this->isActivePosBillLine($line)) {
+                            continue;
+                        }
                         $product = $line->product;
                         $price = (float) $line->price;
                         $qty = (int) $line->quantity;
@@ -4670,6 +4709,9 @@ class PosController extends Controller
         $discount = 0;
         $totalTip = (float) $posPayments->sum('tip');
         foreach ($pos->items as $item) {
+            if (! $this->isActivePosBillLine($item)) {
+                continue;
+            }
             $product = ProductService::find($item->product_id);
             $price = (float) $item->price;
             $qty = (int) $item->quantity;
@@ -4696,6 +4738,9 @@ class PosController extends Controller
         $sales['total'] = $user->priceFormat($mainsubtotal - $discount);
         $vatBreakdown = [];
         foreach ($pos->items as $item) {
+            if (! $this->isActivePosBillLine($item)) {
+                continue;
+            }
             $price = (float) $item->price;
             $qty = (int) $item->quantity;
             $taxRate = (float) Utility::totalTaxRate($item->tax);
