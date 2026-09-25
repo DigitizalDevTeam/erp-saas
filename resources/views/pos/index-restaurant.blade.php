@@ -1815,7 +1815,17 @@
                 var cartKey = it.cart_line_key || it.id;
                 var note = String(it.description || '').trim();
                 var lineName = String(it.name || '').trim() || ('{{ __("Product") }} #' + (it.id || ''));
-                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-voided="' + (isVoided ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-unit-subtotal="' + (it.unit_subtotal != null ? it.unit_subtotal : (qty > 0 ? posRoundMoney(sub / qty) : '')) + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '">';
+                var selOptsRaw = '';
+                if (it.selected_options_json) {
+                    selOptsRaw = typeof it.selected_options_json === 'string'
+                        ? it.selected_options_json
+                        : JSON.stringify(it.selected_options_json);
+                } else if (it.selected_options) {
+                    selOptsRaw = typeof it.selected_options === 'string'
+                        ? it.selected_options
+                        : JSON.stringify(it.selected_options);
+                }
+                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-voided="' + (isVoided ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-unit-subtotal="' + (it.unit_subtotal != null ? it.unit_subtotal : (qty > 0 ? posRoundMoney(sub / qty) : '')) + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '" data-selected-options="' + esc(selOptsRaw) + '">';
                 html += '<td class="pos-cart-line-cell p-0 border-0"><div class="pos-cart-line"><div class="pos-cart-line__row">';
                 html += '<div class="pos-cart-line__main min-w-0">';
                 html += '<span class="pos-cart-line__name name" title="' + esc(lineName) + '">' + esc(lineName) + '</span>';
@@ -1940,7 +1950,7 @@
                     var sessionItems = res.session_items || [];
                     var list = [];
                     orderLines.forEach(function (it) {
-                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || it.id, waiter_name: it.waiter_name || res.waiter_name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || '' });
+                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || it.id, waiter_name: it.waiter_name || res.waiter_name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null });
                     });
                     sessionItems.forEach(function (it) {
                         var id = it.id;
@@ -1948,7 +1958,7 @@
                         var price = parseFloat(it.price) || 0;
                         var tax = parseFloat(it.tax) || 0;
                         var sub = (it.subtotal != null) ? parseFloat(it.subtotal) : posLineSubtotal(price, tax, qty, it.price_type, it.unit_subtotal);
-                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, unit_subtotal: it.unit_subtotal != null ? parseFloat(it.unit_subtotal) : (qty > 0 ? posRoundMoney(sub / qty) : null), description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || id, waiter_name: it.waiter_name || res.waiter_name || posCurrentTableWaiter.name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || posCurrentTableWaiter.id || '' });
+                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, unit_subtotal: it.unit_subtotal != null ? parseFloat(it.unit_subtotal) : (qty > 0 ? posRoundMoney(sub / qty) : null), description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || id, waiter_name: it.waiter_name || res.waiter_name || posCurrentTableWaiter.name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || posCurrentTableWaiter.id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null });
                     });
                     if (res.waiter_name || res.waiter_user_id) {
                         posCurrentTableWaiter = {
@@ -3877,8 +3887,23 @@
                                     }
                                     existingR.find('.subtotal').text(typeof addCommas === 'function' ? addCommas(sub) : sub);
                                     existingR.attr('data-subtotal', sub).attr('data-quantity', data.product.quantity);
+                                    if (data.product.selected_options_json) {
+                                        existingR.attr('data-selected-options', typeof data.product.selected_options_json === 'string'
+                                            ? data.product.selected_options_json
+                                            : JSON.stringify(data.product.selected_options_json));
+                                    } else if (data.product.selected_options) {
+                                        existingR.attr('data-selected-options', JSON.stringify(data.product.selected_options));
+                                    }
                                 } else if (data.carthtml) {
                                     var $rowR = $(data.carthtml).attr('data-subtotal', data.product.subtotal);
+                                    if (data.product && (data.product.selected_options_json || data.product.selected_options)) {
+                                        var selJson = data.product.selected_options_json
+                                            ? (typeof data.product.selected_options_json === 'string'
+                                                ? data.product.selected_options_json
+                                                : JSON.stringify(data.product.selected_options_json))
+                                            : JSON.stringify(data.product.selected_options);
+                                        $rowR.attr('data-selected-options', selJson);
+                                    }
                                     $(tbodySel + ' .no-found').addClass('d-none');
                                     $(tbodySel).append($rowR);
                                     $('#pos-pay-btn-restaurant').prop('disabled', false);

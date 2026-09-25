@@ -23,6 +23,14 @@
     if ($lineName === '') {
         $lineName = __('Product') . ' #' . ($line->id ?? '');
     }
+    $selectedOptionsJson = '';
+    if (! empty($line->selected_options_json)) {
+        $selectedOptionsJson = is_string($line->selected_options_json)
+            ? $line->selected_options_json
+            : json_encode($line->selected_options_json);
+    } elseif (! empty($line->selected_options) && is_array($line->selected_options)) {
+        $selectedOptionsJson = json_encode($line->selected_options);
+    }
 @endphp
 <tr class="pos-cart-row-compact {{ $rowClass }}{{ $rowVoidClass }} {{ $isSent ? 'pos-cart-row--sent' : 'pos-cart-row--draft' }}"
     data-product-id="{{ $line->id ?? '' }}"
@@ -43,7 +51,8 @@
     data-discount="0"
     data-print-zone="{{ $line->print_zone ?? '' }}"
     data-printer-id="{{ $line->pos_printer_id ?? '' }}"
-    data-printer-name="{{ $line->printer_name ?? '' }}">
+    data-printer-name="{{ $line->printer_name ?? '' }}"
+    data-selected-options="{{ e($selectedOptionsJson) }}">
     <td class="pos-cart-line-cell p-0 border-0">
         <div class="pos-cart-line">
             <div class="pos-cart-line__row">

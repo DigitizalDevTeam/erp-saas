@@ -1724,6 +1724,9 @@ class ProductServiceController extends Controller
                         'print_zone' => $printZone,
                         'pos_printer_id' => $printerId,
                         'printer_name' => $product->posPrinter ? $product->posPrinter->name : '',
+                        'product_variant_id' => $variantId,
+                        'selected_options' => $selectedOptions,
+                        'selected_options_json' => $selectedOptionsJson,
                     ];
                     $carthtml .= view('pos.partials.restaurant-cart-row', [
                         'line' => $line,

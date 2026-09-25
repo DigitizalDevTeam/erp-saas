@@ -2805,6 +2805,10 @@ class PosController extends Controller
                     'pro_image' => $product && $product->pro_image ? $product->pro_image : 'default.png',
                     'waiter_user_id' => $pos->pos_user_id ? (int) $pos->pos_user_id : null,
                     'waiter_name' => $pos->posUser ? $pos->posUser->name : null,
+                    'selected_options_json' => $line->selected_options_json ?? null,
+                    'selected_options' => ! empty($line->selected_options_json)
+                        ? ProductOptionService::normalizeSelectedOptions($line->selected_options_json)
+                        : [],
                 ];
             }
         }
@@ -3126,6 +3130,41 @@ class PosController extends Controller
             $selectedOpts = ProductOptionService::normalizeSelectedOptions(
                 $item['selected_options'] ?? $item['selected_options_json'] ?? $line->selected_options_json
             );
+            // Fallback: restaurant session cart may hold options if the POS row lost data-selected-options.
+            if ($selectedOpts === []) {
+                $cartKey = 'pos_restaurant_cart';
+                $allCarts = $request->session()->get($cartKey, []);
+                $sessionKeys = [];
+                if ($tableId && $shiftId) {
+                    $sessionKeys[] = $tableId . '_' . $shiftId;
+                }
+                if ($orderType && $shiftId) {
+                    $sessionKeys[] = $orderType . '_' . $shiftId;
+                }
+                if ($pos && $pos->id) {
+                    $sessionKeys[] = 'pos_' . $pos->id;
+                }
+                foreach (array_unique($sessionKeys) as $sk) {
+                    $sessCart = $allCarts[$sk] ?? [];
+                    foreach ($sessCart as $sessLine) {
+                        $sessLine = (array) $sessLine;
+                        if ((int) ($sessLine['id'] ?? 0) !== (int) $product->id) {
+                            continue;
+                        }
+                        $fromSess = ProductOptionService::normalizeSelectedOptions(
+                            $sessLine['selected_options'] ?? $sessLine['selected_options_json'] ?? null
+                        );
+                        if ($fromSess !== []) {
+                            $selectedOpts = $fromSess;
+                            if (empty($line->selected_options_json)) {
+                                $line->selected_options_json = ProductOptionService::encodeOptions($selectedOpts);
+                                $line->save();
+                            }
+                            break 2;
+                        }
+                    }
+                }
+            }
             $details = PosPrinterAgentService::buildLineProductDetails(
                 $product,
                 $variantId ? (int) $variantId : null,

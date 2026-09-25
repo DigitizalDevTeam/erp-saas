@@ -52,6 +52,7 @@ public static class SlipPrinter
 
         var titleFont = new Font("Consolas", 12f, FontStyle.Bold);
         var bodyFont = new Font("Consolas", 9f, FontStyle.Regular);
+        var bodyBoldFont = new Font("Consolas", 9f, FontStyle.Bold);
         var brush = Brushes.Black;
 
         doc.PrintPage += (_, e) =>
@@ -67,7 +68,20 @@ public static class SlipPrinter
 
             foreach (var line in lines)
             {
-                var font = line.Kind == SlipLineKind.Title ? titleFont : bodyFont;
+                Font font;
+                if (line.Kind == SlipLineKind.Title)
+                {
+                    font = titleFont;
+                }
+                else if (line.Bold)
+                {
+                    font = bodyBoldFont;
+                }
+                else
+                {
+                    font = bodyFont;
+                }
+
                 y += DrawLine(g, brush, font, line, contentLeft, contentWidth, y);
             }
 
@@ -82,6 +96,7 @@ public static class SlipPrinter
         {
             titleFont.Dispose();
             bodyFont.Dispose();
+            bodyBoldFont.Dispose();
             doc.Dispose();
         }
     }
@@ -117,7 +132,7 @@ public static class SlipPrinter
             {
                 using var sf = new StringFormat
                 {
-                    Alignment = line.Kind == SlipLineKind.Separator
+                    Alignment = line.Kind == SlipLineKind.Separator || line.Centered
                         ? StringAlignment.Center
                         : StringAlignment.Near,
                     LineAlignment = StringAlignment.Near,
@@ -185,6 +200,8 @@ public static class SlipPrinter
         public string Text { get; init; } = "";
         public string? Key { get; init; }
         public string? Value { get; init; }
+        public bool Bold { get; init; }
+        public bool Centered { get; init; }
     }
 
     private static List<SlipLine> BuildSlipLines(PrintJobDto job)
@@ -344,6 +361,16 @@ public static class SlipPrinter
                     {
                         var optName = GetString(opt, "name");
                         var optGroup = GetString(opt, "group");
+                        var optQty = GetDecimal(opt, "quantity");
+                        if (optQty <= 0)
+                        {
+                            optQty = GetDecimal(opt, "qty");
+                        }
+                        if (optQty <= 0)
+                        {
+                            optQty = 1;
+                        }
+
                         if (!string.IsNullOrWhiteSpace(optGroup))
                         {
                             groupSet.Add(optGroup.Trim());
@@ -351,16 +378,19 @@ public static class SlipPrinter
 
                         if (!string.IsNullOrWhiteSpace(optName))
                         {
-                            optionLines.Add(string.IsNullOrWhiteSpace(optGroup)
-                                ? optName
-                                : $"{optName} ({optGroup})");
+                            var qtyLabel = optQty == Math.Truncate(optQty)
+                                ? ((int)optQty).ToString(CultureInfo.InvariantCulture)
+                                : optQty.ToString("0.####", CultureInfo.InvariantCulture);
+                            // e.g. Extra Mayo — Qty: 2
+                            optionLines.Add($"{optName.Trim()} — Qty: {qtyLabel}");
                         }
                     }
                 }
 
-                if (optionLines.Count > 0)
+                // One Product Option line each so quantities stay clear on the slip.
+                foreach (var optLine in optionLines)
                 {
-                    AddKv(lines, "Product Options", string.Join(", ", optionLines));
+                    AddKv(lines, "Product Option", optLine);
                 }
 
                 if (groupSet.Count > 0)
@@ -393,7 +423,7 @@ public static class SlipPrinter
 
                 if (HasPrintableValue(note))
                 {
-                    AddKv(lines, "Notes", note.Trim());
+                    AddKv(lines, "Notes", note.Trim(), bold: true);
                 }
 
                 if (price > 0 || lineTotal > 0)
@@ -423,7 +453,7 @@ public static class SlipPrinter
         AddKv(lines, "Sub Total", FormatMoney(subtotal));
         AddKv(lines, "Total", FormatMoney(subtotal));
         AddSeparator(lines, '=');
-        AddFull(lines, $"{date}  {time}");
+        AddCentered(lines, $"{date}  {time}");
 
         return lines;
     }
@@ -437,14 +467,23 @@ public static class SlipPrinter
     private static void AddFull(List<SlipLine> lines, string text)
         => lines.Add(new SlipLine { Kind = SlipLineKind.Full, Text = text ?? "" });
 
-    private static void AddKv(List<SlipLine> lines, string key, string value)
+    private static void AddCentered(List<SlipLine> lines, string text)
+        => lines.Add(new SlipLine { Kind = SlipLineKind.Full, Text = text ?? "", Centered = true });
+
+    private static void AddKv(List<SlipLine> lines, string key, string value, bool bold = false)
     {
         if (!HasPrintableValue(value))
         {
             return;
         }
 
-        lines.Add(new SlipLine { Kind = SlipLineKind.KeyValue, Key = key, Value = value.Trim() });
+        lines.Add(new SlipLine
+        {
+            Kind = SlipLineKind.KeyValue,
+            Key = key,
+            Value = value.Trim(),
+            Bold = bold,
+        });
     }
 
     /// <summary>True when value should appear on the slip (not empty / N/A / dash).</summary>
