@@ -259,9 +259,10 @@ class ProductOptionService
             }
             $label = $opt->name;
             $oq = (float) ($row['quantity'] ?? 1);
-            if ($oq > 1) {
-                $label .= ' ×' . rtrim(rtrim(number_format($oq, 4, '.', ''), '0'), '.');
+            if ($oq <= 0) {
+                $oq = 1;
             }
+            $label .= ' ×' . rtrim(rtrim(number_format($oq, 4, '.', ''), '0'), '.');
             $parts[] = $label;
         }
 

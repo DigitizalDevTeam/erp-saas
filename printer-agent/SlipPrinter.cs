@@ -341,7 +341,6 @@ public static class SlipPrinter
                     AddKv(lines, colorLabel, color.Trim());
                 }
 
-                var optionLines = new List<string>();
                 var groupSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 if (row.TryGetProperty("groups", out var groupsEl) && groupsEl.ValueKind == JsonValueKind.Array)
                 {
@@ -361,6 +360,7 @@ public static class SlipPrinter
                     {
                         var optName = GetString(opt, "name");
                         var optGroup = GetString(opt, "group");
+                        // Always resolve a quantity (default 1) so Qty: 1 prints the same as Qty: 3.
                         var optQty = GetDecimal(opt, "quantity");
                         if (optQty <= 0)
                         {
@@ -376,21 +376,19 @@ public static class SlipPrinter
                             groupSet.Add(optGroup.Trim());
                         }
 
-                        if (!string.IsNullOrWhiteSpace(optName))
+                        if (string.IsNullOrWhiteSpace(optName))
                         {
-                            var qtyLabel = optQty == Math.Truncate(optQty)
-                                ? ((int)optQty).ToString(CultureInfo.InvariantCulture)
-                                : optQty.ToString("0.####", CultureInfo.InvariantCulture);
-                            // e.g. Extra Mayo — Qty: 2
-                            optionLines.Add($"{optName.Trim()} — Qty: {qtyLabel}");
+                            continue;
                         }
-                    }
-                }
 
-                // One Product Option line each so quantities stay clear on the slip.
-                foreach (var optLine in optionLines)
-                {
-                    AddKv(lines, "Product Option", optLine);
+                        var qtyLabel = optQty == Math.Truncate(optQty)
+                            ? ((int)optQty).ToString(CultureInfo.InvariantCulture)
+                            : optQty.ToString("0.####", CultureInfo.InvariantCulture);
+
+                        // Name + Qty on separate lines so Qty: 1 is always visible (not lost in wrap).
+                        AddKv(lines, "Product Option", optName.Trim());
+                        AddKv(lines, "Qty", qtyLabel);
+                    }
                 }
 
                 if (groupSet.Count > 0)
