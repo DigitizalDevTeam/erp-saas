@@ -21,7 +21,7 @@ class RevenueController extends Controller
 
         if(\Auth::user()->can('manage revenue'))
         {
-            $customer = Customer::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customer = Customer::forDocuments()->get()->pluck('name', 'id');
             $customer->prepend('Select Customer', '');
 
             $account = BankAccount::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('holder_name', 'id');
@@ -79,7 +79,7 @@ class RevenueController extends Controller
 
         if(\Auth::user()->can('create revenue'))
         {
-            $customers = Customer::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customers = Customer::forDocuments()->get()->pluck('name', 'id');
             $customers->prepend('', '');
             $categories = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())->where('type', '=', 'income')->get()->pluck('name', 'id');
             $accounts   = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
@@ -240,7 +240,7 @@ class RevenueController extends Controller
     {
         if(\Auth::user()->can('edit revenue'))
         {
-            $customers = Customer::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customers = Customer::forDocuments()->get()->pluck('name', 'id');
             $customers->prepend('', '');
             $categories = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())->where('type', '=', 'income')->get()->pluck('name', 'id');
             $accounts   = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');

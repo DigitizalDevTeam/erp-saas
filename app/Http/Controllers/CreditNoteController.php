@@ -394,7 +394,7 @@ class CreditNoteController extends Controller
         if(\Auth::user()->can('create credit note'))
         {
             $invoices = $this->eligibleInvoicesForNotes();
-            $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customers = Customer::forDocuments()->get()->pluck('name', 'id');
             $products = $this->productsForNotes();
 
             return view('creditNote.custom_create', compact('invoices', 'customers', 'products'));
@@ -423,7 +423,7 @@ class CreditNoteController extends Controller
         if(\Auth::user()->can('create credit note'))
         {
             $invoices = $this->eligibleInvoicesForNotes();
-            $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customers = Customer::forDocuments()->get()->pluck('name', 'id');
             $products = $this->productsForNotes();
 
             return view('creditNote.sale_debit_create', compact('invoices', 'customers', 'products'));

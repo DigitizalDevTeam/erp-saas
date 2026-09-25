@@ -530,7 +530,7 @@ class PurchaseController extends Controller
                 ->with('info', __('Sales invoice already exists for this purchase.'));
         }
 
-        $customers = \App\Models\Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $customers = \App\Models\Customer::forDocuments()->get()->pluck('name', 'id');
         $customers->prepend(__('Select Customer'), '');
         $defaultCustomerId = $purchase->sourceProforma?->customer_id;
         $category = ProductServiceCategory::where('created_by', \Auth::user()->creatorId())

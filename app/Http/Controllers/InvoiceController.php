@@ -50,7 +50,7 @@ class InvoiceController extends Controller
     public function index(Request $request)
     {
         if (\Auth::user()->can('manage invoice')) {
-            $customer = Customer::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customer = Customer::forDocuments()->get()->pluck('name', 'id');
             $customer->prepend('Select Customer', '');
             $status = Invoice::$statues;
             $query = Invoice::where('created_by', '=', \Auth::user()->creatorId());
@@ -91,7 +91,7 @@ class InvoiceController extends Controller
         if (\Auth::user()->can('create invoice')) {
             $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'invoice')->get();
             $invoice_number = \Auth::user()->invoiceNumberFormat($this->invoiceNumber());
-            $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customers = Customer::forDocuments()->get()->pluck('name', 'id');
             $customers->prepend('Select Customer', '');
             $category = ProductServiceCategory::where('created_by', \Auth::user()->creatorId())->where('type', 'income')->get()->pluck('name', 'id');
             $category->prepend('Select Category', '');
@@ -448,7 +448,7 @@ class InvoiceController extends Controller
             }
             $invoice = Invoice::find($id);
             $invoice_number = \Auth::user()->invoiceNumberFormat($invoice->invoice_id);
-            $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customers = Customer::forDocuments()->get()->pluck('name', 'id');
             $category = ProductServiceCategory::where('created_by', \Auth::user()->creatorId())->where('type', 'income')->get()->pluck('name', 'id');
             $category->prepend('Select Category', '');
             $product_services = ProductService::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
@@ -990,7 +990,7 @@ class InvoiceController extends Controller
         if (\Auth::user()->can('create payment invoice')) {
             $invoice = Invoice::where('id', $invoice_id)->first();
 
-            $customers = Customer::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customers = Customer::forDocuments()->get()->pluck('name', 'id');
             $categories = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
 

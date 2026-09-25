@@ -28,6 +28,7 @@ class Customer extends Authenticatable
         'credit_limit',
         'price_level_id',
         'is_active',
+        'is_walk_in',
         'created_by',
         'email_verified_at',
         'billing_name',
@@ -62,6 +63,7 @@ class Customer extends Authenticatable
     ];
 
     protected $casts = [
+        'is_walk_in' => 'boolean',
         'notify_account_email' => 'boolean',
         'notify_account_sms' => 'boolean',
         'notify_account_whatsapp' => 'boolean',
@@ -72,6 +74,31 @@ class Customer extends Authenticatable
         'notify_invoice_sms' => 'boolean',
         'notify_invoice_whatsapp' => 'boolean',
     ];
+
+    /**
+     * Customers for proposals, invoices, quotations, CRM lists, etc.
+     * Excludes POS walk-in customers.
+     */
+    public function scopeForDocuments($query, $creatorId = null)
+    {
+        if ($creatorId === null && Auth::check()) {
+            $creatorId = Auth::user()->creatorId();
+        }
+
+        return $query->where('created_by', $creatorId)->where('is_walk_in', false);
+    }
+
+    /**
+     * All company customers including POS walk-ins (for POS dropdowns).
+     */
+    public function scopeForPos($query, $creatorId = null)
+    {
+        if ($creatorId === null && Auth::check()) {
+            $creatorId = Auth::user()->creatorId();
+        }
+
+        return $query->where('created_by', $creatorId);
+    }
 
     protected $hidden = [
         'password',

@@ -24,7 +24,7 @@ class CreditDebitNoteReportsController extends Controller
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 
-        $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $customers = Customer::forDocuments()->get()->pluck('name', 'id');
         $products = ProductService::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
 
         $query = CreditNote::with(['customerRelation', 'invoice_data', 'invoice_data.items.product'])
@@ -58,7 +58,7 @@ class CreditDebitNoteReportsController extends Controller
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 
-        $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $customers = Customer::forDocuments()->get()->pluck('name', 'id');
 
         $query = CreditNote::with(['customerRelation', 'invoice_data'])
             ->where('created_by', \Auth::user()->creatorId())

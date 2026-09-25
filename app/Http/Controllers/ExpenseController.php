@@ -135,7 +135,7 @@ class ExpenseController extends Controller
             $employees = Employee::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $employees->prepend('Select Employee', '');
 
-            $customers = Customer::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customers = Customer::forDocuments()->get()->pluck('name', 'id');
             $customers->prepend('Select Customer', '');
 
             $venders = Vender::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
@@ -504,7 +504,7 @@ class ExpenseController extends Controller
                 $employees = Employee::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
                 $employees->prepend('Select Employee', '');
 
-                $customers = Customer::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+                $customers = Customer::forDocuments()->get()->pluck('name', 'id');
                 $customers->prepend('Select Customer', '');
 
                 $product_services = ProductService::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');

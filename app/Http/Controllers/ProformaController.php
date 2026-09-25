@@ -40,7 +40,7 @@ class ProformaController extends Controller
             return response()->json(['error' => __('Permission denied.')], 401);
         }
 
-        $customers = Customer::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $customers = Customer::forDocuments()->get()->pluck('name', 'id');
         $customers->prepend('Select Customer', '');
         $warehouse = warehouse::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
         $warehouse->prepend('Select Warehouse', '');

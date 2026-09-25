@@ -37,7 +37,7 @@ class CustomerController extends Controller
     {
         if(\Auth::user()->can('manage customer'))
         {
-            $customers = Customer::where('created_by', \Auth::user()->creatorId())->get();
+            $customers = Customer::forDocuments()->get();
             return view('customer.index', compact('customers'));
         }
         else
@@ -126,6 +126,7 @@ class CustomerController extends Controller
                 $customer->credit_terms      =$request->credit_terms;
                 $customer->credit_limit      = $request->filled('credit_limit') ? $request->credit_limit : 0;
                 $customer->created_by      = \Auth::user()->creatorId();
+                $customer->is_walk_in      = false;
                 // $customer->billing_name    = $request->billing_name;
                 // $customer->billing_country = $request->billing_country;
                 // $customer->billing_state   = $request->billing_state;
@@ -295,6 +296,8 @@ class CustomerController extends Controller
         $customer->payment_type = 'cash';
         $customer->credit_terms = null;
         $customer->created_by = \Auth::user()->creatorId();
+        // POS walk-in: reusable in POS only; excluded from CRM / document customer lists
+        $customer->is_walk_in = true;
         $customer->lang = !empty($default_language) ? $default_language->value : '';
         $customer->bank_account = json_encode([]);
         $customer->save();
@@ -307,6 +310,7 @@ class CustomerController extends Controller
                 'name' => $customer->name,
                 'email' => $customer->email,
                 'contact' => $customer->contact,
+                'is_walk_in' => true,
             ],
         ]);
     }

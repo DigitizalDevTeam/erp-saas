@@ -421,10 +421,10 @@ class PosController extends Controller
                 }
             }
             session()->forget('pos');
-            $customers = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'name');
+            $customers = Customer::forPos()->get()->pluck('name', 'name');
             $customers->prepend('Walk-in-customer', '');
-            $customersForPos = Customer::where('created_by', \Auth::user()->creatorId())->get(['id', 'name', 'email', 'contact']);
-            $customersForPos = collect([(object)['id' => 0, 'name' => 'Walk-in-customer', 'email' => 'walkin@default.com', 'contact' => '0000000000']])->merge($customersForPos);
+            $customersForPos = Customer::forPos()->get(['id', 'name', 'email', 'contact', 'is_walk_in']);
+            $customersForPos = collect([(object)['id' => 0, 'name' => 'Walk-in-customer', 'email' => 'walkin@default.com', 'contact' => '0000000000', 'is_walk_in' => true]])->merge($customersForPos);
             // Retail POS: only retail branches (pos_type = retail or null)
             $retailBranchIds = Branch::where('created_by', $creatorId)->where('is_active', true)
                 ->where(function ($q) {
@@ -4934,10 +4934,10 @@ class PosController extends Controller
             }
         }
         session()->forget('pos');
-        $customers = Customer::where('created_by', $creatorId)->get()->pluck('name', 'name');
+        $customers = Customer::forPos($creatorId)->get()->pluck('name', 'name');
         $customers->prepend('Walk-in-customer', '');
-        $customersForPos = Customer::where('created_by', $creatorId)->get(['id', 'name', 'email', 'contact']);
-        $customersForPos = collect([(object) ['id' => 0, 'name' => 'Walk-in-customer', 'email' => 'walkin@default.com', 'contact' => '0000000000']])->merge($customersForPos);
+        $customersForPos = Customer::forPos($creatorId)->get(['id', 'name', 'email', 'contact', 'is_walk_in']);
+        $customersForPos = collect([(object) ['id' => 0, 'name' => 'Walk-in-customer', 'email' => 'walkin@default.com', 'contact' => '0000000000', 'is_walk_in' => true]])->merge($customersForPos);
         $posPinUser->loadMissing('branches');
         $branchScopeUser = $this->restaurantBranchScopeUser();
         $branchScopeUser->loadMissing('branches');

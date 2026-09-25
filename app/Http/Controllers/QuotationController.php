@@ -46,7 +46,7 @@ class QuotationController extends Controller
     {
         if(\Auth::user()->can('create quotation'))
         {
-            $customers     = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customers     = Customer::forDocuments()->get()->pluck('name', 'id');
             $customers->prepend('Select Customer', '');
 
             $venders = Vender::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');

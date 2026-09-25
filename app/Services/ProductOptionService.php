@@ -218,10 +218,50 @@ class ProductOptionService
     }
 
     /**
+     * Catalog (shelf) sale/purchase total for parent + selected options.
+     * Uses stored catalog amounts so inclusive packages stay exact (650+180=830).
+     *
+     * @param  array<int, array{product_id: int, quantity: float, price?: float}>  $selected
+     */
+    public static function calculateCatalogInclusiveTotal(ProductService $parent, array $selected, bool $forPurchase = false): float
+    {
+        $sum = $forPurchase
+            ? (float) ($parent->purchase_price ?? 0)
+            : (float) ($parent->sale_price ?? 0);
+
+        foreach ($selected as $row) {
+            $optId = (int) ($row['product_id'] ?? 0);
+            $optQty = (float) ($row['quantity'] ?? 1);
+            if ($optId <= 0 || $optQty <= 0) {
+                continue;
+            }
+            $opt = ProductService::find($optId);
+            if (! $opt) {
+                continue;
+            }
+            $p = $forPurchase
+                ? (float) ($opt->purchase_price ?? 0)
+                : (float) ($opt->sale_price ?? 0);
+            $sum += $p * $optQty;
+        }
+
+        return round($sum, 2);
+    }
+
+    /**
      * @param  array<int, array{product_id: int, quantity: float, price?: float}>  $selected
      */
     public static function calculateUnitPrice(ProductService $parent, array $selected, bool $forPurchase = false): float
     {
+        // Inclusive catalog: sum shelf prices first, then strip VAT once (avoids 829.99 vs 830.00).
+        if (! $forPurchase && $parent->isSalePriceInclusive()) {
+            $taxRate = ! empty($parent->tax_id) ? (float) $parent->taxRate($parent->tax_id) : 0.0;
+            $inclusive = self::calculateCatalogInclusiveTotal($parent, $selected, false);
+            if ($inclusive > 0 && $taxRate > 0) {
+                return round($inclusive / (1 + ($taxRate / 100)), 2);
+            }
+        }
+
         $base = $forPurchase
             ? $parent->exclusivePurchaseUnitPrice()
             : $parent->exclusiveSaleUnitPrice();

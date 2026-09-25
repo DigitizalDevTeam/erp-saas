@@ -13,12 +13,12 @@ class CustomerExport implements FromCollection, WithHeadings
      */
     public function collection()
     {
-        $data = Customer::where('created_by', \Auth::user()->creatorId())->get();
+        $data = Customer::forDocuments()->get();
 
         foreach($data as $k => $customer)
         {
             unset($customer->id,$customer->password,$customer->avatar,
-            $customer->tax_number,$customer->is_active, $customer->lang,
+            $customer->tax_number,$customer->is_active, $customer->is_walk_in, $customer->lang,
             $customer->created_by, $customer->email_verified_at, $customer->remember_token,
             $customer->created_at,$customer->updated_at);
             $data[$k]["customer_id"] = \Auth::user()->customerNumberFormat($customer->customer_id);

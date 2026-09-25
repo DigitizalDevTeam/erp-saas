@@ -303,7 +303,7 @@
                 </div>
                 <select class="form-control form-control-sm select pos-restaurant-customer-select d-none" id="pos-restaurant-customer" required>
                     @foreach($customersForPos as $c)
-                        <option value="{{ $c->name }}" data-email="{{ e($c->email ?? '') }}" data-contact="{{ e($c->contact ?? '') }}" data-type="{{ $c->name === 'Walk-in-customer' ? 'walk-in' : 'customer' }}" {{ (($customer ?? '') === $c->name || (($customer ?? '') === '' && $c->name === 'Walk-in-customer')) ? 'selected' : '' }}>{{ $c->name }}</option>
+                        <option value="{{ $c->name }}" data-email="{{ e($c->email ?? '') }}" data-contact="{{ e($c->contact ?? '') }}" data-type="{{ (($c->name === 'Walk-in-customer') || !empty($c->is_walk_in)) ? 'walk-in' : 'customer' }}" {{ (($customer ?? '') === $c->name || (($customer ?? '') === '' && $c->name === 'Walk-in-customer')) ? 'selected' : '' }}>{{ $c->name }}</option>
                     @endforeach
                 </select>
                 {{ Form::hidden('vc_name_hidden_restaurant', ($customer ?? '') ?: 'Walk-in-customer', ['id' => 'pos-restaurant-vc-name-hidden']) }}
@@ -315,7 +315,7 @@
                             <small class="text-muted d-block text-truncate" id="pos-restaurant-customer-email">{{ $selCustomer->email ?? 'walkin@default.com' }}</small>
                             <small class="text-muted d-block" id="pos-restaurant-customer-phone">{{ $selCustomer->contact ?? '0000000000' }}</small>
                         </div>
-                        <span class="badge bg-light text-dark border" id="pos-restaurant-customer-badge">{{ $selCustomer && $selCustomer->name === 'Walk-in-customer' ? __('Walk-in') : __('Customer') }}</span>
+                        <span class="badge bg-light text-dark border" id="pos-restaurant-customer-badge">{{ ($selCustomer && ($selCustomer->name === 'Walk-in-customer' || !empty($selCustomer->is_walk_in))) ? __('Walk-in') : __('Customer') }}</span>
                     </div>
                     <div id="pos-restaurant-customer-balance-wrap" class="mt-2 pt-2 border-top d-none">
                         <div class="d-flex justify-content-between align-items-center small">

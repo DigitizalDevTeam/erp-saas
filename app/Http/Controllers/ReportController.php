@@ -71,7 +71,7 @@ class ReportController extends Controller
         if (\Auth::user()->can('income report')) {
             $account = BankAccount::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('holder_name', 'id');
             $account->prepend('All', '');
-            $customer = Customer::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customer = Customer::forDocuments()->get()->pluck('name', 'id');
             $customer->prepend('Select Customer', '');
             $category = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())->where('type', '=', 'income')->get()->pluck('name', 'id');
             $category->prepend('Select Category', '');
@@ -525,7 +525,7 @@ class ReportController extends Controller
             $account->prepend('Select Account', '');
             $vender = Vender::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $vender->prepend('Select Vendor', '');
-            $customer = Customer::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customer = Customer::forDocuments()->get()->pluck('name', 'id');
             $customer->prepend('Select Customer', '');
 
             $category = ProductServiceCategory::where('created_by', '=', \Auth::user()->creatorId())->whereIn(
@@ -991,7 +991,7 @@ class ReportController extends Controller
             $filter['customer'] = __('All');
             $filter['status'] = __('All');
 
-            $customer = Customer::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customer = Customer::forDocuments()->get()->pluck('name', 'id');
             $customer->prepend('Select Customer', '');
             $status = Invoice::$statues;
 
@@ -2462,7 +2462,7 @@ class ReportController extends Controller
             $warehouse = warehouse::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $warehouse->prepend('All Warehouse', 0);
 
-            $customer = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customer = Customer::forDocuments()->get()->pluck('name', 'id');
             $customer->prepend('All Customer', 0);
             $query = Pos::where('created_by', '=', \Auth::user()->creatorId());
             if (!empty($request->warehouse)) {
@@ -2528,7 +2528,7 @@ class ReportController extends Controller
 
             $warehouse = warehouse::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $warehouse->prepend('All Warehouse', 0);
-            $customer = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customer = Customer::forDocuments()->get()->pluck('name', 'id');
             $customer->prepend('All Customer', 0);
             $query = Pos::where('created_by', '=', \Auth::user()->creatorId());
             if (!empty($request->warehouse)) {
@@ -4640,7 +4640,7 @@ class ReportController extends Controller
         $customerId = $request->get('customer_id');
 
         $branches = Branch::where('created_by', $creatorId)->where('is_active', true)->orderBy('name')->get(['id', 'name']);
-        $customers = Customer::where('created_by', $creatorId)->orderBy('name')->get(['id', 'name']);
+        $customers = Customer::forDocuments($creatorId)->orderBy('name')->get(['id', 'name']);
 
         $baseInvoiceQuery = Invoice::query()
             ->where('invoices.created_by', $creatorId)

@@ -1668,13 +1668,19 @@ class ProductServiceController extends Controller
             $tax = round(($productprice * $producttax) / 100, 2);
             $subtotal = round($productprice + $tax, 2);
             // Prefer exact shelf total when price came from inclusive catalog (avoids 0.01 drift)
-            if ($isPosSession && ! $usedMeasuredPrice && $selectedOptions === [] && $product->isSalePriceInclusive() && $producttax > 0) {
-                $catalogInclusive = (float) ($product->sale_price ?? 0);
-                if ($variantId !== null && isset($vrD) && $vrD && $vrD->sale_price !== null) {
-                    $catalogInclusive = (float) $vrD->sale_price;
+            // Also applies to product+options packages: sum inclusive first (650+180=830), then derive exclusive.
+            if ($isPosSession && ! $usedMeasuredPrice && $product->isSalePriceInclusive() && $producttax > 0) {
+                if ($selectedOptions !== []) {
+                    $catalogInclusive = ProductOptionService::calculateCatalogInclusiveTotal($product, $selectedOptions);
+                } else {
+                    $catalogInclusive = (float) ($product->sale_price ?? 0);
+                    if ($variantId !== null && isset($vrD) && $vrD && $vrD->sale_price !== null) {
+                        $catalogInclusive = (float) $vrD->sale_price;
+                    }
                 }
                 if ($catalogInclusive > 0) {
                     $subtotal = round($catalogInclusive, 2);
+                    $productprice = round($subtotal / (1 + ($producttax / 100)), 2);
                     $tax = round($subtotal - $productprice, 2);
                 }
             }

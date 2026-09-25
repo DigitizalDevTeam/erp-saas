@@ -38,7 +38,7 @@ class ProposalController extends Controller
         if(\Auth::user()->can('manage proposal'))
         {
 
-            $customer = Customer::where('created_by', '=', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customer = Customer::forDocuments()->get()->pluck('name', 'id');
             $customer->prepend('All', '');
 
             $status = Proposal::$statues;
@@ -75,7 +75,7 @@ class ProposalController extends Controller
         {
             $customFields    = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'proposal')->get();
             $proposal_number = \Auth::user()->proposalNumberFormat($this->proposalNumber());
-            $customers       = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customers       = Customer::forDocuments()->get()->pluck('name', 'id');
             $customers->prepend('Select Customer', '');
             $category = ProductServiceCategory::where('created_by', \Auth::user()->creatorId())->where('type', 'income')->get()->pluck('name', 'id');
             $category->prepend('Select Category', '');
@@ -208,7 +208,7 @@ class ProposalController extends Controller
             $id              = Crypt::decrypt($ids);
             $proposal        = Proposal::find($id);
             $proposal_number = \Auth::user()->proposalNumberFormat($proposal->proposal_id);
-            $customers       = Customer::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
+            $customers       = Customer::forDocuments()->get()->pluck('name', 'id');
             $category        = ProductServiceCategory::where('created_by', \Auth::user()->creatorId())->where('type', 'income')->get()->pluck('name', 'id');
             $category->prepend('Select Category', '');
             $product_services = ProductService::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');

@@ -702,7 +702,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
             $users = User::where('created_by', '=', $user_id)->where('type', '!=', 'super admin')->where('type', '!=', 'company')->where('type', '!=', 'client')->get();
             $clients = User::where('created_by', '=', $user_id)->where('type', 'client')->get();
-            $customers = Customer::where('created_by', '=', $user_id)->get();
+            $customers = Customer::where('created_by', '=', $user_id)->where('is_walk_in', false)->get();
             $venders = Vender::where('created_by', '=', $user_id)->get();
 
             if ($plan->max_users == -1) {
@@ -836,7 +836,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function countCustomers()
     {
-        return Customer::where('created_by', '=', $this->creatorId())->count();
+        return Customer::where('created_by', '=', $this->creatorId())->where('is_walk_in', false)->count();
     }
 
     public function countVenders()
@@ -1136,7 +1136,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function totalCompanyCustomer($id)
     {
-        return Customer::where('created_by', '=', $id)->count();
+        return Customer::where('created_by', '=', $id)->where('is_walk_in', false)->count();
     }
 
     public function totalCompanyVender($id)

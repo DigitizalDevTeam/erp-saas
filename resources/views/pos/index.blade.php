@@ -554,7 +554,7 @@
                             </div>
                             <select class="form-control form-control-sm select customer_select d-none" id="customer" required>
                                 @foreach($customersForPos as $c)
-                                    <option value="{{ $c->name }}" data-email="{{ e($c->email ?? '') }}" data-contact="{{ e($c->contact ?? '') }}" data-type="{{ $c->name === 'Walk-in-customer' ? 'walk-in' : 'customer' }}" {{ (($customer ?? '') === $c->name || (($customer ?? '') === '' && $c->name === 'Walk-in-customer')) ? 'selected' : '' }}>{{ $c->name }}</option>
+                                    <option value="{{ $c->name }}" data-email="{{ e($c->email ?? '') }}" data-contact="{{ e($c->contact ?? '') }}" data-type="{{ (($c->name === 'Walk-in-customer') || !empty($c->is_walk_in)) ? 'walk-in' : 'customer' }}" {{ (($customer ?? '') === $c->name || (($customer ?? '') === '' && $c->name === 'Walk-in-customer')) ? 'selected' : '' }}>{{ $c->name }}</option>
                                 @endforeach
                             </select>
                             {{ Form::hidden('vc_name_hidden', ($customer ?? '') ?: 'Walk-in-customer', ['id' => 'vc_name_hidden']) }}
@@ -568,7 +568,7 @@
                                         <small class="text-muted d-block text-truncate" id="pos-customer-email">{{ $selCustomer->email ?? 'walkin@default.com' }}</small>
                                         <small class="text-muted d-block" id="pos-customer-phone">{{ $selCustomer->contact ?? '0000000000' }}</small>
                                     </div>
-                                    <span class="badge bg-light text-dark border" id="pos-customer-badge">{{ $selCustomer && $selCustomer->name === 'Walk-in-customer' ? __('Walk-in') : __('Customer') }}</span>
+                                    <span class="badge bg-light text-dark border" id="pos-customer-badge">{{ ($selCustomer && ($selCustomer->name === 'Walk-in-customer' || !empty($selCustomer->is_walk_in))) ? __('Walk-in') : __('Customer') }}</span>
                                 </div>
                                 <div id="pos-customer-balance-wrap" class="mt-2 pt-2 border-top d-none">
                                     <div class="d-flex justify-content-between align-items-center small">
@@ -2372,8 +2372,8 @@
                 $('#pos-customer-phone').text(contact);
                 $('#pos-customer-badge').text(type === 'walk-in' ? '{{ __("Walk-in") }}' : '{{ __("Customer") }}');
                 $('#vc_name_hidden').val($('#customer').val());
-                // Show Edit only when Walk-in customer is selected (retail: add new customer)
-                var isWalkIn = ($('#customer').val() || '').toString() === 'Walk-in-customer' || type === 'walk-in';
+                // Show Edit only when default Walk-in customer is selected (add new POS walk-in)
+                var isWalkIn = ($('#customer').val() || '').toString() === 'Walk-in-customer';
                 $('#pos-customer-edit').toggleClass('d-none', !isWalkIn);
                 // Fetch and show customer balance when a real customer is selected
                 posFetchCustomerBalance();
@@ -2514,7 +2514,7 @@
                         if (res.success && res.customer) {
                             var c = res.customer;
                             var $opt = $('<option></option>').attr('value', c.name).text(c.name)
-                                .attr('data-email', c.email || '').attr('data-contact', c.contact || '').attr('data-type', 'customer');
+                                .attr('data-email', c.email || '').attr('data-contact', c.contact || '').attr('data-type', 'walk-in');
                             $('#customer').append($opt).val(c.name).addClass('d-none');
                             posUpdateCustomerCard();
                             $('#posNewCustomerModal').modal('hide');

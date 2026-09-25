@@ -417,7 +417,7 @@ class PurchaseQuotationController extends Controller
                 ->with('info', __('Proforma already exists for this vendor quote.'));
         }
 
-        $customers = \App\Models\Customer::where('created_by', Auth::user()->creatorId())->get()->pluck('name', 'id');
+        $customers = \App\Models\Customer::forDocuments()->get()->pluck('name', 'id');
         $customers->prepend(__('Select Customer'), '');
 
         return view('vendor_quote.convert_proforma', compact('quote', 'customers'));
