@@ -54,4 +54,13 @@ class PosPrintRoutingServiceTest extends TestCase
 
         $this->assertSame('bar', PosPrintRoutingService::resolvePrintZoneForProduct($product));
     }
+
+    public function test_infers_bar_from_portuguese_category_name(): void
+    {
+        $cat = new ProductServiceCategory(['name' => 'Cervejas']);
+        $product = new ProductService(['name' => 'Cappy Maracuja']);
+        $product->setRelation('category', $cat);
+
+        $this->assertSame('bar', PosPrintRoutingService::resolvePrintZoneForProduct($product));
+    }
 }

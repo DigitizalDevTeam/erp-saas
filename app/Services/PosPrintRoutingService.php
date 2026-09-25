@@ -17,6 +17,11 @@ class PosPrintRoutingService
     private const BAR_CATEGORY_KEYWORDS = [
         'drink', 'drinks', 'beverage', 'beverages', 'bar', 'cocktail', 'beer', 'wine',
         'spirit', 'liquor', 'alcohol', 'soft drink', 'soda', 'juice', 'mocktail', 'coffee', 'tea',
+        // Portuguese (and common menu labels)
+        'cerveja', 'cervejas', 'bebida', 'bebidas', 'bebida loca', 'bebidas quentes',
+        'cocktail list', 'espirituosa', 'espirituosas', 'espumante', 'espumantes',
+        'digestivo', 'digestivos', 'agua', 'aguas', 'águas', 'vinho', 'vinhos',
+        'sumo', 'sumos', 'refresco', 'refrescos', 'whisky', 'vodka', 'gin', 'rum',
     ];
 
     public static function normalizePrintZone(?string $zone): string
@@ -54,7 +59,7 @@ class PosPrintRoutingService
             $category = ProductServiceCategory::find($parentId);
         }
 
-        $categoryName = strtolower((string) ($product->category->name ?? ''));
+        $categoryName = mb_strtolower((string) ($product->category->name ?? ''), 'UTF-8');
         if ($categoryName !== '' && self::categoryNameSuggestsBar($categoryName)) {
             return PosProduct::PRINT_ZONE_BAR;
         }

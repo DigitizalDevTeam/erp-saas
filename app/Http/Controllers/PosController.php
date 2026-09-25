@@ -25,6 +25,7 @@ use App\Services\ProductOptionService;
 use App\Services\PosFefoDeductionService;
 use App\Services\PosRecipeDeductionService;
 use App\Services\PosPrintRoutingService;
+use App\Services\PosPrinterAgentService;
 use App\Services\PosRestaurantRoleService;
 use App\Services\PosToInvoiceService;
 use App\Models\QuotationProduct;
@@ -3122,14 +3123,22 @@ class PosController extends Controller
                 'print_zone' => $printZone,
                 'pos_printer_id' => $resolvedPrinterId,
             ]);
-            $printLines[] = [
+            $selectedOpts = ProductOptionService::normalizeSelectedOptions(
+                $item['selected_options'] ?? $item['selected_options_json'] ?? $line->selected_options_json
+            );
+            $details = PosPrinterAgentService::buildLineProductDetails(
+                $product,
+                $variantId ? (int) $variantId : null,
+                $selectedOpts,
+                (string) ($line->description ?? ''),
+                (float) $line->price,
+                (int) $line->quantity
+            );
+            $printLines[] = array_merge($details, [
                 'line_id' => (int) $line->id,
-                'name' => (string) ($product->name ?? ''),
-                'qty' => (int) $line->quantity,
-                'note' => (string) ($line->description ?? ''),
                 'print_zone' => (string) $printZone,
                 'pos_printer_id' => $resolvedPrinterId ? (int) $resolvedPrinterId : null,
-            ];
+            ]);
         }
 
         // Clear all related session cart keys so ghost unsent lines cannot be re-sent/reprinted.
@@ -3163,12 +3172,31 @@ class PosController extends Controller
             __('Order sent to production'),
             ['table_id' => $pos->table_id, 'order_type' => $pos->order_type, 'items_count' => count($request->items), 'prep_minutes' => $prepMinutes]
         );
+
+        $browserPrintJobs = PosPrintRoutingService::buildProductionPrintJobs($branchId, $creatorId, $printLines);
+
+        // Additive agent queue (does not replace browser print_jobs fallback).
+        try {
+            PosPrinterAgentService::enqueueProductionJobs(
+                $branchId,
+                $creatorId,
+                (int) $pos->id,
+                $printLines,
+                PosPrinterAgentService::buildOrderHeader($pos)
+            );
+        } catch (\Throwable $e) {
+            \Log::warning('POS printer agent enqueue failed: ' . $e->getMessage(), [
+                'pos_id' => $pos->id,
+                'branch_id' => $branchId,
+            ]);
+        }
+
         return response()->json([
             'success' => true,
             'message' => __('Order sent to production.'),
             'pos_id' => $pos->id,
             'prep_minutes' => $prepMinutes,
-            'print_jobs' => PosPrintRoutingService::buildProductionPrintJobs($branchId, $creatorId, $printLines),
+            'print_jobs' => $browserPrintJobs,
         ]);
     }
 

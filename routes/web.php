@@ -115,6 +115,7 @@ use App\Http\Controllers\PlanController;
 use App\Http\Controllers\PlanRequestController;
 use App\Http\Controllers\PosAreaController;
 use App\Http\Controllers\PosController;
+use App\Http\Controllers\PosPrinterAgentController;
 use App\Http\Controllers\PosShiftController;
 use App\Http\Controllers\BranchSalesTargetController;
 use App\Http\Controllers\PosPrinterController;
@@ -2395,6 +2396,9 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos/restaurant/order', [PosController::class, 'getRestaurantOrder'])->name('pos.restaurant.order')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant/delivery-takeaway-orders', [PosController::class, 'getRestaurantDeliveryTakeawayOrders'])->name('pos.restaurant.delivery-takeaway-orders')->middleware(['auth', 'XSS']);
     Route::post('pos/send-to-production', [PosController::class, 'sendToProduction'])->name('pos.send.to.production')->middleware(['auth', 'XSS']);
+    Route::get('pos/restaurant/agent-printers', [PosPrinterAgentController::class, 'agentPrinters'])->name('pos.restaurant.agent-printers')->middleware(['auth', 'XSS']);
+    Route::get('pos/restaurant/agent-status', [PosPrinterAgentController::class, 'agentStatus'])->name('pos.restaurant.agent-status')->middleware(['auth', 'XSS']);
+    Route::post('pos/restaurant/print-config', [PosPrinterAgentController::class, 'savePrintConfig'])->name('pos.restaurant.print-config')->middleware(['auth', 'XSS']);
     Route::post('pos/cancel-order', [PosController::class, 'cancelOrder'])->name('pos.cancel.order')->middleware(['auth', 'XSS']);
     Route::get('pos/active-shift', [PosController::class, 'getActiveShift'])->name('pos.active.shift')->middleware(['auth', 'XSS']);
     Route::get('pos/branch-open-shifts', [PosController::class, 'getBranchOpenShifts'])->name('pos.branch.open.shifts')->middleware(['auth', 'XSS']);

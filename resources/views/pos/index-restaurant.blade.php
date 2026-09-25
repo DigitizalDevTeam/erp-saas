@@ -2833,6 +2833,151 @@
                 w.print();
                 w.onafterprint = function() { w.close(); };
             });
+
+            function posFillPrinterSelect($select, printers, selectedId) {
+                var placeholder = '{{ __("Select printer") }}';
+                $select.empty().append($('<option></option>').val('').text(placeholder));
+                (printers || []).forEach(function (p) {
+                    var label = p.display_name || p.system_name || ('#' + p.id);
+                    var $opt = $('<option></option>').val(p.id).text(label);
+                    if (selectedId && String(selectedId) === String(p.id)) {
+                        $opt.prop('selected', true);
+                    }
+                    $select.append($opt);
+                });
+            }
+
+            var posPrinterAgentStatusTimer = null;
+
+            function posSetPrinterAgentStatusBadge(agent) {
+                var $badge = $('#pos-printer-agent-status-badge');
+                var online = !!(agent && agent.online);
+                if (online) {
+                    $badge.removeClass('bg-secondary bg-danger').addClass('bg-success').text('{{ __("Online") }}');
+                } else {
+                    $badge.removeClass('bg-success bg-danger').addClass('bg-secondary').text('{{ __("Offline") }}');
+                }
+            }
+
+            function posRefreshPrinterAgentStatus() {
+                var branchId = $('#pos-restaurant-branch').val() || $('#pos_branch_id_hidden').val();
+                if (!branchId) {
+                    posSetPrinterAgentStatusBadge({ online: false });
+                    return;
+                }
+                $.ajax({
+                    url: '{{ route("pos.restaurant.agent-status") }}',
+                    type: 'GET',
+                    data: { branch_id: branchId },
+                    success: function (res) {
+                        posSetPrinterAgentStatusBadge((res && res.agent) ? res.agent : { online: false });
+                    },
+                    error: function () {
+                        posSetPrinterAgentStatusBadge({ online: false });
+                    }
+                });
+            }
+
+            function posStartPrinterAgentStatusPolling() {
+                posStopPrinterAgentStatusPolling();
+                posRefreshPrinterAgentStatus();
+                posPrinterAgentStatusTimer = setInterval(posRefreshPrinterAgentStatus, 2000);
+            }
+
+            function posStopPrinterAgentStatusPolling() {
+                if (posPrinterAgentStatusTimer) {
+                    clearInterval(posPrinterAgentStatusTimer);
+                    posPrinterAgentStatusTimer = null;
+                }
+            }
+
+            function posLoadPrinterConfigModal() {
+                var branchId = $('#pos-restaurant-branch').val() || $('#pos_branch_id_hidden').val();
+                if (!branchId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("Please select a branch.") }}', 'error');
+                    return;
+                }
+                var $kitchen = $('#pos-kitchen-printer-select');
+                var $bar = $('#pos-bar-printer-select');
+                var $empty = $('#pos-printer-config-empty');
+                $kitchen.prop('disabled', true);
+                $bar.prop('disabled', true);
+                $empty.addClass('d-none');
+                posSetPrinterAgentStatusBadge({ online: false });
+
+                $.ajax({
+                    url: '{{ route("pos.restaurant.agent-printers") }}',
+                    type: 'GET',
+                    data: { branch_id: branchId },
+                    success: function (res) {
+                        var printers = (res && res.printers) ? res.printers : [];
+                        var config = (res && res.config) ? res.config : {};
+                        posFillPrinterSelect($kitchen, printers, config.kitchen_printer_id || null);
+                        posFillPrinterSelect($bar, printers, config.bar_printer_id || null);
+                        $kitchen.prop('disabled', false);
+                        $bar.prop('disabled', false);
+                        if (!printers.length) {
+                            $empty.removeClass('d-none');
+                        }
+                        posSetPrinterAgentStatusBadge((res && res.agent) ? res.agent : { online: false });
+                        var modalEl = document.getElementById('posPrinterConfigModal');
+                        if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                        } else {
+                            $('#posPrinterConfigModal').modal('show');
+                        }
+                        posStartPrinterAgentStatusPolling();
+                    },
+                    error: function (xhr) {
+                        var msg = posRestaurantAjaxErrorMsg(xhr, '{{ __("pos.error") }}');
+                        show_toastr('{{ __("Error") }}', msg, 'error');
+                    }
+                });
+            }
+
+            $(document).on('click', '#pos-printer-config-btn', function () {
+                posLoadPrinterConfigModal();
+            });
+
+            $(document).on('hidden.bs.modal', '#posPrinterConfigModal', function () {
+                posStopPrinterAgentStatusPolling();
+            });
+
+            $(document).on('click', '#pos-printer-config-save-btn', function () {
+                var branchId = $('#pos-restaurant-branch').val() || $('#pos_branch_id_hidden').val();
+                if (!branchId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("Please select a branch.") }}', 'error');
+                    return;
+                }
+                var $btn = $(this);
+                $btn.prop('disabled', true);
+                $.ajax({
+                    url: '{{ route("pos.restaurant.print-config") }}',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        branch_id: branchId,
+                        kitchen_printer_id: $('#pos-kitchen-printer-select').val() || '',
+                        bar_printer_id: $('#pos-bar-printer-select').val() || ''
+                    },
+                    success: function (res) {
+                        show_toastr('{{ __("Success") }}', (res && res.message) ? res.message : '{{ __("Printer configuration saved.") }}', 'success');
+                        var modalEl = document.getElementById('posPrinterConfigModal');
+                        if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                        } else {
+                            $('#posPrinterConfigModal').modal('hide');
+                        }
+                    },
+                    error: function (xhr) {
+                        var msg = posRestaurantAjaxErrorMsg(xhr, '{{ __("pos.error") }}');
+                        show_toastr('{{ __("Error") }}', msg, 'error');
+                    },
+                    complete: function () {
+                        $btn.prop('disabled', false);
+                    }
+                });
+            });
             $(document).on('click','.pay-receipt-print',function(){
                 var pos_id = $(this).data('id');
                 $('#commonModal .modal-dialog').addClass('modal-sm');

@@ -363,6 +363,11 @@
                                         aria-label="{{ __('pos.print_kitchen_slip') }}">
                                     <i class="ti ti-printer"></i>
                                 </button>
+                                <button type="button" class="btn btn-sm btn-outline-primary m-0" id="pos-printer-config-btn"
+                                        title="{{ __('Print') }}">
+                                    <i class="ti ti-printer me-1"></i>
+                                    <span class="pos-invoice-btn-label">{{ __('Print') }}</span>
+                                </button>
                                 @if($canShowPayButton ?? true)
                                     <button type="button" id="pos-pay-btn-restaurant"
                                             class="btn btn-sm btn-success pos-invoice-btn-pay m-0"
@@ -703,6 +708,48 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
                 <button type="button" class="btn btn-success" id="pos-prep-time-confirm-btn">
                     <i class="ti ti-send me-1"></i>{{ __('Send to production') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Kitchen / Bar printer configuration (agent printers) --}}
+<div class="modal fade" id="posPrinterConfigModal" tabindex="-1" aria-labelledby="posPrinterConfigModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="posPrinterConfigModalLabel">{{ __('Printer Settings') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-center justify-content-between mb-3 p-2 border rounded bg-light">
+                    <span class="fw-semibold">{{ __('Printer Agent Status') }}</span>
+                    <span id="pos-printer-agent-status-badge" class="badge bg-secondary">{{ __('Offline') }}</span>
+                </div>
+                <p class="text-muted small mb-3">
+                    {{ __('Select Kitchen and Bar printers discovered by the printer agent on this branch.') }}
+                </p>
+                <div class="mb-3">
+                    <label class="form-label" for="pos-kitchen-printer-select">{{ __('Kitchen Printer') }}</label>
+                    <select id="pos-kitchen-printer-select" class="form-select">
+                        <option value="">{{ __('Select printer') }}</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="pos-bar-printer-select">{{ __('Bar Printer') }}</label>
+                    <select id="pos-bar-printer-select" class="form-select">
+                        <option value="">{{ __('Select printer') }}</option>
+                    </select>
+                </div>
+                <div id="pos-printer-config-empty" class="alert alert-warning d-none mb-0">
+                    {{ __('Install and start the printer agent to sync printers. Until then, browser printing remains available as a fallback.') }}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="pos-printer-config-save-btn">
+                    <i class="ti ti-device-floppy me-1"></i>{{ __('Save') }}
                 </button>
             </div>
         </div>
