@@ -2,6 +2,8 @@
 
 Standalone Windows app that connects to your ERP with **only the Base URL** (no login / API token), loads branches into a dropdown, syncs local printers, and polls kitchen/bar print jobs every 2 seconds.
 
+> **After `git pull`:** see full setup steps in [SETUP.md](SETUP.md).
+
 ## Client setup
 
 1. Run `PosPrinterAgent.exe`.
