@@ -11,6 +11,12 @@ class PosBranchPrintConfig extends Model
         'created_by',
         'kitchen_printer_id',
         'bar_printer_id',
+        'default_printer_id',
+        'use_print_agent_for_invoice',
+    ];
+
+    protected $casts = [
+        'use_print_agent_for_invoice' => 'boolean',
     ];
 
     public function branch()
@@ -26,5 +32,10 @@ class PosBranchPrintConfig extends Model
     public function barPrinter()
     {
         return $this->belongsTo(PosAgentPrinter::class, 'bar_printer_id');
+    }
+
+    public function defaultPrinter()
+    {
+        return $this->belongsTo(PosAgentPrinter::class, 'default_printer_id');
     }
 }

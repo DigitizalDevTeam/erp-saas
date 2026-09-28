@@ -8,6 +8,7 @@ class PosPrintJob extends Model
 {
     public const ZONE_KITCHEN = 'kitchen';
     public const ZONE_BAR = 'bar';
+    public const ZONE_RECEIPT = 'receipt';
 
     public const STATUS_PENDING = 'pending';
     public const STATUS_PRINTING = 'printing';

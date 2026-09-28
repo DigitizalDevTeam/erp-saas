@@ -723,10 +723,21 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="d-flex align-items-center justify-content-between mb-3 p-2 border rounded bg-light">
+                <div class="d-flex align-items-center justify-content-between mb-3 p-2 border rounded bg-light gap-2 flex-wrap">
                     <span class="fw-semibold">{{ __('Printer Agent Status') }}</span>
-                    <span id="pos-printer-agent-status-badge" class="badge bg-secondary">{{ __('Offline') }}</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="pos-printer-agent-status-badge" class="badge bg-secondary">{{ __('Offline') }}</span>
+                        <a href="{{ asset('downloads/print-agent/PosPrinterAgent.zip') }}"
+                           class="btn btn-sm btn-outline-success"
+                           id="pos-download-print-agent-btn"
+                           download="PosPrinterAgent.zip">
+                            <i class="ti ti-download me-1"></i>{{ __('pos.download_print_agent') }}
+                        </a>
+                    </div>
                 </div>
+                <p class="text-muted small mb-3">
+                    {{ __('pos.download_print_agent_help') }}
+                </p>
                 <p class="text-muted small mb-3">
                     {{ __('Select Kitchen and Bar printers discovered by the printer agent on this branch.') }}
                 </p>
@@ -741,6 +752,18 @@
                     <select id="pos-bar-printer-select" class="form-select">
                         <option value="">{{ __('Select printer') }}</option>
                     </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="pos-default-printer-select">{{ __('Default Printer for Other Prints') }}</label>
+                    <select id="pos-default-printer-select" class="form-select">
+                        <option value="">{{ __('Select printer') }}</option>
+                    </select>
+                    <small class="text-muted">{{ __('Used for bills, invoices, receipts, and other non-kitchen/bar prints via the Print Agent.') }}</small>
+                </div>
+                <div class="mb-3 form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="pos-use-print-agent-invoice" value="1">
+                    <label class="form-check-label" for="pos-use-print-agent-invoice">{{ __('pos.use_print_agent_for_invoice') }}</label>
+                    <div class="form-text">{{ __('pos.use_print_agent_for_invoice_help') }}</div>
                 </div>
                 <div id="pos-printer-config-empty" class="alert alert-warning d-none mb-0">
                     {{ __('Install and start the printer agent to sync printers. Until then, browser printing remains available as a fallback.') }}

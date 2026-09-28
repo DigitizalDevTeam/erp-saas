@@ -2399,6 +2399,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos/restaurant/agent-printers', [PosPrinterAgentController::class, 'agentPrinters'])->name('pos.restaurant.agent-printers')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant/agent-status', [PosPrinterAgentController::class, 'agentStatus'])->name('pos.restaurant.agent-status')->middleware(['auth', 'XSS']);
     Route::post('pos/restaurant/print-config', [PosPrinterAgentController::class, 'savePrintConfig'])->name('pos.restaurant.print-config')->middleware(['auth', 'XSS']);
+    Route::post('pos/restaurant/print-receipt', [PosPrinterAgentController::class, 'printReceipt'])->name('pos.restaurant.print-receipt')->middleware(['auth', 'XSS']);
     Route::post('pos/cancel-order', [PosController::class, 'cancelOrder'])->name('pos.cancel.order')->middleware(['auth', 'XSS']);
     Route::get('pos/active-shift', [PosController::class, 'getActiveShift'])->name('pos.active.shift')->middleware(['auth', 'XSS']);
     Route::get('pos/branch-open-shifts', [PosController::class, 'getBranchOpenShifts'])->name('pos.branch.open.shifts')->middleware(['auth', 'XSS']);

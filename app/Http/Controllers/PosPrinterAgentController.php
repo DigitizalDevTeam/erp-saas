@@ -55,6 +55,8 @@ class PosPrinterAgentController extends Controller
             'config' => [
                 'kitchen_printer_id' => $config ? $config->kitchen_printer_id : null,
                 'bar_printer_id' => $config ? $config->bar_printer_id : null,
+                'default_printer_id' => $config ? $config->default_printer_id : null,
+                'use_print_agent_for_invoice' => $config ? (bool) $config->use_print_agent_for_invoice : false,
             ],
             'agent' => PosPrinterAgentService::agentStatusForBranch($branchId, $creatorId),
         ]);
@@ -98,6 +100,8 @@ class PosPrinterAgentController extends Controller
             'branch_id' => 'required|integer|exists:branches,id',
             'kitchen_printer_id' => 'nullable|integer',
             'bar_printer_id' => 'nullable|integer',
+            'default_printer_id' => 'nullable|integer',
+            'use_print_agent_for_invoice' => 'nullable|boolean',
         ]);
 
         $creatorId = Auth::user()->creatorId();
@@ -114,6 +118,7 @@ class PosPrinterAgentController extends Controller
 
         $kitchenId = $request->filled('kitchen_printer_id') ? (int) $request->kitchen_printer_id : null;
         $barId = $request->filled('bar_printer_id') ? (int) $request->bar_printer_id : null;
+        $defaultId = $request->filled('default_printer_id') ? (int) $request->default_printer_id : null;
 
         if ($kitchenId === 0) {
             $kitchenId = null;
@@ -121,8 +126,20 @@ class PosPrinterAgentController extends Controller
         if ($barId === 0) {
             $barId = null;
         }
+        if ($defaultId === 0) {
+            $defaultId = null;
+        }
 
-        $config = PosPrinterAgentService::saveConfig($branchId, $creatorId, $kitchenId, $barId);
+        $useAgentInvoice = $request->boolean('use_print_agent_for_invoice');
+
+        $config = PosPrinterAgentService::saveConfig(
+            $branchId,
+            $creatorId,
+            $kitchenId,
+            $barId,
+            $defaultId,
+            $useAgentInvoice
+        );
 
         return response()->json([
             'success' => true,
@@ -130,7 +147,141 @@ class PosPrinterAgentController extends Controller
             'config' => [
                 'kitchen_printer_id' => $config->kitchen_printer_id,
                 'bar_printer_id' => $config->bar_printer_id,
+                'default_printer_id' => $config->default_printer_id,
+                'use_print_agent_for_invoice' => (bool) $config->use_print_agent_for_invoice,
             ],
+        ]);
+    }
+
+    /**
+     * Enqueue a bill/receipt print job to the Print Agent default printer.
+     */
+    public function printReceipt(Request $request)
+    {
+        if (! Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.'), 'fallback' => false], 403);
+        }
+
+        $request->validate([
+            'branch_id' => 'nullable|integer|exists:branches,id',
+            'pos_id' => 'nullable|integer',
+            'pos_table_id' => 'nullable|integer',
+            'pos_shift_id' => 'nullable|integer',
+            'pos_order_type' => 'nullable|string',
+            'image_base64' => 'nullable|string',
+        ]);
+
+        $user = Auth::user();
+        $creatorId = $user->creatorId();
+        $posId = (int) $request->get('pos_id');
+        $tableId = (int) $request->get('pos_table_id');
+        $shiftId = (int) $request->get('pos_shift_id');
+        $orderType = $request->get('pos_order_type');
+        $branchId = (int) $request->get('branch_id');
+
+        $pos = null;
+        if ($posId > 0) {
+            $pos = \App\Models\Pos::where('id', $posId)
+                ->where('created_by', $creatorId)
+                ->with(['items.product', 'customer', 'table', 'posPayments', 'warehouse', 'posUser', 'branch'])
+                ->first();
+        } elseif ($tableId > 0 && $shiftId > 0) {
+            $pos = \App\Models\Pos::where('table_id', $tableId)
+                ->where('shift_id', $shiftId)
+                ->where('created_by', $creatorId)
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->with(['items.product', 'customer', 'table', 'posPayments', 'warehouse', 'posUser', 'branch'])
+                ->first();
+        } elseif ($shiftId > 0 && in_array($orderType, [\App\Models\Pos::ORDER_TYPE_DELIVERY, \App\Models\Pos::ORDER_TYPE_TAKEAWAY], true)) {
+            $q = \App\Models\Pos::whereNull('table_id')
+                ->where('order_type', $orderType)
+                ->where('shift_id', $shiftId)
+                ->where('created_by', $creatorId)
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->with(['items.product', 'customer', 'table', 'posPayments', 'warehouse', 'posUser', 'branch']);
+            $pos = $q->latest('id')->first();
+        }
+
+        if (! $pos) {
+            return response()->json([
+                'error' => __('No order found to print.'),
+                'fallback' => false,
+            ], 404);
+        }
+
+        if ($branchId <= 0) {
+            $branchId = (int) ($pos->branch_id ?? 0);
+        }
+
+        if ($branchId <= 0) {
+            return response()->json([
+                'error' => __('Please select a branch.'),
+                'fallback' => false,
+            ], 422);
+        }
+
+        $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->first();
+        if (! $branch) {
+            return response()->json(['error' => __('Invalid branch.'), 'fallback' => false], 422);
+        }
+
+        if (! $user->canAccessBranchForPos($branchId, 'restaurant')) {
+            return response()->json(['error' => __('Permission denied.'), 'fallback' => false], 403);
+        }
+
+        $config = PosPrinterAgentService::getConfig($branchId, $creatorId);
+        if (! $config || ! $config->default_printer_id) {
+            return response()->json([
+                'error' => __('No default printer configured. Set “Default Printer for Other Prints” in Printer Settings.'),
+                'fallback' => false,
+            ], 422);
+        }
+
+        if (! $config->use_print_agent_for_invoice) {
+            return response()->json([
+                'error' => __('pos.print_agent_invoice_disabled'),
+                'fallback' => true,
+            ], 422);
+        }
+
+        $isPaid = $pos->posPayments->isNotEmpty();
+        $title = $isPaid ? __('Receipt') : __('Bill');
+        // Native Cash Sale template — do not attach full-page receipt screenshots.
+        $payload = PosPrinterAgentService::buildReceiptPayloadFromPos($pos, $user);
+        $payload['render'] = 'native';
+        unset($payload['image_base64'], $payload['image_mime']);
+
+        try {
+            $job = PosPrinterAgentService::enqueueReceiptJob(
+                $branchId,
+                $creatorId,
+                (int) $pos->id,
+                $payload,
+                $title
+            );
+        } catch (\Throwable $e) {
+            \Log::warning('POS agent receipt enqueue failed: ' . $e->getMessage());
+
+            return response()->json([
+                'error' => __('Could not send to printer agent.'),
+                'fallback' => false,
+            ], 500);
+        }
+
+        if (! $job) {
+            return response()->json([
+                'error' => __('No default printer configured.'),
+                'fallback' => false,
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'job_id' => $job->id,
+            'message' => __('Sent to printer agent.'),
+            'fallback' => false,
         ]);
     }
 }

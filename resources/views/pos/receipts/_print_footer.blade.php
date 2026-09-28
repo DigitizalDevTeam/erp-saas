@@ -1,3 +1,4 @@
+@if(empty($agentPrint))
 @if($standalone)
     <div class="mt-3 no-print-copies">
         <button type="button" class="btn-primary" id="print">{{ __('pos.print') }}</button>
@@ -18,11 +19,18 @@
         @endif
     </div>
 @endif
+@if(($printSource ?? 'retail') === 'restaurant')
+<script src="{{ asset('js/html2pdf.bundle.min.js') }}"></script>
+@endif
 <script>
 var posPrintLayout = '{{ $printLayout }}';
 var posDirectPrint = {{ $directPrint ? 'true' : 'false' }};
+var posPrintSource = '{{ $printSource ?? 'retail' }}';
+var posPrintPosId = {{ (int) ($posIdRaw ?? 0) }};
+var posUsePrintAgentForInvoice = {{ !empty($usePrintAgentForInvoice) ? 'true' : 'false' }};
+var posRestaurantPrintReceiptUrl = '{{ route("pos.restaurant.print-receipt") }}';
 (function() {
-    function doPrint(copies) {
+    function doBrowserPrint(copies) {
         var printarea = document.getElementById("printarea");
         var receipt = printarea ? printarea.querySelector(".receipt-copy") : null;
         if (!receipt) {
@@ -48,8 +56,6 @@ var posDirectPrint = {{ $directPrint ? 'true' : 'false' }};
         }
         var html = printarea.innerHTML;
         clones.forEach(function(c) { c.remove(); });
-        // Collect ALL receipt <style> blocks (shared + layout-specific e.g. compact3),
-        // not only #pos-receipt-styles — otherwise header centering/layout CSS is lost in print.
         var styleChunks = [];
         var styleRoot = printarea.parentElement || document;
         styleRoot.querySelectorAll('style').forEach(function (el) {
@@ -90,6 +96,80 @@ var posDirectPrint = {{ $directPrint ? 'true' : 'false' }};
         }, 300);
     }
 
+    function captureReceiptImageBase64() {
+        return new Promise(function (resolve) {
+            var el = document.querySelector('#printarea .receipt-copy') || document.getElementById('printarea');
+            if (!el) {
+                resolve('');
+                return;
+            }
+            if (typeof html2pdf === 'undefined') {
+                resolve('');
+                return;
+            }
+            try {
+                html2pdf().set({
+                    margin: 0,
+                    html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false }
+                }).from(el).outputImg('datauristring').then(function (dataUri) {
+                    resolve(dataUri || '');
+                }).catch(function () {
+                    resolve('');
+                });
+            } catch (e) {
+                resolve('');
+            }
+        });
+    }
+
+    function sendToPrinterAgent() {
+        var branchId = $('#pos-restaurant-branch').val() || $('#pos_branch_id_hidden').val() || '{{ (int) ($receiptBranchId ?? 0) }}' || '';
+        var data = {
+            _token: '{{ csrf_token() }}',
+            branch_id: branchId,
+            pos_id: posPrintPosId || $('#pos_restaurant_pos_id').val() || '',
+            pos_table_id: $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val() || '',
+            pos_shift_id: $('#pos_shift_id_hidden').val() || '',
+            pos_order_type: $('#pos-restaurant-order-type').val() || $('#pos_order_type_hidden').val() || ''
+        };
+        return $.ajax({
+            url: posRestaurantPrintReceiptUrl,
+            type: 'POST',
+            data: data
+        });
+    }
+
+    function tryAgentReceiptPrint() {
+        var $btn = $('#print');
+        $btn.addClass('disabled').css('pointer-events', 'none');
+        sendToPrinterAgent().done(function (res) {
+            if (res && res.success) {
+                if (typeof show_toastr === 'function') {
+                    show_toastr('{{ __("Success") }}', (res.message || '{{ __("Sent to printer agent.") }}'), 'success');
+                }
+                return;
+            }
+            if (typeof show_toastr === 'function') {
+                show_toastr('{{ __("Error") }}', (res && res.error) ? res.error : '{{ __("pos.error") }}', 'error');
+            }
+        }).fail(function (xhr) {
+            var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("Could not send to printer agent.") }}';
+            if (typeof show_toastr === 'function') {
+                show_toastr('{{ __("Error") }}', msg, 'error');
+            }
+        }).always(function () {
+            $btn.removeClass('disabled').css('pointer-events', '');
+        });
+    }
+
+    function doPrint(copies) {
+        if (posPrintSource === 'restaurant' && posUsePrintAgentForInvoice) {
+            tryAgentReceiptPrint();
+            return;
+        }
+        doBrowserPrint(copies);
+    }
+
     $(document).off("click","#print").on("click","#print",function(e){
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -112,7 +192,8 @@ var posDirectPrint = {{ $directPrint ? 'true' : 'false' }};
     });
 })();
 </script>
-@if($standalone)
+@endif
+@if(!empty($standalone) && empty($agentPrint))
 </body>
 </html>
 @endif

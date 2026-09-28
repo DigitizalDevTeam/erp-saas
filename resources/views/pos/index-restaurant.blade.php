@@ -1621,10 +1621,14 @@
                 var statusClass = t.status === 'occupied' ? 'btn-warning' : (t.status === 'reserved' ? 'btn-secondary' : 'btn-outline-primary');
                 var name = posEscapeHtml(t.name || ('Table ' + t.id));
                 var customer = (t.customer_name && String(t.customer_name).trim()) ? posEscapeHtml(t.customer_name) : '—';
-                var waiter = (t.waiter_name && String(t.waiter_name).trim()) ? posEscapeHtml(t.waiter_name) : '—';
+                // Waiter only on in-use tables after order was sent to production (API already nulls when hidden).
+                var showWaiter = t.status !== 'available' && !!t.has_sent_to_production && t.waiter_name && String(t.waiter_name).trim();
+                var waiter = showWaiter ? posEscapeHtml(t.waiter_name) : '—';
                 var guestsVal = (t.current_guests != null && t.current_guests !== '') ? String(t.current_guests) : '—';
                 var amount = (t.cart_total_formatted && String(t.cart_total_formatted).trim()) ? posEscapeHtml(t.cart_total_formatted) : '—';
-                return '<button type="button" class="btn ' + statusClass + ' btn-sm pos-table-btn pos-table-card" data-id="' + t.id + '" data-name="' + posEscapeHtml(t.name || '') + '" data-status="' + (t.status || '') + '" data-waiter-id="' + (t.waiter_user_id || '') + '" data-waiter-name="' + posEscapeHtml(t.waiter_name || '') + '" data-customer-name="' + posEscapeHtml(t.customer_name || '') + '">' +
+                var waiterIdAttr = showWaiter ? (t.waiter_user_id || '') : '';
+                var waiterNameAttr = showWaiter ? posEscapeHtml(t.waiter_name || '') : '';
+                return '<button type="button" class="btn ' + statusClass + ' btn-sm pos-table-btn pos-table-card" data-id="' + t.id + '" data-name="' + posEscapeHtml(t.name || '') + '" data-status="' + (t.status || '') + '" data-waiter-id="' + waiterIdAttr + '" data-waiter-name="' + waiterNameAttr + '" data-customer-name="' + posEscapeHtml(t.customer_name || '') + '">' +
                     '<span class="pos-table-card__name">' + name + '</span>' +
                     '<span class="pos-table-card__row"><span class="pos-table-card__label">{{ __("pos.guest_name") }}</span><span class="pos-table-card__value">' + customer + '</span></span>' +
                     '<span class="pos-table-card__row"><span class="pos-table-card__label">{{ __("pos.waiter_user") }}</span><span class="pos-table-card__value">' + waiter + '</span></span>' +
@@ -2909,9 +2913,11 @@
                 }
                 var $kitchen = $('#pos-kitchen-printer-select');
                 var $bar = $('#pos-bar-printer-select');
+                var $default = $('#pos-default-printer-select');
                 var $empty = $('#pos-printer-config-empty');
                 $kitchen.prop('disabled', true);
                 $bar.prop('disabled', true);
+                $default.prop('disabled', true);
                 $empty.addClass('d-none');
                 posSetPrinterAgentStatusBadge({ online: false });
 
@@ -2924,8 +2930,11 @@
                         var config = (res && res.config) ? res.config : {};
                         posFillPrinterSelect($kitchen, printers, config.kitchen_printer_id || null);
                         posFillPrinterSelect($bar, printers, config.bar_printer_id || null);
+                        posFillPrinterSelect($default, printers, config.default_printer_id || null);
+                        $('#pos-use-print-agent-invoice').prop('checked', !!config.use_print_agent_for_invoice);
                         $kitchen.prop('disabled', false);
                         $bar.prop('disabled', false);
+                        $default.prop('disabled', false);
                         if (!printers.length) {
                             $empty.removeClass('d-none');
                         }
@@ -2968,7 +2977,9 @@
                         _token: '{{ csrf_token() }}',
                         branch_id: branchId,
                         kitchen_printer_id: $('#pos-kitchen-printer-select').val() || '',
-                        bar_printer_id: $('#pos-bar-printer-select').val() || ''
+                        bar_printer_id: $('#pos-bar-printer-select').val() || '',
+                        default_printer_id: $('#pos-default-printer-select').val() || '',
+                        use_print_agent_for_invoice: $('#pos-use-print-agent-invoice').is(':checked') ? 1 : 0
                     },
                     success: function (res) {
                         show_toastr('{{ __("Success") }}', (res && res.message) ? res.message : '{{ __("Printer configuration saved.") }}', 'success');
@@ -2993,7 +3004,7 @@
                 $('#commonModal .modal-dialog').addClass('modal-sm');
                 $.get('{{url("printview/pos")}}', {
                     pos_id: pos_id,
-                    source: 'retail',
+                    source: 'restaurant',
                     modal: 1
                 }, function(html){
                     $('#commonModal .modal-title').text('POS Receipt');
@@ -3236,14 +3247,27 @@
                 $('#pos-move-table-list').html('<p class="text-muted small mb-0">{{ __("Loading...") }}</p>');
                 $.get(posRestaurantLayoutUrl, { branch_id: branchId, shift_id: shiftId }, function (res) {
                     var tblList = '';
+                    var availableCount = 0;
                     (res.areas || []).forEach(function (area) {
                         (area.tables || []).forEach(function (t) {
                             if (String(t.id) === String(sourceTableId)) return;
-                            tblList += '<div class="form-check"><input class="form-check-input pos-move-tbl" type="radio" name="pos_move_target" value="' + t.id + '" id="mt' + t.id + '"><label class="form-check-label" for="mt' + t.id + '">' + posEscapeHtml(t.name || ('Table ' + t.id)) + ' <span class="text-muted">(' + (t.status || '') + ')</span></label></div>';
+                            var isAvailable = t.status === 'available';
+                            var statusLabel = t.status === 'available'
+                                ? '{{ __("pos.available") }}'
+                                : (t.status === 'occupied' ? '{{ __("pos.occupied") }}' : (t.status === 'reserved' ? '{{ __("pos.reserved") }}' : (t.status || '')));
+                            var labelText = posEscapeHtml(t.name || ('Table ' + t.id)) + ' <span class="text-muted">(' + statusLabel + ')</span>';
+                            if (isAvailable) {
+                                availableCount++;
+                                tblList += '<div class="form-check"><input class="form-check-input pos-move-tbl" type="radio" name="pos_move_target" value="' + t.id + '" id="mt' + t.id + '"><label class="form-check-label" for="mt' + t.id + '">' + labelText + '</label></div>';
+                            } else {
+                                tblList += '<div class="form-check"><input class="form-check-input pos-move-tbl" type="radio" name="pos_move_target" value="' + t.id + '" id="mt' + t.id + '" disabled><label class="form-check-label text-muted" for="mt' + t.id + '">' + labelText + '</label></div>';
+                            }
                         });
                     });
                     if (tblList === '') {
                         tblList = '<p class="text-muted small mb-0">{{ __("pos.no_target_tables") }}</p>';
+                    } else if (availableCount === 0) {
+                        tblList = '<p class="text-muted small mb-0">{{ __("pos.no_available_tables_to_move") }}</p>' + tblList;
                     }
                     $('#pos-move-table-list').html(tblList);
                 }).fail(function () {
@@ -3252,7 +3276,7 @@
             });
             $(document).on('click', '#pos-move-table-confirm', function () {
                 var sourceTableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
-                var targetTableId = $('.pos-move-tbl:checked').val();
+                var targetTableId = $('.pos-move-tbl:checked:not(:disabled)').val();
                 var branchId = $('#pos-restaurant-branch').val();
                 var shiftId = $('#pos_shift_id_hidden').val();
                 if (!sourceTableId || !targetTableId || !branchId || !shiftId) {

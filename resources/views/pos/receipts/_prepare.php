@@ -40,6 +40,26 @@ if (in_array($receiptLayout, ['compact1', 'compact2', 'compact3'], true) && $pri
 }
 $directPrint = (isset($settings['pos_direct_print']) && $settings['pos_direct_print'] === 'on');
 
+$usePrintAgentForInvoice = false;
+$receiptBranchId = 0;
+if ($printSource === 'restaurant') {
+    $receiptBranchId = (int) (isset($pos) && $pos ? ($pos->branch_id ?? 0) : 0);
+    if ($receiptBranchId <= 0 && ! empty($details['branch']['id'])) {
+        $receiptBranchId = (int) $details['branch']['id'];
+    }
+    if ($receiptBranchId > 0) {
+        try {
+            $printCfg = \App\Services\PosPrinterAgentService::getConfig(
+                $receiptBranchId,
+                (int) (\Illuminate\Support\Facades\Auth::user()->creatorId() ?? 0)
+            );
+            $usePrintAgentForInvoice = $printCfg && (bool) $printCfg->use_print_agent_for_invoice;
+        } catch (\Throwable $e) {
+            $usePrintAgentForInvoice = false;
+        }
+    }
+}
+
 $companyAddressParts = array_filter([
     $settings['company_address'] ?? null,
     $settings['company_city'] ?? null,

@@ -32,6 +32,26 @@ if ($printSource === 'restaurant' && ! in_array($printLayout, ['slip', 'a5', 'a4
 }
 $directPrint = (isset($settings['pos_direct_print']) && $settings['pos_direct_print'] === 'on');
 
+$usePrintAgentForInvoice = false;
+$receiptBranchId = 0;
+if ($printSource === 'restaurant') {
+    $receiptBranchId = (int) (isset($pos) && $pos ? ($pos->branch_id ?? 0) : 0);
+    if ($receiptBranchId <= 0 && ! empty($details['branch']['id'])) {
+        $receiptBranchId = (int) $details['branch']['id'];
+    }
+    if ($receiptBranchId > 0) {
+        try {
+            $printCfg = \App\Services\PosPrinterAgentService::getConfig(
+                $receiptBranchId,
+                (int) (Auth::user()->creatorId() ?? 0)
+            );
+            $usePrintAgentForInvoice = $printCfg && (bool) $printCfg->use_print_agent_for_invoice;
+        } catch (\Throwable $e) {
+            $usePrintAgentForInvoice = false;
+        }
+    }
+}
+
 $hasCreditPayment = ! empty($posPayments) && $posPayments->isNotEmpty() && $posPayments->contains(function ($p) {
     return in_array(strtolower($p->payment_method ?? ''), ['credit'], true);
 });

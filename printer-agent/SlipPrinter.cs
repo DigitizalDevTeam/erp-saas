@@ -44,10 +44,23 @@ public static class SlipPrinter
             throw new InvalidOperationException($"Printer not found on this PC: {printerName}");
         }
 
-        var lines = BuildSlipLines(job);
+        // Prefer full-page receipt image only when explicitly rendered as image (legacy).
+        // Native Cash Sale invoices use structured BuildReceiptLines (no image_base64).
+        if (string.Equals(job.Zone, "receipt", StringComparison.OrdinalIgnoreCase)
+            && !IsNativeReceiptRender(job)
+            && TryGetReceiptImageBytes(job, out var imageBytes)
+            && imageBytes is { Length: > 0 })
+        {
+            PrintReceiptImage(printerName, imageBytes, job.Title ?? "Receipt");
+            return;
+        }
+
+        var lines = string.Equals(job.Zone, "receipt", StringComparison.OrdinalIgnoreCase)
+            ? BuildReceiptLines(job)
+            : BuildSlipLines(job);
         var doc = new PrintDocument();
         doc.PrinterSettings.PrinterName = printerName;
-        doc.DocumentName = job.Title ?? "Production Slip";
+        doc.DocumentName = job.Title ?? (string.Equals(job.Zone, "receipt", StringComparison.OrdinalIgnoreCase) ? "Receipt" : "Production Slip");
         doc.DefaultPageSettings.Margins = new Margins(0, 0, 0, 0);
 
         var titleFont = new Font("Consolas", 12f, FontStyle.Bold);
@@ -101,6 +114,97 @@ public static class SlipPrinter
         }
     }
 
+    private static bool IsNativeReceiptRender(PrintJobDto job)
+    {
+        if (job.Payload.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        if (job.Payload.TryGetProperty("render", out var renderEl)
+            && renderEl.ValueKind == JsonValueKind.String
+            && string.Equals(renderEl.GetString(), "native", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // New invoice payloads include document_title / vat_breakdown without a full-page image.
+        if (job.Payload.TryGetProperty("vat_breakdown", out _))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetReceiptImageBytes(PrintJobDto job, out byte[]? bytes)
+    {
+        bytes = null;
+        if (job.Payload.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        if (!job.Payload.TryGetProperty("image_base64", out var imgEl))
+        {
+            return false;
+        }
+
+        var b64 = imgEl.ValueKind == JsonValueKind.String ? (imgEl.GetString() ?? "") : "";
+        if (string.IsNullOrWhiteSpace(b64))
+        {
+            return false;
+        }
+
+        try
+        {
+            bytes = Convert.FromBase64String(b64.Trim());
+            return bytes.Length > 0;
+        }
+        catch
+        {
+            bytes = null;
+            return false;
+        }
+    }
+
+    private static void PrintReceiptImage(string printerName, byte[] imageBytes, string documentName)
+    {
+        using var ms = new MemoryStream(imageBytes);
+        using var image = Image.FromStream(ms);
+        using var doc = new PrintDocument();
+        doc.PrinterSettings.PrinterName = printerName;
+        doc.DocumentName = documentName;
+        doc.DefaultPageSettings.Margins = new Margins(0, 0, 0, 0);
+
+        doc.PrintPage += (_, e) =>
+        {
+            var g = e.Graphics!;
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+
+            var page = e.PageBounds;
+            float maxW = Math.Max(1f, page.Width - 4f);
+            float scale = maxW / image.Width;
+            float drawW = maxW;
+            float drawH = image.Height * scale;
+            // Keep aspect; if taller than page, scale down to fit height once (single page).
+            if (drawH > page.Height - 4f)
+            {
+                scale = (page.Height - 4f) / image.Height;
+                drawW = image.Width * scale;
+                drawH = page.Height - 4f;
+            }
+
+            float x = page.Left + (page.Width - drawW) / 2f;
+            float y = page.Top + 2f;
+            g.DrawImage(image, x, y, drawW, drawH);
+            e.HasMorePages = false;
+        };
+
+        doc.Print();
+    }
+
     private static float DrawLine(
         Graphics g,
         Brush brush,
@@ -145,7 +249,6 @@ public static class SlipPrinter
                 return h;
             }
             case SlipLineKind.KeyValue:
-            default:
             {
                 var key = (line.Key ?? "").TrimEnd();
                 if (!key.EndsWith(":", StringComparison.Ordinal))
@@ -183,6 +286,39 @@ public static class SlipPrinter
                 g.DrawString(value, font, brush, new RectangleF(valueLeft, y, valueWidth, h), valueSf);
                 return h;
             }
+            case SlipLineKind.Image:
+            {
+                if (line.ImageBytes is not { Length: > 0 })
+                {
+                    return 0f;
+                }
+
+                try
+                {
+                    using var ms = new MemoryStream(line.ImageBytes);
+                    using var img = Image.FromStream(ms);
+                    float maxW = Math.Min(width * (line.ImageMaxWidthFraction > 0 ? line.ImageMaxWidthFraction : 0.45f), width);
+                    float scale = maxW / Math.Max(1, img.Width);
+                    float drawW = img.Width * scale;
+                    float drawH = img.Height * scale;
+                    float x = left + (width - drawW) / 2f;
+                    // Logos are pre-thresholded to 1-bit; nearest-neighbor avoids reintroducing gray.
+                    g.InterpolationMode = line.UseNearestNeighbor
+                        ? System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor
+                        : System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    g.PixelOffsetMode = line.UseNearestNeighbor
+                        ? System.Drawing.Drawing2D.PixelOffsetMode.Half
+                        : System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                    g.DrawImage(img, x, y, drawW, drawH);
+                    return drawH + 4f;
+                }
+                catch
+                {
+                    return 0f;
+                }
+            }
+            default:
+                return lineHeight;
         }
     }
 
@@ -192,6 +328,7 @@ public static class SlipPrinter
         Separator,
         Full,
         KeyValue,
+        Image,
     }
 
     private sealed class SlipLine
@@ -202,6 +339,494 @@ public static class SlipPrinter
         public string? Value { get; init; }
         public bool Bold { get; init; }
         public bool Centered { get; init; }
+        public byte[]? ImageBytes { get; init; }
+        public float ImageMaxWidthFraction { get; init; }
+        public bool UseNearestNeighbor { get; init; }
+    }
+
+    private static List<SlipLine> BuildReceiptLines(PrintJobDto job)
+    {
+        var lines = new List<SlipLine>();
+        var title = FirstNonEmpty(job.Title ?? "", "CASH SALE");
+
+        string company = "";
+        string companyAddress = "";
+        string companyPhone = "";
+        string companyEmail = "";
+        string companyWebsite = "";
+        string nuit = "";
+        string documentTitle = "";
+        string posNumber = "";
+        string copyLabel = "Original";
+        string issuedAt = "";
+        string table = "";
+        string customer = "";
+        string customerNuit = "";
+        string customerAddress = "";
+        string currency = "MT";
+        string date = DateTime.Now.ToString("yyyy-MM-dd");
+        string time = DateTime.Now.ToString("HH:mm:ss");
+        string operatorName = "";
+        string branch = "";
+        string logoB64 = "";
+
+        if (job.Payload.ValueKind == JsonValueKind.Object
+            && job.Payload.TryGetProperty("header", out var header)
+            && header.ValueKind == JsonValueKind.Object)
+        {
+            company = GetString(header, "company");
+            companyAddress = GetString(header, "company_address");
+            companyPhone = GetString(header, "company_phone");
+            companyEmail = GetString(header, "company_email");
+            companyWebsite = GetString(header, "company_website");
+            nuit = GetString(header, "nuit");
+            documentTitle = GetString(header, "document_title");
+            posNumber = GetString(header, "pos_number");
+            copyLabel = FirstNonEmpty(GetString(header, "copy_label"), "Original");
+            issuedAt = GetString(header, "issued_at");
+            table = GetString(header, "table");
+            customer = GetString(header, "customer");
+            customerNuit = GetString(header, "customer_nuit");
+            customerAddress = GetString(header, "customer_address");
+            currency = FirstNonEmpty(GetString(header, "currency"), "MT");
+            date = FirstNonEmpty(GetString(header, "date"), date);
+            time = FirstNonEmpty(GetString(header, "time"), time);
+            operatorName = GetString(header, "operator");
+            branch = GetString(header, "branch");
+            logoB64 = GetString(header, "logo_base64");
+        }
+
+        if (string.IsNullOrWhiteSpace(issuedAt))
+        {
+            issuedAt = $"{date} {time}";
+        }
+
+        if (string.IsNullOrWhiteSpace(documentTitle))
+        {
+            documentTitle = title;
+        }
+
+        // --- Header / company ---
+        // Prefer agent-local uploaded logo for Pay & Print; fall back to ERP payload.
+        var localLogoBytes = SlipLogoStore.TryReadSlipLogoBytes();
+        if (localLogoBytes is { Length: > 0 })
+        {
+            AddImageFromBytes(lines, localLogoBytes, 0.55f, forThermalLogo: true);
+        }
+        else
+        {
+            AddImageFromBase64(lines, logoB64, 0.55f, forThermalLogo: true);
+        }
+        if (HasPrintableValue(company))
+        {
+            AddTitle(lines, company.Trim());
+        }
+
+        if (HasPrintableValue(nuit))
+        {
+            AddCentered(lines, "NUIT: " + nuit.Trim());
+        }
+
+        if (HasPrintableValue(companyAddress))
+        {
+            AddCentered(lines, companyAddress);
+        }
+
+        var contact = "";
+        if (HasPrintableValue(companyPhone))
+        {
+            contact = "Phone: " + companyPhone.Trim();
+        }
+
+        if (HasPrintableValue(companyEmail))
+        {
+            contact = string.IsNullOrEmpty(contact)
+                ? companyEmail.Trim()
+                : contact + " · " + companyEmail.Trim();
+        }
+
+        if (HasPrintableValue(contact))
+        {
+            AddCentered(lines, contact);
+        }
+
+        AddSeparator(lines, '=');
+        AddTitle(lines, documentTitle.ToUpperInvariant());
+        if (HasPrintableValue(posNumber))
+        {
+            AddCentered(lines, "No. " + posNumber.Trim(), bold: true);
+        }
+
+        AddCentered(lines, copyLabel + " · Issued at " + issuedAt);
+        AddSeparator(lines, '-');
+
+        // --- Customer / table meta ---
+        AddKvOrDash(lines, "Customer", customer);
+        AddKvOrDash(lines, "NUIT", customerNuit);
+        AddKvOrDash(lines, "Address", customerAddress);
+        AddKv(lines, "Currency", currency);
+        if (HasPrintableValue(table))
+        {
+            AddKv(lines, "Table", table);
+        }
+
+        AddSeparator(lines, '-');
+
+        // --- Items ---
+        AddFull(lines, PadColumns("DESCRIPTION", "QTY", "PRICE", "TOTAL"), bold: true);
+        AddSeparator(lines, '-');
+
+        if (job.Payload.ValueKind == JsonValueKind.Object
+            && job.Payload.TryGetProperty("rows", out var rows)
+            && rows.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var row in rows.EnumerateArray())
+            {
+                var qty = GetInt(row, "qty");
+                if (qty <= 0)
+                {
+                    qty = GetInt(row, "quantity");
+                }
+
+                var name = GetString(row, "name");
+                var price = GetDecimal(row, "price");
+                var lineTotal = GetDecimal(row, "line_total");
+                if (lineTotal <= 0 && qty > 0 && price > 0)
+                {
+                    lineTotal = qty * price;
+                }
+
+                var taxLabel = GetString(row, "tax_label");
+                var note = GetString(row, "note");
+
+                AddFull(lines, name, bold: true);
+                if (HasPrintableValue(taxLabel))
+                {
+                    AddFull(lines, taxLabel.Trim());
+                }
+
+                if (HasPrintableValue(note))
+                {
+                    AddFull(lines, "Note: " + note.Trim());
+                }
+
+                AddFull(lines, PadColumns(
+                    "",
+                    qty > 0 ? qty.ToString(CultureInfo.InvariantCulture) : "",
+                    FormatMoney(price, currency),
+                    FormatMoney(lineTotal, currency)));
+            }
+        }
+
+        decimal subtotal = 0m;
+        decimal discount = 0m;
+        decimal vat = 0m;
+        decimal tip = 0m;
+        decimal total = 0m;
+        decimal paid = 0m;
+        decimal change = 0m;
+
+        if (job.Payload.ValueKind == JsonValueKind.Object
+            && job.Payload.TryGetProperty("totals", out var totals)
+            && totals.ValueKind == JsonValueKind.Object)
+        {
+            subtotal = GetDecimal(totals, "subtotal");
+            discount = GetDecimal(totals, "discount");
+            vat = GetDecimal(totals, "vat");
+            tip = GetDecimal(totals, "tip");
+            total = GetDecimal(totals, "total");
+            paid = GetDecimal(totals, "paid");
+            change = GetDecimal(totals, "change");
+            if (total <= 0)
+            {
+                total = Math.Max(0m, subtotal - discount);
+            }
+        }
+
+        AddSeparator(lines, '-');
+        AddKv(lines, "Sub Total", FormatMoney(subtotal, currency));
+        AddKv(lines, "Discount", FormatMoney(discount, currency));
+        AddKv(lines, "VAT / IVA", FormatMoney(vat, currency));
+        if (tip > 0)
+        {
+            AddKv(lines, "Tip", FormatMoney(tip, currency));
+        }
+
+        AddSeparator(lines, '=');
+        AddKv(lines, "TOTAL", FormatMoney(total, currency), bold: true);
+        AddKv(lines, "Paid", FormatMoney(paid, currency));
+        AddKv(lines, "Change", FormatMoney(change, currency));
+        AddSeparator(lines, '-');
+
+        // --- VAT breakdown ---
+        if (job.Payload.ValueKind == JsonValueKind.Object
+            && job.Payload.TryGetProperty("vat_breakdown", out var vatBreakdown)
+            && vatBreakdown.ValueKind == JsonValueKind.Array
+            && vatBreakdown.GetArrayLength() > 0)
+        {
+            AddFull(lines, PadColumns("VAT", "Net Amount", "", "Tax"), bold: true);
+            foreach (var vb in vatBreakdown.EnumerateArray())
+            {
+                var rate = GetDecimal(vb, "rate");
+                var net = GetDecimal(vb, "net");
+                var tax = GetDecimal(vb, "tax");
+                AddFull(lines, PadColumns(
+                    rate.ToString("0", CultureInfo.InvariantCulture) + "%",
+                    FormatMoney(net, currency),
+                    "",
+                    FormatMoney(tax, currency)));
+            }
+
+            AddSeparator(lines, '-');
+        }
+
+        string payMethod = "";
+        string payRef = "";
+        string payNotes = "";
+        if (job.Payload.ValueKind == JsonValueKind.Object
+            && job.Payload.TryGetProperty("payment", out var payment)
+            && payment.ValueKind == JsonValueKind.Object)
+        {
+            payMethod = GetString(payment, "method");
+            payRef = GetString(payment, "reference");
+            payNotes = GetString(payment, "notes");
+        }
+
+        AddKvOrDash(lines, "Payment", payMethod);
+        if (HasPrintableValue(payNotes))
+        {
+            AddKv(lines, "Notes", payNotes);
+        }
+
+        AddKvOrDash(lines, "Reference", payRef);
+        AddKvOrDash(lines, "Operator", operatorName);
+        AddKvOrDash(lines, "Branch", branch);
+
+        // --- QR ---
+        string qrB64 = "";
+        if (job.Payload.ValueKind == JsonValueKind.Object)
+        {
+            qrB64 = GetString(job.Payload, "qr_base64");
+        }
+
+        if (HasPrintableValue(qrB64))
+        {
+            AddSeparator(lines, '-');
+            AddImageFromBase64(lines, qrB64, 0.42f);
+        }
+
+        // --- Footer ---
+        string thankYou = "Thank You For Shopping With Us. Please visit again.";
+        string generatedBy = "Invoice generated by ERPSaaS";
+        string website = FirstNonEmpty(companyWebsite, "");
+        string processed = "Document Processed by Computer";
+        if (job.Payload.ValueKind == JsonValueKind.Object
+            && job.Payload.TryGetProperty("footer", out var footer)
+            && footer.ValueKind == JsonValueKind.Object)
+        {
+            thankYou = FirstNonEmpty(GetString(footer, "thank_you"), thankYou);
+            generatedBy = FirstNonEmpty(GetString(footer, "generated_by"), generatedBy);
+            website = FirstNonEmpty(GetString(footer, "website"), website);
+            processed = FirstNonEmpty(GetString(footer, "processed"), processed);
+        }
+
+        AddSeparator(lines, '-');
+        AddCentered(lines, thankYou, bold: true);
+        if (HasPrintableValue(generatedBy))
+        {
+            AddCentered(lines, generatedBy);
+        }
+
+        if (HasPrintableValue(website))
+        {
+            AddCentered(lines, website);
+        }
+
+        if (HasPrintableValue(processed))
+        {
+            AddCentered(lines, processed);
+        }
+
+        return lines;
+    }
+
+    private static void AddImageFromBase64(List<SlipLine> lines, string base64, float maxWidthFraction, bool forThermalLogo = false)
+    {
+        if (string.IsNullOrWhiteSpace(base64))
+        {
+            return;
+        }
+
+        try
+        {
+            var clean = base64.Trim();
+            var comma = clean.IndexOf(',');
+            if (clean.StartsWith("data:", StringComparison.OrdinalIgnoreCase) && comma > 0)
+            {
+                clean = clean[(comma + 1)..];
+            }
+
+            clean = clean.Replace("\r", "").Replace("\n", "").Replace(" ", "");
+            var bytes = Convert.FromBase64String(clean);
+            AddImageFromBytes(lines, bytes, maxWidthFraction, forThermalLogo);
+        }
+        catch
+        {
+            // ignore bad images
+        }
+    }
+
+    private static void AddImageFromBytes(List<SlipLine> lines, byte[] bytes, float maxWidthFraction, bool forThermalLogo = false)
+    {
+        if (bytes is not { Length: > 0 })
+        {
+            return;
+        }
+
+        try
+        {
+            if (forThermalLogo)
+            {
+                var converted = ConvertLogoToThermalBlackWhite(bytes);
+                if (converted is { Length: > 0 })
+                {
+                    bytes = converted;
+                }
+            }
+
+            lines.Add(new SlipLine
+            {
+                Kind = SlipLineKind.Image,
+                ImageBytes = bytes,
+                ImageMaxWidthFraction = maxWidthFraction,
+                UseNearestNeighbor = forThermalLogo,
+            });
+        }
+        catch
+        {
+            // ignore bad images
+        }
+    }
+
+    /// <summary>
+    /// Convert a color/grayscale logo to high-contrast 1-bit black/white for thermal printers.
+    /// Light-colored logos (gold/gray) must become black ink — luma-only thresholds turn them white.
+    /// </summary>
+    private static byte[]? ConvertLogoToThermalBlackWhite(byte[] imageBytes)
+    {
+        try
+        {
+            using var inputMs = new MemoryStream(imageBytes);
+            using var src = new Bitmap(inputMs);
+            var w = src.Width;
+            var h = src.Height;
+            if (w <= 0 || h <= 0)
+            {
+                return null;
+            }
+
+            using var dest = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            var blackCount = 0;
+            for (var y = 0; y < h; y++)
+            {
+                for (var x = 0; x < w; x++)
+                {
+                    var c = src.GetPixel(x, y);
+                    var isInk = IsLogoInkPixel(c);
+                    dest.SetPixel(x, y, isInk ? Color.Black : Color.White);
+                    if (isInk)
+                    {
+                        blackCount++;
+                    }
+                }
+            }
+
+            // If almost nothing inked (e.g. very pale logo), force any non-transparent pixel to black.
+            var total = Math.Max(1, w * h);
+            if (blackCount * 100 < total) // < 1% black — pale logo fallback
+            {
+                blackCount = 0;
+                for (var y = 0; y < h; y++)
+                {
+                    for (var x = 0; x < w; x++)
+                    {
+                        var c = src.GetPixel(x, y);
+                        var isInk = c.A >= 32;
+                        dest.SetPixel(x, y, isInk ? Color.Black : Color.White);
+                        if (isInk)
+                        {
+                            blackCount++;
+                        }
+                    }
+                }
+            }
+
+            if (blackCount == 0)
+            {
+                return null;
+            }
+
+            using var outMs = new MemoryStream();
+            dest.Save(outMs, System.Drawing.Imaging.ImageFormat.Png);
+            return outMs.ToArray();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// True for pixels that should burn on thermal paper (any visible non-background ink).
+    /// </summary>
+    private static bool IsLogoInkPixel(Color c)
+    {
+        if (c.A < 32)
+        {
+            return false;
+        }
+
+        // Near-white background → no ink
+        if (c.R >= 245 && c.G >= 245 && c.B >= 245)
+        {
+            return false;
+        }
+
+        var luma = (0.299 * c.R) + (0.587 * c.G) + (0.114 * c.B);
+        var max = Math.Max(c.R, Math.Max(c.G, c.B));
+        var min = Math.Min(c.R, Math.Min(c.G, c.B));
+        var saturation = max == 0 ? 0 : (double)(max - min) / max;
+
+        // Dark ink OR any tinted/colored pixel (gold, brand colors) → black
+        if (luma < 210)
+        {
+            return true;
+        }
+
+        if (saturation > 0.08)
+        {
+            return true;
+        }
+
+        // Light gray that is still visibly darker than paper
+        return luma < 235;
+    }
+
+    private static string PadColumns(string c1, string c2, string c3, string c4)
+    {
+        // Monospace-friendly 32-char thermal layout: desc(12) qty(4) price(8) total(8)
+        static string Fit(string s, int w, bool right = false)
+        {
+            s ??= "";
+            if (s.Length > w)
+            {
+                s = s[..w];
+            }
+
+            return right ? s.PadLeft(w) : s.PadRight(w);
+        }
+
+        return Fit(c1, 12) + Fit(c2, 4, true) + " " + Fit(c3, 7, true) + " " + Fit(c4, 7, true);
     }
 
     private static List<SlipLine> BuildSlipLines(PrintJobDto job)
@@ -462,11 +1087,11 @@ public static class SlipPrinter
     private static void AddSeparator(List<SlipLine> lines, char c)
         => lines.Add(new SlipLine { Kind = SlipLineKind.Separator, Text = new string(c, 28) });
 
-    private static void AddFull(List<SlipLine> lines, string text)
-        => lines.Add(new SlipLine { Kind = SlipLineKind.Full, Text = text ?? "" });
+    private static void AddFull(List<SlipLine> lines, string text, bool bold = false)
+        => lines.Add(new SlipLine { Kind = SlipLineKind.Full, Text = text ?? "", Bold = bold });
 
-    private static void AddCentered(List<SlipLine> lines, string text)
-        => lines.Add(new SlipLine { Kind = SlipLineKind.Full, Text = text ?? "", Centered = true });
+    private static void AddCentered(List<SlipLine> lines, string text, bool bold = false)
+        => lines.Add(new SlipLine { Kind = SlipLineKind.Full, Text = text ?? "", Centered = true, Bold = bold });
 
     private static void AddKv(List<SlipLine> lines, string key, string value, bool bold = false)
     {
@@ -481,6 +1106,17 @@ public static class SlipPrinter
             Key = key,
             Value = value.Trim(),
             Bold = bold,
+        });
+    }
+
+    private static void AddKvOrDash(List<SlipLine> lines, string key, string? value)
+    {
+        var v = HasPrintableValue(value) ? value!.Trim() : "—";
+        lines.Add(new SlipLine
+        {
+            Kind = SlipLineKind.KeyValue,
+            Key = key,
+            Value = v,
         });
     }
 
@@ -512,7 +1148,18 @@ public static class SlipPrinter
     }
 
     private static string FormatMoney(decimal amount)
-        => amount.ToString("0.00", CultureInfo.InvariantCulture);
+        => FormatMoney(amount, "");
+
+    private static string FormatMoney(decimal amount, string currency)
+    {
+        var num = amount.ToString("0.00", CultureInfo.InvariantCulture);
+        if (string.IsNullOrWhiteSpace(currency))
+        {
+            return num;
+        }
+
+        return num + " " + currency.Trim();
+    }
 
     private static string GetString(JsonElement el, string name)
     {

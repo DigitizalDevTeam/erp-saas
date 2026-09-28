@@ -620,16 +620,82 @@ class PosController extends Controller
                 'status' => PosTable::STATUS_AVAILABLE,
                 'current_guests' => 0,
                 'customer_name' => null,
+                'waiter_user_id' => null,
             ]);
         }
+    }
+
+    /**
+     * Fields to clear when a table is released back to available.
+     *
+     * @return array{status: string, current_guests: int|null, customer_name: null, waiter_user_id: null}
+     */
+    protected function restaurantTableAvailablePayload(?int $currentGuests = 0): array
+    {
+        return [
+            'status' => PosTable::STATUS_AVAILABLE,
+            'current_guests' => $currentGuests,
+            'customer_name' => null,
+            'waiter_user_id' => null,
+        ];
+    }
+
+    /**
+     * Table IDs that have at least one unpaid line already sent to production.
+     *
+     * @param  int[]  $tableIds
+     * @return array<int, bool>
+     */
+    protected function restaurantTablesWithSentToProduction(array $tableIds, int $branchId, int $shiftId): array
+    {
+        $tableIds = array_values(array_unique(array_filter(array_map('intval', $tableIds))));
+        $flags = [];
+        foreach ($tableIds as $tid) {
+            $flags[$tid] = false;
+        }
+        if ($tableIds === []) {
+            return $flags;
+        }
+
+        $creatorId = Auth::user()->creatorId();
+        $posQuery = Pos::whereIn('table_id', $tableIds)
+            ->where('created_by', $creatorId)
+            ->whereNull('cancelled_at')
+            ->whereDoesntHave('posPayments')
+            ->whereHas('items', function ($q) {
+                $q->whereNotNull('sent_at')
+                    ->whereNull('voided_at')
+                    ->whereNull('removed_from_cart_at')
+                    ->where('status', '!=', \App\Models\PosProduct::STATUS_CANCELLED);
+            });
+
+        if ($branchId > 0) {
+            $posQuery->where('branch_id', $branchId);
+        }
+
+        $posQuery->where(function ($q) use ($shiftId) {
+            $q->whereHas('shift', function ($sq) {
+                $sq->where('status', \App\Models\PosShift::STATUS_OPEN);
+            });
+            if ($shiftId > 0) {
+                $q->orWhere('shift_id', $shiftId);
+            }
+        });
+
+        foreach ($posQuery->pluck('table_id') as $tid) {
+            $flags[(int) $tid] = true;
+        }
+
+        return $flags;
     }
 
     /**
      * Map table model to layout JSON (customer, guests, cart total).
      *
      * @param  array<int, float>|null  $cartTotalsByTable
+     * @param  array<int, bool>|null  $sentToProductionByTable
      */
-    protected function mapRestaurantLayoutTable(Request $request, $t, int $shiftId, int $branchId = 0, ?array $cartTotalsByTable = null): array
+    protected function mapRestaurantLayoutTable(Request $request, $t, int $shiftId, int $branchId = 0, ?array $cartTotalsByTable = null, ?array $sentToProductionByTable = null): array
     {
         $tableId = (int) $t->id;
         if (is_array($cartTotalsByTable) && array_key_exists($tableId, $cartTotalsByTable)) {
@@ -639,6 +705,12 @@ class PosController extends Controller
         }
 
         $t->loadMissing('waiterUser');
+        $isAvailable = $t->status === PosTable::STATUS_AVAILABLE;
+        $hasSentToProduction = is_array($sentToProductionByTable)
+            ? ! empty($sentToProductionByTable[$tableId])
+            : false;
+        // Waiter name on cards only after the table is in use and order was sent to production.
+        $showWaiter = ! $isAvailable && $hasSentToProduction && $t->waiterUser;
 
         return [
             'id' => $tableId,
@@ -647,8 +719,9 @@ class PosController extends Controller
             'capacity' => $t->capacity,
             'current_guests' => $t->current_guests,
             'customer_name' => $t->customer_name,
-            'waiter_user_id' => $t->waiter_user_id ? (int) $t->waiter_user_id : null,
-            'waiter_name' => $t->waiterUser ? $t->waiterUser->name : null,
+            'waiter_user_id' => $showWaiter && $t->waiter_user_id ? (int) $t->waiter_user_id : null,
+            'waiter_name' => $showWaiter ? $t->waiterUser->name : null,
+            'has_sent_to_production' => $hasSentToProduction,
             'cart_total' => $cartTotal,
             'cart_total_formatted' => Auth::user()->priceFormat($cartTotal),
         ];
@@ -714,20 +787,46 @@ class PosController extends Controller
         }
 
         $tables = $tablesQuery->orderBy('area_id')->orderBy('name')->get();
+        // Clear stale waiter/guest data still attached to free tables.
+        $staleAvailableIds = $tables
+            ->filter(fn ($t) => $t->status === PosTable::STATUS_AVAILABLE && ($t->waiter_user_id || $t->customer_name || $t->current_guests))
+            ->pluck('id')
+            ->all();
+        if ($staleAvailableIds !== []) {
+            PosTable::whereIn('id', $staleAvailableIds)->update([
+                'waiter_user_id' => null,
+                'customer_name' => null,
+                'current_guests' => 0,
+            ]);
+            foreach ($tables as $t) {
+                if (in_array((int) $t->id, array_map('intval', $staleAvailableIds), true)) {
+                    $t->waiter_user_id = null;
+                    $t->customer_name = null;
+                    $t->current_guests = 0;
+                    $t->unsetRelation('waiterUser');
+                }
+            }
+        }
         $knownAreaIds = $areas->pluck('id');
         $branchIdInt = (int) $branchId;
+        $tableIdList = $tables->pluck('id')->all();
         $cartTotalsByTable = $this->computeRestaurantTableCartTotalsBatch(
             $request,
-            $tables->pluck('id')->all(),
+            $tableIdList,
             $branchIdInt,
             $shiftId
         );
-        $result = $areas->map(function ($area) use ($tables, $request, $shiftId, $branchIdInt, $cartTotalsByTable) {
+        $sentToProductionByTable = $this->restaurantTablesWithSentToProduction(
+            $tableIdList,
+            $branchIdInt,
+            $shiftId
+        );
+        $result = $areas->map(function ($area) use ($tables, $request, $shiftId, $branchIdInt, $cartTotalsByTable, $sentToProductionByTable) {
             return [
                 'id' => $area->id,
                 'name' => $area->name,
                 'tables' => $tables->where('area_id', $area->id)->values()->map(
-                    fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId, $branchIdInt, $cartTotalsByTable)
+                    fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId, $branchIdInt, $cartTotalsByTable, $sentToProductionByTable)
                 )->toArray(),
             ];
         })->toArray();
@@ -740,7 +839,7 @@ class PosController extends Controller
                 'id' => 0,
                 'name' => __('Other'),
                 'tables' => $orphanTables->values()->map(
-                    fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId, $branchIdInt, $cartTotalsByTable)
+                    fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId, $branchIdInt, $cartTotalsByTable, $sentToProductionByTable)
                 )->toArray(),
             ];
         }
@@ -3539,17 +3638,17 @@ class PosController extends Controller
                 ->whereDoesntHave('posPayments')
                 ->with('items')
                 ->first();
-            if (!$sourcePos || $sourcePos->id === $targetPos->id) {
-                continue;
+            if ($sourcePos && $sourcePos->id !== $targetPos->id) {
+                foreach ($sourcePos->items as $item) {
+                    $item->pos_id = $targetPos->id;
+                    $item->save();
+                    $movedCount++;
+                }
+                $sourcePos->cancelled_at = now();
+                $sourcePos->save();
             }
-            foreach ($sourcePos->items as $item) {
-                $item->pos_id = $targetPos->id;
-                $item->save();
-                $movedCount++;
-            }
-            $sourcePos->cancelled_at = now();
-            $sourcePos->save();
-            \App\Models\PosTable::where('id', $srcTableId)->where('created_by', $creatorId)->update(['status' => 'available']);
+            // Always release joined source tables (clears waiter/customer/guests).
+            \App\Models\PosTable::where('id', $srcTableId)->where('created_by', $creatorId)->update($this->restaurantTableAvailablePayload());
             foreach ($openShiftIds as $sid) {
                 $tableKey = $srcTableId . '_' . $sid;
                 if (isset($allCarts[$tableKey])) {
@@ -3614,6 +3713,9 @@ class PosController extends Controller
         $targetTable = \App\Models\PosTable::where('id', $targetTableId)->where('created_by', $creatorId)->first();
         if (! $sourceTable || ! $targetTable) {
             return response()->json(['error' => __('Table not found.')], 422);
+        }
+        if ($targetTable->status !== \App\Models\PosTable::STATUS_AVAILABLE) {
+            return response()->json(['error' => __('pos.move_target_must_be_available')], 422);
         }
 
         $warehouse = warehouse::where('created_by', $creatorId)->where('branch_id', $branchId)->first()
@@ -3712,12 +3814,9 @@ class PosController extends Controller
             'status' => \App\Models\PosTable::STATUS_OCCUPIED,
             'current_guests' => $mergedGuests > 0 ? $mergedGuests : (int) ($sourceTable->current_guests ?? 0),
             'customer_name' => $sourceTable->customer_name ?: $targetTable->customer_name,
+            'waiter_user_id' => $sourceTable->waiter_user_id ?: $targetTable->waiter_user_id,
         ]);
-        $sourceTable->update([
-            'status' => \App\Models\PosTable::STATUS_AVAILABLE,
-            'current_guests' => 0,
-            'customer_name' => null,
-        ]);
+        $sourceTable->update($this->restaurantTableAvailablePayload());
 
         PosAuditLogService::log(
             PosAuditLog::ACTION_SEND_ORDER,
@@ -4659,8 +4758,21 @@ class PosController extends Controller
         $productServices = ProductService::where('created_by', $user->creatorId())->get();
         $barcode = ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()];
 
+        $posIdRaw = null;
+        if ($tableId && $shiftId) {
+            $billPos = Pos::where('table_id', $tableId)
+                ->where('shift_id', $shiftId)
+                ->where('created_by', $user->creatorId())
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->value('id');
+            if ($billPos) {
+                $posIdRaw = (int) $billPos;
+            }
+        }
+
         // Use selected Slip Layout (existing / compact1–3) for restaurant View Bill.
-        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource', 'settings'));
+        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource', 'settings', 'posIdRaw'));
     }
 
     /**
@@ -4864,6 +4976,7 @@ class PosController extends Controller
                     'status' => \App\Models\PosTable::STATUS_AVAILABLE,
                     'current_guests' => null,
                     'customer_name' => null,
+                    'waiter_user_id' => null,
                 ]);
         }
 

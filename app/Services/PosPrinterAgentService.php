@@ -12,9 +12,13 @@ use App\Models\ProductOptionItem;
 use App\Models\ProductRecipe;
 use App\Models\ProductService;
 use App\Models\ProductVariant;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\User;
+use App\Models\Utility;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
 
 class PosPrinterAgentService
 {
@@ -188,7 +192,9 @@ class PosPrinterAgentService
         int $branchId,
         int $creatorId,
         ?int $kitchenPrinterId,
-        ?int $barPrinterId
+        ?int $barPrinterId,
+        ?int $defaultPrinterId = null,
+        ?bool $usePrintAgentForInvoice = null
     ): PosBranchPrintConfig {
         if ($kitchenPrinterId) {
             $kitchenOk = PosAgentPrinter::where('id', $kitchenPrinterId)
@@ -214,15 +220,33 @@ class PosPrinterAgentService
             $barPrinterId = null;
         }
 
+        if ($defaultPrinterId) {
+            $defaultOk = PosAgentPrinter::where('id', $defaultPrinterId)
+                ->where('branch_id', $branchId)
+                ->where('created_by', $creatorId)
+                ->exists();
+            if (! $defaultOk) {
+                $defaultPrinterId = null;
+            }
+        } else {
+            $defaultPrinterId = null;
+        }
+
+        $attrs = [
+            'kitchen_printer_id' => $kitchenPrinterId,
+            'bar_printer_id' => $barPrinterId,
+            'default_printer_id' => $defaultPrinterId,
+        ];
+        if ($usePrintAgentForInvoice !== null) {
+            $attrs['use_print_agent_for_invoice'] = (bool) $usePrintAgentForInvoice;
+        }
+
         return PosBranchPrintConfig::updateOrCreate(
             [
                 'branch_id' => $branchId,
                 'created_by' => $creatorId,
             ],
-            [
-                'kitchen_printer_id' => $kitchenPrinterId,
-                'bar_printer_id' => $barPrinterId,
-            ]
+            $attrs
         );
     }
 
@@ -348,6 +372,648 @@ class PosPrinterAgentService
         }
 
         return $created;
+    }
+
+    /**
+     * Enqueue a customer receipt/bill job to the branch default (other prints) printer.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public static function enqueueReceiptJob(
+        int $branchId,
+        int $creatorId,
+        ?int $posId,
+        array $payload,
+        ?string $title = null
+    ): ?PosPrintJob {
+        $config = self::getConfig($branchId, $creatorId);
+        if (! $config || ! $config->default_printer_id) {
+            return null;
+        }
+
+        $printer = PosAgentPrinter::where('id', $config->default_printer_id)
+            ->where('branch_id', $branchId)
+            ->where('created_by', $creatorId)
+            ->first();
+        if (! $printer) {
+            return null;
+        }
+
+        $title = $title ?: __('Receipt');
+        $payload['zone'] = PosPrintJob::ZONE_RECEIPT;
+        $payload['title'] = $title;
+        $payload['doc_type'] = $payload['doc_type'] ?? 'receipt';
+
+        return PosPrintJob::create([
+            'branch_id' => $branchId,
+            'created_by' => $creatorId,
+            'pos_id' => $posId,
+            'zone' => PosPrintJob::ZONE_RECEIPT,
+            'system_printer_name' => $printer->system_name,
+            'title' => $title,
+            'payload' => $payload,
+            'status' => PosPrintJob::STATUS_PENDING,
+        ]);
+    }
+
+    /**
+     * Build agent receipt/invoice payload from a Pos order (active lines only).
+     * Structured for the Print Agent native Cash Sale template.
+     *
+     * @return array<string, mixed>
+     */
+    public static function buildReceiptPayloadFromPos(Pos $pos, ?User $user = null): array
+    {
+        $pos->loadMissing(['items.product', 'customer', 'table', 'posPayments', 'warehouse', 'posUser', 'branch']);
+        $settings = \App\Models\Utility::settingsById($pos->created_by);
+        $user = $user ?: ($pos->posUser ?: User::find($pos->created_by));
+
+        $rows = [];
+        $subtotalGross = 0.0;
+        $vatTotal = 0.0;
+        $vatBreakdown = [];
+
+        foreach ($pos->items as $item) {
+            if (! empty($item->voided_at) || ! empty($item->removed_from_cart_at)) {
+                continue;
+            }
+            $product = $item->product;
+            $price = (float) $item->price;
+            $qty = (int) $item->quantity;
+            $taxRate = (float) \App\Models\Utility::totalTaxRate($item->tax);
+            $net = $price * $qty;
+            $vat = ($net * $taxRate) / 100;
+            $lineTotal = $net + $vat;
+            $subtotalGross += $lineTotal;
+            $vatTotal += $vat;
+            $rateKey = (string) $taxRate;
+            if (! isset($vatBreakdown[$rateKey])) {
+                $vatBreakdown[$rateKey] = [
+                    'rate' => $taxRate,
+                    'net' => 0.0,
+                    'tax' => 0.0,
+                ];
+            }
+            $vatBreakdown[$rateKey]['net'] += $net;
+            $vatBreakdown[$rateKey]['tax'] += $vat;
+            $rows[] = [
+                'name' => $product ? (string) $product->name : __('Product'),
+                'qty' => $qty,
+                'price' => round($price, 2),
+                'line_total' => round($lineTotal, 2),
+                'tax_label' => $taxRate > 0 ? ('VAT ' . rtrim(rtrim(number_format($taxRate, 2, '.', ''), '0'), '.') . '%') : '',
+                'note' => (string) ($item->description ?? ''),
+            ];
+        }
+
+        $discount = (float) $pos->posPayments->sum('discount');
+        $paid = (float) $pos->posPayments->sum('amount');
+        $tip = (float) $pos->posPayments->sum('tip');
+        $changeFromPayments = (float) $pos->posPayments->sum('change_amount');
+        $total = max(0, $subtotalGross - $discount);
+        $change = $changeFromPayments > 0 ? $changeFromPayments : max(0, $paid - $total);
+
+        $paymentMethods = [];
+        $paymentRefs = [];
+        $paymentNotes = '';
+        foreach ($pos->posPayments as $firstPay) {
+            $method = (string) ($firstPay->payment_method ?? '');
+            if ($method !== '') {
+                $paymentMethods[] = str_replace('_', ' ', $method);
+            }
+            $ref = (string) ($firstPay->transaction_id ?? '');
+            if ($ref !== '') {
+                $paymentRefs[] = $ref;
+            }
+            if ($paymentNotes === '') {
+                $paymentNotes = trim((string) ($firstPay->notes ?? ''));
+            }
+        }
+        if ($paymentMethods === [] && ! empty($pos->payment_method)) {
+            $paymentMethods[] = str_replace('_', ' ', (string) $pos->payment_method);
+        }
+
+        $posNumber = '';
+        if ($user) {
+            $posNumber = $user->posNumberFormat($pos->pos_id, $pos->document_type ?? null);
+        } else {
+            $posNumber = (string) ($pos->pos_id ?? '');
+        }
+
+        $tableName = $pos->table ? (string) $pos->table->name : '';
+        $customer = $pos->customer;
+        $customerName = ! empty($pos->guest_name)
+            ? (string) $pos->guest_name
+            : ($customer ? (string) $customer->name : __('pos.walkin_customer'));
+        $customerNuit = $customer ? (string) ($customer->tax_number ?? '') : '';
+        $customerAddress = $customer
+            ? (string) ($customer->billing_address ?? $customer->address ?? '')
+            : '';
+
+        $operator = $pos->posUser
+            ? (string) $pos->posUser->name
+            : ($user ? (string) $user->name : '');
+
+        $companyAddressParts = array_filter([
+            $settings['company_address'] ?? null,
+            $settings['company_city'] ?? null,
+            $settings['company_state'] ?? null,
+            $settings['company_zipcode'] ?? null,
+            $settings['company_country'] ?? null,
+        ]);
+        $companyAddress = implode(', ', $companyAddressParts);
+        $currency = (string) ($settings['site_currency_symbol'] ?? $settings['site_currency'] ?? 'MT');
+        $docType = Pos::normalizeDocumentType($pos->document_type ?? null);
+        $documentTitle = Pos::documentTypeLabel($docType);
+        $isPaid = $pos->posPayments->isNotEmpty();
+        if (! $isPaid) {
+            $documentTitle = __('Bill');
+        }
+
+        $issuedAt = $pos->created_at
+            ? $pos->created_at->format('Y-m-d H:i:s')
+            : (($pos->pos_date ? date('Y-m-d', strtotime($pos->pos_date)) : date('Y-m-d')) . ' ' . date('H:i:s'));
+
+        $receiptLinkUrl = '';
+        try {
+            $receiptLinkUrl = \Illuminate\Support\Facades\URL::signedRoute(
+                'pos.receipt.link',
+                ['id' => \Illuminate\Support\Facades\Crypt::encrypt($pos->id)]
+            );
+        } catch (\Throwable $e) {
+            $receiptLinkUrl = '';
+        }
+
+        $qrBase64 = '';
+        $qrPayload = $receiptLinkUrl !== ''
+            ? $receiptLinkUrl
+            : ((string) ($settings['company_name'] ?? '') . ' - ' . $posNumber . ' - ' . $issuedAt);
+        try {
+            $png = \DNS2D::getBarcodePNG($qrPayload, 'QRCODE', 4, 4);
+            if (is_string($png) && $png !== '') {
+                $qrBase64 = $png;
+            }
+        } catch (\Throwable $e) {
+            $qrBase64 = '';
+        }
+
+        $logoBase64 = self::resolveReceiptLogoBase64($settings);
+
+        $companyWebsite = (string) ($settings['company_website'] ?? 'www.uthara.co.mz');
+        $companyEmail = (string) ($settings['company_email'] ?? $settings['mail_from_address'] ?? '');
+
+        return [
+            'doc_type' => $isPaid ? 'receipt' : 'bill',
+            'render' => 'native',
+            'header' => [
+                'company' => (string) ($settings['company_name'] ?? ''),
+                'company_address' => $companyAddress,
+                'company_phone' => (string) ($settings['company_telephone'] ?? ''),
+                'company_email' => $companyEmail,
+                'company_website' => $companyWebsite,
+                'nuit' => (string) ($settings['vat_number'] ?? $settings['registration_number'] ?? ''),
+                'document_title' => $documentTitle,
+                'pos_number' => $posNumber,
+                'copy_label' => __('Original'),
+                'issued_at' => $issuedAt,
+                'table' => $tableName,
+                'customer' => $customerName,
+                'customer_nuit' => $customerNuit,
+                'customer_address' => $customerAddress,
+                'currency' => $currency,
+                'date' => $pos->pos_date ? date('Y-m-d', strtotime($pos->pos_date)) : date('Y-m-d'),
+                'time' => date('H:i:s'),
+                'operator' => $operator,
+                'warehouse' => $pos->warehouse ? (string) $pos->warehouse->name : '',
+                'branch' => $pos->branch ? (string) $pos->branch->name : '',
+                'logo_base64' => $logoBase64,
+            ],
+            'rows' => $rows,
+            'totals' => [
+                'subtotal' => round($subtotalGross, 2),
+                'discount' => round($discount, 2),
+                'vat' => round($vatTotal, 2),
+                'tip' => round($tip, 2),
+                'total' => round($total, 2),
+                'paid' => round($paid, 2),
+                'change' => round($change, 2),
+                'item_count' => count($rows),
+            ],
+            'vat_breakdown' => array_values(array_map(static function (array $row) {
+                return [
+                    'rate' => (float) $row['rate'],
+                    'net' => round((float) $row['net'], 2),
+                    'tax' => round((float) $row['tax'], 2),
+                ];
+            }, $vatBreakdown)),
+            'payment' => [
+                'method' => $paymentMethods ? implode(', ', array_unique($paymentMethods)) : '',
+                'reference' => $paymentRefs ? implode(', ', $paymentRefs) : '',
+                'notes' => $paymentNotes,
+            ],
+            'qr_base64' => $qrBase64,
+            'qr_payload' => $qrPayload,
+            'footer' => [
+                'thank_you' => __('Thank You For Shopping With Us. Please Come Again'),
+                'generated_by' => __('Documento processado pelo ERP SaaS UTHARA'),
+                'website' => $companyWebsite . ($companyEmail !== '' ? ' · ' . $companyEmail : ''),
+                'processed' => __('pos.document_processed_by_computer'),
+            ],
+        ];
+    }
+
+    /**
+     * Same logo as Blade slip receipts: pos_logo, else company_logo_dark.
+     * Returns raw base64 for the Print Agent (no data: prefix).
+     *
+     * @param  array<string, mixed>  $settings  Creator settings (settingsById)
+     */
+    protected static function resolveReceiptLogoBase64(array $settings): string
+    {
+        try {
+            $posLogo = trim((string) ($settings['pos_logo'] ?? ''));
+            if ($posLogo === '') {
+                $posLogo = trim((string) (\App\Models\Utility::getValByName('pos_logo') ?? ''));
+            }
+            $companyLogo = trim((string) ($settings['company_logo_dark'] ?? ''));
+            if ($companyLogo === '') {
+                $companyLogo = trim((string) (\App\Models\Utility::getValByName('company_logo_dark') ?? ''));
+            }
+            if ($companyLogo === '') {
+                $companyLogo = 'logo-dark.png';
+            }
+
+            $relativePaths = [];
+            if ($posLogo !== '') {
+                $relativePaths[] = 'pos_logo/' . ltrim($posLogo, '/');
+            }
+            $relativePaths[] = 'uploads/logo/' . ltrim($companyLogo, '/');
+
+            foreach ($relativePaths as $rel) {
+                $bytes = self::readLogoFileBytes($rel);
+                if ($bytes !== null && $bytes !== '') {
+                    return base64_encode($bytes);
+                }
+            }
+        } catch (\Throwable $e) {
+            // ignore logo failures
+        }
+
+        return '';
+    }
+
+    /**
+     * Read logo bytes from local disk or configured storage disk (local/s3/wasabi).
+     */
+    protected static function readLogoFileBytes(string $relativePath): ?string
+    {
+        $relativePath = ltrim(str_replace('\\', '/', $relativePath), '/');
+        $localCandidates = [
+            storage_path('app/public/' . $relativePath),
+            public_path($relativePath),
+            storage_path('app/' . $relativePath),
+        ];
+        foreach ($localCandidates as $path) {
+            if (is_string($path) && is_file($path) && is_readable($path)) {
+                $bytes = @file_get_contents($path);
+                if ($bytes !== false && $bytes !== '') {
+                    return $bytes;
+                }
+            }
+        }
+
+        try {
+            $storageSettings = Utility::getStorageSetting();
+            $diskName = (string) ($storageSettings['storage_setting'] ?? 'local');
+            if ($diskName === 'wasabi') {
+                config([
+                    'filesystems.disks.wasabi.key' => $storageSettings['wasabi_key'] ?? null,
+                    'filesystems.disks.wasabi.secret' => $storageSettings['wasabi_secret'] ?? null,
+                    'filesystems.disks.wasabi.region' => $storageSettings['wasabi_region'] ?? null,
+                    'filesystems.disks.wasabi.bucket' => $storageSettings['wasabi_bucket'] ?? null,
+                    'filesystems.disks.wasabi.endpoint' => 'https://s3.' . ($storageSettings['wasabi_region'] ?? '') . '.wasabisys.com',
+                ]);
+            } elseif ($diskName === 's3') {
+                config([
+                    'filesystems.disks.s3.key' => $storageSettings['s3_key'] ?? null,
+                    'filesystems.disks.s3.secret' => $storageSettings['s3_secret'] ?? null,
+                    'filesystems.disks.s3.region' => $storageSettings['s3_region'] ?? null,
+                    'filesystems.disks.s3.bucket' => $storageSettings['s3_bucket'] ?? null,
+                    'filesystems.disks.s3.use_path_style_endpoint' => false,
+                ]);
+            }
+
+            $disk = \Illuminate\Support\Facades\Storage::disk($diskName === 'local' ? 'public' : $diskName);
+            if ($disk->exists($relativePath)) {
+                $bytes = $disk->get($relativePath);
+                if (is_string($bytes) && $bytes !== '') {
+                    return $bytes;
+                }
+            }
+            // Local disk often stores under the path without "public/" prefix quirks
+            if ($diskName === 'local') {
+                $localDisk = \Illuminate\Support\Facades\Storage::disk('local');
+                if ($localDisk->exists('public/' . $relativePath)) {
+                    $bytes = $localDisk->get('public/' . $relativePath);
+                    if (is_string($bytes) && $bytes !== '') {
+                        return $bytes;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // fall through to URL fetch
+        }
+
+        try {
+            $dir = dirname($relativePath);
+            $file = basename($relativePath);
+            $baseUrl = rtrim((string) Utility::get_file($dir), '/');
+            if ($baseUrl === '') {
+                return null;
+            }
+            $url = $baseUrl . '/' . ltrim($file, '/');
+            $ctx = stream_context_create([
+                'http' => ['timeout' => 8, 'follow_location' => 1],
+                'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
+            ]);
+            $bytes = @file_get_contents($url, false, $ctx);
+            if ($bytes !== false && $bytes !== '') {
+                return $bytes;
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        return null;
+    }
+
+    /**
+     * Build receipt job payload from the saved POS receipt Blade template (logo, QR, layout).
+     * Includes a PNG screenshot of that template for the Print Agent when possible.
+     *
+     * @return array{payload: array<string, mixed>, has_template_image: bool}
+     */
+    public static function buildTemplateReceiptJobPayload(Pos $pos, User $user): array
+    {
+        $payload = self::buildReceiptPayloadFromPos($pos, $user);
+        $payload['receipt_layout'] = Utility::normalizeReceiptLayout(
+            (Utility::settingsById($pos->created_by)['pos_receipt_layout'] ?? 'existing')
+        );
+        $payload['print_layout'] = Utility::normalizePosPrintLayout(
+            (Utility::settingsById($pos->created_by)['pos_print_layout'] ?? 'slip')
+        );
+
+        $html = self::renderReceiptTemplateHtml($pos, $user);
+        if ($html === '') {
+            return ['payload' => $payload, 'has_template_image' => false];
+        }
+
+        $png = self::screenshotReceiptHtml($html, $payload['print_layout']);
+        if ($png === null || $png === '') {
+            return ['payload' => $payload, 'has_template_image' => false];
+        }
+
+        $payload['render'] = 'image';
+        $payload['image_mime'] = 'image/png';
+        $payload['image_base64'] = base64_encode($png);
+
+        return ['payload' => $payload, 'has_template_image' => true];
+    }
+
+    /**
+     * Render the same Blade receipt the POS modal uses (saved custom template).
+     */
+    public static function renderReceiptTemplateHtml(Pos $pos, User $user): string
+    {
+        try {
+            $viewData = self::buildReceiptViewData($pos, $user);
+            $viewName = Utility::posReceiptViewName($viewData['settings'] ?? null);
+            $inner = view($viewName, $viewData)->render();
+            $inner = self::absolutizeHtmlAssetUrls($inner);
+            $widthCss = match ($viewData['print_layout'] ?? 'slip') {
+                'a4' => '210mm',
+                'a5' => '148mm',
+                default => '80mm',
+            };
+
+            return '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+                . '<style>'
+                . 'html,body{margin:0;padding:0;background:#fff;}'
+                . 'body{padding:4px;}'
+                . '.no-print-copies,.modal-footer,script{display:none!important;}'
+                . '#printarea{max-width:' . $widthCss . ';margin:0 auto;background:#fff;}'
+                . '</style></head><body>' . $inner . '</body></html>';
+        } catch (\Throwable $e) {
+            \Log::warning('POS receipt template render failed: ' . $e->getMessage());
+
+            return '';
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function buildReceiptViewData(Pos $pos, User $user): array
+    {
+        $pos->loadMissing(['items.product', 'customer', 'table', 'posPayments', 'warehouse', 'posUser', 'branch']);
+        $settings = Utility::settingsById($pos->created_by);
+        $posPayments = $pos->posPayments;
+        $receiptUser = ($pos->pos_user_id ? User::find((int) $pos->pos_user_id) : null) ?: $user;
+        $customer = $pos->customer_id ? $pos->customer : null;
+        $warehouse = $pos->warehouse;
+        $branch = $pos->branch;
+
+        $clientName = ! empty($pos->guest_name)
+            ? $pos->guest_name
+            : (! empty($customer->name) ? $customer->name : __('pos.walkin_customer'));
+
+        $details = [
+            'pos_id' => $user->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
+            'customer' => $customer ? $customer->toArray() : [],
+            'warehouse' => $warehouse ? $warehouse->toArray() : [],
+            'branch' => $branch ? $branch->toArray() : [],
+            'user' => $user->toArray(),
+            'date' => $pos->pos_date ?? date('Y-m-d'),
+            'client_name' => $clientName,
+            'table_name' => $pos->table ? $pos->table->name : null,
+            'document_type' => $pos->document_type ?? null,
+        ];
+        $warehouseName = $details['warehouse']['name'] ?? ($warehouse ? $warehouse->name : '-');
+        $details['warehouse']['details'] = '<h7 class="text-dark">' . ucfirst((string) $warehouseName) . '</p></h7>';
+        if (! empty($details['customer']['name'])) {
+            $details['customer']['details'] = '<h6 class="text-dark">' . ucfirst($details['customer']['name']) . '</h6>';
+        } else {
+            $details['customer']['details'] = '<h2 class="h6"><b>' . __('pos.walkin_customer') . '</b></h2>';
+        }
+        $details['customer']['shippdetails'] = '-';
+        $details['user']['details'] = '<h6 class="text-dark"><b>' . ucfirst($user->name) . '</b></h6>';
+
+        $sales = ['data' => [], 'discount' => '0', 'sub_total' => '0', 'total' => '0', 'tip' => '0'];
+        $mainsubtotal = 0.0;
+        $discount = $posPayments->isEmpty() ? 0.0 : (float) $posPayments->sum('discount');
+        $totalTip = (float) $posPayments->sum('tip');
+        $vatBreakdown = [];
+
+        foreach ($pos->items as $item) {
+            if (! empty($item->voided_at) || ! empty($item->removed_from_cart_at)) {
+                continue;
+            }
+            $product = $item->product ?: ProductService::find($item->product_id);
+            $price = (float) $item->price;
+            $qty = (int) $item->quantity;
+            $taxRate = (float) Utility::totalTaxRate($item->tax);
+            $subtotal = $price * $qty;
+            $tax = ($subtotal * $taxRate) / 100;
+            $lineTotal = $subtotal + $tax;
+            $mainsubtotal += $lineTotal;
+            $sales['data'][] = [
+                'name' => $product ? $product->name : __('Product'),
+                'sku' => $product ? ($product->sku ?? '-') : '-',
+                'quantity' => $qty,
+                'price' => $user->priceFormat($price),
+                'tax' => $taxRate . '%',
+                'product_tax' => $taxRate . '%',
+                'tax_amount' => $user->priceFormat($tax),
+                'subtotal' => $user->priceFormat($lineTotal),
+                'description' => $item->description ?? '',
+            ];
+
+            $key = (string) $taxRate;
+            if (! isset($vatBreakdown[$key])) {
+                $vatBreakdown[$key] = ['rate' => $taxRate, 'net' => 0, 'vat' => 0, 'amount' => 0];
+            }
+            $vatBreakdown[$key]['net'] += $subtotal;
+            $vatBreakdown[$key]['vat'] += $tax;
+            $vatBreakdown[$key]['amount'] += $lineTotal;
+        }
+
+        $sales['discount'] = $user->priceFormat($discount);
+        $sales['sub_total'] = $user->priceFormat($mainsubtotal);
+        $sales['tip'] = $user->priceFormat($totalTip);
+        $sales['total'] = $user->priceFormat($mainsubtotal - $discount);
+
+        $printLayout = Utility::normalizePosPrintLayout($settings['pos_print_layout'] ?? 'slip');
+
+        return [
+            'details' => $details,
+            'sales' => $sales,
+            'customer' => $customer,
+            'productServices' => collect([]),
+            'barcode' => ['barcodeType' => $user->barcodeType(), 'barcodeFormat' => $user->barcodeFormat()],
+            'posPayments' => $posPayments,
+            'vatBreakdown' => array_values($vatBreakdown),
+            'bankAccounts' => BankAccount::where('created_by', $user->creatorId())
+                ->select('id', 'holder_name', 'bank_name', 'account_number')->get(),
+            'segundaVia' => false,
+            'posIdRaw' => $pos->id,
+            'receiptLinkUrl' => URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]),
+            'printSource' => 'restaurant',
+            'settings' => $settings,
+            'receiptUser' => $receiptUser,
+            'pos' => $pos,
+            'standalone' => false,
+            'agentPrint' => true,
+            'print_layout' => $printLayout,
+        ];
+    }
+
+    public static function absolutizeHtmlAssetUrls(string $html): string
+    {
+        $base = rtrim((string) config('app.url'), '/');
+
+        $html = (string) preg_replace_callback(
+            '/\b(src|href)=["\']([^"\']+)["\']/i',
+            static function (array $m) use ($base) {
+                $attr = $m[1];
+                $url = $m[2];
+                if ($url === '' || str_starts_with($url, 'data:') || str_starts_with($url, 'http://') || str_starts_with($url, 'https://') || str_starts_with($url, '//')) {
+                    return $m[0];
+                }
+                if (str_starts_with($url, '/')) {
+                    return $attr . '="' . $base . $url . '"';
+                }
+
+                return $attr . '="' . $base . '/' . ltrim($url, '/') . '"';
+            },
+            $html
+        );
+
+        // Prefer embedding local images so Chromium does not need network for logos.
+        return (string) preg_replace_callback(
+            '/\bsrc=["\'](https?:\/\/[^"\']+)["\']/i',
+            static function (array $m) {
+                $url = $m[1];
+                $dataUri = self::tryLocalUrlToDataUri($url);
+                if ($dataUri) {
+                    return 'src="' . $dataUri . '"';
+                }
+
+                return $m[0];
+            },
+            $html
+        );
+    }
+
+    public static function tryLocalUrlToDataUri(string $url): ?string
+    {
+        try {
+            $path = parse_url($url, PHP_URL_PATH);
+            if (! is_string($path) || $path === '') {
+                return null;
+            }
+            $relative = ltrim($path, '/');
+            $candidates = [
+                public_path($relative),
+                public_path(preg_replace('#^storage/#', 'storage/app/public/', $relative) ?? $relative),
+                storage_path('app/public/' . preg_replace('#^storage/#', '', $relative)),
+            ];
+            foreach ($candidates as $file) {
+                if (! is_string($file) || ! is_file($file)) {
+                    continue;
+                }
+                $mime = mime_content_type($file) ?: 'image/png';
+                if (! str_starts_with($mime, 'image/')) {
+                    continue;
+                }
+                $bin = @file_get_contents($file);
+                if ($bin === false || $bin === '') {
+                    continue;
+                }
+
+                return 'data:' . $mime . ';base64,' . base64_encode($bin);
+            }
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return null;
+    }
+
+    public static function screenshotReceiptHtml(string $html, string $printLayout = 'slip'): ?string
+    {
+        if (! class_exists(\Spatie\Browsershot\Browsershot::class)) {
+            return null;
+        }
+
+        $width = match ($printLayout) {
+            'a4' => 794,
+            'a5' => 559,
+            default => 302,
+        };
+
+        try {
+            return \Spatie\Browsershot\Browsershot::html($html)
+                ->showBackground()
+                ->windowSize($width, 1600)
+                ->deviceScaleFactor(2)
+                ->waitUntilNetworkIdle()
+                ->setOption('args', ['--no-sandbox', '--disable-setuid-sandbox'])
+                ->screenshot();
+        } catch (\Throwable $e) {
+            \Log::warning('POS receipt Browsershot failed: ' . $e->getMessage());
+
+            return null;
+        }
     }
 
     /**

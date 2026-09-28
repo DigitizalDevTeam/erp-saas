@@ -14,6 +14,8 @@ public partial class MainForm : Form
     private readonly TextBox _txtBaseUrl = new();
     private readonly ComboBox _cboBranch = new();
     private readonly Button _btnConnect = new();
+    private readonly Button _btnUploadLogo = new();
+    private readonly Label _lblSlipLogo = new();
     private readonly Button _btnStop = new();
     private readonly Button _btnExit = new();
     private readonly Label _lblStatus = new();
@@ -26,7 +28,7 @@ public partial class MainForm : Form
     {
         Text = "POS Printer Agent";
         Width = 640;
-        Height = 500;
+        Height = 540;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -80,7 +82,23 @@ public partial class MainForm : Form
             }
         };
         Controls.Add(_cboBranch);
-        y += 44;
+        y += 40;
+
+        Controls.Add(MakeLabel("Slip logo", 16, y));
+        _btnUploadLogo.Left = 140;
+        _btnUploadLogo.Top = y - 3;
+        _btnUploadLogo.Width = 120;
+        _btnUploadLogo.Click += (_, _) => UploadOrChangeSlipLogo();
+        Controls.Add(_btnUploadLogo);
+
+        _lblSlipLogo.AutoSize = false;
+        _lblSlipLogo.Left = 270;
+        _lblSlipLogo.Top = y;
+        _lblSlipLogo.Width = 330;
+        _lblSlipLogo.Height = 22;
+        Controls.Add(_lblSlipLogo);
+        RefreshSlipLogoUi();
+        y += 40;
 
         _btnStop.Text = "Stop";
         _btnStop.Left = 140;
@@ -128,12 +146,47 @@ public partial class MainForm : Form
         _txtLog.Left = 16;
         _txtLog.Top = y;
         _txtLog.Width = 590;
-        _txtLog.Height = 250;
+        _txtLog.Height = 230;
         _txtLog.Multiline = true;
         _txtLog.ScrollBars = ScrollBars.Vertical;
         _txtLog.ReadOnly = true;
         _txtLog.Font = new Font("Consolas", 9f);
         Controls.Add(_txtLog);
+    }
+
+    private void RefreshSlipLogoUi()
+    {
+        var has = SlipLogoStore.HasSlipLogo();
+        _btnUploadLogo.Text = has ? "Change Logo" : "Upload Logo";
+        _lblSlipLogo.Text = has ? "Slip logo: set (used on Pay & Print)" : "Slip logo: not set";
+    }
+
+    private void UploadOrChangeSlipLogo()
+    {
+        using var dlg = new OpenFileDialog
+        {
+            Title = "Select slip logo",
+            Filter = "Image files|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*",
+            CheckFileExists = true,
+            Multiselect = false,
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            SlipLogoStore.SaveSlipLogoFromFile(dlg.FileName);
+            RefreshSlipLogoUi();
+            AppendLog("Slip logo saved. It will be used on Pay & Print slips.");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "Could not save logo: " + ex.Message, "POS Printer Agent",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            AppendLog("Slip logo save failed: " + ex.Message);
+        }
     }
 
     private static Label MakeLabel(string text, int x, int y)
@@ -170,6 +223,7 @@ public partial class MainForm : Form
     private void LoadConfigIntoUi()
     {
         _txtBaseUrl.Text = _config.BaseUrl;
+        RefreshSlipLogoUi();
     }
 
     private async Task OnShownAsync()
