@@ -31,17 +31,16 @@ public static class SlipPrinter
 
     public static void PrintJob(PrintJobDto job)
     {
-        var printerName = (job.SystemPrinterName ?? "").Trim();
-        if (string.IsNullOrEmpty(printerName))
+        var requestedName = (job.SystemPrinterName ?? "").Trim();
+        if (string.IsNullOrEmpty(requestedName))
         {
             throw new InvalidOperationException("Job has no system_printer_name.");
         }
 
-        var installed = PrinterSettings.InstalledPrinters.Cast<string>()
-            .Any(p => string.Equals(p, printerName, StringComparison.OrdinalIgnoreCase));
-        if (!installed)
+        var printerName = ResolveInstalledPrinterName(requestedName);
+        if (string.IsNullOrEmpty(printerName))
         {
-            throw new InvalidOperationException($"Printer not found on this PC: {printerName}");
+            throw new InvalidOperationException($"Printer not found on this PC: {requestedName}");
         }
 
         // Prefer full-page receipt image only when explicitly rendered as image (legacy).
@@ -112,6 +111,72 @@ public static class SlipPrinter
             bodyBoldFont.Dispose();
             doc.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Resolve a job printer name to an installed Windows queue.
+    /// Supports exact match and UNC/share aliases (e.g. "pos" vs "\\server\pos").
+    /// </summary>
+    private static string? ResolveInstalledPrinterName(string requestedName)
+    {
+        var requested = (requestedName ?? "").Trim();
+        if (requested.Length == 0)
+        {
+            return null;
+        }
+
+        var installed = PrinterSettings.InstalledPrinters.Cast<string>()
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p.Trim())
+            .ToList();
+
+        // 1) Exact match
+        var exact = installed.FirstOrDefault(p =>
+            string.Equals(p, requested, StringComparison.OrdinalIgnoreCase));
+        if (exact != null)
+        {
+            return exact;
+        }
+
+        var requestedLeaf = PrinterNameLeaf(requested);
+
+        // 2) Installed UNC/share ends with \requested or /requested
+        var uncSuffix = installed.FirstOrDefault(p =>
+        {
+            var leaf = PrinterNameLeaf(p);
+            return string.Equals(leaf, requestedLeaf, StringComparison.OrdinalIgnoreCase)
+                   || p.EndsWith("\\" + requested, StringComparison.OrdinalIgnoreCase)
+                   || p.EndsWith("/" + requested, StringComparison.OrdinalIgnoreCase);
+        });
+        if (uncSuffix != null)
+        {
+            return uncSuffix;
+        }
+
+        // 3) Requested is UNC and an installed short name matches the share leaf
+        if (requested.Contains('\\') || requested.Contains('/'))
+        {
+            var byLeaf = installed.FirstOrDefault(p =>
+                string.Equals(PrinterNameLeaf(p), requestedLeaf, StringComparison.OrdinalIgnoreCase));
+            if (byLeaf != null)
+            {
+                return byLeaf;
+            }
+        }
+
+        return null;
+    }
+
+    private static string PrinterNameLeaf(string name)
+    {
+        var n = (name ?? "").Trim().TrimEnd('\\', '/');
+        if (n.Length == 0)
+        {
+            return "";
+        }
+
+        var i = Math.Max(n.LastIndexOf('\\'), n.LastIndexOf('/'));
+        return i >= 0 && i < n.Length - 1 ? n[(i + 1)..] : n;
     }
 
     private static bool IsNativeReceiptRender(PrintJobDto job)

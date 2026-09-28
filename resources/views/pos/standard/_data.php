@@ -45,7 +45,7 @@ if ($printSource === 'restaurant') {
                 $receiptBranchId,
                 (int) (Auth::user()->creatorId() ?? 0)
             );
-            $usePrintAgentForInvoice = $printCfg && (bool) $printCfg->use_print_agent_for_invoice;
+            $usePrintAgentForInvoice = \App\Services\PosPrinterAgentService::usesPrintAgentForInvoice($printCfg);
         } catch (\Throwable $e) {
             $usePrintAgentForInvoice = false;
         }

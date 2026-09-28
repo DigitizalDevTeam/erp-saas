@@ -626,6 +626,35 @@ class PosController extends Controller
     }
 
     /**
+     * After restaurant Pay: enqueue receipt to Print Agent (same idea as Send to Production → kitchen jobs).
+     * No-op when toggle/default printer is off, or when this is not a restaurant order. Does not touch kitchen/bar.
+     */
+    protected function enqueueRestaurantReceiptPrintAgentJob(Pos $pos, Request $request): void
+    {
+        $isRestaurant = (int) ($pos->table_id ?? 0) > 0
+            || in_array((string) ($pos->order_type ?? ''), [
+                Pos::ORDER_TYPE_DINE_IN,
+                Pos::ORDER_TYPE_DELIVERY,
+                Pos::ORDER_TYPE_TAKEAWAY,
+            ], true)
+            || (int) $request->get('pos_table_id') > 0
+            || $request->filled('pos_order_type');
+
+        if (! $isRestaurant) {
+            return;
+        }
+
+        try {
+            PosPrinterAgentService::enqueueReceiptForPosIfEnabled($pos, Auth::user());
+        } catch (\Throwable $e) {
+            \Log::warning('POS agent receipt auto-enqueue after payment failed: ' . $e->getMessage(), [
+                'pos_id' => $pos->id,
+                'branch_id' => $pos->branch_id,
+            ]);
+        }
+    }
+
+    /**
      * Fields to clear when a table is released back to available.
      *
      * @return array{status: string, current_guests: int|null, customer_name: null, waiter_user_id: null}
@@ -2241,6 +2270,7 @@ class PosController extends Controller
                     if ($pos->table_id) {
                         $this->closeRestaurantTableIfFullyPaid((int) $pos->table_id, $user_id);
                     }
+                    $this->enqueueRestaurantReceiptPrintAgentJob($pos, $request);
                     return response()->json([
                         'code' => 200,
                         'success' => __('Payment completed successfully!'),
@@ -2472,6 +2502,8 @@ class PosController extends Controller
                     $this->attachPosChargeToHotelFolio($request, $pos, (float) $total, $user_id);
 
                     session()->forget('pos');
+
+                    $this->enqueueRestaurantReceiptPrintAgentJob($pos, $request);
 
                     return response()->json(
                         [

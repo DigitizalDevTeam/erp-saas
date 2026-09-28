@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 class PosPrinterAgentHeartbeat extends Model
 {
-    /** Seconds without heartbeat before status is Offline. */
-    public const ONLINE_THRESHOLD_SECONDS = 12;
+    /** Seconds without heartbeat before status is Offline (UTC comparison). */
+    public const ONLINE_THRESHOLD_SECONDS = 30;
 
     protected $fillable = [
         'branch_id',
@@ -26,7 +27,11 @@ class PosPrinterAgentHeartbeat extends Model
             return false;
         }
 
-        return $this->last_heartbeat_at->gte(now()->subSeconds(self::ONLINE_THRESHOLD_SECONDS));
+        // Compare in UTC so company timezone (XSS middleware) cannot make a live heartbeat look stale.
+        $lastUtc = $this->last_heartbeat_at->copy()->utc();
+        $cutoffUtc = Carbon::now('UTC')->subSeconds(self::ONLINE_THRESHOLD_SECONDS);
+
+        return $lastUtc->gte($cutoffUtc);
     }
 
     public function branch()

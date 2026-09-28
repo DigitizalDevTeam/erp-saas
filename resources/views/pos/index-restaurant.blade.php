@@ -2537,6 +2537,12 @@
                 function printSlip(title, slipRows) {
                     if (slipRows.length === 0) return;
                     var w = window.open('', '_blank', 'width=380,height=400');
+                    if (!w) {
+                        if (typeof show_toastr === 'function') {
+                            show_toastr('{{ __("Error") }}', '{{ __("Please allow pop-ups to print kitchen/bar slips in the browser.") }}', 'error');
+                        }
+                        return;
+                    }
                     w.document.write('<html><head><title>' + title + '</title><style>body{font-family:monospace;padding:12px;font-size:16px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note-bold{font-weight:bold;font-size:14px;margin-top:2px;}.addon-banner{font-weight:bold;font-size:18px;margin:8px 0 4px;border:2px solid #000;padding:6px;text-align:center;}.addon-sub{font-size:13px;margin:0 0 8px;color:#333;}</style></head><body>');
                     w.document.write('<h3>' + title + '</h3>');
                     if (isAddon) {
@@ -2690,26 +2696,17 @@
                             var tableLabel = payload.isNonDineIn ? (payload.orderType === 'delivery' ? '{{ __("pos.delivery") }}' : '{{ __("pos.takeaway") }}') : $('#pos-selected-table').text();
                             var isAddonSend = posRestaurantOrderHasSentLines();
                             posRestaurantMarkUnsentRowsAsSent();
+                            // Print request first (agent jobs already enqueued server-side; browser slips if configured).
                             posRestaurantPrintSlips(tableLabel, {
                                 unsentOnly: true,
                                 isAddon: isAddonSend,
                                 orderRef: res.pos_id || $('#pos_restaurant_pos_id').val() || '',
                                 printJobs: Array.isArray(res.print_jobs) ? res.print_jobs : []
                             });
-                            if (payload.isNonDineIn) {
-                                if (res.pos_id) {
-                                    $('#pos_restaurant_pos_id').val(res.pos_id);
-                                    loadRestaurantOrder(null, payload.shiftId, payload.branchId, payload.orderType, res.pos_id);
-                                } else {
-                                    loadRestaurantOrder(null, payload.shiftId, payload.branchId, payload.orderType);
-                                }
-                                if (typeof loadRestaurantDeliveryTakeawayCustomers === 'function') {
-                                    loadRestaurantDeliveryTakeawayCustomers(payload.branchId, payload.shiftId, payload.orderType);
-                                }
-                            } else {
-                                loadRestaurantOrder(payload.tableId, payload.shiftId, payload.branchId, 'dine_in');
-                                if (payload.branchId) loadRestaurantTables(payload.branchId);
-                            }
+                            // Clear cart by reloading POS after print has been kicked off.
+                            setTimeout(function () {
+                                window.location.reload();
+                            }, 500);
                         }
                     },
                     error: function (xhr) {
@@ -4410,6 +4407,9 @@
                 var savedTableName = $('#pos_restaurant_table_name').val() || $('#pos-selected-table').text();
                 var shiftId = $('#pos_shift_id_hidden').val();
                 var branchId = $('#pos-restaurant-branch').val();
+                if (data && data.pos_id) {
+                    window._posLastPaidReceiptId = data.pos_id;
+                }
                 if (sk === 'pos-restaurant') {
                     if (typeof posRestaurantCartKey !== 'undefined' && posRestaurantCartKey) {
                         emptyData.cart_key = posRestaurantCartKey;
@@ -4455,6 +4455,68 @@
                             if ($('#commonModal').length) $('#commonModal').modal('hide');
                         }
                     }
+                });
+            });
+
+            // Durable receipt Print → Print Agent (works even if AJAX-injected receipt scripts fail to eval).
+            // Does not change kitchen/production print. Skips when printview already handled the click.
+            $(document).on('click.posAgentReceipt', '#commonModal #print', function (e) {
+                var $btn = $(this);
+                if ($btn.data('pos-agent-busy')) {
+                    return;
+                }
+                var useAgent = String($btn.attr('data-print-agent') || '') === '1'
+                    && String($btn.attr('data-print-source') || '') === 'restaurant';
+                if (!useAgent) {
+                    return;
+                }
+                // If printview script already bound and ran tryAgentReceiptPrint, it sets this flag briefly.
+                if ($btn.hasClass('disabled') && $btn.css('pointer-events') === 'none') {
+                    return;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+                var posId = $btn.attr('data-pos-id')
+                    || (typeof posPrintPosId !== 'undefined' ? posPrintPosId : '')
+                    || window._posLastPaidReceiptId
+                    || $('#pos_restaurant_pos_id').val()
+                    || '';
+                var branchId = $btn.attr('data-branch-id')
+                    || $('#pos-restaurant-branch').val()
+                    || $('#pos_branch_id_hidden').val()
+                    || '';
+                if (!posId) {
+                    return;
+                }
+                $btn.data('pos-agent-busy', true).addClass('disabled').css('pointer-events', 'none');
+                $.ajax({
+                    url: '{{ route("pos.restaurant.print-receipt") }}',
+                    type: 'POST',
+                    data: {
+                        _token: $('meta[name="csrf-token"]').attr('content') || '{{ csrf_token() }}',
+                        branch_id: branchId,
+                        pos_id: posId,
+                        pos_table_id: $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val() || '',
+                        pos_shift_id: $('#pos_shift_id_hidden').val() || '',
+                        pos_order_type: $('#pos-restaurant-order-type').val() || $('#pos_order_type_hidden').val() || ''
+                    }
+                }).done(function (res) {
+                    if (res && res.success) {
+                        if (typeof show_toastr === 'function') {
+                            show_toastr('{{ __("Success") }}', (res.message || '{{ __("Sent to printer agent.") }}'), 'success');
+                        }
+                        return;
+                    }
+                    if (typeof show_toastr === 'function') {
+                        show_toastr('{{ __("Error") }}', (res && res.error) ? res.error : '{{ __("pos.error") }}', 'error');
+                    }
+                }).fail(function (xhr) {
+                    var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("Could not send to printer agent.") }}';
+                    if (typeof show_toastr === 'function') {
+                        show_toastr('{{ __("Error") }}', msg, 'error');
+                    }
+                }).always(function () {
+                    $btn.data('pos-agent-busy', false).removeClass('disabled').css('pointer-events', '');
                 });
             });
 

@@ -56,7 +56,7 @@ class PosPrinterAgentController extends Controller
                 'kitchen_printer_id' => $config ? $config->kitchen_printer_id : null,
                 'bar_printer_id' => $config ? $config->bar_printer_id : null,
                 'default_printer_id' => $config ? $config->default_printer_id : null,
-                'use_print_agent_for_invoice' => $config ? (bool) $config->use_print_agent_for_invoice : false,
+                'use_print_agent_for_invoice' => PosPrinterAgentService::usesPrintAgentForInvoice($config),
             ],
             'agent' => PosPrinterAgentService::agentStatusForBranch($branchId, $creatorId),
         ]);
@@ -148,7 +148,7 @@ class PosPrinterAgentController extends Controller
                 'kitchen_printer_id' => $config->kitchen_printer_id,
                 'bar_printer_id' => $config->bar_printer_id,
                 'default_printer_id' => $config->default_printer_id,
-                'use_print_agent_for_invoice' => (bool) $config->use_print_agent_for_invoice,
+                'use_print_agent_for_invoice' => PosPrinterAgentService::usesPrintAgentForInvoice($config),
             ],
         ]);
     }
@@ -239,28 +239,15 @@ class PosPrinterAgentController extends Controller
             ], 422);
         }
 
-        if (! $config->use_print_agent_for_invoice) {
+        if (! PosPrinterAgentService::usesPrintAgentForInvoice($config)) {
             return response()->json([
                 'error' => __('pos.print_agent_invoice_disabled'),
                 'fallback' => true,
             ], 422);
         }
 
-        $isPaid = $pos->posPayments->isNotEmpty();
-        $title = $isPaid ? __('Receipt') : __('Bill');
-        // Native Cash Sale template — do not attach full-page receipt screenshots.
-        $payload = PosPrinterAgentService::buildReceiptPayloadFromPos($pos, $user);
-        $payload['render'] = 'native';
-        unset($payload['image_base64'], $payload['image_mime']);
-
         try {
-            $job = PosPrinterAgentService::enqueueReceiptJob(
-                $branchId,
-                $creatorId,
-                (int) $pos->id,
-                $payload,
-                $title
-            );
+            $job = PosPrinterAgentService::enqueueReceiptForPosIfEnabled($pos, $user);
         } catch (\Throwable $e) {
             \Log::warning('POS agent receipt enqueue failed: ' . $e->getMessage());
 

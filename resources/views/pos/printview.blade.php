@@ -121,7 +121,11 @@
 @if(empty($agentPrint))
 @if($standalone)
     <div class="mt-3 no-print-copies">
-        <button type="button" class="btn-primary" id="print">{{ __('pos.print') }}</button>
+        <button type="button" class="btn-primary" id="print"
+           data-print-source="{{ $printSource ?? 'retail' }}"
+           data-print-agent="{{ !empty($usePrintAgentForInvoice) ? '1' : '0' }}"
+           data-pos-id="{{ (int) ($posIdRaw ?? 0) }}"
+           data-branch-id="{{ (int) ($receiptBranchId ?? 0) }}">{{ __('pos.print') }}</button>
     </div>
 @else
     <div class="justify-content-center pt-2 modal-footer no-print-copies d-flex flex-wrap align-items-center gap-2">
@@ -133,7 +137,11 @@
                 @endfor
             </select>
         </label>
-        <a href="#" id="print" class="btn btn-primary btn-sm">{{ __('pos.print') }}</a>
+        <a href="#" id="print" class="btn btn-primary btn-sm"
+           data-print-source="{{ $printSource ?? 'retail' }}"
+           data-print-agent="{{ !empty($usePrintAgentForInvoice) ? '1' : '0' }}"
+           data-pos-id="{{ (int) ($posIdRaw ?? 0) }}"
+           data-branch-id="{{ (int) ($receiptBranchId ?? 0) }}">{{ __('pos.print') }}</a>
         @if(!$segundaVia && $posIdRaw)
             <button id="segunda-via-link" class="btn btn-outline-secondary btn-sm" title="{{ __('pos.segunda_via') }}">{{ __('pos.segunda_via') }}</button>
         @endif
@@ -226,14 +234,23 @@ var posRestaurantPrintReceiptUrl = '{{ route("pos.restaurant.print-receipt") }}'
     }
 
     function sendToPrinterAgent() {
-        var branchId = $('#pos-restaurant-branch').val() || $('#pos_branch_id_hidden').val() || '{{ (int) ($receiptBranchId ?? 0) }}' || '';
+        var $printBtn = $('#print');
+        var branchId = $('#pos-restaurant-branch').val()
+            || $('#pos_branch_id_hidden').val()
+            || ($printBtn.attr('data-branch-id') || '')
+            || '{{ (int) ($receiptBranchId ?? 0) }}'
+            || '';
+        var posId = posPrintPosId
+            || ($printBtn.attr('data-pos-id') || '')
+            || $('#pos_restaurant_pos_id').val()
+            || '';
         return $.ajax({
             url: posRestaurantPrintReceiptUrl,
             type: 'POST',
             data: {
-                _token: '{{ csrf_token() }}',
+                _token: $('meta[name="csrf-token"]').attr('content') || '{{ csrf_token() }}',
                 branch_id: branchId,
-                pos_id: posPrintPosId || $('#pos_restaurant_pos_id').val() || '',
+                pos_id: posId,
                 pos_table_id: $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val() || '',
                 pos_shift_id: $('#pos_shift_id_hidden').val() || '',
                 pos_order_type: $('#pos-restaurant-order-type').val() || $('#pos_order_type_hidden').val() || ''
@@ -251,11 +268,20 @@ var posRestaurantPrintReceiptUrl = '{{ route("pos.restaurant.print-receipt") }}'
                 }
                 return;
             }
+            if (res && res.fallback) {
+                doBrowserPrint(document.getElementById("print-copies") ? document.getElementById("print-copies").value : 1);
+                return;
+            }
             if (typeof show_toastr === 'function') {
                 show_toastr('{{ __("Error") }}', (res && res.error) ? res.error : '{{ __("pos.error") }}', 'error');
             }
         }).fail(function (xhr) {
-            var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("Could not send to printer agent.") }}';
+            var json = xhr.responseJSON || {};
+            if (json.fallback) {
+                doBrowserPrint(document.getElementById("print-copies") ? document.getElementById("print-copies").value : 1);
+                return;
+            }
+            var msg = json.error ? json.error : '{{ __("Could not send to printer agent.") }}';
             if (typeof show_toastr === 'function') {
                 show_toastr('{{ __("Error") }}', msg, 'error');
             }
@@ -265,7 +291,10 @@ var posRestaurantPrintReceiptUrl = '{{ route("pos.restaurant.print-receipt") }}'
     }
 
     function doPrint(copies) {
-        if (posPrintSource === 'restaurant' && posUsePrintAgentForInvoice) {
+        var $printBtn = $('#print');
+        var useAgent = (posPrintSource === 'restaurant' && posUsePrintAgentForInvoice)
+            || ($printBtn.attr('data-print-source') === 'restaurant' && $printBtn.attr('data-print-agent') === '1');
+        if (useAgent) {
             tryAgentReceiptPrint();
             return;
         }

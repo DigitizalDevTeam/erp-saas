@@ -18,10 +18,75 @@ use App\Models\User;
 use App\Models\Utility;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 
 class PosPrinterAgentService
 {
+    protected static ?bool $hasInvoiceAgentColumn = null;
+
+    /**
+     * Whether pos_branch_print_configs.use_print_agent_for_invoice exists (cached).
+     */
+    public static function hasInvoiceAgentColumn(): bool
+    {
+        if (self::$hasInvoiceAgentColumn === null) {
+            try {
+                self::$hasInvoiceAgentColumn = Schema::hasTable('pos_branch_print_configs')
+                    && Schema::hasColumn('pos_branch_print_configs', 'use_print_agent_for_invoice');
+            } catch (\Throwable $e) {
+                self::$hasInvoiceAgentColumn = false;
+            }
+        }
+
+        return self::$hasInvoiceAgentColumn;
+    }
+
+    /**
+     * Invoice/receipt should go to Print Agent when Default Printer is set and the toggle is ON.
+     * If the toggle column is missing (migration not run), keep prior behaviour: use agent when a default printer exists.
+     */
+    public static function usesPrintAgentForInvoice(?PosBranchPrintConfig $config): bool
+    {
+        if (! $config || ! $config->default_printer_id) {
+            return false;
+        }
+        if (! self::hasInvoiceAgentColumn()) {
+            return true;
+        }
+
+        return (bool) $config->use_print_agent_for_invoice;
+    }
+
+    /**
+     * Enqueue a native receipt/invoice job when Print Agent invoice mode is enabled for the branch.
+     * Used after Pay (auto) and from the receipt Print button. Does not touch kitchen/bar jobs.
+     */
+    public static function enqueueReceiptForPosIfEnabled(Pos $pos, ?User $user = null): ?PosPrintJob
+    {
+        $branchId = (int) ($pos->branch_id ?? 0);
+        $creatorId = (int) ($pos->created_by ?? 0);
+        if ($branchId <= 0 || $creatorId <= 0) {
+            return null;
+        }
+
+        $config = self::getConfig($branchId, $creatorId);
+        if (! self::usesPrintAgentForInvoice($config)) {
+            return null;
+        }
+
+        $pos->loadMissing(['items.product', 'customer', 'table', 'posPayments', 'warehouse', 'posUser', 'branch']);
+        $user = $user ?: ($pos->posUser ?: User::find($creatorId));
+        $isPaid = $pos->posPayments->isNotEmpty();
+        $title = $isPaid ? __('Receipt') : __('Bill');
+
+        $payload = self::buildReceiptPayloadFromPos($pos, $user);
+        $payload['render'] = 'native';
+        unset($payload['image_base64'], $payload['image_mime']);
+
+        return self::enqueueReceiptJob($branchId, $creatorId, (int) $pos->id, $payload, $title);
+    }
+
     /**
      * Build per-line product details for kitchen/bar agent slips.
      *
@@ -237,7 +302,7 @@ class PosPrinterAgentService
             'bar_printer_id' => $barPrinterId,
             'default_printer_id' => $defaultPrinterId,
         ];
-        if ($usePrintAgentForInvoice !== null) {
+        if ($usePrintAgentForInvoice !== null && self::hasInvoiceAgentColumn()) {
             $attrs['use_print_agent_for_invoice'] = (bool) $usePrintAgentForInvoice;
         }
 
@@ -1160,7 +1225,8 @@ class PosPrinterAgentService
             ['branch_id' => $branchId],
             [
                 'created_by' => $creatorId,
-                'last_heartbeat_at' => now(),
+                // Always store UTC so status reads are timezone-safe across API vs web (XSS) paths.
+                'last_heartbeat_at' => \Carbon\Carbon::now('UTC'),
                 'machine_name' => $machineName ? substr($machineName, 0, 255) : null,
             ]
         );
