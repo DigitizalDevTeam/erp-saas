@@ -49,7 +49,7 @@ class ProductServiceController extends Controller
     private const POS_PRODUCT_CARD_COL_CLASS = 'col-xl-3 col-lg-3 col-md-3 col-sm-4 col-6';
 
     /** Bump when POS product card HTML shape changes (invalidates Laravel + client caches). */
-    private const POS_PRODUCT_HTML_CACHE_VER = 'pv6';
+    private const POS_PRODUCT_HTML_CACHE_VER = 'pv7';
 
     protected function restaurantPosWarehouseStock(ProductService $product, int $warehouseId, ?int $variantId = null): int
     {
@@ -1281,24 +1281,46 @@ class ProductServiceController extends Controller
                 ? (int) $request->war_id
                 : 0;
             $restaurantWarehouseQuantities = collect();
-            if ($restaurantWarehouseId > 0 && $products->isNotEmpty()) {
-                $restaurantWarehouseQuantities = WarehouseProduct::where('created_by', Auth::user()->creatorId())
-                    ->where('warehouse_id', $restaurantWarehouseId)
-                    ->whereIn('product_id', $products->pluck('id'))
-                    ->select('product_id')
-                    ->selectRaw('SUM(quantity) as quantity')
-                    ->groupBy('product_id')
-                    ->pluck('quantity', 'product_id');
-            }
             if ($isPos && $products->isNotEmpty()) {
                 $eager = [
                     'category',
                     'variants' => fn ($q) => $q->orderBy('sort_order')->orderBy('id'),
                 ];
                 if (Schema::hasTable('product_option_items') && Schema::hasColumn('product_services', 'options_enabled')) {
-                    $eager['optionItems.optionProduct'] = fn ($q) => $q->select('id', 'name', 'sku', 'sale_price', 'purchase_price', 'type', 'options_enabled');
+                    $eager['optionItems.optionProduct'] = fn ($q) => $q->select(
+                        'id',
+                        'name',
+                        'sku',
+                        'sale_price',
+                        'purchase_price',
+                        'type',
+                        'options_enabled',
+                        'quantity',
+                        'affect_stock',
+                        'unit_id'
+                    )->with('unit:id,name');
                 }
                 $products->load($eager);
+            }
+            if ($restaurantWarehouseId > 0 && $products->isNotEmpty()) {
+                $stockProductIds = $products->pluck('id')->all();
+                foreach ($products as $p) {
+                    if (! $p->relationLoaded('optionItems')) {
+                        continue;
+                    }
+                    foreach ($p->optionItems as $oi) {
+                        if ($oi->optionProduct) {
+                            $stockProductIds[] = $oi->optionProduct->id;
+                        }
+                    }
+                }
+                $restaurantWarehouseQuantities = WarehouseProduct::where('created_by', Auth::user()->creatorId())
+                    ->where('warehouse_id', $restaurantWarehouseId)
+                    ->whereIn('product_id', array_values(array_unique($stockProductIds)))
+                    ->select('product_id')
+                    ->selectRaw('SUM(quantity) as quantity')
+                    ->groupBy('product_id')
+                    ->pluck('quantity', 'product_id');
             }
 
             // Build tax rate map in one query (avoid N+1)
@@ -1379,10 +1401,21 @@ class ProductServiceController extends Controller
                     if ($isPos && ($product->options_enabled ?? false) && $product->relationLoaded('optionItems')) {
                         $optionsEnabledAttr = '1';
                         $opts = [];
+                        $useWarehouseStock = $restaurantWarehouseId > 0;
                         foreach ($product->optionItems as $oi) {
                             $op = $oi->optionProduct;
                             if (! $op || ($op->type ?? '') !== 'product' || ($op->type ?? '') === 'ingredient' || ($op->options_enabled ?? false)) {
                                 continue;
+                            }
+                            $stock = ProductOptionService::optionStockDisplay(
+                                $op,
+                                $useWarehouseStock ? (int) ($restaurantWarehouseQuantities[$op->id] ?? 0) : null,
+                                $useWarehouseStock
+                            );
+                            // Restaurant without warehouse selected: match parent cards (show 0)
+                            if (! $useWarehouseStock && $lastsegment === 'pos-restaurant') {
+                                $isKitOrNoStock = (($op->type ?? null) === 'kit') || ! ($op->affect_stock ?? true);
+                                $stock['stock_qty'] = $isKitOrNoStock ? '—' : 0;
                             }
                             $opts[] = [
                                 'product_id' => (int) $op->id,
@@ -1392,6 +1425,8 @@ class ProductServiceController extends Controller
                                 'purchase_price' => (float) ($op->purchase_price ?? 0),
                                 'option_group' => $oi->option_group ? (string) $oi->option_group : null,
                                 'is_required' => (bool) ($oi->is_required ?? false),
+                                'stock_qty' => $stock['stock_qty'],
+                                'unit' => $stock['unit'],
                             ];
                         }
                         $optionsPayload = htmlspecialchars(json_encode($opts, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8');
@@ -2407,13 +2442,18 @@ class ProductServiceController extends Controller
         }
     }
 
-    public function optionsJson(ProductService $productservice)
+    public function optionsJson(Request $request, ProductService $productservice)
     {
         if ((int) $productservice->created_by !== (int) Auth::user()->creatorId()) {
             abort(403);
         }
 
-        return response()->json(ProductOptionService::productJsonExtras($productservice));
+        $warId = (int) $request->get('war_id', 0);
+
+        return response()->json(ProductOptionService::productJsonExtras(
+            $productservice,
+            $warId > 0 ? $warId : null
+        ));
     }
 
     public function variantsJson(ProductService $productservice)

@@ -99,29 +99,36 @@
             : '';
         var qtyHtml =
             inputType === 'checkbox'
-                ? '<input type="number" class="form-control form-control-sm erp-opt-qty" style="width:4.5rem" min="0.0001" step="any" value="1" title="' +
+                ? '<input type="number" class="form-control form-control-sm erp-opt-qty flex-shrink-0" style="width:4rem" min="0.0001" step="any" value="1" title="' +
                   escapeHtml(t('qty', 'Qty')) +
                   '">'
                 : '';
+        var stockQty = opt.stock_qty != null && opt.stock_qty !== '' ? opt.stock_qty : '—';
+        var stockUnit = opt.unit != null ? String(opt.unit) : '';
+        var stockBadge =
+            '<small class="badge bg-danger mb-0 rounded qty_badge flex-shrink-0 text-nowrap">' +
+            escapeHtml(String(stockQty) + (stockUnit ? ' ' + stockUnit : '')) +
+            '</small>';
 
         return (
-            '<label class="list-group-item erp-opt-row d-flex align-items-center gap-2 flex-wrap" data-unit-price="' +
+            '<label class="list-group-item erp-opt-row d-flex align-items-center gap-2 flex-nowrap" data-unit-price="' +
             up +
             '">' +
             '<input type="' +
             inputType +
-            '" class="form-check-input ' +
+            '" class="form-check-input flex-shrink-0 ' +
             (inputType === 'radio' ? 'erp-opt-radio' : 'erp-opt-check') +
             '" name="' +
             escapeHtml(inputName) +
             '" value="' +
             escapeHtml(String(opt.product_id)) +
             '">' +
-            '<span class="flex-grow-1">' +
+            '<span class="flex-grow-1 text-truncate min-w-0">' +
             escapeHtml(opt.name) +
             skuHtml +
             '</span>' +
-            '<span class="text-muted small">' +
+            stockBadge +
+            '<span class="text-muted small flex-shrink-0 text-nowrap">' +
             up.toFixed(2) +
             '</span>' +
             qtyHtml +

@@ -4008,10 +4008,12 @@
                     return;
                 }
                 var url = (posProductOptionsJsonBase+'/' || '/productservice/') + String(productId) + '/options-json';
+                var warId = typeof getRestaurantWarehouseId === 'function' ? getRestaurantWarehouseId() : ($('#warehouse').val() || '0');
                 $.ajax({
                     url: url,
                     type: 'GET',
                     dataType: 'json',
+                    data: { war_id: warId || '0' },
                     success: function (resp) {
                         if (resp && resp.options_enabled) {
                             $el.attr('data-options-enabled', '1');

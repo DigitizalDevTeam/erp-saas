@@ -65,9 +65,33 @@ class ProductOptionService
     }
 
     /**
+     * POS-style stock label for an option product (matches product card qty_badge).
+     *
+     * @return array{stock_qty: int|string, unit: string}
+     */
+    public static function optionStockDisplay(ProductService $op, ?int $warehouseQuantity = null, bool $useWarehouse = false): array
+    {
+        $unit = (! empty($op->unit)) ? (string) $op->unit->name : '';
+        $isKitOrNoStock = (($op->type ?? null) === 'kit') || ! ($op->affect_stock ?? true);
+        if ($isKitOrNoStock) {
+            $qty = '—';
+        } elseif ($useWarehouse) {
+            $qty = (int) ($warehouseQuantity ?? 0);
+        } else {
+            $qty = (int) ($op->quantity ?? 0);
+        }
+
+        return [
+            'stock_qty' => $qty,
+            'unit' => $unit,
+        ];
+    }
+
+    /**
+     * @param  array<int|string, int|float>|null  $warehouseQuantities  product_id => qty
      * @return array{options_enabled: bool, options: array<int, array<string, mixed>>}
      */
-    public static function productJsonExtras(ProductService $product): array
+    public static function productJsonExtras(ProductService $product, ?int $warehouseId = null, ?array $warehouseQuantities = null): array
     {
         $enabled = (bool) ($product->options_enabled ?? false);
         if (! $enabled) {
@@ -84,7 +108,24 @@ class ProductOptionService
         $optionIds = $items->pluck('option_product_id')->unique()->filter()->all();
         $products = $optionIds === []
             ? collect()
-            : ProductService::whereIn('id', $optionIds)->where('created_by', $product->created_by)->get()->keyBy('id');
+            : ProductService::whereIn('id', $optionIds)
+                ->where('created_by', $product->created_by)
+                ->with('unit')
+                ->get()
+                ->keyBy('id');
+
+        $useWarehouse = $warehouseId !== null && $warehouseId > 0;
+        if ($useWarehouse && $warehouseQuantities === null && $optionIds !== []) {
+            $warehouseQuantities = \App\Models\WarehouseProduct::where('created_by', $product->created_by)
+                ->where('warehouse_id', $warehouseId)
+                ->whereIn('product_id', $optionIds)
+                ->select('product_id')
+                ->selectRaw('SUM(quantity) as quantity')
+                ->groupBy('product_id')
+                ->pluck('quantity', 'product_id')
+                ->all();
+        }
+        $warehouseQuantities = $warehouseQuantities ?? [];
 
         $options = [];
         foreach ($items as $item) {
@@ -95,6 +136,11 @@ class ProductOptionService
             if ((bool) ($op->options_enabled ?? false)) {
                 continue;
             }
+            $stock = self::optionStockDisplay(
+                $op,
+                isset($warehouseQuantities[$op->id]) ? (int) $warehouseQuantities[$op->id] : null,
+                $useWarehouse
+            );
             $options[] = [
                 'product_id' => (int) $op->id,
                 'name' => $op->name,
@@ -103,6 +149,8 @@ class ProductOptionService
                 'purchase_price' => $op->exclusivePurchaseUnitPrice(),
                 'option_group' => $item->option_group ? (string) $item->option_group : null,
                 'is_required' => (bool) ($item->is_required ?? false),
+                'stock_qty' => $stock['stock_qty'],
+                'unit' => $stock['unit'],
             ];
         }
 

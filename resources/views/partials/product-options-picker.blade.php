@@ -1,6 +1,6 @@
 {{-- Multi-select product options modal (parent price + selected option prices) --}}
 <div class="modal fade" id="erpProductOptionsModal" tabindex="-1" aria-labelledby="erpProductOptionsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="erpProductOptionsModalLabel">{{ __('Product options') }}</h5>
@@ -18,6 +18,20 @@
         </div>
     </div>
 </div>
+<style>
+    #erpProductOptionsModal .erp-opt-row {
+        flex-wrap: nowrap;
+        min-width: 0;
+    }
+    #erpProductOptionsModal .erp-opt-row > .text-truncate,
+    #erpProductOptionsModal .erp-opt-row > .min-w-0 {
+        min-width: 0;
+    }
+    #erpProductOptionsModal .erp-opt-qty {
+        width: 4rem;
+        min-width: 4rem;
+    }
+</style>
 <script>
     window.ErpProductOptionsI18n = {
         error: @json(__('Error')),
