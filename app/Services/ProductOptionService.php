@@ -72,8 +72,8 @@ class ProductOptionService
     public static function optionStockDisplay(ProductService $op, ?int $warehouseQuantity = null, bool $useWarehouse = false): array
     {
         $unit = (! empty($op->unit)) ? (string) $op->unit->name : '';
-        $isKitOrNoStock = (($op->type ?? null) === 'kit') || ! ($op->affect_stock ?? true);
-        if ($isKitOrNoStock) {
+        // Always show real stock for sellable options. Only kits have no single qty.
+        if (($op->type ?? null) === 'kit') {
             $qty = '—';
         } elseif ($useWarehouse) {
             $qty = (int) ($warehouseQuantity ?? 0);

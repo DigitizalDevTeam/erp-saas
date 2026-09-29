@@ -627,6 +627,15 @@
 
     (function () {
         let recipeRowIdx = 0;
+        const $recipeSection = $('#product_recipes_edit_section');
+
+        function renderRecipeEmptyIfNeeded() {
+            const $tbody = $('#product_recipes_edit_table tbody');
+            if ($tbody.find('tr[data-new-recipe-row]').length === 0 && $tbody.find('tr[data-existing-recipe-row]').length === 0) {
+                $tbody.html('<tr class="text-muted recipe-empty-row"><td colspan="3">{{ __("No ingredients added yet.") }}</td></tr>');
+            }
+        }
+
         $('#recipe_ingredient_edit_add_btn').on('click', function () {
             const ingredientId = $('#recipe_ingredient_edit_select').val();
             const ingredientText = $('#recipe_ingredient_edit_select option:selected').text();
@@ -634,9 +643,7 @@
             if (!ingredientId || !qty || qty <= 0) return;
 
             const $tbody = $('#product_recipes_edit_table tbody');
-            if ($tbody.find('tr').length === 1 && $tbody.find('tr').first().hasClass('text-muted')) {
-                $tbody.empty();
-            }
+            $tbody.find('.recipe-empty-row').remove();
 
             const safeText = $('<div>').text(ingredientText).html();
             const row = `
@@ -650,14 +657,20 @@
                         <input type="hidden" name="product_recipes[${recipeRowIdx}][quantity]" value="${qty}">
                     </td>
                     <td class="text-end">
-                        <button type="button" class="btn btn-sm btn-outline-danger recipe-row-remove"><i class="ti ti-trash"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-danger recipe-row-remove" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-trash"></i></button>
                     </td>
                 </tr>`;
             $tbody.append(row);
             recipeRowIdx++;
         });
         $(document).on('click', '#product_recipes_edit_table .recipe-row-remove', function () {
-            $(this).closest('tr').remove();
+            const $tr = $(this).closest('tr');
+            const existingId = $tr.data('existing-recipe-row');
+            if (existingId) {
+                $recipeSection.append('<input type="hidden" name="remove_recipe_ids[]" value="' + existingId + '">');
+            }
+            $tr.remove();
+            renderRecipeEmptyIfNeeded();
         });
     })();
 

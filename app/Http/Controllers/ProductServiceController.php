@@ -49,7 +49,7 @@ class ProductServiceController extends Controller
     private const POS_PRODUCT_CARD_COL_CLASS = 'col-xl-3 col-lg-3 col-md-3 col-sm-4 col-6';
 
     /** Bump when POS product card HTML shape changes (invalidates Laravel + client caches). */
-    private const POS_PRODUCT_HTML_CACHE_VER = 'pv7';
+    private const POS_PRODUCT_HTML_CACHE_VER = 'pv8';
 
     protected function restaurantPosWarehouseStock(ProductService $product, int $warehouseId, ?int $variantId = null): int
     {
@@ -66,6 +66,81 @@ class ProductServiceController extends Controller
         }
 
         return (int) floor((float) $query->sum('quantity'));
+    }
+
+    /**
+     * Qty shown on POS product cards / badges (never hide real warehouse stock behind "—").
+     *
+     * @param  \Illuminate\Support\Collection<int, float|int|string>|array<int, float|int|string>  $warehouseQuantities
+     * @return int|string
+     */
+    protected function posDisplayStockQty(ProductService $product, int $restaurantWarehouseId, $warehouseQuantities, string $lastsegment)
+    {
+        $whQty = function (int $productId) use ($warehouseQuantities): int {
+            if ($warehouseQuantities instanceof \Illuminate\Support\Collection) {
+                return (int) floor((float) ($warehouseQuantities->get($productId) ?? $warehouseQuantities->get((string) $productId) ?? 0));
+            }
+
+            return (int) floor((float) ($warehouseQuantities[$productId] ?? $warehouseQuantities[(string) $productId] ?? 0));
+        };
+
+        if (($product->type ?? null) === 'kit') {
+            if ($restaurantWarehouseId > 0 && $product->relationLoaded('kitItems') && $product->kitItems->isNotEmpty()) {
+                $min = PHP_INT_MAX;
+                foreach ($product->kitItems as $ki) {
+                    $need = (float) ($ki->quantity ?? 0);
+                    if ($need <= 0) {
+                        continue;
+                    }
+                    $min = min($min, (int) floor($whQty((int) $ki->component_product_id) / $need));
+                }
+
+                return $min === PHP_INT_MAX ? 0 : max(0, $min);
+            }
+
+            return '—';
+        }
+
+        // BOM / recipe dishes: show how many servings the warehouse can make
+        if ($restaurantWarehouseId > 0 && $product->relationLoaded('recipes') && $product->recipes->isNotEmpty()) {
+            $min = PHP_INT_MAX;
+            foreach ($product->recipes as $recipe) {
+                $need = (float) ($recipe->quantity ?? 0);
+                if ($need <= 0) {
+                    continue;
+                }
+                $min = min($min, (int) floor($whQty((int) $recipe->ingredient_product_id) / $need));
+            }
+            if ($min !== PHP_INT_MAX) {
+                return max(0, $min);
+            }
+        }
+
+        if ($restaurantWarehouseId > 0) {
+            $qty = $whQty((int) $product->id);
+            // Parent may not hold stock (options/BOM); surface option stock so the badge is not stuck at 0/—
+            if ($qty === 0 && ($product->options_enabled ?? false) && $product->relationLoaded('optionItems')) {
+                $maxOpt = 0;
+                foreach ($product->optionItems as $oi) {
+                    $op = $oi->optionProduct;
+                    if (! $op || ($op->type ?? '') === 'kit') {
+                        continue;
+                    }
+                    $maxOpt = max($maxOpt, $whQty((int) $op->id));
+                }
+                if ($maxOpt > 0) {
+                    return $maxOpt;
+                }
+            }
+
+            return $qty;
+        }
+
+        if ($lastsegment === 'pos-restaurant') {
+            return 0;
+        }
+
+        return (int) ($product->quantity ?? 0);
     }
 
     protected function buildCategoryOptions($categories, $parentId = null, string $prefix = ''): array
@@ -1285,7 +1360,11 @@ class ProductServiceController extends Controller
                 $eager = [
                     'category',
                     'variants' => fn ($q) => $q->orderBy('sort_order')->orderBy('id'),
+                    'recipes',
                 ];
+                if (Schema::hasTable('product_kit_items')) {
+                    $eager['kitItems'] = fn ($q) => $q->orderBy('id');
+                }
                 if (Schema::hasTable('product_option_items') && Schema::hasColumn('product_services', 'options_enabled')) {
                     $eager['optionItems.optionProduct'] = fn ($q) => $q->select(
                         'id',
@@ -1305,12 +1384,25 @@ class ProductServiceController extends Controller
             if ($restaurantWarehouseId > 0 && $products->isNotEmpty()) {
                 $stockProductIds = $products->pluck('id')->all();
                 foreach ($products as $p) {
-                    if (! $p->relationLoaded('optionItems')) {
-                        continue;
+                    if ($p->relationLoaded('optionItems')) {
+                        foreach ($p->optionItems as $oi) {
+                            if ($oi->optionProduct) {
+                                $stockProductIds[] = $oi->optionProduct->id;
+                            }
+                        }
                     }
-                    foreach ($p->optionItems as $oi) {
-                        if ($oi->optionProduct) {
-                            $stockProductIds[] = $oi->optionProduct->id;
+                    if ($p->relationLoaded('recipes')) {
+                        foreach ($p->recipes as $recipe) {
+                            if ($recipe->ingredient_product_id) {
+                                $stockProductIds[] = (int) $recipe->ingredient_product_id;
+                            }
+                        }
+                    }
+                    if ($p->relationLoaded('kitItems')) {
+                        foreach ($p->kitItems as $ki) {
+                            if ($ki->component_product_id) {
+                                $stockProductIds[] = (int) $ki->component_product_id;
+                            }
                         }
                     }
                 }
@@ -1359,13 +1451,8 @@ class ProductServiceController extends Controller
                 $baseImgUrl = asset(Storage::url('uploads/pro_image/'));
                 $addToCartBase = rtrim($request->getSchemeAndHttpHost(), '/') . '/add-to-cart';
                 foreach ($products as $product) {
-                    $isKitOrNoStock = (($product->type ?? null) === 'kit') || !($product->affect_stock ?? true);
                     $quantity = $isPos
-                        ? ($isKitOrNoStock
-                            ? '—'
-                            : ($restaurantWarehouseId > 0
-                                ? (int) ($restaurantWarehouseQuantities[$product->id] ?? 0)
-                                : ($lastsegment === 'pos-restaurant' ? 0 : (int) $product->quantity)))
+                        ? $this->posDisplayStockQty($product, $restaurantWarehouseId, $restaurantWarehouseQuantities, $lastsegment)
                         : $product->warehouseProduct($product->id, $request->war_id != 0 ? $request->war_id : 7);
                     $unit = (!empty($product->unit)) ? $product->unit->name : '';
                     $imgFile = !empty($product->pro_image) ? $product->pro_image : 'default.png';
@@ -1414,8 +1501,7 @@ class ProductServiceController extends Controller
                             );
                             // Restaurant without warehouse selected: match parent cards (show 0)
                             if (! $useWarehouseStock && $lastsegment === 'pos-restaurant') {
-                                $isKitOrNoStock = (($op->type ?? null) === 'kit') || ! ($op->affect_stock ?? true);
-                                $stock['stock_qty'] = $isKitOrNoStock ? '—' : 0;
+                                $stock['stock_qty'] = (($op->type ?? null) === 'kit') ? '—' : 0;
                             }
                             $opts[] = [
                                 'product_id' => (int) $op->id,

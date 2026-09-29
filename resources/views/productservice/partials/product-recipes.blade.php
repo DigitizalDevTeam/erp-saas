@@ -29,14 +29,9 @@
                         <td>{{ $ri->ingredientProduct ? $ri->ingredientProduct->name : '-' }}{{ $ri->ingredientProduct && $ri->ingredientProduct->sku ? ' (' . $ri->ingredientProduct->sku . ')' : '' }}</td>
                         <td class="text-end">{{ $ri->quantity }}</td>
                         <td class="text-end">
-                            @if($mode === 'edit')
-                                <div class="form-check d-inline-block">
-                                    <input class="form-check-input" type="checkbox" name="remove_recipe_ids[]" value="{{ $ri->id }}" id="remove_recipe_{{ $ri->id }}">
-                                    <label class="form-check-label" for="remove_recipe_{{ $ri->id }}"></label>
-                                </div>
-                            @else
-                                <button type="button" class="btn btn-sm btn-outline-danger recipe-row-remove"><i class="ti ti-trash"></i></button>
-                            @endif
+                            <button type="button" class="btn btn-sm btn-outline-danger recipe-row-remove" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}">
+                                <i class="ti ti-trash"></i>
+                            </button>
                         </td>
                     </tr>
                 @empty

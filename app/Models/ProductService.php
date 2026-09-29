@@ -97,6 +97,11 @@ class ProductService extends Model
         return $this->hasMany(ProductRecipe::class, 'product_id', 'id');
     }
 
+    public function kitItems()
+    {
+        return $this->hasMany(ProductKitItem::class, 'kit_product_id', 'id');
+    }
+
     public function variants()
     {
         return $this->hasMany(ProductVariant::class, 'product_service_id')->orderBy('sort_order')->orderBy('id');

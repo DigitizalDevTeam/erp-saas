@@ -916,7 +916,7 @@
         var POS_PENDING_KEY = 'pos_pending_sales';
         var POS_CACHE_PRODUCTS = 'pos_cache_products';
         var POS_CACHE_CATEGORIES = 'pos_cache_categories';
-        var POS_PRODUCT_HTML_VER = 'pv6';
+        var POS_PRODUCT_HTML_VER = 'pv7';
         var posSyncUrl = '{{ route("pos.sync") }}';
         var posEmptyCartUrl = '{{ route("warehouse-empty-cart") }}';
         var posRestaurantOrderUrl = '{{ route("pos.restaurant.order") }}';
@@ -1803,7 +1803,6 @@
                 opts = opts || {};
                 var sub = opts.sub != null ? opts.sub : posLineSubtotal(it.price, it.tax, it.quantity || 0, it.price_type, it.unit_subtotal);
                 var taxDisplay = (it.tax && it.tax !== 0) ? (it.tax + '%') : '-';
-                var rowId = it.line_id ? ('product-id-r-' + it.line_id) : ('product-id-r-s-' + it.id + '-' + idx);
                 var statusText = posStatusLabels[it.status] || it.status;
                 var statusRowClass = { 'pending': 'pos-cart-row-sent', 'not_sent': '', 'in_preparation': 'pos-cart-row-preparation', 'ready': 'pos-cart-row-ready', 'served': 'pos-cart-row-ready', 'cancelled': 'pos-cart-row-cancelled' };
                 var rowClass = statusRowClass[it.status] || '';
@@ -1817,6 +1816,10 @@
                 var subFmt = typeof addCommas === 'function' ? addCommas(sub) : sub;
                 var qty = it.quantity || 0;
                 var cartKey = it.cart_line_key || it.id;
+                // Keep row ids aligned with add-to-cart / posLineDomId so qty updates can target the correct line.
+                var rowId = it.line_id
+                    ? ('product-id-r-line-' + it.line_id)
+                    : ('product-id-r-' + String(cartKey).replace(/_/g, '-'));
                 var note = String(it.description || '').trim();
                 var lineName = String(it.name || '').trim() || ('{{ __("Product") }} #' + (it.id || ''));
                 var selOptsRaw = '';
@@ -4245,9 +4248,25 @@
                                     }
                                 }
                                 $.each(data.product, function (key, value) {
-                                    sum += value.subtotal;
-                                    var $target = $('#' + rowIdPrefix + value.id);
-                                    if (!$target.length && inRestaurant) $target = ele.closest('tr[data-product-id]');
+                                    sum += (value && value.subtotal != null) ? parseFloat(value.subtotal) || 0 : 0;
+                                    // Match by cart line key (session key), never fall back to the clicked row for every line.
+                                    var lineKey = String((value && value.cart_line_key) || key || '');
+                                    var $target = $();
+                                    if (lineKey !== '') {
+                                        $target = $(tbodySel + ' tr[data-cart-line-key]').filter(function () {
+                                            return String($(this).attr('data-cart-line-key')) === lineKey;
+                                        }).first();
+                                        if (!$target.length) {
+                                            $target = $('#' + rowIdPrefix + String(lineKey).replace(/_/g, '-'));
+                                        }
+                                    }
+                                    if (!$target.length && value && value.id != null && !inRestaurant) {
+                                        $target = $('#' + rowIdPrefix + value.id);
+                                    }
+                                    // Only the changed line may fall back to the clicked row.
+                                    if (!$target.length && inRestaurant && String(ele.attr('data-id')) === lineKey) {
+                                        $target = ele.closest('tr[data-product-id]');
+                                    }
                                     if ($target.length) {
                                         $target.find('.subtotal').text(addCommas(value.subtotal));
                                         $target.attr('data-subtotal', value.subtotal).attr('data-quantity', value.quantity);
