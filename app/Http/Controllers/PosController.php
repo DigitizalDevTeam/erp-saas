@@ -1901,6 +1901,7 @@ class PosController extends Controller
                             }
                         }
                         $subtotal = $price * $qty * (1 + $taxRate / 100);
+                        $selectedOpts = ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null);
                         $sales[$line->product_id] = [
                             'id' => $line->product_id,
                             'name' => $product ? $product->name : __('Product'),
@@ -1909,6 +1910,9 @@ class PosController extends Controller
                             'tax' => $taxRate,
                             'subtotal' => $subtotal,
                             'product_tax' => $taxRate ? $taxRate . '%' : '-',
+                            'product_variant_id' => $line->product_variant_id ? (int) $line->product_variant_id : null,
+                            'selected_options' => $selectedOpts,
+                            'selected_options_json' => $line->selected_options_json,
                         ];
                     }
                 }
@@ -1945,6 +1949,7 @@ class PosController extends Controller
                                 }
                             }
                             $subtotal = $price * $qty * (1 + $taxRate / 100);
+                            $selectedOpts = ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null);
                             $sales[$line->product_id] = [
                                 'id' => $line->product_id,
                                 'name' => $product ? $product->name : __('Product'),
@@ -1953,6 +1958,9 @@ class PosController extends Controller
                                 'tax' => $taxRate,
                                 'subtotal' => $subtotal,
                                 'product_tax' => $taxRate ? $taxRate . '%' : '-',
+                                'product_variant_id' => $line->product_variant_id ? (int) $line->product_variant_id : null,
+                                'selected_options' => $selectedOpts,
+                                'selected_options_json' => $line->selected_options_json,
                             ];
                         }
                         $sessionCartKey = 'pos_' . $existingPos->id;
@@ -2124,8 +2132,39 @@ class PosController extends Controller
                         }
                         $lineIdNote = InvoiceSaleDeductionService::formatIdentifiersNote($line->identifiers ?? null);
                         $deductLineByVariant = ($lineProduct->variants_enabled ?? false) && $lineVariantId;
+                        // Recover empty options JSON before deduct (legacy lines / lost DOM attrs).
+                        $lineSelectedOpts = ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null);
+                        if (($lineProduct->options_enabled ?? false) && $lineSelectedOpts === []) {
+                            $fromSales = null;
+                            foreach ($sales as $saleLine) {
+                                if ((int) ($saleLine['id'] ?? 0) !== (int) $line->product_id) {
+                                    continue;
+                                }
+                                $fromSales = ProductOptionService::normalizeSelectedOptions(
+                                    $saleLine['selected_options'] ?? $saleLine['selected_options_json'] ?? null
+                                );
+                                if ($fromSales !== []) {
+                                    break;
+                                }
+                            }
+                            if ($fromSales !== null && $fromSales !== []) {
+                                $lineSelectedOpts = $fromSales;
+                                $line->selected_options_json = ProductOptionService::encodeOptions($lineSelectedOpts);
+                                $line->save();
+                            }
+                        }
+                        if (($lineProduct->options_enabled ?? false) && $lineSelectedOpts === []) {
+                            // Parent does not hold stock: without selected options nothing would be deducted.
+                            if (! ($lineProduct->affect_stock ?? true)) {
+                                return response()->json([
+                                    'code' => 400,
+                                    'error' => __('Select at least one product option for :name.', ['name' => $lineProduct->name]),
+                                ], 400);
+                            }
+                        }
                         if (ProductOptionService::tryDeductPosLine($lineProduct, [
                             'quantity' => $line->quantity,
+                            'selected_options' => $lineSelectedOpts,
                             'selected_options_json' => $line->selected_options_json,
                         ], (int) $pos->warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
                             // options only
@@ -3136,6 +3175,14 @@ class PosController extends Controller
         }
         $request->validate($rules);
 
+        // Prefer JSON payload for nested selected_options (avoids form-encoding loss).
+        if ($request->filled('items_json') && is_string($request->input('items_json'))) {
+            $decodedItems = json_decode($request->input('items_json'), true);
+            if (is_array($decodedItems) && $decodedItems !== []) {
+                $request->merge(['items' => $decodedItems]);
+            }
+        }
+
         $creatorId = Auth::user()->creatorId();
         $branchId = (int) $request->branch_id;
         $tableId = $isNonDineIn ? null : (int) $request->table_id;
@@ -3264,29 +3311,11 @@ class PosController extends Controller
             if ($linePrep < 1) {
                 $linePrep = $prepMinutes;
             }
-            $line = PosProduct::create([
-                'pos_id' => $pos->id,
-                'product_id' => $product->id,
-                'product_variant_id' => $variantId,
-                'quantity' => (int) $item['quantity'],
-                'price' => (float) $item['price'],
-                'tax' => $taxId,
-                'discount' => (float) ($item['discount'] ?? 0),
-                'description' => $item['description'] ?? null,
-                'selected_options_json' => ! empty($item['selected_options'])
-                    ? ProductOptionService::encodeOptions(ProductOptionService::normalizeSelectedOptions($item['selected_options']))
-                    : (! empty($item['selected_options_json']) ? $item['selected_options_json'] : null),
-                'status' => PosProduct::STATUS_PENDING,
-                'sent_at' => $now,
-                'prep_minutes' => $linePrep,
-                'print_zone' => $printZone,
-                'pos_printer_id' => $resolvedPrinterId,
-            ]);
             $selectedOpts = ProductOptionService::normalizeSelectedOptions(
-                $item['selected_options'] ?? $item['selected_options_json'] ?? $line->selected_options_json
+                $item['selected_options'] ?? $item['selected_options_json'] ?? null
             );
             // Fallback: restaurant session cart may hold options if the POS row lost data-selected-options.
-            if ($selectedOpts === []) {
+            if ($selectedOpts === [] && ($product->options_enabled ?? false)) {
                 $cartKey = 'pos_restaurant_cart';
                 $allCarts = $request->session()->get($cartKey, []);
                 $sessionKeys = [];
@@ -3311,15 +3340,33 @@ class PosController extends Controller
                         );
                         if ($fromSess !== []) {
                             $selectedOpts = $fromSess;
-                            if (empty($line->selected_options_json)) {
-                                $line->selected_options_json = ProductOptionService::encodeOptions($selectedOpts);
-                                $line->save();
-                            }
                             break 2;
                         }
                     }
                 }
             }
+            if (($product->options_enabled ?? false) && $selectedOpts === []) {
+                return response()->json([
+                    'error' => __('Select at least one product option for :name.', ['name' => $product->name]),
+                ], 422);
+            }
+            $line = PosProduct::create([
+                'pos_id' => $pos->id,
+                'product_id' => $product->id,
+                'product_variant_id' => $variantId,
+                'quantity' => (int) $item['quantity'],
+                'price' => (float) $item['price'],
+                'tax' => $taxId,
+                'discount' => (float) ($item['discount'] ?? 0),
+                'description' => $item['description'] ?? null,
+                'selected_options_json' => ProductOptionService::encodeOptions($selectedOpts),
+                'status' => PosProduct::STATUS_PENDING,
+                'sent_at' => $now,
+                'prep_minutes' => $linePrep,
+                'print_zone' => $printZone,
+                'pos_printer_id' => $resolvedPrinterId,
+            ]);
+            // Keep $selectedOpts for kitchen slip details (already resolved above).
             $details = PosPrinterAgentService::buildLineProductDetails(
                 $product,
                 $variantId ? (int) $variantId : null,

@@ -19,7 +19,11 @@ class ProductOptionService
     public static function normalizeSelectedOptions(mixed $raw): array
     {
         if (is_string($raw) && $raw !== '') {
+            $raw = html_entity_decode(trim($raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
             $decoded = json_decode($raw, true);
+            if (! is_array($decoded) && str_contains($raw, '&quot;')) {
+                $decoded = json_decode(html_entity_decode($raw, ENT_QUOTES | ENT_HTML5, 'UTF-8'), true);
+            }
             $raw = is_array($decoded) ? $decoded : [];
         }
         if (! is_array($raw)) {
@@ -31,7 +35,8 @@ class ProductOptionService
             if (! is_array($row)) {
                 continue;
             }
-            $productId = (int) ($row['product_id'] ?? 0);
+            // Accept product_id or id (some clients send id)
+            $productId = (int) ($row['product_id'] ?? $row['id'] ?? 0);
             if ($productId <= 0) {
                 continue;
             }
@@ -385,7 +390,10 @@ class ProductOptionService
                 continue;
             }
 
-            $opt = ProductService::where('id', $optId)->where('created_by', $creatorId)->first();
+            // Option SKUs are linked products; match by id first so stock still moves if
+            // created_by on the option row differs slightly from the POS actor company id.
+            $opt = ProductService::where('id', $optId)->where('created_by', $creatorId)->first()
+                ?: ProductService::where('id', $optId)->first();
             if (! $opt || ! ($opt->affect_stock ?? true)) {
                 continue;
             }

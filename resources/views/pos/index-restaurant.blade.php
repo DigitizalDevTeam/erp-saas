@@ -1006,6 +1006,24 @@
         function posRoundMoney(n) {
             return Math.round((parseFloat(n) || 0) * 100) / 100;
         }
+        /** Parse data-selected-options (handles HTML-entity-encoded JSON from blade esc()). */
+        function posParseSelectedOptionsAttr(selAttr) {
+            if (!selAttr || !String(selAttr).trim()) return null;
+            var raw = String(selAttr).trim();
+            try { return JSON.parse(raw); } catch (e1) {}
+            try {
+                var ta = document.createElement('textarea');
+                ta.innerHTML = raw;
+                var decoded = ta.value;
+                if (decoded && decoded !== raw) {
+                    return JSON.parse(decoded);
+                }
+            } catch (e2) {}
+            try {
+                return JSON.parse(raw.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&'));
+            } catch (e3) {}
+            return null;
+        }
         /** Round unit line (price+VAT) first, then × qty — avoids 200×2 → 399.99 float drift */
         function posLineSubtotal(price, taxRate, qty, priceType, unitSubtotal) {
             qty = parseInt(qty, 10) || 0;
@@ -1036,8 +1054,7 @@
                 var discount = parseFloat($row.attr('data-discount')) || 0;
                 var netPrice = subtotal - discount;
                 var selRaw = $row.attr('data-selected-options') || '';
-                var selOpts = null;
-                try { selOpts = selRaw ? JSON.parse(selRaw) : null; } catch (e) { selOpts = null; }
+                var selOpts = posParseSelectedOptionsAttr(selRaw);
                 cart[lineKey] = {
                     id: parseInt(id, 10),
                     product_variant_id: (!isNaN(vId) && vId > 0) ? vId : null,
@@ -1050,7 +1067,7 @@
                     netPrice: netPrice,
                     price_type: priceType,
                     selected_options: selOpts,
-                    selected_options_json: selRaw || null
+                    selected_options_json: selOpts ? JSON.stringify(selOpts) : (selRaw || null)
                 };
             });
             return cart;
@@ -2610,8 +2627,10 @@
                     var line = { id: id, quantity: qty, price: price, discount: discount, description: desc };
                     if (!isNaN(vid) && vid > 0) line.product_variant_id = vid;
                     var selAttr = $(this).attr('data-selected-options');
-                    if (selAttr) {
-                        try { line.selected_options = JSON.parse(selAttr); } catch (e) {}
+                    var selOpts = posParseSelectedOptionsAttr(selAttr);
+                    if (selOpts && selOpts.length) {
+                        line.selected_options = selOpts;
+                        line.selected_options_json = JSON.stringify(selOpts);
                     }
                     if (id && qty > 0) items.push(line);
                 });
@@ -2677,6 +2696,7 @@
                     shift_id: payload.shiftId,
                     order_type: payload.orderType,
                     items: payload.items,
+                    items_json: JSON.stringify(payload.items || []),
                     prep_minutes: prepMinutes
                 };
                 if (payload.isNonDineIn) {
@@ -2775,8 +2795,10 @@
                     var line = { id: id, quantity: qty, price: price, discount: discount, description: desc };
                     if (!isNaN(vid) && vid > 0) line.product_variant_id = vid;
                     var selAttr = $(this).attr('data-selected-options');
-                    if (selAttr) {
-                        try { line.selected_options = JSON.parse(selAttr); } catch (e) {}
+                    var selOpts = posParseSelectedOptionsAttr(selAttr);
+                    if (selOpts && selOpts.length) {
+                        line.selected_options = selOpts;
+                        line.selected_options_json = JSON.stringify(selOpts);
                     }
                     if (id && qty > 0) items.push(line);
                 });
@@ -2798,7 +2820,7 @@
                     isAddon: posRestaurantOrderHasSentLines(),
                     orderRef: $('#pos_restaurant_pos_id').val() || ''
                 };
-                var printData = { _token: '{{ csrf_token() }}', branch_id: branchId, shift_id: shiftId, order_type: orderTypePrint, items: items, kitchen_slip_only: 1 };
+                var printData = { _token: '{{ csrf_token() }}', branch_id: branchId, shift_id: shiftId, order_type: orderTypePrint, items: items, items_json: JSON.stringify(items || []), kitchen_slip_only: 1 };
                 if (isNonDineInPrint) {
                     printData.guest_name = ($('#pos-guest-name').val() || '').trim();
                     printData.guest_email = ($('#pos-guest-email').val() || '').trim();
@@ -4389,6 +4411,9 @@
                         hotel_charge_enabled: $('#hotel_charge_enabled').length ? ($('#hotel_charge_enabled').is(':checked') ? 1 : 0) : 0,
                         hotel_folio_id: $('#hotel_folio_id').length ? ($('#hotel_folio_id').val() || '') : '',
                     };
+                    if ($('#pos_restaurant_pos_id').length && $('#pos_restaurant_pos_id').val()) {
+                        d.pos_id = $('#pos_restaurant_pos_id').val();
+                    }
                     if (d.hotel_charge_enabled && !d.hotel_folio_id) {
                         show_toastr('{{ __("Error") }}', '{{ __("Please select room folio.") }}', 'error');
                         return null;
