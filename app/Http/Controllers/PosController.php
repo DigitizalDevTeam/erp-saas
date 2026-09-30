@@ -556,10 +556,8 @@ class PosController extends Controller
                     continue;
                 }
                 $taxRate = $this->resolvePosLineTaxRate($line, $line->product);
-                $optionsAmount = ProductOptionService::calculateOptionsAmount(
-                    ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null)
-                );
-                $lineNet = (float) $line->price * (int) $line->quantity + $optionsAmount - (float) $line->discount;
+                // Restaurant POS: bill main product price only (option prices ignored).
+                $lineNet = (float) $line->price * (int) $line->quantity - (float) $line->discount;
                 $totals[$tid] += $lineNet * (1 + $taxRate / 100);
             }
         }
@@ -590,15 +588,19 @@ class PosController extends Controller
                         $qty = (int) ($v['quantity'] ?? 1);
                         $price = (float) ($v['price'] ?? 0);
                         $tax = (float) ($v['tax'] ?? 0);
-                        $optionsAmount = (float) ($v['options_amount'] ?? 0);
-                        if ($optionsAmount <= 0) {
-                            $optionsAmount = ProductOptionService::calculateOptionsAmount(
-                                ProductOptionService::normalizeSelectedOptions(
-                                    $v['selected_options'] ?? $v['selected_options_json'] ?? null
-                                )
-                            ) * (1 + $tax / 100);
+                        // Restaurant POS: main product price × qty only (ignore option prices).
+                        $sub = $price * $qty * (1 + $tax / 100);
+                    } elseif (! empty($v['selected_options']) || ! empty($v['selected_options_json']) || (float) ($v['options_amount'] ?? 0) > 0) {
+                        // Recompute without option money for restaurant carts that still carry options_amount.
+                        $qty = (int) ($v['quantity'] ?? 1);
+                        $price = (float) ($v['price'] ?? 0);
+                        $tax = (float) ($v['tax'] ?? 0);
+                        $unitSub = (float) ($v['unit_subtotal'] ?? 0);
+                        if ($unitSub > 0) {
+                            $sub = $unitSub * $qty;
+                        } else {
+                            $sub = $price * $qty * (1 + $tax / 100);
                         }
-                        $sub = ($price * $qty * (1 + $tax / 100)) + $optionsAmount;
                     }
                     $totals[$tableId] += $sub;
                 }
@@ -1570,14 +1572,16 @@ class PosController extends Controller
                 if (isset($v['subtotal'])) {
                     $subtotal += (float) $v['subtotal'];
                 } else {
-                    $sel = ProductOptionService::normalizeSelectedOptions(
-                        $v['selected_options'] ?? $v['selected_options_json'] ?? null
-                    );
-                    $subtotal += ProductOptionService::calculateLineExtendedTotal(
-                        (float) ($v['price'] ?? 0),
-                        (float) ($v['quantity'] ?? 0),
-                        $sel
-                    );
+                    // Fallback: main product price × qty only (option prices are not billed on restaurant POS).
+                    $price = (float) ($v['price'] ?? 0);
+                    $qty = (float) ($v['quantity'] ?? 0);
+                    $tax = (float) ($v['tax'] ?? 0);
+                    $unitSub = (float) ($v['unit_subtotal'] ?? 0);
+                    if ($unitSub > 0) {
+                        $subtotal += $unitSub * $qty;
+                    } else {
+                        $subtotal += $price * $qty * (1 + $tax / 100);
+                    }
                 }
             }
             if ($subtotal > 0) {
@@ -2998,8 +3002,8 @@ class PosController extends Controller
                 $taxRate = $this->resolvePosLineTaxRate($line, $product);
                 $displayName = $this->resolvePosLineDisplayName($line, $product);
                 $selectedOpts = ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null);
-                $optionsAmount = ProductOptionService::calculateOptionsAmount($selectedOpts);
-                $lineNet = (float) $line->price * (int) $line->quantity + $optionsAmount - (float) $line->discount;
+                // Restaurant POS: charge parent unit price only; keep selected options for display/stock.
+                $lineNet = (float) $line->price * (int) $line->quantity - (float) $line->discount;
                 $orderLines[] = [
                     'line_id' => $line->id,
                     'id' => $line->product_id,
@@ -3010,7 +3014,7 @@ class PosController extends Controller
                     'price' => (float) $line->price,
                     'discount' => (float) $line->discount,
                     'tax' => $taxRate,
-                    'options_amount' => $optionsAmount * (1 + $taxRate / 100),
+                    'options_amount' => 0.0,
                     'subtotal' => $lineNet * (1 + $taxRate / 100),
                     'description' => $line->description ?? '',
                     'print_zone' => $line->print_zone ?? '',
@@ -3079,6 +3083,20 @@ class PosController extends Controller
                 $item['pos_printer_id'] = null;
                 $item['printer_name'] = null;
             }
+            // Restaurant POS: never include option prices in cart money.
+            $item['options_amount'] = 0.0;
+            $qty = (int) ($item['quantity'] ?? 0);
+            $price = (float) ($item['price'] ?? 0);
+            $tax = (float) ($item['tax'] ?? 0);
+            $unitSub = (float) ($item['unit_subtotal'] ?? 0);
+            if ($unitSub <= 0 && $price > 0) {
+                $priceType = (string) ($item['price_type'] ?? 'exclusive');
+                $unitSub = ($priceType === 'inclusive' && $tax > 0)
+                    ? round($price, 2)
+                    : round($price * (1 + $tax / 100), 2);
+                $item['unit_subtotal'] = $unitSub;
+            }
+            $item['subtotal'] = round($unitSub * max(0, $qty), 2);
         }
         unset($item);
         $sessionItems = array_values($sessionItems);
@@ -3100,10 +3118,7 @@ class PosController extends Controller
                     if ($line->voided_at || $line->removed_from_cart_at) {
                         continue;
                     }
-                    $optsAmt = ProductOptionService::calculateOptionsAmount(
-                        ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null)
-                    );
-                    $checkTotal += (float) ($line->price * $line->quantity + $optsAmt - $line->discount);
+                    $checkTotal += (float) ($line->price * $line->quantity - $line->discount);
                 }
                 $checks[] = [
                     'pos_id' => $check->id,

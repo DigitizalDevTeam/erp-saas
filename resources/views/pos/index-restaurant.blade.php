@@ -1024,7 +1024,14 @@
             } catch (e3) {}
             return null;
         }
-        /** Round unit line (price+VAT) first, then × qty + options_amount (options not scaled by parent qty) */
+        /** Restaurant POS: option prices never affect cart money — main product price × qty only. */
+        function posOptionsAmountFromSelected(selected, taxRate) {
+            return 0;
+        }
+        function posResolveOptionsAmount($row, selected, taxRate) {
+            return 0;
+        }
+        /** Round unit line (price+VAT) first, then × qty (options_amount ignored in restaurant POS) */
         function posLineSubtotal(price, taxRate, qty, priceType, unitSubtotal, optionsAmount) {
             qty = parseInt(qty, 10) || 0;
             if (qty <= 0) return 0;
@@ -1036,23 +1043,7 @@
             } else {
                 unit = posRoundMoney((parseFloat(price) || 0) * (1 + (parseFloat(taxRate) || 0) / 100));
             }
-            var opts = Math.max(0, parseFloat(optionsAmount) || 0);
-            return posRoundMoney((unit * qty) + opts);
-        }
-        function posOptionsAmountFromSelected(selected, taxRate) {
-            if (!selected || !selected.length) return 0;
-            var sum = 0;
-            selected.forEach(function (s) {
-                sum += (parseFloat(s.price) || 0) * (parseFloat(s.quantity) || 1);
-            });
-            return posRoundMoney(sum * (1 + (parseFloat(taxRate) || 0) / 100));
-        }
-        function posResolveOptionsAmount($row, selected, taxRate) {
-            var attr = parseFloat($row.attr('data-options-amount'));
-            if (!isNaN(attr) && attr >= 0 && $row.attr('data-options-amount') !== undefined && $row.attr('data-options-amount') !== '') {
-                return posRoundMoney(attr);
-            }
-            return posOptionsAmountFromSelected(selected, taxRate);
+            return posRoundMoney(unit * qty);
         }
         function posGetCartFromDom() {
             var cart = {};
@@ -1837,8 +1828,9 @@
             var posDeleteSelectMode = false;
             function buildRestaurantCartRow(it, idx, opts) {
                 opts = opts || {};
-                var optsAmt = it.options_amount != null ? parseFloat(it.options_amount) : 0;
-                var sub = opts.sub != null ? opts.sub : posLineSubtotal(it.price, it.tax, it.quantity || 0, it.price_type, it.unit_subtotal, optsAmt);
+                // Restaurant POS: never bill option prices — keep selected options for display/stock only.
+                var optsAmt = 0;
+                var sub = opts.sub != null ? opts.sub : posLineSubtotal(it.price, it.tax, it.quantity || 0, it.price_type, it.unit_subtotal, 0);
                 var taxDisplay = (it.tax && it.tax !== 0) ? (it.tax + '%') : '-';
                 var statusText = posStatusLabels[it.status] || it.status;
                 var statusRowClass = { 'pending': 'pos-cart-row-sent', 'not_sent': '', 'in_preparation': 'pos-cart-row-preparation', 'ready': 'pos-cart-row-ready', 'served': 'pos-cart-row-ready', 'cancelled': 'pos-cart-row-cancelled' };
@@ -1997,18 +1989,23 @@
                     var sessionItems = res.session_items || [];
                     var list = [];
                     orderLines.forEach(function (it) {
-                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, options_amount: parseFloat(it.options_amount) || 0, description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || it.id, waiter_name: it.waiter_name || res.waiter_name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null });
+                        var price = parseFloat(it.price) || 0;
+                        var tax = parseFloat(it.tax) || 0;
+                        var qty = (it.quantity || 0);
+                        var sub = posLineSubtotal(price, tax, qty, it.price_type, it.unit_subtotal, 0);
+                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: qty, price: price, tax: tax, subtotal: sub, options_amount: 0, unit_subtotal: it.unit_subtotal != null ? parseFloat(it.unit_subtotal) : (qty > 0 ? posRoundMoney(sub / qty) : null), description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || it.id, waiter_name: it.waiter_name || res.waiter_name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null });
                     });
                     sessionItems.forEach(function (it) {
                         var id = it.id;
                         var qty = (it.quantity || 0);
                         var price = parseFloat(it.price) || 0;
                         var tax = parseFloat(it.tax) || 0;
-                        var sub = (it.subtotal != null) ? parseFloat(it.subtotal) : posLineSubtotal(price, tax, qty, it.price_type, it.unit_subtotal, it.options_amount);
-                        var optsAmt = it.options_amount != null ? parseFloat(it.options_amount) : 0;
+                        // Always recompute from main product price — ignore any stored option money.
+                        var sub = posLineSubtotal(price, tax, qty, it.price_type, it.unit_subtotal, 0);
+                        var optsAmt = 0;
                         var unitSub = it.unit_subtotal != null
                             ? parseFloat(it.unit_subtotal)
-                            : (qty > 0 ? posRoundMoney(Math.max(0, sub - optsAmt) / qty) : null);
+                            : (qty > 0 ? posRoundMoney(sub / qty) : null);
                         list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, unit_subtotal: unitSub, options_amount: optsAmt, description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || id, waiter_name: it.waiter_name || res.waiter_name || posCurrentTableWaiter.name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || posCurrentTableWaiter.id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null });
                     });
                     if (res.waiter_name || res.waiter_user_id) {
@@ -2047,9 +2044,7 @@
                         list.forEach(function (it, idx) {
                             var isVoidedLine = it.status === 'cancelled' || it.voided_at;
                             var taxRate = parseFloat(it.tax) || 0;
-                            var sub = (it.subtotal != null && !isNaN(parseFloat(it.subtotal)))
-                                ? parseFloat(it.subtotal)
-                                : posLineSubtotal(it.price, taxRate, it.quantity, it.price_type, it.unit_subtotal, it.options_amount);
+                            var sub = posLineSubtotal(it.price, taxRate, it.quantity, it.price_type, it.unit_subtotal, 0);
                             if (!isVoidedLine) {
                                 total += sub;
                             }
@@ -3954,13 +3949,11 @@
                                     existingR.find('input.input-number').val(data.product.quantity);
                                     var sub = (data.product.subtotal != null)
                                         ? parseFloat(data.product.subtotal)
-                                        : posLineSubtotal(data.product.price, data.product.tax, data.product.quantity, data.product.price_type, data.product.unit_subtotal, data.product.options_amount);
+                                        : posLineSubtotal(data.product.price, data.product.tax, data.product.quantity, data.product.price_type, data.product.unit_subtotal, 0);
                                     if (data.product.unit_subtotal != null) {
                                         existingR.attr('data-unit-subtotal', data.product.unit_subtotal);
                                     }
-                                    if (data.product.options_amount != null) {
-                                        existingR.attr('data-options-amount', data.product.options_amount);
-                                    }
+                                    existingR.attr('data-options-amount', 0);
                                     existingR.find('.subtotal').text(typeof addCommas === 'function' ? addCommas(sub) : sub);
                                     existingR.attr('data-subtotal', sub).attr('data-quantity', data.product.quantity);
                                     if (data.product.selected_options_json) {

@@ -1818,8 +1818,10 @@ class ProductServiceController extends Controller
             }
 
             // Options money once (not scaled by parent qty). Taxed like parent when exclusive.
+            // Restaurant POS: charge main product price only — option prices are ignored for cart totals.
+            $isRestaurantCart = $session_key === 'pos-restaurant' || $request->boolean('restaurant');
             $optionsAmount = 0.0;
-            if ($selectedOptions !== []) {
+            if ($selectedOptions !== [] && ! $isRestaurantCart) {
                 if ($isPosSession && ! $usedMeasuredPrice && $product->isSalePriceInclusive() && $producttax > 0) {
                     $optionsAmount = ProductOptionService::calculateOptionsCatalogInclusiveAmount($selectedOptions, $forPurchase);
                 } else {
@@ -2025,7 +2027,9 @@ class ProductServiceController extends Controller
                     // Prefer shelf unit total from this add (catalog-inclusive when applicable)
                     $cart[$cartLineKey]['unit_subtotal'] = round((float) $unitSubtotal, 2);
                 }
-                if (! isset($cart[$cartLineKey]['options_amount'])) {
+                if ($isRestaurantCart) {
+                    $cart[$cartLineKey]['options_amount'] = 0.0;
+                } elseif (! isset($cart[$cartLineKey]['options_amount'])) {
                     $cart[$cartLineKey]['options_amount'] = round((float) $optionsAmount, 2);
                 }
                 $cart[$cartLineKey]['subtotal'] = $this->posCartLineSubtotal(
@@ -2172,7 +2176,11 @@ class ProductServiceController extends Controller
                 if (! isset($cart[$lineKey]['unit_subtotal'])) {
                     $cart[$lineKey]['unit_subtotal'] = $this->posCartUnitLineTotal($productprice, $producttax, $priceType);
                 }
-                if (! isset($cart[$lineKey]['options_amount'])) {
+                $isRestaurantCart = $session_key === 'pos-restaurant' || $request->boolean('restaurant');
+                if ($isRestaurantCart) {
+                    // Restaurant POS: ignore option prices for all cart money calculations.
+                    $cart[$lineKey]['options_amount'] = 0.0;
+                } elseif (! isset($cart[$lineKey]['options_amount'])) {
                     $sel = ProductOptionService::normalizeSelectedOptions(
                         $cart[$lineKey]['selected_options'] ?? $cart[$lineKey]['selected_options_json'] ?? null
                     );
