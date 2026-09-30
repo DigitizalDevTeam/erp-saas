@@ -380,59 +380,76 @@ class PosShiftController extends Controller
 
     public function closeForm(PosShift $pos_shift)
     {
-        if (\Auth::user()->canManagePos() && $pos_shift->created_by == \Auth::user()->creatorId() && $pos_shift->status === PosShift::STATUS_OPEN) {
-            $pos_shift->load(['cashDrops', 'cashIns']);
-            return view('pos_shift.close', compact('pos_shift'));
+        if (!\Auth::user()->canManagePos() || $pos_shift->created_by != \Auth::user()->creatorId()) {
+            return redirect()->route('pos-shift.index')->with('error', __('Permission denied.'));
         }
-        return redirect()->back()->with('error', __('Permission denied.'));
+
+        // Already closed: do not use redirect()->back() (Referer is often this same URL → redirect loop).
+        if ($pos_shift->status !== PosShift::STATUS_OPEN) {
+            return redirect()->route('pos-shift.show', $pos_shift)
+                ->with('error', __('This shift is already closed.'));
+        }
+
+        $pos_shift->load(['cashDrops', 'cashIns']);
+
+        return view('pos_shift.close', compact('pos_shift'));
     }
 
     public function close(Request $request, PosShift $pos_shift)
     {
-        if (\Auth::user()->canManagePos() && $pos_shift->created_by == \Auth::user()->creatorId() && $pos_shift->status === PosShift::STATUS_OPEN) {
-            $request->validate([
-                'closing_balance' => 'required|numeric|min:0',
-                'tips' => 'nullable|numeric|min:0',
-                'notes' => 'nullable|string|max:5000',
-            ], [
-                'closing_balance.min' => __('Closing balance must be zero or positive (physical cash counted in the drawer).'),
-            ]);
-
-            $posIds = Pos::where('shift_id', $pos_shift->id)->pluck('id');
-            $salesTotal = PosPayment::whereIn('pos_id', $posIds)->sum('amount');
-            $cashTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
-                $q->where('payment_method', \App\Models\PosPayment::METHOD_CASH)->orWhereNull('payment_method');
-            })->sum('amount');
-            $balanceCash = (float) \App\Models\InvoicePayment::where('pos_shift_id', $pos_shift->id)->where('payment_method', 0)->sum('amount');
-            $cashTotal += $balanceCash;
-            $cardTotal = (float) PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', [\App\Models\PosPayment::METHOD_CARD, \App\Models\PosPayment::METHOD_MPESA, \App\Models\PosPayment::METHOD_BANK_TRANSFER, 'visa', 'cheque'])->sum('amount');
-            $creditTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
-            $cashDropsTotal = (float) PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');
-            $cashInsTotal = (float) PosCashIn::where('shift_id', $pos_shift->id)->sum('amount');
-            $cashOutExpensesTotal = (float) Expense::where('pos_shift_id', $pos_shift->id)->where('created_by', \Auth::user()->creatorId())->cashOutPosted()->sum('amount');
-            $closingBalance = (float) $request->closing_balance;
-            $expectedCash = $pos_shift->opening_balance + $cashTotal + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
-            $difference = $closingBalance - $expectedCash;
-
-            $pos_shift->closed_at = now();
-            $pos_shift->closing_balance = $closingBalance;
-            $pos_shift->cash_total = $cashTotal;
-            $pos_shift->card_total = $cardTotal;
-            $pos_shift->credit_total = $creditTotal;
-            $pos_shift->difference = $difference;
-            $pos_shift->tips = (float) ($request->tips ?? 0);
-            $pos_shift->notes = $request->notes;
-            $pos_shift->sales_count = $posIds->count();
-            $pos_shift->sales_total = $salesTotal;
-            $pos_shift->status = PosShift::STATUS_CLOSED;
-            $pos_shift->save();
-            PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
-            $this->releaseShiftTables($pos_shift);
-            $this->sendShiftClosedEmailToManagers($pos_shift, (float) $expectedCash);
-            PosEodReportAlerts::sendOnShiftClose($pos_shift);
-            return redirect()->route('pos-shift.index')->with('success', __('Shift closed successfully.'));
+        if (!\Auth::user()->canManagePos() || $pos_shift->created_by != \Auth::user()->creatorId()) {
+            return redirect()->route('pos-shift.index')->with('error', __('Permission denied.'));
         }
-        return redirect()->back()->with('error', __('Permission denied.'));
+
+        // Idempotent: double-submit / refresh after close must not flash "Permission denied" or redirect()->back().
+        if ($pos_shift->status !== PosShift::STATUS_OPEN) {
+            return redirect()->route('pos-shift.index')
+                ->with('success', __('This shift is already closed.'));
+        }
+
+        $request->validate([
+            'closing_balance' => 'required|numeric|min:0',
+            'tips' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string|max:5000',
+        ], [
+            'closing_balance.min' => __('Closing balance must be zero or positive (physical cash counted in the drawer).'),
+        ]);
+
+        $posIds = app(PosShiftReportService::class)->resolveShiftPosIds($pos_shift, \Auth::user()->creatorId());
+        $paidPosIds = Pos::whereIn('id', $posIds)->whereHas('posPayments')->pluck('id');
+        $salesTotal = PosPayment::whereIn('pos_id', $posIds)->sum('amount');
+        $cashTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
+            $q->where('payment_method', \App\Models\PosPayment::METHOD_CASH)->orWhereNull('payment_method');
+        })->sum('amount');
+        $balanceCash = (float) \App\Models\InvoicePayment::where('pos_shift_id', $pos_shift->id)->where('payment_method', 0)->sum('amount');
+        $cashTotal += $balanceCash;
+        $cardTotal = (float) PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', [\App\Models\PosPayment::METHOD_CARD, \App\Models\PosPayment::METHOD_MPESA, \App\Models\PosPayment::METHOD_BANK_TRANSFER, 'visa', 'cheque'])->sum('amount');
+        $creditTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
+        $cashDropsTotal = (float) PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');
+        $cashInsTotal = (float) PosCashIn::where('shift_id', $pos_shift->id)->sum('amount');
+        $cashOutExpensesTotal = (float) Expense::where('pos_shift_id', $pos_shift->id)->where('created_by', \Auth::user()->creatorId())->cashOutPosted()->sum('amount');
+        $closingBalance = (float) $request->closing_balance;
+        $expectedCash = $pos_shift->opening_balance + $cashTotal + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
+        $difference = $closingBalance - $expectedCash;
+
+        $pos_shift->closed_at = now();
+        $pos_shift->closing_balance = $closingBalance;
+        $pos_shift->cash_total = $cashTotal;
+        $pos_shift->card_total = $cardTotal;
+        $pos_shift->credit_total = $creditTotal;
+        $pos_shift->difference = $difference;
+        $pos_shift->tips = (float) ($request->tips ?? 0);
+        $pos_shift->notes = $request->notes;
+        $pos_shift->sales_count = $paidPosIds->count();
+        $pos_shift->sales_total = $salesTotal;
+        $pos_shift->status = PosShift::STATUS_CLOSED;
+        $pos_shift->save();
+        PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
+        $this->releaseShiftTables($pos_shift);
+        $this->sendShiftClosedEmailToManagers($pos_shift, (float) $expectedCash);
+        PosEodReportAlerts::sendOnShiftClose($pos_shift);
+
+        return redirect()->route('pos-shift.index')->with('success', __('Shift closed successfully.'));
     }
 
     /**

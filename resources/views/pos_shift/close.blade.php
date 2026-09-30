@@ -54,7 +54,7 @@
                         </a>
                     </div>
                     <hr>
-                    {{ Form::open(['route' => ['pos-shift.close', $pos_shift], 'method' => 'post', 'class' => 'needs-validation', 'novalidate']) }}
+                    {{ Form::open(['route' => ['pos-shift.close', $pos_shift], 'method' => 'post', 'class' => 'needs-validation', 'novalidate', 'id' => 'pos-shift-close-form']) }}
                     <div class="form-group">
                         {{ Form::label('closing_balance', __('Closing Balance'), ['class' => 'form-label']) }} <x-required></x-required>
                         {{ Form::number('closing_balance', old('closing_balance', $expectedCash), ['class' => 'form-control' . ($errors->has('closing_balance') ? ' is-invalid' : ''), 'required' => 'required', 'step' => '0.01', 'placeholder' => __('Physical cash in drawer')]) }}
@@ -71,10 +71,21 @@
                         {{ Form::textarea('notes', $pos_shift->notes ?? '', ['class' => 'form-control', 'rows' => 3]) }}
                     </div>
                     <div class="mt-3">
-                        <button type="submit" class="btn btn-danger">{{ __('Close Shift') }}</button>
+                        <button type="submit" class="btn btn-danger" id="pos-shift-close-submit">{{ __('Close Shift') }}</button>
                         <a href="{{ route('pos-shift.index') }}" class="btn btn-secondary">{{ __('Cancel') }}</a>
                     </div>
                     {{ Form::close() }}
+                    <script>
+                        (function () {
+                            var form = document.getElementById('pos-shift-close-form');
+                            var btn = document.getElementById('pos-shift-close-submit');
+                            if (!form || !btn) return;
+                            form.addEventListener('submit', function () {
+                                btn.disabled = true;
+                                btn.innerText = @json(__('Closing...'));
+                            });
+                        })();
+                    </script>
                 </div>
             </div>
         </div>

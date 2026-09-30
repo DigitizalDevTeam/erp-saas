@@ -407,6 +407,68 @@ class PosController extends Controller
     }
 
     /**
+     * Resolve open shift for a POS payment (request param, table order, actor shift, or branch fallback).
+     */
+    protected function resolvePosShiftId(Request $request, ?int $branchId = null, ?Pos $existingPos = null): ?int
+    {
+        if ($existingPos && $existingPos->shift_id) {
+            return (int) $existingPos->shift_id;
+        }
+
+        $requestShiftId = (int) ($request->pos_shift_id ?? 0);
+        if ($requestShiftId > 0) {
+            $shift = \App\Models\PosShift::where('id', $requestShiftId)
+                ->where('created_by', Auth::user()->creatorId())
+                ->where('status', \App\Models\PosShift::STATUS_OPEN)
+                ->first();
+            if ($shift) {
+                return (int) $shift->id;
+            }
+        }
+
+        $tableId = (int) ($request->pos_table_id ?? 0);
+        if ($tableId > 0) {
+            $openOrder = Pos::where('table_id', $tableId)
+                ->whereNull('cancelled_at')
+                ->whereDoesntHave('posPayments')
+                ->whereNotNull('shift_id')
+                ->where('created_by', Auth::user()->creatorId())
+                ->orderByDesc('id')
+                ->first();
+            if ($openOrder) {
+                return (int) $openOrder->shift_id;
+            }
+        }
+
+        if (! $branchId) {
+            $branchId = (int) ($request->pos_restaurant_branch ?: $request->branch_id ?: 0);
+        }
+
+        if ($branchId > 0) {
+            $actorShift = \App\Models\PosShift::where('branch_id', $branchId)
+                ->where('user_id', PosActorService::posActorId())
+                ->where('status', \App\Models\PosShift::STATUS_OPEN)
+                ->where('created_by', Auth::user()->creatorId())
+                ->orderByDesc('opened_at')
+                ->first();
+            if ($actorShift) {
+                return (int) $actorShift->id;
+            }
+
+            $branchShift = \App\Models\PosShift::where('branch_id', $branchId)
+                ->where('status', \App\Models\PosShift::STATUS_OPEN)
+                ->where('created_by', Auth::user()->creatorId())
+                ->orderByDesc('opened_at')
+                ->first();
+            if ($branchShift) {
+                return (int) $branchShift->id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Display a listing of the resource.
      *
      * @return \Illuminate\Http\Response
@@ -1644,17 +1706,7 @@ class PosController extends Controller
         $warehouse = warehouse::find($warehouse_id);
         $branch_id = ($warehouse && $warehouse->branch_id) ? $warehouse->branch_id : Branch::where('created_by', $user_id)->value('id');
 
-        $shiftId = $request->pos_shift_id ?: null;
-        if (!$shiftId && $branch_id) {
-            $openShift = \App\Models\PosShift::where('branch_id', $branch_id)
-                ->where('user_id', PosActorService::posActorId())
-                ->where('status', \App\Models\PosShift::STATUS_OPEN)
-                ->where('created_by', Auth::user()->creatorId())
-                ->first();
-            if ($openShift) {
-                $shiftId = $openShift->id;
-            }
-        }
+        $shiftId = $this->resolvePosShiftId($request, $branch_id ? (int) $branch_id : null);
 
         $pos = new Pos();
         $pos->pos_id = $pos_id;
@@ -1895,7 +1947,12 @@ class PosController extends Controller
 
             // Restaurant: pay existing table order from DB when session cart is empty
             $tableId = (int) $request->get('pos_table_id');
+            $branchIdForShift = (int) ($request->get('pos_restaurant_branch') ?: $request->get('branch_id') ?: 0);
             $shiftId = (int) $request->get('pos_shift_id');
+            if (! $shiftId) {
+                $resolvedShiftId = $this->resolvePosShiftId($request, $branchIdForShift > 0 ? $branchIdForShift : null);
+                $shiftId = $resolvedShiftId ?? 0;
+            }
             $orderType = $request->get('pos_order_type');
             $posIdParam = (int) $request->get('pos_id');
             if (($tableId && $shiftId) && (empty($sales) || !is_array($sales) || count($sales) === 0)) {
@@ -2111,6 +2168,11 @@ class PosController extends Controller
                 }
                 if ($useExistingPos) {
                     $pos = $existingPos;
+                    if ($pos->shift_id) {
+                        $shiftId = (int) $pos->shift_id;
+                    } elseif ($shiftId) {
+                        $pos->shift_id = $shiftId;
+                    }
                     $pos->customer_id = $customer_id;
                     $pos->payment_method = $request->payment_method ?? $pos->payment_method;
                     $this->assignPosSerialForDocumentType($pos, $documentType);
@@ -2347,17 +2409,7 @@ class PosController extends Controller
                 $warehouse = warehouse::find($warehouse_id);
                 $branch_id = ($warehouse && $warehouse->branch_id) ? $warehouse->branch_id : Branch::where('created_by', $user_id)->value('id');
 
-                $shiftId = $request->pos_shift_id ?: null;
-                if (!$shiftId && $branch_id) {
-                    $openShift = \App\Models\PosShift::where('branch_id', $branch_id)
-                        ->where('user_id', PosActorService::posActorId())
-                        ->where('status', \App\Models\PosShift::STATUS_OPEN)
-                        ->where('created_by', Auth::user()->creatorId())
-                        ->first();
-                    if ($openShift) {
-                        $shiftId = $openShift->id;
-                    }
-                }
+                $shiftId = $this->resolvePosShiftId($request, $branch_id ? (int) $branch_id : null, $existingPos ?? null);
 
                 $pos = new Pos();
                     $pos->pos_id = $pos_id;
@@ -2734,6 +2786,20 @@ class PosController extends Controller
         $query = Pos::where('created_by', $creatorId)
             ->whereHas('posPayments')
             ->with(['customer', 'posPayments']);
+
+        if ($request->filled('shift_id')) {
+            $shift = \App\Models\PosShift::where('id', (int) $request->shift_id)
+                ->where('created_by', $creatorId)
+                ->first();
+            if ($shift) {
+                $shiftPosIds = app(\App\Services\PosShiftReportService::class)
+                    ->resolveShiftPosIds($shift, $creatorId);
+                if ($shiftPosIds->isEmpty()) {
+                    return response()->json(['success' => true, 'data' => []]);
+                }
+                $query->whereIn('id', $shiftPosIds);
+            }
+        }
 
         if ($request->filled('pos_number')) {
             $raw = preg_replace('/\D/', '', $request->pos_number);
@@ -5422,7 +5488,6 @@ class PosController extends Controller
             $shift = \App\Models\PosShift::where('id', (int) $request->pos_shift_id)
                 ->where('created_by', Auth::user()->creatorId())
                 ->where('status', \App\Models\PosShift::STATUS_OPEN)
-                ->where('user_id', PosActorService::posActorId())
                 ->first();
             if ($shift) {
                 $posShiftId = $shift->id;

@@ -2597,6 +2597,25 @@ class ReportController extends Controller
     }
 
     /**
+     * Manually email the EOD report PDF to all "Report Received At" recipients.
+     * Available to company admin and any user who can manage POS.
+     */
+    public function posEodReportSendEmail(Request $request)
+    {
+        if (!\Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $date = $request->input('date', date('Y-m-d'));
+        $creatorId = \Auth::user()->creatorId();
+        $result = \App\Support\PosEodReportAlerts::sendEmailManually($creatorId, $date);
+
+        return redirect()
+            ->route('report.pos.eod', ['date' => $date])
+            ->with($result['ok'] ? 'success' : 'error', $result['message']);
+    }
+
+    /**
      * EOD report Excel export.
      */
     public function posEodReportExport(Request $request)

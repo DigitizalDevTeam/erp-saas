@@ -207,13 +207,17 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($sales as $pos)
+                        @forelse($sales as $pos)
                             <tr>
                                 <td>{{ \Auth::user()->posNumberFormat($pos->pos_id) }}</td>
                                 <td>{{ $pos->pos_date ?? '-' }}</td>
-                                <td class="text-end">{{ \Auth::user()->priceFormat($pos->getTotal()) }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $pos->posPayments->sum('amount')) }}</td>
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">{{ __('No paid transactions for this shift.') }}</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>

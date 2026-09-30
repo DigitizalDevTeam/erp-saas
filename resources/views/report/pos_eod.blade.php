@@ -33,36 +33,45 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
-                    {{ Form::open(['route' => 'report.pos.eod', 'method' => 'get', 'class' => 'row g-2 align-items-end']) }}
-                    <div class="col-auto">
-                        {{ Form::label('date', __('Date'), ['class' => 'form-label']) }}
-                        {{ Form::date('date', $date, ['class' => 'form-control']) }}
-                    </div>
-                    <div class="col-auto">
-                        <button type="submit" class="btn btn-primary">{{ __('Show') }}</button>
-                    </div>
-                    <div class="col-auto ms-auto">
-                        <a href="{{ route('report.pos.eod.export', ['date' => $date]) }}" class="btn btn-success"><i class="ti ti-file-spreadsheet"></i> {{ __('Export Excel') }}</a>
-                        <button type="button" class="btn btn-secondary" onclick="window.print();"><i class="ti ti-printer"></i> {{ __('Print') }}</button>
-                        @if(!empty($canCloseDay))
-                            @if(empty($isDayClosed))
-                                @if(empty($openShiftsForDate) || $openShiftsForDate->count() === 0)
-                                    {{ Form::open(['route' => 'report.pos.close.day', 'method' => 'post', 'class' => 'd-inline']) }}
+                    <div class="row g-2 align-items-end">
+                        {{ Form::open(['route' => 'report.pos.eod', 'method' => 'get', 'class' => 'col-auto d-flex flex-wrap g-2 align-items-end gap-2']) }}
+                        <div>
+                            {{ Form::label('date', __('Date'), ['class' => 'form-label']) }}
+                            {{ Form::date('date', $date, ['class' => 'form-control']) }}
+                        </div>
+                        <div class="align-self-end">
+                            <button type="submit" class="btn btn-primary">{{ __('Show') }}</button>
+                        </div>
+                        {{ Form::close() }}
+                        <div class="col-auto ms-auto d-flex flex-wrap gap-2 align-items-end">
+                            <a href="{{ route('report.pos.eod.export', ['date' => $date]) }}" class="btn btn-success"><i class="ti ti-file-spreadsheet"></i> {{ __('Export Excel') }}</a>
+                            <button type="button" class="btn btn-secondary" onclick="window.print();"><i class="ti ti-printer"></i> {{ __('Print') }}</button>
+                            {{ Form::open(['route' => 'report.pos.eod.send', 'method' => 'post', 'class' => 'd-inline', 'id' => 'eod-send-email-form']) }}
+                            {{ Form::hidden('date', $date) }}
+                            @csrf
+                            <button type="submit" class="btn btn-primary" id="eod-send-email-btn">
+                                <i class="ti ti-mail"></i> {{ __('Send Email') }}
+                            </button>
+                            {{ Form::close() }}
+                            @if(!empty($canCloseDay))
+                                @if(empty($isDayClosed))
+                                    @if(empty($openShiftsForDate) || $openShiftsForDate->count() === 0)
+                                        {{ Form::open(['route' => 'report.pos.close.day', 'method' => 'post', 'class' => 'd-inline']) }}
+                                        {{ Form::hidden('date', $date) }}
+                                        @csrf
+                                        <button type="submit" class="btn btn-danger"><i class="ti ti-lock"></i> {{ __('Close day') }}</button>
+                                        {{ Form::close() }}
+                                    @endif
+                                @else
+                                    {{ Form::open(['route' => 'report.pos.reopen.day', 'method' => 'post', 'class' => 'd-inline']) }}
                                     {{ Form::hidden('date', $date) }}
                                     @csrf
-                                    <button type="submit" class="btn btn-danger"><i class="ti ti-lock"></i> {{ __('Close day') }}</button>
+                                    <button type="submit" class="btn btn-outline-success"><i class="ti ti-lock-open"></i> {{ __('Reopen day') }}</button>
                                     {{ Form::close() }}
                                 @endif
-                            @else
-                                {{ Form::open(['route' => 'report.pos.reopen.day', 'method' => 'post', 'class' => 'd-inline']) }}
-                                {{ Form::hidden('date', $date) }}
-                                @csrf
-                                <button type="submit" class="btn btn-outline-success"><i class="ti ti-lock-open"></i> {{ __('Reopen day') }}</button>
-                                {{ Form::close() }}
                             @endif
-                        @endif
+                        </div>
                     </div>
-                    {{ Form::close() }}
                 </div>
             </div>
         </div>
@@ -70,7 +79,7 @@
 
     <div class="row no-print">
         <div class="col-12">
-            <p class="text-muted small">{{ __('Use Print to print the report below. Use Export Excel to download as spreadsheet.') }}</p>
+            <p class="text-muted small">{{ __('Use Print to print the report below. Use Export Excel to download as spreadsheet. Use Send Email to email the full EOD report PDF to Report Received At recipients.') }}</p>
         </div>
     </div>
 
@@ -274,6 +283,15 @@ document.addEventListener('DOMContentLoaded', function() {
             if (this.value === '80') el.classList.add('eod-print-80');
             else if (this.value === '83') el.classList.add('eod-print-83');
             else if (this.value === '58') el.classList.add('eod-print-58');
+        });
+    }
+
+    var sendForm = document.getElementById('eod-send-email-form');
+    var sendBtn = document.getElementById('eod-send-email-btn');
+    if (sendForm && sendBtn) {
+        sendForm.addEventListener('submit', function () {
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<i class="ti ti-loader"></i> ' + @json(__('Sending...'));
         });
     }
 });

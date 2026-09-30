@@ -853,14 +853,19 @@
             var searchUrl = '{{ route("pos.search.pay.receipts") }}';
             var printBaseUrl = '{{ url("printview/pos") }}';
             var posPrintSource = 'restaurant';
-            $(document).on('click', '#pay-receipts-search', function() {
-                var btn = $(this).prop('disabled', true);
+            function runPayReceiptsSearch() {
+                var btn = $('#pay-receipts-search').prop('disabled', true);
                 var tbody = $('#pay-receipts-tbody');
-                $.get(searchUrl, {
+                var params = {
                     pos_number: $('#pay-receipts-pos-number').val(),
                     customer_name: $('#pay-receipts-customer').val(),
                     amount: $('#pay-receipts-amount').val()
-                }).done(function(res) {
+                };
+                var shiftId = $('#pos_shift_id_hidden').val();
+                if (shiftId) {
+                    params.shift_id = shiftId;
+                }
+                $.get(searchUrl, params).done(function(res) {
                     if (res.success && res.data && res.data.length) {
                         var rows = res.data.map(function(r) {
                             return '<tr><td>' + (r.pos_number || '') + '</td><td>' + (r.date || '') + '</td><td>' + (r.customer_name || '') + '</td><td>' + (r.total || '') + '</td><td><button class="btn btn-sm btn-outline-primary pay-receipt-print" data-id="'+r.id+'"><i class="ti ti-printer"></i></button></td></tr>';
@@ -872,7 +877,9 @@
                 }).fail(function() {
                     tbody.html('<tr><td colspan="5" class="text-center text-danger py-3">{{ __("Error") }}</td></tr>');
                 }).always(function() { btn.prop('disabled', false); });
-            });
+            }
+            $(document).on('click', '#pay-receipts-search', runPayReceiptsSearch);
+            $('#payReceiptsModal').on('shown.bs.modal', runPayReceiptsSearch);
         })(jQuery);
     </script>
     <script src="{{ asset('assets/js/plugins/popper.min.js') }}"></script>

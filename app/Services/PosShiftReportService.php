@@ -108,12 +108,105 @@ class PosShiftReportService
     }
 
     /**
+     * All POS record ids that belong to this shift (linked + paid orphans during shift window).
+     *
+     * @return Collection<int, int>
+     */
+    public function resolveShiftPosIds(PosShift $shift, int $creatorId): Collection
+    {
+        $shift->loadMissing('branch');
+
+        $directIds = Pos::where('shift_id', $shift->id)
+            ->where('created_by', $creatorId)
+            ->pluck('id');
+
+        $orphanIds = $this->findOrphanPaidPosIds($shift, $creatorId, $directIds);
+
+        if ($orphanIds->isNotEmpty()) {
+            Pos::whereIn('id', $orphanIds)
+                ->whereNull('shift_id')
+                ->update(['shift_id' => $shift->id]);
+        }
+
+        return $directIds->merge($orphanIds)->unique()->values();
+    }
+
+    /**
+     * Paid POS transactions for shift report Sales (matches Pay Receipts for this shift).
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Pos>
+     */
+    public function getShiftPaidSales(PosShift $shift, int $creatorId)
+    {
+        $posIds = $this->resolveShiftPosIds($shift, $creatorId);
+
+        if ($posIds->isEmpty()) {
+            return collect();
+        }
+
+        return Pos::whereIn('id', $posIds)
+            ->whereHas('posPayments')
+            ->whereNull('cancelled_at')
+            ->with(['items', 'posPayments'])
+            ->orderBy('pos_id')
+            ->get();
+    }
+
+    /**
+     * Paid POS on the same branch/waiter during the shift but missing shift_id.
+     *
+     * @return Collection<int, int>
+     */
+    private function findOrphanPaidPosIds(PosShift $shift, int $creatorId, Collection $excludeIds): Collection
+    {
+        if (! $shift->branch_id) {
+            return collect();
+        }
+
+        $windowStart = $shift->opened_at ?? Carbon::parse($shift->created_at ?? now());
+        $windowEnd = $shift->closed_at ?? now();
+
+        $assignedTableIds = $shift->tableAssignments()
+            ->pluck('table_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return Pos::query()
+            ->where('created_by', $creatorId)
+            ->where('branch_id', $shift->branch_id)
+            ->whereNull('cancelled_at')
+            ->where(function ($q) {
+                $q->whereNull('shift_id')->orWhere('shift_id', 0);
+            })
+            ->when($excludeIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $excludeIds))
+            ->where(function ($q) use ($shift, $assignedTableIds) {
+                $q->where('pos_user_id', $shift->user_id);
+                if (! empty($assignedTableIds)) {
+                    $q->orWhereIn('table_id', $assignedTableIds);
+                }
+            })
+            ->whereHas('posPayments', function ($q) use ($windowStart, $windowEnd) {
+                $q->whereBetween('created_at', [$windowStart, $windowEnd]);
+            })
+            ->pluck('id');
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function buildShiftMetrics(PosShift $shift, int $creatorId): array
     {
-        $posIds = Pos::where('shift_id', $shift->id)->pluck('id');
-        $sales = Pos::where('shift_id', $shift->id)->with(['items', 'posPayments'])->orderBy('pos_id')->get();
+        $posIds = $this->resolveShiftPosIds($shift, $creatorId);
+        $sales = $posIds->isEmpty()
+            ? collect()
+            : Pos::whereIn('id', $posIds)
+                ->whereHas('posPayments')
+                ->whereNull('cancelled_at')
+                ->with(['items', 'posPayments'])
+                ->orderBy('pos_id')
+                ->get();
         $paymentsByMethod = PosPayment::whereIn('pos_id', $posIds)
             ->selectRaw('payment_method, sum(amount) as total, count(*) as cnt')
             ->groupBy('payment_method')
@@ -126,7 +219,7 @@ class PosShiftReportService
         $cashTotal += $balanceCash;
         $cardTotal = (float) PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', ['card', 'visa', 'mpesa', 'bank_transfer', 'cheque'])->sum('amount');
         $creditTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', PosPayment::METHOD_CREDIT)->sum('amount');
-        $salesTotal = $sales->sum(fn ($p) => $p->getTotal());
+        $salesTotal = (float) PosPayment::whereIn('pos_id', $posIds)->sum('amount');
         $cashDropsTotal = (float) PosCashDrop::where('shift_id', $shift->id)->sum('amount');
         $cashInsTotal = (float) PosCashIn::where('shift_id', $shift->id)->sum('amount');
         $cashOutExpensesTotal = (float) Expense::where('pos_shift_id', $shift->id)
