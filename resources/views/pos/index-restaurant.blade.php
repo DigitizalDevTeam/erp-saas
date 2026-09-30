@@ -1024,8 +1024,8 @@
             } catch (e3) {}
             return null;
         }
-        /** Round unit line (price+VAT) first, then × qty — avoids 200×2 → 399.99 float drift */
-        function posLineSubtotal(price, taxRate, qty, priceType, unitSubtotal) {
+        /** Round unit line (price+VAT) first, then × qty + options_amount (options not scaled by parent qty) */
+        function posLineSubtotal(price, taxRate, qty, priceType, unitSubtotal, optionsAmount) {
             qty = parseInt(qty, 10) || 0;
             if (qty <= 0) return 0;
             var unit;
@@ -1036,7 +1036,23 @@
             } else {
                 unit = posRoundMoney((parseFloat(price) || 0) * (1 + (parseFloat(taxRate) || 0) / 100));
             }
-            return posRoundMoney(unit * qty);
+            var opts = Math.max(0, parseFloat(optionsAmount) || 0);
+            return posRoundMoney((unit * qty) + opts);
+        }
+        function posOptionsAmountFromSelected(selected, taxRate) {
+            if (!selected || !selected.length) return 0;
+            var sum = 0;
+            selected.forEach(function (s) {
+                sum += (parseFloat(s.price) || 0) * (parseFloat(s.quantity) || 1);
+            });
+            return posRoundMoney(sum * (1 + (parseFloat(taxRate) || 0) / 100));
+        }
+        function posResolveOptionsAmount($row, selected, taxRate) {
+            var attr = parseFloat($row.attr('data-options-amount'));
+            if (!isNaN(attr) && attr >= 0 && $row.attr('data-options-amount') !== undefined && $row.attr('data-options-amount') !== '') {
+                return posRoundMoney(attr);
+            }
+            return posOptionsAmountFromSelected(selected, taxRate);
         }
         function posGetCartFromDom() {
             var cart = {};
@@ -1050,11 +1066,12 @@
                 var tax = parseFloat($row.attr('data-tax')) || 0;
                 var priceType = ($row.attr('data-price-type') || 'exclusive').toLowerCase();
                 var unitSub = parseFloat($row.attr('data-unit-subtotal'));
-                var subtotal = posLineSubtotal(price, tax, qty, priceType, !isNaN(unitSub) ? unitSub : null);
-                var discount = parseFloat($row.attr('data-discount')) || 0;
-                var netPrice = subtotal - discount;
                 var selRaw = $row.attr('data-selected-options') || '';
                 var selOpts = posParseSelectedOptionsAttr(selRaw);
+                var optionsAmount = posResolveOptionsAmount($row, selOpts, tax);
+                var subtotal = posLineSubtotal(price, tax, qty, priceType, !isNaN(unitSub) ? unitSub : null, optionsAmount);
+                var discount = parseFloat($row.attr('data-discount')) || 0;
+                var netPrice = subtotal - discount;
                 cart[lineKey] = {
                     id: parseInt(id, 10),
                     product_variant_id: (!isNaN(vId) && vId > 0) ? vId : null,
@@ -1062,10 +1079,12 @@
                     price: price,
                     quantity: qty,
                     tax: tax,
+                    price_type: priceType,
+                    unit_subtotal: !isNaN(unitSub) ? unitSub : null,
+                    options_amount: optionsAmount,
                     subtotal: subtotal,
                     discount: discount,
                     netPrice: netPrice,
-                    price_type: priceType,
                     selected_options: selOpts,
                     selected_options_json: selOpts ? JSON.stringify(selOpts) : (selRaw || null)
                 };
@@ -1818,7 +1837,8 @@
             var posDeleteSelectMode = false;
             function buildRestaurantCartRow(it, idx, opts) {
                 opts = opts || {};
-                var sub = opts.sub != null ? opts.sub : posLineSubtotal(it.price, it.tax, it.quantity || 0, it.price_type, it.unit_subtotal);
+                var optsAmt = it.options_amount != null ? parseFloat(it.options_amount) : 0;
+                var sub = opts.sub != null ? opts.sub : posLineSubtotal(it.price, it.tax, it.quantity || 0, it.price_type, it.unit_subtotal, optsAmt);
                 var taxDisplay = (it.tax && it.tax !== 0) ? (it.tax + '%') : '-';
                 var statusText = posStatusLabels[it.status] || it.status;
                 var statusRowClass = { 'pending': 'pos-cart-row-sent', 'not_sent': '', 'in_preparation': 'pos-cart-row-preparation', 'ready': 'pos-cart-row-ready', 'served': 'pos-cart-row-ready', 'cancelled': 'pos-cart-row-cancelled' };
@@ -1849,7 +1869,10 @@
                         ? it.selected_options
                         : JSON.stringify(it.selected_options);
                 }
-                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-voided="' + (isVoided ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-unit-subtotal="' + (it.unit_subtotal != null ? it.unit_subtotal : (qty > 0 ? posRoundMoney(sub / qty) : '')) + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '" data-selected-options="' + esc(selOptsRaw) + '">';
+                var unitSubAttr = it.unit_subtotal != null
+                    ? it.unit_subtotal
+                    : (qty > 0 ? posRoundMoney(Math.max(0, sub - optsAmt) / qty) : '');
+                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-voided="' + (isVoided ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-unit-subtotal="' + unitSubAttr + '" data-options-amount="' + optsAmt + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '" data-selected-options="' + esc(selOptsRaw) + '">';
                 html += '<td class="pos-cart-line-cell p-0 border-0"><div class="pos-cart-line"><div class="pos-cart-line__row">';
                 html += '<div class="pos-cart-line__main min-w-0">';
                 html += '<span class="pos-cart-line__name name" title="' + esc(lineName) + '">' + esc(lineName) + '</span>';
@@ -1974,15 +1997,19 @@
                     var sessionItems = res.session_items || [];
                     var list = [];
                     orderLines.forEach(function (it) {
-                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || it.id, waiter_name: it.waiter_name || res.waiter_name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null });
+                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: (it.quantity || 0), price: parseFloat(it.price) || 0, tax: parseFloat(it.tax) || 0, subtotal: parseFloat(it.subtotal) || 0, options_amount: parseFloat(it.options_amount) || 0, description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || it.id, waiter_name: it.waiter_name || res.waiter_name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null });
                     });
                     sessionItems.forEach(function (it) {
                         var id = it.id;
                         var qty = (it.quantity || 0);
                         var price = parseFloat(it.price) || 0;
                         var tax = parseFloat(it.tax) || 0;
-                        var sub = (it.subtotal != null) ? parseFloat(it.subtotal) : posLineSubtotal(price, tax, qty, it.price_type, it.unit_subtotal);
-                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, unit_subtotal: it.unit_subtotal != null ? parseFloat(it.unit_subtotal) : (qty > 0 ? posRoundMoney(sub / qty) : null), description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || id, waiter_name: it.waiter_name || res.waiter_name || posCurrentTableWaiter.name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || posCurrentTableWaiter.id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null });
+                        var sub = (it.subtotal != null) ? parseFloat(it.subtotal) : posLineSubtotal(price, tax, qty, it.price_type, it.unit_subtotal, it.options_amount);
+                        var optsAmt = it.options_amount != null ? parseFloat(it.options_amount) : 0;
+                        var unitSub = it.unit_subtotal != null
+                            ? parseFloat(it.unit_subtotal)
+                            : (qty > 0 ? posRoundMoney(Math.max(0, sub - optsAmt) / qty) : null);
+                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, unit_subtotal: unitSub, options_amount: optsAmt, description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || id, waiter_name: it.waiter_name || res.waiter_name || posCurrentTableWaiter.name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || posCurrentTableWaiter.id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null });
                     });
                     if (res.waiter_name || res.waiter_user_id) {
                         posCurrentTableWaiter = {
@@ -2022,7 +2049,7 @@
                             var taxRate = parseFloat(it.tax) || 0;
                             var sub = (it.subtotal != null && !isNaN(parseFloat(it.subtotal)))
                                 ? parseFloat(it.subtotal)
-                                : posLineSubtotal(it.price, taxRate, it.quantity, it.price_type, it.unit_subtotal);
+                                : posLineSubtotal(it.price, taxRate, it.quantity, it.price_type, it.unit_subtotal, it.options_amount);
                             if (!isVoidedLine) {
                                 total += sub;
                             }
@@ -3927,9 +3954,12 @@
                                     existingR.find('input.input-number').val(data.product.quantity);
                                     var sub = (data.product.subtotal != null)
                                         ? parseFloat(data.product.subtotal)
-                                        : posLineSubtotal(data.product.price, data.product.tax, data.product.quantity, data.product.price_type, data.product.unit_subtotal);
+                                        : posLineSubtotal(data.product.price, data.product.tax, data.product.quantity, data.product.price_type, data.product.unit_subtotal, data.product.options_amount);
                                     if (data.product.unit_subtotal != null) {
                                         existingR.attr('data-unit-subtotal', data.product.unit_subtotal);
+                                    }
+                                    if (data.product.options_amount != null) {
+                                        existingR.attr('data-options-amount', data.product.options_amount);
                                     }
                                     existingR.find('.subtotal').text(typeof addCommas === 'function' ? addCommas(sub) : sub);
                                     existingR.attr('data-subtotal', sub).attr('data-quantity', data.product.quantity);
@@ -4222,7 +4252,8 @@
                         var taxRate = parseFloat($row.attr('data-tax')) || 0;
                         var priceType = ($row.attr('data-price-type') || 'exclusive').toLowerCase();
                         var unitSub = parseFloat($row.attr('data-unit-subtotal'));
-                        var subtotal = posLineSubtotal(price, taxRate, quantity, priceType, !isNaN(unitSub) ? unitSub : null);
+                        var optsAmt = posResolveOptionsAmount($row, posParseSelectedOptionsAttr($row.attr('data-selected-options') || ''), taxRate);
+                        var subtotal = posLineSubtotal(price, taxRate, quantity, priceType, !isNaN(unitSub) ? unitSub : null, optsAmt);
                         $row.attr('data-subtotal', subtotal);
                         $row.find('.subtotal').text(addCommas(subtotal));
                         var total = 0;

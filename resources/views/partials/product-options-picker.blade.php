@@ -1,4 +1,4 @@
-{{-- Multi-select product options modal (parent price + selected option prices) --}}
+{{-- Multi-select product options modal (parent and option prices/qtys stay independent) --}}
 <div class="modal fade" id="erpProductOptionsModal" tabindex="-1" aria-labelledby="erpProductOptionsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -9,7 +9,7 @@
             <div class="modal-body">
                 <p class="text-muted small mb-2" id="erpProductOptionsParentName"></p>
                 <div id="erpProductOptionsList" class="list-group mb-0"></div>
-                <p class="text-muted small mt-2 mb-0">{{ __('Line price = parent price + sum of selected option prices.') }}</p>
+                <p class="text-muted small mt-2 mb-0">{{ __('Parent price and quantity stay separate from each option price and quantity.') }}</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>

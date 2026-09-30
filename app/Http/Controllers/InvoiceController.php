@@ -30,6 +30,7 @@ use App\Services\DocumentVoidService;
 use App\Services\DocumentLayoutRenderer;
 use App\Services\Accounting\DocumentLedgerService;
 use App\Services\Accounting\CustomerCreditLimitService;
+use App\Services\ProductOptionService;
 use App\Support\SalesPurchaseNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -591,16 +592,20 @@ class InvoiceController extends Controller
                 $invoice_products = InvoiceProduct::where('invoice_id', $invoice->id)->get();
                 foreach ($invoice_products as $invoice_product) {
                     $product = ProductService::find($invoice_product->product_id);
+                    $optionsAmount = ProductOptionService::calculateOptionsAmount(
+                        ProductOptionService::normalizeSelectedOptions($invoice_product->selected_options_json ?? null)
+                    );
+                    $taxableBase = ($invoice_product->price * $invoice_product->quantity) - ($invoice_product->discount) + $optionsAmount;
                     $totalTaxPrice = 0;
                     if($invoice_product->tax != null){
                         $taxes = \App\Models\Utility::tax($invoice_product->tax);
                         foreach ($taxes as $tax) {
-                            $taxPrice = \App\Models\Utility::taxRate($tax->rate, $invoice_product->price, $invoice_product->quantity, $invoice_product->discount);
+                            $taxPrice = ($taxableBase) * ($tax->rate / 100);
                             $totalTaxPrice += $taxPrice;
                         }
                     }
 
-                    $itemAmount = ($invoice_product->price * $invoice_product->quantity) - ($invoice_product->discount) + $totalTaxPrice;
+                    $itemAmount = $taxableBase + $totalTaxPrice;
 
                     $data = [
                         'account_id' => $product->sale_chartaccount_id,
@@ -905,16 +910,20 @@ class InvoiceController extends Controller
                 if (! $product) {
                     continue;
                 }
+                $optionsAmount = \App\Services\ProductOptionService::calculateOptionsAmount(
+                    \App\Services\ProductOptionService::normalizeSelectedOptions($invoice_product->selected_options_json ?? null)
+                );
+                $taxableBase = ($invoice_product->price * $invoice_product->quantity) - ($invoice_product->discount) + $optionsAmount;
                 $totalTaxPrice = 0;
                 if ($invoice_product->tax != null) {
                     $taxes = \App\Models\Utility::tax($invoice_product->tax);
                     foreach ($taxes as $tax) {
-                        $taxPrice = \App\Models\Utility::taxRate($tax->rate, $invoice_product->price, $invoice_product->quantity, $invoice_product->discount);
+                        $taxPrice = ($taxableBase) * ($tax->rate / 100);
                         $totalTaxPrice += $taxPrice;
                     }
                 }
 
-                $itemAmount = ($invoice_product->price * $invoice_product->quantity) - ($invoice_product->discount) + $totalTaxPrice;
+                $itemAmount = $taxableBase + $totalTaxPrice;
 
                 $data = [
                     'account_id' => $product->sale_chartaccount_id,

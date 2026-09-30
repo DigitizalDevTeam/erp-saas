@@ -13,7 +13,13 @@
     $qty = (int) ($line->quantity ?? 1);
     $unitSubtotal = isset($line->unit_subtotal)
         ? (float) $line->unit_subtotal
-        : ($qty > 0 ? round($subtotal / $qty, 2) : $subtotal);
+        : (float) ($line->price ?? 0);
+    $optionsAmount = isset($line->options_amount)
+        ? (float) $line->options_amount
+        : 0.0;
+    if (! isset($line->unit_subtotal) && $qty > 0 && $optionsAmount <= 0) {
+        $unitSubtotal = round($subtotal / $qty, 2);
+    }
     $cartLineKey = $line->cart_line_key ?? $line->id ?? '';
     $noteText = trim((string) ($line->description ?? ''));
     $hasNote = $noteText !== '';
@@ -48,6 +54,7 @@
     data-tax="{{ $line->tax ?? 0 }}"
     data-subtotal="{{ $subtotal }}"
     data-unit-subtotal="{{ $unitSubtotal }}"
+    data-options-amount="{{ $optionsAmount }}"
     data-discount="0"
     data-print-zone="{{ $line->print_zone ?? '' }}"
     data-printer-id="{{ $line->pos_printer_id ?? '' }}"

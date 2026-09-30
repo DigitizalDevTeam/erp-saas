@@ -497,6 +497,7 @@
                         $('.subTotal').html(formatNum(totalItemPrice));
                         $('.totalTax').html(formatNum(totalItemTaxPrice));
                         $('.totalAmount').html(formatNum(totalItemPrice - totalItemDiscountPrice + totalItemTaxPrice));
+                        recalcInvoiceLineTotals($line);
                     }
 
                     invoiceMeasurementPopup(item, $line, function (m) {
@@ -521,6 +522,26 @@
             });
         });
 
+        function invoiceOptionsAmount($el) {
+            var raw = $el.find('.selected-options-json').val();
+            if (!raw) {
+                return 0;
+            }
+            try {
+                var arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                if (!Array.isArray(arr)) {
+                    return 0;
+                }
+                var sum = 0;
+                arr.forEach(function (s) {
+                    sum += (parseNum(s.price) || 0) * (parseNum(s.quantity) || 1);
+                });
+                return Math.round(sum * 100) / 100;
+            } catch (e) {
+                return 0;
+            }
+        }
+
         function recalcInvoiceLineTotals($field) {
             var el = $field.closest('[data-repeater-item]');
             if (!el.length) {
@@ -530,7 +551,8 @@
             var quantity = parseNum(el.find('.quantity').val());
             var price = parseNum(el.find('.price').val());
             var discount = parseNum(el.find('.discount').val());
-            var totalItemPrice = (quantity * price) - discount;
+            var optionsAmount = invoiceOptionsAmount(el);
+            var totalItemPrice = (quantity * price) - discount + optionsAmount;
             var totalItemTaxRate = parseNum(el.find('.itemTaxRate').val());
             var itemTaxPrice = (totalItemTaxRate / 100) * totalItemPrice;
             el.find('.itemTaxPrice').val(itemTaxPrice.toFixed(2));
@@ -542,9 +564,11 @@
             });
 
             var sumPrice = 0;
-            var $qtys = $('.quantity');
-            $('.price').each(function (j) {
-                sumPrice += parseNum(this.value) * parseNum($qtys[j] ? $qtys[j].value : 0);
+            $('.repeater [data-repeater-item]').each(function () {
+                var $line = $(this);
+                var q = parseNum($line.find('.quantity').val());
+                var p = parseNum($line.find('.price').val());
+                sumPrice += (p * q) + invoiceOptionsAmount($line);
             });
 
             var subTotal = 0;

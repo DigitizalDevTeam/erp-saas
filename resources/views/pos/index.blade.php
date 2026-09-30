@@ -626,7 +626,8 @@
                                                 data-name="{{ e($details['name']) }}" data-price="{{ $details['price'] }}"
                                                 data-price-type="{{ $details['price_type'] ?? 'exclusive' }}"
                                                 data-quantity="{{ $details['quantity'] }}" data-tax="{{ $details['tax'] ?? 0 }}"
-                                                data-subtotal="{{ $details['subtotal'] }}" data-discount="{{ $details['discount'] ?? 0 }}"
+                                                data-subtotal="{{ $details['subtotal'] }}" data-options-amount="{{ $details['options_amount'] ?? 0 }}"
+                                                data-discount="{{ $details['discount'] ?? 0 }}"
                                                 data-netprice="{{ $details['netPrice'] ?? $details['subtotal'] }}">
                                                 <div class="card-body p-2">
                                                     <div class="d-flex justify-content-between align-items-start gap-2">
@@ -1136,11 +1137,12 @@
                 var price = parseFloat($(this).attr('data-price')) || 0;
                 var tax = parseFloat($(this).attr('data-tax')) || 0;
                 var priceType = ($(this).attr('data-price-type') || 'exclusive').toLowerCase();
+                var optionsAmount = Math.max(0, parseFloat($(this).attr('data-options-amount')) || 0);
                 var subtotal;
                 if (priceType === 'inclusive' && tax > 0) {
-                    subtotal = price * qty;
+                    subtotal = (price * qty) + optionsAmount;
                 } else {
-                    subtotal = (price + price * tax / 100) * qty;
+                    subtotal = ((price + price * tax / 100) * qty) + optionsAmount;
                 }
                 var discount = parseFloat($(this).attr('data-discount')) || 0;
                 var netPrice = subtotal - discount;
@@ -1151,6 +1153,7 @@
                     quantity: qty,
                     tax: tax,
                     subtotal: subtotal,
+                    options_amount: optionsAmount,
                     discount: discount,
                     netPrice: netPrice,
                     price_type: priceType,
@@ -1428,16 +1431,17 @@
                         var price = parseFloat($(this).attr('data-price')) || 0;
                         var tax = parseFloat($(this).attr('data-tax')) || 0;
                         var priceType = ($(this).attr('data-price-type') || 'exclusive').toLowerCase();
+                        var optionsAmount = Math.max(0, parseFloat($(this).attr('data-options-amount')) || 0);
                         var subtotal;
                         if (priceType === 'inclusive' && tax > 0) {
-                            subtotal = price * qty;
+                            subtotal = (price * qty) + optionsAmount;
                         } else {
-                            subtotal = (price + price * tax / 100) * qty;
+                            subtotal = ((price + price * tax / 100) * qty) + optionsAmount;
                         }
                         receiptData.subTotal += subtotal;
                         receiptData.taxTotal += priceType === 'inclusive' && tax > 0
                             ? (subtotal - (subtotal / (1 + tax / 100)))
-                            : (price * qty * tax / 100);
+                            : ((price * qty * tax / 100) + (optionsAmount - (optionsAmount / (1 + tax / 100))));
                         receiptData.items.push({ name: name, qty: qty, price: price, tax: tax, subtotal: subtotal, price_type: priceType });
                     });
                     posClearCartDom();
@@ -3044,9 +3048,15 @@
                                         $('.no-found').addClass('d-none');
                                     }
                                     $.each(data.carttotal, function (key, value) {
-                                        var $row = $('#product-id-' + value.id);
+                                        var $row = $('#product-id-' + String(value.cart_line_key || value.id).replace(/_/g, '-'));
+                                        if (!$row.length) {
+                                            $row = $('#product-id-' + value.id);
+                                        }
                                         if ($row.length) {
                                             $row.attr('data-subtotal', value.subtotal);
+                                            if (value.options_amount != null) {
+                                                $row.attr('data-options-amount', value.options_amount);
+                                            }
                                             $row.find('.subtotal').text(addCommas(value.subtotal));
                                             $row.find('input[name="quantity"]').val(value.quantity);
                                         }
@@ -3139,12 +3149,13 @@
                         var price = parseFloat($row.attr('data-price')) || 0;
                         var taxRate = parseFloat($row.attr('data-tax')) || 0;
                         var priceType = ($row.attr('data-price-type') || 'exclusive').toLowerCase();
+                        var optionsAmount = Math.max(0, parseFloat($row.attr('data-options-amount')) || 0);
                         var subtotal;
                         if (priceType === 'inclusive' && taxRate > 0) {
-                            subtotal = price * quantity;
+                            subtotal = (price * quantity) + optionsAmount;
                         } else {
                             var tax = price * taxRate / 100;
-                            subtotal = (price + tax) * quantity;
+                            subtotal = ((price + tax) * quantity) + optionsAmount;
                         }
                         $row.attr('data-subtotal', subtotal);
                         $row.find('.subtotal').text(addCommas(subtotal));

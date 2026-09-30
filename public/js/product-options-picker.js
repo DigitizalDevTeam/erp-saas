@@ -136,12 +136,17 @@
         );
     }
 
-    function calcTotal(item, selected, forPurchase) {
-        var total = parentBasePrice(item, forPurchase);
+    function calcOptionsAmount(selected) {
+        var total = 0;
         selected.forEach(function (s) {
             total += (parseFloat(s.price) || 0) * (parseFloat(s.quantity) || 1);
         });
         return Math.round(total * 100) / 100;
+    }
+
+    // Parent unit price only — selected options do not modify the parent base price.
+    function calcTotal(item, selected, forPurchase) {
+        return Math.round(parentBasePrice(item, forPurchase) * 100) / 100;
     }
 
     function getModalEl() {

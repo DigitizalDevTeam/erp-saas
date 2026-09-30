@@ -556,7 +556,10 @@ class PosController extends Controller
                     continue;
                 }
                 $taxRate = $this->resolvePosLineTaxRate($line, $line->product);
-                $lineNet = (float) $line->price * (int) $line->quantity - (float) $line->discount;
+                $optionsAmount = ProductOptionService::calculateOptionsAmount(
+                    ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null)
+                );
+                $lineNet = (float) $line->price * (int) $line->quantity + $optionsAmount - (float) $line->discount;
                 $totals[$tid] += $lineNet * (1 + $taxRate / 100);
             }
         }
@@ -587,7 +590,15 @@ class PosController extends Controller
                         $qty = (int) ($v['quantity'] ?? 1);
                         $price = (float) ($v['price'] ?? 0);
                         $tax = (float) ($v['tax'] ?? 0);
-                        $sub = $price * $qty * (1 + $tax / 100);
+                        $optionsAmount = (float) ($v['options_amount'] ?? 0);
+                        if ($optionsAmount <= 0) {
+                            $optionsAmount = ProductOptionService::calculateOptionsAmount(
+                                ProductOptionService::normalizeSelectedOptions(
+                                    $v['selected_options'] ?? $v['selected_options_json'] ?? null
+                                )
+                            ) * (1 + $tax / 100);
+                        }
+                        $sub = ($price * $qty * (1 + $tax / 100)) + $optionsAmount;
                     }
                     $totals[$tableId] += $sub;
                 }
@@ -1556,7 +1567,18 @@ class PosController extends Controller
         if ($discountAmount > 0) {
             $subtotal = 0;
             foreach ($sales as $v) {
-                $subtotal += ($v['price'] ?? 0) * ($v['quantity'] ?? 0);
+                if (isset($v['subtotal'])) {
+                    $subtotal += (float) $v['subtotal'];
+                } else {
+                    $sel = ProductOptionService::normalizeSelectedOptions(
+                        $v['selected_options'] ?? $v['selected_options_json'] ?? null
+                    );
+                    $subtotal += ProductOptionService::calculateLineExtendedTotal(
+                        (float) ($v['price'] ?? 0),
+                        (float) ($v['quantity'] ?? 0),
+                        $sel
+                    );
+                }
             }
             if ($subtotal > 0) {
                 $discountPercent = ($discountAmount / $subtotal) * 100;
@@ -2975,7 +2997,9 @@ class PosController extends Controller
                 $product = $line->product;
                 $taxRate = $this->resolvePosLineTaxRate($line, $product);
                 $displayName = $this->resolvePosLineDisplayName($line, $product);
-                $lineNet = (float) $line->price * (int) $line->quantity - (float) $line->discount;
+                $selectedOpts = ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null);
+                $optionsAmount = ProductOptionService::calculateOptionsAmount($selectedOpts);
+                $lineNet = (float) $line->price * (int) $line->quantity + $optionsAmount - (float) $line->discount;
                 $orderLines[] = [
                     'line_id' => $line->id,
                     'id' => $line->product_id,
@@ -2986,6 +3010,7 @@ class PosController extends Controller
                     'price' => (float) $line->price,
                     'discount' => (float) $line->discount,
                     'tax' => $taxRate,
+                    'options_amount' => $optionsAmount * (1 + $taxRate / 100),
                     'subtotal' => $lineNet * (1 + $taxRate / 100),
                     'description' => $line->description ?? '',
                     'print_zone' => $line->print_zone ?? '',
@@ -3075,7 +3100,10 @@ class PosController extends Controller
                     if ($line->voided_at || $line->removed_from_cart_at) {
                         continue;
                     }
-                    $checkTotal += (float) ($line->price * $line->quantity - $line->discount);
+                    $optsAmt = ProductOptionService::calculateOptionsAmount(
+                        ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null)
+                    );
+                    $checkTotal += (float) ($line->price * $line->quantity + $optsAmt - $line->discount);
                 }
                 $checks[] = [
                     'pos_id' => $check->id,

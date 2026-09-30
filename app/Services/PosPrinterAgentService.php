@@ -187,7 +187,11 @@ class PosPrinterAgentService
             ];
         }
 
-        $lineTotal = $qty * $unitPrice;
+        $lineTotal = ProductOptionService::calculateLineExtendedTotal(
+            $unitPrice,
+            (float) $qty,
+            $selected
+        );
 
         return [
             'name' => (string) ($product->name ?? ''),

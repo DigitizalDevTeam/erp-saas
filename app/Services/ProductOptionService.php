@@ -8,8 +8,9 @@ use App\Models\Utility;
 use Illuminate\Http\Request;
 
 /**
- * Parent product with options: sale price = parent + sum(selected option prices).
- * Stock moves on selected option products only (not parent).
+ * Parent product with options: parent unit price stays parent-only; option prices/qtys stay independent.
+ * Line money total = parent_price × parent_qty + Σ(option_price × option_qty).
+ * Stock moves on selected option products only (not parent), using each option's own quantity.
  */
 class ProductOptionService
 {
@@ -271,17 +272,80 @@ class ProductOptionService
     }
 
     /**
-     * Catalog (shelf) sale/purchase total for parent + selected options.
-     * Uses stored catalog amounts so inclusive packages stay exact (650+180=830).
+     * Catalog (shelf) sale/purchase amount for the parent only (options are priced separately).
      *
      * @param  array<int, array{product_id: int, quantity: float, price?: float}>  $selected
      */
-    public static function calculateCatalogInclusiveTotal(ProductService $parent, array $selected, bool $forPurchase = false): float
+    public static function calculateCatalogInclusiveTotal(ProductService $parent, array $selected = [], bool $forPurchase = false): float
     {
         $sum = $forPurchase
             ? (float) ($parent->purchase_price ?? 0)
             : (float) ($parent->sale_price ?? 0);
 
+        return round($sum, 2);
+    }
+
+    /**
+     * Parent unit price only. Selected options do not modify the parent base price.
+     *
+     * @param  array<int, array{product_id: int, quantity: float, price?: float}>  $selected
+     */
+    public static function calculateUnitPrice(ProductService $parent, array $selected = [], bool $forPurchase = false): float
+    {
+        if (! $forPurchase && $parent->isSalePriceInclusive()) {
+            $taxRate = ! empty($parent->tax_id) ? (float) $parent->taxRate($parent->tax_id) : 0.0;
+            $inclusive = self::calculateCatalogInclusiveTotal($parent, [], false);
+            if ($inclusive > 0 && $taxRate > 0) {
+                return round($inclusive / (1 + ($taxRate / 100)), 2);
+            }
+        }
+
+        return round(
+            $forPurchase
+                ? $parent->exclusivePurchaseUnitPrice()
+                : $parent->exclusiveSaleUnitPrice(),
+            2
+        );
+    }
+
+    /**
+     * Independent options money: Σ(option_price × option_qty). Not scaled by parent qty.
+     *
+     * @param  array<int, array{product_id: int, quantity: float, price?: float}>  $selected
+     */
+    public static function calculateOptionsAmount(array $selected, bool $forPurchase = false): float
+    {
+        $sum = 0.0;
+        foreach ($selected as $row) {
+            $optId = (int) ($row['product_id'] ?? 0);
+            $optQty = (float) ($row['quantity'] ?? 1);
+            if ($optId <= 0 || $optQty <= 0) {
+                continue;
+            }
+            if (isset($row['price'])) {
+                $sum += (float) $row['price'] * $optQty;
+            } else {
+                $opt = ProductService::find($optId);
+                if ($opt) {
+                    $p = $forPurchase
+                        ? $opt->exclusivePurchaseUnitPrice()
+                        : $opt->exclusiveSaleUnitPrice();
+                    $sum += $p * $optQty;
+                }
+            }
+        }
+
+        return round($sum, 2);
+    }
+
+    /**
+     * Catalog (shelf) inclusive amount for selected options only.
+     *
+     * @param  array<int, array{product_id: int, quantity: float, price?: float}>  $selected
+     */
+    public static function calculateOptionsCatalogInclusiveAmount(array $selected, bool $forPurchase = false): float
+    {
+        $sum = 0.0;
         foreach ($selected as $row) {
             $optId = (int) ($row['product_id'] ?? 0);
             $optQty = (float) ($row['quantity'] ?? 1);
@@ -302,41 +366,20 @@ class ProductOptionService
     }
 
     /**
+     * Line extended total: parent_price × parent_qty + Σ(option_price × option_qty).
+     *
      * @param  array<int, array{product_id: int, quantity: float, price?: float}>  $selected
      */
-    public static function calculateUnitPrice(ProductService $parent, array $selected, bool $forPurchase = false): float
-    {
-        // Inclusive catalog: sum shelf prices first, then strip VAT once (avoids 829.99 vs 830.00).
-        if (! $forPurchase && $parent->isSalePriceInclusive()) {
-            $taxRate = ! empty($parent->tax_id) ? (float) $parent->taxRate($parent->tax_id) : 0.0;
-            $inclusive = self::calculateCatalogInclusiveTotal($parent, $selected, false);
-            if ($inclusive > 0 && $taxRate > 0) {
-                return round($inclusive / (1 + ($taxRate / 100)), 2);
-            }
-        }
+    public static function calculateLineExtendedTotal(
+        float $parentUnitPrice,
+        float $parentQty,
+        array $selected,
+        bool $forPurchase = false
+    ): float {
+        $parentQty = max(0, $parentQty);
+        $optionsAmount = self::calculateOptionsAmount($selected, $forPurchase);
 
-        $base = $forPurchase
-            ? $parent->exclusivePurchaseUnitPrice()
-            : $parent->exclusiveSaleUnitPrice();
-
-        $sum = 0.0;
-        foreach ($selected as $row) {
-            $optId = (int) $row['product_id'];
-            $optQty = (float) ($row['quantity'] ?? 1);
-            if (isset($row['price'])) {
-                $sum += (float) $row['price'] * $optQty;
-            } else {
-                $opt = ProductService::find($optId);
-                if ($opt) {
-                    $p = $forPurchase
-                        ? $opt->exclusivePurchaseUnitPrice()
-                        : $opt->exclusiveSaleUnitPrice();
-                    $sum += $p * $optQty;
-                }
-            }
-        }
-
-        return round($base + $sum, 2);
+        return round(($parentUnitPrice * $parentQty) + $optionsAmount, 2);
     }
 
     /**
@@ -379,13 +422,14 @@ class ProductOptionService
         string $descriptionPrefix,
         int $typeId
     ): void {
-        if ($lineQuantity <= 0 || $selected === []) {
+        // Option qty is independent of parent line qty; $lineQuantity kept for call-site compatibility.
+        if ($selected === []) {
             return;
         }
 
         foreach ($selected as $row) {
             $optId = (int) $row['product_id'];
-            $deductQty = (float) ($row['quantity'] ?? 1) * $lineQuantity;
+            $deductQty = (float) ($row['quantity'] ?? 1);
             if ($deductQty <= 0) {
                 continue;
             }
@@ -426,13 +470,14 @@ class ProductOptionService
         string $descriptionPrefix,
         int $typeId
     ): void {
-        if ($lineQuantity <= 0 || $selected === []) {
+        // Option qty is independent of parent line qty; $lineQuantity kept for call-site compatibility.
+        if ($selected === []) {
             return;
         }
 
         foreach ($selected as $row) {
             $optId = (int) $row['product_id'];
-            $restoreQty = (float) ($row['quantity'] ?? 1) * $lineQuantity;
+            $restoreQty = (float) ($row['quantity'] ?? 1);
             if ($restoreQty <= 0) {
                 continue;
             }
@@ -463,13 +508,14 @@ class ProductOptionService
         string $description,
         int $typeId
     ): void {
-        if ($lineQuantity <= 0 || $selected === []) {
+        // Option qty is independent of parent line qty; $lineQuantity kept for call-site compatibility.
+        if ($selected === []) {
             return;
         }
 
         foreach ($selected as $row) {
             $optId = (int) $row['product_id'];
-            $addQty = (float) ($row['quantity'] ?? 1) * $lineQuantity;
+            $addQty = (float) ($row['quantity'] ?? 1);
             if ($addQty <= 0) {
                 continue;
             }

@@ -1648,7 +1648,7 @@ class ProductServiceController extends Controller
                     $warId = (int) ($request->war_id ?? 0);
                     $usesRestaurantWarehouse = $session_key === 'pos-restaurant' || $request->boolean('restaurant');
                     if (($product->options_enabled ?? false) && $selectedOptions !== []) {
-                        $minOpt = PHP_INT_MAX;
+                        // Option qty is independent of parent qty: require absolute option stock only.
                         foreach ($selectedOptions as $optRow) {
                             $opt = ProductService::where('id', (int) $optRow['product_id'])->where('created_by', Auth::user()->creatorId())->first();
                             if (! $opt || ! ($opt->affect_stock ?? true)) {
@@ -1658,9 +1658,18 @@ class ProductServiceController extends Controller
                             $have = $usesRestaurantWarehouse
                                 ? $this->restaurantPosWarehouseStock($opt, $warId)
                                 : (int) floor((float) ($opt->quantity ?? 0));
-                            $minOpt = min($minOpt, $need > 0 ? (int) floor($have / $need) : 0);
+                            if ($need > 0 && $have < $need) {
+                                return response()->json(
+                                    [
+                                        'code' => 404,
+                                        'status' => 'Error',
+                                        'error' => __('This product is out of stock!'),
+                                    ],
+                                    404
+                                );
+                            }
                         }
-                        $productquantity = $minOpt === PHP_INT_MAX ? 999999 : max(0, $minOpt);
+                        $productquantity = 999999;
                     } elseif ($affectStock && ($product->variants_enabled ?? false)) {
                         $productquantity = ($usesRestaurantWarehouse && $warId <= 0)
                             ? 0
@@ -1743,12 +1752,19 @@ class ProductServiceController extends Controller
                 }
             }
 
+            $forPurchase = $session_key === 'purchases';
             if ($product && $selectedOptions !== []) {
-                $productprice = ProductOptionService::calculateUnitPrice(
-                    $product,
-                    $selectedOptions,
-                    $session_key === 'purchases'
-                );
+                // Parent unit price stays parent-only; options stay in selected_options with their own price/qty.
+                if (! $usedMeasuredPrice) {
+                    $productprice = ProductOptionService::calculateUnitPrice($product, $selectedOptions, $forPurchase);
+                    if ($variantId !== null && isset($vrD) && $vrD) {
+                        if ($forPurchase && $vrD->purchase_price !== null && (float) $vrD->purchase_price >= 0) {
+                            $productprice = (float) $vrD->purchase_price;
+                        } elseif ($isPosSession && $vrD->sale_price !== null && (float) $vrD->sale_price >= 0) {
+                            $productprice = $product->exclusiveSaleUnitPrice((float) $vrD->sale_price);
+                        }
+                    }
+                }
                 $displayName = ProductOptionService::formatLineName($product, $selectedOptions);
             }
 
@@ -1784,27 +1800,34 @@ class ProductServiceController extends Controller
             }
             $producttax = $totalTaxRate;
 
-            // After exclusiveSaleUnitPrice / options / measured exclusive base, always treat as exclusive
+            // After exclusiveSaleUnitPrice / measured exclusive base, always treat as exclusive
             $priceType = 'exclusive';
             $tax = round(($productprice * $producttax) / 100, 2);
-            $subtotal = round($productprice + $tax, 2);
-            // Prefer exact shelf total when price came from inclusive catalog (avoids 0.01 drift)
-            // Also applies to product+options packages: sum inclusive first (650+180=830), then derive exclusive.
+            $unitSubtotal = round($productprice + $tax, 2);
+            // Prefer exact shelf total for parent when price came from inclusive catalog (avoids 0.01 drift)
             if ($isPosSession && ! $usedMeasuredPrice && $product->isSalePriceInclusive() && $producttax > 0) {
-                if ($selectedOptions !== []) {
-                    $catalogInclusive = ProductOptionService::calculateCatalogInclusiveTotal($product, $selectedOptions);
-                } else {
-                    $catalogInclusive = (float) ($product->sale_price ?? 0);
-                    if ($variantId !== null && isset($vrD) && $vrD && $vrD->sale_price !== null) {
-                        $catalogInclusive = (float) $vrD->sale_price;
-                    }
+                $catalogInclusive = ProductOptionService::calculateCatalogInclusiveTotal($product);
+                if ($variantId !== null && isset($vrD) && $vrD && $vrD->sale_price !== null) {
+                    $catalogInclusive = (float) $vrD->sale_price;
                 }
                 if ($catalogInclusive > 0) {
-                    $subtotal = round($catalogInclusive, 2);
-                    $productprice = round($subtotal / (1 + ($producttax / 100)), 2);
-                    $tax = round($subtotal - $productprice, 2);
+                    $unitSubtotal = round($catalogInclusive, 2);
+                    $productprice = round($unitSubtotal / (1 + ($producttax / 100)), 2);
+                    $tax = round($unitSubtotal - $productprice, 2);
                 }
             }
+
+            // Options money once (not scaled by parent qty). Taxed like parent when exclusive.
+            $optionsAmount = 0.0;
+            if ($selectedOptions !== []) {
+                if ($isPosSession && ! $usedMeasuredPrice && $product->isSalePriceInclusive() && $producttax > 0) {
+                    $optionsAmount = ProductOptionService::calculateOptionsCatalogInclusiveAmount($selectedOptions, $forPurchase);
+                } else {
+                    $optionsExclusive = ProductOptionService::calculateOptionsAmount($selectedOptions, $forPurchase);
+                    $optionsAmount = round($optionsExclusive * (1 + ($producttax / 100)), 2);
+                }
+            }
+            $subtotal = round($unitSubtotal + $optionsAmount, 2);
 
             if ($tableKey !== null) {
                 $all = session()->get($cartKey, []);
@@ -1844,7 +1867,8 @@ class ProductServiceController extends Controller
                         'price' => $productprice,
                         'tax' => $producttax,
                         'price_type' => $priceType,
-                        'unit_subtotal' => $subtotal,
+                        'unit_subtotal' => $unitSubtotal,
+                        'options_amount' => $optionsAmount,
                         'description' => '',
                         'is_sent' => false,
                         'status' => 'not_sent',
@@ -1867,7 +1891,7 @@ class ProductServiceController extends Controller
                         'canShowVoid' => false,
                     ])->render();
                 } else {
-                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" id="product-id-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-price-type="' . e($priceType) . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '" data-measurement-json="' . $measurementJsonEsc . '">';
+                $carthtml .= '<div class="pos-cart-card-item card border rounded-2 mb-2 shadow-sm" data-product-id="' . $id . '" data-product-variant-id="' . (int) ($variantId ?? 0) . '" data-cart-line-key="' . e($cartLineKey) . '" id="product-id-' . e(str_replace('_', '-', $cartLineKey)) . '" data-name="' . e($displayName) . '" data-price="' . $productprice . '" data-price-type="' . e($priceType) . '" data-quantity="1" data-tax="' . $producttax . '" data-subtotal="' . $subtotal . '" data-options-amount="' . $optionsAmount . '" data-discount="0" data-netprice="' . $subtotal . '" data-print-zone="' . e($printZone) . '" data-printer-id="' . $printerId . '" data-printer-name="' . $printerName . '" data-measurement-json="' . $measurementJsonEsc . '">';
                 $carthtml .= '<div class="card-body p-2">';
                 $carthtml .= '<div class="d-flex justify-content-between align-items-start gap-2">';
                 $carthtml .= '<div class="flex-grow-1 min-w-0"><h6 class="mb-0 text-dark fw-bold text-truncate name">' . e($displayName) . '</h6>';
@@ -1929,7 +1953,8 @@ class ProductServiceController extends Controller
                 'product_variant_id' => $variantId,
                 'tax' => $producttax,
                 'subtotal' => $subtotal,
-                'unit_subtotal' => $subtotal,
+                'unit_subtotal' => $unitSubtotal,
+                'options_amount' => $optionsAmount,
                 'originalquantity' => $originalquantity,
                 'product_tax' => $product_tax,
                 'product_tax_id' => ! empty($product_tax_id) ? implode(',', $product_tax_id) : 0,
@@ -1998,14 +2023,18 @@ class ProductServiceController extends Controller
                 $tx = (float) ($cart[$cartLineKey]['tax'] ?? 0);
                 if (! isset($cart[$cartLineKey]['unit_subtotal'])) {
                     // Prefer shelf unit total from this add (catalog-inclusive when applicable)
-                    $cart[$cartLineKey]['unit_subtotal'] = round((float) $subtotal, 2);
+                    $cart[$cartLineKey]['unit_subtotal'] = round((float) $unitSubtotal, 2);
+                }
+                if (! isset($cart[$cartLineKey]['options_amount'])) {
+                    $cart[$cartLineKey]['options_amount'] = round((float) $optionsAmount, 2);
                 }
                 $cart[$cartLineKey]['subtotal'] = $this->posCartLineSubtotal(
                     $pr,
                     $tx,
                     $qty,
                     $pt,
-                    (float) $cart[$cartLineKey]['unit_subtotal']
+                    (float) $cart[$cartLineKey]['unit_subtotal'],
+                    (float) ($cart[$cartLineKey]['options_amount'] ?? 0)
                 );
                 $cart[$cartLineKey]['originalquantity'] = $originalquantity;
 
@@ -2143,12 +2172,25 @@ class ProductServiceController extends Controller
                 if (! isset($cart[$lineKey]['unit_subtotal'])) {
                     $cart[$lineKey]['unit_subtotal'] = $this->posCartUnitLineTotal($productprice, $producttax, $priceType);
                 }
+                if (! isset($cart[$lineKey]['options_amount'])) {
+                    $sel = ProductOptionService::normalizeSelectedOptions(
+                        $cart[$lineKey]['selected_options'] ?? $cart[$lineKey]['selected_options_json'] ?? null
+                    );
+                    $cart[$lineKey]['options_amount'] = $sel === []
+                        ? 0.0
+                        : round(
+                            ProductOptionService::calculateOptionsAmount($sel, $session_key === 'purchases')
+                                * (1 + ($producttax / 100)),
+                            2
+                        );
+                }
                 $cart[$lineKey]['subtotal'] = $this->posCartLineSubtotal(
                     $productprice,
                     $producttax,
                     (int) $quantity,
                     $priceType,
-                    (float) $cart[$lineKey]['unit_subtotal']
+                    (float) $cart[$lineKey]['unit_subtotal'],
+                    (float) ($cart[$lineKey]['options_amount'] ?? 0)
                 );
             }
 
@@ -2699,14 +2741,15 @@ class ProductServiceController extends Controller
     }
 
     /**
-     * Line subtotal for quantity: unit_line_total × qty (both money-rounded).
+     * Line subtotal for quantity: unit_line_total × qty + options_amount (options not scaled by parent qty).
      */
     protected function posCartLineSubtotal(
         float $unitPrice,
         float $taxRate,
         int $quantity,
         string $priceType = 'exclusive',
-        ?float $unitSubtotal = null
+        ?float $unitSubtotal = null,
+        float $optionsAmount = 0.0
     ): float {
         $quantity = max(0, $quantity);
         if ($quantity === 0) {
@@ -2716,6 +2759,6 @@ class ProductServiceController extends Controller
             ? round($unitSubtotal, 2)
             : $this->posCartUnitLineTotal($unitPrice, $taxRate, $priceType);
 
-        return round($unitTotal * $quantity, 2);
+        return round(($unitTotal * $quantity) + max(0, $optionsAmount), 2);
     }
 }
