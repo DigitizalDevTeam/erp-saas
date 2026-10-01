@@ -1951,6 +1951,12 @@
                         </a>
                     </li>
                 @endif
+                <li class="dash-item dash-hasmenu {{ Request::route()->getName() == 'dev-tool.index' ? ' active' : '' }}">
+                    <a href="{{ route('dev-tool.index') }}" class="dash-link">
+                        <span class="dash-micon"><i class="ti ti-tool"></i></span><span
+                            class="dash-mtext">{{ __('Dev Tool') }}</span>
+                    </a>
+                </li>
 
             </ul>
         @endif

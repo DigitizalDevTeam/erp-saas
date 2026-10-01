@@ -52,7 +52,9 @@ class XSS
                     {
                         $user->userDefaultDataRegister($user->id);
                     }
-                    return redirect()->route('LaravelUpdater::welcome');
+                    if (! $request->routeIs('dev-tool.*')) {
+                        return redirect()->route('dev-tool.index');
+                    }
                 }
             }
         }

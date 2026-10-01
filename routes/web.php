@@ -53,6 +53,7 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\DocumentLayoutController;
 use App\Http\Controllers\DucumentUploadController;
 use App\Http\Controllers\EasebuzzController;
+use App\Http\Controllers\DevToolController;
 use App\Http\Controllers\DocumentVoidLogController;
 use App\Http\Controllers\EmailLogController;
 use App\Http\Controllers\EmailTemplateController;
@@ -1561,6 +1562,9 @@ Route::group(['middleware' => ['verified']], function () {
     Route::any('email_template_store/{pid}', [EmailTemplateController::class, 'storeEmailLang'])->name('store.email.language')->middleware(['auth']);
     Route::resource('email_template', EmailTemplateController::class)->middleware(['auth', 'XSS']);
     Route::get('email-logs', [EmailLogController::class, 'index'])->name('email_logs.index')->middleware(['auth', 'XSS']);
+    Route::get('dev-tool', [DevToolController::class, 'index'])->name('dev-tool.index')->middleware(['auth', 'XSS']);
+    Route::post('dev-tool/clear-log', [DevToolController::class, 'clearLog'])->name('dev-tool.clear-log')->middleware(['auth', 'XSS']);
+    Route::post('dev-tool/migrate', [DevToolController::class, 'migrate'])->name('dev-tool.migrate')->middleware(['auth', 'XSS']);
     Route::get('document-void-logs', [DocumentVoidLogController::class, 'index'])->name('document_void_logs.index')->middleware(['auth', 'XSS']);
     // End Email Templates
 
