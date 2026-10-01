@@ -57,7 +57,7 @@
 .mz-talao-uthara .tax-table th,.mz-talao-uthara .tax-table td{text-align:right;font-size:8px;padding:.8mm .3mm}
 .mz-talao-uthara .tax-table th:first-child,.mz-talao-uthara .tax-table td:first-child{text-align:left}
 .mz-talao-uthara .qr-wrap{display:flex;align-items:flex-start;justify-content:center;gap:2.5mm;margin:3mm 0 2mm}
-.mz-talao-uthara .qr-box{width:22mm;height:22mm;flex:0 0 22mm}
+.mz-talao-uthara .qr-box{width:40mm;height:40mm;flex:0 0 40mm}
 .mz-talao-uthara .qr-box svg{width:100%!important;height:100%!important;display:block}
 .mz-talao-uthara .validation{flex:1 1 auto;min-width:0;font-size:8px;line-height:1.35}
 .mz-talao-uthara .footer{font-size:8px;text-align:center;line-height:1.4}

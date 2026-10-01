@@ -15,7 +15,7 @@
                 </div>
                 <div style="font-weight:700;color:#111;">{{ $settings['company_name'] ?? '' }}</div>
                 @if($companyVat !== '')
-                    <div style="color:#111;font-size:0.85rem;">{{ $settings['tax_type'] ?? 'VAT' }} Nº: {{ $companyVat }}</div>
+                    <div style="color:#111;font-size:0.85rem;">{{ $settings['tax_type'] ?? __('VAT') }} Nº: {{ $companyVat }}</div>
                 @endif
                 @if($companyAddressLine !== '')
                     <div style="color:#111;font-size:0.85rem;">{{ $companyAddressLine }}</div>
@@ -102,7 +102,7 @@
         @if(!empty($posPayments) && $posPayments->isNotEmpty())
             <div class="pos-compact-section" style="margin-top:8px;border-top:1px solid #ddd;padding-top:6px;">
                 @foreach($posPayments as $pmt)
-                    <div class="pos-compact-kv"><span class="k">{{ __('Payment Method') }}</span><span class="v text-capitalize">{{ str_replace('_', ' ', $pmt->payment_method ?? '') }}</span></div>
+                    <div class="pos-compact-kv"><span class="k">{{ __('Payment Method') }}</span><span class="v">{{ \App\Models\PosPayment::labelForMethod($pmt->payment_method ?? '') }}</span></div>
                     <div class="pos-compact-kv"><span class="k">{{ __('Amount Paid') }}</span><span class="v">{{ $fmtMoney($pmt->amount ?? 0) }}</span></div>
                 @endforeach
                 @if(!empty($paymentNotes))
@@ -146,7 +146,7 @@
 
         @if(!empty($qrSvg) || !empty($qrHtml))
             <div class="text-center mt-2">
-                <div class="view-qrcode-receipt-svg d-inline-block" style="width:72px;height:72px;">
+                <div class="view-qrcode-receipt-svg d-inline-block" style="width:40mm;height:40mm;">
                     @if(!empty($qrSvg)){!! $qrSvg !!}@else{!! $qrHtml !!}@endif
                 </div>
             </div>

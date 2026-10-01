@@ -45,8 +45,8 @@
 .mz-factura .payment { margin-top:4mm; padding:3mm; background:var(--soft); border-left:3px solid var(--green); display:grid; grid-template-columns:1fr 1fr 1fr; gap:3mm; }
 .mz-factura .label { font-size:6.5pt; color:var(--muted); text-transform:uppercase; }
 .mz-factura .value { font-weight:700; color:#111; font-size:8pt; }
-.mz-factura .bottom { margin-top:5mm; padding-top:3mm; border-top:1px solid var(--line); display:grid; grid-template-columns:22mm 1fr 40mm; gap:3mm; align-items:center; }
-.mz-factura .view-qrcode-receipt-svg, .mz-factura .view-qrcode-receipt { width:20mm; height:20mm; }
+.mz-factura .bottom { margin-top:5mm; padding-top:3mm; border-top:1px solid var(--line); display:grid; grid-template-columns:38mm 1fr 40mm; gap:3mm; align-items:center; }
+.mz-factura .view-qrcode-receipt-svg, .mz-factura .view-qrcode-receipt { width:36mm; height:36mm; }
 .mz-factura .view-qrcode-receipt-svg svg { display:block !important; width:100% !important; height:100% !important; }
 .mz-factura .validation { font-size:7pt; line-height:1.4; color:#111; }
 .mz-factura .powered { text-align:right; font-size:7pt; color:var(--muted); }
@@ -184,7 +184,7 @@
             <div class="line"><span>{{ __('Sub Total') }}</span><span>{{ $salesSubTotal }}</span></div>
             <div class="line"><span>{{ __('Discount') }}</span><span>{{ $salesDiscount }}</span></div>
             <div class="line"><span>{{ __('VAT') }} / IVA</span><span>{{ $ivaTotalFmt }}</span></div>
-            <div class="line grand"><span>{{ __('TOTAL') }}</span><span>{{ $salesTotal }} {{ $currency }}</span></div>
+            <div class="line grand"><span>{{ __('TOTAL') }}</span><span>{{ $salesTotal }}</span></div>
             @if(!empty($showPaidRow))
             <div class="line"><span>{{ __('Paid') }}</span><span>{{ $paidFmt }}</span></div>
             @endif

@@ -113,7 +113,7 @@ if (! empty($posPayments)) {
             $nonCreditPaidTotal += $amt;
         }
         if (! empty($pmt->payment_method)) {
-            $paymentMethods[] = str_replace('_', ' ', $pmt->payment_method);
+            $paymentMethods[] = \App\Models\PosPayment::labelForMethod($pmt->payment_method);
         }
         if (! empty($pmt->transaction_id)) {
             $paymentRefs[] = $pmt->transaction_id;

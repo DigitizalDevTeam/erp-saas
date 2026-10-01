@@ -12,7 +12,7 @@
     .pos-print-layout-slip .segunda-via-watermark {
         font-size: 18px; opacity: 0.12; letter-spacing: 1px;
     }
-    .view-qrcode-receipt img { max-width: 70px; height: auto; display: block; }
+    .view-qrcode-receipt img { max-width: 40mm; height: auto; display: block; }
     .view-qrcode-receipt-svg { line-height: 0; }
     .view-qrcode-receipt-svg svg { display: block !important; width: 100% !important; height: 100% !important; max-width: 100%; max-height: 100%; }
     /* Beat theme/Bootstrap img { max-width:100% } so logos stay small in View Bill */

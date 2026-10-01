@@ -115,6 +115,134 @@ class PosController extends Controller
     }
 
     /**
+     * VAT-inclusive line total, matching the restaurant cart: round the unit first, then multiply by quantity.
+     */
+    public static function inclusivePosLineTotal(float $exclusiveUnit, float $qty, float $taxRate): float
+    {
+        $inclusiveUnit = round($exclusiveUnit * (1 + ($taxRate / 100)), 2);
+
+        return round($inclusiveUnit * $qty, 2);
+    }
+
+    /**
+     * Inclusive line total plus the net and VAT that add back to it.
+     *
+     * @return array{line_total: float, net: float, tax: float}
+     */
+    public static function inclusivePosLineAmounts(float $exclusiveUnit, float $qty, float $taxRate): array
+    {
+        $lineTotal = self::inclusivePosLineTotal($exclusiveUnit, $qty, $taxRate);
+        if ($taxRate > 0 && $lineTotal > 0) {
+            $net = round($lineTotal / (1 + ($taxRate / 100)), 2);
+            $tax = round($lineTotal - $net, 2);
+        } else {
+            $net = $lineTotal;
+            $tax = 0.0;
+        }
+
+        return [
+            'line_total' => $lineTotal,
+            'net' => $net,
+            'tax' => $tax,
+        ];
+    }
+
+    /**
+     * Payment-cart row for one saved POS line.
+     * Keyed by row id so two lines of the same product both stay on the bill.
+     *
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    protected function paymentCartEntryFromPosLine($line): array
+    {
+        $product = $line->product ?? null;
+        $price = (float) $line->price;
+        $qty = (float) $line->quantity;
+        $taxRate = $this->resolvePosLineTaxRate($line, $product instanceof ProductService ? $product : null);
+        $selectedOpts = ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null);
+
+        return ['line_' . (int) $line->id, [
+            'id' => $line->product_id,
+            'pos_line_id' => (int) $line->id,
+            'name' => ($product && ! empty($product->name)) ? $product->name : __('Product'),
+            'quantity' => $qty,
+            'price' => $price,
+            'tax' => $taxRate,
+            'subtotal' => $this->inclusivePosLineTotal($price, $qty, $taxRate),
+            'subtotal_includes_tax' => true,
+            'product_tax' => $taxRate ? $taxRate . '%' : '-',
+            'price_type' => 'exclusive',
+            'product_variant_id' => $line->product_variant_id ? (int) $line->product_variant_id : null,
+            'selected_options' => $selectedOpts,
+            'selected_options_json' => $line->selected_options_json ?? null,
+        ]];
+    }
+
+    /**
+     * @param  iterable<int, mixed>  $items
+     */
+    protected function fillPaymentCartFromPosItems(array &$cart, $items): void
+    {
+        foreach ($items as $line) {
+            if (! $this->isActivePosBillLine($line)) {
+                continue;
+            }
+            [$key, $entry] = $this->paymentCartEntryFromPosLine($line);
+            $cart[$key] = $entry;
+        }
+    }
+
+    /**
+     * Add unsent session rows without replacing a different saved line of the same product.
+     *
+     * @param  array<string|int, mixed>  $sessionItems
+     */
+    protected function appendUnsentSessionItems(array &$cart, array $sessionItems): void
+    {
+        $savedLineIds = [];
+        foreach ($cart as $entry) {
+            if (! empty($entry['pos_line_id'])) {
+                $savedLineIds[(int) $entry['pos_line_id']] = true;
+            }
+        }
+
+        foreach ($sessionItems as $pid => $raw) {
+            $v = (array) $raw;
+            $lineId = (int) ($v['line_id'] ?? $v['pos_line_id'] ?? 0);
+            if ($lineId > 0 && isset($savedLineIds[$lineId])) {
+                continue;
+            }
+            $key = $lineId > 0 ? ('line_' . $lineId) : ('session_' . (string) $pid);
+            if (isset($cart[$key])) {
+                continue;
+            }
+            $qty = (float) ($v['quantity'] ?? 1);
+            $price = (float) ($v['price'] ?? 0);
+            $taxRate = (float) ($v['tax'] ?? 0);
+            $priceType = (string) ($v['price_type'] ?? 'exclusive');
+            if (isset($v['subtotal']) && (float) $v['subtotal'] > 0) {
+                $subtotal = round((float) $v['subtotal'], 2);
+            } elseif ($priceType === 'inclusive') {
+                $subtotal = round(round($price, 2) * $qty, 2);
+            } else {
+                $subtotal = $this->inclusivePosLineTotal($price, $qty, $taxRate);
+            }
+            $cart[$key] = [
+                'id' => (int) ($v['id'] ?? (is_numeric($pid) ? $pid : 0)),
+                'name' => $v['name'] ?? __('Product'),
+                'quantity' => $qty,
+                'price' => $price,
+                'tax' => $taxRate,
+                'subtotal' => $subtotal,
+                'subtotal_includes_tax' => true,
+                'product_tax' => $v['product_tax'] ?? ($taxRate ? $taxRate . '%' : '-'),
+                'price_type' => $priceType,
+                'product_variant_id' => isset($v['product_variant_id']) ? (int) $v['product_variant_id'] : null,
+            ];
+        }
+    }
+
+    /**
      * Human-readable cart/order line name (product + variant + options).
      */
     protected function resolvePosLineDisplayName(?PosProduct $line, ?ProductService $product): string
@@ -1103,56 +1231,13 @@ class PosController extends Controller
                 ->first();
             if ($pos && $pos->items->isNotEmpty()) {
                 $sess = [];
-                foreach ($pos->items as $line) {
-                    if (! $this->isActivePosBillLine($line)) {
-                        continue;
-                    }
-                    $product = $line->product;
-                    $price = (float) $line->price;
-                    $qty = (int) $line->quantity;
-                    $taxRate = 0;
-                    if ($product && !empty($product->tax_id)) {
-                        $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
-                        $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
-                        foreach ($taxModels as $t) {
-                            $taxRate += $t->rate ?? 0;
-                        }
-                    }
-                    $subtotal = $price * $qty;
-                    $taxAmount = ($subtotal * $taxRate) / 100;
-                    $sess[$line->product_id] = [
-                        'id' => $line->product_id,
-                        'name' => $product ? $product->name : __('Product'),
-                        'quantity' => $qty,
-                        'price' => $price,
-                        'tax' => $taxRate,
-                        'subtotal' => $subtotal + $taxAmount,
-                        'product_tax' => $taxRate ? $taxRate . '%' : '-',
-                    ];
-                }
+                $this->fillPaymentCartFromPosItems($sess, $pos->items);
                 // Merge any unsent session cart for this table
                 $cartKey = 'pos_restaurant_cart';
                 $tableKey = $tableId . '_' . $shiftId;
                 $allCarts = $request->session()->get($cartKey, []);
                 if (!empty($allCarts[$tableKey])) {
-                    foreach ($allCarts[$tableKey] as $pid => $v) {
-                        $pid = is_numeric($pid) ? (int) $pid : $pid;
-                        if (isset($sess[$pid])) {
-                            $sess[$pid]['quantity'] += (int) ($v['quantity'] ?? 0);
-                            $sub = ($sess[$pid]['price'] * $sess[$pid]['quantity']) * (1 + ($sess[$pid]['tax'] ?? 0) / 100);
-                            $sess[$pid]['subtotal'] = $sub;
-                        } else {
-                            $sess[$pid] = [
-                                'id' => $pid,
-                                'name' => $v['name'] ?? __('Product'),
-                                'quantity' => (int) ($v['quantity'] ?? 1),
-                                'price' => (float) ($v['price'] ?? 0),
-                                'tax' => (float) ($v['tax'] ?? 0),
-                                'subtotal' => (float) ($v['subtotal'] ?? 0),
-                                'product_tax' => $v['product_tax'] ?? '-',
-                            ];
-                        }
-                    }
+                    $this->appendUnsentSessionItems($sess, $allCarts[$tableKey]);
                 }
             }
         }
@@ -1183,52 +1268,10 @@ class PosController extends Controller
             $pos = $posQuery->first();
             if ($pos && $pos->items->isNotEmpty()) {
                 $sess = [];
-                foreach ($pos->items as $line) {
-                    if ($line->voided_at || $line->removed_from_cart_at) {
-                        continue;
-                    }
-                    $product = $line->product;
-                    $price = (float) $line->price;
-                    $qty = (int) $line->quantity;
-                    $taxRate = 0;
-                    if ($product && !empty($product->tax_id)) {
-                        $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
-                        $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
-                        foreach ($taxModels as $t) {
-                            $taxRate += $t->rate ?? 0;
-                        }
-                    }
-                    $subtotal = $price * $qty;
-                    $taxAmount = ($subtotal * $taxRate) / 100;
-                    $sess[$line->product_id] = [
-                        'id' => $line->product_id,
-                        'name' => $product ? $product->name : __('Product'),
-                        'quantity' => $qty,
-                        'price' => $price,
-                        'tax' => $taxRate,
-                        'subtotal' => $subtotal + $taxAmount,
-                        'product_tax' => $taxRate ? $taxRate . '%' : '-',
-                    ];
-                }
+                $this->fillPaymentCartFromPosItems($sess, $pos->items);
                 $sessionCartKey = 'pos_' . $pos->id;
                 if (!empty($allCarts[$sessionCartKey])) {
-                    foreach ($allCarts[$sessionCartKey] as $pid => $v) {
-                        $pid = is_numeric($pid) ? (int) $pid : $pid;
-                        if (isset($sess[$pid])) {
-                            $sess[$pid]['quantity'] += (int) ($v['quantity'] ?? 0);
-                            $sess[$pid]['subtotal'] = ($sess[$pid]['price'] * $sess[$pid]['quantity']) * (1 + ($sess[$pid]['tax'] ?? 0) / 100);
-                        } else {
-                            $sess[$pid] = [
-                                'id' => $pid,
-                                'name' => $v['name'] ?? __('Product'),
-                                'quantity' => (int) ($v['quantity'] ?? 1),
-                                'price' => (float) ($v['price'] ?? 0),
-                                'tax' => (float) ($v['tax'] ?? 0),
-                                'subtotal' => (float) ($v['subtotal'] ?? 0),
-                                'product_tax' => $v['product_tax'] ?? '-',
-                            ];
-                        }
-                    }
+                    $this->appendUnsentSessionItems($sess, $allCarts[$sessionCartKey]);
                 }
             }
         } elseif (Auth::user()->canManagePos() && $sessEmpty && $shiftId && in_array($orderType, [Pos::ORDER_TYPE_DELIVERY, Pos::ORDER_TYPE_TAKEAWAY], true)) {
@@ -1248,70 +1291,17 @@ class PosController extends Controller
                     ->first();
                 if ($pos && $pos->items->isNotEmpty()) {
                     $sess = [];
-                    foreach ($pos->items as $line) {
-                        if (! $this->isActivePosBillLine($line)) {
-                            continue;
-                        }
-                        $product = $line->product;
-                        $price = (float) $line->price;
-                        $qty = (int) $line->quantity;
-                        $taxRate = 0;
-                        if ($product && !empty($product->tax_id)) {
-                            $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
-                            $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
-                            foreach ($taxModels as $t) {
-                                $taxRate += $t->rate ?? 0;
-                            }
-                        }
-                        $subtotal = $price * $qty;
-                        $taxAmount = ($subtotal * $taxRate) / 100;
-                        $sess[$line->product_id] = [
-                            'id' => $line->product_id,
-                            'name' => $product ? $product->name : __('Product'),
-                            'quantity' => $qty,
-                            'price' => $price,
-                            'tax' => $taxRate,
-                            'subtotal' => $subtotal + $taxAmount,
-                            'product_tax' => $taxRate ? $taxRate . '%' : '-',
-                        ];
-                    }
+                    $this->fillPaymentCartFromPosItems($sess, $pos->items);
                     $sessionCartKey = 'pos_' . $pos->id;
                     if (!empty($allCarts[$sessionCartKey])) {
-                        foreach ($allCarts[$sessionCartKey] as $pid => $v) {
-                            $pid = is_numeric($pid) ? (int) $pid : $pid;
-                            if (isset($sess[$pid])) {
-                                $sess[$pid]['quantity'] += (int) ($v['quantity'] ?? 0);
-                                $sess[$pid]['subtotal'] = ($sess[$pid]['price'] * $sess[$pid]['quantity']) * (1 + ($sess[$pid]['tax'] ?? 0) / 100);
-                            } else {
-                                $sess[$pid] = [
-                                    'id' => $pid,
-                                    'name' => $v['name'] ?? __('Product'),
-                                    'quantity' => (int) ($v['quantity'] ?? 1),
-                                    'price' => (float) ($v['price'] ?? 0),
-                                    'tax' => (float) ($v['tax'] ?? 0),
-                                    'subtotal' => (float) ($v['subtotal'] ?? 0),
-                                    'product_tax' => $v['product_tax'] ?? '-',
-                                ];
-                            }
-                        }
+                        $this->appendUnsentSessionItems($sess, $allCarts[$sessionCartKey]);
                     }
                 }
             } else {
                 $sessionCartKey = $orderType . '_' . $shiftId;
                 if (!empty($allCarts[$sessionCartKey])) {
                     $sess = [];
-                    foreach ($allCarts[$sessionCartKey] as $pid => $v) {
-                        $pid = is_numeric($pid) ? (int) $pid : $pid;
-                        $sess[$pid] = [
-                            'id' => $pid,
-                            'name' => $v['name'] ?? __('Product'),
-                            'quantity' => (int) ($v['quantity'] ?? 1),
-                            'price' => (float) ($v['price'] ?? 0),
-                            'tax' => (float) ($v['tax'] ?? 0),
-                            'subtotal' => (float) ($v['subtotal'] ?? 0),
-                            'product_tax' => $v['product_tax'] ?? '-',
-                        ];
-                    }
+                    $this->appendUnsentSessionItems($sess, $allCarts[$sessionCartKey]);
                 }
             }
         }
@@ -1382,7 +1372,7 @@ class PosController extends Controller
                 $taxRate = (float) ($value['tax'] ?? 0);
                 $qty = (float) ($value['quantity'] ?? 0);
                 $saleUnit = (float) ($value['price'] ?? 0);
-                if ($priceType === 'inclusive' && $taxRate > 0) {
+                if ((! empty($value['subtotal_includes_tax']) || $priceType === 'inclusive') && $taxRate > 0) {
                     $tax = $lineSubtotal - ($lineSubtotal / (1 + $taxRate / 100));
                 } else {
                     $subtotal = $saleUnit * $qty;
@@ -1968,36 +1958,7 @@ class PosController extends Controller
                 $existingPos = $existingPosQuery->first();
                 if ($existingPos && $existingPos->items->isNotEmpty()) {
                     $sales = [];
-                    foreach ($existingPos->items as $line) {
-                        if (! $this->isActivePosBillLine($line)) {
-                            continue;
-                        }
-                        $product = $line->product;
-                        $price = (float) $line->price;
-                        $qty = (int) $line->quantity;
-                        $taxRate = 0;
-                        if ($product && !empty($product->tax_id)) {
-                            $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
-                            $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
-                            foreach ($taxModels as $t) {
-                                $taxRate += $t->rate ?? 0;
-                            }
-                        }
-                        $subtotal = $price * $qty * (1 + $taxRate / 100);
-                        $selectedOpts = ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null);
-                        $sales[$line->product_id] = [
-                            'id' => $line->product_id,
-                            'name' => $product ? $product->name : __('Product'),
-                            'quantity' => $qty,
-                            'price' => $price,
-                            'tax' => $taxRate,
-                            'subtotal' => $subtotal,
-                            'product_tax' => $taxRate ? $taxRate . '%' : '-',
-                            'product_variant_id' => $line->product_variant_id ? (int) $line->product_variant_id : null,
-                            'selected_options' => $selectedOpts,
-                            'selected_options_json' => $line->selected_options_json,
-                        ];
-                    }
+                    $this->fillPaymentCartFromPosItems($sales, $existingPos->items);
                 }
             }
             // Restaurant: pay delivery/takeaway order from DB or session when cart is empty
@@ -2016,73 +1977,17 @@ class PosController extends Controller
                         ->first();
                     if ($existingPos && $existingPos->items->isNotEmpty()) {
                         $sales = [];
-                        foreach ($existingPos->items as $line) {
-                            if (! $this->isActivePosBillLine($line)) {
-                                continue;
-                            }
-                            $product = $line->product;
-                            $price = (float) $line->price;
-                            $qty = (int) $line->quantity;
-                            $taxRate = 0;
-                            if ($product && !empty($product->tax_id)) {
-                                $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
-                                $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
-                                foreach ($taxModels as $t) {
-                                    $taxRate += $t->rate ?? 0;
-                                }
-                            }
-                            $subtotal = $price * $qty * (1 + $taxRate / 100);
-                            $selectedOpts = ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null);
-                            $sales[$line->product_id] = [
-                                'id' => $line->product_id,
-                                'name' => $product ? $product->name : __('Product'),
-                                'quantity' => $qty,
-                                'price' => $price,
-                                'tax' => $taxRate,
-                                'subtotal' => $subtotal,
-                                'product_tax' => $taxRate ? $taxRate . '%' : '-',
-                                'product_variant_id' => $line->product_variant_id ? (int) $line->product_variant_id : null,
-                                'selected_options' => $selectedOpts,
-                                'selected_options_json' => $line->selected_options_json,
-                            ];
-                        }
+                        $this->fillPaymentCartFromPosItems($sales, $existingPos->items);
                         $sessionCartKey = 'pos_' . $existingPos->id;
                         if (!empty($allCarts[$sessionCartKey])) {
-                            foreach ($allCarts[$sessionCartKey] as $pid => $v) {
-                                $pid = is_numeric($pid) ? (int) $pid : $pid;
-                                if (isset($sales[$pid])) {
-                                    $sales[$pid]['quantity'] += (int) ($v['quantity'] ?? 0);
-                                    $sales[$pid]['subtotal'] = ($sales[$pid]['price'] * $sales[$pid]['quantity']) * (1 + ($sales[$pid]['tax'] ?? 0) / 100);
-                                } else {
-                                    $sales[$pid] = [
-                                        'id' => $pid,
-                                        'name' => $v['name'] ?? __('Product'),
-                                        'quantity' => (int) ($v['quantity'] ?? 1),
-                                        'price' => (float) ($v['price'] ?? 0),
-                                        'tax' => (float) ($v['tax'] ?? 0),
-                                        'subtotal' => (float) ($v['subtotal'] ?? 0),
-                                        'product_tax' => $v['product_tax'] ?? '-',
-                                    ];
-                                }
-                            }
+                            $this->appendUnsentSessionItems($sales, $allCarts[$sessionCartKey]);
                         }
                     }
                 } else {
                     $sessionCartKey = $orderType . '_' . $shiftId;
                     if (!empty($allCarts[$sessionCartKey])) {
                         $sales = [];
-                        foreach ($allCarts[$sessionCartKey] as $pid => $v) {
-                            $pid = is_numeric($pid) ? (int) $pid : $pid;
-                            $sales[$pid] = [
-                                'id' => $pid,
-                                'name' => $v['name'] ?? __('Product'),
-                                'quantity' => (int) ($v['quantity'] ?? 1),
-                                'price' => (float) ($v['price'] ?? 0),
-                                'tax' => (float) ($v['tax'] ?? 0),
-                                'subtotal' => (float) ($v['subtotal'] ?? 0),
-                                'product_tax' => $v['product_tax'] ?? '-',
-                            ];
-                        }
+                        $this->appendUnsentSessionItems($sales, $allCarts[$sessionCartKey]);
                     }
                 }
             }
@@ -2532,7 +2437,7 @@ class PosController extends Controller
                         $priceType = $value['price_type'] ?? 'exclusive';
                         $lineSubtotal = (float) ($value['subtotal'] ?? 0);
                         $taxRate = (float) ($value['tax'] ?? 0);
-                        if ($priceType === 'inclusive' && $taxRate > 0) {
+                        if ((! empty($value['subtotal_includes_tax']) || $priceType === 'inclusive') && $taxRate > 0) {
                             $tax = $lineSubtotal - ($lineSubtotal / (1 + $taxRate / 100));
                         } else {
                             $subtotal = ($value['price'] ?? 0) * ($value['quantity'] ?? 0);
@@ -4534,9 +4439,9 @@ class PosController extends Controller
                     $price = (float) $item->price;
                     $qty = (int) $item->quantity;
                     $taxRate = (float) Utility::totalTaxRate($item->tax);
-                    $subtotal = $price * $qty;
-                    $tax = ($subtotal * $taxRate) / 100;
-                    $lineTotal = $subtotal + $tax;
+                    $amounts = self::inclusivePosLineAmounts($price, $qty, $taxRate);
+                    $tax = $amounts['tax'];
+                    $lineTotal = $amounts['line_total'];
                     $mainsubtotal += $lineTotal;
                     $sales['data'][] = [
                         'name' => $product ? $product->name : __('Product'),
@@ -4562,15 +4467,16 @@ class PosController extends Controller
                     $price = (float) $item->price;
                     $qty = (int) $item->quantity;
                     $taxRate = (float) Utility::totalTaxRate($item->tax);
-                    $net = $price * $qty;
-                    $vatAmount = ($net * $taxRate) / 100;
+                    $amounts = self::inclusivePosLineAmounts($price, $qty, $taxRate);
+                    $net = $amounts['net'];
+                    $vatAmount = $amounts['tax'];
                     $key = (string) $taxRate;
                     if (!isset($vatBreakdown[$key])) {
                         $vatBreakdown[$key] = ['rate' => $taxRate, 'net' => 0, 'vat' => 0, 'amount' => 0];
                     }
                     $vatBreakdown[$key]['net'] += $net;
                     $vatBreakdown[$key]['vat'] += $vatAmount;
-                    $vatBreakdown[$key]['amount'] += $net + $vatAmount;
+                    $vatBreakdown[$key]['amount'] += $amounts['line_total'];
                 }
                 $vatBreakdown = array_values($vatBreakdown);
                 $bankAccounts = BankAccount::where('created_by', $user->creatorId())
@@ -4647,7 +4553,7 @@ class PosController extends Controller
             $priceType = $value['price_type'] ?? 'exclusive';
             $lineSubtotal = (float) ($value['subtotal'] ?? 0);
             $taxRate = (float) ($value['tax'] ?? 0);
-            if ($priceType === 'inclusive' && $taxRate > 0) {
+            if ((! empty($value['subtotal_includes_tax']) || $priceType === 'inclusive') && $taxRate > 0) {
                 $tax = $lineSubtotal - ($lineSubtotal / (1 + $taxRate / 100));
             } else {
                 $subtotal = ($value['price'] ?? 0) * ($value['quantity'] ?? 0);
@@ -4707,55 +4613,12 @@ class PosController extends Controller
                 ->first();
             if ($pos && $pos->items->isNotEmpty()) {
                 $sess = [];
-                foreach ($pos->items as $line) {
-                    if (! $this->isActivePosBillLine($line)) {
-                        continue;
-                    }
-                    $product = $line->product;
-                    $price = (float) $line->price;
-                    $qty = (int) $line->quantity;
-                    $taxRate = 0;
-                    if ($product && !empty($product->tax_id)) {
-                        $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
-                        $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
-                        foreach ($taxModels as $t) {
-                            $taxRate += $t->rate ?? 0;
-                        }
-                    }
-                    $subtotal = $price * $qty;
-                    $taxAmount = ($subtotal * $taxRate) / 100;
-                    $sess[$line->product_id] = [
-                        'id' => $line->product_id,
-                        'name' => $product ? $product->name : __('Product'),
-                        'quantity' => $qty,
-                        'price' => $price,
-                        'tax' => $taxRate,
-                        'subtotal' => $subtotal + $taxAmount,
-                        'product_tax' => $taxRate ? $taxRate . '%' : '-',
-                    ];
-                }
+                $this->fillPaymentCartFromPosItems($sess, $pos->items);
                 $cartKey = 'pos_restaurant_cart';
                 $tableKey = $tableId . '_' . $shiftId;
                 $allCarts = $request->session()->get($cartKey, []);
                 if (!empty($allCarts[$tableKey])) {
-                    foreach ($allCarts[$tableKey] as $pid => $v) {
-                        $pid = is_numeric($pid) ? (int) $pid : $pid;
-                        if (isset($sess[$pid])) {
-                            $sess[$pid]['quantity'] += (int) ($v['quantity'] ?? 0);
-                            $sub = ($sess[$pid]['price'] * $sess[$pid]['quantity']) * (1 + ($sess[$pid]['tax'] ?? 0) / 100);
-                            $sess[$pid]['subtotal'] = $sub;
-                        } else {
-                            $sess[$pid] = [
-                                'id' => $pid,
-                                'name' => $v['name'] ?? __('Product'),
-                                'quantity' => (int) ($v['quantity'] ?? 1),
-                                'price' => (float) ($v['price'] ?? 0),
-                                'tax' => (float) ($v['tax'] ?? 0),
-                                'subtotal' => (float) ($v['subtotal'] ?? 0),
-                                'product_tax' => $v['product_tax'] ?? '-',
-                            ];
-                        }
-                    }
+                    $this->appendUnsentSessionItems($sess, $allCarts[$tableKey]);
                 }
             }
         }
@@ -4776,70 +4639,17 @@ class PosController extends Controller
                     ->first();
                 if ($pos && $pos->items->isNotEmpty()) {
                     $sess = [];
-                    foreach ($pos->items as $line) {
-                        if (! $this->isActivePosBillLine($line)) {
-                            continue;
-                        }
-                        $product = $line->product;
-                        $price = (float) $line->price;
-                        $qty = (int) $line->quantity;
-                        $taxRate = 0;
-                        if ($product && !empty($product->tax_id)) {
-                            $taxIds = array_filter(array_map('trim', explode(',', $product->tax_id)));
-                            $taxModels = \App\Models\Tax::whereIn('id', $taxIds)->get();
-                            foreach ($taxModels as $t) {
-                                $taxRate += $t->rate ?? 0;
-                            }
-                        }
-                        $subtotal = $price * $qty;
-                        $taxAmount = ($subtotal * $taxRate) / 100;
-                        $sess[$line->product_id] = [
-                            'id' => $line->product_id,
-                            'name' => $product ? $product->name : __('Product'),
-                            'quantity' => $qty,
-                            'price' => $price,
-                            'tax' => $taxRate,
-                            'subtotal' => $subtotal + $taxAmount,
-                            'product_tax' => $taxRate ? $taxRate . '%' : '-',
-                        ];
-                    }
+                    $this->fillPaymentCartFromPosItems($sess, $pos->items);
                     $sessionCartKey = 'pos_' . $pos->id;
                     if (!empty($allCarts[$sessionCartKey])) {
-                        foreach ($allCarts[$sessionCartKey] as $pid => $v) {
-                            $pid = is_numeric($pid) ? (int) $pid : $pid;
-                            if (isset($sess[$pid])) {
-                                $sess[$pid]['quantity'] += (int) ($v['quantity'] ?? 0);
-                                $sess[$pid]['subtotal'] = ($sess[$pid]['price'] * $sess[$pid]['quantity']) * (1 + ($sess[$pid]['tax'] ?? 0) / 100);
-                            } else {
-                                $sess[$pid] = [
-                                    'id' => $pid,
-                                    'name' => $v['name'] ?? __('Product'),
-                                    'quantity' => (int) ($v['quantity'] ?? 1),
-                                    'price' => (float) ($v['price'] ?? 0),
-                                    'tax' => (float) ($v['tax'] ?? 0),
-                                    'subtotal' => (float) ($v['subtotal'] ?? 0),
-                                    'product_tax' => $v['product_tax'] ?? '-',
-                                ];
-                            }
-                        }
+                        $this->appendUnsentSessionItems($sess, $allCarts[$sessionCartKey]);
                     }
                 }
             } else {
                 $sessionCartKey = $orderType . '_' . $shiftId;
                 if (!empty($allCarts[$sessionCartKey])) {
                     $sess = [];
-                    foreach ($allCarts[$sessionCartKey] as $pid => $v) {
-                        $pid = is_numeric($pid) ? (int) $pid : $pid;
-                        $sess[$pid] = [
-                            'id' => $pid,
-                            'name' => $v['name'] ?? __('Product'),
-                            'quantity' => (int) ($v['quantity'] ?? 1),
-                            'price' => (float) ($v['price'] ?? 0),
-                            'tax' => (float) ($v['tax'] ?? 0),
-                            'subtotal' => (float) ($v['subtotal'] ?? 0),
-                            'product_tax' => $v['product_tax'] ?? '-',
-                        ];
-                    }
+                    $this->appendUnsentSessionItems($sess, $allCarts[$sessionCartKey]);
                 }
             }
         }
@@ -4919,7 +4729,7 @@ class PosController extends Controller
             $priceType = $value['price_type'] ?? 'exclusive';
             $lineSubtotal = (float) ($value['subtotal'] ?? 0);
             $taxRate = (float) ($value['tax'] ?? 0);
-            if ($priceType === 'inclusive' && $taxRate > 0) {
+            if ((! empty($value['subtotal_includes_tax']) || $priceType === 'inclusive') && $taxRate > 0) {
                 $tax = $lineSubtotal - ($lineSubtotal / (1 + $taxRate / 100));
             } else {
                 $subtotal = ($value['price'] ?? 0) * ($value['quantity'] ?? 0);
@@ -5016,9 +4826,9 @@ class PosController extends Controller
             $price = (float) $item->price;
             $qty = (int) $item->quantity;
             $taxRate = (float) Utility::totalTaxRate($item->tax);
-            $subtotal = $price * $qty;
-            $tax = ($subtotal * $taxRate) / 100;
-            $lineTotal = $subtotal + $tax;
+            $amounts = self::inclusivePosLineAmounts($price, $qty, $taxRate);
+            $tax = $amounts['tax'];
+            $lineTotal = $amounts['line_total'];
             $mainsubtotal += $lineTotal;
             $sales['data'][] = [
                 'name' => $product ? $product->name : __('Product'),
@@ -5044,15 +4854,16 @@ class PosController extends Controller
             $price = (float) $item->price;
             $qty = (int) $item->quantity;
             $taxRate = (float) Utility::totalTaxRate($item->tax);
-            $net = $price * $qty;
-            $vatAmount = ($net * $taxRate) / 100;
+            $amounts = self::inclusivePosLineAmounts($price, $qty, $taxRate);
+            $net = $amounts['net'];
+            $vatAmount = $amounts['tax'];
             $key = (string) $taxRate;
             if (!isset($vatBreakdown[$key])) {
                 $vatBreakdown[$key] = ['rate' => $taxRate, 'net' => 0, 'vat' => 0, 'amount' => 0];
             }
             $vatBreakdown[$key]['net'] += $net;
             $vatBreakdown[$key]['vat'] += $vatAmount;
-            $vatBreakdown[$key]['amount'] += $net + $vatAmount;
+            $vatBreakdown[$key]['amount'] += $amounts['line_total'];
         }
         $vatBreakdown = array_values($vatBreakdown);
         $bankAccounts = BankAccount::where('created_by', $pos->created_by)

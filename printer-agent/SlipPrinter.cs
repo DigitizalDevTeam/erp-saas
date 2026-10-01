@@ -409,10 +409,47 @@ public static class SlipPrinter
         public bool UseNearestNeighbor { get; init; }
     }
 
+    private static Dictionary<string, string> ReadLabels(JsonElement payload)
+    {
+        var labels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (payload.ValueKind != JsonValueKind.Object
+            || !payload.TryGetProperty("labels", out var labelsEl)
+            || labelsEl.ValueKind != JsonValueKind.Object)
+        {
+            return labels;
+        }
+
+        foreach (var prop in labelsEl.EnumerateObject())
+        {
+            if (prop.Value.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            var value = prop.Value.GetString();
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                labels[prop.Name] = value.Trim();
+            }
+        }
+
+        return labels;
+    }
+
+    private static string Label(Dictionary<string, string> labels, string key, string fallback)
+    {
+        return labels.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value
+            : fallback;
+    }
+
     private static List<SlipLine> BuildReceiptLines(PrintJobDto job)
     {
         var lines = new List<SlipLine>();
         var title = FirstNonEmpty(job.Title ?? "", "CASH SALE");
+        var labels = job.Payload.ValueKind == JsonValueKind.Object
+            ? ReadLabels(job.Payload)
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         string company = "";
         string companyAddress = "";
@@ -489,7 +526,7 @@ public static class SlipPrinter
 
         if (HasPrintableValue(nuit))
         {
-            AddCentered(lines, "NUIT: " + nuit.Trim());
+            AddCentered(lines, Label(labels, "nuit", "NUIT") + ": " + nuit.Trim());
         }
 
         if (HasPrintableValue(companyAddress))
@@ -500,7 +537,7 @@ public static class SlipPrinter
         var contact = "";
         if (HasPrintableValue(companyPhone))
         {
-            contact = "Phone: " + companyPhone.Trim();
+            contact = Label(labels, "phone", "Phone") + ": " + companyPhone.Trim();
         }
 
         if (HasPrintableValue(companyEmail))
@@ -519,26 +556,30 @@ public static class SlipPrinter
         AddTitle(lines, documentTitle.ToUpperInvariant());
         if (HasPrintableValue(posNumber))
         {
-            AddCentered(lines, "No. " + posNumber.Trim(), bold: true);
+            AddCentered(lines, Label(labels, "no", "No.") + " " + posNumber.Trim(), bold: true);
         }
 
-        AddCentered(lines, copyLabel + " · Issued at " + issuedAt);
+        AddCentered(lines, copyLabel + " · " + Label(labels, "issued_at", "Issued at") + " " + issuedAt);
         AddSeparator(lines, '-');
 
         // --- Customer / table meta ---
-        AddKvOrDash(lines, "Customer", customer);
-        AddKvOrDash(lines, "NUIT", customerNuit);
-        AddKvOrDash(lines, "Address", customerAddress);
-        AddKv(lines, "Currency", currency);
+        AddKvOrDash(lines, Label(labels, "customer", "Customer"), customer);
+        AddKvOrDash(lines, Label(labels, "nuit", "NUIT"), customerNuit);
+        AddKvOrDash(lines, Label(labels, "address", "Address"), customerAddress);
+        AddKv(lines, Label(labels, "currency", "Currency"), currency);
         if (HasPrintableValue(table))
         {
-            AddKv(lines, "Table", table);
+            AddKv(lines, Label(labels, "table", "Table"), table);
         }
 
         AddSeparator(lines, '-');
 
         // --- Items ---
-        AddFull(lines, PadColumns("DESCRIPTION", "QTY", "PRICE", "TOTAL"), bold: true);
+        AddFull(lines, PadColumns(
+            Label(labels, "description", "DESCRIPTION"),
+            Label(labels, "qty", "QTY"),
+            Label(labels, "price", "PRICE"),
+            Label(labels, "total", "TOTAL")), bold: true);
         AddSeparator(lines, '-');
 
         if (job.Payload.ValueKind == JsonValueKind.Object
@@ -572,7 +613,7 @@ public static class SlipPrinter
 
                 if (HasPrintableValue(note))
                 {
-                    AddFull(lines, "Note: " + note.Trim());
+                    AddFull(lines, Label(labels, "note", "Note") + ": " + note.Trim());
                 }
 
                 AddFull(lines, PadColumns(
@@ -609,18 +650,18 @@ public static class SlipPrinter
         }
 
         AddSeparator(lines, '-');
-        AddKv(lines, "Sub Total", FormatMoney(subtotal, currency));
-        AddKv(lines, "Discount", FormatMoney(discount, currency));
-        AddKv(lines, "VAT / IVA", FormatMoney(vat, currency));
+        AddKv(lines, Label(labels, "sub_total", "Sub Total"), FormatMoney(subtotal, currency));
+        AddKv(lines, Label(labels, "discount", "Discount"), FormatMoney(discount, currency));
+        AddKv(lines, Label(labels, "vat", "VAT"), FormatMoney(vat, currency));
         if (tip > 0)
         {
-            AddKv(lines, "Tip", FormatMoney(tip, currency));
+            AddKv(lines, Label(labels, "tip", "Tip"), FormatMoney(tip, currency));
         }
 
         AddSeparator(lines, '=');
-        AddKv(lines, "TOTAL", FormatMoney(total, currency), bold: true);
-        AddKv(lines, "Paid", FormatMoney(paid, currency));
-        AddKv(lines, "Change", FormatMoney(change, currency));
+        AddKv(lines, Label(labels, "total", "TOTAL"), FormatMoney(total, currency), bold: true);
+        AddKv(lines, Label(labels, "paid", "Paid"), FormatMoney(paid, currency));
+        AddKv(lines, Label(labels, "change", "Change"), FormatMoney(change, currency));
         AddSeparator(lines, '-');
 
         // --- VAT breakdown ---
@@ -629,7 +670,11 @@ public static class SlipPrinter
             && vatBreakdown.ValueKind == JsonValueKind.Array
             && vatBreakdown.GetArrayLength() > 0)
         {
-            AddFull(lines, PadColumns("VAT", "Net Amount", "", "Tax"), bold: true);
+            AddFull(lines, PadColumns(
+                Label(labels, "vat", "VAT"),
+                Label(labels, "net_amount", "Net Amount"),
+                "",
+                Label(labels, "tax", "Tax")), bold: true);
             foreach (var vb in vatBreakdown.EnumerateArray())
             {
                 var rate = GetDecimal(vb, "rate");
@@ -657,15 +702,15 @@ public static class SlipPrinter
             payNotes = GetString(payment, "notes");
         }
 
-        AddKvOrDash(lines, "Payment", payMethod);
+        AddKvOrDash(lines, Label(labels, "payment", "Payment"), payMethod);
         if (HasPrintableValue(payNotes))
         {
-            AddKv(lines, "Notes", payNotes);
+            AddKv(lines, Label(labels, "notes", "Notes"), payNotes);
         }
 
-        AddKvOrDash(lines, "Reference", payRef);
-        AddKvOrDash(lines, "Operator", operatorName);
-        AddKvOrDash(lines, "Branch", branch);
+        AddKvOrDash(lines, Label(labels, "reference", "Reference"), payRef);
+        AddKvOrDash(lines, Label(labels, "operator", "Operator"), operatorName);
+        AddKvOrDash(lines, Label(labels, "branch", "Branch"), branch);
 
         // --- QR ---
         string qrB64 = "";
