@@ -16,12 +16,18 @@ use Illuminate\Support\Str;
 class WarehouseTransferController extends Controller
 {
     /**
-     * Warehouses the user may transfer FROM (scoped to assigned warehouse when set).
+     * Warehouses the user may transfer FROM.
+     * Transfer permission lists every company warehouse. Otherwise a non-company user
+     * with an assigned warehouse can only transfer from that warehouse.
      */
     protected function fromWarehouseIds()
     {
         $user = Auth::user();
-        if ($user->type !== 'company' && ! empty($user->warehouse_id)) {
+        if (
+            $user->type !== 'company'
+            && ! empty($user->warehouse_id)
+            && ! $user->can('menu.products_system.transfer')
+        ) {
             return [(int) $user->warehouse_id];
         }
 
