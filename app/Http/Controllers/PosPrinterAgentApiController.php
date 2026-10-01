@@ -46,12 +46,47 @@ class PosPrinterAgentApiController extends Controller
             $request->get('machine_name')
         );
 
+        $profile = PosPrinterAgentService::printProfileForCreator($creatorId);
+
         return $this->success([
             'branch_id' => $branchId,
             'branch_name' => $branch->name,
             'status' => 'online',
             'server_time' => now()->toIso8601String(),
+            'invoice_template' => $profile['invoice_template'],
+            'logo_hash' => $profile['logo_hash'],
         ], 'Heartbeat ok');
+    }
+
+    /**
+     * Public logo file for the agent. Saved locally on the Windows PC.
+     */
+    public function logo(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'branch_id' => 'required|integer|exists:branches,id',
+        ]);
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
+
+        $branch = PosPrinterAgentService::resolveBranch((int) $request->branch_id);
+        if (! $branch) {
+            return $this->error(__('Invalid branch.'), 422);
+        }
+
+        $bytes = PosPrinterAgentService::receiptLogoBytes((int) $branch->created_by);
+        if ($bytes === null || $bytes === '') {
+            return $this->error(__('Logo not found.'), 404);
+        }
+
+        $hash = md5($bytes);
+
+        return response($bytes, 200, [
+            'Content-Type' => 'image/png',
+            'Cache-Control' => 'no-cache',
+            'ETag' => '"' . $hash . '"',
+        ]);
     }
 
     public function syncPrinters(Request $request)

@@ -16,6 +16,8 @@ public partial class MainForm : Form
     private readonly Button _btnConnect = new();
     private readonly Button _btnUploadLogo = new();
     private readonly Label _lblSlipLogo = new();
+    private string _appliedTemplate = "";
+    private bool _logoErrorLogged;
     private readonly Button _btnStop = new();
     private readonly Button _btnExit = new();
     private readonly Label _lblStatus = new();
@@ -158,7 +160,7 @@ public partial class MainForm : Form
     {
         var has = SlipLogoStore.HasSlipLogo();
         _btnUploadLogo.Text = has ? "Change Logo" : "Upload Logo";
-        _lblSlipLogo.Text = has ? "Slip logo: set (used on Pay & Print)" : "Slip logo: not set";
+        _lblSlipLogo.Text = has ? "Slip logo: saved on this PC" : "Slip logo: not saved yet";
     }
 
     private void UploadOrChangeSlipLogo()
@@ -224,6 +226,40 @@ public partial class MainForm : Form
     {
         _txtBaseUrl.Text = _config.BaseUrl;
         RefreshSlipLogoUi();
+    }
+
+    private async Task ApplyHeartbeatAsync(ApiClient client, CancellationToken ct)
+    {
+        var info = await client.HeartbeatAsync(ct);
+        var template = (info.InvoiceTemplate ?? "elegant").Trim().ToLowerInvariant();
+        if (template is not ("classic" or "compact"))
+        {
+            template = "elegant";
+        }
+
+        if (!string.Equals(_appliedTemplate, template, StringComparison.Ordinal))
+        {
+            _appliedTemplate = template;
+            Log("Invoice template from ERP: " + template + ".");
+        }
+
+        try
+        {
+            if (await client.DownloadLogoIfChangedAsync(info.LogoHash, ct))
+            {
+                _logoErrorLogged = false;
+                RefreshSlipLogoUi();
+                Log("POS logo saved on this PC (" + SlipLogoStore.SlipLogoPath + ").");
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!_logoErrorLogged)
+            {
+                _logoErrorLogged = true;
+                Log("Logo download failed: " + ex.Message);
+            }
+        }
     }
 
     private async Task OnShownAsync()
@@ -346,7 +382,7 @@ public partial class MainForm : Form
         try
         {
             using var client = new ApiClient(_config);
-            await client.HeartbeatAsync(_loopCts.Token);
+            await ApplyHeartbeatAsync(client, _loopCts.Token);
             await SyncPrintersAsync(client, _loopCts.Token);
             SetStatus("Online");
             Log($"Connected to branch #{_config.BranchId}. Polling every 2s.");
@@ -416,7 +452,7 @@ public partial class MainForm : Form
             using var client = new ApiClient(_config);
             var ct = _loopCts?.Token ?? CancellationToken.None;
 
-            await client.HeartbeatAsync(ct);
+            await ApplyHeartbeatAsync(client, ct);
 
             if ((DateTime.UtcNow - _lastPrinterSync).TotalMinutes >= 5)
             {

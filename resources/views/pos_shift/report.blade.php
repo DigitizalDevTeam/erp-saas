@@ -174,8 +174,12 @@
                             <th>{{ __('Product') }}</th>
                             <th>{{ __('Table No') }}</th>
                             <th>{{ __('Waiter/User Name') }}</th>
+                            <th class="text-end">{{ __('Price excl. tax') }}</th>
+                            <th class="text-end">{{ __('Price incl. tax') }}</th>
                             <th class="text-center">{{ __('Qty') }}</th>
-                            <th class="text-end">{{ __('Amount') }}</th>
+                            <th class="text-end">{{ __('Amount excl. tax') }}</th>
+                            <th class="text-end">{{ __('VAT') }}</th>
+                            <th class="text-end">{{ __('Amount incl. tax') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -184,43 +188,84 @@
                                 <td>{{ $row->product ? $row->product->name : __('Unknown product') }}</td>
                                 <td>{{ $row->table_name ?: '—' }}</td>
                                 <td>{{ $row->waiter_name ?: '—' }}</td>
+                                <td class="text-end">{{ $row->exclusive_unit === null ? '—' : \Auth::user()->priceFormat((float) $row->exclusive_unit) }}</td>
+                                <td class="text-end">{{ $row->inclusive_unit === null ? '—' : \Auth::user()->priceFormat((float) $row->inclusive_unit) }}</td>
                                 <td class="text-center">{{ (float) $row->qty_total }}</td>
-                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $row->amount_total) }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $row->exclusive_total) }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $row->tax_total) }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $row->inclusive_total) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center text-muted">{{ __('No sold products for this shift.') }}</td>
+                                <td colspan="9" class="text-center text-muted">{{ __('No sold products for this shift.') }}</td>
                             </tr>
                         @endforelse
                     </tbody>
+                    @if(($productQtySummary ?? collect())->isNotEmpty())
+                        <tfoot>
+                            <tr class="fw-semibold">
+                                <td colspan="5">{{ __('Total') }}</td>
+                                <td class="text-center">{{ (float) $productQtySummary->sum('qty_total') }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $productQtySummary->sum('exclusive_total')) }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $productQtySummary->sum('tax_total')) }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $productQtySummary->sum('inclusive_total')) }}</td>
+                            </tr>
+                        </tfoot>
+                    @endif
                 </table>
             </div>
 
-            <h6 class="border-bottom pb-2 mb-2 mt-4">{{ __('Sales') }} ({{ $sales->count() }} {{ __('transactions') }})</h6>
+            @foreach([
+                ['title' => __('Sales'), 'rows' => $sales, 'empty' => __('No paid transactions for this shift.')],
+                ['title' => __('Internal Consumption'), 'rows' => $internalConsumption ?? collect(), 'empty' => __('No internal consumption for this shift.')],
+            ] as $section)
+            <h6 class="border-bottom pb-2 mb-2 mt-4">{{ $section['title'] }} ({{ $section['rows']->count() }} {{ __('transactions') }})</h6>
             <div class="table-responsive">
                 <table class="table table-sm table-bordered">
                     <thead>
                         <tr>
                             <th>{{ __('pos.pos_id') }}</th>
                             <th>{{ __('Date') }}</th>
+                            <th>{{ __('Document Type') }}</th>
+                            <th>{{ __('Payment Method') }}</th>
+                            <th class="text-end">{{ __('Sub Total') }}</th>
+                            <th class="text-end">{{ __('VAT') }}</th>
+                            <th class="text-end">{{ __('Total incl. tax') }}</th>
                             <th class="text-end">{{ __('pos.total') }}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($sales as $pos)
+                        @forelse($section['rows'] as $pos)
                             <tr>
                                 <td>{{ \Auth::user()->posNumberFormat($pos->pos_id) }}</td>
                                 <td>{{ $pos->pos_date ?? '-' }}</td>
+                                <td>{{ $pos->document_type_label }}</td>
+                                <td>{{ $pos->payment_method_label !== '' ? $pos->payment_method_label : '—' }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $pos->exclusive_total) }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $pos->tax_total) }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $pos->inclusive_total) }}</td>
                                 <td class="text-end">{{ \Auth::user()->priceFormat((float) $pos->posPayments->sum('amount')) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="3" class="text-center text-muted">{{ __('No paid transactions for this shift.') }}</td>
+                                <td colspan="8" class="text-center text-muted">{{ $section['empty'] }}</td>
                             </tr>
                         @endforelse
                     </tbody>
+                    @if($section['rows']->isNotEmpty())
+                        <tfoot>
+                            <tr class="fw-semibold">
+                                <td colspan="4">{{ __('Total') }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $section['rows']->sum('exclusive_total')) }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $section['rows']->sum('tax_total')) }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $section['rows']->sum('inclusive_total')) }}</td>
+                                <td class="text-end">{{ \Auth::user()->priceFormat((float) $section['rows']->sum(fn ($pos) => (float) $pos->posPayments->sum('amount'))) }}</td>
+                            </tr>
+                        </tfoot>
+                    @endif
                 </table>
             </div>
+            @endforeach
         </div>
     </div>
 @endsection

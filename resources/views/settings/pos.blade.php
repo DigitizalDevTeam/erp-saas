@@ -47,6 +47,17 @@
             $('#pos_frame').attr('src', '{{ url('/pos/preview') }}/' + template + '/' + color);
         });
 
+        function posAgentTemplatePreviewUrl() {
+            var template = $('#pos_agent_invoice_template').val() || 'elegant';
+            var paper = $('#pos_print_layout').val() || 'slip';
+            var qr = $('#pos_qr_display').is(':checked') ? '1' : '0';
+            return '{{ url('/pos/agent-template-preview') }}/' + encodeURIComponent(template) + '?paper=' + encodeURIComponent(paper) + '&qr=' + qr;
+        }
+
+        $(document).on('change', '#pos_agent_invoice_template, #pos_print_layout, #pos_qr_display', function () {
+            $('#pos_frame').attr('src', posAgentTemplatePreviewUrl());
+        });
+
         $(document).on('change', '#pos_logo', function () {
             if (!this.files || !this.files[0]) return;
             $('#pos_image').attr('src', URL.createObjectURL(this.files[0])).show();
@@ -311,6 +322,18 @@
                                                 <small class="text-muted">{{ __('Thermal: narrow UTHARA ticket. A5/A4: Mozambique factura page. Preview matches paper size before print.') }}</small>
                                             </div>
                                             <div class="form-group mb-3">
+                                                <label for="pos_agent_invoice_template" class="form-label fw-semibold">{{ __('pos.agent_invoice_template') }}</label>
+                                                @php
+                                                    $agentTpl = \App\Models\Utility::normalizeAgentInvoiceTemplate($settings['pos_agent_invoice_template'] ?? 'elegant');
+                                                @endphp
+                                                <select class="form-control" name="pos_agent_invoice_template" id="pos_agent_invoice_template">
+                                                    <option value="elegant" {{ $agentTpl === 'elegant' ? 'selected' : '' }}>{{ __('pos.agent_template_elegant') }}</option>
+                                                    <option value="classic" {{ $agentTpl === 'classic' ? 'selected' : '' }}>{{ __('pos.agent_template_classic') }}</option>
+                                                    <option value="compact" {{ $agentTpl === 'compact' ? 'selected' : '' }}>{{ __('pos.agent_template_compact') }}</option>
+                                                </select>
+                                                <small class="text-muted">{{ __('pos.agent_invoice_template_help') }}</small>
+                                            </div>
+                                            <div class="form-group mb-3">
                                                 <label for="uthara_factura_paper" class="form-label fw-semibold">{{ __('UTHARA Invoice / Quotation paper') }}</label>
                                                 <select class="form-control" name="uthara_factura_paper" id="uthara_factura_paper">
                                                     @php
@@ -409,13 +432,13 @@
                                     </div>
                                 </div>
                                 <div class="col-md-9">
-                                    @if (isset($settings['pos_template']) && isset($settings['pos_color']))
-                                        <iframe id="pos_frame" class="w-100 h-100" frameborder="0"
-                                            src="{{ route('pos.preview', [$settings['pos_template'], $settings['pos_color']]) }}"></iframe>
-                                    @else
-                                        <iframe id="pos_frame" class="w-100 h-100" frameborder="0"
-                                            src="{{ route('pos.preview', ['template1', 'fffff']) }}"></iframe>
-                                    @endif
+                                    @php
+                                        $agentPreview = \App\Models\Utility::normalizeAgentInvoiceTemplate($settings['pos_agent_invoice_template'] ?? 'elegant');
+                                        $agentPaper = \App\Models\Utility::normalizePosPrintLayout($settings['pos_print_layout'] ?? 'slip');
+                                        $agentQr = (($settings['pos_qr_display'] ?? 'on') === 'on') ? '1' : '0';
+                                    @endphp
+                                    <iframe id="pos_frame" class="w-100 h-100" frameborder="0"
+                                        src="{{ route('pos.agent.template.preview', ['template' => $agentPreview, 'paper' => $agentPaper, 'qr' => $agentQr]) }}"></iframe>
                                 </div>
                             </div>
                         </div>

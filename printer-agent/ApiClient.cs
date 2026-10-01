@@ -42,7 +42,7 @@ public sealed class ApiClient : IDisposable
         return body?.Data?.Branches ?? new List<BranchDto>();
     }
 
-    public async Task HeartbeatAsync(CancellationToken ct)
+    public async Task<HeartbeatInfo> HeartbeatAsync(CancellationToken ct)
     {
         var payload = new
         {
@@ -51,6 +51,34 @@ public sealed class ApiClient : IDisposable
         };
         using var res = await _http.PostAsJsonAsync($"{BaseApi}/printer-agent/heartbeat", payload, ct);
         await EnsureSuccess(res);
+        var body = await res.Content.ReadFromJsonAsync<ApiEnvelope<HeartbeatInfo>>(_json, ct);
+        return body?.Data ?? new HeartbeatInfo();
+    }
+
+    /// <summary>
+    /// Download the POS logo from Laravel and store it under LocalAppData when the hash changes.
+    /// </summary>
+    public async Task<bool> DownloadLogoIfChangedAsync(string? logoHash, CancellationToken ct)
+    {
+        var hash = (logoHash ?? "").Trim();
+        if (hash.Length == 0)
+        {
+            return false;
+        }
+
+        if (string.Equals(hash, SlipLogoStore.ReadSavedHash(), StringComparison.OrdinalIgnoreCase)
+            && SlipLogoStore.HasSlipLogo())
+        {
+            return false;
+        }
+
+        var url = $"{BaseApi}/printer-agent/logo?branch_id={BranchId}";
+        using var res = await _http.GetAsync(url, ct);
+        await EnsureSuccess(res);
+        var bytes = await res.Content.ReadAsByteArrayAsync(ct);
+        SlipLogoStore.SaveSlipLogoFromBytes(bytes);
+        SlipLogoStore.WriteSavedHash(hash);
+        return true;
     }
 
     public async Task SyncPrintersAsync(IEnumerable<(string SystemName, string DisplayName)> printers, CancellationToken ct)
@@ -133,6 +161,15 @@ public sealed class BranchDto
     public string? Name { get; set; }
 
     public override string ToString() => string.IsNullOrWhiteSpace(Name) ? $"#{Id}" : Name!;
+}
+
+public sealed class HeartbeatInfo
+{
+    [JsonPropertyName("invoice_template")]
+    public string? InvoiceTemplate { get; set; }
+
+    [JsonPropertyName("logo_hash")]
+    public string? LogoHash { get; set; }
 }
 
 public sealed class JobsData

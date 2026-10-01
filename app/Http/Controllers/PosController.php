@@ -4311,6 +4311,46 @@ class PosController extends Controller
         return view('pos.templates.' . $template, compact('pos', 'preview', 'color', 'img', 'settings', 'customer', 'font_color', 'posPayment'));
     }
 
+    /**
+     * Sample preview of a built-in Print Agent invoice. The agent prints from the template name only.
+     */
+    public function previewAgentInvoiceTemplate(Request $request, string $template)
+    {
+        if (! \Auth::user()->can('manage print settings')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $template = Utility::normalizeAgentInvoiceTemplate($template);
+        $settings = Utility::settings();
+        $paper = Utility::normalizePosPrintLayout($request->query('paper', $settings['pos_print_layout'] ?? 'slip'));
+        $showQr = $request->query('qr', ($settings['pos_qr_display'] ?? 'on') === 'on' ? '1' : '0') !== '0';
+
+        $posLogoFile = $settings['pos_logo'] ?? Utility::getValByName('pos_logo');
+        $logoUrl = ! empty($posLogoFile)
+            ? (rtrim((string) Utility::get_file('pos_logo'), '/') . '/' . ltrim((string) $posLogoFile, '/'))
+            : '';
+        if ($logoUrl === '') {
+            $companyLogo = Utility::getValByName('company_logo_dark') ?: 'logo-dark.png';
+            $logoUrl = rtrim((string) Utility::get_file('uploads/logo'), '/') . '/' . ltrim((string) $companyLogo, '/');
+        }
+
+        $qrHtml = '';
+        if ($showQr) {
+            try {
+                $qrHtml = (string) \DNS2D::getBarcodeHTML(
+                    (string) ($settings['company_name'] ?? 'POS') . ' - #PDV00020',
+                    'QRCODE',
+                    3,
+                    3
+                );
+            } catch (\Throwable $e) {
+                $qrHtml = '';
+            }
+        }
+
+        return view('pos.agent-template-preview', compact('template', 'paper', 'showQr', 'settings', 'logoUrl', 'qrHtml'));
+    }
+
     public function savePosTemplateSettings(Request $request)
     {
 
@@ -4324,6 +4364,7 @@ class PosController extends Controller
         $post['pos_qr_display'] = ($request->input('pos_qr_display') === 'on') ? 'on' : 'off';
         $post['pos_print_layout'] = Utility::normalizePosPrintLayout($request->input('pos_print_layout'));
         $post['pos_receipt_layout'] = Utility::normalizeReceiptLayout($request->input('pos_receipt_layout'));
+        $post['pos_agent_invoice_template'] = Utility::normalizeAgentInvoiceTemplate($request->input('pos_agent_invoice_template'));
         $post['uthara_print_pack'] = ($request->input('uthara_print_pack') === 'on') ? 'on' : 'off';
         $ufp = strtolower((string) $request->input('uthara_factura_paper', 'a4'));
         $post['uthara_factura_paper'] = in_array($ufp, ['a4', 'a5'], true) ? $ufp : 'a4';

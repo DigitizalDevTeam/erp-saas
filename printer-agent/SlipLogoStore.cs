@@ -13,6 +13,8 @@ public static class SlipLogoStore
 
     public static string SlipLogoPath => Path.Combine(AppDataDirectory, "slip_logo.png");
 
+    public static string SlipLogoHashPath => Path.Combine(AppDataDirectory, "slip_logo.hash");
+
     public static bool HasSlipLogo()
     {
         try
@@ -51,6 +53,47 @@ public static class SlipLogoStore
         }
 
         File.Move(temp, dest);
+    }
+
+    public static void SaveSlipLogoFromBytes(byte[] bytes)
+    {
+        if (bytes == null || bytes.Length == 0)
+        {
+            throw new InvalidOperationException("Logo is empty.");
+        }
+
+        Directory.CreateDirectory(AppDataDirectory);
+        using var ms = new MemoryStream(bytes);
+        using var img = Image.FromStream(ms);
+        using var clone = new Bitmap(img);
+        var dest = SlipLogoPath;
+        var temp = dest + ".tmp";
+        clone.Save(temp, ImageFormat.Png);
+        if (File.Exists(dest))
+        {
+            File.Delete(dest);
+        }
+
+        File.Move(temp, dest);
+    }
+
+    public static string ReadSavedHash()
+    {
+        try
+        {
+            var path = SlipLogoHashPath;
+            return File.Exists(path) ? (File.ReadAllText(path) ?? "").Trim() : "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    public static void WriteSavedHash(string hash)
+    {
+        Directory.CreateDirectory(AppDataDirectory);
+        File.WriteAllText(SlipLogoHashPath, (hash ?? "").Trim());
     }
 
     public static byte[]? TryReadSlipLogoBytes()

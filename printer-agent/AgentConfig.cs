@@ -9,6 +9,15 @@ public sealed class AgentConfig
     public int BranchId { get; set; }
     public int PollIntervalMs { get; set; } = 2000;
 
+    /// <summary>elegant, classic, or compact. Used only when a job does not send a template name.</summary>
+    public string InvoiceTemplate { get; set; } = "elegant";
+
+    public string NormalizedInvoiceTemplate()
+    {
+        var raw = (InvoiceTemplate ?? "").Trim().ToLowerInvariant();
+        return raw is "classic" or "compact" ? raw : "elegant";
+    }
+
     private static string ConfigPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "PosPrinterAgent", "config.json");
@@ -28,6 +37,8 @@ public sealed class AgentConfig
                     {
                         cfg.PollIntervalMs = 2000;
                     }
+
+                    cfg.InvoiceTemplate = cfg.NormalizedInvoiceTemplate();
                     return cfg;
                 }
             }

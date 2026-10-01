@@ -55,7 +55,7 @@ public static class SlipPrinter
         }
 
         var lines = string.Equals(job.Zone, "receipt", StringComparison.OrdinalIgnoreCase)
-            ? BuildReceiptLines(job)
+            ? BuildReceiptLines(job, ResolveInvoiceTemplate(job))
             : BuildSlipLines(job);
         var doc = new PrintDocument();
         doc.PrinterSettings.PrinterName = printerName;
@@ -382,6 +382,54 @@ public static class SlipPrinter
                     return 0f;
                 }
             }
+            case SlipLineKind.Box:
+            {
+                using var pen = new Pen(Color.Black, 1f);
+                g.DrawRectangle(pen, left, y + 4f, Math.Max(20f, width - 2f), 36f);
+                return 44f;
+            }
+            case SlipLineKind.Columns:
+            {
+                var cols = line.Columns ?? Array.Empty<string>();
+                var c1 = cols.Length > 0 ? cols[0] : "";
+                var c2 = cols.Length > 1 ? cols[1] : "";
+                var c3 = cols.Length > 2 ? cols[2] : "";
+                var c4 = cols.Length > 3 ? cols[3] : "";
+                const float gap = 4f;
+                float w2 = Math.Max(22f, g.MeasureString(string.IsNullOrEmpty(c2) ? "0" : c2, font).Width + 2f);
+                float w3 = Math.Max(48f, g.MeasureString(string.IsNullOrEmpty(c3) ? "0" : c3, font).Width + 2f);
+                float w4 = Math.Max(52f, g.MeasureString(string.IsNullOrEmpty(c4) ? "0" : c4, font).Width + 2f);
+                float used = w2 + w3 + w4 + (gap * 3f);
+                float w1 = Math.Max(36f, width - used);
+                if (w1 + used > width)
+                {
+                    w1 = Math.Max(36f, width - used);
+                }
+
+                using var near = new StringFormat
+                {
+                    Alignment = StringAlignment.Near,
+                    LineAlignment = StringAlignment.Near,
+                    FormatFlags = StringFormatFlags.NoWrap,
+                    Trimming = StringTrimming.EllipsisCharacter,
+                };
+                using var far = new StringFormat
+                {
+                    Alignment = StringAlignment.Far,
+                    LineAlignment = StringAlignment.Near,
+                    FormatFlags = StringFormatFlags.NoWrap,
+                    Trimming = StringTrimming.None,
+                };
+                var h = lineHeight + 1f;
+                g.DrawString(c1, font, brush, new RectangleF(left, y, w1, h), near);
+                float x = left + w1 + gap;
+                g.DrawString(c2, font, brush, new RectangleF(x, y, w2, h), far);
+                x += w2 + gap;
+                g.DrawString(c3, font, brush, new RectangleF(x, y, w3, h), far);
+                x += w3 + gap;
+                g.DrawString(c4, font, brush, new RectangleF(x, y, w4, h), far);
+                return h;
+            }
             default:
                 return lineHeight;
         }
@@ -394,6 +442,8 @@ public static class SlipPrinter
         Full,
         KeyValue,
         Image,
+        Box,
+        Columns,
     }
 
     private sealed class SlipLine
@@ -407,6 +457,7 @@ public static class SlipPrinter
         public byte[]? ImageBytes { get; init; }
         public float ImageMaxWidthFraction { get; init; }
         public bool UseNearestNeighbor { get; init; }
+        public string[]? Columns { get; init; }
     }
 
     private static Dictionary<string, string> ReadLabels(JsonElement payload)
@@ -443,13 +494,132 @@ public static class SlipPrinter
             : fallback;
     }
 
-    private static List<SlipLine> BuildReceiptLines(PrintJobDto job)
+    /// <summary>
+    /// Draws a sample cash-sale slip for the agent template picker.
+    /// </summary>
+    public static Bitmap RenderInvoicePreview(string template)
+    {
+        using var doc = JsonDocument.Parse(PreviewReceiptJson);
+        var job = new PrintJobDto
+        {
+            Zone = "receipt",
+            Title = "CASH SALE",
+            Payload = doc.RootElement,
+        };
+        var lines = BuildReceiptLines(job, NormalizeInvoiceTemplate(template));
+        const int width = 380;
+        const float left = 14f;
+        float contentWidth = width - 14f - 18f;
+
+        using var titleFont = new Font("Consolas", 12f, FontStyle.Bold);
+        using var bodyFont = new Font("Consolas", 9f, FontStyle.Regular);
+        using var bodyBoldFont = new Font("Consolas", 9f, FontStyle.Bold);
+        using var measureBmp = new Bitmap(8, 8);
+        using var measure = Graphics.FromImage(measureBmp);
+        measure.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+        float y = 8f;
+        foreach (var line in lines)
+        {
+            var font = line.Kind == SlipLineKind.Title ? titleFont : (line.Bold ? bodyBoldFont : bodyFont);
+            y += DrawLine(measure, Brushes.Black, font, line, left, contentWidth, y);
+        }
+
+        var bmp = new Bitmap(width, Math.Max(40, (int)Math.Ceiling(y) + 12));
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Color.White);
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        y = 8f;
+        foreach (var line in lines)
+        {
+            var font = line.Kind == SlipLineKind.Title ? titleFont : (line.Bold ? bodyBoldFont : bodyFont);
+            y += DrawLine(g, Brushes.Black, font, line, left, contentWidth, y);
+        }
+
+        return bmp;
+    }
+
+    private const string PreviewReceiptJson = """
+        {
+          "header": {
+            "company": "HOYA HOYA INHAMBANE - 1, SU, LDA",
+            "nuit": "402078588",
+            "company_address": "Praia do Tofo, Bairro Josina Machel, Inhambane",
+            "company_phone": "840868888",
+            "company_email": "hoyahoya.inhambane1@hoyahoya.co.mz",
+            "document_title": "CASH SALE",
+            "pos_number": "#PDV00020",
+            "copy_label": "Copy",
+            "issued_at": "2026-10-01 10:12:59",
+            "customer": "Walk-in Customer",
+            "currency": "MT",
+            "table": "01",
+            "operator": "Hoya Hoya Inhambane-1, SU, LDA",
+            "branch": "Hoya Hoya Inhambane-1, SU, LDA"
+          },
+          "rows": [
+            {
+              "name": "Testing product",
+              "qty": 2,
+              "price": 172.41,
+              "line_total": 399.99,
+              "tax_label": "VAT 16%"
+            }
+          ],
+          "totals": {
+            "subtotal": 399.99,
+            "discount": 0,
+            "vat": 55.17,
+            "total": 399.99,
+            "paid": 399.99,
+            "change": 0
+          },
+          "vat_breakdown": [
+            { "rate": 16, "net": 344.82, "tax": 55.17 }
+          ],
+          "payment": { "method": "Cash" },
+          "footer": ["Thank You For Shopping With Us. Please visit again."]
+        }
+        """;
+
+    private static string ResolveInvoiceTemplate(PrintJobDto job)
+    {
+        var fromJob = "";
+        if (job.Payload.ValueKind == JsonValueKind.Object)
+        {
+            fromJob = GetString(job.Payload, "template");
+        }
+
+        return NormalizeInvoiceTemplate(fromJob);
+    }
+
+    private static string NormalizeInvoiceTemplate(string? template)
+    {
+        var raw = (template ?? "").Trim().ToLowerInvariant();
+        return raw is "classic" or "compact" ? raw : "elegant";
+    }
+
+    private static List<SlipLine> BuildReceiptLines(PrintJobDto job, string? template)
     {
         var lines = new List<SlipLine>();
         var title = FirstNonEmpty(job.Title ?? "", "CASH SALE");
         var labels = job.Payload.ValueKind == JsonValueKind.Object
             ? ReadLabels(job.Payload)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var classic = string.Equals(template, "classic", StringComparison.OrdinalIgnoreCase);
+        var compact = string.Equals(template, "compact", StringComparison.OrdinalIgnoreCase);
+        var isCredit = false;
+        if (job.Payload.ValueKind == JsonValueKind.Object)
+        {
+            if (job.Payload.TryGetProperty("is_credit", out var creditEl)
+                && (creditEl.ValueKind == JsonValueKind.True
+                    || (creditEl.ValueKind == JsonValueKind.Number && creditEl.TryGetInt32(out var creditFlag) && creditFlag != 0)))
+            {
+                isCredit = true;
+            }
+        }
+
+        var majorRule = classic || compact ? '-' : '=';
 
         string company = "";
         string companyAddress = "";
@@ -509,7 +679,19 @@ public static class SlipPrinter
         }
 
         // --- Header / company ---
-        // Prefer agent-local uploaded logo for Pay & Print; fall back to ERP payload.
+        if (!SlipLogoStore.HasSlipLogo() && HasPrintableValue(logoB64))
+        {
+            try
+            {
+                SlipLogoStore.SaveSlipLogoFromBytes(Convert.FromBase64String(logoB64));
+            }
+            catch
+            {
+                // The heartbeat download is the normal path. A bad payload logo must not stop the slip.
+            }
+        }
+
+        // Prefer the logo saved on this PC; fall back to the logo sent with the job.
         var localLogoBytes = SlipLogoStore.TryReadSlipLogoBytes();
         if (localLogoBytes is { Length: > 0 })
         {
@@ -552,14 +734,33 @@ public static class SlipPrinter
             AddCentered(lines, contact);
         }
 
-        AddSeparator(lines, '=');
-        AddTitle(lines, documentTitle.ToUpperInvariant());
-        if (HasPrintableValue(posNumber))
+        AddSeparator(lines, majorRule);
+        if (compact)
         {
-            AddCentered(lines, Label(labels, "no", "No.") + " " + posNumber.Trim(), bold: true);
+            AddKv(lines, Label(labels, "date", "Date"), date);
+            AddKv(lines, Label(labels, "invoice_no", "Invoice No"), posNumber);
+            AddKvOrDash(lines, Label(labels, "operator", "Operator"), operatorName);
+            if (HasPrintableValue(branch))
+            {
+                AddKv(lines, copyLabel, branch);
+            }
+
+            if (HasPrintableValue(table))
+            {
+                AddKv(lines, Label(labels, "table", "Table"), table);
+            }
+        }
+        else
+        {
+            AddTitle(lines, documentTitle.ToUpperInvariant());
+            if (HasPrintableValue(posNumber))
+            {
+                AddCentered(lines, Label(labels, "no", "No.") + " " + posNumber.Trim(), bold: true);
+            }
+
+            AddCentered(lines, copyLabel + " · " + Label(labels, "issued_at", "Issued at") + " " + issuedAt);
         }
 
-        AddCentered(lines, copyLabel + " · " + Label(labels, "issued_at", "Issued at") + " " + issuedAt);
         AddSeparator(lines, '-');
 
         // --- Customer / table meta ---
@@ -567,7 +768,7 @@ public static class SlipPrinter
         AddKvOrDash(lines, Label(labels, "nuit", "NUIT"), customerNuit);
         AddKvOrDash(lines, Label(labels, "address", "Address"), customerAddress);
         AddKv(lines, Label(labels, "currency", "Currency"), currency);
-        if (HasPrintableValue(table))
+        if (!compact && HasPrintableValue(table))
         {
             AddKv(lines, Label(labels, "table", "Table"), table);
         }
@@ -575,11 +776,25 @@ public static class SlipPrinter
         AddSeparator(lines, '-');
 
         // --- Items ---
-        AddFull(lines, PadColumns(
-            Label(labels, "description", "DESCRIPTION"),
-            Label(labels, "qty", "QTY"),
-            Label(labels, "price", "PRICE"),
-            Label(labels, "total", "TOTAL")), bold: true);
+        var descLabel = compact
+            ? Label(labels, "product", "PRODUCT")
+            : Label(labels, "description", "DESCRIPTION");
+        var qtyLabel = Label(labels, "qty", "QTY");
+        var priceLabel = Label(labels, "price", "PRICE");
+        var totalLabel = Label(labels, "total", "TOTAL");
+        if (classic)
+        {
+            AddColumns(lines, descLabel, qtyLabel, priceLabel, totalLabel, bold: true);
+        }
+        else if (compact)
+        {
+            AddColumns(lines, descLabel, priceLabel, qtyLabel, totalLabel, bold: true);
+        }
+        else
+        {
+            AddFull(lines, PadColumns(descLabel, qtyLabel, priceLabel, totalLabel), bold: true);
+        }
+
         AddSeparator(lines, '-');
 
         if (job.Payload.ValueKind == JsonValueKind.Object
@@ -605,7 +820,23 @@ public static class SlipPrinter
                 var taxLabel = GetString(row, "tax_label");
                 var note = GetString(row, "note");
 
-                AddFull(lines, name, bold: true);
+                var qtyText = qty > 0 ? qty.ToString(CultureInfo.InvariantCulture) : "";
+                var priceText = FormatMoney(price, currency);
+                var totalText = FormatMoney(lineTotal, currency);
+                if (classic)
+                {
+                    AddColumns(lines, name, qtyText, priceText, totalText, bold: true);
+                }
+                else if (compact)
+                {
+                    AddColumns(lines, name, priceText, qtyText, totalText, bold: true);
+                }
+                else
+                {
+                    AddFull(lines, name, bold: true);
+                    AddFull(lines, PadColumns("", qtyText, priceText, totalText));
+                }
+
                 if (HasPrintableValue(taxLabel))
                 {
                     AddFull(lines, taxLabel.Trim());
@@ -615,12 +846,6 @@ public static class SlipPrinter
                 {
                     AddFull(lines, Label(labels, "note", "Note") + ": " + note.Trim());
                 }
-
-                AddFull(lines, PadColumns(
-                    "",
-                    qty > 0 ? qty.ToString(CultureInfo.InvariantCulture) : "",
-                    FormatMoney(price, currency),
-                    FormatMoney(lineTotal, currency)));
             }
         }
 
@@ -658,10 +883,17 @@ public static class SlipPrinter
             AddKv(lines, Label(labels, "tip", "Tip"), FormatMoney(tip, currency));
         }
 
-        AddSeparator(lines, '=');
-        AddKv(lines, Label(labels, "total", "TOTAL"), FormatMoney(total, currency), bold: true);
-        AddKv(lines, Label(labels, "paid", "Paid"), FormatMoney(paid, currency));
-        AddKv(lines, Label(labels, "change", "Change"), FormatMoney(change, currency));
+        AddSeparator(lines, majorRule);
+        AddKv(lines, compact ? Label(labels, "grand_total", "Grand Total") : Label(labels, "total", "TOTAL"), FormatMoney(total, currency), bold: true);
+        if (isCredit)
+        {
+            AddKv(lines, Label(labels, "due_amount", "Due Amount"), FormatMoney(total, currency));
+        }
+        else
+        {
+            AddKv(lines, Label(labels, "paid", "Paid"), FormatMoney(paid, currency));
+            AddKv(lines, Label(labels, "change", "Change"), FormatMoney(change, currency));
+        }
         AddSeparator(lines, '-');
 
         // --- VAT breakdown ---
@@ -709,8 +941,19 @@ public static class SlipPrinter
         }
 
         AddKvOrDash(lines, Label(labels, "reference", "Reference"), payRef);
-        AddKvOrDash(lines, Label(labels, "operator", "Operator"), operatorName);
-        AddKvOrDash(lines, Label(labels, "branch", "Branch"), branch);
+        if (!compact)
+        {
+            AddKvOrDash(lines, Label(labels, "operator", "Operator"), operatorName);
+            AddKvOrDash(lines, Label(labels, "branch", "Branch"), branch);
+        }
+
+        if (isCredit)
+        {
+            AddSeparator(lines, '-');
+            AddFull(lines, Label(labels, "client_signature", "Client signature for credit"), bold: true);
+            lines.Add(new SlipLine { Kind = SlipLineKind.Box });
+            AddKv(lines, Label(labels, "due_amount", "Due Amount"), FormatMoney(total, currency));
+        }
 
         // --- QR ---
         string qrB64 = "";
@@ -1199,6 +1442,14 @@ public static class SlipPrinter
 
     private static void AddFull(List<SlipLine> lines, string text, bool bold = false)
         => lines.Add(new SlipLine { Kind = SlipLineKind.Full, Text = text ?? "", Bold = bold });
+
+    private static void AddColumns(List<SlipLine> lines, string c1, string c2, string c3, string c4, bool bold = false)
+        => lines.Add(new SlipLine
+        {
+            Kind = SlipLineKind.Columns,
+            Columns = new[] { c1 ?? "", c2 ?? "", c3 ?? "", c4 ?? "" },
+            Bold = bold,
+        });
 
     private static void AddCentered(List<SlipLine> lines, string text, bool bold = false)
         => lines.Add(new SlipLine { Kind = SlipLineKind.Full, Text = text ?? "", Centered = true, Bold = bold });

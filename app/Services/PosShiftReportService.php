@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Http\Controllers\PosController;
 use App\Models\Expense;
 use App\Models\InvoicePayment;
 use App\Models\Pos;
@@ -12,6 +13,7 @@ use App\Models\PosProduct;
 use App\Models\PosShift;
 use App\Models\PosTable;
 use App\Models\User;
+use App\Models\Utility;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -232,26 +234,27 @@ class PosShiftReportService
             ->with(['product', 'pos', 'voidedByUser'])
             ->orderBy('voided_at')
             ->get();
-        $productQtySummary = PosProduct::query()
-            ->selectRaw('pos_products.product_id, pos.table_id, pos.pos_user_id, SUM(pos_products.quantity) as qty_total, SUM(pos_products.price * pos_products.quantity) as amount_total')
-            ->join('pos', 'pos_products.pos_id', '=', 'pos.id')
-            ->whereIn('pos_products.pos_id', $posIds)
-            ->whereNull('pos_products.voided_at')
-            ->groupBy('pos_products.product_id', 'pos.table_id', 'pos.pos_user_id')
-            ->with('product')
-            ->orderByRaw('SUM(pos_products.quantity) DESC')
-            ->get();
 
-        $tableNames = PosTable::whereIn('id', $productQtySummary->pluck('table_id')->filter()->unique())->pluck('name', 'id');
-        $waiterNames = User::whereIn('id', $productQtySummary->pluck('pos_user_id')->filter()->unique())->pluck('name', 'id');
-        $productQtySummary->each(function ($row) use ($tableNames, $waiterNames) {
-            $row->table_name = $row->table_id ? ($tableNames[$row->table_id] ?? null) : null;
-            $row->waiter_name = $row->pos_user_id ? ($waiterNames[$row->pos_user_id] ?? null) : null;
-        });
+        $taxData = Utility::getTaxData() ?? [];
+        $posMeta = $posIds->isEmpty()
+            ? collect()
+            : Pos::whereIn('id', $posIds)->get(['id', 'document_type', 'table_id', 'pos_user_id'])->keyBy('id');
+        $soldLines = $posIds->isEmpty()
+            ? collect()
+            : PosProduct::query()
+                ->with('product')
+                ->whereIn('pos_id', $posIds)
+                ->whereNull('voided_at')
+                ->whereNull('removed_from_cart_at')
+                ->get();
+
+        $productQtySummary = $this->buildProductQtySummary($soldLines, $posMeta, $taxData);
+        [$sales, $internalConsumption] = $this->splitSalesWithInvoiceAmounts($sales, $taxData);
 
         return [
             'shift' => $shift,
             'sales' => $sales,
+            'internalConsumption' => $internalConsumption,
             'paymentsByMethod' => $paymentsByMethod,
             'cashTotal' => $cashTotal,
             'cardTotal' => $cardTotal,
@@ -265,8 +268,150 @@ class PosShiftReportService
             'expectedCash' => $expectedCash,
             'productQtySummary' => $productQtySummary,
             'salesCount' => $sales->count(),
+            'internalConsumptionCount' => $internalConsumption->count(),
             'difference' => $shift->status === PosShift::STATUS_CLOSED ? (float) ($shift->difference ?? 0) : null,
         ];
+    }
+
+    /**
+     * Invoice-style amounts for one POS line. Price is the exclusive unit.
+     *
+     * @param  array<int|string, array<string, mixed>>  $taxData
+     * @return array{exclusive_unit: float, inclusive_unit: float, qty: float, exclusive: float, tax: float, inclusive: float}
+     */
+    private function invoiceLineAmounts(PosProduct $line, array $taxData): array
+    {
+        $rate = 0.0;
+        foreach (explode(',', (string) $line->tax) as $taxId) {
+            $taxId = (int) trim($taxId);
+            if ($taxId > 0 && isset($taxData[$taxId]['rate'])) {
+                $rate += (float) $taxData[$taxId]['rate'];
+            }
+        }
+
+        $exclusiveUnit = round((float) $line->price, 2);
+        $inclusiveUnit = $rate > 0
+            ? round($exclusiveUnit * (1 + ($rate / 100)), 2)
+            : $exclusiveUnit;
+        $amounts = PosController::inclusivePosLineAmounts($exclusiveUnit, (float) $line->quantity, $rate);
+
+        return [
+            'exclusive_unit' => $exclusiveUnit,
+            'inclusive_unit' => $inclusiveUnit,
+            'qty' => (float) $line->quantity,
+            'exclusive' => (float) $amounts['net'],
+            'tax' => (float) $amounts['tax'],
+            'inclusive' => (float) $amounts['line_total'],
+        ];
+    }
+
+    /**
+     * @param  Collection<int, PosProduct>  $lines
+     * @param  Collection<int, Pos>  $posMeta
+     * @param  array<int|string, array<string, mixed>>  $taxData
+     */
+    private function buildProductQtySummary(Collection $lines, Collection $posMeta, array $taxData): Collection
+    {
+        $groups = [];
+        foreach ($lines as $line) {
+            $pos = $posMeta->get($line->pos_id);
+            if (! $pos) {
+                continue;
+            }
+            if (Pos::normalizeDocumentType($pos->document_type ?? null) === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+                continue;
+            }
+
+            $key = ((int) $line->product_id).'|'.((int) ($pos->table_id ?? 0)).'|'.((int) ($pos->pos_user_id ?? 0));
+            if (! isset($groups[$key])) {
+                $groups[$key] = [
+                    'product' => $line->product,
+                    'table_id' => $pos->table_id,
+                    'pos_user_id' => $pos->pos_user_id,
+                    'qty_total' => 0.0,
+                    'exclusive_total' => 0.0,
+                    'tax_total' => 0.0,
+                    'inclusive_total' => 0.0,
+                    'units' => [],
+                ];
+            }
+
+            $amounts = $this->invoiceLineAmounts($line, $taxData);
+            $groups[$key]['qty_total'] += $amounts['qty'];
+            $groups[$key]['exclusive_total'] += $amounts['exclusive'];
+            $groups[$key]['tax_total'] += $amounts['tax'];
+            $groups[$key]['inclusive_total'] += $amounts['inclusive'];
+            $groups[$key]['units'][(string) $amounts['exclusive_unit']] = $amounts['inclusive_unit'];
+            if ($groups[$key]['product'] === null && $line->product) {
+                $groups[$key]['product'] = $line->product;
+            }
+        }
+
+        $tableNames = PosTable::whereIn('id', collect($groups)->pluck('table_id')->filter()->unique())->pluck('name', 'id');
+        $waiterNames = User::whereIn('id', collect($groups)->pluck('pos_user_id')->filter()->unique())->pluck('name', 'id');
+
+        return collect($groups)
+            ->map(function (array $group) use ($tableNames, $waiterNames) {
+                $singleUnit = count($group['units']) === 1;
+                $exclusiveUnit = $singleUnit ? (float) array_key_first($group['units']) : null;
+                $inclusiveUnit = $singleUnit ? (float) reset($group['units']) : null;
+
+                return (object) [
+                    'product' => $group['product'],
+                    'table_name' => $group['table_id'] ? ($tableNames[$group['table_id']] ?? null) : null,
+                    'waiter_name' => $group['pos_user_id'] ? ($waiterNames[$group['pos_user_id']] ?? null) : null,
+                    'qty_total' => $group['qty_total'],
+                    'exclusive_unit' => $exclusiveUnit,
+                    'inclusive_unit' => $inclusiveUnit,
+                    'exclusive_total' => round($group['exclusive_total'], 2),
+                    'tax_total' => round($group['tax_total'], 2),
+                    'inclusive_total' => round($group['inclusive_total'], 2),
+                ];
+            })
+            ->sortByDesc('qty_total')
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, Pos>  $sales
+     * @param  array<int|string, array<string, mixed>>  $taxData
+     * @return array{0: Collection<int, Pos>, 1: Collection<int, Pos>}
+     */
+    private function splitSalesWithInvoiceAmounts(Collection $sales, array $taxData): array
+    {
+        $sales->each(function (Pos $pos) use ($taxData) {
+            $exclusive = 0.0;
+            $tax = 0.0;
+            $inclusive = 0.0;
+            foreach ($pos->items as $line) {
+                if (! empty($line->voided_at) || ! empty($line->removed_from_cart_at)) {
+                    continue;
+                }
+                $amounts = $this->invoiceLineAmounts($line, $taxData);
+                $exclusive += $amounts['exclusive'];
+                $tax += $amounts['tax'];
+                $inclusive += $amounts['inclusive'];
+            }
+
+            $pos->exclusive_total = round($exclusive, 2);
+            $pos->tax_total = round($tax, 2);
+            $pos->inclusive_total = round($inclusive, 2);
+            $pos->document_type_label = Pos::documentTypeLabel($pos->document_type ?? null);
+            $pos->payment_method_label = $pos->posPayments
+                ->map(fn ($payment) => PosPayment::labelForMethod($payment->payment_method ?? ''))
+                ->filter()
+                ->unique()
+                ->implode(', ');
+        });
+
+        $internal = $sales
+            ->filter(fn (Pos $pos) => Pos::normalizeDocumentType($pos->document_type ?? null) === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION)
+            ->values();
+        $regular = $sales
+            ->reject(fn (Pos $pos) => Pos::normalizeDocumentType($pos->document_type ?? null) === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION)
+            ->values();
+
+        return [$regular, $internal];
     }
 
     /**

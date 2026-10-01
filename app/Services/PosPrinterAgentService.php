@@ -619,17 +619,20 @@ class PosPrinterAgentService
             $receiptLinkUrl = '';
         }
 
+        $showQr = ($settings['pos_qr_display'] ?? 'on') !== 'off';
         $qrBase64 = '';
         $qrPayload = $receiptLinkUrl !== ''
             ? $receiptLinkUrl
             : ((string) ($settings['company_name'] ?? '') . ' - ' . $posNumber . ' - ' . $issuedAt);
-        try {
-            $png = \DNS2D::getBarcodePNG($qrPayload, 'QRCODE', 4, 4);
-            if (is_string($png) && $png !== '') {
-                $qrBase64 = $png;
+        if ($showQr) {
+            try {
+                $png = \DNS2D::getBarcodePNG($qrPayload, 'QRCODE', 4, 4);
+                if (is_string($png) && $png !== '') {
+                    $qrBase64 = $png;
+                }
+            } catch (\Throwable $e) {
+                $qrBase64 = '';
             }
-        } catch (\Throwable $e) {
-            $qrBase64 = '';
         }
 
         $logoBase64 = self::resolveReceiptLogoBase64($settings);
@@ -639,6 +642,8 @@ class PosPrinterAgentService
 
         $payload = [
             'doc_type' => $isPaid ? 'receipt' : 'bill',
+            'is_credit' => $docType === Pos::DOCUMENT_TYPE_CREDIT_SALE,
+            'template' => Utility::normalizeAgentInvoiceTemplate($settings['pos_agent_invoice_template'] ?? 'elegant'),
             'render' => 'native',
             'header' => [
                 'company' => (string) ($settings['company_name'] ?? ''),
@@ -715,6 +720,12 @@ class PosPrinterAgentService
                 'operator' => __('Operator'),
                 'branch' => __('Branch'),
                 'note' => __('Note'),
+                'due_amount' => __('Due Amount'),
+                'client_signature' => __('pos.client_signature_for_credit'),
+                'date' => __('Date'),
+                'invoice_no' => __('Invoice No'),
+                'grand_total' => __('Grand Total'),
+                'product' => __('Product'),
             ],
             'footer' => [
                 'thank_you' => __('pos.thank_you'),
@@ -728,6 +739,40 @@ class PosPrinterAgentService
         } finally {
             app()->setLocale($previousLocale);
         }
+    }
+
+    /**
+     * Template name and logo fingerprint the agent applies on heartbeat.
+     *
+     * @return array{invoice_template: string, logo_hash: string}
+     */
+    public static function printProfileForCreator(int $creatorId): array
+    {
+        $settings = Utility::settingsById($creatorId);
+        $bytes = self::receiptLogoBytes($creatorId, $settings);
+
+        return [
+            'invoice_template' => Utility::normalizeAgentInvoiceTemplate($settings['pos_agent_invoice_template'] ?? 'elegant'),
+            'logo_hash' => ($bytes !== null && $bytes !== '') ? md5($bytes) : '',
+        ];
+    }
+
+    /**
+     * Raw POS logo bytes (pos_logo, else company logo).
+     *
+     * @param  array<string, mixed>|null  $settings
+     */
+    public static function receiptLogoBytes(int $creatorId, ?array $settings = null): ?string
+    {
+        $settings = $settings ?? Utility::settingsById($creatorId);
+        $encoded = self::resolveReceiptLogoBase64($settings);
+        if ($encoded === '') {
+            return null;
+        }
+
+        $raw = base64_decode($encoded, true);
+
+        return is_string($raw) && $raw !== '' ? $raw : null;
     }
 
     /**

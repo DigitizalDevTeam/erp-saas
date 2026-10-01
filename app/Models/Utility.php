@@ -237,6 +237,18 @@ namespace App\Models;
         }
 
         /**
+         * Built-in Print Agent invoice layout. Laravel stores and sends only this name.
+         *
+         * @param  string|null  $template  elegant | classic | compact
+         */
+        public static function normalizeAgentInvoiceTemplate(?string $template): string
+        {
+            $template = strtolower(trim((string) $template));
+
+            return in_array($template, ['elegant', 'classic', 'compact'], true) ? $template : 'elegant';
+        }
+
+        /**
          * Blade view name for live POS/Restaurant receipt by slip layout setting.
          */
         public static function posReceiptViewName(?array $settings = null): string
@@ -370,6 +382,7 @@ namespace App\Models;
                 "pos_internal_prefix" => "#INT",
                 "pos_print_layout" => "slip",
                 "pos_receipt_layout" => "existing",
+                "pos_agent_invoice_template" => "elegant",
                 "quotation_receipt_layout" => "existing",
                 "uthara_print_pack" => "on",
                 "uthara_factura_paper" => "a4",
