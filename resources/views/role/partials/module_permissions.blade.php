@@ -85,10 +85,14 @@
                                 @if ($specialKey !== false)
                                     <tr>
                                         <td>
-                                            <input type="checkbox" class="form-check-input align-middle ischeck {{ $checkall }}" data-id="{{ $specialSlug }}">
+                                            <input type="checkbox"
+                                                class="form-check-input align-middle ischeck {{ $checkall }}"
+                                                data-id="{{ $specialSlug }}"
+                                                @if($specialChecked) checked @endif
+                                                onclick="document.querySelectorAll('.isscheck_{{ $specialSlug }}').forEach(function (el) { el.checked = this.checked; }.bind(this));">
                                         </td>
                                         <td>
-                                            <label class="ischeck {{ $checkall }}" data-id="{{ $specialSlug }}">{{ __($permLabel) }}</label>
+                                            <label for="permission{{ $specialKey }}">{{ __($permLabel) }}</label>
                                         </td>
                                         <td>
                                             <div class="row">
@@ -98,7 +102,7 @@
                                                         $specialKey,
                                                         $specialChecked,
                                                         [
-                                                            'class' => 'form-check-input isscheck ' . $checkall . ' isscheck_' . $specialSlug,
+                                                            'class' => 'form-check-input ' . $checkall . ' isscheck_' . $specialSlug,
                                                             'id' => 'permission' . $specialKey,
                                                         ]
                                                     ) }}

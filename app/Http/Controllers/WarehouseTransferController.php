@@ -25,10 +25,10 @@ class WarehouseTransferController extends Controller
         $user = Auth::user();
         if (
             $user->type !== 'company'
-            && ! empty($user->warehouse_id)
+            && ($assigned = $user->assignedWarehouseIds()) !== []
             && ! $user->can('menu.products_system.transfer')
         ) {
-            return [(int) $user->warehouse_id];
+            return $assigned;
         }
 
         return warehouse::where('created_by', $user->creatorId())->pluck('id')->map(fn ($id) => (int) $id)->all();

@@ -836,6 +836,7 @@
     </div>
 
     @include('pos.partials.variant-picker-modal')
+    @include('pos.partials.warehouse-picker-modal')
     @include('partials.product-options-picker')
 
     <div class="position-fixed top-0 end-0 p-3" style="z-index: 99999">
@@ -1569,19 +1570,6 @@
                     resetRestaurantCategories(true);
                     searchProducts(posSearchProductsUrl, '', '0', wh, 'name', 'product-listing-restaurant');
                 }
-                var sk = $( "#empty_cart" ).val() || sessionKey;
-                var emptyData = { session_key: sk };
-                if (sk === 'pos-restaurant' && typeof posRestaurantCartKey !== 'undefined' && posRestaurantCartKey) { emptyData.cart_key = posRestaurantCartKey; }
-                $.ajax({
-                    type: 'POST',
-                    url: posEmptyCartUrl,
-                    data: emptyData,
-                    success: function () {
-                        $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="1">{{ __("pos.no_data_found") }}</td></tr>');
-                        updateRestaurantCartTotals(0);
-                        $('#pos-pay-btn-restaurant').prop('disabled', true);
-                    }
-                });
             });
 
             function getRestaurantSubtotalStandalone() {
@@ -1882,10 +1870,13 @@
                 var unitSubAttr = it.unit_subtotal != null
                     ? it.unit_subtotal
                     : (qty > 0 ? posRoundMoney(Math.max(0, sub - optsAmt) / qty) : '');
-                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-voided="' + (isVoided ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-unit-subtotal="' + unitSubAttr + '" data-options-amount="' + optsAmt + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '" data-selected-options="' + esc(selOptsRaw) + '">';
+                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-voided="' + (isVoided ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-unit-subtotal="' + unitSubAttr + '" data-options-amount="' + optsAmt + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '" data-warehouse-id="' + (it.warehouse_id || '') + '" data-selected-options="' + esc(selOptsRaw) + '">';
                 html += '<td class="pos-cart-line-cell p-0 border-0"><div class="pos-cart-line"><div class="pos-cart-line__row">';
                 html += '<div class="pos-cart-line__main min-w-0">';
                 html += '<span class="pos-cart-line__name name" title="' + esc(lineName) + '">' + esc(lineName) + '</span>';
+                if (it.warehouse_name) {
+                    html += '<span class="pos-cart-line__warehouse text-muted small d-block">' + esc(it.warehouse_name) + '</span>';
+                }
                 html += '<span class="pos-cart-line__badge badge pos-line-status">' + esc(statusText) + '</span>';
                 var waiterLabel = (it.waiter_name && String(it.waiter_name).trim()) ? String(it.waiter_name).trim() : (posCurrentTableWaiter.name || '');
                 if (waiterLabel) {
@@ -2666,6 +2657,8 @@
                     var desc = ($n.length && ($n.is('input') || $n.is('textarea'))) ? ($n.val() || '').trim() : ($n.text() || '').trim();
                     var line = { id: id, quantity: qty, price: price, discount: discount, description: desc };
                     if (!isNaN(vid) && vid > 0) line.product_variant_id = vid;
+                    var lineWh = parseInt($(this).attr('data-warehouse-id'), 10);
+                    if (!isNaN(lineWh) && lineWh > 0) line.warehouse_id = lineWh;
                     var selAttr = $(this).attr('data-selected-options');
                     var selOpts = posParseSelectedOptionsAttr(selAttr);
                     if (selOpts && selOpts.length) {
@@ -3918,8 +3911,103 @@
                 });
             }
 
-            function posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, productVariantId, ctx, selectedOptions) {
+            function posSetRestaurantWarehouseDropdown(warehouseId) {
+                var id = String(warehouseId || '');
+                if (!id) return;
+                var $sel = $('#pos-restaurant-warehouse');
+                if ($sel.length) {
+                    var $opt = $sel.find('option').filter(function () { return String(this.value) === id; });
+                    if (!$opt.length) {
+                        var label = $('#posWarehousePickerList input[name="pos_warehouse_pick"]').filter(function () {
+                            return String(this.value) === id;
+                        }).closest('.form-check').find('label').text() || id;
+                        $sel.append($('<option/>').val(id).text(label));
+                    }
+                    if (String($sel.val()) !== id) {
+                        $sel.val(id).trigger('change');
+                        return;
+                    }
+                }
+                syncRestaurantWarehouseSelection(id);
+            }
+
+            function posPromptWarehouseThenAdd($el, $btn, wasDisabled, productVariantId, ctx, selectedOptions) {
+                var productId = $el.data('product-id');
+                var branchId = $('#pos-restaurant-branch').val() || '';
+                var currentId = getRestaurantWarehouseId();
+                $.get('{{ route('pos.restaurant.warehouses.for.product') }}', {
+                    branch_id: branchId,
+                    product_id: productId,
+                    quantity: 1,
+                    product_variant_id: productVariantId || '',
+                    current_warehouse_id: (currentId && currentId !== '0') ? currentId : '',
+                    selected_options: (selectedOptions && selectedOptions.length) ? JSON.stringify(selectedOptions) : ''
+                }).done(function (res) {
+                    var list = (res && res.warehouses) ? res.warehouses : [];
+                    var recommended = res && res.recommended_id ? String(res.recommended_id) : '';
+                    var $list = $('#posWarehousePickerList').empty();
+                    var $hint = $('#posWarehousePickerHint');
+                    if (!list.length) {
+                        $hint.text('{{ __("No warehouse is allocated for this user.") }}');
+                    } else if (!recommended) {
+                        $hint.text('{{ __("No allocated warehouse has enough stock for this item.") }}');
+                    } else {
+                        $hint.text('{{ __("Choose a warehouse with enough stock.") }}');
+                    }
+                    list.forEach(function (w) {
+                        var id = 'pos-wh-pick-' + w.id;
+                        var disabled = w.sufficient ? '' : ' disabled';
+                        var checked = (recommended && String(w.id) === recommended) ? ' checked' : '';
+                        var label = escHtml(w.name || ('#' + w.id));
+                        if (!w.sufficient) {
+                            label += ' — {{ __("Out of stock") }}';
+                        }
+                        $list.append(
+                            '<div class="form-check">' +
+                            '<input class="form-check-input" type="radio" name="pos_warehouse_pick" id="' + id + '" value="' + w.id + '"' + checked + disabled + '>' +
+                            '<label class="form-check-label" for="' + id + '">' + label + '</label>' +
+                            '</div>'
+                        );
+                    });
+                    $('#posWarehousePickerConfirm').prop('disabled', !recommended);
+                    $('#posWarehousePickerModal').data('posWarehouseCtx', {
+                        $el: $el,
+                        $btn: $btn,
+                        wasDisabled: wasDisabled,
+                        productVariantId: productVariantId,
+                        ctx: ctx,
+                        selectedOptions: selectedOptions
+                    });
+                    $('#posWarehousePickerModal').modal('show');
+                }).fail(function (xhr) {
+                    var msg = (xhr.responseJSON && (xhr.responseJSON.error || xhr.responseJSON.message)) || '{{ __("Could not check warehouse stock.") }}';
+                    if (typeof show_toastr === 'function') show_toastr('{{ __("Error") }}', msg, 'error');
+                });
+            }
+
+            function escHtml(s) {
+                return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+            }
+
+            $(document).on('change', '#posWarehousePickerList input[name="pos_warehouse_pick"]', function () {
+                $('#posWarehousePickerConfirm').prop('disabled', !$(this).val());
+            });
+
+            $(document).on('click', '#posWarehousePickerConfirm', function () {
+                var picked = $('#posWarehousePickerList input[name="pos_warehouse_pick"]:checked').val();
+                var d = $('#posWarehousePickerModal').data('posWarehouseCtx');
+                if (!picked || !d || !d.$el) return;
+                $('#posWarehousePickerModal').modal('hide');
+                posSetRestaurantWarehouseDropdown(picked);
+                posRestaurantRunAddToCartAjax(d.$el, d.$btn, d.wasDisabled, d.productVariantId, d.ctx, d.selectedOptions, picked);
+            });
+
+            function posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, productVariantId, ctx, selectedOptions, warehouseOverride) {
                 var isRestaurant = ctx.isRestaurant;
+                if (isRestaurant && !warehouseOverride) {
+                    posPromptWarehouseThenAdd($el, $btn, wasDisabled, productVariantId, ctx, selectedOptions);
+                    return;
+                }
                 var tbodySel = ctx.tbodySel;
                 var rowIdPrefix = ctx.rowIdPrefix;
                 var totalSel = ctx.totalSel;
@@ -3936,7 +4024,7 @@
                     parsedAddUrl.host = window.location.host;
                     addUrl = parsedAddUrl.toString();
                 } catch (e) {}
-                var warehouseId = getRestaurantWarehouseId();
+                var warehouseId = warehouseOverride ? String(warehouseOverride) : getRestaurantWarehouseId();
                 if (!warehouseId || warehouseId === '0') {
                     warehouseId = '';
                     if (isRestaurant) {
@@ -4308,7 +4396,8 @@
                         data: (function () {
                             var d = { id: ele.attr("data-id"), quantity: quantity, discount: discount, session_key: session_key };
                             if (inRestaurant) {
-                                d.war_id = getRestaurantWarehouseId();
+                                var lineWh = ele.closest('tr').attr('data-warehouse-id');
+                                d.war_id = (lineWh && lineWh !== '0') ? lineWh : getRestaurantWarehouseId();
                                 if (typeof posRestaurantCartKey !== 'undefined' && posRestaurantCartKey) {
                                     d.cart_key = posRestaurantCartKey;
                                 } else {

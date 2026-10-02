@@ -20,6 +20,7 @@ class PosProduct extends Model
         'product_id',
         'product_variant_id',
         'pos_id',
+        'warehouse_id',
         'quantity',
         'tax',
         'discount',

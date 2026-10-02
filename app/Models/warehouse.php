@@ -27,7 +27,7 @@ class warehouse extends Model
 
     public function assignedUsers()
     {
-        return $this->hasMany(User::class, 'warehouse_id');
+        return $this->belongsToMany(User::class, 'warehouse_user', 'warehouse_id', 'user_id')->withTimestamps();
     }
 
     public function documents()

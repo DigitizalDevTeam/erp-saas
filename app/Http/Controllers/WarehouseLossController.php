@@ -28,8 +28,8 @@ class WarehouseLossController extends Controller
     protected function allowedWarehouseIds()
     {
         $user = \Auth::user();
-        if ($user->type !== 'company' && ! empty($user->warehouse_id)) {
-            return [(int) $user->warehouse_id];
+        if ($user->type !== 'company' && ($assigned = $user->assignedWarehouseIds()) !== []) {
+            return $assigned;
         }
 
         return warehouse::where('created_by', $user->creatorId())->pluck('id')->map(fn ($id) => (int) $id)->all();

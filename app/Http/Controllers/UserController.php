@@ -15,6 +15,7 @@ use App\Models\Plan;
 use App\Models\User;
 use App\Models\UserToDo;
 use App\Models\Utility;
+use App\Models\warehouse;
 use Auth;
 use File;
 use Illuminate\Http\Request;
@@ -297,6 +298,54 @@ class UserController extends Controller
         return redirect()->route('user.index');
     }
 
+    /**
+     * Warehouses the admin can pick as this user's POS default.
+     *
+     * @return array<int, string>
+     */
+    protected function defaultWarehouseOptionsForUser(User $user, int $creatorId): array
+    {
+        $query = warehouse::with('branch')->where('created_by', $creatorId)->orderBy('name');
+        if ($user->type !== 'company' && $user->type !== 'super admin') {
+            $ids = $user->assignedWarehouseIds();
+            if ($ids === []) {
+                return [];
+            }
+            $query->whereIn('id', $ids);
+        }
+
+        $options = [];
+        foreach ($query->get() as $warehouse) {
+            $label = (string) $warehouse->name;
+            if ($warehouse->branch) {
+                $label .= ' ('.$warehouse->branch->name.')';
+            }
+            $options[(int) $warehouse->id] = $label;
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return int|null|false null clears the default, false is an invalid choice
+     */
+    protected function resolveDefaultWarehouseId(Request $request, User $user, int $creatorId)
+    {
+        if (! $request->exists('default_warehouse_id')) {
+            return $user->warehouse_id ? (int) $user->warehouse_id : null;
+        }
+        $id = (int) $request->input('default_warehouse_id');
+        if ($id <= 0) {
+            return null;
+        }
+        $options = $this->defaultWarehouseOptionsForUser($user, $creatorId);
+        if (! array_key_exists($id, $options)) {
+            return false;
+        }
+
+        return $id;
+    }
+
     public function edit($id)
     {
         $user = \Auth::user();
@@ -313,8 +362,9 @@ class UserController extends Controller
             $tenantBranches = Branch::where('created_by', $creatorId)->where('is_active', true)->orderBy('name')->get();
             $posBranchRoleNames = PosRestaurantRoleService::posBranchRoleNames();
             $posBranchRoleIds = PosRestaurantRoleService::roleIdsRequiringPosBranch($creatorId);
+            $defaultWarehouseOptions = $this->defaultWarehouseOptionsForUser($user, $creatorId);
 
-            return view('user.edit', compact('user', 'roles', 'customFields', 'branches', 'posBranchRoleNames', 'tenantBranches', 'posBranchRoleIds'));
+            return view('user.edit', compact('user', 'roles', 'customFields', 'branches', 'posBranchRoleNames', 'tenantBranches', 'posBranchRoleIds', 'defaultWarehouseOptions'));
         } else {
             return redirect()->back();
         }
@@ -404,7 +454,11 @@ class UserController extends Controller
                 $companyId = (int) \Auth::user()->creatorId();
                 $input = $request->all();
                 $input['type'] = CompanyUserRoleService::userTypeFromRoleName($role->name);
-                unset($input['password'], $input['password_confirmation'], $input['password_switch']);
+                unset($input['password'], $input['password_confirmation'], $input['password_switch'], $input['default_warehouse_id'], $input['warehouse_id']);
+                $defaultWarehouseId = $this->resolveDefaultWarehouseId($request, $user, $companyId);
+                if ($defaultWarehouseId === false) {
+                    return redirect()->back()->with('error', __('Choose a default warehouse from the warehouses allocated to this user.'));
+                }
                 if ($redirect = PosRestaurantRoleService::applyPosBranchToUserInput($input, $request, $role, $companyId, (int) $user->id)) {
                     return $redirect;
                 }
@@ -413,7 +467,9 @@ class UserController extends Controller
                 }
                 $branchIdsForSync = PosRestaurantRoleService::branchIdsForSyncFromRequest($request);
 
-                $user->fill($input)->save();
+                $user->fill($input);
+                $user->warehouse_id = $defaultWarehouseId;
+                $user->save();
                 $existingCompanyIds = DB::table('company_user')->where('user_id', $user->id)->pluck('company_id')->map(fn ($cid) => (int) $cid)->all();
                 if (empty($existingCompanyIds)) {
                     $existingCompanyIds = [(int) \Auth::user()->creatorId()];

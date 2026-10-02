@@ -83,6 +83,14 @@ function getDatatableLabels() {
         : {};
 }
 
+$(document).on('click', '.ischeck', function () {
+    var ischeck = $(this).data('id');
+    if (!ischeck) {
+        return;
+    }
+    $('.isscheck_' + ischeck).prop('checked', this.checked);
+});
+
 $(document).ready(function () {
     if ($(".datatable").length > 0) {
         const dataTable =  new simpleDatatables.DataTable(".datatable", getDatatableLabels());
@@ -194,6 +202,13 @@ $(document).on('click', 'a[data-ajax-popup="true"], button[data-ajax-popup="true
             $("#commonModal").modal('show');
             taskCheckbox();
             common_bind("#commonModal");
+            if (document.querySelector('#commonModal #assigned_users')) {
+                new Choices('#assigned_users', {
+                    removeItemButton: true,
+                    shouldSort: false,
+                    searchResultLimit: 20,
+                });
+            }
             validation();
             commonLoader();
 

@@ -25,6 +25,7 @@ use App\Models\ProductVariant;
 use App\Models\PurchaseProduct;
 use App\Services\BatchLotDeductionService;
 use App\Services\PosFefoDeductionService;
+use App\Services\PosWarehouseAvailabilityService;
 use App\Services\PosPrintRoutingService;
 use App\Services\ProductOptionService;
 use App\Models\ProductOptionItem;
@@ -1647,7 +1648,18 @@ class ProductServiceController extends Controller
                     }
                     $warId = (int) ($request->war_id ?? 0);
                     $usesRestaurantWarehouse = $session_key === 'pos-restaurant' || $request->boolean('restaurant');
-                    if (($product->options_enabled ?? false) && $selectedOptions !== []) {
+                    if ($usesRestaurantWarehouse && $warId > 0) {
+                        $cartLineKey .= '_w_' . $warId;
+                    }
+                    if ($usesRestaurantWarehouse) {
+                        $productquantity = app(PosWarehouseAvailabilityService::class)->maxSellableQty(
+                            $product,
+                            $warId,
+                            $variantId,
+                            $selectedOptions,
+                            (int) Auth::user()->creatorId()
+                        );
+                    } elseif (($product->options_enabled ?? false) && $selectedOptions !== []) {
                         // Option qty is independent of parent qty: require absolute option stock only.
                         foreach ($selectedOptions as $optRow) {
                             $opt = ProductService::where('id', (int) $optRow['product_id'])->where('created_by', Auth::user()->creatorId())->first();
@@ -1858,6 +1870,10 @@ class ProductServiceController extends Controller
                 $printerName = e($product->posPrinter->name);
             }
             $identifierTracking = (bool) ($product->identifier_tracking ?? false);
+            $lineWarehouseId = (! empty($usesRestaurantWarehouse ?? null) && ! empty($warId ?? null)) ? (int) $warId : 0;
+            $lineWarehouseName = $lineWarehouseId > 0
+                ? (string) (\App\Models\warehouse::where('id', $lineWarehouseId)->value('name') ?? '')
+                : '';
             if ($isPosSession) {
                 if ($request->get('restaurant') || $session_key === 'pos-restaurant') {
                     $line = (object) [
@@ -1870,6 +1886,8 @@ class ProductServiceController extends Controller
                         'tax' => $producttax,
                         'price_type' => $priceType,
                         'unit_subtotal' => $unitSubtotal,
+                        'warehouse_id' => $lineWarehouseId > 0 ? $lineWarehouseId : null,
+                        'warehouse_name' => $lineWarehouseName,
                         'options_amount' => $optionsAmount,
                         'description' => '',
                         'is_sent' => false,
@@ -1970,6 +1988,8 @@ class ProductServiceController extends Controller
                 'print_zone' => $printZone,
                 'pos_printer_id' => $printerId ?: null,
                 'printer_name' => $printerName ? strip_tags(html_entity_decode($printerName)) : '',
+                'warehouse_id' => $lineWarehouseId > 0 ? $lineWarehouseId : null,
+                'warehouse_name' => $lineWarehouseName,
             ];
 
             // if cart is empty then this the first product
@@ -2210,10 +2230,22 @@ class ProductServiceController extends Controller
                 $variantLineId = $variantLineId > 0 ? $variantLineId : null;
                 $product = $productId > 0 ? ProductService::find($productId) : null;
                 $affectStock = $product ? (($product->type === 'kit') ? false : ($product->affect_stock ?? true)) : true;
-                $warehouseId = (int) ($request->war_id ?? 0);
+                $warehouseId = (int) ($line['warehouse_id'] ?? 0);
+                if ($warehouseId <= 0) {
+                    $warehouseId = (int) ($request->war_id ?? 0);
+                }
                 $creatorId = (int) Auth::user()->creatorId();
                 $usesRestaurantWarehouse = $session_key === 'pos-restaurant' || $request->boolean('restaurant');
-                if ($product && $affectStock && ($product->variants_enabled ?? false) && $variantLineId) {
+                $lineOptions = ProductOptionService::normalizeSelectedOptions($line['selected_options'] ?? $line['selected_options_json'] ?? null);
+                if ($usesRestaurantWarehouse && $product) {
+                    $maxQty = app(PosWarehouseAvailabilityService::class)->maxSellableQty(
+                        $product,
+                        $warehouseId,
+                        $variantLineId,
+                        $lineOptions,
+                        $creatorId
+                    );
+                } elseif ($product && $affectStock && ($product->variants_enabled ?? false) && $variantLineId) {
                     $maxQty = ($usesRestaurantWarehouse && $warehouseId <= 0)
                         ? 0
                         : (int) floor($product->variantStockInWarehouse($warehouseId, $variantLineId));

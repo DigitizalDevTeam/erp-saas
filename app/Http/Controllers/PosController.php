@@ -24,6 +24,7 @@ use App\Services\PosKitDeductionService;
 use App\Services\ProductOptionService;
 use App\Services\PosFefoDeductionService;
 use App\Services\PosRecipeDeductionService;
+use App\Services\PosWarehouseAvailabilityService;
 use App\Services\PosPrintRoutingService;
 use App\Services\PosPrinterAgentService;
 use App\Services\PosRestaurantRoleService;
@@ -173,6 +174,7 @@ class PosController extends Controller
             'product_tax' => $taxRate ? $taxRate . '%' : '-',
             'price_type' => 'exclusive',
             'product_variant_id' => $line->product_variant_id ? (int) $line->product_variant_id : null,
+            'warehouse_id' => ! empty($line->warehouse_id) ? (int) $line->warehouse_id : null,
             'selected_options' => $selectedOpts,
             'selected_options_json' => $line->selected_options_json ?? null,
         ]];
@@ -238,6 +240,7 @@ class PosController extends Controller
                 'product_tax' => $v['product_tax'] ?? ($taxRate ? $taxRate . '%' : '-'),
                 'price_type' => $priceType,
                 'product_variant_id' => isset($v['product_variant_id']) ? (int) $v['product_variant_id'] : null,
+                'warehouse_id' => ! empty($v['warehouse_id']) ? (int) $v['warehouse_id'] : null,
             ];
         }
     }
@@ -356,6 +359,59 @@ class PosController extends Controller
         }
 
         return [null, __('pos.variant_required_for_product', ['product' => $productName])];
+    }
+
+    /**
+     * Limit a warehouse query to warehouses allocated to the POS user.
+     * Company login keeps the full list.
+     */
+    protected function limitWarehousesToPosActor($query)
+    {
+        $actor = PosActorService::restaurantActor() ?? \Auth::user();
+        if (! $actor || $actor->type === 'company' || $actor->type === 'super admin') {
+            return $query;
+        }
+
+        $ids = $actor->assignedWarehouseIds();
+        if ($ids === []) {
+            $query->whereRaw('0 = 1');
+
+            return $query;
+        }
+
+        $query->whereIn('id', $ids);
+
+        return $query;
+    }
+
+    /**
+     * Warehouse used to deduct one POS line. Line warehouse wins; otherwise the order warehouse.
+     *
+     * @param  array<string, mixed>|object  $source
+     */
+    protected function posSaleLineWarehouseId($source, int $fallback): int
+    {
+        $raw = 0;
+        if (is_array($source)) {
+            $raw = (int) ($source['warehouse_id'] ?? 0);
+        } elseif (is_object($source)) {
+            $raw = (int) ($source->warehouse_id ?? 0);
+        }
+
+        return $raw > 0 ? $raw : $fallback;
+    }
+
+    /**
+     * Default warehouse for the PIN user, or the logged-in user when no PIN is active.
+     */
+    protected function posActorDefaultWarehouseId(): ?int
+    {
+        $actor = PosActorService::restaurantActor() ?? \Auth::user();
+        if (! $actor || ! method_exists($actor, 'defaultWarehouseId')) {
+            return null;
+        }
+
+        return $actor->defaultWarehouseId();
     }
 
     /**
@@ -1755,16 +1811,19 @@ class PosController extends Controller
             $positems->selected_options_json = ProductOptionService::encodeOptions(
                 ProductOptionService::normalizeSelectedOptions($value['selected_options'] ?? $value['selected_options_json'] ?? null)
             );
+            $storedLineWarehouse = $this->posSaleLineWarehouseId($value, 0);
+            $positems->warehouse_id = $storedLineWarehouse > 0 ? $storedLineWarehouse : null;
+            $lineWarehouseId = $storedLineWarehouse > 0 ? $storedLineWarehouse : (int) $warehouse_id;
             $positems->save();
             $idNote = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
             $deductByVariant = ($product->variants_enabled ?? false) && $product_variant_id;
-            if (ProductOptionService::tryDeductPosLine($product, $value, $warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
+            if (ProductOptionService::tryDeductPosLine($product, $value, $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
                 // options only
             } elseif (($product->type ?? null) === 'kit') {
                 PosKitDeductionService::deductForSale(
                     (int) $product_id,
                     (float) $value['quantity'],
-                    $warehouse_id,
+                    $lineWarehouseId,
                     $user_id,
                     \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                     (int) $pos->id
@@ -1773,19 +1832,19 @@ class PosController extends Controller
                 PosRecipeDeductionService::deductForSale(
                     (int) $product_id,
                     (float) $value['quantity'],
-                    $warehouse_id,
+                    $lineWarehouseId,
                     $user_id,
                     \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                     (int) $pos->id,
                     $idNote,
                     $product_variant_id
                 );
-            } elseif (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $warehouse_id, (int) $user_id)) {
+            } elseif (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $lineWarehouseId, (int) $user_id)) {
                 // Auto FEFO when batch tracking enabled or lots exist
                 PosFefoDeductionService::deductForSale(
                     (int) $product_id,
                     (float) $value['quantity'],
-                    $warehouse_id,
+                    $lineWarehouseId,
                     $user_id,
                     \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                     (int) $pos->id,
@@ -1795,7 +1854,7 @@ class PosController extends Controller
                 PosRecipeDeductionService::deductForSale(
                     (int) $product_id,
                     (float) $value['quantity'],
-                    $warehouse_id,
+                    $lineWarehouseId,
                     $user_id,
                     \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                     (int) $pos->id,
@@ -2155,17 +2214,18 @@ class PosController extends Controller
                                 ], 400);
                             }
                         }
+                        $lineWarehouseId = $this->posSaleLineWarehouseId($line, (int) $pos->warehouse_id);
                         if (ProductOptionService::tryDeductPosLine($lineProduct, [
                             'quantity' => $line->quantity,
                             'selected_options' => $lineSelectedOpts,
                             'selected_options_json' => $line->selected_options_json,
-                        ], (int) $pos->warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
+                        ], $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
                             // options only
                         } elseif (($lineProduct->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
                                 (int) $line->product_id,
                                 (float) $line->quantity,
-                                (int) $pos->warehouse_id,
+                                $lineWarehouseId,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id
@@ -2174,18 +2234,18 @@ class PosController extends Controller
                             PosRecipeDeductionService::deductForSale(
                                 (int) $line->product_id,
                                 (float) $line->quantity,
-                                (int) $pos->warehouse_id,
+                                $lineWarehouseId,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
                                 $lineIdNote,
                                 $lineVariantId
                             );
-                        } elseif (($lineProduct->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $line->product_id, (int) $pos->warehouse_id, (int) $user_id)) {
+                        } elseif (($lineProduct->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $line->product_id, $lineWarehouseId, (int) $user_id)) {
                             PosFefoDeductionService::deductForSale(
                                 (int) $line->product_id,
                                 (float) $line->quantity,
-                                (int) $pos->warehouse_id,
+                                $lineWarehouseId,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
@@ -2195,7 +2255,7 @@ class PosController extends Controller
                             PosRecipeDeductionService::deductForSale(
                                 (int) $line->product_id,
                                 (float) $line->quantity,
-                                (int) $pos->warehouse_id,
+                                $lineWarehouseId,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
@@ -2368,16 +2428,19 @@ class PosController extends Controller
                         $positems->selected_options_json = ProductOptionService::encodeOptions(
                             ProductOptionService::normalizeSelectedOptions($value['selected_options'] ?? $value['selected_options_json'] ?? null)
                         );
+                        $storedLineWarehouse = $this->posSaleLineWarehouseId($value, 0);
+                        $positems->warehouse_id = $storedLineWarehouse > 0 ? $storedLineWarehouse : null;
+                        $lineWarehouseId = $storedLineWarehouse > 0 ? $storedLineWarehouse : (int) $warehouse_id;
                         $positems->save();
                         $idNote2 = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
                         $deductByVariant2 = ($product->variants_enabled ?? false) && $product_variant_id;
-                        if (ProductOptionService::tryDeductPosLine($product, $value, $warehouse_id, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
+                        if (ProductOptionService::tryDeductPosLine($product, $value, $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
                             // options only
                         } elseif (($product->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
                                 (int) $product_id,
                                 (float) $value['quantity'],
-                                $warehouse_id,
+                                $lineWarehouseId,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id
@@ -2386,18 +2449,18 @@ class PosController extends Controller
                             PosRecipeDeductionService::deductForSale(
                                 (int) $product_id,
                                 (float) $value['quantity'],
-                                $warehouse_id,
+                                $lineWarehouseId,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
                                 $idNote2,
                                 $product_variant_id
                             );
-                        } elseif (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $warehouse_id, (int) $user_id)) {
+                        } elseif (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $lineWarehouseId, (int) $user_id)) {
                             PosFefoDeductionService::deductForSale(
                                 (int) $product_id,
                                 (float) $value['quantity'],
-                                $warehouse_id,
+                                $lineWarehouseId,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
@@ -2407,7 +2470,7 @@ class PosController extends Controller
                             PosRecipeDeductionService::deductForSale(
                                 (int) $product_id,
                                 (float) $value['quantity'],
-                                $warehouse_id,
+                                $lineWarehouseId,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
@@ -2856,11 +2919,103 @@ class PosController extends Controller
             $warehouses->where('branch_id', $branchId);
         }
 
+        $this->limitWarehousesToPosActor($warehouses);
+
         $list = $warehouses->orderBy('name')->get()->pluck('name', 'id')->toArray();
+        if ($defaultWarehouseId && ! array_key_exists((int) $defaultWarehouseId, $list) && ! array_key_exists((string) $defaultWarehouseId, $list)) {
+            $defaultWarehouseId = null;
+        }
+        $userDefaultId = $this->posActorDefaultWarehouseId();
+        if ($userDefaultId && (array_key_exists($userDefaultId, $list) || array_key_exists((string) $userDefaultId, $list))) {
+            $defaultWarehouseId = $userDefaultId;
+        }
 
         return response()->json([
             'warehouses' => $list,
             'default_warehouse_id' => $defaultWarehouseId,
+        ]);
+    }
+
+    /**
+     * Allocated warehouses for a restaurant add, with stock coverage and a recommended id.
+     * Prefers the user's default warehouse when it can cover the line, then the dropdown warehouse.
+     */
+    public function restaurantWarehousesForProduct(Request $request)
+    {
+        if (! \Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $branchId = (int) $request->get('branch_id');
+        $productId = (int) $request->get('product_id');
+        $qty = max(1, (float) $request->get('quantity', 1));
+        $variantId = (int) $request->get('product_variant_id');
+        $variantId = $variantId > 0 ? $variantId : null;
+        $currentId = (int) $request->get('current_warehouse_id');
+        $selected = ProductOptionService::normalizeSelectedOptions(
+            $request->input('selected_options', $request->input('selected_options_json', []))
+        );
+        $creatorId = (int) \Auth::user()->creatorId();
+
+        $query = warehouse::where('created_by', $creatorId);
+        if ($branchId > 0) {
+            $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->where('is_active', true)->first();
+            if ($branch) {
+                $mode = $branch->isRestaurant() ? 'restaurant' : 'retail';
+                $actor = $this->restaurantBranchScopeUser();
+                if (! $actor->canAccessBranchForPos($branchId, $mode)) {
+                    return response()->json([
+                        'warehouses' => [],
+                        'sufficient' => false,
+                        'recommended_id' => null,
+                    ]);
+                }
+            }
+            $query->where('branch_id', $branchId);
+        }
+        $this->limitWarehousesToPosActor($query);
+
+        $product = ProductService::where('id', $productId)->where('created_by', $creatorId)->first();
+        $availability = app(PosWarehouseAvailabilityService::class);
+        $rows = [];
+        $recommended = null;
+        $currentOk = false;
+        foreach ($query->orderBy('name')->get(['id', 'name']) as $warehouse) {
+            $ok = $product
+                ? $availability->maxSellableQty($product, (int) $warehouse->id, $variantId, $selected, $creatorId) >= $qty
+                : false;
+            $rows[] = [
+                'id' => (int) $warehouse->id,
+                'name' => $warehouse->name,
+                'sufficient' => $ok,
+            ];
+            if ($ok && (int) $warehouse->id === $currentId) {
+                $currentOk = true;
+            }
+            if ($ok && $recommended === null) {
+                $recommended = (int) $warehouse->id;
+            }
+        }
+        $defaultId = $this->posActorDefaultWarehouseId();
+        $defaultOk = false;
+        if ($defaultId) {
+            foreach ($rows as $row) {
+                if ((int) $row['id'] === $defaultId && $row['sufficient']) {
+                    $defaultOk = true;
+                    break;
+                }
+            }
+        }
+        if ($defaultOk) {
+            $recommended = $defaultId;
+        } elseif ($currentOk) {
+            $recommended = $currentId;
+        }
+
+        return response()->json([
+            'warehouses' => $rows,
+            'sufficient' => $recommended !== null,
+            'recommended_id' => $recommended,
         ]);
     }
 
@@ -3003,6 +3158,7 @@ class PosController extends Controller
                     'selected_options' => ! empty($line->selected_options_json)
                         ? ProductOptionService::normalizeSelectedOptions($line->selected_options_json)
                         : [],
+                    'warehouse_id' => ! empty($line->warehouse_id) ? (int) $line->warehouse_id : null,
                 ];
             }
         }
@@ -3068,6 +3224,32 @@ class PosController extends Controller
                 $item['unit_subtotal'] = $unitSub;
             }
             $item['subtotal'] = round($unitSub * max(0, $qty), 2);
+        }
+        unset($item);
+        $warehouseIds = [];
+        foreach ($orderLines as $line) {
+            if (! empty($line['warehouse_id'])) {
+                $warehouseIds[] = (int) $line['warehouse_id'];
+            }
+        }
+        foreach ($sessionItems as $item) {
+            if (! empty($item['warehouse_id'])) {
+                $warehouseIds[] = (int) $item['warehouse_id'];
+            }
+        }
+        $warehouseNames = $warehouseIds
+            ? warehouse::whereIn('id', array_unique($warehouseIds))->pluck('name', 'id')
+            : collect();
+        foreach ($orderLines as &$line) {
+            $wid = (int) ($line['warehouse_id'] ?? 0);
+            $line['warehouse_name'] = $wid > 0 ? (string) ($warehouseNames[$wid] ?? '') : '';
+        }
+        unset($line);
+        foreach ($sessionItems as &$item) {
+            $wid = (int) ($item['warehouse_id'] ?? 0);
+            if ($wid > 0 && empty($item['warehouse_name'])) {
+                $item['warehouse_name'] = (string) ($warehouseNames[$wid] ?? '');
+            }
         }
         unset($item);
         $sessionItems = array_values($sessionItems);
@@ -3379,6 +3561,7 @@ class PosController extends Controller
                 'prep_minutes' => $linePrep,
                 'print_zone' => $printZone,
                 'pos_printer_id' => $resolvedPrinterId,
+                'warehouse_id' => ! empty($item['warehouse_id']) ? (int) $item['warehouse_id'] : null,
             ]);
             // Keep $selectedOpts for kitchen slip details (already resolved above).
             $details = PosPrinterAgentService::buildLineProductDetails(
@@ -5142,7 +5325,9 @@ class PosController extends Controller
         $posBranchLocked = $branchScopeUser->hasPosBranchRestriction() && count($restaurantBranchIds) === 1;
         $branches = Branch::whereIn('id', $restaurantBranchIds)->orderBy('name')->pluck('name', 'id');
         $warehouses = warehouse::with('branch')->where('created_by', $creatorId)
-            ->whereIn('branch_id', $restaurantBranchIds)->get()->pluck('name', 'id');
+            ->whereIn('branch_id', $restaurantBranchIds);
+        $this->limitWarehousesToPosActor($warehouses);
+        $warehouses = $warehouses->get()->pluck('name', 'id');
         $posBranchAssignmentWarning = null;
         if ($restaurantBranchIds === [] && $branchScopeUser->pos_branch_id) {
             $assigned = Branch::where('id', $branchScopeUser->pos_branch_id)
@@ -5179,7 +5364,10 @@ class PosController extends Controller
             $warehouseId = '';
         }
         $canChangeShift = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
-        $canChangePosPrintSettings = $user->canChangePosPrintSettings();
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        $loggedInUser = \Auth::user();
+        $canChangePosPrintSettings = $user->canChangePosPrintSettings()
+            || ($loggedInUser && $loggedInUser->canChangePosPrintSettings());
         $userOpenShifts = \App\Models\PosShift::where('user_id', $user->id)
             ->where('status', \App\Models\PosShift::STATUS_OPEN)
             ->where('created_by', $creatorId)

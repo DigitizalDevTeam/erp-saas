@@ -30,8 +30,12 @@
         </div>
         <div class="form-group col-md-12">
             {{ Form::label('assigned_users', __('Allocate Users'), ['class' => 'form-label']) }}
-            {{ Form::select('assigned_users[]', $users ?? collect(), $assignedUsers ?? [], ['class' => 'form-control select', 'multiple' => true]) }}
-            <small class="text-muted">{{ __('Users allocated here will be limited to this warehouse in inventory actions.') }}</small>
+            <select name="assigned_users[]" id="assigned_users" class="form-control" multiple>
+                @foreach (($users ?? collect()) as $userId => $userName)
+                    <option value="{{ $userId }}" @selected(in_array((int) $userId, array_map('intval', $assignedUsers ?? []), true))>{{ $userName }}</option>
+                @endforeach
+            </select>
+            <small class="text-muted">{{ __('Users allocated here will be limited to this warehouse in inventory actions. A user can be allocated to more than one warehouse.') }}</small>
         </div>
         <div class="form-group col-md-12">
             {{Form::label('address',__('Address'),array('class'=>'form-label')) }}<x-required></x-required>

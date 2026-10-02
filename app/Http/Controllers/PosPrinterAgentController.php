@@ -93,8 +93,11 @@ class PosPrinterAgentController extends Controller
 
     public function savePrintConfig(Request $request)
     {
-        $actor = PosActorService::restaurantActor() ?? Auth::user();
-        if (! $actor || ! $actor->canChangePosPrintSettings()) {
+        $actor = PosActorService::restaurantActor();
+        $loggedInUser = Auth::user();
+        $canChangePrintSettings = ($actor && $actor->canChangePosPrintSettings())
+            || ($loggedInUser && $loggedInUser->canChangePosPrintSettings());
+        if (! $canChangePrintSettings) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
 

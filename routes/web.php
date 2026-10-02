@@ -2384,6 +2384,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('print/pos', [PosController::class, 'printBarcode'])->name('pos.print')->middleware(['auth', 'XSS']);
     Route::post('pos/getproduct', [PosController::class, 'getproduct'])->name('pos.getproduct')->middleware(['auth', 'XSS']);
     Route::get('pos/warehouses-by-branch', [PosController::class, 'getWarehousesByBranch'])->name('pos.warehouses.by.branch')->middleware(['auth', 'XSS']);
+    Route::get('pos/restaurant/warehouses-for-product', [PosController::class, 'restaurantWarehousesForProduct'])->name('pos.restaurant.warehouses.for.product')->middleware(['auth', 'XSS']);
     Route::any('pos-receipt', [PosController::class, 'receipt'])->name('pos.receipt')->middleware(['auth', 'XSS']);
     Route::post('/cartdiscount', [PosController::class, 'cartdiscount'])->name('cartdiscount')->middleware(['auth', 'XSS']);
 

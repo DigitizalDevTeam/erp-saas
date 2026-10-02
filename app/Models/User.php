@@ -467,6 +467,46 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsTo(warehouse::class, 'warehouse_id');
     }
 
+    public function warehouses()
+    {
+        return $this->belongsToMany(warehouse::class, 'warehouse_user', 'user_id', 'warehouse_id')->withTimestamps();
+    }
+
+    /**
+     * Warehouses this user is allocated to. Falls back to the single warehouse_id column.
+     *
+     * @return int[]
+     */
+    public function assignedWarehouseIds(): array
+    {
+        $ids = $this->warehouses()->pluck('warehouses.id')->map(fn ($id) => (int) $id)->all();
+        if ($ids === [] && ! empty($this->warehouse_id)) {
+            return [(int) $this->warehouse_id];
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Warehouse selected by default on POS. Must be one of the user's allocated warehouses.
+     */
+    public function defaultWarehouseId(): ?int
+    {
+        $id = (int) ($this->warehouse_id ?? 0);
+        if ($id <= 0) {
+            return null;
+        }
+        if ($this->type === 'company' || $this->type === 'super admin') {
+            return $id;
+        }
+        $assigned = $this->assignedWarehouseIds();
+        if ($assigned !== [] && ! in_array($id, $assigned, true)) {
+            return null;
+        }
+
+        return $id;
+    }
+
     public function ownerId()
     {
         if ($this->type == 'super admin') {

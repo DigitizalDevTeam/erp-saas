@@ -59,12 +59,16 @@
     data-print-zone="{{ $line->print_zone ?? '' }}"
     data-printer-id="{{ $line->pos_printer_id ?? '' }}"
     data-printer-name="{{ $line->printer_name ?? '' }}"
+    data-warehouse-id="{{ (int) ($line->warehouse_id ?? 0) }}"
     data-selected-options="{{ e($selectedOptionsJson) }}">
     <td class="pos-cart-line-cell p-0 border-0">
         <div class="pos-cart-line">
             <div class="pos-cart-line__row">
                 <div class="pos-cart-line__main min-w-0">
                     <span class="pos-cart-line__name name" title="{{ $lineName }}">{{ $lineName }}</span>
+                    @if(! empty($line->warehouse_name))
+                        <span class="pos-cart-line__warehouse text-muted small d-block">{{ $line->warehouse_name }}</span>
+                    @endif
                     <span class="pos-cart-line__badge badge pos-line-status">{{ $statusText }}</span>
                 </div>
 

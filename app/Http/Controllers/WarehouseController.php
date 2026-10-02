@@ -75,12 +75,7 @@ class WarehouseController extends Controller
             $warehouse->city_zip   = $request->city_zip;
             $warehouse->created_by = \Auth::user()->creatorId();
             $warehouse->save();
-
-            if (is_array($request->assigned_users ?? null)) {
-                User::where('created_by', \Auth::user()->creatorId())
-                    ->whereIn('id', $request->assigned_users)
-                    ->update(['warehouse_id' => $warehouse->id]);
-            }
+            $this->syncAssignedUsers($warehouse, $request->input('assigned_users', []));
 
             return redirect()->route('warehouse.index')->with('success', __('Warehouse successfully created.'));
         }
@@ -98,7 +93,7 @@ class WarehouseController extends Controller
      */
     public function show(warehouse $warehouse)
     {
-        if (\Auth::user()->type !== 'company' && !empty(\Auth::user()->warehouse_id) && (int) \Auth::user()->warehouse_id !== (int) $warehouse->id) {
+        if (\Auth::user()->type !== 'company' && ($allowed = \Auth::user()->assignedWarehouseIds()) !== [] && ! in_array((int) $warehouse->id, $allowed, true)) {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
@@ -111,6 +106,8 @@ class WarehouseController extends Controller
             $assignedUsers = User::where('warehouse_id', $warehouse->id)
                 ->where('created_by', \Auth::user()->creatorId())
                 ->get();
+            $pivotUsers = $warehouse->assignedUsers()->where('users.created_by', \Auth::user()->creatorId())->get();
+            $assignedUsers = $pivotUsers->merge($assignedUsers)->unique('id')->values();
             $documents = WarehouseDocument::where('warehouse_id', $warehouse->id)
                 ->where('created_by', \Auth::user()->creatorId())
                 ->latest()
@@ -134,7 +131,9 @@ class WarehouseController extends Controller
         $users = User::where('created_by', \Auth::user()->creatorId())
             ->where('type', '!=', 'company')
             ->pluck('name', 'id');
-        $assignedUsers = User::where('warehouse_id', $warehouse->id)->pluck('id')->all();
+        $assignedUsers = $warehouse->assignedUsers()->pluck('users.id')->map(fn ($id) => (int) $id)->all();
+        $legacyAssigned = User::where('warehouse_id', $warehouse->id)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $assignedUsers = array_values(array_unique(array_merge($assignedUsers, $legacyAssigned)));
         if(\Auth::user()->can('edit warehouse'))
         {
             if($warehouse->created_by == \Auth::user()->creatorId())
@@ -184,15 +183,7 @@ class WarehouseController extends Controller
                 $warehouse->city       = $request->city;
                 $warehouse->city_zip   = $request->city_zip;
                 $warehouse->save();
-
-                User::where('created_by', \Auth::user()->creatorId())
-                    ->where('warehouse_id', $warehouse->id)
-                    ->update(['warehouse_id' => null]);
-                if (is_array($request->assigned_users ?? null)) {
-                    User::where('created_by', \Auth::user()->creatorId())
-                        ->whereIn('id', $request->assigned_users)
-                        ->update(['warehouse_id' => $warehouse->id]);
-                }
+                $this->syncAssignedUsers($warehouse, $request->input('assigned_users', []));
 
                 return redirect()->route('warehouse.index')->with('success', __('Warehouse successfully updated.'));
             }
@@ -275,5 +266,42 @@ class WarehouseController extends Controller
         \Storage::delete('uploads/warehouse_documents/' . $doc->file_path);
         $doc->delete();
         return redirect()->back()->with('success', __('Warehouse document deleted successfully.'));
+    }
+
+    /**
+     * Save users allocated to this warehouse without removing their other warehouses.
+     *
+     * @param  mixed  $assignedUserIds
+     */
+    protected function syncAssignedUsers(warehouse $warehouse, $assignedUserIds): void
+    {
+        $creatorId = (int) \Auth::user()->creatorId();
+        $ids = is_array($assignedUserIds) ? $assignedUserIds : [$assignedUserIds];
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+
+        $validIds = $ids === []
+            ? []
+            : User::where('created_by', $creatorId)
+                ->where('type', '!=', 'company')
+                ->whereIn('id', $ids)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+        $warehouse->assignedUsers()->sync($validIds);
+
+        User::where('created_by', $creatorId)
+            ->where('warehouse_id', $warehouse->id)
+            ->when($validIds !== [], fn ($q) => $q->whereNotIn('id', $validIds))
+            ->update(['warehouse_id' => null]);
+
+        if ($validIds !== []) {
+            User::where('created_by', $creatorId)
+                ->whereIn('id', $validIds)
+                ->where(function ($q) {
+                    $q->whereNull('warehouse_id')->orWhere('warehouse_id', 0);
+                })
+                ->update(['warehouse_id' => $warehouse->id]);
+        }
     }
 }

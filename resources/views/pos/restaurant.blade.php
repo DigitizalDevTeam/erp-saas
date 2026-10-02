@@ -742,7 +742,7 @@
                     {{ __('Select Kitchen and Bar printers discovered by the printer agent on this branch.') }}
                 </p>
                 @unless($canChangePosPrintSettings ?? false)
-                    <p class="text-muted small mb-3">{{ __('View only. Your role cannot change printer settings.') }}</p>
+                    <p class="text-muted small mb-3">{{ __('View only for :name. Change POS print settings is not on this user\'s role.', ['name' => $posPinUser->name ?? __('this user')]) }}</p>
                 @endunless
                 <div class="mb-3">
                     <label class="form-label" for="pos-kitchen-printer-select">{{ __('Kitchen Printer') }}</label>

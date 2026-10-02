@@ -52,6 +52,22 @@
                 <small class="invalid-feedback d-block"><strong class="text-danger">{{ $message }}</strong></small>
                 @enderror
             </div>
+            <div class="form-group col-md-6">
+                {{ Form::label('default_warehouse_id', __('Default Warehouse'), ['class' => 'form-label']) }}
+                <select name="default_warehouse_id" id="default_warehouse_id" class="form-control">
+                    <option value="">{{ __('None') }}</option>
+                    @foreach(($defaultWarehouseOptions ?? []) as $warehouseId => $warehouseLabel)
+                        <option value="{{ $warehouseId }}" {{ (int) ($user->warehouse_id ?? 0) === (int) $warehouseId ? 'selected' : '' }}>{{ $warehouseLabel }}</option>
+                    @endforeach
+                </select>
+                <small class="text-muted">
+                    @if(empty($defaultWarehouseOptions))
+                        {{ __('Allocate this user to a warehouse first, then choose their default here.') }}
+                    @else
+                        {{ __('Selected automatically when this user opens the POS. They can still switch to their other allocated warehouses.') }}
+                    @endif
+                </small>
+            </div>
             @if(!empty($tenantBranches) && $tenantBranches->count())
             <div class="form-group col-12">
                 <label class="form-label">{{ __('Allowed branches') }}</label>
