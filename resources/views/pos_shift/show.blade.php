@@ -15,6 +15,10 @@
             <a href="{{ route('pos-shift.assign-table', $pos_shift) }}" class="btn btn-sm btn-warning">{{ __('Assign Tables') }}</a>
             <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#transferTablesModal">{{ __('pos.transfer_tables') }}</button>
             <a href="{{ route('pos-shift.close-form', $pos_shift) }}" class="btn btn-sm btn-danger">{{ __('Close Shift') }}</a>
+        @else
+            {{ Form::open(['route' => ['pos-shift.send-email', $pos_shift], 'method' => 'post', 'class' => 'd-inline']) }}
+                <button type="submit" class="btn btn-sm btn-primary">{{ __('Send Email') }}</button>
+            {{ Form::close() }}
         @endif
         <a href="{{ route('pos-shift.index') }}" class="btn btn-sm btn-secondary">{{ __('Back') }}</a>
     @endif

@@ -76,6 +76,12 @@
                                                     <div class="action-btn">
                                                         <a href="{{ route('pos-shift.close-form', $shift) }}" class="mx-3 btn btn-sm align-items-center bg-danger" data-bs-toggle="tooltip" title="{{ __('Close Shift') }}"><i class="ti ti-lock text-white"></i></a>
                                                     </div>
+                                                @else
+                                                    <div class="action-btn">
+                                                        {{ Form::open(['route' => ['pos-shift.send-email', $shift], 'method' => 'post', 'class' => 'd-inline']) }}
+                                                            <button type="submit" class="mx-3 btn btn-sm align-items-center bg-primary border-0" data-bs-toggle="tooltip" title="{{ __('Send Email') }}"><i class="ti ti-mail text-white"></i></button>
+                                                        {{ Form::close() }}
+                                                    </div>
                                                 @endif
                                             @endif
                                         </td>

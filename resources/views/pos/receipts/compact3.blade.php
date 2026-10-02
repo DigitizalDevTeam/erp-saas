@@ -126,7 +126,9 @@
     color: #111;
 }
 .mz-l3 table.items th.qty,
-.mz-l3 table.items td.qty { width: 10mm; text-align: center !important; }
+.mz-l3 table.items td.qty { width: 8mm; text-align: center !important; }
+.mz-l3 table.items th.vat,
+.mz-l3 table.items td.vat { width: 12mm; text-align: right !important; white-space: nowrap; }
 .mz-l3 table.items th.price,
 .mz-l3 table.items td.price { width: 18mm; text-align: right !important; white-space: nowrap; }
 .mz-l3 table.items th.total,
@@ -214,6 +216,7 @@
                 <tr>
                     <th>{{ __('Description') }}</th>
                     <th class="qty">{{ __('Qty') }}</th>
+                    <th class="vat">{{ __('VAT') }}</th>
                     <th class="price">{{ __('Price') }}</th>
                     <th class="total">{{ __('Total') }}</th>
                 </tr>
@@ -223,14 +226,12 @@
                     <tr>
                         <td>
                             {{ $value['name'] ?? '' }}
-                            @if(!empty($value['tax']))
-                            <span class="item-detail">{{ __('VAT') }} {{ $value['tax'] }}</span>
-                            @endif
                             @if(!empty($value['description']))
                             <span class="item-detail item-note"><strong>{{ __('Note') }}:</strong> {{ $value['description'] }}</span>
                             @endif
                         </td>
                         <td class="qty">{{ $value['quantity'] ?? '' }}</td>
+                        <td class="vat">{{ \Illuminate\Support\Str::endsWith((string) ($value['tax'] ?? ''), '%') ? ($value['tax'] ?: '0%') : (($value['tax'] ?? '0') . '%') }}</td>
                         <td class="price">{{ $value['price'] ?? '' }}</td>
                         <td class="total">{{ $value['subtotal'] ?? '' }}</td>
                     </tr>

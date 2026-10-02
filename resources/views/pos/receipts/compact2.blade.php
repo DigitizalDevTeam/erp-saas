@@ -61,7 +61,7 @@
                     <th style="width:12%;">{{ __('SKU') }}</th>
                     <th style="width:34%;text-align:left;">{{ __('Description') }}</th>
                     <th class="num" style="width:8%;">{{ __('Qty') }}</th>
-                    <th class="num" style="width:10%;">{{ __('VAT') }}%</th>
+                    <th class="num" style="width:10%;">{{ __('VAT') }}</th>
                     <th class="num" style="width:12%;">{{ __('Price') }}</th>
                     <th class="num" style="width:10%;">{{ __('Discount') }}</th>
                     <th class="num" style="width:14%;">{{ __('Total') }}</th>
@@ -76,7 +76,7 @@
                             @if(!empty($value['description']))<div class="small item-note"><strong>{{ __('Note') }}:</strong> {{ $value['description'] }}</div>@endif
                         </td>
                         <td class="num">{{ $value['quantity'] ?? '' }}</td>
-                        <td class="num">{{ preg_replace('/[^0-9.]/', '', (string)($value['tax'] ?? '0')) }}</td>
+                        <td class="num">{{ \Illuminate\Support\Str::endsWith((string) ($value['tax'] ?? ''), '%') ? ($value['tax'] ?: '0%') : (($value['tax'] ?? '0') . '%') }}</td>
                         <td class="num">{{ $value['price'] ?? '' }}</td>
                         <td class="num">-</td>
                         <td class="num">{{ $value['subtotal'] ?? '' }}</td>

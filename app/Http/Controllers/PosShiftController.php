@@ -460,10 +460,8 @@ class PosShiftController extends Controller
         $pos_shift->save();
         PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
         $this->releaseShiftTables($pos_shift);
-        $this->sendShiftClosedEmailToManagers($pos_shift, (float) $expectedCash);
-        PosEodReportAlerts::sendOnShiftClose($pos_shift);
 
-        return redirect()->route('pos-shift.index')->with('success', __('Shift closed successfully.'));
+        return redirect()->route('pos-shift.show', $pos_shift)->with('success', __('Shift closed successfully.'));
     }
 
     /**
@@ -482,7 +480,6 @@ class PosShiftController extends Controller
             ->where('status', PosShift::STATUS_OPEN)
             ->get();
 
-        $closedRestaurantShift = null;
         foreach ($openShifts as $pos_shift) {
             $posIds = Pos::where('shift_id', $pos_shift->id)->pluck('id');
             $salesTotal = PosPayment::whereIn('pos_id', $posIds)->sum('amount');
@@ -513,16 +510,6 @@ class PosShiftController extends Controller
             $pos_shift->save();
             PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed (EOD)'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
             $this->releaseShiftTables($pos_shift);
-            $this->sendShiftClosedEmailToManagers($pos_shift, (float) $expectedCash);
-
-            $pos_shift->loadMissing('branch');
-            if ($pos_shift->branch && $pos_shift->branch->isRestaurant() && $closedRestaurantShift === null) {
-                $closedRestaurantShift = $pos_shift;
-            }
-        }
-
-        if ($closedRestaurantShift) {
-            PosEodReportAlerts::sendForDate((int) $creatorId, $date, $closedRestaurantShift);
         }
 
         return redirect()->route('report.pos.eod', ['date' => $date])->with('success', __('All open shifts have been closed.'));
@@ -629,6 +616,27 @@ class PosShiftController extends Controller
                     'customer_name' => null,
                 ]);
         }
+    }
+
+    /**
+     * Send the shift-closed and end-of-day emails after the shift is already closed.
+     */
+    public function sendClosedEmail(PosShift $pos_shift)
+    {
+        if (! \Auth::user()->canManagePos() || $pos_shift->created_by != \Auth::user()->creatorId()) {
+            return redirect()->route('pos-shift.index')->with('error', __('Permission denied.'));
+        }
+
+        if ($pos_shift->status !== PosShift::STATUS_CLOSED) {
+            return redirect()->route('pos-shift.show', $pos_shift)->with('error', __('Close the shift before sending the email.'));
+        }
+
+        $metrics = app(PosShiftReportService::class)->buildShiftMetrics($pos_shift, \Auth::user()->creatorId());
+        $expectedCash = (float) ($metrics['expectedCash'] ?? 0);
+        $this->sendShiftClosedEmailToManagers($pos_shift, $expectedCash);
+        PosEodReportAlerts::sendOnShiftClose($pos_shift);
+
+        return redirect()->route('pos-shift.show', $pos_shift)->with('success', __('Shift email sent.'));
     }
 
     /**

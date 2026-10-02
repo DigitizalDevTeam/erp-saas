@@ -44,9 +44,10 @@
 }
 .mz-talao-uthara td{padding:1.4mm .3mm;vertical-align:top;font-size:10px;overflow-wrap:anywhere}
 .mz-talao-uthara .col-desc{width:auto}
-.mz-talao-uthara .qty{width:9mm;text-align:center}
-.mz-talao-uthara .price{width:17mm;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-.mz-talao-uthara .total{width:18mm;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mz-talao-uthara .qty{width:8mm;text-align:center}
+.mz-talao-uthara .vat{width:11mm;text-align:right;white-space:nowrap}
+.mz-talao-uthara .price{width:15mm;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mz-talao-uthara .total{width:16mm;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .mz-talao-uthara .item-detail{display:block;font-size:8px;color:#444;margin-top:.5mm;font-weight:400}
 .mz-talao-uthara .totals{width:100%;margin-top:1mm}
 .mz-talao-uthara .totals .grand{
@@ -139,6 +140,7 @@
             <tr>
                 <th class="col-desc">{{ __('Description') }}</th>
                 <th class="qty">{{ __('Qty') }}</th>
+                <th class="vat">{{ __('VAT') }}</th>
                 <th class="price">{{ __('Price') }}</th>
                 <th class="total">{{ __('Total') }}</th>
             </tr>
@@ -148,14 +150,12 @@
             <tr>
                 <td class="col-desc">
                     <span class="bold">{{ $value['name'] ?? '' }}</span>
-                    @if(!empty($value['tax']))
-                    <span class="item-detail">{{ __('VAT') }} {{ $value['tax'] }}</span>
-                    @endif
                     @if(!empty($value['description']))
                     <span class="item-detail item-note"><strong>{{ __('Note') }}:</strong> {{ $value['description'] }}</span>
                     @endif
                 </td>
                 <td class="qty">{{ $value['quantity'] ?? '' }}</td>
+                <td class="vat">{{ \Illuminate\Support\Str::endsWith((string) ($value['tax'] ?? ''), '%') ? ($value['tax'] ?: '0%') : (($value['tax'] ?? '0') . '%') }}</td>
                 <td class="price">{{ $value['price'] ?? '' }}</td>
                 <td class="total">{{ $value['subtotal'] ?? '' }}</td>
             </tr>

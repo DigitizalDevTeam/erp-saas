@@ -60,10 +60,11 @@
             <table class="pos-compact-table">
                 <thead>
                 <tr>
-                    <th style="width:40%;text-align:left;">{{ __('Product') }}</th>
-                    <th class="num" style="width:22%;">{{ __('Price') }}</th>
-                    <th class="num" style="width:16%;">{{ __('Qty') }}</th>
-                    <th class="num" style="width:22%;">{{ __('Total') }}</th>
+                    <th style="width:34%;text-align:left;">{{ __('Product') }}</th>
+                    <th class="num" style="width:18%;">{{ __('Price') }}</th>
+                    <th class="num" style="width:14%;">{{ __('Qty') }}</th>
+                    <th class="num" style="width:14%;">{{ __('VAT') }}</th>
+                    <th class="num" style="width:20%;">{{ __('Total') }}</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -71,11 +72,11 @@
                     <tr>
                         <td>
                             <strong>{{ $value['name'] ?? '' }}</strong>
-                            @if(!empty($value['tax']))<div class="small">{{ __('VAT') }} {{ $value['tax'] }}</div>@endif
                             @if(!empty($value['description']))<div class="small item-note"><strong>{{ __('Note') }}:</strong> {{ $value['description'] }}</div>@endif
                         </td>
                         <td class="num">{{ $value['price'] ?? '' }}</td>
                         <td class="num">{{ $value['quantity'] ?? '' }}</td>
+                        <td class="num">{{ \Illuminate\Support\Str::endsWith((string) ($value['tax'] ?? ''), '%') ? ($value['tax'] ?: '0%') : (($value['tax'] ?? '0') . '%') }}</td>
                         <td class="num">{{ $value['subtotal'] ?? '' }}</td>
                     </tr>
                 @endforeach

@@ -2417,6 +2417,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos-shift/{pos_shift}/report', [PosShiftController::class, 'shiftReport'])->name('pos-shift.report')->middleware(['auth', 'XSS']);
     Route::get('pos-shift/{pos_shift}/close', [PosShiftController::class, 'closeForm'])->name('pos-shift.close-form')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/{pos_shift}/close', [PosShiftController::class, 'close'])->name('pos-shift.close')->middleware(['auth', 'XSS']);
+    Route::post('pos-shift/{pos_shift}/send-email', [PosShiftController::class, 'sendClosedEmail'])->name('pos-shift.send-email')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/{pos_shift}/cash-drop', [PosShiftController::class, 'storeCashDrop'])->name('pos-shift.cash-drop')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/{pos_shift}/cash-in', [PosShiftController::class, 'storeCashIn'])->name('pos-shift.cash-in')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/{pos_shift}/cash-out-expense', [PosShiftController::class, 'storeCashOutExpense'])->name('pos-shift.cash-out-expense')->middleware(['auth', 'XSS']);

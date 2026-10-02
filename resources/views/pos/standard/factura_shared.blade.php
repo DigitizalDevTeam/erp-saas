@@ -128,6 +128,7 @@
                 <th>#</th>
                 <th>{{ __('Description') }}</th>
                 <th class="center">{{ __('Qty') }}</th>
+                <th class="num">{{ __('VAT') }}</th>
                 <th class="num">{{ __('Unit Price') }}</th>
                 <th class="num">{{ __('Total') }}</th>
             </tr>
@@ -138,14 +139,12 @@
                 <td>{{ $i + 1 }}</td>
                 <td>
                     <span class="product-name">{{ $value['name'] ?? '' }}</span>
-                    @if(!empty($value['tax']))
-                    <span class="detail">{{ __('VAT') }} {{ $value['tax'] }}</span>
-                    @endif
                     @if(!empty($value['description']))
                     <span class="detail item-note"><strong>{{ __('Note') }}:</strong> {{ $value['description'] }}</span>
                     @endif
                 </td>
                 <td class="center">{{ $value['quantity'] ?? '' }}</td>
+                <td class="num">{{ \Illuminate\Support\Str::endsWith((string) ($value['tax'] ?? ''), '%') ? ($value['tax'] ?: '0%') : (($value['tax'] ?? '0') . '%') }}</td>
                 <td class="num">{{ $value['price'] ?? '' }}</td>
                 <td class="num"><strong>{{ $value['subtotal'] ?? '' }}</strong></td>
             </tr>
