@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\PosArea;
 use App\Models\PosAuditLog;
+use App\Models\PosShift;
 use App\Models\PosTable;
 use App\Services\PosActorService;
 use App\Services\PosAuditLogService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class PosTableController extends Controller
@@ -171,6 +173,10 @@ class PosTableController extends Controller
         if (!in_array($status, [PosTable::STATUS_AVAILABLE, PosTable::STATUS_OCCUPIED, PosTable::STATUS_RESERVED], true)) {
             return response()->json(['error' => __('Invalid status.')], 422);
         }
+        $shift = $this->openShiftForTable($request, $table);
+        if ($shift instanceof JsonResponse) {
+            return $shift;
+        }
         $oldStatus = $table->status;
         $table->status = $status;
         if ($request->has('guests_count')) {
@@ -205,12 +211,15 @@ class PosTableController extends Controller
             $table->waiter_user_id = null;
         }
         $table->save();
+        $audit = ['table_name' => $table->name, 'shift_id' => $shift->id];
         if ($oldStatus === PosTable::STATUS_AVAILABLE && $status === PosTable::STATUS_OCCUPIED) {
-            PosAuditLogService::log(PosAuditLog::ACTION_OPEN_TABLE, 'pos_table', (int) $table->id, __('Table opened'), ['table_name' => $table->name, 'guests' => $table->current_guests, 'waiter_user_id' => $table->waiter_user_id]);
+            PosAuditLogService::log(PosAuditLog::ACTION_OPEN_TABLE, 'pos_table', (int) $table->id, __('Table opened'), $audit + ['guests' => $table->current_guests, 'waiter_user_id' => $table->waiter_user_id]);
         } elseif ($status === PosTable::STATUS_OCCUPIED) {
-            PosAuditLogService::log(PosAuditLog::ACTION_OPEN_TABLE, 'pos_table', (int) $table->id, __('Table opened'), ['table_name' => $table->name, 'guests' => $table->current_guests, 'waiter_user_id' => $table->waiter_user_id]);
+            PosAuditLogService::log(PosAuditLog::ACTION_OPEN_TABLE, 'pos_table', (int) $table->id, __('Table opened'), $audit + ['guests' => $table->current_guests, 'waiter_user_id' => $table->waiter_user_id]);
         } elseif ($status === PosTable::STATUS_AVAILABLE) {
-            PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_TABLE, 'pos_table', (int) $table->id, __('Table closed'), ['table_name' => $table->name]);
+            PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_TABLE, 'pos_table', (int) $table->id, __('Table closed'), $audit);
+        } elseif ($status === PosTable::STATUS_RESERVED) {
+            PosAuditLogService::log(PosAuditLog::ACTION_OPEN_TABLE, 'pos_table', (int) $table->id, __('Table opened'), $audit + ['guests' => $table->current_guests, 'waiter_user_id' => $table->waiter_user_id]);
         }
         $table->loadMissing('waiterUser');
         return response()->json([
@@ -226,7 +235,7 @@ class PosTableController extends Controller
     /**
      * Phase 4: Close table — set status to available. Only Cashier/Manager (or user with full/manager POS restaurant).
      */
-    public function closeTable($id)
+    public function closeTable(Request $request, $id)
     {
         if (! \Auth::user()->canManagePos()) {
             return response()->json(['error' => __('Permission denied.')], 403);
@@ -243,12 +252,39 @@ class PosTableController extends Controller
         if (!$table) {
             return response()->json(['error' => __('Table not found.')], 404);
         }
+        $shift = $this->openShiftForTable($request, $table);
+        if ($shift instanceof JsonResponse) {
+            return $shift;
+        }
         $table->status = PosTable::STATUS_AVAILABLE;
         $table->current_guests = null;
         $table->customer_name = null;
         $table->waiter_user_id = null;
         $table->save();
-        PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_TABLE, 'pos_table', (int) $table->id, __('Table closed (force)'), ['table_name' => $table->name]);
+        PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_TABLE, 'pos_table', (int) $table->id, __('Table closed (force)'), ['table_name' => $table->name, 'shift_id' => $shift->id]);
         return response()->json(['success' => true, 'status' => $table->status]);
+    }
+
+    /**
+     * Table open and close must belong to an open shift for the same branch.
+     */
+    private function openShiftForTable(Request $request, PosTable $table): PosShift|JsonResponse
+    {
+        $shiftId = (int) $request->input('shift_id');
+        if ($shiftId <= 0) {
+            return response()->json(['error' => __('pos.open_shift_required_to_open_table')], 422);
+        }
+
+        $shift = PosShift::query()
+            ->where('id', $shiftId)
+            ->where('created_by', \Auth::user()->creatorId())
+            ->where('status', PosShift::STATUS_OPEN)
+            ->first();
+
+        if (! $shift || (int) $shift->branch_id !== (int) $table->branch_id) {
+            return response()->json(['error' => __('pos.open_shift_required_to_open_table')], 422);
+        }
+
+        return $shift;
     }
 }

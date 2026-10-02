@@ -4940,14 +4940,11 @@ class PosController extends Controller
             }
             return redirect()->back()->with('error', __('pos.open_shift_required_to_add_closing'));
         }
-        $posIds = Pos::where('shift_id', $userOpenShift->id)->pluck('id');
-        $cashFromSales = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', 'cash')->sum('amount');
-        $cashFromBalance = (float) InvoicePayment::where('pos_shift_id', $userOpenShift->id)->where('payment_method', 0)->sum('amount');
-        $cashInsTotal = (float) \App\Models\PosCashIn::where('shift_id', $userOpenShift->id)->sum('amount');
-        $cashDropsTotal = (float) \App\Models\PosCashDrop::where('shift_id', $userOpenShift->id)->sum('amount');
-        $cashOutExpensesTotal = (float) \App\Models\Expense::where('pos_shift_id', $userOpenShift->id)->where('created_by', \Auth::user()->creatorId())->cashOutPosted()->sum('amount');
-        $expectedCash = (float) ($userOpenShift->opening_balance ?? 0) + $cashFromSales + $cashFromBalance + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
-        return view('pos.add_closing_balance', compact('userOpenShift', 'expectedCash', 'cashFromBalance'));
+        $userOpenShift->load(['branch', 'user']);
+        $metrics = app(\App\Services\PosShiftReportService::class)->buildShiftMetrics($userOpenShift, \Auth::user()->creatorId());
+        $expectedCash = (float) ($metrics['expectedCash'] ?? 0);
+        $salesTotal = (float) ($metrics['salesTotal'] ?? 0);
+        return view('pos.add_closing_balance', compact('userOpenShift', 'expectedCash', 'salesTotal'));
     }
     
     public function save_closing_balance(Request $request)
@@ -4978,13 +4975,15 @@ class PosController extends Controller
         $cashTotal += $balanceCashTotal;
         $cardTotal = PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', ['card', 'visa', 'mpesa', 'bank_transfer', 'cheque'])->sum('amount');
         $creditTotal = PosPayment::whereIn('pos_id', $posIds)->where('payment_method', 'credit')->sum('amount');
-        $opening = (float) ($shift->opening_balance ?? 0);
         $closing = (float) $request->amount;
-        $cashInsTotal = (float) \App\Models\PosCashIn::where('shift_id', $shift->id)->sum('amount');
-        $cashDropsTotal = (float) \App\Models\PosCashDrop::where('shift_id', $shift->id)->sum('amount');
-        $cashOutExpensesTotal = (float) \App\Models\Expense::where('pos_shift_id', $shift->id)->where('created_by', \Auth::user()->creatorId())->cashOutPosted()->sum('amount');
-        $expectedCash = $opening + $cashTotal + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
-        $difference = $closing - $expectedCash;
+        $metrics = app(\App\Services\PosShiftReportService::class)->buildShiftMetrics($shift, \Auth::user()->creatorId());
+        $expectedCash = (float) ($metrics['expectedCash'] ?? 0);
+        $difference = round($closing - $expectedCash, 2);
+        if (abs($difference) >= 0.01 && trim((string) $request->input('notes')) === '') {
+            return redirect()->back()->withInput()->with('error', __('pos.close_reason_required'))->withErrors([
+                'notes' => __('pos.close_reason_required'),
+            ]);
+        }
 
         $shift->closing_balance = $closing;
         $shift->sales_count = $salesCount;
@@ -5180,6 +5179,7 @@ class PosController extends Controller
             $warehouseId = '';
         }
         $canChangeShift = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
+        $canChangePosPrintSettings = $user->canChangePosPrintSettings();
         $userOpenShifts = \App\Models\PosShift::where('user_id', $user->id)
             ->where('status', \App\Models\PosShift::STATUS_OPEN)
             ->where('created_by', $creatorId)
@@ -5202,7 +5202,7 @@ class PosController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return view('pos.index-restaurant', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'canVoidDirectly', 'canDeleteSent', 'posPinUser', 'posBranchAssignmentWarning', 'posDefaultPrepMinutes', 'companyUsers'));
+        return view('pos.index-restaurant', compact('customers', 'customersForPos', 'branches', 'warehouses', 'details', 'customer', 'warehouseId', 'id', 'restaurantBranchIds', 'hasRetailBranches', 'hasRestaurantBranches', 'posMode', 'canChangeShift', 'canChangePosPrintSettings', 'userOpenShiftByBranch', 'userOpenShift', 'posBranchLocked', 'canShowPayButton', 'canShowVoid', 'canVoidDirectly', 'canDeleteSent', 'posPinUser', 'posBranchAssignmentWarning', 'posDefaultPrepMinutes', 'companyUsers'));
     }
 
     /**

@@ -741,27 +741,30 @@
                 <p class="text-muted small mb-3">
                     {{ __('Select Kitchen and Bar printers discovered by the printer agent on this branch.') }}
                 </p>
+                @unless($canChangePosPrintSettings ?? false)
+                    <p class="text-muted small mb-3">{{ __('View only. Your role cannot change printer settings.') }}</p>
+                @endunless
                 <div class="mb-3">
                     <label class="form-label" for="pos-kitchen-printer-select">{{ __('Kitchen Printer') }}</label>
-                    <select id="pos-kitchen-printer-select" class="form-select">
+                    <select id="pos-kitchen-printer-select" class="form-select" @unless($canChangePosPrintSettings ?? false) disabled @endunless>
                         <option value="">{{ __('Select printer') }}</option>
                     </select>
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="pos-bar-printer-select">{{ __('Bar Printer') }}</label>
-                    <select id="pos-bar-printer-select" class="form-select">
+                    <select id="pos-bar-printer-select" class="form-select" @unless($canChangePosPrintSettings ?? false) disabled @endunless>
                         <option value="">{{ __('Select printer') }}</option>
                     </select>
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="pos-default-printer-select">{{ __('Default Printer for Other Prints') }}</label>
-                    <select id="pos-default-printer-select" class="form-select">
+                    <select id="pos-default-printer-select" class="form-select" @unless($canChangePosPrintSettings ?? false) disabled @endunless>
                         <option value="">{{ __('Select printer') }}</option>
                     </select>
                     <small class="text-muted">{{ __('Used for bills, invoices, receipts, and other non-kitchen/bar prints via the Print Agent.') }}</small>
                 </div>
                 <div class="mb-3 form-check form-switch">
-                    <input class="form-check-input" type="checkbox" role="switch" id="pos-use-print-agent-invoice" value="1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="pos-use-print-agent-invoice" value="1" @unless($canChangePosPrintSettings ?? false) disabled @endunless>
                     <label class="form-check-label" for="pos-use-print-agent-invoice">{{ __('pos.use_print_agent_for_invoice') }}</label>
                     <div class="form-text">{{ __('pos.use_print_agent_for_invoice_help') }}</div>
                 </div>
@@ -771,9 +774,11 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
-                <button type="button" class="btn btn-primary" id="pos-printer-config-save-btn">
-                    <i class="ti ti-device-floppy me-1"></i>{{ __('Save') }}
-                </button>
+                @if($canChangePosPrintSettings ?? false)
+                    <button type="button" class="btn btn-primary" id="pos-printer-config-save-btn">
+                        <i class="ti ti-device-floppy me-1"></i>{{ __('Save') }}
+                    </button>
+                @endif
             </div>
         </div>
     </div>

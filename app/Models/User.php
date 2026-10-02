@@ -278,6 +278,15 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Whether this user may change restaurant POS printer settings.
+     * Assigned from Roles; other POS users can only view the current settings.
+     */
+    public function canChangePosPrintSettings(): bool
+    {
+        return $this->can('change pos print settings');
+    }
+
+    /**
      * Whether the user can access Hotel Management module (any hotel permission).
      */
     public function canManageHotel(): bool

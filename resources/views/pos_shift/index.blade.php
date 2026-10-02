@@ -25,6 +25,7 @@
                         <table class="table datatable">
                             <thead>
                                 <tr>
+                                    <th>{{ __('Shift ID') }}</th>
                                     <th>{{ __('Branch') }}</th>
                                     <th>{{ __('Shift') }}</th>
                                     <th>{{ __('User') }}</th>
@@ -33,12 +34,13 @@
                                     <th>{{ __('Opening Balance') }}</th>
                                     <th>{{ __('Closing Balance') }}</th>
                                     <th>{{ __('Status') }}</th>
-                                    <th width="220px">{{ __('Action') }}</th>
+                                    <th>{{ __('Action') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach ($shifts as $shift)
                                     <tr>
+                                        <td>{{ $shift->id }}</td>
                                         <td>{{ $shift->branch ? $shift->branch->name : '-' }}</td>
                                         <td>
                                             @if($shift->operational_shift)
@@ -59,16 +61,22 @@
                                                 <span class="badge bg-secondary">{{ __('Closed') }}</span>
                                             @endif
                                         </td>
-                                        <td>
+                                        <td class="Action text-nowrap">
                                             @if (Auth::user()->canManagePosShiftActions() && $shift->created_by == Auth::user()->creatorId())
-                                                <div class="action-btn d-inline-flex flex-wrap gap-1">
-                                                    <a href="{{ route('pos-shift.show', $shift) }}" class="btn btn-sm btn-info" title="{{ __('View') }}"><i class="ti ti-eye text-white"></i></a>
-                                                    <a href="{{ route('pos-shift.report', $shift) }}" class="btn btn-sm btn-primary" title="{{ __('Report') }}" target="_blank"><i class="ti ti-file-text text-white"></i></a>
-                                                    @if($shift->status === 'open')
-                                                        <a href="{{ route('pos-shift.assign-table', $shift) }}" class="btn btn-sm btn-warning" title="{{ __('Assign Tables') }}"><i class="ti ti-table text-white"></i></a>
-                                                        <a href="{{ route('pos-shift.close-form', $shift) }}" class="btn btn-sm btn-danger" title="{{ __('Close Shift') }}"><i class="ti ti-lock text-white"></i></a>
-                                                    @endif
+                                                <div class="action-btn me-2">
+                                                    <a href="{{ route('pos-shift.show', $shift) }}" class="mx-3 btn btn-sm align-items-center bg-info" data-bs-toggle="tooltip" title="{{ __('View') }}"><i class="ti ti-eye text-white"></i></a>
                                                 </div>
+                                                <div class="action-btn me-2">
+                                                    <a href="{{ route('pos-shift.report', $shift) }}" class="mx-3 btn btn-sm align-items-center bg-primary" data-bs-toggle="tooltip" title="{{ __('Report') }}" target="_blank"><i class="ti ti-file-text text-white"></i></a>
+                                                </div>
+                                                @if($shift->status === 'open')
+                                                    <div class="action-btn me-2">
+                                                        <a href="{{ route('pos-shift.assign-table', $shift) }}" class="mx-3 btn btn-sm align-items-center bg-warning" data-bs-toggle="tooltip" title="{{ __('Assign Tables') }}"><i class="ti ti-table text-white"></i></a>
+                                                    </div>
+                                                    <div class="action-btn">
+                                                        <a href="{{ route('pos-shift.close-form', $shift) }}" class="mx-3 btn btn-sm align-items-center bg-danger" data-bs-toggle="tooltip" title="{{ __('Close Shift') }}"><i class="ti ti-lock text-white"></i></a>
+                                                    </div>
+                                                @endif
                                             @endif
                                         </td>
                                     </tr>

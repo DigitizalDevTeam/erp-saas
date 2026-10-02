@@ -39,11 +39,14 @@ class PosShiftController extends Controller
         }
         $validator = \Validator::make($request->all(), [
             'branch_id' => 'required|exists:branches,id',
-            'opening_balance' => 'nullable|numeric|min:0',
             'operational_shift' => 'required|in:morning,afternoon,night',
         ]);
         if ($validator->fails()) {
             return response()->json(['error' => $validator->getMessageBag()->first()], 422);
+        }
+        $openingBalance = $this->resolveOpeningBalance($request->input('opening_balance'));
+        if ($openingBalance === null) {
+            return response()->json(['error' => __('Enter a valid opening balance.')], 422);
         }
         $creatorId = \Auth::user()->creatorId();
         $actor = PosActorService::restaurantActor();
@@ -86,7 +89,7 @@ class PosShiftController extends Controller
         $shift->user_id = $userId;
         $shift->operational_shift = $opShift;
         $shift->opened_at = now();
-        $shift->opening_balance = (float) ($request->opening_balance ?? 0);
+        $shift->opening_balance = $openingBalance;
         $shift->status = PosShift::STATUS_OPEN;
         $shift->created_by = $creatorId;
         $shift->save();
@@ -125,10 +128,13 @@ class PosShiftController extends Controller
             $validator = \Validator::make($request->all(), [
                 'branch_id' => 'required|exists:branches,id',
                 'user_id' => 'required|exists:users,id',
-                'opening_balance' => 'nullable|numeric|min:0',
             ]);
             if ($validator->fails()) {
                 return redirect()->back()->with('error', $validator->getMessageBag()->first());
+            }
+            $openingBalance = $this->resolveOpeningBalance($request->input('opening_balance'));
+            if ($openingBalance === null) {
+                return redirect()->back()->with('error', __('Enter a valid opening balance.'));
             }
             $assignee = \App\Models\User::find($request->user_id);
             $shiftBranch = Branch::where('id', $request->branch_id)->where('created_by', \Auth::user()->creatorId())->first();
@@ -146,7 +152,7 @@ class PosShiftController extends Controller
             $shift->branch_id = $request->branch_id;
             $shift->user_id = $request->user_id;
             $shift->opened_at = now();
-            $shift->opening_balance = (float) ($request->opening_balance ?? 0);
+            $shift->opening_balance = $openingBalance;
             $shift->status = PosShift::STATUS_OPEN;
             $shift->created_by = \Auth::user()->creatorId();
             $shift->save();
@@ -390,9 +396,14 @@ class PosShiftController extends Controller
                 ->with('error', __('This shift is already closed.'));
         }
 
-        $pos_shift->load(['cashDrops', 'cashIns']);
+        $pos_shift->load(['branch', 'user', 'cashDrops', 'cashIns']);
+        $metrics = app(PosShiftReportService::class)->buildShiftMetrics($pos_shift, \Auth::user()->creatorId());
 
-        return view('pos_shift.close', compact('pos_shift'));
+        return view('pos_shift.close', [
+            'pos_shift' => $pos_shift,
+            'salesTotal' => $metrics['salesTotal'] ?? 0,
+            'expectedCash' => $metrics['expectedCash'] ?? 0,
+        ]);
     }
 
     public function close(Request $request, PosShift $pos_shift)
@@ -425,12 +436,15 @@ class PosShiftController extends Controller
         $cashTotal += $balanceCash;
         $cardTotal = (float) PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', [\App\Models\PosPayment::METHOD_CARD, \App\Models\PosPayment::METHOD_MPESA, \App\Models\PosPayment::METHOD_BANK_TRANSFER, 'visa', 'cheque'])->sum('amount');
         $creditTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', \App\Models\PosPayment::METHOD_CREDIT)->sum('amount');
-        $cashDropsTotal = (float) PosCashDrop::where('shift_id', $pos_shift->id)->sum('amount');
-        $cashInsTotal = (float) PosCashIn::where('shift_id', $pos_shift->id)->sum('amount');
-        $cashOutExpensesTotal = (float) Expense::where('pos_shift_id', $pos_shift->id)->where('created_by', \Auth::user()->creatorId())->cashOutPosted()->sum('amount');
         $closingBalance = (float) $request->closing_balance;
-        $expectedCash = $pos_shift->opening_balance + $cashTotal + $cashInsTotal - $cashDropsTotal - $cashOutExpensesTotal;
-        $difference = $closingBalance - $expectedCash;
+        $metrics = app(PosShiftReportService::class)->buildShiftMetrics($pos_shift, \Auth::user()->creatorId());
+        $expectedCash = (float) ($metrics['expectedCash'] ?? 0);
+        $difference = round($closingBalance - $expectedCash, 2);
+        if (abs($difference) >= 0.01 && trim((string) $request->input('notes')) === '') {
+            return redirect()->back()->withInput()->withErrors([
+                'notes' => __('pos.close_reason_required'),
+            ]);
+        }
 
         $pos_shift->closed_at = now();
         $pos_shift->closing_balance = $closingBalance;
@@ -715,5 +729,37 @@ class PosShiftController extends Controller
             }
         } catch (\Throwable $e) {
         }
+    }
+
+    /**
+     * Read an opening amount typed as 1500, 1.500, or 1.500,00.
+     * Returns null when the text is not an amount.
+     */
+    private function resolveOpeningBalance(mixed $raw): ?float
+    {
+        if ($raw === null || $raw === '') {
+            return 0.0;
+        }
+        if (is_int($raw) || is_float($raw)) {
+            return $raw < 0 ? null : round((float) $raw, 2);
+        }
+
+        $amount = preg_replace('/\s+/', '', trim((string) $raw)) ?? '';
+        if ($amount === '') {
+            return 0.0;
+        }
+        if (str_contains($amount, ',')) {
+            $amount = str_replace('.', '', $amount);
+            $amount = str_replace(',', '.', $amount);
+        } elseif (preg_match('/^\d{1,3}(\.\d{3})+$/', $amount)) {
+            $amount = str_replace('.', '', $amount);
+        }
+        if (! is_numeric($amount)) {
+            return null;
+        }
+
+        $value = (float) $amount;
+
+        return $value < 0 ? null : round($value, 2);
     }
 }

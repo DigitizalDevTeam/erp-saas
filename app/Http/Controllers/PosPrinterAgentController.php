@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\PosAgentPrinter;
+use App\Services\PosActorService;
 use App\Services\PosPrinterAgentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -92,6 +93,11 @@ class PosPrinterAgentController extends Controller
 
     public function savePrintConfig(Request $request)
     {
+        $actor = PosActorService::restaurantActor() ?? Auth::user();
+        if (! $actor || ! $actor->canChangePosPrintSettings()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
         if (! Auth::user()->canManagePos()) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }

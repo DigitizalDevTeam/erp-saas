@@ -846,7 +846,7 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">{{ __('pos.opening_balance') }}</label>
-                            <input type="number" name="opening_balance" class="form-control" min="0" step="0.01" value="0" placeholder="0">
+                            <input type="text" name="opening_balance" class="form-control" inputmode="decimal" autocomplete="off" value="0" placeholder="0">
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -962,6 +962,7 @@
         </div>
     </div>
     <script src="{{ asset('js/jquery.min.js') }}"></script>
+    <script src="{{ asset('js/shift-close-count.js') }}"></script>
     <script>
         (function($) {
             var searchUrl = '{{ route("pos.search.pay.receipts") }}';
@@ -2004,13 +2005,22 @@
                 $('#pos_table_id_hidden').val(id);
                 $('#pos_order_type_hidden').val('dine_in');
                 $('#pos-selected-table').text(name || ('Table ' + id));
+                var shiftId = $('#pos_shift_id_hidden').val();
+                if (!shiftId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.open_shift_required_to_open_table") }}', 'error');
+                    return;
+                }
                 $.ajax({
                     url: posTableUpdateStatusUrl + '/' + id + '/status',
                     method: 'PATCH',
-                    data: { status: 'occupied', _token: $('meta[name="csrf-token"]').attr('content') },
+                    data: { status: 'occupied', shift_id: shiftId, _token: $('meta[name="csrf-token"]').attr('content') },
                     success: function () {
                         var branchId = $('#pos-restaurant-branch').val();
                         if (branchId) loadRestaurantTables(branchId);
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("pos.error") }}';
+                        show_toastr('{{ __("Error") }}', msg, 'error');
                     }
                 });
             });
@@ -2270,10 +2280,15 @@
             $(document).on('click', '.pos-table-set-available', function () {
                 var id = $(this).data('id');
                 var $btn = $(this);
+                var shiftId = $('#pos_shift_id_hidden').val();
+                if (!shiftId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.open_shift_required_to_open_table") }}', 'error');
+                    return;
+                }
                 $.ajax({
                     url: posTableUpdateStatusUrl + '/' + id + '/status',
                     method: 'PATCH',
-                    data: { status: 'available', _token: $('meta[name="csrf-token"]').attr('content') },
+                    data: { status: 'available', shift_id: shiftId, _token: $('meta[name="csrf-token"]').attr('content') },
                     success: function () {
                         $btn.closest('.list-group-item').find('.badge').removeClass('bg-warning bg-secondary').addClass('bg-success').text('{{ __("pos.available") }}');
                         $btn.remove();
@@ -3448,6 +3463,18 @@
     </script>
     {{-- Open Shift from POS --}}
     <script>
+        window.posParseOpeningBalance = function (raw) {
+            var amount = String(raw == null ? '' : raw).replace(/\s/g, '');
+            if (amount === '') return 0;
+            if (amount.indexOf(',') !== -1) {
+                amount = amount.replace(/\./g, '').replace(',', '.');
+            } else if (/^\d{1,3}(\.\d{3})+$/.test(amount)) {
+                amount = amount.replace(/\./g, '');
+            }
+            if (!/^\d+(\.\d+)?$/.test(amount)) return null;
+            var value = Math.round(parseFloat(amount) * 100) / 100;
+            return isFinite(value) && value >= 0 ? value : null;
+        };
         $(function () {
             var $btn = $('#pos-open-shift-btn');
             var $modal = $('#posOpenShiftModal');
@@ -3456,11 +3483,16 @@
                 $btn.on('click', function () { $modal.modal('show'); });
                 $form.on('submit', function (e) {
                     e.preventDefault();
+                    var openingBalance = window.posParseOpeningBalance($form.find('[name=opening_balance]').val());
+                    if (openingBalance === null) {
+                        if (typeof show_toastr === 'function') show_toastr('{{ __("pos.error") }}', '{{ __("Enter a valid opening balance.") }}', 'error');
+                        return;
+                    }
                     var $submit = $('#pos-open-shift-submit').prop('disabled', true);
                     $.ajax({
                         url: '{{ route("pos-shift.open-from-pos") }}',
                         method: 'POST',
-                        data: { branch_id: $form.find('[name=branch_id]').val(), operational_shift: $form.find('[name=operational_shift]').val(), opening_balance: $form.find('[name=opening_balance]').val() || 0, _token: $form.find('[name=_token]').val() },
+                        data: { branch_id: $form.find('[name=branch_id]').val(), operational_shift: $form.find('[name=operational_shift]').val(), opening_balance: openingBalance, _token: $form.find('[name=_token]').val() },
                         headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'), 'Accept': 'application/json' },
                         success: function () {
                             if (typeof show_toastr === 'function') show_toastr('success', '{{ __("Shift opened successfully.") }}', 'success');
@@ -3509,7 +3541,7 @@
             var url = $btn.data('url');
             var title = $btn.data('title');
             if (!url) return;
-            $('#commonModal .modal-dialog').removeClass('modal-xl modal-lg').addClass('modal-sm');
+            $('#commonModal .modal-dialog').removeClass('modal-xl modal-lg modal-sm').addClass('modal-md');
             $('#commonModal .modal-title').html(title || '{{ __("pos.add_closing_balance") }}');
             $.ajax({
                 url: url,
@@ -3517,6 +3549,11 @@
                 success: function (html) {
                     $('#commonModal .body').html(html);
                     $('#commonModal').modal('show');
+                    if (window.initShiftCloseCount) {
+                        document.querySelectorAll('#commonModal .shift-close-count').forEach(function (el) {
+                            window.initShiftCloseCount(el);
+                        });
+                    }
                     if (typeof common_bind === 'function') common_bind('#commonModal');
                     if (typeof validation === 'function') validation();
                 },

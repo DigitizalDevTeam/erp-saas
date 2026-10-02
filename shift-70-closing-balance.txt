@@ -1,0 +1,30 @@
+POS Shift 70 — Closing Balance 2.590,00 MT
+Hoya Hoya Inhambane-1, SU, LDA
+Cashier: Jorge Zacarias
+Opened: 1 October 2026, 15:28
+Closed: 1 October 2026, 21:48
+
+The amount 2.590,00 MT in the Closing Balance column is the cash figure saved when this shift was closed. It is the amount entered as cash in the drawer. It is not the total of sales.
+
+What the system recorded for this shift
+- Opening balance: 0,00 MT
+- Cash payments: 730,00 MT (3 payments)
+    150,00 MT — internal consumption
+    380,00 MT — internal consumption
+    200,00 MT — cash sale
+- Card: 0,00 MT
+- Credit: 0,00 MT
+- Cash added to the drawer: 0,00 MT
+- Cash removed (drops or expenses): 0,00 MT
+
+Expected cash in the drawer
+0,00 + 730,00 = 730,00 MT
+
+Closing balance entered
+2.590,00 MT
+
+Difference
+2.590,00 − 730,00 = 1.860,00 MT
+The counted cash was 1.860,00 MT higher than the cash the system recorded for the shift.
+
+Tips of 50,00 MT were saved separately and are not included in the 2.590,00 MT.

@@ -30,7 +30,7 @@
                         <div class="col-12 mt-3">
                             <div class="form-group">
                                 {{ Form::label('opening_balance', __('Opening Balance'), ['class' => 'form-label']) }}
-                                {{ Form::number('opening_balance', 0, ['class' => 'form-control', 'min' => 0, 'step' => '0.01']) }}
+                                {{ Form::text('opening_balance', 0, ['class' => 'form-control', 'inputmode' => 'decimal', 'autocomplete' => 'off']) }}
                             </div>
                         </div>
                     </div>
