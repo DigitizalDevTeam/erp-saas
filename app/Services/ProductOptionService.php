@@ -55,6 +55,10 @@ class ProductOptionService
             if ($price !== null) {
                 $entry['price'] = $price;
             }
+            $name = trim((string) ($row['name'] ?? ''));
+            if ($name !== '') {
+                $entry['name'] = $name;
+            }
             $out[] = $entry;
         }
 
@@ -197,7 +201,7 @@ class ProductOptionService
 
             foreach ($groups as $groupName => $groupMeta) {
                 if ($groupMeta['required']) {
-                    throw new \RuntimeException(__('Select one option for :group.', ['group' => $groupName]));
+                    throw new \RuntimeException(__('Select at least one option for :group.', ['group' => $groupName]));
                 }
             }
 
@@ -238,11 +242,8 @@ class ProductOptionService
             $allowedInGroup = $groupMeta['product_ids'];
             $pickedInGroup = array_values(array_intersect($selectedIds, $allowedInGroup));
             $count = count($pickedInGroup);
-            if ($groupMeta['required'] && $count !== 1) {
-                throw new \RuntimeException(__('Select one option for :group.', ['group' => $groupName]));
-            }
-            if (! $groupMeta['required'] && $count > 1) {
-                throw new \RuntimeException(__('Select at most one option for :group.', ['group' => $groupName]));
+            if ($groupMeta['required'] && $count < 1) {
+                throw new \RuntimeException(__('Select at least one option for :group.', ['group' => $groupName]));
             }
         }
 
@@ -265,6 +266,7 @@ class ProductOptionService
                 'product_id' => $optId,
                 'quantity' => (float) $row['quantity'],
                 'price' => $price,
+                'name' => (string) $opt->name,
             ];
         }
 
@@ -380,6 +382,40 @@ class ProductOptionService
         $optionsAmount = self::calculateOptionsAmount($selected, $forPurchase);
 
         return round(($parentUnitPrice * $parentQty) + $optionsAmount, 2);
+    }
+
+    /**
+     * One label per selected option, for cart and kitchen slips.
+     *
+     * @param  array<int, array{product_id?: int, quantity?: float, name?: string}>  $selected
+     * @return array<int, string>
+     */
+    public static function optionDisplayLines(array $selected): array
+    {
+        $lines = [];
+        foreach ($selected as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $name = trim((string) ($row['name'] ?? ''));
+            if ($name === '') {
+                $opt = ProductService::find((int) ($row['product_id'] ?? 0));
+                $name = $opt ? trim((string) $opt->name) : '';
+            }
+            if ($name === '') {
+                continue;
+            }
+            $oq = (float) ($row['quantity'] ?? 1);
+            if ($oq <= 0) {
+                $oq = 1;
+            }
+            if (abs($oq - 1) > 0.0001) {
+                $name .= ' ×' . rtrim(rtrim(number_format($oq, 4, '.', ''), '0'), '.');
+            }
+            $lines[] = $name;
+        }
+
+        return $lines;
     }
 
     /**

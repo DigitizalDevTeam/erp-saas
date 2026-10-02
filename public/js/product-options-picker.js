@@ -84,6 +84,7 @@
             }
             selected.push({
                 product_id: parseInt(input.value, 10),
+                name: row.getAttribute('data-option-name') || '',
                 quantity: qty,
                 price: parseFloat(row.getAttribute('data-unit-price')) || 0,
             });
@@ -98,11 +99,9 @@
             ? ' <small class="text-muted">(' + escapeHtml(opt.sku) + ')</small>'
             : '';
         var qtyHtml =
-            inputType === 'checkbox'
-                ? '<input type="number" class="form-control form-control-sm erp-opt-qty flex-shrink-0" style="width:4rem" min="0.0001" step="any" value="1" title="' +
-                  escapeHtml(t('qty', 'Qty')) +
-                  '">'
-                : '';
+            '<input type="number" class="form-control form-control-sm erp-opt-qty flex-shrink-0" style="width:4rem" min="0.0001" step="any" value="1" title="' +
+            escapeHtml(t('qty', 'Qty')) +
+            '">';
         var stockQty = opt.stock_qty != null && opt.stock_qty !== '' ? opt.stock_qty : '—';
         var stockUnit = opt.unit != null ? String(opt.unit) : '';
         var stockBadge =
@@ -113,6 +112,8 @@
         return (
             '<label class="list-group-item erp-opt-row d-flex align-items-center gap-2 flex-nowrap" data-unit-price="' +
             up +
+            '" data-option-name="' +
+            escapeHtml(opt.name || '') +
             '">' +
             '<input type="' +
             inputType +
@@ -215,12 +216,8 @@
                 });
             });
 
-            if (grp.required && picked.length !== 1) {
-                notifyError(t('selectGroup', 'Select one option for') + ' ' + groupName);
-                return false;
-            }
-            if (!grp.required && picked.length > 1) {
-                notifyError(t('selectOneGroup', 'Select at most one option for') + ' ' + groupName);
+            if (grp.required && picked.length < 1) {
+                notifyError(t('selectGroup', 'Select at least one option for') + ' ' + groupName);
                 return false;
             }
         }
@@ -269,7 +266,6 @@
                     var reqMark = grp.required
                         ? ' <span class="text-danger">*</span>'
                         : '';
-                    var radioName = 'erp-opt-group-' + slugifyGroup(groupName);
                     var html =
                         '<div class="erp-opt-group mb-3">' +
                         '<div class="fw-semibold small mb-1">' +
@@ -278,7 +274,7 @@
                         '</div>' +
                         '<div class="list-group">';
                     grp.items.forEach(function (opt) {
-                        html += renderOptionRow(opt, 'radio', radioName);
+                        html += renderOptionRow(opt, 'checkbox', 'erp-opt-group-' + slugifyGroup(groupName) + '-' + opt.product_id);
                     });
                     html += '</div></div>';
                     listEl.insertAdjacentHTML('beforeend', html);

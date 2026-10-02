@@ -43,4 +43,4 @@
         qty: @json(__('Qty')),
     };
 </script>
-<script src="{{ asset('js/product-options-picker.js') }}"></script>
+<script src="{{ asset('js/product-options-picker.js') }}?v=20261002c"></script>

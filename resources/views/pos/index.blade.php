@@ -2121,7 +2121,13 @@
                         w.document.write('<table><thead><tr><th>{{ __("pos.name") }}</th><th>{{ __("pos.qty") }}</th><th>{{ __("Note") }}</th></tr></thead><tbody>');
                         rows.forEach(function(r) {
                             var note = (r.note || '').replace(/</g, '&lt;');
-                            w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + '</td><td>' + r.qty + '</td><td class="note">' + note + '</td></tr>');
+                            var optHtml = '';
+                            (Array.isArray(r.options) ? r.options : []).forEach(function (opt) {
+                                var label = typeof opt === 'string' ? opt : (opt && opt.name ? opt.name : '');
+                                label = String(label || '').replace(/</g, '&lt;');
+                                if (label) optHtml += '<br>+ ' + label;
+                            });
+                            w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + optHtml + '</td><td>' + r.qty + '</td><td class="note">' + note + '</td></tr>');
                         });
                         w.document.write('</tbody></table></body></html>');
                         w.document.close();
@@ -2148,7 +2154,13 @@
                                 w.document.write('<p><small>' + new Date().toLocaleString() + '</small></p>');
                                 w.document.write('<table><thead><tr><th>{{ __("pos.name") }}</th><th>{{ __("pos.qty") }}</th></tr></thead><tbody>');
                                 jobRows.forEach(function(r) {
-                                    w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + '</td><td>' + (r.qty || '') + '</td></tr>');
+                                    var optHtml = '';
+                                    (Array.isArray(r.options) ? r.options : []).forEach(function (opt) {
+                                        var label = typeof opt === 'string' ? opt : (opt && opt.name ? opt.name : '');
+                                        label = String(label || '').replace(/</g, '&lt;');
+                                        if (label) optHtml += '<br>+ ' + label;
+                                    });
+                                    w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + optHtml + '</td><td>' + (r.qty || '') + '</td></tr>');
                                 });
                                 w.document.write('</tbody></table></body></html>');
                                 w.document.close();

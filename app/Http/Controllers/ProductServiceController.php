@@ -1960,7 +1960,7 @@ class ProductServiceController extends Controller
                         'id' => $id,
                         'cart_line_key' => $cartLineKey,
                         'line_id' => '',
-                        'name' => $displayName,
+                        'name' => $productname,
                         'quantity' => 1,
                         'price' => $productprice,
                         'tax' => $producttax,
@@ -2044,8 +2044,13 @@ class ProductServiceController extends Controller
                         </tr>';
             }
 
+            $optionLabels = $selectedOptions !== []
+                ? ProductOptionService::optionDisplayLines($selectedOptions)
+                : [];
             $linePayload = [
                 'name' => $displayName,
+                'product_name' => $productname,
+                'option_labels' => $optionLabels,
                 'quantity' => 1,
                 'price' => $productprice,
                 'id' => $id,

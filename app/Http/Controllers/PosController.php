@@ -3128,6 +3128,7 @@ class PosController extends Controller
                 $taxRate = $this->resolvePosLineTaxRate($line, $product);
                 $displayName = $this->resolvePosLineDisplayName($line, $product);
                 $selectedOpts = ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null);
+                $optionLabels = ProductOptionService::optionDisplayLines($selectedOpts);
                 // Restaurant POS: charge parent unit price only; keep selected options for display/stock.
                 $lineNet = (float) $line->price * (int) $line->quantity - (float) $line->discount;
                 $orderLines[] = [
@@ -3136,6 +3137,8 @@ class PosController extends Controller
                     'product_id' => $line->product_id,
                     'product_variant_id' => $line->product_variant_id ? (int) $line->product_variant_id : null,
                     'name' => $displayName,
+                    'product_name' => $product ? (string) $product->name : $displayName,
+                    'option_labels' => $optionLabels,
                     'quantity' => (int) $line->quantity,
                     'price' => (float) $line->price,
                     'discount' => (float) $line->discount,
@@ -3192,6 +3195,7 @@ class PosController extends Controller
         unset($line);
         foreach ($sessionItems as &$item) {
             $item = (array) $item;
+            $product = null;
             if (isset($productsWithPrinter[$item['id'] ?? 0])) {
                 $product = $productsWithPrinter[$item['id']];
                 if (empty(trim((string) ($item['name'] ?? '')))) {
@@ -3209,6 +3213,13 @@ class PosController extends Controller
                 $item['print_zone'] = $item['print_zone'] ?? '';
                 $item['pos_printer_id'] = null;
                 $item['printer_name'] = null;
+            }
+            $sessionOpts = ProductOptionService::normalizeSelectedOptions($item['selected_options'] ?? $item['selected_options_json'] ?? null);
+            if ($sessionOpts !== []) {
+                $item['option_labels'] = ProductOptionService::optionDisplayLines($sessionOpts);
+                if (isset($product) && $product) {
+                    $item['product_name'] = (string) $product->name;
+                }
             }
             // Restaurant POS: never include option prices in cart money.
             $item['options_amount'] = 0.0;
@@ -4667,8 +4678,11 @@ class PosController extends Controller
                     $tax = $amounts['tax'];
                     $lineTotal = $amounts['line_total'];
                     $mainsubtotal += $lineTotal;
+                    $saleSelected = ProductOptionService::normalizeSelectedOptions($item->selected_options_json ?? null);
                     $sales['data'][] = [
-                        'name' => $product ? $product->name : __('Product'),
+                        'name' => ($product && $saleSelected !== [])
+                            ? ProductOptionService::formatLineName($product, $saleSelected)
+                            : ($product ? $product->name : __('Product')),
                         'sku' => $product ? ($product->sku ?? '-') : '-',
                         'quantity' => $qty,
                         'price' => $user->priceFormat($price),
@@ -5054,8 +5068,11 @@ class PosController extends Controller
             $tax = $amounts['tax'];
             $lineTotal = $amounts['line_total'];
             $mainsubtotal += $lineTotal;
+            $saleSelected = ProductOptionService::normalizeSelectedOptions($item->selected_options_json ?? null);
             $sales['data'][] = [
-                'name' => $product ? $product->name : __('Product'),
+                'name' => ($product && $saleSelected !== [])
+                    ? ProductOptionService::formatLineName($product, $saleSelected)
+                    : ($product ? $product->name : __('Product')),
                 'sku' => $product ? ($product->sku ?? '-') : '-',
                 'quantity' => $qty,
                 'price' => $user->priceFormat($price),

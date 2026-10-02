@@ -29,6 +29,10 @@
     if ($lineName === '') {
         $lineName = __('Product') . ' #' . ($line->id ?? '');
     }
+    $optionLabels = \App\Services\ProductOptionService::optionDisplayLines(
+        \App\Services\ProductOptionService::normalizeSelectedOptions($line->selected_options ?? $line->selected_options_json ?? null)
+    );
+    $optionLabelsJson = $optionLabels !== [] ? json_encode(array_values($optionLabels), JSON_UNESCAPED_UNICODE) : '';
     $selectedOptionsJson = '';
     if (! empty($line->selected_options_json)) {
         $selectedOptionsJson = is_string($line->selected_options_json)
@@ -60,12 +64,20 @@
     data-printer-id="{{ $line->pos_printer_id ?? '' }}"
     data-printer-name="{{ $line->printer_name ?? '' }}"
     data-warehouse-id="{{ (int) ($line->warehouse_id ?? 0) }}"
-    data-selected-options="{{ e($selectedOptionsJson) }}">
+    data-selected-options="{{ e($selectedOptionsJson) }}"
+    data-option-labels="{{ e($optionLabelsJson) }}">
     <td class="pos-cart-line-cell p-0 border-0">
         <div class="pos-cart-line">
             <div class="pos-cart-line__row">
                 <div class="pos-cart-line__main min-w-0">
                     <span class="pos-cart-line__name name" title="{{ $lineName }}">{{ $lineName }}</span>
+                    @if($optionLabels !== [])
+                        <span class="pos-cart-line__options">
+                            @foreach($optionLabels as $optionLabel)
+                                <span class="pos-cart-line__option">{{ $optionLabel }}</span>
+                            @endforeach
+                        </span>
+                    @endif
                     @if(! empty($line->warehouse_name))
                         <span class="pos-cart-line__warehouse text-muted small d-block">{{ $line->warehouse_name }}</span>
                     @endif

@@ -19,7 +19,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="stylesheet" href="{{ asset('css/pos.css') }}?v=9">
+    <link rel="stylesheet" href="{{ asset('css/pos.css') }}?v=10">
     <link rel="stylesheet" href="{{ asset('assets/fonts/tabler-icons.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}" id="main-style-link">
     <style>
@@ -1856,7 +1856,6 @@
                     ? ('product-id-r-line-' + it.line_id)
                     : ('product-id-r-' + String(cartKey).replace(/_/g, '-'));
                 var note = String(it.description || '').trim();
-                var lineName = String(it.name || '').trim() || ('{{ __("Product") }} #' + (it.id || ''));
                 var selOptsRaw = '';
                 if (it.selected_options_json) {
                     selOptsRaw = typeof it.selected_options_json === 'string'
@@ -1867,13 +1866,35 @@
                         ? it.selected_options
                         : JSON.stringify(it.selected_options);
                 }
+                var optionLabels = Array.isArray(it.option_labels) ? it.option_labels.slice() : [];
+                if (!optionLabels.length && selOptsRaw) {
+                    try {
+                        var parsedOpts = typeof selOptsRaw === 'string' ? JSON.parse(selOptsRaw) : selOptsRaw;
+                        if (Array.isArray(parsedOpts)) {
+                            parsedOpts.forEach(function (opt) {
+                                if (opt && opt.name) optionLabels.push(String(opt.name));
+                            });
+                        }
+                    } catch (e) {}
+                }
+                var lineName = optionLabels.length
+                    ? (String(it.product_name || '').trim() || String(it.name || '').split(' — ')[0].trim())
+                    : (String(it.name || '').trim() || ('{{ __("Product") }} #' + (it.id || '')));
+                if (!lineName) lineName = '{{ __("Product") }} #' + (it.id || '');
                 var unitSubAttr = it.unit_subtotal != null
                     ? it.unit_subtotal
                     : (qty > 0 ? posRoundMoney(Math.max(0, sub - optsAmt) / qty) : '');
-                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-voided="' + (isVoided ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-unit-subtotal="' + unitSubAttr + '" data-options-amount="' + optsAmt + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '" data-warehouse-id="' + (it.warehouse_id || '') + '" data-selected-options="' + esc(selOptsRaw) + '">';
+                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-voided="' + (isVoided ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-unit-subtotal="' + unitSubAttr + '" data-options-amount="' + optsAmt + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '" data-warehouse-id="' + (it.warehouse_id || '') + '" data-selected-options="' + esc(selOptsRaw) + '" data-option-labels="' + esc(JSON.stringify(optionLabels)) + '">';
                 html += '<td class="pos-cart-line-cell p-0 border-0"><div class="pos-cart-line"><div class="pos-cart-line__row">';
                 html += '<div class="pos-cart-line__main min-w-0">';
                 html += '<span class="pos-cart-line__name name" title="' + esc(lineName) + '">' + esc(lineName) + '</span>';
+                if (optionLabels.length) {
+                    html += '<span class="pos-cart-line__options">';
+                    optionLabels.forEach(function (label) {
+                        html += '<span class="pos-cart-line__option">' + esc(label) + '</span>';
+                    });
+                    html += '</span>';
+                }
                 if (it.warehouse_name) {
                     html += '<span class="pos-cart-line__warehouse text-muted small d-block">' + esc(it.warehouse_name) + '</span>';
                 }
@@ -2562,7 +2583,12 @@
                     var zone = ($(this).attr('data-print-zone') || '').toLowerCase();
                     var printerId = $(this).attr('data-printer-id') || '';
                     var printerName = $(this).attr('data-printer-name') || '';
-                    var item = { name: name, qty: qty, note: note };
+                    var optionLabels = [];
+                    $(this).find('.pos-cart-line__option').each(function () {
+                        var label = ($(this).text() || '').trim();
+                        if (label) optionLabels.push(label);
+                    });
+                    var item = { name: name, qty: qty, note: note, options: optionLabels };
                     if (printerId && printerId !== '') {
                         if (!byPrinter[printerId]) byPrinter[printerId] = { name: printerName || ('Printer ' + printerId), rows: [] };
                         byPrinter[printerId].rows.push(item);
@@ -2609,8 +2635,14 @@
                     slipRows.forEach(function(r) {
                         var name = (r.name || '').replace(/</g, '&lt;');
                         var note = (r.note || '').replace(/</g, '&lt;');
+                        var optHtml = '';
+                        (Array.isArray(r.options) ? r.options : []).forEach(function (opt) {
+                            var label = typeof opt === 'string' ? opt : (opt && opt.name ? opt.name : '');
+                            label = String(label || '').replace(/</g, '&lt;');
+                            if (label) optHtml += '<br>+ ' + label;
+                        });
                         var noteHtml = note ? '<br><span class="note-bold">' + note + '</span>' : '';
-                        w.document.write('<tr><td>' + name + noteHtml + '</td><td>' + r.qty + '</td></tr>');
+                        w.document.write('<tr><td>' + name + optHtml + noteHtml + '</td><td>' + r.qty + '</td></tr>');
                     });
                     w.document.write('</tbody></table></body></html>');
                     w.document.close();

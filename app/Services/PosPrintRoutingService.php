@@ -104,10 +104,26 @@ class PosPrintRoutingService
         $jobs = [];
 
         foreach ($lines as $line) {
+            $optionLabels = [];
+            foreach (is_array($line['options'] ?? null) ? $line['options'] : [] as $opt) {
+                if (! is_array($opt)) {
+                    continue;
+                }
+                $optName = trim((string) ($opt['name'] ?? ''));
+                if ($optName === '') {
+                    continue;
+                }
+                $optQty = (float) ($opt['quantity'] ?? 1);
+                if ($optQty > 0 && abs($optQty - 1) > 0.0001) {
+                    $optName .= ' ×' . rtrim(rtrim(number_format($optQty, 4, '.', ''), '0'), '.');
+                }
+                $optionLabels[] = $optName;
+            }
             $row = [
                 'name' => (string) ($line['name'] ?? ''),
                 'qty' => (int) ($line['qty'] ?? 0),
                 'note' => (string) ($line['note'] ?? ''),
+                'options' => $optionLabels,
             ];
 
             $printerId = isset($line['pos_printer_id']) ? (int) $line['pos_printer_id'] : 0;

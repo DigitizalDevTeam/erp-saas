@@ -476,6 +476,20 @@
     min-width: 0;
     max-width: 100%;
 }
+.pos-cart-line__options {
+    display: block;
+    flex: 1 0 100%;
+    width: 100%;
+    margin-top: 0.1rem;
+}
+.pos-cart-line__option {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 500;
+    line-height: 1.25;
+    color: #475569;
+    white-space: normal;
+}
 .pos-cart-table--restaurant .pos-cart-line__badge.pos-line-status {
     display: inline-block;
     font-size: 0.6rem !important;

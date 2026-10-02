@@ -371,8 +371,27 @@ class PosPrinterAgentService
             $lineTotal = isset($line['line_total'])
                 ? (float) $line['line_total']
                 : ($qty * $price);
+            $optionLines = [];
+            foreach (is_array($line['options'] ?? null) ? $line['options'] : [] as $opt) {
+                if (! is_array($opt)) {
+                    continue;
+                }
+                $optName = trim((string) ($opt['name'] ?? ''));
+                if ($optName === '') {
+                    continue;
+                }
+                $optQty = (float) ($opt['quantity'] ?? 1);
+                if ($optQty > 0 && abs($optQty - 1) > 0.0001) {
+                    $optName .= ' ×' . rtrim(rtrim(number_format($optQty, 4, '.', ''), '0'), '.');
+                }
+                $optionLines[] = '+ ' . $optName;
+            }
+            $rowName = (string) ($line['name'] ?? '');
+            if ($optionLines !== []) {
+                $rowName .= "\n" . implode("\n", $optionLines);
+            }
             $row = [
-                'name' => (string) ($line['name'] ?? ''),
+                'name' => $rowName,
                 'qty' => $qty,
                 'price' => $price,
                 'line_total' => $lineTotal,
@@ -1020,8 +1039,11 @@ class PosPrinterAgentService
             $tax = $amounts['tax'];
             $lineTotal = $amounts['line_total'];
             $mainsubtotal += $lineTotal;
+            $saleSelected = ProductOptionService::normalizeSelectedOptions($item->selected_options_json ?? null);
             $sales['data'][] = [
-                'name' => $product ? $product->name : __('Product'),
+                'name' => ($product && $saleSelected !== [])
+                    ? ProductOptionService::formatLineName($product, $saleSelected)
+                    : ($product ? $product->name : __('Product')),
                 'sku' => $product ? ($product->sku ?? '-') : '-',
                 'quantity' => $qty,
                 'price' => $user->priceFormat($price),
