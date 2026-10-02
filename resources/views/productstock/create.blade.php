@@ -23,7 +23,7 @@
         <h6 class="mb-0">{{ __('Products') }}</h6>
         <button type="button" class="btn btn-sm btn-outline-primary" id="si-add-line">{{ __('Add line') }}</button>
     </div>
-    <div class="table-responsive">
+    <div class="table-responsive si-lines-wrap">
         <table class="table table-sm" id="si-lines-table">
             <thead>
                 <tr>
@@ -43,6 +43,22 @@
     <input type="submit" value="{{ __('Save Stock Introduction') }}" class="btn btn-primary">
 </div>
 {{ Form::close() }}
+
+<style>
+    #commonModal .si-lines-wrap,
+    #commonModal .si-lines-wrap .table-responsive {
+        overflow: visible;
+    }
+    #commonModal .choices.is-open {
+        position: relative;
+        z-index: 30;
+    }
+    .si-choices-dropdown {
+        position: fixed !important;
+        z-index: 20000 !important;
+        overflow-y: auto !important;
+    }
+</style>
 
 <script>
 (function () {
@@ -79,9 +95,32 @@
                 itemSelectText: '',
                 shouldSort: false,
                 searchResultLimit: 50,
-                searchPlaceholderValue: @json(__('Search'))
+                searchPlaceholderValue: @json(__('Search')),
+                position: 'bottom'
+            });
+            select.addEventListener('showDropdown', function () {
+                requestAnimationFrame(function () { placeProductDropdown(select); });
+            });
+            select.addEventListener('search', function () {
+                requestAnimationFrame(function () { placeProductDropdown(select); });
             });
         }
+    }
+    function placeProductDropdown(select) {
+        var choicesEl = select.closest('.choices');
+        if (!choicesEl) return;
+        var dropdown = choicesEl.querySelector('.choices__list--dropdown');
+        if (!dropdown) return;
+        var rect = choicesEl.getBoundingClientRect();
+        var spaceBelow = window.innerHeight - rect.bottom - 12;
+        var spaceAbove = rect.top - 12;
+        var openUp = spaceBelow < 180 && spaceAbove > spaceBelow;
+        var maxH = Math.max(140, Math.min(280, openUp ? spaceAbove : spaceBelow));
+        dropdown.classList.add('si-choices-dropdown');
+        dropdown.style.left = rect.left + 'px';
+        dropdown.style.width = Math.max(rect.width, 240) + 'px';
+        dropdown.style.maxHeight = maxH + 'px';
+        dropdown.style.top = (openUp ? Math.max(8, rect.top - maxH) : rect.bottom) + 'px';
     }
     var addBtn = document.getElementById('si-add-line');
     if (addBtn) {
