@@ -173,9 +173,10 @@ class PosPrinterAgentService
 
         $ingredientsList = [];
         $recipes = ProductRecipe::where('product_id', $product->id)
-            ->with('ingredientProduct')
+            ->with(['ingredientProduct', 'unit'])
             ->orderBy('id')
             ->get();
+        $lineQty = max(1, (float) $qty);
         foreach ($recipes as $recipe) {
             $ing = $recipe->ingredientProduct;
             if (! $ing) {
@@ -183,7 +184,8 @@ class PosPrinterAgentService
             }
             $ingredientsList[] = [
                 'name' => (string) ($ing->name ?? ''),
-                'qty' => (float) ($recipe->quantity ?? 0),
+                'qty' => round((float) ($recipe->quantity ?? 0) * $lineQty, 4),
+                'unit' => $recipe->unit ? (string) ($recipe->unit->name ?? '') : '',
             ];
         }
 

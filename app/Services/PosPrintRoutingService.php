@@ -119,11 +119,31 @@ class PosPrintRoutingService
                 }
                 $optionLabels[] = $optName;
             }
+            $ingredientLabels = [];
+            foreach (is_array($line['ingredients'] ?? null) ? $line['ingredients'] : [] as $ing) {
+                if (! is_array($ing)) {
+                    continue;
+                }
+                $ingName = trim((string) ($ing['name'] ?? ''));
+                if ($ingName === '') {
+                    continue;
+                }
+                $ingQty = (float) ($ing['qty'] ?? 0);
+                $ingUnit = trim((string) ($ing['unit'] ?? ''));
+                if ($ingQty > 0) {
+                    $ingName .= ' ×' . rtrim(rtrim(number_format($ingQty, 4, '.', ''), '0'), '.');
+                    if ($ingUnit !== '') {
+                        $ingName .= ' ' . $ingUnit;
+                    }
+                }
+                $ingredientLabels[] = $ingName;
+            }
             $row = [
                 'name' => (string) ($line['name'] ?? ''),
                 'qty' => (int) ($line['qty'] ?? 0),
                 'note' => (string) ($line['note'] ?? ''),
                 'options' => $optionLabels,
+                'ingredients' => $ingredientLabels,
             ];
 
             $printerId = isset($line['pos_printer_id']) ? (int) $line['pos_printer_id'] : 0;

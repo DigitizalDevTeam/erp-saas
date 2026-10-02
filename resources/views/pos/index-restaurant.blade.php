@@ -2636,11 +2636,15 @@
                         var name = (r.name || '').replace(/</g, '&lt;');
                         var note = (r.note || '').replace(/</g, '&lt;');
                         var optHtml = '';
-                        (Array.isArray(r.options) ? r.options : []).forEach(function (opt) {
-                            var label = typeof opt === 'string' ? opt : (opt && opt.name ? opt.name : '');
-                            label = String(label || '').replace(/</g, '&lt;');
-                            if (label) optHtml += '<br>+ ' + label;
-                        });
+                        function appendSlipLabels(list) {
+                            (Array.isArray(list) ? list : []).forEach(function (opt) {
+                                var label = typeof opt === 'string' ? opt : (opt && opt.name ? opt.name : '');
+                                label = String(label || '').replace(/</g, '&lt;');
+                                if (label) optHtml += '<br>+ ' + label;
+                            });
+                        }
+                        appendSlipLabels(r.options);
+                        appendSlipLabels(r.ingredients);
                         var noteHtml = note ? '<br><span class="note-bold">' + note + '</span>' : '';
                         w.document.write('<tr><td>' + name + optHtml + noteHtml + '</td><td>' + r.qty + '</td></tr>');
                     });

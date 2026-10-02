@@ -1374,27 +1374,34 @@ public static class SlipPrinter
                     AddKv(lines, "Group", string.Join(", ", groupSet));
                 }
 
-                var ingredientParts = new List<string>();
                 if (row.TryGetProperty("ingredients", out var ingsEl) && ingsEl.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var ing in ingsEl.EnumerateArray())
                     {
                         var ingName = GetString(ing, "name");
-                        var ingQty = GetDecimal(ing, "qty");
                         if (string.IsNullOrWhiteSpace(ingName))
                         {
                             continue;
                         }
 
-                        ingredientParts.Add(ingQty > 0
-                            ? $"{ingName} x {ingQty.ToString("0.####", CultureInfo.InvariantCulture)}"
-                            : ingName);
-                    }
-                }
+                        var ingQty = GetDecimal(ing, "qty");
+                        if (ingQty <= 0)
+                        {
+                            ingQty = 1;
+                        }
 
-                if (ingredientParts.Count > 0)
-                {
-                    AddKv(lines, "Ingredients", string.Join(", ", ingredientParts));
+                        var qtyLabel = ingQty == Math.Truncate(ingQty)
+                            ? ((int)ingQty).ToString(CultureInfo.InvariantCulture)
+                            : ingQty.ToString("0.####", CultureInfo.InvariantCulture);
+                        var ingUnit = GetString(ing, "unit").Trim();
+                        if (!string.IsNullOrWhiteSpace(ingUnit))
+                        {
+                            qtyLabel += " " + ingUnit;
+                        }
+
+                        AddKv(lines, "Ingredient", ingName.Trim());
+                        AddKv(lines, "Qty", qtyLabel);
+                    }
                 }
 
                 if (HasPrintableValue(note))

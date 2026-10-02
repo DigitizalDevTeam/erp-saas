@@ -2122,11 +2122,15 @@
                         rows.forEach(function(r) {
                             var note = (r.note || '').replace(/</g, '&lt;');
                             var optHtml = '';
-                            (Array.isArray(r.options) ? r.options : []).forEach(function (opt) {
-                                var label = typeof opt === 'string' ? opt : (opt && opt.name ? opt.name : '');
-                                label = String(label || '').replace(/</g, '&lt;');
-                                if (label) optHtml += '<br>+ ' + label;
-                            });
+                            function appendSlipLabels(list) {
+                                (Array.isArray(list) ? list : []).forEach(function (opt) {
+                                    var label = typeof opt === 'string' ? opt : (opt && opt.name ? opt.name : '');
+                                    label = String(label || '').replace(/</g, '&lt;');
+                                    if (label) optHtml += '<br>+ ' + label;
+                                });
+                            }
+                            appendSlipLabels(r.options);
+                            appendSlipLabels(r.ingredients);
                             w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + optHtml + '</td><td>' + r.qty + '</td><td class="note">' + note + '</td></tr>');
                         });
                         w.document.write('</tbody></table></body></html>');
@@ -2155,11 +2159,15 @@
                                 w.document.write('<table><thead><tr><th>{{ __("pos.name") }}</th><th>{{ __("pos.qty") }}</th></tr></thead><tbody>');
                                 jobRows.forEach(function(r) {
                                     var optHtml = '';
-                                    (Array.isArray(r.options) ? r.options : []).forEach(function (opt) {
-                                        var label = typeof opt === 'string' ? opt : (opt && opt.name ? opt.name : '');
-                                        label = String(label || '').replace(/</g, '&lt;');
-                                        if (label) optHtml += '<br>+ ' + label;
-                                    });
+                                    function appendSlipLabels(list) {
+                                        (Array.isArray(list) ? list : []).forEach(function (opt) {
+                                            var label = typeof opt === 'string' ? opt : (opt && opt.name ? opt.name : '');
+                                            label = String(label || '').replace(/</g, '&lt;');
+                                            if (label) optHtml += '<br>+ ' + label;
+                                        });
+                                    }
+                                    appendSlipLabels(r.options);
+                                    appendSlipLabels(r.ingredients);
                                     w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + optHtml + '</td><td>' + (r.qty || '') + '</td></tr>');
                                 });
                                 w.document.write('</tbody></table></body></html>');
