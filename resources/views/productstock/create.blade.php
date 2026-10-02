@@ -48,10 +48,17 @@
 (function () {
     var products = @json($products);
     var lineIndex = 0;
+    function esc(text) {
+        return String(text == null ? '' : text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
     function optionsHtml(selected) {
         var html = '';
         Object.keys(products).forEach(function (id) {
-            html += '<option value="' + id + '"' + (String(selected) === String(id) ? ' selected' : '') + '>' + products[id] + '</option>';
+            html += '<option value="' + esc(id) + '"' + (String(selected) === String(id) ? ' selected' : '') + '>' + esc(products[id]) + '</option>';
         });
         return html;
     }
@@ -59,14 +66,21 @@
         var idx = lineIndex++;
         var tr = document.createElement('tr');
         tr.innerHTML =
-            '<td><select name="items[' + idx + '][product_id]" class="form-control select" required>' + optionsHtml('') + '</select></td>' +
+            '<td><select name="items[' + idx + '][product_id]" class="form-control si-product" required>' + optionsHtml('') + '</select></td>' +
             '<td><input type="number" name="items[' + idx + '][quantity]" class="form-control" step="0.0001" min="0.0001" required></td>' +
             '<td><input type="text" name="items[' + idx + '][row_no]" class="form-control"></td>' +
             '<td><input type="text" name="items[' + idx + '][shelf_no]" class="form-control"></td>' +
             '<td><button type="button" class="btn btn-sm btn-outline-danger si-remove">&times;</button></td>';
         document.getElementById('si-lines-body').appendChild(tr);
-        if (window.$ && $.fn.select2) {
-            $(tr).find('select').select2({ width: '100%', dropdownParent: $('#commonModal') });
+        var select = tr.querySelector('select');
+        if (select && typeof Choices !== 'undefined') {
+            new Choices(select, {
+                searchEnabled: true,
+                itemSelectText: '',
+                shouldSort: false,
+                searchResultLimit: 50,
+                searchPlaceholderValue: @json(__('Search'))
+            });
         }
     }
     var addBtn = document.getElementById('si-add-line');

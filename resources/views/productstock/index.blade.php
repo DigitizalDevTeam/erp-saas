@@ -114,7 +114,7 @@
                         </div>
                     </form>
                     <div class="table-responsive">
-                        <table class="table datatable">
+                        <table class="table" id="productstock-products-table">
                             <thead>
                             <tr>
                                 <th>{{ __('Name') }}</th>
@@ -146,3 +146,17 @@
         </div>
     </div>
 @endsection
+
+@push('script-page')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var table = document.getElementById('productstock-products-table');
+        if (!table || typeof simpleDatatables === 'undefined') {
+            return;
+        }
+        var options = (typeof getDatatableLabels === 'function') ? getDatatableLabels() : {};
+        options.searchable = true;
+        new simpleDatatables.DataTable(table, options);
+    });
+</script>
+@endpush

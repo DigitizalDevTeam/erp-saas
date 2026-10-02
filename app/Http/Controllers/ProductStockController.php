@@ -61,7 +61,15 @@ class ProductStockController extends Controller
         $products = ProductService::where('created_by', \Auth::user()->creatorId())
             ->where('type', 'product')
             ->orderBy('name')
-            ->pluck('name', 'id');
+            ->get(['id', 'name', 'sku'])
+            ->mapWithKeys(function ($product) {
+                $label = (string) $product->name;
+                if (! empty($product->sku)) {
+                    $label .= ' (' . $product->sku . ')';
+                }
+
+                return [(string) $product->id => $label];
+            });
         $products->prepend(__('Select Product'), '');
         $intro_no = $this->nextIntroNumber((int) \Auth::user()->creatorId());
 
