@@ -6,6 +6,7 @@
     $company_logo = $setting['company_logo_dark'] ?? '';
     $company_logos = $setting['company_logo_light'] ?? '';
     $company_small_logo = $setting['company_small_logo'] ?? '';
+    $company_favicon = $setting['company_favicon'] ?? '';
 
     $emailTemplate = \App\Models\EmailTemplate::emailTemplateData();
     $lang = Auth::user()->lang;
@@ -29,6 +30,8 @@
                 <img src="{{ $logo . '/' . 'logo-dark.png' . '?' . time() }}"
                     alt="{{ config('app.name', 'ERP-SaaS') }}" class="logo logo-lg">
             @endif
+            <img src="{{ $logo . '/' . (!empty($company_favicon) ? $company_favicon : 'favicon.png') . '?' . time() }}"
+                alt="{{ config('app.name', 'ERP-SaaS') }}" class="logo logo-sm">
 
         </a>
     </div>

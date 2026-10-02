@@ -101,7 +101,7 @@
     @endif
 
     <link rel="stylesheet" href="{{ asset('assets/css/customizer.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/custom.css') }}?v=20260909">
+    <link rel="stylesheet" href="{{ asset('css/custom.css') }}?v=20261002b">
 
     @if ($setting['cust_darklayout'] == 'on')
         <link rel="stylesheet" href="{{ asset('css/custom-dark.css') }}">
@@ -122,6 +122,13 @@
 
 
 <body class="{{ $themeColor }}">
+    <script>
+        try {
+            if (window.innerWidth > 1024 && localStorage.getItem('erp-sidebar-mini') === '1') {
+                document.body.classList.add('minimenu');
+            }
+        } catch (e) {}
+    </script>
 
     <!-- [ Pre-loader ] start -->
     <div class="loader-bg">

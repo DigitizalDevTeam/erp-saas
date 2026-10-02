@@ -232,6 +232,11 @@
                         </div>
                     </div>
                     <small class="text-muted d-block mt-1">{{ __('Ingredients are for stock/recipes only and do not appear on POS.') }}</small>
+                    <div class="form-check form-switch mt-2">
+                        <input type="checkbox" class="form-check-input" name="show_on_pos" id="show_on_pos_create" value="1" checked>
+                        <label class="form-check-label" for="show_on_pos_create">{{ __('Show on POS') }}</label>
+                    </div>
+                    <small class="text-muted d-block">{{ __('Uncheck to hide this item from the POS, even when it is a product or kit.') }}</small>
                 </div>
             </div>
         </div>

@@ -76,7 +76,9 @@
                     { data: 8, name: 'quantity', orderable: true },
                     { data: 9, name: 'location', orderable: false, searchable: false },
                     { data: 10, name: 'type', orderable: true },
-                    { data: 11, name: 'action', orderable: false, searchable: false }
+                    { data: 11, name: 'show_on_pos', orderable: false, searchable: false },
+                    { data: 12, name: 'does_not_affect_stock', orderable: false, searchable: false },
+                    { data: 13, name: 'action', orderable: false, searchable: false }
                 ],
                 drawCallback: function () {
                     if (typeof feather !== 'undefined') {
@@ -100,6 +102,68 @@
             $('#productservice-filter-apply').on('click', function (e) {
                 e.preventDefault();
                 reloadProductServiceTable();
+            });
+
+            $(document).on('change', '#productservice-table .pos-show-toggle', function () {
+                var $input = $(this);
+                var id = $input.data('id');
+                var show = $input.is(':checked') ? 1 : 0;
+                $input.prop('disabled', true);
+                $.ajax({
+                    url: '{{ url('productservice') }}/' + id + '/show-on-pos',
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        _token: $('meta[name="csrf-token"]').attr('content'),
+                        show_on_pos: show
+                    },
+                    success: function (res) {
+                        if (res && typeof res.show_on_pos !== 'undefined') {
+                            $input.prop('checked', !!res.show_on_pos);
+                        }
+                    },
+                    error: function (xhr) {
+                        $input.prop('checked', !show);
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __('Unable to update. Please try again.') }}';
+                        if (typeof show_toastr === 'function') {
+                            show_toastr('Error', msg, 'error');
+                        }
+                    },
+                    complete: function () {
+                        $input.prop('disabled', false);
+                    }
+                });
+            });
+
+            $(document).on('change', '#productservice-table .affect-stock-toggle', function () {
+                var $input = $(this);
+                var id = $input.data('id');
+                var doesNotAffect = $input.is(':checked') ? 1 : 0;
+                $input.prop('disabled', true);
+                $.ajax({
+                    url: '{{ url('productservice') }}/' + id + '/affect-stock',
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        _token: $('meta[name="csrf-token"]').attr('content'),
+                        does_not_affect_stock: doesNotAffect
+                    },
+                    success: function (res) {
+                        if (res && typeof res.does_not_affect_stock !== 'undefined') {
+                            $input.prop('checked', !!res.does_not_affect_stock);
+                        }
+                    },
+                    error: function (xhr) {
+                        $input.prop('checked', !doesNotAffect);
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __('Unable to update. Please try again.') }}';
+                        if (typeof show_toastr === 'function') {
+                            show_toastr('Error', msg, 'error');
+                        }
+                    },
+                    complete: function () {
+                        $input.prop('disabled', false);
+                    }
+                });
             });
 
             $('#productservice-filter-reset').on('click', function (e) {
@@ -213,6 +277,8 @@
                                 <th>{{__('Quantity')}}</th>
                                 <th>{{__('Location')}}</th>
                                 <th>{{__('Type')}}</th>
+                                <th>{{__('Show on POS')}}</th>
+                                <th>{{__('Does not affect stock')}}</th>
                                 <th>{{__('Action')}}</th>
                             </tr>
                             </thead>

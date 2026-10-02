@@ -41,6 +41,11 @@
                         </div>
                     </a>
                 </li>
+                <li class="dash-h-item sidebar-mini-toggle">
+                    <a href="#!" class="dash-head-link" id="vertical-nav-toggle" title="{{ __('Toggle sidebar') }}">
+                        <i class="ti ti-layout-sidebar"></i>
+                    </a>
+                </li>
 
                 <li class="dropdown dash-h-item drp-company">
                     <a class="dash-head-link dropdown-toggle arrow-none me-0" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false">

@@ -70,3 +70,17 @@ body.custom-color {
 {
     transform: translate(-15px, 0px) !important;
 }
+
+@media (min-width: 1025px) {
+    body.minimenu .dash-sidebar .dash-navbar > .dash-item:not(.dash-hasmenu):hover > .dash-link .dash-mtext,
+    body.minimenu .dash-sidebar .dash-navbar > .dash-item.dash-hasmenu:hover > .dash-link .dash-mtext,
+    body.minimenu .dash-sidebar .dash-navbar > .dash-item.dash-hasmenu:hover > .dash-submenu,
+    body.minimenu .dash-sidebar .dash-submenu .dash-hasmenu:hover > .dash-submenu {
+        background: #1c232f;
+        color: #fff;
+    }
+
+    body.minimenu .dash-sidebar .dash-submenu .dash-link {
+        color: #fff;
+    }
+}

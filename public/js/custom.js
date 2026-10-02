@@ -841,3 +841,14 @@ $(document).on('click', '.csv-import-cancel', function () {
     $('#commonModalOver').modal('hide');
 });
 
+document.addEventListener('click', function (event) {
+    if (!event.target.closest('#vertical-nav-toggle')) {
+        return;
+    }
+    setTimeout(function () {
+        try {
+            localStorage.setItem('erp-sidebar-mini', document.body.classList.contains('minimenu') ? '1' : '0');
+        } catch (e) {}
+    }, 0);
+});
+

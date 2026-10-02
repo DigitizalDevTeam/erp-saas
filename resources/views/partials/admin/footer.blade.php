@@ -63,7 +63,7 @@
         info: @json(__('Showing {start} to {end} of {rows} entries'))
     };
 </script>
-<script src="{{ asset('js/custom.js') }}"></script>
+<script src="{{ asset('js/custom.js') }}?v=20261002"></script>
 
 @if($message = Session::get('success'))
     <script>

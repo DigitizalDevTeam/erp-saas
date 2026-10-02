@@ -26,6 +26,7 @@ class ProductService extends Model
         'unit_id',
         'unit_type',
         'type',
+        'show_on_pos',
         'print_zone',
         'pos_printer_id',
         'low_stock_threshold',
@@ -58,6 +59,7 @@ class ProductService extends Model
 
     protected $casts = [
         'affect_stock' => 'boolean',
+        'show_on_pos' => 'boolean',
         'identifier_tracking' => 'boolean',
         'batch_tracking' => 'boolean',
         'variants_enabled' => 'boolean',
@@ -261,7 +263,8 @@ class ProductService extends Model
     /** Products that may appear on POS (excludes ingredient-only stock items). */
     public function scopeSellableOnPos($query)
     {
-        return $query->whereIn('product_services.type', ['product', 'kit']);
+        return $query->whereIn('product_services.type', ['product', 'kit'])
+            ->where('product_services.show_on_pos', 1);
     }
 
     public function isIngredient(): bool

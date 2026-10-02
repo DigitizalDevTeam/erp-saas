@@ -50,7 +50,7 @@ class ProductServiceController extends Controller
     private const POS_PRODUCT_CARD_COL_CLASS = 'col-xl-3 col-lg-3 col-md-3 col-sm-4 col-6';
 
     /** Bump when POS product card HTML shape changes (invalidates Laravel + client caches). */
-    private const POS_PRODUCT_HTML_CACHE_VER = 'pv8';
+    private const POS_PRODUCT_HTML_CACHE_VER = 'pv9';
 
     protected function restaurantPosWarehouseStock(ProductService $product, int $warehouseId, ?int $variantId = null): int
     {
@@ -389,6 +389,8 @@ class ProductServiceController extends Controller
                 'product_services.unit_id',
                 'product_services.quantity',
                 'product_services.type',
+                'product_services.show_on_pos',
+                'product_services.affect_stock',
                 'product_services.shelf_no',
                 'product_services.row_no',
                 'psc.name as category_name',
@@ -610,10 +612,79 @@ class ProductServiceController extends Controller
             $quantityHtml,
             $locationHtml,
             e(ucwords((string) $productService->type)),
+            $this->showOnPosToggleHtml($productService, $canEdit),
+            $this->doesNotAffectStockToggleHtml($productService, $canEdit),
             $actionHtml,
         ];
     }
 
+
+    private function showOnPosToggleHtml(ProductService $productService, bool $canEdit): string
+    {
+        $checked = ($productService->show_on_pos ?? true) ? ' checked' : '';
+        $disabled = $canEdit ? '' : ' disabled';
+
+        return '<div class="form-check form-switch mb-0">'
+            .'<input type="checkbox" class="form-check-input pos-show-toggle" data-id="'.(int) $productService->id.'"'
+            .$checked.$disabled.' title="'.e(__('Show on POS')).'">'
+            .'</div>';
+    }
+
+    public function toggleShowOnPos(Request $request, $id)
+    {
+        if (! \Auth::user()->can('edit product & service')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $product = ProductService::where('id', $id)->where('created_by', \Auth::user()->creatorId())->first();
+        if (! $product) {
+            return response()->json(['error' => __('Product not found.')], 404);
+        }
+
+        $product->show_on_pos = $request->boolean('show_on_pos');
+        $product->save();
+
+        return response()->json([
+            'success' => true,
+            'show_on_pos' => (bool) $product->show_on_pos,
+        ]);
+    }
+
+    private function doesNotAffectStockToggleHtml(ProductService $productService, bool $canEdit): string
+    {
+        $editable = $canEdit && $productService->type === 'product';
+        $checked = ! ($productService->affect_stock ?? true) ? ' checked' : '';
+        $disabled = $editable ? '' : ' disabled';
+
+        return '<div class="form-check form-switch mb-0">'
+            .'<input type="checkbox" class="form-check-input affect-stock-toggle" data-id="'.(int) $productService->id.'"'
+            .$checked.$disabled.' title="'.e(__('Does not affect stock')).'">'
+            .'</div>';
+    }
+
+    public function toggleAffectStock(Request $request, $id)
+    {
+        if (! \Auth::user()->can('edit product & service')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $product = ProductService::where('id', $id)->where('created_by', \Auth::user()->creatorId())->first();
+        if (! $product) {
+            return response()->json(['error' => __('Product not found.')], 404);
+        }
+
+        if ($product->type !== 'product') {
+            return response()->json(['error' => __('This option applies to products only.')], 422);
+        }
+
+        $product->affect_stock = ! $request->boolean('does_not_affect_stock');
+        $product->save();
+
+        return response()->json([
+            'success' => true,
+            'does_not_affect_stock' => ! (bool) $product->affect_stock,
+        ]);
+    }
 
     public function create()
     {
@@ -733,6 +804,7 @@ class ProductServiceController extends Controller
             $productService->price_level_id             = $request->price_level_id ?? null;
             $productService->quantity           = 0;
             $productService->type                       = $request->type;
+            $productService->show_on_pos                = $request->boolean('show_on_pos');
             $productService->print_zone                 = $request->print_zone ?: null;
             $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
             $productService->low_stock_threshold         = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
@@ -1013,6 +1085,7 @@ class ProductServiceController extends Controller
                 $productService->unit_type      = $request->unit_type;
                 $productService->price_level_id             = $request->price_level_id ?? null;
                 $productService->type                       = $request->type;
+                $productService->show_on_pos                = $request->boolean('show_on_pos');
                 $productService->print_zone                 = $request->print_zone ?: null;
                 $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
                 $productService->low_stock_threshold        = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
@@ -1573,6 +1646,13 @@ class ProductServiceController extends Controller
                     'code' => 422,
                     'status' => 'Error',
                     'error' => __('Ingredient products cannot be sold on POS.'),
+                ], 422);
+            }
+            if ($isPosSession && $product && ! ($product->show_on_pos ?? true)) {
+                return response()->json([
+                    'code' => 422,
+                    'status' => 'Error',
+                    'error' => __('This product is hidden from POS.'),
                 ], 422);
             }
             $productquantity = 0;
