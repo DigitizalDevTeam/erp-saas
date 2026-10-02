@@ -129,7 +129,6 @@
                 <th>{{ __('Description') }}</th>
                 <th class="center">{{ __('Qty') }}</th>
                 <th class="num">{{ __('VAT') }}</th>
-                <th class="num">{{ __('Unit Price') }}</th>
                 <th class="num">{{ __('Total') }}</th>
             </tr>
         </thead>
@@ -145,7 +144,6 @@
                 </td>
                 <td class="center">{{ $value['quantity'] ?? '' }}</td>
                 <td class="num">{{ \Illuminate\Support\Str::endsWith((string) ($value['tax'] ?? ''), '%') ? ($value['tax'] ?: '0%') : (($value['tax'] ?? '0') . '%') }}</td>
-                <td class="num">{{ $value['price'] ?? '' }}</td>
                 <td class="num"><strong>{{ $value['subtotal'] ?? '' }}</strong></td>
             </tr>
         @endforeach

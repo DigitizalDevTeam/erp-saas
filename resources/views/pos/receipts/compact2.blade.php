@@ -58,13 +58,11 @@
             <table class="pos-compact-table pos-mz-table">
                 <thead>
                 <tr>
-                    <th style="width:12%;">{{ __('SKU') }}</th>
-                    <th style="width:34%;text-align:left;">{{ __('Description') }}</th>
-                    <th class="num" style="width:8%;">{{ __('Qty') }}</th>
-                    <th class="num" style="width:10%;">{{ __('VAT') }}</th>
-                    <th class="num" style="width:12%;">{{ __('Price') }}</th>
-                    <th class="num" style="width:10%;">{{ __('Discount') }}</th>
-                    <th class="num" style="width:14%;">{{ __('Total') }}</th>
+                    <th style="width:14%;">{{ __('SKU') }}</th>
+                    <th style="width:42%;text-align:left;">{{ __('Description') }}</th>
+                    <th class="num" style="width:10%;">{{ __('Qty') }}</th>
+                    <th class="num" style="width:12%;">{{ __('VAT') }}</th>
+                    <th class="num" style="width:22%;">{{ __('Total') }}</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -77,8 +75,6 @@
                         </td>
                         <td class="num">{{ $value['quantity'] ?? '' }}</td>
                         <td class="num">{{ \Illuminate\Support\Str::endsWith((string) ($value['tax'] ?? ''), '%') ? ($value['tax'] ?: '0%') : (($value['tax'] ?? '0') . '%') }}</td>
-                        <td class="num">{{ $value['price'] ?? '' }}</td>
-                        <td class="num">-</td>
                         <td class="num">{{ $value['subtotal'] ?? '' }}</td>
                     </tr>
                 @endforeach
