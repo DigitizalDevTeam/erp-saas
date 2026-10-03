@@ -223,6 +223,21 @@
                     </div>
                 </div>
             </div>
+            @php
+                $companyPlanMissing = \Auth::check()
+                    && ! in_array(\Auth::user()->type, ['super admin', 'client'], true)
+                    && empty(\App\Models\Plan::getPlan(\Auth::user()->show_dashboard()));
+            @endphp
+            @if ($companyPlanMissing)
+                <div class="alert alert-warning mb-3" role="alert">
+                    {{ __('No plan is assigned to this company.') }}
+                    @if (\Auth::user()->type == 'company' && menu_can('menu.settings.plans'))
+                        <a href="{{ route('plans.index') }}" class="alert-link">{{ __('Setup Subscription Plan') }}</a>
+                    @else
+                        {{ __('Ask the company administrator to assign a plan.') }}
+                    @endif
+                </div>
+            @endif
             @yield('content')
             <!-- [ Main Content ] end -->
         </div>

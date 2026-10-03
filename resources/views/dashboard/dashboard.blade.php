@@ -100,6 +100,11 @@
 @endphp
 @section('content')
     @if(\Auth::user()->type != 'client' && \Auth::user()->type != 'company')
+        @if(!empty($employeeProfileMissing))
+            <div class="alert alert-warning mb-3" role="alert">
+                {{ __('This user is not registered as an employee for the active company. Attendance and personal HR items are unavailable.') }}
+            </div>
+        @endif
         <div class="row">
             <div class="col-sm-12">
                 <div class="row">
@@ -118,6 +123,7 @@
                                     @endif
                                 @endif
                                 <center>
+                                    @if(empty($employeeProfileMissing))
                                     <div class="row">
                                         <div class="col-md-6">
                                             {{Form::open(array('url'=>'attendanceemployee/attendance','method'=>'post'))}}
@@ -138,6 +144,7 @@
                                             {{Form::close()}}
                                         </div>
                                     </div>
+                                    @endif
                                 </center>
 
                             </div>

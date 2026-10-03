@@ -1644,8 +1644,7 @@ class User extends Authenticatable implements MustVerifyEmail
             $user = User::where('id', \Auth::user()->created_by)->first();
         }
 
-        return $user->plan;
-        // return !empty($user->plan)?Plan::find($user->plan)->crm:'';
+        return $user ? $user->plan : null;
     }
 
     public static function show_crm()

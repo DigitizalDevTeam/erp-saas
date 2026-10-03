@@ -319,6 +319,18 @@ class DashboardController extends Controller
 
                 if ($user->type != 'client' && $user->type != 'company') {
                     $emp = Employee::where('user_id', '=', $user->id)->first();
+                    $employeeProfileMissing = empty($emp);
+
+                    if ($employeeProfileMissing) {
+                        $announcements = collect();
+                        $employees = collect();
+                        $meetings = collect();
+                        $arrEvents = [];
+                        $employeeAttendance = null;
+                        $officeTime = EmployeeAttendanceScheduleService::officeTimeForDashboard(null, (int) $user->creatorId());
+
+                        return view('dashboard.dashboard', compact('arrEvents', 'announcements', 'employees', 'meetings', 'employeeAttendance', 'officeTime', 'employeeProfileMissing'));
+                    }
 
                     $announcements = Announcement::orderBy('announcements.id', 'desc')->take(5)->leftjoin('announcement_employees', 'announcements.id', '=', 'announcement_employees.announcement_id')->where('announcement_employees.employee_id', '=', $emp->id)->orWhere(function ($q) use ($emp) {
                         $q->where('announcements.department_id', '["0"]')
@@ -353,7 +365,9 @@ class DashboardController extends Controller
 
                     $officeTime = EmployeeAttendanceScheduleService::officeTimeForDashboard($emp, (int) $user->creatorId());
 
-                    return view('dashboard.dashboard', compact('arrEvents', 'announcements', 'employees', 'meetings', 'employeeAttendance', 'officeTime'));
+                    $employeeProfileMissing = false;
+
+                    return view('dashboard.dashboard', compact('arrEvents', 'announcements', 'employees', 'meetings', 'employeeAttendance', 'officeTime', 'employeeProfileMissing'));
                 } else if ($user->type == 'super admin') {
                     $user = \Auth::user();
                     $user['total_user'] = $user->countCompany();

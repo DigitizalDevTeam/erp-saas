@@ -99,7 +99,7 @@
                             <span class="dash-mtext">{{ __('Dashboard') }}</span>
                             <span class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                         <ul class="dash-submenu">
-                            @if ($userPlan->account == 1 && menu_can_node('menu.dashboard.accounting'))
+                            @if (!empty($userPlan) && $userPlan->account == 1 && menu_can_node('menu.dashboard.accounting'))
                                 <li
                                     class="dash-item dash-hasmenu {{ Request::segment(1) == null || Request::segment(1) == 'account-dashboard' || Request::segment(1) == 'report' || Request::segment(1) == 'reports-monthly-cashflow' || Request::segment(1) == 'reports-quarterly-cashflow' || Request::segment(1) == 'profit-loss-report' || Request::segment(1) == 'balance-sheet-report' || Request::segment(1) == 'ledger-report' || Request::segment(1) == 'trial-balance-report' || Request::segment(1) == 'reports-demonstracao-resultados' || Request::route()->getName() == 'report.profit.loss' || Request::route()->getName() == 'report.balance.sheet' || Request::route()->getName() == 'report.ledger' || Request::route()->getName() == 'trial.balance' || Request::route()->getName() == 'report.dre.comparativa' ? ' active dash-trigger' : '' }}">
                                     <a class="dash-link" href="#">{{ __('Accounting ') }}<span
@@ -381,7 +381,7 @@
                                 </li>
                             @endif
 
-                            @if ($userPlan->hrm == 1 && menu_can_node('menu.dashboard.hrm'))
+                            @if (!empty($userPlan) && $userPlan->hrm == 1 && menu_can_node('menu.dashboard.hrm'))
                                     <li
                                         class="dash-item dash-hasmenu {{ Request::segment(1) == 'hrm-dashboard' || Request::segment(1) == 'reports-payroll' || Request::segment(1) == 'reports-hrm-tax' || Request::segment(1) == 'report-leave' || Request::segment(1) == 'reports-monthly-attendance' ? ' active dash-trigger' : '' }}">
                                         <a class="dash-link" href="#">{{ __('HRM ') }}<span class="dash-arrow"><i
@@ -442,7 +442,7 @@
                                     </li>
                             @endif
 
-                            @if ($userPlan->crm == 1 && menu_can_node('menu.dashboard.crm'))
+                            @if (!empty($userPlan) && $userPlan->crm == 1 && menu_can_node('menu.dashboard.crm'))
                                     <li
                                         class="dash-item dash-hasmenu {{ Request::segment(1) == 'crm-dashboard' || Request::segment(1) == 'reports-lead' || Request::segment(1) == 'reports-deal' ? ' active dash-trigger' : '' }}">
                                         <a class="dash-link" href="#">{{ __('CRM') }}<span
@@ -489,7 +489,7 @@
                                 </li>
                             @endif
 
-                            @if ($userPlan->project == 1 && menu_can('menu.dashboard.project'))
+                            @if (!empty($userPlan) && $userPlan->project == 1 && menu_can('menu.dashboard.project'))
                                     <li
                                         class="dash-item {{ Request::route()->getName() == 'project.dashboard' ? ' active' : '' }}">
                                         <a class="dash-link"
@@ -497,7 +497,7 @@
                                     </li>
                             @endif
 
-                            @if ($userPlan->pos == 1 && menu_can_node('menu.dashboard.pos'))
+                            @if (!empty($userPlan) && $userPlan->pos == 1 && menu_can_node('menu.dashboard.pos'))
                                     <li
                                         class="dash-item dash-hasmenu {{
                                         Request::segment(1) == 'pos-dashboard' ||
