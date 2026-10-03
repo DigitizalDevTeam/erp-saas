@@ -126,6 +126,67 @@ class PosController extends Controller
     }
 
     /**
+     * VAT-inclusive unit for a restaurant line.
+     * Prefer the shelf unit saved with the line. Older rows only stored the rounded net price,
+     * which turns 500 back into 499.99; if that net still matches the product shelf price, use the shelf price.
+     */
+    public static function resolveRestaurantInclusiveUnit(
+        float $exclusiveUnit,
+        float $taxRate,
+        ?float $storedUnitSubtotal = null,
+        ?ProductService $product = null,
+        ?float $variantSalePrice = null
+    ): float {
+        if ($storedUnitSubtotal !== null && $storedUnitSubtotal > 0) {
+            return round($storedUnitSubtotal, 2);
+        }
+
+        $exclusiveUnit = round($exclusiveUnit, 2);
+        if ($taxRate > 0 && $product && $product->isSalePriceInclusive()) {
+            $catalog = ($variantSalePrice !== null && $variantSalePrice > 0)
+                ? round($variantSalePrice, 2)
+                : round((float) ($product->sale_price ?? 0), 2);
+            if ($catalog > 0) {
+                $derivedNet = round($catalog / (1 + ($taxRate / 100)), 2);
+                if (abs($derivedNet - $exclusiveUnit) < 0.001) {
+                    return $catalog;
+                }
+            }
+        }
+
+        if ($taxRate > 0) {
+            return round($exclusiveUnit * (1 + ($taxRate / 100)), 2);
+        }
+
+        return $exclusiveUnit;
+    }
+
+    /**
+     * @return array{unit: float, total: float}
+     */
+    protected function restaurantLineMoney(PosProduct $line, ?ProductService $product, float $taxRate): array
+    {
+        $stored = ($line->unit_subtotal !== null && (float) $line->unit_subtotal > 0)
+            ? (float) $line->unit_subtotal
+            : null;
+        $variantPrice = ($line->variant && $line->variant->sale_price !== null)
+            ? (float) $line->variant->sale_price
+            : null;
+        $unit = self::resolveRestaurantInclusiveUnit(
+            (float) $line->price,
+            $taxRate,
+            $stored,
+            $product,
+            $variantPrice
+        );
+        $qty = (float) $line->quantity;
+        $discount = (float) ($line->discount ?? 0);
+        $total = round(max(0, ($unit * $qty) - ($discount * (1 + ($taxRate / 100)))), 2);
+
+        return ['unit' => $unit, 'total' => $total];
+    }
+
+    /**
      * Inclusive line total plus the net and VAT that add back to it.
      *
      * @return array{line_total: float, net: float, tax: float}
@@ -161,6 +222,7 @@ class PosController extends Controller
         $qty = (float) $line->quantity;
         $taxRate = $this->resolvePosLineTaxRate($line, $product instanceof ProductService ? $product : null);
         $selectedOpts = ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null);
+        $money = $this->restaurantLineMoney($line, $product instanceof ProductService ? $product : null, $taxRate);
 
         return ['line_' . (int) $line->id, [
             'id' => $line->product_id,
@@ -169,7 +231,8 @@ class PosController extends Controller
             'quantity' => $qty,
             'price' => $price,
             'tax' => $taxRate,
-            'subtotal' => $this->inclusivePosLineTotal($price, $qty, $taxRate),
+            'unit_subtotal' => $money['unit'],
+            'subtotal' => $money['total'],
             'subtotal_includes_tax' => true,
             'product_tax' => $taxRate ? $taxRate . '%' : '-',
             'price_type' => 'exclusive',
@@ -777,7 +840,7 @@ class PosController extends Controller
             ->where('created_by', $creatorId)
             ->whereNull('cancelled_at')
             ->whereDoesntHave('posPayments')
-            ->with(['items.product']);
+            ->with(['items.product', 'items.variant']);
 
         if ($branchId > 0) {
             $posQuery->where('branch_id', $branchId);
@@ -802,9 +865,8 @@ class PosController extends Controller
                     continue;
                 }
                 $taxRate = $this->resolvePosLineTaxRate($line, $line->product);
-                // Restaurant POS: bill main product price only (option prices ignored).
-                $lineNet = (float) $line->price * (int) $line->quantity - (float) $line->discount;
-                $totals[$tid] += $lineNet * (1 + $taxRate / 100);
+                // Restaurant POS: bill the VAT-inclusive shelf unit, not the rounded net price.
+                $totals[$tid] += $this->restaurantLineMoney($line, $line->product, $taxRate)['total'];
             }
         }
 
@@ -3130,7 +3192,7 @@ class PosController extends Controller
                 $selectedOpts = ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null);
                 $optionLabels = ProductOptionService::optionDisplayLines($selectedOpts);
                 // Restaurant POS: charge parent unit price only; keep selected options for display/stock.
-                $lineNet = (float) $line->price * (int) $line->quantity - (float) $line->discount;
+                $money = $this->restaurantLineMoney($line, $product, $taxRate);
                 $orderLines[] = [
                     'line_id' => $line->id,
                     'id' => $line->product_id,
@@ -3141,10 +3203,11 @@ class PosController extends Controller
                     'option_labels' => $optionLabels,
                     'quantity' => (int) $line->quantity,
                     'price' => (float) $line->price,
+                    'unit_subtotal' => $money['unit'],
                     'discount' => (float) $line->discount,
                     'tax' => $taxRate,
                     'options_amount' => 0.0,
-                    'subtotal' => $lineNet * (1 + $taxRate / 100),
+                    'subtotal' => $money['total'],
                     'description' => $line->description ?? '',
                     'print_zone' => $line->print_zone ?? '',
                     'pos_printer_id' => $printer ? $printer->id : null,
@@ -3557,12 +3620,29 @@ class PosController extends Controller
                     'error' => __('Select at least one product option for :name.', ['name' => $product->name]),
                 ], 422);
             }
+            $postedUnit = isset($item['unit_subtotal']) ? (float) $item['unit_subtotal'] : 0.0;
+            $variantSalePrice = null;
+            if ($variantId) {
+                $variantRow = ProductVariant::find($variantId);
+                if ($variantRow && $variantRow->sale_price !== null) {
+                    $variantSalePrice = (float) $variantRow->sale_price;
+                }
+            }
+            $lineTaxRate = $this->resolvePosLineTaxRate(null, $product);
+            $inclusiveUnit = self::resolveRestaurantInclusiveUnit(
+                (float) $item['price'],
+                $lineTaxRate,
+                $postedUnit > 0 ? $postedUnit : null,
+                $product,
+                $variantSalePrice
+            );
             $line = PosProduct::create([
                 'pos_id' => $pos->id,
                 'product_id' => $product->id,
                 'product_variant_id' => $variantId,
                 'quantity' => (int) $item['quantity'],
                 'price' => (float) $item['price'],
+                'unit_subtotal' => $inclusiveUnit,
                 'tax' => $taxId,
                 'discount' => (float) ($item['discount'] ?? 0),
                 'description' => $item['description'] ?? null,

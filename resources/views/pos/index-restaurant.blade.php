@@ -2691,7 +2691,9 @@
                     var discount = parseFloat($(this).attr('data-discount')) || 0;
                     var $n = $(this).find('.notes');
                     var desc = ($n.length && ($n.is('input') || $n.is('textarea'))) ? ($n.val() || '').trim() : ($n.text() || '').trim();
+                    var unitSub = parseFloat($(this).attr('data-unit-subtotal'));
                     var line = { id: id, quantity: qty, price: price, discount: discount, description: desc };
+                    if (!isNaN(unitSub) && unitSub > 0) line.unit_subtotal = unitSub;
                     if (!isNaN(vid) && vid > 0) line.product_variant_id = vid;
                     var lineWh = parseInt($(this).attr('data-warehouse-id'), 10);
                     if (!isNaN(lineWh) && lineWh > 0) line.warehouse_id = lineWh;

@@ -26,6 +26,7 @@ class PosProduct extends Model
         'discount',
         'total',
         'price',
+        'unit_subtotal',
         'description',
         'identifiers',
         'measurement_json',
