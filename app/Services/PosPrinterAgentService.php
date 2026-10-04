@@ -624,6 +624,7 @@ class PosPrinterAgentService
         $isPaid = $pos->posPayments->isNotEmpty();
         if (! $isPaid) {
             $documentTitle = __('Account Statement');
+            $posNumber = Pos::billDocumentNumber($posNumber, $settings);
         }
 
         $issuedAt = $pos->created_at

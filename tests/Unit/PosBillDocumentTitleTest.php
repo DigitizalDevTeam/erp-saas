@@ -40,6 +40,18 @@ class PosBillDocumentTitleTest extends TestCase
         $this->assertStringContainsString("\$isBillDocument = \$request->boolean('bill');", $src);
     }
 
+    public function test_bill_number_uses_vad_prefix_not_pdv(): void
+    {
+        $this->assertSame('VAD00008', \App\Models\Pos::billDocumentNumber('#PDV00008', []));
+        $this->assertSame('VAD00008', \App\Models\Pos::billDocumentNumber('VAD00008', []));
+        $this->assertSame('VAD', \App\Models\Pos::billDocumentPrefix([]));
+
+        foreach (['views/pos/standard/_data.php', 'views/pos/receipts/_prepare.php'] as $f) {
+            $src = file_get_contents(resource_path($f));
+            $this->assertStringContainsString('Pos::billDocumentNumber($docNumber', $src);
+        }
+    }
+
     public function test_popup_title_is_account_statement(): void
     {
         $src = file_get_contents(resource_path('views/pos/index-restaurant.blade.php'));

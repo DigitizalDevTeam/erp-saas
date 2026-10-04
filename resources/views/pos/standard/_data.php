@@ -113,6 +113,9 @@ $custVat = $cust['tax_number'] ?? '';
 
 $currency = $settings['site_currency_symbol'] ?? ($settings['site_currency'] ?? 'MT');
 $docNumber = $details['pos_id'] ?? '—';
+if (! empty($isBillDocument)) {
+    $docNumber = \App\Models\Pos::billDocumentNumber($docNumber, $settings);
+}
 $docDate = $details['date'] ?? date('Y-m-d');
 $docDateTime = $docDate . ' ' . date('H:i:s');
 $operatorName = $receiptUser->name ?? (Auth::user()->name ?? '—');

@@ -139,6 +139,9 @@ if (! empty($posPayments)) {
 $operatorName = $receiptUser->name ?? (\Illuminate\Support\Facades\Auth::user()->name ?? '—');
 $branchName = $details['branch']['name'] ?? ($details['warehouse']['name'] ?? '—');
 $docNumber = $details['pos_id'] ?? '—';
+if (! empty($isBillDocument)) {
+    $docNumber = \App\Models\Pos::billDocumentNumber($docNumber, $settings);
+}
 $docDate = $details['date'] ?? date('Y-m-d');
 $docDateTime = $docDate . ' ' . date('H:i:s');
 $copyLabel = ! empty($segundaVia) ? __('Copy') : __('Original');
