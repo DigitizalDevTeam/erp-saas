@@ -1513,13 +1513,6 @@
                 });
             }
 
-            // A shift opened from the POS modal refreshes shifts/tables in place (no page reload).
-            $(document).on('pos-shift-opened', function (e, branchId) {
-                if (branchId) {
-                    loadBranchShifts(branchId);
-                }
-            });
-
             $('#pos-restaurant-branch').on('change', function () {
                 var branchId = $(this).val();
                 $('#branch_id').val(branchId);
@@ -4825,14 +4818,10 @@
                         data: { branch_id: $form.find('[name=branch_id]').val(), operational_shift: $form.find('[name=operational_shift]').val(), opening_balance: openingBalance, _token: $form.find('[name=_token]').val() },
                         headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'), 'Accept': 'application/json' },
                         success: function () {
-                            if (typeof show_toastr === 'function') show_toastr('success', '{{ __("Shift opened successfully.") }}', 'success');
-                            $modal.modal('hide');
-                            $submit.prop('disabled', false);
-                            $form.find('[name=opening_balance]').val('');
-                            var openedBranchId = $form.find('[name=branch_id]').val();
-                            if (openedBranchId) {
-                                $(document).trigger('pos-shift-opened', [openedBranchId]);
-                            }
+                            // Reload so the server-rendered top bar (opening balance,
+                            // closing balance button) and the no-shift overlays
+                            // reflect the newly opened shift.
+                            window.location.reload();
                         },
                         error: function (xhr) {
                             var msg = (xhr.responseJSON && xhr.responseJSON.error) || '{{ __("pos.error") }}';
