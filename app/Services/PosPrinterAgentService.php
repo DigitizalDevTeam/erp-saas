@@ -854,6 +854,7 @@ class PosPrinterAgentService
                     'rate' => (float) $row['rate'],
                     'net' => round((float) $row['net'], 2),
                     'tax' => round((float) $row['tax'], 2),
+                    'total' => round((float) $row['net'] + (float) $row['tax'], 2),
                 ];
             }, $vatBreakdown)),
             'payment' => [

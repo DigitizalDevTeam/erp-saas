@@ -258,6 +258,7 @@
                     <th>{{ __('VAT') }}</th>
                     <th>{{ __('Net Amount') }}</th>
                     <th>{{ __('Tax') }}</th>
+                    <th>{{ __('Total') }}</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -266,6 +267,7 @@
                         <td>{{ number_format((float) ($row['rate'] ?? 0), 0) }}%</td>
                         <td>{{ $fmtMoney($row['net'] ?? 0) }}</td>
                         <td>{{ $fmtMoney($row['vat'] ?? 0) }}</td>
+                        <td>{{ $fmtMoney($row['amount'] ?? (($row['net'] ?? 0) + ($row['vat'] ?? 0))) }}</td>
                     </tr>
                 @endforeach
                 </tbody>

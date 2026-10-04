@@ -129,7 +129,7 @@
                         <th>{{ __('VAT') }} %</th>
                         <th class="num">{{ __('Net Amount') }}</th>
                         <th class="num">{{ __('Tax') }}</th>
-                        <th class="num">{{ __('Amount') }}</th>
+                        <th class="num">{{ __('Total') }}</th>
                     </tr>
                     </thead>
                     <tbody>
