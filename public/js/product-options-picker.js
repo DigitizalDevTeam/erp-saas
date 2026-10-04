@@ -108,6 +108,19 @@
             '<small class="badge bg-danger mb-0 rounded qty_badge flex-shrink-0 text-nowrap">' +
             escapeHtml(String(stockQty) + (stockUnit ? ' ' + stockUnit : '')) +
             '</small>';
+        var noStockBadge = opt.does_not_affect_stock
+            ? '<small class="badge bg-dark mb-0 rounded flex-shrink-0 text-nowrap">' +
+              escapeHtml(t('noStock', 'Does not affect stock')) +
+              '</small>'
+            : '';
+        var variantsCount = parseInt(opt.variants_count, 10) || 0;
+        var variantsBadge = variantsCount > 0
+            ? '<small class="badge bg-info mb-0 rounded flex-shrink-0 text-nowrap">' +
+              escapeHtml(t('variants', 'Variants')) +
+              ': ' +
+              variantsCount +
+              '</small>'
+            : '';
 
         return (
             '<label class="list-group-item erp-opt-row d-flex align-items-center gap-2 flex-nowrap" data-unit-price="' +
@@ -129,6 +142,8 @@
             skuHtml +
             '</span>' +
             stockBadge +
+            noStockBadge +
+            variantsBadge +
             '<span class="text-muted small flex-shrink-0 text-nowrap">' +
             up.toFixed(2) +
             '</span>' +

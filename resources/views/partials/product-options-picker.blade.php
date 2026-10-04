@@ -41,6 +41,8 @@
         selectOneGroup: @json(__('Select at most one option for')),
         addOns: @json(__('Add-ons')),
         qty: @json(__('Qty')),
+        noStock: @json(__('Does not affect stock')),
+        variants: @json(__('Variants')),
     };
 </script>
-<script src="{{ asset('js/product-options-picker.js') }}?v=20261002c"></script>
+<script src="{{ asset('js/product-options-picker.js') }}?v=20261004a"></script>
