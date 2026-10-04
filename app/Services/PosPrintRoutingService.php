@@ -113,10 +113,12 @@ class PosPrintRoutingService
                 if ($optName === '') {
                     continue;
                 }
-                $optQty = (float) ($opt['quantity'] ?? 1);
-                if ($optQty > 0 && abs($optQty - 1) > 0.0001) {
-                    $optName .= ' ×' . rtrim(rtrim(number_format($optQty, 4, '.', ''), '0'), '.');
+                $optQty = (float) ($opt['quantity'] ?? $opt['qty'] ?? 1);
+                if ($optQty <= 0) {
+                    $optQty = 1;
                 }
+                // Production needs every option with its qty, including qty 1.
+                $optName .= ' ×' . rtrim(rtrim(number_format($optQty, 4, '.', ''), '0'), '.');
                 $optionLabels[] = $optName;
             }
             $ingredientLabels = [];
@@ -128,13 +130,12 @@ class PosPrintRoutingService
                 if ($ingName === '') {
                     continue;
                 }
-                $ingQty = (float) ($ing['qty'] ?? 0);
+                $ingQty = (float) ($ing['qty'] ?? $ing['quantity'] ?? 0);
                 $ingUnit = trim((string) ($ing['unit'] ?? ''));
-                if ($ingQty > 0) {
-                    $ingName .= ' ×' . rtrim(rtrim(number_format($ingQty, 4, '.', ''), '0'), '.');
-                    if ($ingUnit !== '') {
-                        $ingName .= ' ' . $ingUnit;
-                    }
+                // Production needs every ingredient with its qty, including qty 1.
+                $ingName .= ' ×' . rtrim(rtrim(number_format($ingQty, 4, '.', ''), '0'), '.');
+                if ($ingUnit !== '') {
+                    $ingName .= ' ' . $ingUnit;
                 }
                 $ingredientLabels[] = $ingName;
             }

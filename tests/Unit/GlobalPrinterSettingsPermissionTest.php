@@ -54,6 +54,19 @@ class GlobalPrinterSettingsPermissionTest extends TestCase
         $this->assertStringNotContainsString('pos-printer-config-btn', $index);
     }
 
+    public function test_restaurant_pos_header_has_printer_settings_button(): void
+    {
+        $index = file_get_contents(resource_path('views/pos/index-restaurant.blade.php'));
+        $this->assertStringContainsString('id="global-printer-settings-btn"', $index);
+        $this->assertStringContainsString('canChangePosPrintSettings', $index);
+        $this->assertStringContainsString('partials.printer-settings-modal', $index);
+        $this->assertStringContainsString('posPrinterBranches', $index);
+
+        $modal = file_get_contents(resource_path('views/partials/printer-settings-modal.blade.php'));
+        $this->assertStringContainsString('posPrinterBranches', $modal);
+        $this->assertStringContainsString('#pos-restaurant-branch', $modal);
+    }
+
     public function test_agent_endpoints_require_manage_printers(): void
     {
         $ctl = file_get_contents(app_path('Http/Controllers/PosPrinterAgentController.php'));
