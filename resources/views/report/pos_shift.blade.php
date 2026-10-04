@@ -10,7 +10,8 @@
 @endsection
 
 @section('action-btn')
-    <button type="button" class="btn btn-sm btn-primary" onclick="window.print();"><i class="ti ti-printer"></i> {{ __('Print') }}</button>
+    <a href="{{ route('report.pos.shift', array_merge(request()->query(), ['print' => 'a4'])) }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary"><i class="ti ti-file-text"></i> {{ __('Print A4') }}</a>
+    <a href="{{ route('report.pos.shift', array_merge(request()->query(), ['print' => '80'])) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary"><i class="ti ti-receipt"></i> {{ __('Print 80mm Slip') }}</a>
     <a href="{{ route('report.pos.shift.export', request()->query()) }}" class="btn btn-sm btn-success"><i class="ti ti-file-export"></i> {{ __('Export Excel') }}</a>
 @endsection
 
