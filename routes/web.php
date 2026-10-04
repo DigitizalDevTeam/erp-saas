@@ -756,6 +756,7 @@ Route::post('customer/{id}/payment', [StripePaymentController::class, 'addpaymen
 Route::get('invoice/pdf/{id}', [InvoiceController::class, 'invoice'])->name('invoice.pdf')->middleware(['XSS', 'revalidate']);
 
 Route::get('users/{id}/login-with-company', [UserController::class, 'LoginWithCompany'])->name('login.with.company')->middleware(['auth']);
+Route::post('users/{id}/force-verify-email', [UserController::class, 'forceVerifyEmail'])->name('users.force.verify')->middleware(['auth']);
 Route::get('login-with-company/exit', [UserController::class, 'ExitCompany'])->name('exit.company')->middleware(['auth']);
 Route::get('user-login/{id}', [UserController::class, 'LoginManage'])->name('users.login');
 
