@@ -69,7 +69,9 @@
             <div class="invalid-feedback d-block">{{ $message }}</div>
         @enderror
     </div>
+    @unless($hidePrint ?? false)
     <button type="button" class="btn btn-outline-primary btn-sm shift-close-print">
         <i class="ti ti-printer"></i> {{ __('Print') }}
     </button>
+    @endunless
 </div>

@@ -9,6 +9,7 @@
             'salesTotal' => $salesTotal ?? 0,
             'expectedCash' => $expectedCash ?? 0,
             'amountField' => 'amount',
+            'hidePrint' => true,
         ])
     @endif
     <div class="form-group mt-3 mb-0">
@@ -18,6 +19,6 @@
 </div>
 <div class="modal-footer">
     <input type="button" value="{{ __('pos.cancel') }}" class="btn btn-secondary" data-bs-dismiss="modal">
-    <input type="submit" value="{{ __('pos.add') }}" class="btn btn-primary">
+    <input type="submit" value="{{ __('pos.add_closing_balance') }}" class="btn btn-primary">
 </div>
 {{ Form::close() }}
