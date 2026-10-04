@@ -49,7 +49,7 @@ class PrintAgentPairingTest extends TestCase
         $this->assertStringContainsString('FetchPairStatusAsync', $main);
         $this->assertStringContainsString('Start with Windows', $main);
         $this->assertStringContainsString('Print as image (debug)', $main);
-        $this->assertStringNotContainsString('_cboBranch', $main);
+        $this->assertStringContainsString('_cboBranch', $main);
 
         $config = file_get_contents(base_path('printer-agent/AgentConfig.cs'));
         $this->assertStringContainsString('EnsuredDeviceCode', $config);
@@ -60,5 +60,25 @@ class PrintAgentPairingTest extends TestCase
 
         $program = file_get_contents(base_path('printer-agent/Program.cs'));
         $this->assertStringContainsString('--tray', $program);
+    }
+
+    public function test_agent_branch_dropdown_and_automatic_logo(): void
+    {
+        $main = file_get_contents(base_path('printer-agent/MainForm.cs'));
+        $this->assertStringContainsString('private readonly ComboBox _cboBranch', $main);
+        $this->assertStringContainsString('FetchBranchesAsync', $main);
+        $this->assertStringContainsString('OnBranchSelectionChangedAsync', $main);
+        $this->assertStringContainsString('DownloadLogoIfChangedAsync', $main);
+        $this->assertStringContainsString('DeleteSlipLogo', $main);
+        $this->assertStringNotContainsString('Upload Logo', $main);
+        $this->assertStringNotContainsString('OpenFileDialog', $main);
+        $this->assertStringNotContainsString('SaveSlipLogoFromFile', $main);
+
+        $config = file_get_contents(base_path('printer-agent/AgentConfig.cs'));
+        $this->assertStringContainsString('BranchManuallySelected', $config);
+
+        $api = file_get_contents(base_path('printer-agent/ApiClient.cs'));
+        $this->assertStringContainsString('/printer-agent/branches', $api);
+        $this->assertStringContainsString('/printer-agent/logo?branch_id=', $api);
     }
 }

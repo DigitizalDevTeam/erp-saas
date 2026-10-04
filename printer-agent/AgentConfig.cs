@@ -7,6 +7,10 @@ public sealed class AgentConfig
 {
     public string BaseUrl { get; set; } = "http://erp-saas.test";
     public int BranchId { get; set; }
+
+    /// <summary>True when the branch was picked in this agent instead of supplied by ERP pairing.</summary>
+    public bool BranchManuallySelected { get; set; }
+
     public int PollIntervalMs { get; set; } = 2000;
 
     /// <summary>Stable per-PC pairing code shown in the agent; entered once in ERP Printer Settings.</summary>
