@@ -4250,6 +4250,31 @@
                 var totalSel = isRestaurant ? '#pos-restaurant-total' : '#displaytotal, .totalamount';
                 var ctx = { isRestaurant: isRestaurant, tbodySel: tbodySel, rowIdPrefix: rowIdPrefix, totalSel: totalSel };
 
+                // Before any other check: a product click first needs an open
+                // shift, then (dine-in) an open table. Open the matching
+                // pop-up / panel so the user sets those up first.
+                if (isRestaurant) {
+                    if (!$('#pos_shift_id_hidden').val()) {
+                        var $openShiftBtn = $('#pos-open-shift-btn');
+                        if ($openShiftBtn.length) {
+                            $openShiftBtn.trigger('click');
+                        } else if ($('#posOpenShiftModal').length) {
+                            $('#posOpenShiftModal').modal('show');
+                        }
+                        return;
+                    }
+                    var clickOrderType = ($('#pos-restaurant-order-type').length ? $('#pos-restaurant-order-type').val() : '') || 'dine_in';
+                    var clickTableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val() || $('#pos_restaurant_pos_id').val();
+                    if (clickOrderType === 'dine_in' && !clickTableId) {
+                        var $openTableBtn = $('#pos-open-table-panel-btn');
+                        var $tableGridWrap = $('#pos-restaurant-table-grid-wrap');
+                        if ($openTableBtn.length && !$openTableBtn.hasClass('d-none') && $tableGridWrap.length && $tableGridWrap.hasClass('d-none')) {
+                            $openTableBtn.trigger('click');
+                        }
+                        return;
+                    }
+                }
+
                 if (!navigator.onLine && $el.data('product-id')) {
                     if (String($el.data('variants-enabled')) === '1') {
                         var rawOff = $el.attr('data-variants');
