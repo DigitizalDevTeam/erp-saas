@@ -1170,6 +1170,7 @@ class PosPrinterAgentService
                 'tax' => $taxRate . '%',
                 'product_tax' => $taxRate . '%',
                 'tax_amount' => $user->priceFormat($tax),
+                'unit_incl_vat' => $user->priceFormat($amounts['unit']),
                 'subtotal' => $user->priceFormat($lineTotal),
                 'description' => $item->description ?? '',
             ];

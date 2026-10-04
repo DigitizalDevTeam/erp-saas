@@ -5034,7 +5034,6 @@
     "Without space": "Sem espaço",
     "With remaining stock": "Com stock restante",
     "With space": "Com espaço",
-    "Witness": "Testemunha",
     "Witness Name": "Nome da testemunha",
     "Witness person name": "Nome da testemunha",
     "Worker pays IRPS + 3% INSS (company pays 4% INSS)": "Trabalhador paga IRPS + 3% INSS (empresa paga 4% INSS)",
@@ -5107,5 +5106,6 @@
     "Zoom Meeting successfully created.": "Reunião Zoom criada com sucesso.",
     "Zoom Settings": "Configurações do Zoom",
     "`Cancle Request": "`Cancelar Solicitação",
-    "{select} entries per page": "{select} registos por página"
+    "{select} entries per page": "{select} registos por página",
+    "Unit (Incl. VAT)": "Unit. (IVA Incl.)"
 }
