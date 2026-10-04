@@ -2929,6 +2929,9 @@ class ReportController extends Controller
             );
 
         $aggregates = $service->buildAggregates($shiftIds, $creatorId, $filter['product_id']);
+        $minimumStock = $service->minimumStockAlertRows($creatorId, ! empty($filter['warehouse_id']) ? (int) $filter['warehouse_id'] : null);
+        $minimumStockRows = $minimumStock['rows'];
+        $minimumStockThreshold = $minimumStock['globalThreshold'];
 
         $printFormat = $request->input('print');
         if (in_array($printFormat, ['a4', '80'], true)) {
@@ -2945,7 +2948,9 @@ class ReportController extends Controller
                 'summary',
                 'aggregates',
                 'printShiftRows',
-                'shiftIds'
+                'shiftIds',
+                'minimumStockRows',
+                'minimumStockThreshold'
             ));
         }
 
@@ -2966,7 +2971,9 @@ class ReportController extends Controller
             'shiftRows',
             'summary',
             'aggregates',
-            'shiftIds'
+            'shiftIds',
+            'minimumStockRows',
+            'minimumStockThreshold'
         ));
     }
 

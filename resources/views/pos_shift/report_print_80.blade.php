@@ -102,6 +102,8 @@
     <div class="row"><span>{{ __('pos.void_summary') }}:</span><span>{{ $voidedLines->count() }}</span></div>
     @endif
 
+    @include('report.partials.pos_shift_min_stock_alert_80')
+
     <div class="solid"></div>
     <div class="c">{{ __('Cashier') }}: {{ $pos_shift->user ? $pos_shift->user->name : '-' }}</div>
     <div class="c" style="margin-top:16px;">________________________</div>

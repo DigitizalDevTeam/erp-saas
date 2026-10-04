@@ -383,5 +383,7 @@
                 </div>
             </div>
         </div>
+
+        @include('report.partials.pos_shift_min_stock_alert_card')
     </div>
 @endsection
