@@ -37,5 +37,14 @@ class PosProductClickShiftTableGateTest extends TestCase
         // Table gate triggers the Open Table panel button.
         $this->assertStringContainsString("$('#pos-open-table-panel-btn')", $view);
         $this->assertStringContainsString("$('#pos-restaurant-table-grid-wrap')", $view);
+
+        // With no table open, the click scrolls the table picker into view
+        // at the top of the screen (falling back to the page top).
+        $this->assertStringContainsString('scrollIntoView({ behavior: \'smooth\', block: \'start\' })', $view);
+        $this->assertStringContainsString('window.scrollTo({ top: 0, behavior: \'smooth\' })', $view);
+        $scrollPos = strpos($view, 'scrollIntoView({ behavior:', $clickPos);
+        $this->assertNotFalse($scrollPos);
+        $this->assertGreaterThan($tableGatePos, $scrollPos);
+        $this->assertLessThan($firstRealCheckPos, $scrollPos);
     }
 }
