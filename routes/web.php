@@ -1568,6 +1568,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('dev-tool', [DevToolController::class, 'index'])->name('dev-tool.index')->middleware(['auth', 'XSS']);
     Route::post('dev-tool/clear-log', [DevToolController::class, 'clearLog'])->name('dev-tool.clear-log')->middleware(['auth', 'XSS']);
     Route::post('dev-tool/migrate', [DevToolController::class, 'migrate'])->name('dev-tool.migrate')->middleware(['auth', 'XSS']);
+    Route::post('dev-tool/run-seeder', [DevToolController::class, 'runSeeder'])->name('dev-tool.run-seeder')->middleware(['auth', 'XSS']);
     Route::get('document-void-logs', [DocumentVoidLogController::class, 'index'])->name('document_void_logs.index')->middleware(['auth', 'XSS']);
     // End Email Templates
 
