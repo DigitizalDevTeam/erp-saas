@@ -47,6 +47,7 @@
                             <a href="{{ route('report.pos.eod.export', ['date' => $date]) }}" class="btn btn-success"><i class="ti ti-file-spreadsheet"></i> {{ __('Export Excel') }}</a>
                             <a href="{{ route('report.pos.eod', ['date' => $date, 'print' => 'a4']) }}" target="_blank" rel="noopener" class="btn btn-secondary"><i class="ti ti-file-text"></i> {{ __('Print A4') }}</a>
                             <a href="{{ route('report.pos.eod', ['date' => $date, 'print' => '80']) }}" target="_blank" rel="noopener" class="btn btn-outline-secondary"><i class="ti ti-receipt"></i> {{ __('Print 80mm Slip') }}</a>
+                            <a href="{{ route('report.pos.eod.download', ['date' => $date]) }}" class="btn btn-outline-primary"><i class="ti ti-file-download"></i> {{ __('Download PDF') }}</a>
                             {{ Form::open(['route' => 'report.pos.eod.send', 'method' => 'post', 'class' => 'd-inline', 'id' => 'eod-send-email-form']) }}
                             {{ Form::hidden('date', $date) }}
                             @csrf

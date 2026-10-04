@@ -2605,6 +2605,29 @@ class ReportController extends Controller
     }
 
     /**
+     * Download the EOD report as a PDF in the exact A4 print format.
+     */
+    public function posEodReportDownload(Request $request)
+    {
+        if (! \Auth::user()->canManagePos()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $date = $request->input('date', date('Y-m-d'));
+        $creatorId = \Auth::user()->creatorId();
+        try {
+            $pdf = PosEodReportService::renderPdf($creatorId, $date);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', __('PDF generation is not available.'));
+        }
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="eod-report-' . $date . '.pdf"',
+        ]);
+    }
+
+    /**
      * Manually email the EOD report PDF to all "Report Received At" recipients.
      * Available to company admin and any user who can manage POS.
      */
