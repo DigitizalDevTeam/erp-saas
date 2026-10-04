@@ -23,6 +23,50 @@ class PosPrinterAgentApiController extends Controller
         ], 'Branches loaded');
     }
 
+    /**
+     * Agent pairing: agent polls with its device code. Once a logged-in
+     * user pairs the code in Printer Settings, this returns the branch
+     * from that user's session so the agent needs no manual branch setup.
+     */
+    public function pairStatus(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'device_code' => 'required|string|max:16',
+            'machine_name' => 'nullable|string|max:255',
+        ]);
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
+
+        if (! \Schema::hasTable('pos_printer_agent_pairings')) {
+            return $this->success(['paired' => false], 'Pairing not available');
+        }
+
+        $pairing = \App\Models\PosPrinterAgentPairing::firstOrCreate(
+            ['device_code' => strtoupper(trim((string) $request->device_code))],
+            ['machine_name' => $request->get('machine_name')]
+        );
+        if ($request->get('machine_name') && $pairing->machine_name !== $request->get('machine_name')) {
+            $pairing->machine_name = $request->get('machine_name');
+            $pairing->save();
+        }
+
+        if (! $pairing->isPaired()) {
+            return $this->success(['paired' => false], 'Not paired yet');
+        }
+
+        $branch = $pairing->branch;
+        if (! $branch) {
+            return $this->success(['paired' => false], 'Branch no longer exists');
+        }
+
+        return $this->success([
+            'paired' => true,
+            'branch_id' => (int) $branch->id,
+            'branch_name' => $branch->name,
+        ], 'Paired');
+    }
+
     public function heartbeat(Request $request)
     {
         $validator = Validator::make($request->all(), [

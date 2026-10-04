@@ -539,6 +539,68 @@ public static class SlipPrinter
         return bmp;
     }
 
+    /// <summary>
+    /// Debug mode ("Print as image"): render this job to a PNG file instead
+    /// of sending it to a printer. Returns the saved file path.
+    /// </summary>
+    public static string SaveJobAsImage(PrintJobDto job, string folder)
+    {
+        Directory.CreateDirectory(folder);
+
+        if (string.Equals(job.Zone, "receipt", StringComparison.OrdinalIgnoreCase)
+            && !IsNativeReceiptRender(job)
+            && TryGetReceiptImageBytes(job, out var imageBytes)
+            && imageBytes is { Length: > 0 })
+        {
+            var imagePath = Path.Combine(folder, $"job-{job.Id}-{DateTime.Now:yyyyMMdd-HHmmss}.png");
+            File.WriteAllBytes(imagePath, imageBytes);
+            return imagePath;
+        }
+
+        var lines = string.Equals(job.Zone, "receipt", StringComparison.OrdinalIgnoreCase)
+            ? BuildReceiptLines(job, ResolveInvoiceTemplate(job))
+            : BuildSlipLines(job);
+
+        using var bmp = RenderLinesToBitmap(lines);
+        var path = Path.Combine(folder, $"job-{job.Id}-{DateTime.Now:yyyyMMdd-HHmmss}.png");
+        bmp.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+        return path;
+    }
+
+    private static Bitmap RenderLinesToBitmap(List<SlipLine> lines)
+    {
+        const int width = 380;
+        const float left = 14f;
+        float contentWidth = width - 14f - 18f;
+
+        using var titleFont = new Font("Consolas", 12f, FontStyle.Bold);
+        using var bodyFont = new Font("Consolas", 9f, FontStyle.Regular);
+        using var bodyBoldFont = new Font("Consolas", 9f, FontStyle.Bold);
+        using var measureBmp = new Bitmap(8, 8);
+        using var measure = Graphics.FromImage(measureBmp);
+        measure.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+        float y = 8f;
+        foreach (var line in lines)
+        {
+            var font = line.Kind == SlipLineKind.Title ? titleFont : (line.Bold ? bodyBoldFont : bodyFont);
+            y += DrawLine(measure, Brushes.Black, font, line, left, contentWidth, y);
+        }
+
+        var bmp = new Bitmap(width, Math.Max(40, (int)Math.Ceiling(y) + 12));
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Color.White);
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        y = 8f;
+        foreach (var line in lines)
+        {
+            var font = line.Kind == SlipLineKind.Title ? titleFont : (line.Bold ? bodyBoldFont : bodyFont);
+            y += DrawLine(g, Brushes.Black, font, line, left, contentWidth, y);
+        }
+
+        return bmp;
+    }
+
     private const string PreviewReceiptJson = """
         {
           "header": {

@@ -168,6 +168,49 @@ class PosPrinterAgentController extends Controller
     }
 
     /**
+     * Pair a Print Agent device code to this user's company + the branch
+     * selected in Printer Settings (from the logged-in browser session).
+     */
+    public function pairAgent(Request $request)
+    {
+        $loggedInUser = Auth::user();
+        if (! $loggedInUser || ! $loggedInUser->canManagePrinters()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $request->validate([
+            'device_code' => 'required|string|max:16',
+            'branch_id' => 'required|integer|exists:branches,id',
+        ]);
+
+        if (! \Schema::hasTable('pos_printer_agent_pairings')) {
+            return response()->json(['error' => __('Pairing storage is not ready. Run database migrations.')], 422);
+        }
+
+        $creatorId = $loggedInUser->creatorId();
+        $branchId = (int) $request->branch_id;
+        $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->first();
+        if (! $branch) {
+            return response()->json(['error' => __('Invalid branch.')], 422);
+        }
+        if (! $loggedInUser->canAccessBranchForPos($branchId, 'restaurant')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $code = strtoupper(trim((string) $request->device_code));
+        $pairing = \App\Models\PosPrinterAgentPairing::updateOrCreate(
+            ['device_code' => $code],
+            ['created_by' => $creatorId, 'branch_id' => $branchId, 'paired_at' => now()]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => __('Print Agent paired to :branch.', ['branch' => $branch->name]),
+            'branch_id' => $branchId,
+        ]);
+    }
+
+    /**
      * Enqueue a bill/receipt print job to the Print Agent default printer.
      */
     public function printReceipt(Request $request)
