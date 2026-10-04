@@ -24,18 +24,7 @@ class EmailVerificationNotificationController extends Controller
 
         $settings = Utility::settings();
 
-        config(
-            [
-                'mail.driver'       => $settings['mail_driver'],
-                'mail.host'         => $settings['mail_host'],
-                'mail.port'         => $settings['mail_port'],
-                'mail.encryption'   => $settings['mail_encryption'],
-                'mail.username'     => $settings['mail_username'],
-                'mail.password'     => $settings['mail_password'],
-                'mail.from.address' => $settings['mail_from_address'],
-                'mail.from.name'    => $settings['mail_from_name'],
-                ]
-            );
+        \App\Support\MailConfig::apply($request->user()->creatorId(), $settings);
 
         try {
             $request->user()->sendEmailVerificationNotification();

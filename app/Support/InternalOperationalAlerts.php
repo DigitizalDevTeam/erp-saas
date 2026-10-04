@@ -64,19 +64,8 @@ class InternalOperationalAlerts
 
     private static function configureMailFromCompany(int $companyCreatorId): void
     {
-        $s = Utility::settingsById($companyCreatorId);
-        $fallback = Utility::settings();
         try {
-            config([
-                'mail.driver' => $s['mail_driver'] ?: ($fallback['mail_driver'] ?? 'smtp'),
-                'mail.host' => $s['mail_host'] ?: ($fallback['mail_host'] ?? ''),
-                'mail.port' => $s['mail_port'] ?: ($fallback['mail_port'] ?? ''),
-                'mail.encryption' => $s['mail_encryption'] ?: ($fallback['mail_encryption'] ?? ''),
-                'mail.username' => $s['mail_username'] ?: ($fallback['mail_username'] ?? ''),
-                'mail.password' => $s['mail_password'] ?: ($fallback['mail_password'] ?? ''),
-                'mail.from.address' => $s['mail_from_address'] ?: ($fallback['mail_from_address'] ?? ''),
-                'mail.from.name' => $s['mail_from_name'] ?: ($fallback['mail_from_name'] ?? ''),
-            ]);
+            MailConfig::apply($companyCreatorId);
         } catch (\Throwable $e) {
         }
     }

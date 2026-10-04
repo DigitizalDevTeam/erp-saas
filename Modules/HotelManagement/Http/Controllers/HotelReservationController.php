@@ -906,6 +906,7 @@ class HotelReservationController extends Controller
             ]), [
                 'source' => 'hotel_reservation',
                 'subject' => __('Hotel reservation confirmation'),
+                'created_by' => (int) ($reservation->created_by ?: Auth::user()->creatorId()),
             ]);
 
             $reservation->forceFill(['guest_email_sent_at' => now()])->save();

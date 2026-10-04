@@ -30,7 +30,7 @@ namespace App\Models;
     {
         // private static $settings = NULL;
         private static $getsettings = null;
-        private static $getsettingsid = null;
+        private static $getsettingsid = [];
         private static $taxsData = null;
         private static $taxRateData = null;
         private static $taxData = null;
@@ -60,15 +60,18 @@ namespace App\Models;
 
         public static function getSettingById($id)
         {
-            if (self::$getsettingsid == null) {
+            // Cache per requested id: caching only the first id made every
+            // later company in the same request/command reuse the first
+            // company's settings (including its SMTP settings).
+            if (! isset(self::$getsettingsid[$id])) {
                 $data = DB::table('settings');
                 $data = $data->where('created_by', '=', $id)->get();
                 if (count($data) == 0) {
                     $data = DB::table('settings')->where('created_by', '=', 1)->get();
                 }
-                self::$getsettingsid = $data;
+                self::$getsettingsid[$id] = $data;
             }
-            return self::$getsettingsid;
+            return self::$getsettingsid[$id];
         }
         
         public static function insertChartAccountData($id)
@@ -3092,18 +3095,18 @@ namespace App\Models;
 
                             try
                             {
-                                config(
-                                    [
-                                        'mail.driver' => $settings['mail_driver'] ? $settings['mail_driver'] : $setting['mail_driver'],
-                                        'mail.host' => $settings['mail_host'] ? $settings['mail_host'] : $setting['mail_host'],
-                                        'mail.port' => $settings['mail_port'] ? $settings['mail_port'] :$setting['mail_port'],
-                                        'mail.encryption' => $settings['mail_encryption'] ? $settings['mail_encryption'] : $setting['mail_encryption'],
-                                        'mail.username' => $settings['mail_username'] ? $settings['mail_username'] : $setting['mail_username'],
-                                        'mail.password' => $settings['mail_password'] ? $settings['mail_password'] : $setting['mail_password'],
-                                        'mail.from.address' => $settings['mail_from_address'] ? $settings['mail_from_address'] : $setting['mail_from_address'],
-                                        'mail.from.name' => $settings['mail_from_name'] ? $settings['mail_from_name'] : $setting['mail_from_name'],
-                                    ]
-                                );
+                                $mailSettings = \App\Support\MailConfig::apply($usr->creatorId(), [
+                                    'mail_driver' => $settings['mail_driver'] ? $settings['mail_driver'] : $setting['mail_driver'],
+                                    'mail_host' => $settings['mail_host'] ? $settings['mail_host'] : $setting['mail_host'],
+                                    'mail_port' => $settings['mail_port'] ? $settings['mail_port'] : $setting['mail_port'],
+                                    'mail_encryption' => $settings['mail_encryption'] ? $settings['mail_encryption'] : $setting['mail_encryption'],
+                                    'mail_username' => $settings['mail_username'] ? $settings['mail_username'] : $setting['mail_username'],
+                                    'mail_password' => $settings['mail_password'] ? $settings['mail_password'] : $setting['mail_password'],
+                                    'mail_from_address' => $settings['mail_from_address'] ? $settings['mail_from_address'] : $setting['mail_from_address'],
+                                    'mail_from_name' => $settings['mail_from_name'] ? $settings['mail_from_name'] : $setting['mail_from_name'],
+                                ]);
+                                $settings['mail_from_address'] = $settings['mail_from_address'] ?: $mailSettings['mail_from_address'];
+                                $settings['mail_from_name'] = $settings['mail_from_name'] ?: $mailSettings['mail_from_name'];
 
                                 LoggedMail::send($mailTo, new CommonEmailTemplate($content, $settings), [
                                     'source' => $emailTemplate,
@@ -3192,18 +3195,10 @@ namespace App\Models;
                         // send email
                         try
                         {
-                            config(
-                                [
-                                    'mail.driver' => $settings['mail_driver'],
-                                    'mail.host' => $settings['mail_host'],
-                                    'mail.port' => $settings['mail_port'],
-                                    'mail.encryption' => $settings['mail_encryption'],
-                                    'mail.username' => $settings['mail_username'],
-                                    'mail.password' => $settings['mail_password'],
-                                    'mail.from.address' => $settings['mail_from_address'],
-                                    'mail.from.name' => $settings['mail_from_name'],
-                                ]
-                            );
+                            $mailSettings = \App\Support\MailConfig::apply(1, $settings);
+                            $settings['mail_from_address'] = $settings['mail_from_address'] ?: $mailSettings['mail_from_address'];
+                            $settings['mail_from_name'] = $settings['mail_from_name'] ?: $mailSettings['mail_from_name'];
+
                             LoggedMail::send($mailTo, new CommonEmailTemplate($content, $settings), [
                                 'source' => $emailTemplate,
                                 'subject' => $content->subject ?? $emailTemplate,
@@ -5753,20 +5748,12 @@ namespace App\Models;
         public static function smtpDetail($user_id)
         {
             $settings = self::settingsById($user_id);
-            $smtpDetail = config(
-                [
-                    'mail.driver' => $settings['mail_driver'],
-                    'mail.host' => $settings['mail_host'],
-                    'mail.port' => $settings['mail_port'],
-                    'mail.encryption' => $settings['mail_encryption'],
-                    'mail.username' => $settings['mail_username'],
-                    'mail.password' => $settings['mail_password'],
-                    'mail.from.address' => $settings['mail_from_address'],
-                    'mail.from.name' => $settings['mail_from_name'],
-                ]
-            );
 
-            return $smtpDetail;
+            // Apply the /systems SMTP settings with the config keys
+            // Laravel 11 actually reads; callers (password reset, email
+            // verification) send through the notification mailer right
+            // after calling this, so the config must be set here.
+            return \App\Support\MailConfig::apply($user_id ? (int) $user_id : null, $settings);
         }
 
         public static function getPusherSetting($user_id)

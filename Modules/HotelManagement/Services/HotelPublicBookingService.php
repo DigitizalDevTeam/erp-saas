@@ -157,7 +157,11 @@ class HotelPublicBookingService
                 'hotel_name' => $site->display_name,
                 'check_in_time' => $site->check_in_time,
                 'check_out_time' => $site->check_out_time,
-            ]));
+            ]), [
+                'source' => 'hotel_reservation',
+                'subject' => __('Hotel reservation confirmation'),
+                'created_by' => (int) ($reservation->created_by ?: $site->created_by),
+            ]);
             $reservation->update(['guest_email_sent_at' => now()]);
         } catch (\Throwable) {
             // Non-blocking for guest booking
