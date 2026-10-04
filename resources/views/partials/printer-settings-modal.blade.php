@@ -94,7 +94,10 @@
 </div>
 
 <script>
-    (function () {
+    // Run on DOMContentLoaded: on admin pages jQuery is loaded by the footer
+    // AFTER this partial, so executing immediately would fail with
+    // "$ is not defined" and no click handler would ever bind.
+    document.addEventListener('DOMContentLoaded', function () {
         var printerSettingsStatusTimer = null;
 
         function fillPrinterSelect($select, printers, selectedId) {
@@ -269,5 +272,5 @@
                 }
             });
         });
-    })();
+    });
 </script>
