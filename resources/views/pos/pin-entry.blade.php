@@ -7,6 +7,8 @@
         $themeColor = $color;
     }
     $SITE_RTL = \App\Models\Utility::getValByName('SITE_RTL');
+    $logo = \App\Models\Utility::get_file('uploads/logo');
+    $company_favicon = \App\Models\Utility::getValByName('company_favicon');
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
@@ -15,6 +17,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ config('app.name') }} - {{ __('Restaurant POS') }}</title>
+    <link rel="icon" href="{{ $logo . '/' . (!empty($company_favicon) ? $company_favicon : 'favicon.png') . '?' . time() }}" type="image" sizes="16x16">
     <link rel="stylesheet" href="{{ asset('assets/fonts/tabler-icons.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/fonts/feather.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/fonts/fontawesome.css') }}">
