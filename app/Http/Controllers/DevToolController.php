@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -25,6 +26,7 @@ class DevToolController extends Controller
 
         return view('dev-tool.index', [
             'pending' => $this->pendingMigrations(),
+            'seeders' => $this->seederClasses(),
             'logFiles' => $logFiles,
             'selectedLog' => $selected,
             'logBody' => $log['body'],
@@ -72,6 +74,70 @@ class DevToolController extends Controller
         return $redirect->with('success', $report['ran'] === []
             ? __('No pending migrations.')
             : __('Migrations finished.'));
+    }
+
+    /**
+     * Seeder class names available to run from /dev-tool,
+     * discovered from database/seeders (short class names, A-Z).
+     *
+     * @return array<int, string>
+     */
+    protected function seederClasses(): array
+    {
+        $dir = database_path('seeders');
+        if (! is_dir($dir)) {
+            return [];
+        }
+
+        $names = [];
+        foreach (File::files($dir) as $file) {
+            if (strtolower($file->getExtension()) !== 'php') {
+                continue;
+            }
+            $contents = (string) file_get_contents($file->getPathname());
+            if (preg_match('/^\s*class\s+([A-Za-z0-9_]+)\s+extends\s+Seeder/m', $contents, $match)) {
+                $names[] = $match[1];
+            }
+        }
+
+        sort($names, SORT_NATURAL);
+
+        return array_values(array_unique($names));
+    }
+
+    public function runSeeder(Request $request)
+    {
+        if ($denied = $this->denyUnlessSuperAdmin()) {
+            return $denied;
+        }
+
+        $class = (string) $request->input('seeder', '');
+        if (! in_array($class, $this->seederClasses(), true)) {
+            return redirect()->route('dev-tool.index')->with('error', __('Please select a valid seeder.'));
+        }
+
+        @set_time_limit(300);
+
+        try {
+            Artisan::call('db:seed', ['--class' => $class, '--force' => true]);
+            $output = trim((string) Artisan::output());
+        } catch (\Throwable $e) {
+            $message = $e->getMessage();
+            foreach (['(SQL:', '(Connection:'] as $marker) {
+                $pos = strpos($message, $marker);
+                if ($pos !== false) {
+                    $message = trim(substr($message, 0, $pos));
+                }
+            }
+
+            return redirect()->route('dev-tool.index')
+                ->with('seed_report', ['seeder' => $class, 'output' => '', 'failed' => $message !== '' ? $message : __('The seeder could not be run.')])
+                ->with('error', __('Seeder failed: :seeder', ['seeder' => $class]));
+        }
+
+        return redirect()->route('dev-tool.index')
+            ->with('seed_report', ['seeder' => $class, 'output' => $output, 'failed' => null])
+            ->with('success', __('Seeder finished: :seeder', ['seeder' => $class]));
     }
 
     /**

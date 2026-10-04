@@ -280,7 +280,7 @@ class PosEodReportService
             throw new \RuntimeException('PDF generation is not available.');
         }
 
-        return Pdf::loadView('report.pos_eod_pdf', $data)
+        return Pdf::loadView('report.pos_eod_print_a4', $data)
             ->setPaper('a4', 'portrait')
             ->output();
     }

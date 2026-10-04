@@ -30,10 +30,41 @@ class EodReportPrintDesignsTest extends TestCase
 
     public function test_a4_view_is_professional_design(): void
     {
-        $v = file_get_contents(resource_path('views/report/pos_eod_print_a4.blade.php'));
-        foreach (['END OF DAY REPORT', 'Sales by Payment Method', 'SALES PER EMPLOYEE', 'TAXES', 'SUMMARY OF ITEMS SOLD', 'Manager Signature', 'size: A4'] as $needle) {
+        $v = file_get_contents(resource_path('views/report/pos_eod_print_a4.blade.php'))
+            . file_get_contents(resource_path('views/report/partials/pos_eod_a4_content.blade.php'));
+        foreach (['End of Day (EOD) Report', 'SALES BY PAYMENT METHOD', 'SALES PER EMPLOYEE', 'TAXES', 'SUMMARY OF ITEMS SOLD', 'Manager Signature', 'size: A4'] as $needle) {
             $this->assertStringContainsString($needle, $v, $needle);
         }
+    }
+
+    public function test_a4_view_is_plain_no_cards_no_colours(): void
+    {
+        $v = file_get_contents(resource_path('views/report/pos_eod_print_a4.blade.php'))
+            . file_get_contents(resource_path('views/report/partials/pos_eod_a4_content.blade.php'))
+            . file_get_contents(resource_path('views/report/partials/pos_eod_a4_styles.blade.php'));
+        $this->assertStringNotContainsString('kpi', $v);
+        $this->assertStringNotContainsString('#0f5132', $v);
+        $this->assertStringNotContainsString('border-radius', $v);
+    }
+
+    public function test_on_screen_page_uses_same_a4_report_layout(): void
+    {
+        $page = file_get_contents(resource_path('views/report/pos_eod.blade.php'));
+        $this->assertStringContainsString("@include('report.partials.pos_eod_a4_content')", $page);
+        $this->assertStringNotContainsString('eod-printable', $page);
+        $this->assertStringNotContainsString('Courier New', $page);
+    }
+
+    public function test_pdf_download_uses_same_a4_format(): void
+    {
+        $routes = file_get_contents(base_path('routes/web.php'));
+        $this->assertStringContainsString('report.pos.eod.download', $routes);
+
+        $service = file_get_contents(app_path('Services/PosEodReportService.php'));
+        $this->assertStringContainsString("Pdf::loadView('report.pos_eod_print_a4'", $service);
+
+        $page = file_get_contents(resource_path('views/report/pos_eod.blade.php'));
+        $this->assertStringContainsString('Download PDF', $page);
     }
 
     public function test_80_view_is_slip_design(): void

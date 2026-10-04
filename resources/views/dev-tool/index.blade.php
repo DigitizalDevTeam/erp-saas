@@ -82,6 +82,51 @@
                 </div>
             </div>
 
+            @php $seedReport = session('seed_report'); @endphp
+            @if (is_array($seedReport))
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">{{ __('Seeder result') }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2"><code>{{ $seedReport['seeder'] ?? '' }}</code></p>
+                        @if (! empty($seedReport['failed']))
+                            <div class="alert alert-danger mb-0">{{ $seedReport['failed'] }}</div>
+                        @elseif (($seedReport['output'] ?? '') !== '')
+                            <pre class="mb-0" style="max-height: 320px; overflow: auto; white-space: pre-wrap; background: #1e1e1e; color: #e8e8e8; padding: 12px; border-radius: 6px;">{{ $seedReport['output'] }}</pre>
+                        @else
+                            <p class="mb-0 text-muted">{{ __('Seeder finished with no output.') }}</p>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">{{ __('Run database seeder') }}</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">{{ __('Pick a seeder and run it. Seeders can add or update data, so run only the one you need.') }}</p>
+                    <form method="POST" action="{{ route('dev-tool.run-seeder') }}" onsubmit="return confirm('{{ __('Run the selected seeder now? It may add or update data.') }}');">
+                        @csrf
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <select name="seeder" class="form-select" style="min-width: 260px; max-width: 420px;" @if (count($seeders) === 0) disabled @endif>
+                                <option value="">{{ __('Select seeder') }}</option>
+                                @foreach ($seeders as $seeder)
+                                    <option value="{{ $seeder }}">{{ $seeder }}</option>
+                                @endforeach
+                            </select>
+                            <button type="submit" class="btn btn-primary" @if (count($seeders) === 0) disabled @endif>
+                                {{ __('Run seeder') }}
+                            </button>
+                        </div>
+                        @if (count($seeders) === 0)
+                            <p class="mb-0 mt-2 text-muted">{{ __('No seeders found.') }}</p>
+                        @endif
+                    </form>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <h5 class="mb-0">{{ __('Laravel log') }}</h5>
