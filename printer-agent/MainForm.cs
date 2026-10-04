@@ -11,6 +11,7 @@ public partial class MainForm : Form
     private DateTime _lastPrinterSync = DateTime.MinValue;
 
     private readonly TextBox _txtBaseUrl = new();
+    private readonly ComboBox _cboBranch = new();
     private readonly TextBox _txtDeviceCode = new();
     private readonly Label _lblBranch = new();
     private readonly CheckBox _chkAutoStart = new();
@@ -18,8 +19,10 @@ public partial class MainForm : Form
     private readonly Button _btnConnect = new();
     private System.Windows.Forms.Timer? _pairTimer;
     private readonly bool _startInTray;
-    private readonly Button _btnUploadLogo = new();
     private readonly Label _lblSlipLogo = new();
+    private bool _loadingBranches;
+    private bool _changingBranch;
+    private PairStatusDto? _lastPairStatus;
     private string _appliedTemplate = "";
     private bool _logoErrorLogged;
     private readonly Button _btnStop = new();
@@ -35,7 +38,7 @@ public partial class MainForm : Form
         _startInTray = startInTray;
         Text = "POS Printer Agent";
         Width = 640;
-        Height = 560;
+        Height = 600;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -81,6 +84,18 @@ public partial class MainForm : Form
         Controls.Add(_lblBranch);
         y += 36;
 
+        Controls.Add(MakeLabel("Branch", 16, y));
+        _cboBranch.Left = 140;
+        _cboBranch.Top = y - 2;
+        _cboBranch.Width = 360;
+        _cboBranch.DropDownStyle = ComboBoxStyle.DropDownList;
+        _cboBranch.DisplayMember = "Name";
+        _cboBranch.ValueMember = "Id";
+        _cboBranch.Enabled = false;
+        _cboBranch.SelectedIndexChanged += async (_, _) => await OnBranchSelectionChangedAsync();
+        Controls.Add(_cboBranch);
+        y += 40;
+
         _chkAutoStart.Text = "Start with Windows";
         _chkAutoStart.Left = 140;
         _chkAutoStart.Top = y;
@@ -103,17 +118,11 @@ public partial class MainForm : Form
         Controls.Add(_chkPrintAsImage);
         y += 36;
 
-        Controls.Add(MakeLabel("Slip logo", 16, y));
-        _btnUploadLogo.Left = 140;
-        _btnUploadLogo.Top = y - 3;
-        _btnUploadLogo.Width = 120;
-        _btnUploadLogo.Click += (_, _) => UploadOrChangeSlipLogo();
-        Controls.Add(_btnUploadLogo);
-
+        Controls.Add(MakeLabel("ERP slip logo", 16, y));
         _lblSlipLogo.AutoSize = false;
-        _lblSlipLogo.Left = 270;
+        _lblSlipLogo.Left = 140;
         _lblSlipLogo.Top = y;
-        _lblSlipLogo.Width = 330;
+        _lblSlipLogo.Width = 460;
         _lblSlipLogo.Height = 22;
         Controls.Add(_lblSlipLogo);
         RefreshSlipLogoUi();
@@ -175,37 +184,9 @@ public partial class MainForm : Form
 
     private void RefreshSlipLogoUi()
     {
-        var has = SlipLogoStore.HasSlipLogo();
-        _btnUploadLogo.Text = has ? "Change Logo" : "Upload Logo";
-        _lblSlipLogo.Text = has ? "Slip logo: saved on this PC" : "Slip logo: not saved yet";
-    }
-
-    private void UploadOrChangeSlipLogo()
-    {
-        using var dlg = new OpenFileDialog
-        {
-            Title = "Select slip logo",
-            Filter = "Image files|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*",
-            CheckFileExists = true,
-            Multiselect = false,
-        };
-        if (dlg.ShowDialog(this) != DialogResult.OK)
-        {
-            return;
-        }
-
-        try
-        {
-            SlipLogoStore.SaveSlipLogoFromFile(dlg.FileName);
-            RefreshSlipLogoUi();
-            AppendLog("Slip logo saved. It will be used on Pay & Print slips.");
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, "Could not save logo: " + ex.Message, "POS Printer Agent",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
-            AppendLog("Slip logo save failed: " + ex.Message);
-        }
+        _lblSlipLogo.Text = SlipLogoStore.HasSlipLogo()
+            ? "ERP logo: downloaded and saved on this PC"
+            : "ERP logo: will download automatically when connected";
     }
 
     private static Label MakeLabel(string text, int x, int y)
@@ -251,14 +232,41 @@ public partial class MainForm : Form
 
     private void RefreshBranchLabel()
     {
-        _lblBranch.Text = _config.BranchId > 0
-            ? $"Branch: #{_config.BranchId} (paired)"
-            : "Branch: not paired";
+        if (_config.BranchId <= 0)
+        {
+            _lblBranch.Text = "Branch: not selected";
+            return;
+        }
+
+        var name = (_cboBranch.SelectedItem as BranchDto)?.Name;
+        if (string.IsNullOrWhiteSpace(name) && _lastPairStatus?.BranchId == _config.BranchId)
+        {
+            name = _lastPairStatus.BranchName;
+        }
+
+        var label = string.IsNullOrWhiteSpace(name)
+            ? $"Branch: #{_config.BranchId}"
+            : $"Branch: {name}";
+
+        if (_lastPairStatus?.Paired == true && _lastPairStatus.BranchId == _config.BranchId && !_config.BranchManuallySelected)
+        {
+            label += " (paired)";
+        }
+        else if (_config.BranchManuallySelected)
+        {
+            label += " (selected on this PC)";
+        }
+
+        _lblBranch.Text = label;
     }
 
     private void SaveUiSettings()
     {
         _config.BaseUrl = _txtBaseUrl.Text.Trim();
+        if (!_loadingBranches && _cboBranch.SelectedItem is BranchDto selectedBranch && selectedBranch.Id > 0)
+        {
+            _config.BranchId = selectedBranch.Id;
+        }
         _config.AutoStartWithWindows = _chkAutoStart.Checked;
         _config.PrintAsImage = _chkPrintAsImage.Checked;
         _config.PollIntervalMs = 2000;
@@ -313,11 +321,21 @@ public partial class MainForm : Form
 
         try
         {
-            if (await client.DownloadLogoIfChangedAsync(info.LogoHash, ct))
+            if (string.IsNullOrWhiteSpace(info.LogoHash))
+            {
+                if (SlipLogoStore.HasSlipLogo() || !string.IsNullOrWhiteSpace(SlipLogoStore.ReadSavedHash()))
+                {
+                    SlipLogoStore.DeleteSlipLogo();
+                    _logoErrorLogged = false;
+                    RefreshSlipLogoUi();
+                    Log("ERP logo is not set, so the saved local logo copy was cleared.");
+                }
+            }
+            else if (await client.DownloadLogoIfChangedAsync(info.LogoHash, ct))
             {
                 _logoErrorLogged = false;
                 RefreshSlipLogoUi();
-                Log("POS logo saved on this PC (" + SlipLogoStore.SlipLogoPath + ").");
+                Log("ERP logo downloaded and saved on this PC (" + SlipLogoStore.SlipLogoPath + ").");
             }
         }
         catch (Exception ex)
@@ -353,9 +371,9 @@ public partial class MainForm : Form
     }
 
     /// <summary>
-    /// Save settings, ask the ERP for this PC's pairing (set from a
-    /// logged-in browser session) and start polling when paired.
-    /// No manual URL/branch setup is needed after the one-time pairing.
+    /// Save settings, load the ERP branches into the dropdown and start.
+    /// An ERP-paired branch is selected automatically unless the branch
+    /// was deliberately picked on this PC from the dropdown.
     /// </summary>
     private async Task ConnectAndStartAsync()
     {
@@ -369,21 +387,85 @@ public partial class MainForm : Form
 
         SaveUiSettings();
         _btnConnect.Enabled = false;
-        SetStatus("Checking pairing…");
+        SetStatus("Loading branches…");
 
         try
         {
-            var status = await ApiClient.FetchPairStatusAsync(baseUrl, _config.EnsuredDeviceCode(), CancellationToken.None);
-            if (status.Paired && status.BranchId > 0)
+            PairStatusDto? pairStatus = null;
+            try
             {
-                ApplyPairing(status);
+                pairStatus = await ApiClient.FetchPairStatusAsync(
+                    baseUrl, _config.EnsuredDeviceCode(), CancellationToken.None);
+                _lastPairStatus = pairStatus;
+            }
+            catch (Exception ex)
+            {
+                Log("Pairing check unavailable: " + ex.Message);
+            }
+
+            var branches = await ApiClient.FetchBranchesAsync(baseUrl, CancellationToken.None);
+            if (pairStatus?.Paired == true && pairStatus.BranchId > 0
+                && branches.All(b => b.Id != pairStatus.BranchId))
+            {
+                branches.Insert(0, new BranchDto
+                {
+                    Id = pairStatus.BranchId,
+                    Name = string.IsNullOrWhiteSpace(pairStatus.BranchName)
+                        ? $"#{pairStatus.BranchId}"
+                        : pairStatus.BranchName,
+                });
+            }
+
+            if (branches.Count == 0)
+            {
+                SetStatus("Offline — no branches found");
+                Log("No branches returned by ERP.");
+                MessageBox.Show(this, "No branches found. Check the ERP Base URL.", "POS Printer Agent",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var preferredBranchId = _config.BranchId;
+            if (pairStatus?.Paired == true && pairStatus.BranchId > 0 && !_config.BranchManuallySelected)
+            {
+                preferredBranchId = pairStatus.BranchId;
+                _config.BranchId = pairStatus.BranchId;
+                _config.Save();
+            }
+
+            BindBranches(branches, preferredBranchId);
+
+            if (_config.BranchManuallySelected && branches.All(b => b.Id != preferredBranchId))
+            {
+                _config.BranchManuallySelected = false;
+            }
+
+            if (_cboBranch.SelectedItem is BranchDto selectedBranch)
+            {
+                _config.BranchId = selectedBranch.Id;
+                _config.Save();
+            }
+
+            RefreshBranchLabel();
+
+            if (pairStatus?.Paired == true && pairStatus.BranchId > 0 && !_config.BranchManuallySelected)
+            {
+                _lastPairStatus = pairStatus;
+                RefreshBranchLabel();
                 StopPairTimer();
                 await StartAgentAsync();
                 return;
             }
 
-            SetStatus("Not paired — pair this PC from ERP Printer Settings");
-            Log($"Not paired yet. In ERP: Printer Settings → enter device code {_config.EnsuredDeviceCode()} → Pair Agent.");
+            if (_config.BranchManuallySelected && _config.BranchId > 0)
+            {
+                StopPairTimer();
+                await StartAgentAsync();
+                return;
+            }
+
+            SetStatus("Select a branch, or pair this PC from ERP Printer Settings");
+            Log($"Not paired yet. In ERP: Printer Settings → enter device code {_config.EnsuredDeviceCode()} → Pair Agent, or select a branch here.");
             StartPairTimer();
         }
         catch (Exception ex)
@@ -397,10 +479,109 @@ public partial class MainForm : Form
         }
     }
 
+    private void BindBranches(List<BranchDto> branches, int preferredBranchId)
+    {
+        _loadingBranches = true;
+        try
+        {
+            _cboBranch.DataSource = null;
+            _cboBranch.DisplayMember = nameof(BranchDto.Name);
+            _cboBranch.ValueMember = nameof(BranchDto.Id);
+            _cboBranch.DataSource = branches;
+
+            var preferred = branches.FirstOrDefault(b => b.Id == preferredBranchId);
+            _cboBranch.SelectedItem = preferred ?? branches[0];
+            _cboBranch.Enabled = true;
+        }
+        finally
+        {
+            _loadingBranches = false;
+        }
+    }
+
+    private void SelectBranchInDropdown(int branchId)
+    {
+        if (_cboBranch.DataSource is not List<BranchDto> branches)
+        {
+            RefreshBranchLabel();
+            return;
+        }
+
+        var branch = branches.FirstOrDefault(b => b.Id == branchId);
+        if (branch == null)
+        {
+            RefreshBranchLabel();
+            return;
+        }
+
+        _loadingBranches = true;
+        try
+        {
+            _cboBranch.SelectedItem = branch;
+        }
+        finally
+        {
+            _loadingBranches = false;
+        }
+
+        RefreshBranchLabel();
+    }
+
+    private async Task OnBranchSelectionChangedAsync()
+    {
+        if (_loadingBranches || _changingBranch)
+        {
+            return;
+        }
+
+        if (_cboBranch.SelectedItem is not BranchDto branch || branch.Id <= 0)
+        {
+            return;
+        }
+
+        if (_config.BranchId == branch.Id && _config.BranchManuallySelected && _running)
+        {
+            return;
+        }
+
+        _changingBranch = true;
+        try
+        {
+            _config.BranchId = branch.Id;
+            _config.BranchManuallySelected = true;
+            _config.Save();
+            StopPairTimer();
+            RefreshBranchLabel();
+            Log($"Branch selected on this PC: {branch.Name} (#{branch.Id}).");
+
+            if (!string.IsNullOrWhiteSpace(_txtBaseUrl.Text))
+            {
+                if (_running)
+                {
+                    StopAgent(silent: true);
+                }
+
+                await StartAgentAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Offline — branch start failed");
+            Log("Branch start failed: " + ex.Message);
+        }
+        finally
+        {
+            _changingBranch = false;
+        }
+    }
+
     private void ApplyPairing(PairStatusDto status)
     {
+        _lastPairStatus = status;
         _config.BranchId = status.BranchId;
+        _config.BranchManuallySelected = false;
         _config.Save();
+        SelectBranchInDropdown(status.BranchId);
         _lblBranch.Text = string.IsNullOrWhiteSpace(status.BranchName)
             ? $"Branch: #{status.BranchId} (paired)"
             : $"Branch: {status.BranchName} (paired)";
@@ -417,7 +598,7 @@ public partial class MainForm : Form
         _pairTimer = new System.Windows.Forms.Timer { Interval = 5000 };
         _pairTimer.Tick += async (_, _) =>
         {
-            if (_running || _busy)
+            if (_running || _busy || _config.BranchManuallySelected)
             {
                 return;
             }
@@ -426,6 +607,7 @@ public partial class MainForm : Form
             {
                 var status = await ApiClient.FetchPairStatusAsync(
                     _config.BaseUrl, _config.EnsuredDeviceCode(), CancellationToken.None);
+                _lastPairStatus = status;
                 if (status.Paired && status.BranchId > 0)
                 {
                     ApplyPairing(status);
@@ -498,6 +680,7 @@ public partial class MainForm : Form
 
         _btnStop.Enabled = false;
         _txtBaseUrl.Enabled = true;
+        _cboBranch.Enabled = _cboBranch.Items.Count > 0;
         SetStatus("Offline");
         if (!silent)
         {

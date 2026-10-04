@@ -90,6 +90,34 @@ public static class SlipLogoStore
         }
     }
 
+    /// <summary>Remove the locally cached ERP logo when the ERP no longer has one.</summary>
+    public static void DeleteSlipLogo()
+    {
+        try
+        {
+            if (File.Exists(SlipLogoPath))
+            {
+                File.Delete(SlipLogoPath);
+            }
+        }
+        catch
+        {
+            // A locked or missing file must not stop the agent.
+        }
+
+        try
+        {
+            if (File.Exists(SlipLogoHashPath))
+            {
+                File.Delete(SlipLogoHashPath);
+            }
+        }
+        catch
+        {
+            // Ignore hash cleanup failures.
+        }
+    }
+
     public static void WriteSavedHash(string hash)
     {
         Directory.CreateDirectory(AppDataDirectory);
