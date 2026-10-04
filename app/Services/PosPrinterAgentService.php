@@ -58,6 +58,107 @@ class PosPrinterAgentService
         return (bool) $config->use_print_agent_for_invoice;
     }
 
+    protected static ?bool $hasSaveImageColumn = null;
+
+    /**
+     * Whether pos_branch_print_configs.save_image_when_offline exists (cached).
+     */
+    public static function hasSaveImageColumn(): bool
+    {
+        if (self::$hasSaveImageColumn === null) {
+            try {
+                self::$hasSaveImageColumn = Schema::hasTable('pos_branch_print_configs')
+                    && Schema::hasColumn('pos_branch_print_configs', 'save_image_when_offline');
+            } catch (\Throwable $e) {
+                self::$hasSaveImageColumn = false;
+            }
+        }
+
+        return self::$hasSaveImageColumn;
+    }
+
+    /**
+     * Branch option: when the Print Agent / printer is not connected,
+     * save the bill/receipt as a PNG image instead of sending a print job.
+     */
+    public static function saveImageWhenOfflineEnabled(?PosBranchPrintConfig $config): bool
+    {
+        if (! $config || ! self::hasSaveImageColumn()) {
+            return false;
+        }
+
+        return (bool) $config->save_image_when_offline;
+    }
+
+    /**
+     * True when no agent heartbeat is fresh for the branch (printer not connected).
+     */
+    public static function printerAgentOffline(int $branchId, int $creatorId): bool
+    {
+        return ! self::agentStatusForBranch($branchId, $creatorId)['online'];
+    }
+
+    /**
+     * Render the receipt template and store it as a PNG image.
+     * Used when printing is requested but the printer is not connected.
+     *
+     * @return array{path: string, url: string, filename: string}|null
+     */
+    public static function saveReceiptImageForPos(Pos $pos, ?User $user = null): ?array
+    {
+        $user = $user ?: ($pos->posUser ?: User::find($pos->created_by));
+        if (! $user) {
+            return null;
+        }
+
+        try {
+            $built = self::buildTemplateReceiptJobPayload($pos, $user);
+            $png = '';
+            if (! empty($built['has_template_image']) && ! empty($built['payload']['image_base64'])) {
+                $png = (string) base64_decode((string) $built['payload']['image_base64'], true);
+            }
+            if ($png === '') {
+                $html = self::renderReceiptTemplateHtml($pos, $user);
+                if ($html === '') {
+                    return null;
+                }
+                $layout = Utility::normalizePosPrintLayout(
+                    (Utility::settingsById($pos->created_by)['pos_print_layout'] ?? 'slip')
+                );
+                $png = (string) self::screenshotReceiptHtml($html, $layout);
+            }
+            if ($png === '') {
+                return null;
+            }
+
+            $filename = 'receipt-pos-' . (int) $pos->id . '-' . now()->format('Ymd-His') . '.png';
+            $dir = 'uploads/pos-receipt-images';
+            $path = $dir . '/' . $filename;
+
+            $storage = Utility::getStorageSetting();
+            $driver = $storage['storage_setting'] ?? 'local';
+            if ($driver === 'local') {
+                $absDir = storage_path($dir);
+                if (! is_dir($absDir)) {
+                    mkdir($absDir, 0775, true);
+                }
+                file_put_contents($absDir . '/' . $filename, $png);
+            } else {
+                \Illuminate\Support\Facades\Storage::disk($driver)->put($path, $png);
+            }
+
+            return [
+                'path' => $path,
+                'url' => Utility::get_file($path),
+                'filename' => $filename,
+            ];
+        } catch (\Throwable $e) {
+            \Log::warning('POS receipt image save failed: ' . $e->getMessage());
+
+            return null;
+        }
+    }
+
     /**
      * Enqueue a native receipt/invoice job when Print Agent invoice mode is enabled for the branch.
      * Used after Pay (auto) and from the receipt Print button. Does not touch kitchen/bar jobs.
@@ -77,6 +178,18 @@ class PosPrinterAgentService
 
         $pos->loadMissing(['items.product', 'customer', 'table', 'posPayments', 'warehouse', 'posUser', 'branch']);
         $user = $user ?: ($pos->posUser ?: User::find($creatorId));
+
+        // Printer not connected + branch option on: keep the receipt as an image.
+        $cfg = self::getConfig($branchId, $creatorId);
+        if (self::saveImageWhenOfflineEnabled($cfg) && self::printerAgentOffline($branchId, $creatorId)) {
+            $saved = self::saveReceiptImageForPos($pos, $user);
+            if ($saved) {
+                \Log::info('POS receipt saved as image (printer offline): ' . $saved['path']);
+
+                return null;
+            }
+        }
+
         $isPaid = $pos->posPayments->isNotEmpty();
         $title = $isPaid ? __('Receipt') : __('Account Statement');
 
@@ -265,7 +378,8 @@ class PosPrinterAgentService
         ?int $kitchenPrinterId,
         ?int $barPrinterId,
         ?int $defaultPrinterId = null,
-        ?bool $usePrintAgentForInvoice = null
+        ?bool $usePrintAgentForInvoice = null,
+        ?bool $saveImageWhenOffline = null
     ): PosBranchPrintConfig {
         if ($kitchenPrinterId) {
             $kitchenOk = PosAgentPrinter::where('id', $kitchenPrinterId)
@@ -310,6 +424,9 @@ class PosPrinterAgentService
         ];
         if ($usePrintAgentForInvoice !== null && self::hasInvoiceAgentColumn()) {
             $attrs['use_print_agent_for_invoice'] = (bool) $usePrintAgentForInvoice;
+        }
+        if ($saveImageWhenOffline !== null && self::hasSaveImageColumn()) {
+            $attrs['save_image_when_offline'] = (bool) $saveImageWhenOffline;
         }
 
         return PosBranchPrintConfig::updateOrCreate(

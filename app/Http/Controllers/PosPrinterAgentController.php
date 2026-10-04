@@ -58,6 +58,7 @@ class PosPrinterAgentController extends Controller
                 'bar_printer_id' => $config ? $config->bar_printer_id : null,
                 'default_printer_id' => $config ? $config->default_printer_id : null,
                 'use_print_agent_for_invoice' => PosPrinterAgentService::usesPrintAgentForInvoice($config),
+                'save_image_when_offline' => PosPrinterAgentService::saveImageWhenOfflineEnabled($config),
             ],
             'agent' => PosPrinterAgentService::agentStatusForBranch($branchId, $creatorId),
         ]);
@@ -111,6 +112,7 @@ class PosPrinterAgentController extends Controller
             'bar_printer_id' => 'nullable|integer',
             'default_printer_id' => 'nullable|integer',
             'use_print_agent_for_invoice' => 'nullable|boolean',
+            'save_image_when_offline' => 'nullable|boolean',
         ]);
 
         $creatorId = Auth::user()->creatorId();
@@ -140,6 +142,7 @@ class PosPrinterAgentController extends Controller
         }
 
         $useAgentInvoice = $request->boolean('use_print_agent_for_invoice');
+        $saveImageOffline = $request->boolean('save_image_when_offline');
 
         $config = PosPrinterAgentService::saveConfig(
             $branchId,
@@ -147,7 +150,8 @@ class PosPrinterAgentController extends Controller
             $kitchenId,
             $barId,
             $defaultId,
-            $useAgentInvoice
+            $useAgentInvoice,
+            $saveImageOffline
         );
 
         return response()->json([
@@ -158,6 +162,7 @@ class PosPrinterAgentController extends Controller
                 'bar_printer_id' => $config->bar_printer_id,
                 'default_printer_id' => $config->default_printer_id,
                 'use_print_agent_for_invoice' => PosPrinterAgentService::usesPrintAgentForInvoice($config),
+                'save_image_when_offline' => PosPrinterAgentService::saveImageWhenOfflineEnabled($config),
             ],
         ]);
     }
@@ -253,6 +258,20 @@ class PosPrinterAgentController extends Controller
                 'error' => __('pos.print_agent_invoice_disabled'),
                 'fallback' => true,
             ], 422);
+        }
+
+        if (PosPrinterAgentService::saveImageWhenOfflineEnabled($config)
+            && PosPrinterAgentService::printerAgentOffline($branchId, $creatorId)) {
+            $saved = PosPrinterAgentService::saveReceiptImageForPos($pos, $user);
+            if ($saved) {
+                return response()->json([
+                    'success' => true,
+                    'saved_as_image' => true,
+                    'image_url' => $saved['url'],
+                    'message' => __('pos.receipt_saved_as_image'),
+                    'fallback' => false,
+                ]);
+            }
         }
 
         try {

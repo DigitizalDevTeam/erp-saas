@@ -266,6 +266,9 @@ var posRestaurantPrintReceiptUrl = '{{ route("pos.restaurant.print-receipt") }}'
                 if (typeof show_toastr === 'function') {
                     show_toastr('{{ __("Success") }}', (res.message || '{{ __("Sent to printer agent.") }}'), 'success');
                 }
+                if (res.saved_as_image && res.image_url) {
+                    window.open(res.image_url, '_blank');
+                }
                 return;
             }
             if (res && res.fallback) {

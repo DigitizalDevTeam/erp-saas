@@ -3003,7 +3003,7 @@
             var posCanChangePrintSettings = @json(!empty($canChangePosPrintSettings));
 
             function posApplyPrintSettingsLock() {
-                $('#pos-kitchen-printer-select, #pos-bar-printer-select, #pos-default-printer-select, #pos-use-print-agent-invoice')
+                $('#pos-kitchen-printer-select, #pos-bar-printer-select, #pos-default-printer-select, #pos-use-print-agent-invoice, #pos-save-image-when-offline')
                     .prop('disabled', !posCanChangePrintSettings);
             }
 
@@ -3034,6 +3034,7 @@
                         posFillPrinterSelect($bar, printers, config.bar_printer_id || null);
                         posFillPrinterSelect($default, printers, config.default_printer_id || null);
                         $('#pos-use-print-agent-invoice').prop('checked', !!config.use_print_agent_for_invoice);
+                        $('#pos-save-image-when-offline').prop('checked', !!config.save_image_when_offline);
                         posApplyPrintSettingsLock();
                         if (!printers.length) {
                             $empty.removeClass('d-none');
@@ -3082,7 +3083,8 @@
                         kitchen_printer_id: $('#pos-kitchen-printer-select').val() || '',
                         bar_printer_id: $('#pos-bar-printer-select').val() || '',
                         default_printer_id: $('#pos-default-printer-select').val() || '',
-                        use_print_agent_for_invoice: $('#pos-use-print-agent-invoice').is(':checked') ? 1 : 0
+                        use_print_agent_for_invoice: $('#pos-use-print-agent-invoice').is(':checked') ? 1 : 0,
+                        save_image_when_offline: $('#pos-save-image-when-offline').is(':checked') ? 1 : 0
                     },
                     success: function (res) {
                         show_toastr('{{ __("Success") }}', (res && res.message) ? res.message : '{{ __("Printer configuration saved.") }}', 'success');

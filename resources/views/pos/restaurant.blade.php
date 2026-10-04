@@ -768,6 +768,11 @@
                     <label class="form-check-label" for="pos-use-print-agent-invoice">{{ __('pos.use_print_agent_for_invoice') }}</label>
                     <div class="form-text">{{ __('pos.use_print_agent_for_invoice_help') }}</div>
                 </div>
+                <div class="mb-3 form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="pos-save-image-when-offline" value="1" @unless($canChangePosPrintSettings ?? false) disabled @endunless>
+                    <label class="form-check-label" for="pos-save-image-when-offline">{{ __('pos.save_image_when_offline') }}</label>
+                    <div class="form-text">{{ __('pos.save_image_when_offline_help') }}</div>
+                </div>
                 <div id="pos-printer-config-empty" class="alert alert-warning d-none mb-0">
                     {{ __('Install and start the printer agent to sync printers. Until then, browser printing remains available as a fallback.') }}
                 </div>
