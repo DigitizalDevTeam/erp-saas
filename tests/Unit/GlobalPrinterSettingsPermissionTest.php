@@ -28,6 +28,15 @@ class GlobalPrinterSettingsPermissionTest extends TestCase
         $this->assertStringNotContainsString('change pos print settings', $catalog);
     }
 
+    public function test_company_and_administrador_bypass_permission(): void
+    {
+        $user = file_get_contents(app_path('Models/User.php'));
+        // Company accounts and the Administrador role always manage printers,
+        // even without the "manage printers" permission (Riz instruction).
+        $this->assertStringContainsString("\$this->type === 'company'", $user);
+        $this->assertStringContainsString("hasRole('Administrador')", $user);
+    }
+
     public function test_header_button_and_global_modal_are_permission_gated(): void
     {
         $header = file_get_contents(resource_path('views/partials/admin/header.blade.php'));

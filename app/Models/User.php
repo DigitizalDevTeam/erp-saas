@@ -279,11 +279,14 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /**
      * Whether this user may manage printers globally (header printer button).
-     * Assigned from Roles via the "manage printers" permission.
+     * Granted via the "manage printers" permission, and always allowed for
+     * company accounts and the Administrador role (Riz instruction).
      */
     public function canManagePrinters(): bool
     {
-        return $this->can('manage printers');
+        return $this->can('manage printers')
+            || $this->type === 'company'
+            || $this->hasRole('Administrador');
     }
 
     /**
