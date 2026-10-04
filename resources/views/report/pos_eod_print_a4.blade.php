@@ -17,8 +17,10 @@
     .meta td { padding:1px 4px; vertical-align:top; }
     .meta td.k { width:18%; }
     h2.sec { font-size:11px; font-weight:bold; text-transform:uppercase; margin:12px 0 4px; }
-    table.data { width:100%; border-collapse:collapse; }
+    table.data { width:100%; border-collapse:collapse; table-layout:fixed; }
     table.data th, table.data td { border:1px solid #999; padding:3px 6px; text-align:left; }
+    table.data th:first-child, table.data td:first-child { width:40%; }
+    .meta td { white-space:nowrap; overflow:hidden; }
     table.data th { font-weight:bold; }
     .num { text-align:right !important; }
     tfoot td { font-weight:bold; }
