@@ -16,10 +16,16 @@ class LoggedMail
         $subject = $context['subject'] ?? self::resolveSubject($mailable);
         $createdBy = $context['created_by'] ?? (Auth::check() ? Auth::user()->creatorId() : 0);
         $userId = $context['user_id'] ?? Auth::id();
+        $mailSettings = $context['mail_settings'] ?? null;
         $meta = array_merge($context, [
             'mailable_class' => get_class($mailable),
         ]);
-        unset($meta['source'], $meta['subject'], $meta['created_by'], $meta['user_id']);
+        unset($meta['source'], $meta['subject'], $meta['created_by'], $meta['user_id'], $meta['mail_settings']);
+
+        // Every email goes out with the SMTP settings saved on /systems
+        // (per-company values win field-by-field, /systems is the fallback),
+        // unless the caller supplied explicit settings (test-mail form).
+        MailConfig::apply($createdBy ? (int) $createdBy : null, is_array($mailSettings) ? $mailSettings : null);
 
         try {
             Mail::to($to)->send($mailable);

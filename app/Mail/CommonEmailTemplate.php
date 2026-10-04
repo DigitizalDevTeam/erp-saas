@@ -32,6 +32,17 @@ class CommonEmailTemplate extends Mailable
      */
     public function build()
     {
-        return $this->from($this->settings['mail_from_address'], $this->template->from)->markdown('email.common_email_template')->subject($this->template->subject)->with('content', $this->template->content);
+        $mail = $this->markdown('email.common_email_template')->subject($this->template->subject)->with('content', $this->template->content);
+
+        // Only set From when we actually have an address; an empty From
+        // makes the mailer throw before SMTP is even reached. When it is
+        // empty, Laravel falls back to the configured mail.from address
+        // (set from /systems by MailConfig).
+        $fromAddress = $this->settings['mail_from_address'] ?? '';
+        if (is_string($fromAddress) && trim($fromAddress) !== '') {
+            $mail->from(trim($fromAddress), $this->template->from);
+        }
+
+        return $mail;
     }
 }

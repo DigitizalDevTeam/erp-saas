@@ -1280,30 +1280,21 @@ class SystemController extends Controller
         }
 
         try {
-            config([
-                'mail.default' => 'smtp',
-                'mail.mailers.smtp.transport' => 'smtp',
-                'mail.mailers.smtp.host' => $request->mail_host,
-                'mail.mailers.smtp.port' => $request->mail_port,
-                'mail.mailers.smtp.encryption' => $request->mail_encryption,
-                'mail.mailers.smtp.username' => $request->mail_username,
-                'mail.mailers.smtp.password' => $request->mail_password,
-                'mail.from.address' => $request->mail_from_address,
-                'mail.from.name' => $request->mail_from_name,
-    
-                'mail.mailers.smtp.stream' => [
-                    'ssl' => [
-                        'allow_self_signed' => true,
-                        'verify_peer' => false,
-                        'verify_peer_name' => false,
-                    ],
-                ],
-            ]);
-            
-            // dd(config('mail'));
+            // Test exactly what was typed in the form (not yet saved):
+            // LoggedMail applies these explicit settings over /systems.
             LoggedMail::send($request->email, new TestMail(), [
                 'source' => 'test_mail',
                 'subject' => 'Mail send for testing purpose.',
+                'mail_settings' => [
+                    'mail_driver' => $request->mail_driver,
+                    'mail_host' => $request->mail_host,
+                    'mail_port' => $request->mail_port,
+                    'mail_encryption' => $request->mail_encryption,
+                    'mail_username' => $request->mail_username,
+                    'mail_password' => $request->mail_password,
+                    'mail_from_address' => $request->mail_from_address,
+                    'mail_from_name' => $request->mail_from_name,
+                ],
             ]);
         } catch (\Exception $e) {
             return response()->json(

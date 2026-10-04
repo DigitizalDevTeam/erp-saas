@@ -211,37 +211,8 @@ class PosEodReportAlerts
 
     private static function configureMailFromCompany(int $companyCreatorId): void
     {
-        $s = Utility::settingsById($companyCreatorId);
-        $fallback = Utility::settings();
         try {
-            $driver = (string) ($s['mail_driver'] ?: ($fallback['mail_driver'] ?? 'smtp'));
-            $host = (string) ($s['mail_host'] ?: ($fallback['mail_host'] ?? ''));
-            $port = (string) ($s['mail_port'] ?: ($fallback['mail_port'] ?? ''));
-            $encryption = (string) ($s['mail_encryption'] ?: ($fallback['mail_encryption'] ?? ''));
-            $username = (string) ($s['mail_username'] ?: ($fallback['mail_username'] ?? ''));
-            $password = (string) ($s['mail_password'] ?: ($fallback['mail_password'] ?? ''));
-            $fromAddress = (string) ($s['mail_from_address'] ?: ($fallback['mail_from_address'] ?? ''));
-            $fromName = (string) ($s['mail_from_name'] ?: ($fallback['mail_from_name'] ?? ''));
-
-            config([
-                'mail.driver' => $driver,
-                'mail.host' => $host,
-                'mail.port' => $port,
-                'mail.encryption' => $encryption,
-                'mail.username' => $username,
-                'mail.password' => $password,
-                'mail.from.address' => $fromAddress,
-                'mail.from.name' => $fromName,
-                'mail.default' => $driver !== '' ? $driver : (config('mail.default') ?: 'smtp'),
-                'mail.mailers.smtp.transport' => 'smtp',
-                'mail.mailers.smtp.host' => $host,
-                'mail.mailers.smtp.port' => $port !== '' ? (int) $port : 587,
-                'mail.mailers.smtp.encryption' => $encryption !== '' ? $encryption : null,
-                'mail.mailers.smtp.username' => $username,
-                'mail.mailers.smtp.password' => $password,
-                'mail.from.address' => $fromAddress !== '' ? $fromAddress : (config('mail.from.address') ?: 'no-reply@example.com'),
-                'mail.from.name' => $fromName !== '' ? $fromName : (config('mail.from.name') ?: config('app.name')),
-            ]);
+            MailConfig::apply($companyCreatorId);
         } catch (\Throwable $e) {
         }
     }
