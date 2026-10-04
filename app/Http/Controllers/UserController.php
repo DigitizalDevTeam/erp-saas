@@ -1177,6 +1177,64 @@ class UserController extends Controller
         }
     }
 
+    /**
+     * Force-verify a company's (or a company user's) email address.
+     *
+     * Used from the 3-dot menu on /users when the verification email
+     * cannot be received: a super admin can verify any company, a
+     * company admin can only verify users linked to their own company.
+     */
+    public function forceVerifyEmail($id)
+    {
+        $authUser = \Auth::user();
+
+        if (! $authUser) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $user = User::find($id);
+
+        if (! $user) {
+            return redirect()->back()->with('error', __('User not found.'));
+        }
+
+        if ($authUser->type !== 'super admin') {
+            if (! $authUser->can('edit user')) {
+                return redirect()->back()->with('error', __('Permission denied.'));
+            }
+
+            $companyId = (int) $authUser->creatorId();
+            $linked = (int) $user->id === $companyId
+                || (int) $user->created_by === $companyId;
+
+            if (! $linked && Schema::hasTable('company_user')) {
+                $linked = DB::table('company_user')
+                    ->where('user_id', $user->id)
+                    ->where('company_id', $companyId)
+                    ->exists();
+            }
+
+            if (! $linked) {
+                return redirect()->back()->with('error', __('User is not linked to your company.'));
+            }
+        }
+
+        if ($user->hasVerifiedEmail()) {
+            return redirect()->back()->with('success', __('Email is already verified.'));
+        }
+
+        if ($user->markEmailAsVerified()) {
+            event(new \Illuminate\Auth\Events\Verified($user));
+        }
+
+        return redirect()->back()->with(
+            'success',
+            $authUser->type == 'super admin'
+                ? __('Company email successfully verified.')
+                : __('User email successfully verified.')
+        );
+    }
+
     public function checkUserExists(Request $request)
     {
         if (! \Auth::user()->can('create user')) {

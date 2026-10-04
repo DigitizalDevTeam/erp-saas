@@ -95,6 +95,20 @@
                                         </a>
                                     @endif
 
+                                    @if (empty($user->email_verified_at))
+                                        {!! Form::open([
+                                            'method' => 'POST',
+                                            'route' => ['users.force.verify', $user->id],
+                                            'id' => 'force-verify-form-' . $user->id,
+                                        ]) !!}
+                                        <button type="submit" class="dropdown-item"
+                                            data-bs-original-title="{{ __('Force Verify Email') }}">
+                                            <i class="ti ti-mail-check"></i>
+                                            <span> {{ __('Force Verify Email') }}</span>
+                                        </button>
+                                        {!! Form::close() !!}
+                                    @endif
+
                                     <a href="#!" data-url="{{ route('users.reset', \Crypt::encrypt($user->id)) }}"
                                         data-ajax-popup="true" data-size="md" class="dropdown-item"
                                         data-bs-original-title="{{ __('Reset Password') }}">
