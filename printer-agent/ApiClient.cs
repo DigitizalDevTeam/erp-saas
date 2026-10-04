@@ -42,24 +42,6 @@ public sealed class ApiClient : IDisposable
         return body?.Data?.Branches ?? new List<BranchDto>();
     }
 
-    /// <summary>
-    /// Ask the ERP whether this PC's device code has been paired (from a
-    /// logged-in browser session). Returns the session branch when paired.
-    /// </summary>
-    public static async Task<PairStatusDto> FetchPairStatusAsync(string baseUrl, string deviceCode, CancellationToken ct)
-    {
-        var cfg = new AgentConfig { BaseUrl = baseUrl };
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        var url = cfg.ApiRoot() + "/printer-agent/pair-status";
-        var payload = new { device_code = deviceCode, machine_name = Environment.MachineName };
-        using var res = await http.PostAsJsonAsync(url, payload, ct);
-        await EnsureSuccess(res);
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var body = await res.Content.ReadFromJsonAsync<ApiEnvelope<PairStatusDto>>(options, ct);
-        return body?.Data ?? new PairStatusDto();
-    }
-
     public async Task<HeartbeatInfo> HeartbeatAsync(CancellationToken ct)
     {
         var payload = new
@@ -194,18 +176,6 @@ public sealed class JobsData
 {
     [JsonPropertyName("jobs")]
     public List<PrintJobDto> Jobs { get; set; } = new();
-}
-
-public sealed class PairStatusDto
-{
-    [JsonPropertyName("paired")]
-    public bool Paired { get; set; }
-
-    [JsonPropertyName("branch_id")]
-    public int BranchId { get; set; }
-
-    [JsonPropertyName("branch_name")]
-    public string? BranchName { get; set; }
 }
 
 public sealed class PrintJobDto
