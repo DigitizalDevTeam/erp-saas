@@ -114,6 +114,32 @@ class Pos extends Model
         return (string) $prefix;
     }
 
+    /**
+     * Prefix for the pre-payment Bill (Extrato de Conta) document number.
+     * Bills are not cash-sale invoices, so they never carry the #PDV prefix.
+     */
+    public static function billDocumentPrefix(?array $settings = null): string
+    {
+        $settings = $settings ?? Utility::settings();
+        $prefix = $settings['pos_bill_prefix'] ?? null;
+
+        return ($prefix === null || $prefix === '') ? 'VAD' : (string) $prefix;
+    }
+
+    /**
+     * Bill document number: same serial digits as the POS order, VAD prefix
+     * (e.g. #PDV00008 cash invoice -> VAD00008 bill).
+     */
+    public static function billDocumentNumber($formattedNumber, ?array $settings = null): string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $formattedNumber);
+        if ($digits === '') {
+            return (string) $formattedNumber;
+        }
+
+        return self::billDocumentPrefix($settings) . str_pad($digits, 5, '0', STR_PAD_LEFT);
+    }
+
     public function branch()
     {
         return $this->belongsTo(Branch::class, 'branch_id');

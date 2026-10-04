@@ -78,7 +78,7 @@ class PosPrinterAgentService
         $pos->loadMissing(['items.product', 'customer', 'table', 'posPayments', 'warehouse', 'posUser', 'branch']);
         $user = $user ?: ($pos->posUser ?: User::find($creatorId));
         $isPaid = $pos->posPayments->isNotEmpty();
-        $title = $isPaid ? __('Receipt') : __('Bill');
+        $title = $isPaid ? __('Receipt') : __('Account Statement');
 
         $payload = self::buildReceiptPayloadFromPos($pos, $user);
         $payload['render'] = 'native';
@@ -623,7 +623,8 @@ class PosPrinterAgentService
         $documentTitle = Pos::documentTypeLabel($docType);
         $isPaid = $pos->posPayments->isNotEmpty();
         if (! $isPaid) {
-            $documentTitle = __('Bill');
+            $documentTitle = __('Account Statement');
+            $posNumber = Pos::billDocumentNumber($posNumber, $settings);
         }
 
         $issuedAt = $pos->created_at
@@ -1089,6 +1090,7 @@ class PosPrinterAgentService
             'settings' => $settings,
             'receiptUser' => $receiptUser,
             'pos' => $pos,
+            'isBillDocument' => $posPayments->isEmpty(),
             'standalone' => false,
             'agentPrint' => true,
             'print_layout' => $printLayout,
