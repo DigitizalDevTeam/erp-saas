@@ -5,28 +5,28 @@
 <title>{{ __('End of Day (EOD) Report') }} — {{ $date }}</title>
 <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; color:#000; font-size:12px; line-height:1.5; }
+    body { font-family: Arial, Helvetica, sans-serif; color:#000; font-size:11px; line-height:1.4; }
     .page { padding: 10px 4px; }
     .center { text-align:center; }
-    .company { font-size:17px; font-weight:bold; }
+    .company { font-size:15px; font-weight:bold; }
     .small { font-size:11px; }
-    .title { font-size:15px; font-weight:bold; text-align:center; margin:14px 0 2px; text-transform:uppercase; }
-    .subtitle { text-align:center; font-size:11px; margin-bottom:10px; }
-    hr { border:none; border-top:1px solid #000; margin:10px 0; }
-    .meta { width:100%; border-collapse:collapse; margin:6px 0; }
-    .meta td { padding:2px 4px; vertical-align:top; }
+    .title { font-size:14px; font-weight:bold; text-align:center; margin:8px 0 1px; text-transform:uppercase; }
+    .subtitle { text-align:center; font-size:10px; margin-bottom:4px; }
+    hr { border:none; border-top:1px solid #000; margin:6px 0; }
+    .meta { width:100%; border-collapse:collapse; margin:3px 0; }
+    .meta td { padding:1px 4px; vertical-align:top; }
     .meta td.k { width:18%; }
-    h2.sec { font-size:12px; font-weight:bold; text-transform:uppercase; margin:18px 0 6px; }
+    h2.sec { font-size:11px; font-weight:bold; text-transform:uppercase; margin:12px 0 4px; }
     table.data { width:100%; border-collapse:collapse; }
-    table.data th, table.data td { border:1px solid #999; padding:5px 7px; text-align:left; }
+    table.data th, table.data td { border:1px solid #999; padding:3px 6px; text-align:left; }
     table.data th { font-weight:bold; }
     .num { text-align:right !important; }
     tfoot td { font-weight:bold; }
-    .sign { margin-top:50px; width:100%; border-collapse:collapse; }
+    .sign { margin-top:34px; width:100%; border-collapse:collapse; }
     .sign td { width:33%; text-align:center; padding:0 20px; }
     .sign .line { border-top:1px solid #000; padding-top:5px; font-size:11px; }
-    .foot { margin-top:26px; font-size:10px; text-align:center; }
-    @page { size: A4; margin: 15mm; }
+    .foot { margin-top:16px; font-size:9px; text-align:center; }
+    @page { size: A4; margin: 12mm; }
     @media print { .noprint { display:none !important; } }
 </style>
 </head>
