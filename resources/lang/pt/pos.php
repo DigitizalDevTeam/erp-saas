@@ -12,7 +12,7 @@ return [
     'select_customer' => 'Selecionar Cliente',
     'select_warehouse' => 'Selecionar Armazém',
     'add_opening_balance' => 'Adicionar Saldo Inicial',
-    'add_closing_balance' => 'Adicionar Saldo Final',
+    'add_closing_balance' => 'Adicionar Saldo Final e Terminar Turno',
     'opening_balance' => 'Saldo Inicial',
     'closing_balance' => 'Saldo Final',
     'enable_transactions' => 'Adicione Saldo Inicial para ativar as transações',
