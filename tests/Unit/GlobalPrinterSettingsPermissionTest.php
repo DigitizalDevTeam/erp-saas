@@ -1,0 +1,63 @@
+<?php
+
+namespace Tests\Unit;
+
+use Tests\TestCase;
+
+/**
+ * Printer settings are global (header), not POS-only:
+ * - old "change pos print settings" permission replaced by "manage printers"
+ * - header printer button + settings modal only for permission holders
+ * - POS screen no longer carries the printer button or settings modal
+ */
+class GlobalPrinterSettingsPermissionTest extends TestCase
+{
+    public function test_permission_replaced_everywhere(): void
+    {
+        $migration = file_get_contents(database_path('migrations/2026_10_04_170000_replace_change_pos_print_settings_with_manage_printers.php'));
+        $this->assertStringContainsString("'manage printers'", $migration);
+        $this->assertStringContainsString("'change pos print settings'", $migration);
+
+        $user = file_get_contents(app_path('Models/User.php'));
+        $this->assertStringContainsString("function canManagePrinters", $user);
+        $this->assertStringContainsString("can('manage printers')", $user);
+        $this->assertStringNotContainsString('canChangePosPrintSettings', $user);
+
+        $catalog = file_get_contents(app_path('Services/RolePermissionUiCatalog.php'));
+        $this->assertStringContainsString("'manage printers' => 'Manage Printers'", $catalog);
+        $this->assertStringNotContainsString('change pos print settings', $catalog);
+    }
+
+    public function test_header_button_and_global_modal_are_permission_gated(): void
+    {
+        $header = file_get_contents(resource_path('views/partials/admin/header.blade.php'));
+        $this->assertStringContainsString('id="global-printer-settings-btn"', $header);
+        $this->assertStringContainsString('canManagePrinters()', $header);
+
+        $layout = file_get_contents(resource_path('views/layouts/admin.blade.php'));
+        $this->assertStringContainsString("partials.printer-settings-modal", $layout);
+
+        $modal = file_get_contents(resource_path('views/partials/printer-settings-modal.blade.php'));
+        $this->assertStringContainsString('id="printerSettingsModal"', $modal);
+        $this->assertStringContainsString('id="printer-settings-branch"', $modal);
+        $this->assertStringContainsString('id="printer-settings-save-image"', $modal);
+    }
+
+    public function test_pos_screens_no_longer_carry_printer_settings(): void
+    {
+        $restaurant = file_get_contents(resource_path('views/pos/restaurant.blade.php'));
+        $this->assertStringNotContainsString('pos-printer-config-btn', $restaurant);
+        $this->assertStringNotContainsString('posPrinterConfigModal', $restaurant);
+
+        $index = file_get_contents(resource_path('views/pos/index-restaurant.blade.php'));
+        $this->assertStringNotContainsString('posLoadPrinterConfigModal', $index);
+        $this->assertStringNotContainsString('pos-printer-config-btn', $index);
+    }
+
+    public function test_agent_endpoints_require_manage_printers(): void
+    {
+        $ctl = file_get_contents(app_path('Http/Controllers/PosPrinterAgentController.php'));
+        $this->assertStringContainsString('canManagePrinters()', $ctl);
+        $this->assertStringNotContainsString('canChangePosPrintSettings', $ctl);
+    }
+}

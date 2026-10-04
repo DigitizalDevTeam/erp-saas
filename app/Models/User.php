@@ -278,12 +278,12 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Whether this user may change restaurant POS printer settings.
-     * Assigned from Roles; other POS users can only view the current settings.
+     * Whether this user may manage printers globally (header printer button).
+     * Assigned from Roles via the "manage printers" permission.
      */
-    public function canChangePosPrintSettings(): bool
+    public function canManagePrinters(): bool
     {
-        return $this->can('change pos print settings');
+        return $this->can('manage printers');
     }
 
     /**

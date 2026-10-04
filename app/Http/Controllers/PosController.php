@@ -5528,8 +5528,8 @@ class PosController extends Controller
         $canChangeShift = $user->can('pos restaurant full') || $user->can('pos restaurant manager') || $user->can('manage pos');
         app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
         $loggedInUser = \Auth::user();
-        $canChangePosPrintSettings = $user->canChangePosPrintSettings()
-            || ($loggedInUser && $loggedInUser->canChangePosPrintSettings());
+        $canChangePosPrintSettings = $user->canManagePrinters()
+            || ($loggedInUser && $loggedInUser->canManagePrinters());
         $userOpenShifts = \App\Models\PosShift::where('user_id', $user->id)
             ->where('status', \App\Models\PosShift::STATUS_OPEN)
             ->where('created_by', $creatorId)
