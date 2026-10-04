@@ -50,7 +50,7 @@ class ProductServiceController extends Controller
     private const POS_PRODUCT_CARD_COL_CLASS = 'col-xl-3 col-lg-3 col-md-3 col-sm-4 col-6';
 
     /** Bump when POS product card HTML shape changes (invalidates Laravel + client caches). */
-    private const POS_PRODUCT_HTML_CACHE_VER = 'pv10';
+    private const POS_PRODUCT_HTML_CACHE_VER = 'pv11';
 
     /** Type tag shown on POS product grid cards (type is chosen on product create). */
     public static function posProductTypeTagHtml(?string $type): string
@@ -68,6 +68,18 @@ class ProductServiceController extends Controller
         $typeInfo = $typeMap[$typeKey] ?? ['label' => ucfirst($typeKey), 'class' => 'bg-secondary'];
 
         return '<span class="badge ' . $typeInfo['class'] . ' pos-product-type-tag position-absolute top-0 start-0 m-1" style="z-index:2">' . e($typeInfo['label']) . '</span>';
+    }
+
+    /** "Does not affect stock" tag shown on POS product grid cards when that checkbox is set on create/edit. */
+    public static function posDoesNotAffectStockTagHtml(?string $type, $affectStock): string
+    {
+        // Kits never deduct their own stock (components are deducted separately).
+        $doesNotAffect = (($type ?? '') === 'kit') ? true : ! (bool) ($affectStock ?? true);
+        if (! $doesNotAffect) {
+            return '';
+        }
+
+        return '<span class="badge bg-dark pos-product-no-stock-tag position-absolute start-0 m-1" style="z-index:2;top:1.9rem">' . e(__('Does not affect stock')) . '</span>';
     }
 
     protected function restaurantPosWarehouseStock(ProductService $product, int $warehouseId, ?int $variantId = null): int
@@ -1611,7 +1623,7 @@ class ProductServiceController extends Controller
                     }
                     $dimUnit = $product->dimension_unit ?: ($product->unit->length_unit ?? 'cm');
                     $volDiv = $product->volumetric_divisor ?: ($product->unit->volumetric_divisor ?? '');
-                    $typeTag = $isPos ? self::posProductTypeTagHtml($product->type ?? null) : '';
+                    $typeTag = $isPos ? self::posProductTypeTagHtml($product->type ?? null) . self::posDoesNotAffectStockTagHtml($product->type ?? null, $product->affect_stock ?? true) : '';
                     $output .= '<div class="' . self::POS_PRODUCT_CARD_COL_CLASS . '"><div class="tab-pane fade show active toacart w-100" data-url="' . $addToCartBase . '/' . $product->id . '/' . $lastsegment . '" data-product-id="' . $product->id . '" data-product-name="' . e($product->name) . '" data-product-price="' . $productprice . '" data-price-type="exclusive" data-product-tax="' . $taxRate . '" data-product-image="' . e($imgSrc) . '" data-product-print-zone="' . e($printZone) . '" data-product-printer-id="' . e((string) $printerId) . '" data-variants-enabled="' . (($product->variants_enabled ?? false) ? '1' : '0') . '" data-variants=\'' . $variantsPayload . '\' data-options-enabled="' . $optionsEnabledAttr . '" data-options=\'' . $optionsPayload . '\' data-unit-type="' . e($product->unit_type ?? '') . '" data-dimension-unit="' . e($dimUnit) . '" data-volumetric-divisor="' . e((string) $volDiv) . '"><div class="position-relative card">' . $typeTag . '<img loading="lazy" alt="" src="' . e($imgSrc) . '" class="card-image avatar shadow hover-shadow-lg" style="height:6rem;width:100%"><div class="p-0 custom-card-body card-body d-flex"><div class="card-body p-0 text-left card-bottom-content"><h5 class="mb-2 text-dark product-title-name">' . e($product->name) . '</h5><h6 class="mb-2 text-dark product-title-name small">' . e($product->sku) . '</h6><h5 class="mb-2 d-flex align-items-center justify-content-between gap-2 flex-wrap"><span class="product-card-price">' . $priceFormatted($displayPrice) . '</span><small class="badge bg-danger mb-0 rounded qty_badge">' . $quantity . ' ' . e($unit) . '</small></h5><button type="button" class="btn btn-primary btn-sm rounded d-flex align-items-center gap-3 pos-add-cart-btn"><i class="ti ti-plus"></i> ' . __('Cart') . '</button></div></div></div></div></div>';
                 }
                 if ($cacheKey) {
