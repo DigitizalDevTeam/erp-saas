@@ -27,6 +27,7 @@ class DevToolController extends Controller
         return view('dev-tool.index', [
             'pending' => $this->pendingMigrations(),
             'seeders' => $this->seederClasses(),
+            'appDebug' => (bool) config('app.debug'),
             'logFiles' => $logFiles,
             'selectedLog' => $selected,
             'logBody' => $log['body'],
@@ -194,6 +195,53 @@ class DevToolController extends Controller
 
         return redirect()->route('dev-tool.index')
             ->with('success', __('All caches cleared: :list.', ['list' => implode(', ', $cleared)]));
+    }
+
+    /**
+     * Turn Laravel debug mode (APP_DEBUG in .env) on or off.
+     * Writes the new value to .env and clears the config cache so the
+     * change applies on the next request. Super admin only.
+     */
+    public function toggleDebug(Request $request)
+    {
+        if ($denied = $this->denyUnlessSuperAdmin()) {
+            return $denied;
+        }
+
+        $enabled = $request->boolean('enabled');
+
+        try {
+            $this->setEnvDebug($enabled);
+            Artisan::call('config:clear');
+        } catch (\Throwable $e) {
+            return redirect()->route('dev-tool.index')
+                ->with('error', __('Debug mode could not be changed: :reason', [
+                    'reason' => $e->getMessage() !== '' ? $e->getMessage() : __('The .env file could not be updated.'),
+                ]));
+        }
+
+        return redirect()->route('dev-tool.index')
+            ->with('success', $enabled ? __('Debug mode turned ON.') : __('Debug mode turned OFF.'));
+    }
+
+    protected function setEnvDebug(bool $enabled): void
+    {
+        $path = base_path('.env');
+        if (! File::exists($path)) {
+            throw new \RuntimeException(__('The .env file was not found.'));
+        }
+
+        $contents = (string) File::get($path);
+        $value = $enabled ? 'true' : 'false';
+        if (preg_match('/^APP_DEBUG=.*$/m', $contents)) {
+            $contents = (string) preg_replace('/^APP_DEBUG=.*$/m', 'APP_DEBUG='.$value, $contents, 1);
+        } else {
+            $contents = rtrim($contents).PHP_EOL.'APP_DEBUG='.$value.PHP_EOL;
+        }
+
+        if (File::put($path, $contents) === false) {
+            throw new \RuntimeException(__('The .env file is not writable.'));
+        }
     }
 
     /**

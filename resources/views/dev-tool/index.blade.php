@@ -142,6 +142,29 @@
                 </div>
             </div>
 
+            <div class="card mb-3">
+                <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <h5 class="mb-0">{{ __('Debug mode') }}</h5>
+                    @if ($appDebug ?? false)
+                        <span class="badge bg-warning text-dark">{{ __('ON') }}</span>
+                    @else
+                        <span class="badge bg-secondary">{{ __('OFF') }}</span>
+                    @endif
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">{{ __('Turns APP_DEBUG in .env on or off. When ON, error pages show the full technical details — useful while fixing a problem. Keep it OFF on a live site and turn it back off as soon as you are done.') }}</p>
+                    <form method="POST" action="{{ route('dev-tool.toggle-debug') }}" onsubmit="return confirm('{{ ($appDebug ?? false) ? __('Turn debug mode OFF?') : __('Turn debug mode ON? Error pages will show full technical details.') }}');">
+                        @csrf
+                        <input type="hidden" name="enabled" value="{{ ($appDebug ?? false) ? '0' : '1' }}">
+                        @if ($appDebug ?? false)
+                            <button type="submit" class="btn btn-sm btn-secondary">{{ __('Turn OFF') }}</button>
+                        @else
+                            <button type="submit" class="btn btn-sm btn-warning">{{ __('Turn ON') }}</button>
+                        @endif
+                    </form>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <h5 class="mb-0">{{ __('Laravel log') }}</h5>
