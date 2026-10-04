@@ -173,6 +173,8 @@ return [
     'kitchen_slip_addon_subtitle' => 'Additional items for an existing order — not a new order',
     'kitchen_slip_order_ref' => 'Order #',
     'print_kitchen_slip' => 'Print Kitchen Slip',
+    'production_options' => 'Options',
+    'production_ingredients' => 'Ingredients',
     'split_bill' => 'Split Bill',
     'join_table' => 'Join table',
     'join_tables' => 'Join tables',

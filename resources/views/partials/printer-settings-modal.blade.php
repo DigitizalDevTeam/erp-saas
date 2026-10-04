@@ -2,7 +2,10 @@
 @php
     $printerBranches = collect();
     $printerDefaultBranchId = null;
-    if (\Auth::check()) {
+    if (isset($posPrinterBranches) && $posPrinterBranches instanceof \Illuminate\Support\Collection && $posPrinterBranches->isNotEmpty()) {
+        $printerBranches = $posPrinterBranches;
+        $printerDefaultBranchId = optional($printerBranches->first())->id;
+    } elseif (\Auth::check()) {
         $selectionIds = \Auth::user()->branchesForSelection()->pluck('id')->all();
         $printerBranches = \App\Models\Branch::where('created_by', \Auth::user()->creatorId())
             ->where('is_active', true)
@@ -197,6 +200,12 @@
         }
 
         $(document).on('click', '#global-printer-settings-btn', function () {
+            // On the standalone restaurant POS, open settings for the branch
+            // currently selected in POS instead of the modal default.
+            var posBranchId = $('#pos-restaurant-branch').val();
+            if (posBranchId && $('#printer-settings-branch option[value="' + posBranchId + '"]').length) {
+                $('#printer-settings-branch').val(posBranchId);
+            }
             loadPrinterSettings();
             var modalEl = document.getElementById('printerSettingsModal');
             if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {

@@ -243,6 +243,11 @@
                         <button type="button" id="pos-install-app-btn" class="btn btn-sm btn-light  m-0" title="{{ $tp('pos.install_app', 'Install App') }}">
                             <i class="ti ti-download" style="font-size: 1.1rem;"></i>
                         </button>
+                        @if(!empty($canChangePosPrintSettings))
+                        <button type="button" id="global-printer-settings-btn" class="btn btn-sm btn-light m-0" title="{{ __('Printer Settings') }}" aria-label="{{ __('Printer Settings') }}">
+                            <i class="ti ti-printer" style="font-size: 1.1rem;"></i> <span>{{ __('Print') }}</span>
+                        </button>
+                        @endif
                         <a href="{{ route('pos.restaurant.index') }}" class="btn btn-sm btn-light m-0" title="{{ __('POS Restaurant') }}"><i class="ti ti-building-store" style="font-size: 1.1rem;"></i></a>
                         <a href="{{ route('pos.index') }}" class="btn btn-sm btn-outline-light m-0" title="{{ __('POS Retail') }}"><i class="ti ti-shopping-cart" style="font-size: 1.1rem;"></i></a>
                         <a href="{{ route('dashboard') }}" class="btn btn-sm btn-light m-0" title="{{ __('pos.dashboard') }}"><i class="ti ti-home" style="font-size: 1.1rem;"></i></a>
@@ -2714,7 +2719,7 @@
                         }
                         return;
                     }
-                    w.document.write('<html><head><title>' + title + '</title><style>body{font-family:monospace;padding:12px;font-size:16px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note-bold{font-weight:bold;font-size:14px;margin-top:2px;}.addon-banner{font-weight:bold;font-size:18px;margin:8px 0 4px;border:2px solid #000;padding:6px;text-align:center;}.addon-sub{font-size:13px;margin:0 0 8px;color:#333;}</style></head><body>');
+                    w.document.write('<html><head><title>' + title + '</title><style>body{font-family:monospace;padding:12px;font-size:16px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note-bold{font-weight:bold;font-size:14px;margin-top:2px;}.slip-subhead{font-weight:bold;font-size:13px;}.addon-banner{font-weight:bold;font-size:18px;margin:8px 0 4px;border:2px solid #000;padding:6px;text-align:center;}.addon-sub{font-size:13px;margin:0 0 8px;color:#333;}</style></head><body>');
                     w.document.write('<h3>' + title + '</h3>');
                     if (isAddon) {
                         w.document.write('<div class="addon-banner">{{ __("pos.kitchen_slip_addon") }}</div>');
@@ -2730,15 +2735,31 @@
                         var name = (r.name || '').replace(/</g, '&lt;');
                         var note = (r.note || '').replace(/</g, '&lt;');
                         var optHtml = '';
-                        function appendSlipLabels(list) {
+                        function slipLabelText(opt) {
+                            if (typeof opt === 'string') return opt;
+                            if (!opt || !opt.name) return '';
+                            var label = String(opt.name);
+                            var qty = opt.quantity != null ? opt.quantity : (opt.qty != null ? opt.qty : null);
+                            if (qty != null && label.indexOf('×') === -1) {
+                                label += ' ×' + qty;
+                                if (opt.unit) label += ' ' + opt.unit;
+                            }
+                            return label;
+                        }
+                        function appendSlipLabels(list, heading) {
+                            var labels = [];
                             (Array.isArray(list) ? list : []).forEach(function (opt) {
-                                var label = typeof opt === 'string' ? opt : (opt && opt.name ? opt.name : '');
-                                label = String(label || '').replace(/</g, '&lt;');
-                                if (label) optHtml += '<br>+ ' + label;
+                                var label = String(slipLabelText(opt) || '').replace(/</g, '&lt;');
+                                if (label) labels.push(label);
+                            });
+                            if (!labels.length) return;
+                            optHtml += '<br><span class="slip-subhead">' + heading + ':</span>';
+                            labels.forEach(function (label) {
+                                optHtml += '<br>+ ' + label;
                             });
                         }
-                        appendSlipLabels(r.options);
-                        appendSlipLabels(r.ingredients);
+                        appendSlipLabels(r.options, '{{ __("pos.production_options") }}');
+                        appendSlipLabels(r.ingredients, '{{ __("pos.production_ingredients") }}');
                         var noteHtml = note ? '<br><span class="note-bold">' + note + '</span>' : '';
                         w.document.write('<tr><td>' + name + optHtml + noteHtml + '</td><td>' + r.qty + '</td></tr>');
                     });
@@ -5073,5 +5094,8 @@
             updateRestaurantCustomerCard();
         });
     </script>
+    @if(!empty($canChangePosPrintSettings))
+        @include('partials.printer-settings-modal', ['posPrinterBranches' => collect($branches ?? [])->map(fn ($name, $id) => (object) ['id' => (int) $id, 'name' => (string) $name])->values()])
+    @endif
 </body>
 </html>

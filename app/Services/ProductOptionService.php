@@ -413,9 +413,9 @@ class ProductOptionService
             if ($oq <= 0) {
                 $oq = 1;
             }
-            if (abs($oq - 1) > 0.0001) {
-                $name .= ' ×' . rtrim(rtrim(number_format($oq, 4, '.', ''), '0'), '.');
-            }
+            // Always show the qty (including 1) so kitchen/production slips
+            // never hide how many of an option are needed.
+            $name .= ' ×' . rtrim(rtrim(number_format($oq, 4, '.', ''), '0'), '.');
             $lines[] = $name;
         }
 

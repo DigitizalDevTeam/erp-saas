@@ -284,23 +284,70 @@ class PosPrinterAgentService
             }
         }
 
-        $ingredientsList = [];
-        $recipes = ProductRecipe::where('product_id', $product->id)
+        $ingredientsByKey = [];
+        $addIngredient = static function ($ingredient, float $quantity, string $unit) use (&$ingredientsByKey): void {
+            if (! $ingredient) {
+                return;
+            }
+            $name = trim((string) ($ingredient->name ?? ''));
+            if ($name === '') {
+                return;
+            }
+            $unit = trim($unit);
+            $key = ((int) ($ingredient->id ?? 0) ?: $name) . '|' . mb_strtolower($unit);
+            if (isset($ingredientsByKey[$key])) {
+                $ingredientsByKey[$key]['qty'] = round(((float) $ingredientsByKey[$key]['qty']) + $quantity, 4);
+            } else {
+                $ingredientsByKey[$key] = [
+                    'name' => $name,
+                    'qty' => round($quantity, 4),
+                    'unit' => $unit,
+                ];
+            }
+        };
+
+        $selectedOptionIds = collect($selected)
+            ->pluck('product_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->all();
+        $recipesByProduct = ProductRecipe::whereIn('product_id', array_merge([(int) $product->id], $selectedOptionIds))
             ->with(['ingredientProduct', 'unit'])
             ->orderBy('id')
-            ->get();
+            ->get()
+            ->groupBy('product_id');
+
         $lineQty = max(1, (float) $qty);
-        foreach ($recipes as $recipe) {
-            $ing = $recipe->ingredientProduct;
-            if (! $ing) {
+        foreach ($recipesByProduct->get((int) $product->id, collect()) as $recipe) {
+            $addIngredient(
+                $recipe->ingredientProduct,
+                (float) ($recipe->quantity ?? 0) * $lineQty,
+                $recipe->unit ? (string) ($recipe->unit->name ?? '') : ''
+            );
+        }
+
+        // Selected options are products too: if an option has its own recipe,
+        // production also needs those ingredients (scaled by the option qty).
+        $selectedQtyByOption = [];
+        foreach ($selected as $sel) {
+            $oid = (int) ($sel['product_id'] ?? 0);
+            if ($oid <= 0) {
                 continue;
             }
-            $ingredientsList[] = [
-                'name' => (string) ($ing->name ?? ''),
-                'qty' => round((float) ($recipe->quantity ?? 0) * $lineQty, 4),
-                'unit' => $recipe->unit ? (string) ($recipe->unit->name ?? '') : '',
-            ];
+            $selectedQtyByOption[$oid] = ($selectedQtyByOption[$oid] ?? 0) + (float) ($sel['quantity'] ?? 1);
         }
+        foreach ($selectedQtyByOption as $optionId => $optionQty) {
+            foreach ($recipesByProduct->get((int) $optionId, collect()) as $recipe) {
+                $addIngredient(
+                    $recipe->ingredientProduct,
+                    (float) ($recipe->quantity ?? 0) * max(0, (float) $optionQty),
+                    $recipe->unit ? (string) ($recipe->unit->name ?? '') : ''
+                );
+            }
+        }
+
+        $ingredientsList = array_values($ingredientsByKey);
 
         $lineTotal = ProductOptionService::calculateLineExtendedTotal(
             $unitPrice,
@@ -490,25 +537,9 @@ class PosPrinterAgentService
             $lineTotal = isset($line['line_total'])
                 ? (float) $line['line_total']
                 : ($qty * $price);
-            $optionLines = [];
-            foreach (is_array($line['options'] ?? null) ? $line['options'] : [] as $opt) {
-                if (! is_array($opt)) {
-                    continue;
-                }
-                $optName = trim((string) ($opt['name'] ?? ''));
-                if ($optName === '') {
-                    continue;
-                }
-                $optQty = (float) ($opt['quantity'] ?? 1);
-                if ($optQty > 0 && abs($optQty - 1) > 0.0001) {
-                    $optName .= ' ×' . rtrim(rtrim(number_format($optQty, 4, '.', ''), '0'), '.');
-                }
-                $optionLines[] = '+ ' . $optName;
-            }
+            // Keep the product name clean: the agent slip prints every selected
+            // option from the structured options list below, with its qty.
             $rowName = (string) ($line['name'] ?? '');
-            if ($optionLines !== []) {
-                $rowName .= "\n" . implode("\n", $optionLines);
-            }
             $row = [
                 'name' => $rowName,
                 'qty' => $qty,

@@ -192,6 +192,8 @@ return [
     'pay_receipts' => 'Pagar recibos',
     'pos_number' => 'Número POS',
     'print_kitchen_slip' => 'Imprimir talão da cozinha',
+    'production_options' => 'Opções',
+    'production_ingredients' => 'Ingredientes',
     'products_load_failed' => 'Não foi possível carregar os produtos. Tente novamente.',
     'reassign_tables' => 'Reatribuir mesas',
     'reassign_tables_hint' => 'Mova mesas de um empregado para outro (por exemplo, quando um empregado está ausente).',
