@@ -1476,7 +1476,7 @@
                         var shiftIdToUse = currentUserShiftId || (userShiftByBranch[branchId] || null);
                         $('#pos_shift_id_hidden').val(shiftIdToUse || '');
                         if (!canChange && branchId) {
-                            var myShiftId = userShiftByBranch[branchId];
+                            var myShiftId = shiftIdToUse;
                             if (!myShiftId) {
                                 $('#pos-restaurant-no-shift').removeClass('d-none');
                                 $('#pos-restaurant-panel-no-shift').removeClass('d-none');
@@ -1489,7 +1489,7 @@
                             $('#pos-restaurant-panel-no-shift').addClass('d-none');
                         }
                         var endShiftBtn = $('#pos-end-shift-btn');
-                        var shiftIdForEnd = userShiftByBranch[branchId];
+                        var shiftIdForEnd = shiftIdToUse;
                         var hasClosingBalance = {{ $has_closing_balance ? 'true' : 'false' }};
                         if (shiftIdForEnd && hasClosingBalance) {
                             endShiftBtn.attr('href', '{{ url("pos-shift") }}/' + shiftIdForEnd + '/close').removeClass('d-none');
@@ -1507,6 +1507,13 @@
                     error: function () {}
                 });
             }
+
+            // A shift opened from the POS modal refreshes shifts/tables in place (no page reload).
+            $(document).on('pos-shift-opened', function (e, branchId) {
+                if (branchId) {
+                    loadBranchShifts(branchId);
+                }
+            });
 
             $('#pos-restaurant-branch').on('change', function () {
                 var branchId = $(this).val();
@@ -1994,6 +2001,16 @@
             $(document).on('change blur', '#tbody-restaurant .pos-item-notes', function () {
                 persistRestaurantLineNote($(this).closest('tr'));
             });
+            function posRestaurantServerSubtotal(it, qty) {
+                // Trust the server line subtotal (VAT-inclusive money computed server-side);
+                // fall back to the browser calculation only when the server sent none.
+                var serverSub = parseFloat(it && it.subtotal);
+                var q = parseInt(qty, 10) || 0;
+                if (!isNaN(serverSub) && serverSub >= 0 && q > 0) {
+                    return posRoundMoney(serverSub);
+                }
+                return posLineSubtotal(parseFloat(it.price) || 0, parseFloat(it.tax) || 0, q, it.price_type, it.unit_subtotal, 0);
+            }
             function loadRestaurantOrder(tableId, shiftId, branchId, orderType, posId) {
                 var preservedNotes = collectRestaurantCartNotes();
                 var params = {};
@@ -2024,7 +2041,7 @@
                         var price = parseFloat(it.price) || 0;
                         var tax = parseFloat(it.tax) || 0;
                         var qty = (it.quantity || 0);
-                        var sub = posLineSubtotal(price, tax, qty, it.price_type, it.unit_subtotal, 0);
+                        var sub = posRestaurantServerSubtotal(it, qty);
                         list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: qty, price: price, tax: tax, subtotal: sub, options_amount: 0, unit_subtotal: it.unit_subtotal != null ? parseFloat(it.unit_subtotal) : (qty > 0 ? posRoundMoney(sub / qty) : null), description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || it.id, waiter_name: it.waiter_name || res.waiter_name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null });
                     });
                     sessionItems.forEach(function (it) {
@@ -2032,8 +2049,8 @@
                         var qty = (it.quantity || 0);
                         var price = parseFloat(it.price) || 0;
                         var tax = parseFloat(it.tax) || 0;
-                        // Always recompute from main product price — ignore any stored option money.
-                        var sub = posLineSubtotal(price, tax, qty, it.price_type, it.unit_subtotal, 0);
+                        // Server subtotal wins; product price is the fallback (option money never billed).
+                        var sub = posRestaurantServerSubtotal(it, qty);
                         var optsAmt = 0;
                         var unitSub = it.unit_subtotal != null
                             ? parseFloat(it.unit_subtotal)
@@ -2076,7 +2093,7 @@
                         list.forEach(function (it, idx) {
                             var isVoidedLine = it.status === 'cancelled' || it.voided_at;
                             var taxRate = parseFloat(it.tax) || 0;
-                            var sub = posLineSubtotal(it.price, taxRate, it.quantity, it.price_type, it.unit_subtotal, 0);
+                            var sub = posRestaurantServerSubtotal(it, it.quantity);
                             if (!isVoidedLine) {
                                 total += sub;
                             }
@@ -2238,8 +2255,64 @@
                 posRestaurantToggleOrderTypeUI($('#pos-restaurant-order-type').val() || 'dine_in');
             }
 
+            function posRestaurantClearCartDom() {
+                $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="1">{{ __("pos.no_data_found") }}</td></tr>');
+                $('#discount_restaurant').val('');
+                updateRestaurantCartTotals(0);
+                $('#pos-pay-btn-restaurant').prop('disabled', true);
+                posRestaurantExitDeleteSelectMode();
+                posRestaurantUpdateEmptyCartButtonState();
+            }
+            function posRestaurantResetScreen($btn) {
+                var branchId = $('#pos-restaurant-branch').val();
+                var sk = $('#empty_cart').val() || sessionKey;
+                var data = { session_key: sk };
+                if (typeof posRestaurantCartKey !== 'undefined' && posRestaurantCartKey) {
+                    data.cart_key = posRestaurantCartKey;
+                } else {
+                    var tid = $('#pos_table_id_hidden').val();
+                    var sid = $('#pos_shift_id_hidden').val();
+                    if (tid && sid) { data.table_id = tid; data.shift_id = sid; }
+                }
+                if ($btn && $btn.length) {
+                    $btn.prop('disabled', true).addClass('disabled');
+                }
+                $.ajax({
+                    type: 'POST',
+                    url: posEmptyCartUrl,
+                    data: data,
+                    complete: function () {
+                        if ($btn && $btn.length) {
+                            $btn.prop('disabled', false).removeClass('disabled');
+                        }
+                        // Same end state as the old page reload: fresh cart, no table/order picked.
+                        posRestaurantClearCartDom();
+                        $('#pos-restaurant-order-type').val('dine_in');
+                        $('#pos_order_type_hidden').val('dine_in');
+                        posRestaurantToggleOrderTypeUI('dine_in');
+                        $('#pos_restaurant_table_id').val('');
+                        $('#pos_restaurant_table_name').val('');
+                        $('#pos_table_id_hidden').val('');
+                        $('#pos_table_id').val('');
+                        $('#pos-selected-table').text('—');
+                        $('#pos_restaurant_pos_id').val('');
+                        posRenderCheckSelector([], '');
+                        $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
+                        posCurrentTableWaiter = { id: '', name: '' };
+                        setRestaurantWaiterDisplay('');
+                        $('#pos-guest-name').val('');
+                        $('#pos-guest-email').val('');
+                        $('#pos-guest-phone').val('');
+                        posRestaurantCartKey = '';
+                        if (branchId) {
+                            loadRestaurantTables(branchId);
+                        }
+                    }
+                });
+            }
+
             $(document).on('click', '#pos-restaurant-reset-btn', function () {
-                window.location.reload();
+                posRestaurantResetScreen($(this));
             });
 
             $(document).on('click', '.pos-void-line', function () {
@@ -2555,6 +2628,25 @@
             function posRestaurantOrderHasSentLines() {
                 return $('#tbody-restaurant tr[data-product-id][data-is-sent="1"]:not([data-voided="1"])').length > 0;
             }
+            function posRestaurantRefreshAfterSend(payload, res) {
+                var branchId = payload.branchId || $('#pos-restaurant-branch').val();
+                var shiftId = payload.shiftId || $('#pos_shift_id_hidden').val();
+                var posId = (res && res.pos_id) ? res.pos_id : ($('#pos_restaurant_pos_id').val() || '');
+                if (posId) {
+                    $('#pos_restaurant_pos_id').val(posId);
+                }
+                if (payload.isNonDineIn) {
+                    loadRestaurantOrder(null, shiftId, branchId, payload.orderType, posId || undefined);
+                    if (branchId && shiftId && typeof loadRestaurantDeliveryTakeawayCustomers === 'function') {
+                        loadRestaurantDeliveryTakeawayCustomers(branchId, shiftId, payload.orderType);
+                    }
+                } else if (payload.tableId) {
+                    loadRestaurantOrder(payload.tableId, shiftId, branchId, 'dine_in');
+                }
+                if (branchId) {
+                    loadRestaurantTables(branchId);
+                }
+            }
             function posRestaurantMarkUnsentRowsAsSent() {
                 $('#tbody-restaurant tr[data-product-id]').each(function () {
                     var $row = $(this);
@@ -2799,9 +2891,9 @@
                                 orderRef: res.pos_id || $('#pos_restaurant_pos_id').val() || '',
                                 printJobs: Array.isArray(res.print_jobs) ? res.print_jobs : []
                             });
-                            // Clear cart by reloading POS after print has been kicked off.
+                            // Refresh cart + tables in place after print has been kicked off (no page reload).
                             setTimeout(function () {
-                                window.location.reload();
+                                posRestaurantRefreshAfterSend(payload, res);
                             }, 500);
                         }
                     },
@@ -4412,7 +4504,12 @@
                             session_key: session_key
                         },
                         success: function (data) {
-                            location.reload();
+                            // Clear the retail cart in place (no page reload).
+                            if (typeof posClearCartDom === 'function') {
+                                posClearCartDom();
+                            }
+                            $('.discount').val('');
+                            if ($('#discount_hidden').length) $('#discount_hidden').val('');
                         },
                         error: function (data) {
                             data = data.responseJSON;
@@ -4684,7 +4781,12 @@
                         success: function () {
                             if (typeof show_toastr === 'function') show_toastr('success', '{{ __("Shift opened successfully.") }}', 'success');
                             $modal.modal('hide');
-                            window.location.reload();
+                            $submit.prop('disabled', false);
+                            $form.find('[name=opening_balance]').val('');
+                            var openedBranchId = $form.find('[name=branch_id]').val();
+                            if (openedBranchId) {
+                                $(document).trigger('pos-shift-opened', [openedBranchId]);
+                            }
                         },
                         error: function (xhr) {
                             var msg = (xhr.responseJSON && xhr.responseJSON.error) || '{{ __("pos.error") }}';
