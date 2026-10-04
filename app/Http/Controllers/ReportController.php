@@ -2591,7 +2591,15 @@ class ReportController extends Controller
         $creatorId = \Auth::user()->creatorId();
         $reportData = PosEodReportService::build($creatorId, $date, \Auth::user()->name ?? __('All'));
         $reportData['canCloseDay'] = \Auth::user()->creatorId() === \Auth::user()->id;
-        unset($reportData['settings'], $reportData['poses'], $reportData['cardTotal']);
+        $printFormat = $request->input('print');
+        unset($reportData['poses'], $reportData['cardTotal']);
+        if ($printFormat === 'a4') {
+            return view('report.pos_eod_print_a4', $reportData);
+        }
+        if ($printFormat === '80') {
+            return view('report.pos_eod_print_80', $reportData);
+        }
+        unset($reportData['settings']);
 
         return view('report.pos_eod', $reportData);
     }
