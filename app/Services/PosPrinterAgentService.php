@@ -536,7 +536,7 @@ class PosPrinterAgentService
             $price = (float) $item->price;
             $qty = (int) $item->quantity;
             $taxRate = (float) \App\Models\Utility::totalTaxRate($item->tax);
-            $amounts = \App\Http\Controllers\PosController::inclusivePosLineAmounts($price, $qty, $taxRate);
+            $amounts = \App\Http\Controllers\PosController::posLineAmountsForItem($item, $product);
             $net = $amounts['net'];
             $vat = $amounts['tax'];
             $lineTotal = $amounts['line_total'];
@@ -1036,7 +1036,7 @@ class PosPrinterAgentService
             $price = (float) $item->price;
             $qty = (int) $item->quantity;
             $taxRate = (float) Utility::totalTaxRate($item->tax);
-            $amounts = \App\Http\Controllers\PosController::inclusivePosLineAmounts($price, $qty, $taxRate);
+            $amounts = \App\Http\Controllers\PosController::posLineAmountsForItem($item, $product);
             $subtotal = $amounts['net'];
             $tax = $amounts['tax'];
             $lineTotal = $amounts['line_total'];

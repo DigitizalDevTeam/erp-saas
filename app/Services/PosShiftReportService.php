@@ -290,10 +290,21 @@ class PosShiftReportService
         }
 
         $exclusiveUnit = round((float) $line->price, 2);
-        $inclusiveUnit = $rate > 0
-            ? round($exclusiveUnit * (1 + ($rate / 100)), 2)
-            : $exclusiveUnit;
-        $amounts = PosController::inclusivePosLineAmounts($exclusiveUnit, (float) $line->quantity, $rate);
+        $storedUnit = ($line->unit_subtotal !== null && (float) $line->unit_subtotal > 0)
+            ? (float) $line->unit_subtotal
+            : null;
+        $variantPrice = ($line->variant && $line->variant->sale_price !== null)
+            ? (float) $line->variant->sale_price
+            : null;
+        $lineProduct = $line->product;
+        $inclusiveUnit = PosController::resolveRestaurantInclusiveUnit(
+            $exclusiveUnit,
+            $rate,
+            $storedUnit,
+            $lineProduct instanceof \App\Models\ProductService ? $lineProduct : null,
+            $variantPrice
+        );
+        $amounts = PosController::amountsFromInclusiveTotal($inclusiveUnit * (float) $line->quantity, $rate);
 
         return [
             'exclusive_unit' => $exclusiveUnit,
