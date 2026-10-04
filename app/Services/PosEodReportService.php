@@ -236,6 +236,8 @@ class PosEodReportService
 
         return [
             'date' => $date,
+            'companyTelephone' => $settings['company_telephone'] ?? '',
+            'companyEmail' => $settings['company_email'] ?? '',
             'companyName' => $companyName,
             'vatNumber' => $vatNumber,
             'companyAddress' => $companyAddress,

@@ -1,0 +1,46 @@
+<?php
+
+namespace Tests\Unit;
+
+use Tests\TestCase;
+
+/**
+ * EOD report prints: professional A4 + 80mm slip designs (approved by Riz).
+ * /report/pos-eod?print=a4 and ?print=80 render standalone print pages.
+ */
+class EodReportPrintDesignsTest extends TestCase
+{
+    public function test_controller_routes_print_formats(): void
+    {
+        $c = file_get_contents(app_path('Http/Controllers/ReportController.php'));
+        $this->assertStringContainsString("'print' => 'a4'", str_replace('"', "'", $c));
+        $this->assertStringContainsString("report.pos_eod_print_a4", $c);
+        $this->assertStringContainsString("report.pos_eod_print_80", $c);
+    }
+
+    public function test_page_has_two_print_buttons_and_no_width_selector(): void
+    {
+        $v = file_get_contents(resource_path('views/report/pos_eod.blade.php'));
+        $this->assertStringContainsString("'print' => 'a4'", $v);
+        $this->assertStringContainsString("'print' => '80'", $v);
+        $this->assertStringContainsString("Print A4", $v);
+        $this->assertStringContainsString("Print 80mm Slip", $v);
+        $this->assertStringNotContainsString('eod-print-width', $v);
+    }
+
+    public function test_a4_view_is_professional_design(): void
+    {
+        $v = file_get_contents(resource_path('views/report/pos_eod_print_a4.blade.php'));
+        foreach (['END OF DAY REPORT', 'Sales by Payment Method', 'SALES PER EMPLOYEE', 'TAXES', 'SUMMARY OF ITEMS SOLD', 'Manager Signature', 'size: A4'] as $needle) {
+            $this->assertStringContainsString($needle, $v, $needle);
+        }
+    }
+
+    public function test_80_view_is_slip_design(): void
+    {
+        $v = file_get_contents(resource_path('views/report/pos_eod_print_80.blade.php'));
+        foreach (['END OF DAY REPORT', 'TOTAL SALES', 'SALES BY PAYMENT METHOD', 'END OF REPORT', 'size: 80mm'] as $needle) {
+            $this->assertStringContainsString($needle, $v, $needle);
+        }
+    }
+}

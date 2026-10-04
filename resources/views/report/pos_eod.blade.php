@@ -45,7 +45,8 @@
                         {{ Form::close() }}
                         <div class="col-auto ms-auto d-flex flex-wrap gap-2 align-items-end">
                             <a href="{{ route('report.pos.eod.export', ['date' => $date]) }}" class="btn btn-success"><i class="ti ti-file-spreadsheet"></i> {{ __('Export Excel') }}</a>
-                            <button type="button" class="btn btn-secondary" onclick="window.print();"><i class="ti ti-printer"></i> {{ __('Print') }}</button>
+                            <a href="{{ route('report.pos.eod', ['date' => $date, 'print' => 'a4']) }}" target="_blank" rel="noopener" class="btn btn-secondary"><i class="ti ti-file-text"></i> {{ __('Print A4') }}</a>
+                            <a href="{{ route('report.pos.eod', ['date' => $date, 'print' => '80']) }}" target="_blank" rel="noopener" class="btn btn-outline-secondary"><i class="ti ti-receipt"></i> {{ __('Print 80mm Slip') }}</a>
                             {{ Form::open(['route' => 'report.pos.eod.send', 'method' => 'post', 'class' => 'd-inline', 'id' => 'eod-send-email-form']) }}
                             {{ Form::hidden('date', $date) }}
                             @csrf
@@ -79,19 +80,10 @@
 
     <div class="row no-print">
         <div class="col-12">
-            <p class="text-muted small">{{ __('Use Print to print the report below. Use Export Excel to download as spreadsheet. Use Send Email to email the full EOD report PDF to Report Received At recipients.') }}</p>
+            <p class="text-muted small">{{ __('Use Print A4 for the professional report or Print 80mm Slip for the thermal receipt. Use Export Excel to download as spreadsheet. Use Send Email to email the full EOD report PDF to Report Received At recipients.') }}</p>
         </div>
     </div>
 
-    <div class="no-print mb-2">
-        <label class="me-2">{{ __('Print width') }}:</label>
-        <select id="eod-print-width" class="form-select form-select-sm d-inline-block" style="width: auto;">
-            <option value="full">{{ __('Full page') }}</option>
-            <option value="80">{{ __('80mm receipt') }}</option>
-            <option value="83">{{ __('83mm receipt') }}</option>
-            <option value="58">{{ __('58mm receipt') }}</option>
-        </select>
-    </div>
     <div id="eod-printable" class="eod-report bg-white p-4" style="font-family: 'Courier New', monospace; font-size: 13px;">
         <div class="border-bottom pb-2 mb-2">
             <strong>----------------------------------------</strong><br>
@@ -275,17 +267,6 @@
 @push('script-page')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var sel = document.getElementById('eod-print-width');
-    var el = document.getElementById('eod-printable');
-    if (sel && el) {
-        sel.addEventListener('change', function() {
-            el.classList.remove('eod-print-80', 'eod-print-83', 'eod-print-58');
-            if (this.value === '80') el.classList.add('eod-print-80');
-            else if (this.value === '83') el.classList.add('eod-print-83');
-            else if (this.value === '58') el.classList.add('eod-print-58');
-        });
-    }
-
     var sendForm = document.getElementById('eod-send-email-form');
     var sendBtn = document.getElementById('eod-send-email-btn');
     if (sendForm && sendBtn) {
