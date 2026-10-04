@@ -7,13 +7,17 @@ public partial class MainForm : Form
     private CancellationTokenSource? _loopCts;
     private bool _running;
     private bool _busy;
-    private bool _autoStarting;
     private bool _forceExit;
     private DateTime _lastPrinterSync = DateTime.MinValue;
 
     private readonly TextBox _txtBaseUrl = new();
-    private readonly ComboBox _cboBranch = new();
+    private readonly TextBox _txtDeviceCode = new();
+    private readonly Label _lblBranch = new();
+    private readonly CheckBox _chkAutoStart = new();
+    private readonly CheckBox _chkPrintAsImage = new();
     private readonly Button _btnConnect = new();
+    private System.Windows.Forms.Timer? _pairTimer;
+    private readonly bool _startInTray;
     private readonly Button _btnUploadLogo = new();
     private readonly Label _lblSlipLogo = new();
     private string _appliedTemplate = "";
@@ -26,11 +30,12 @@ public partial class MainForm : Form
     private readonly TextBox _txtLog = new();
     private readonly NotifyIcon _tray = new();
 
-    public MainForm()
+    public MainForm(bool startInTray = false)
     {
+        _startInTray = startInTray;
         Text = "POS Printer Agent";
         Width = 640;
-        Height = 540;
+        Height = 560;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -55,36 +60,48 @@ public partial class MainForm : Form
         _btnConnect.Left = 510;
         _btnConnect.Top = y - 3;
         _btnConnect.Width = 90;
-        _btnConnect.Click += async (_, _) => await ConnectAndStartAsync(forceReloadBranches: true);
+        _btnConnect.Click += async (_, _) => await ConnectAndStartAsync();
         Controls.Add(_btnConnect);
         y += 40;
 
-        Controls.Add(MakeLabel("Branch", 16, y));
-        _cboBranch.Left = 140;
-        _cboBranch.Top = y - 2;
-        _cboBranch.Width = 360;
-        _cboBranch.DropDownStyle = ComboBoxStyle.DropDownList;
-        _cboBranch.DisplayMember = "Name";
-        _cboBranch.ValueMember = "Id";
-        _cboBranch.SelectedIndexChanged += async (_, _) =>
-        {
-            if (_autoStarting || !_cboBranch.Enabled)
-            {
-                return;
-            }
+        Controls.Add(MakeLabel("Device code", 16, y));
+        _txtDeviceCode.Left = 140;
+        _txtDeviceCode.Top = y - 2;
+        _txtDeviceCode.Width = 200;
+        _txtDeviceCode.ReadOnly = true;
+        _txtDeviceCode.Font = new Font("Consolas", 12f, FontStyle.Bold);
+        Controls.Add(_txtDeviceCode);
 
-            if (_cboBranch.SelectedItem is BranchDto b && b.Id > 0)
-            {
-                _config.BranchId = b.Id;
-                _config.Save();
-                if (!string.IsNullOrWhiteSpace(_txtBaseUrl.Text))
-                {
-                    await ConnectAndStartAsync(forceReloadBranches: false);
-                }
-            }
+        _lblBranch.AutoSize = false;
+        _lblBranch.Left = 350;
+        _lblBranch.Top = y;
+        _lblBranch.Width = 250;
+        _lblBranch.Height = 22;
+        _lblBranch.Text = "Branch: not paired";
+        Controls.Add(_lblBranch);
+        y += 36;
+
+        _chkAutoStart.Text = "Start with Windows";
+        _chkAutoStart.Left = 140;
+        _chkAutoStart.Top = y;
+        _chkAutoStart.Width = 170;
+        _chkAutoStart.CheckedChanged += (_, _) => ApplyAutoStartSetting();
+        Controls.Add(_chkAutoStart);
+
+        _chkPrintAsImage.Text = "Print as image (debug)";
+        _chkPrintAsImage.Left = 320;
+        _chkPrintAsImage.Top = y;
+        _chkPrintAsImage.Width = 200;
+        _chkPrintAsImage.CheckedChanged += (_, _) =>
+        {
+            _config.PrintAsImage = _chkPrintAsImage.Checked;
+            _config.Save();
+            Log(_config.PrintAsImage
+                ? "Debug mode ON: print jobs are saved as images in " + AgentConfig.DebugImagesFolder
+                : "Debug mode OFF: jobs print on the printer.");
         };
-        Controls.Add(_cboBranch);
-        y += 40;
+        Controls.Add(_chkPrintAsImage);
+        y += 36;
 
         Controls.Add(MakeLabel("Slip logo", 16, y));
         _btnUploadLogo.Left = 140;
@@ -148,7 +165,7 @@ public partial class MainForm : Form
         _txtLog.Left = 16;
         _txtLog.Top = y;
         _txtLog.Width = 590;
-        _txtLog.Height = 230;
+        _txtLog.Height = 180;
         _txtLog.Multiline = true;
         _txtLog.ScrollBars = ScrollBars.Vertical;
         _txtLog.ReadOnly = true;
@@ -225,7 +242,58 @@ public partial class MainForm : Form
     private void LoadConfigIntoUi()
     {
         _txtBaseUrl.Text = _config.BaseUrl;
+        _txtDeviceCode.Text = _config.EnsuredDeviceCode();
+        _chkAutoStart.Checked = _config.AutoStartWithWindows;
+        _chkPrintAsImage.Checked = _config.PrintAsImage;
+        RefreshBranchLabel();
         RefreshSlipLogoUi();
+    }
+
+    private void RefreshBranchLabel()
+    {
+        _lblBranch.Text = _config.BranchId > 0
+            ? $"Branch: #{_config.BranchId} (paired)"
+            : "Branch: not paired";
+    }
+
+    private void SaveUiSettings()
+    {
+        _config.BaseUrl = _txtBaseUrl.Text.Trim();
+        _config.AutoStartWithWindows = _chkAutoStart.Checked;
+        _config.PrintAsImage = _chkPrintAsImage.Checked;
+        _config.PollIntervalMs = 2000;
+        _config.Save();
+    }
+
+    private void ApplyAutoStartSetting()
+    {
+        _config.AutoStartWithWindows = _chkAutoStart.Checked;
+        _config.Save();
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
+            if (key == null)
+            {
+                return;
+            }
+
+            if (_chkAutoStart.Checked)
+            {
+                var exe = Environment.ProcessPath ?? Application.ExecutablePath;
+                key.SetValue("PosPrinterAgent", $"\"{exe}\" --tray");
+                Log("Auto-start with Windows: ON");
+            }
+            else
+            {
+                key.DeleteValue("PosPrinterAgent", throwOnMissingValue: false);
+                Log("Auto-start with Windows: OFF");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log("Auto-start setting failed: " + ex.Message);
+        }
     }
 
     private async Task ApplyHeartbeatAsync(ApiClient client, CancellationToken ct)
@@ -264,6 +332,11 @@ public partial class MainForm : Form
 
     private async Task OnShownAsync()
     {
+        if (_startInTray)
+        {
+            Hide();
+        }
+
         if (string.IsNullOrWhiteSpace(_config.BaseUrl))
         {
             return;
@@ -271,7 +344,7 @@ public partial class MainForm : Form
 
         try
         {
-            await ConnectAndStartAsync(forceReloadBranches: true);
+            await ConnectAndStartAsync();
         }
         catch (Exception ex)
         {
@@ -279,7 +352,12 @@ public partial class MainForm : Form
         }
     }
 
-    private async Task ConnectAndStartAsync(bool forceReloadBranches)
+    /// <summary>
+    /// Save settings, ask the ERP for this PC's pairing (set from a
+    /// logged-in browser session) and start polling when paired.
+    /// No manual URL/branch setup is needed after the one-time pairing.
+    /// </summary>
+    private async Task ConnectAndStartAsync()
     {
         var baseUrl = _txtBaseUrl.Text.Trim();
         if (string.IsNullOrWhiteSpace(baseUrl))
@@ -289,81 +367,85 @@ public partial class MainForm : Form
             return;
         }
 
-        _config.BaseUrl = baseUrl;
-        _config.PollIntervalMs = 2000;
+        SaveUiSettings();
         _btnConnect.Enabled = false;
-        SetStatus("Connecting…");
+        SetStatus("Checking pairing…");
 
         try
         {
-            if (forceReloadBranches || _cboBranch.Items.Count == 0)
+            var status = await ApiClient.FetchPairStatusAsync(baseUrl, _config.EnsuredDeviceCode(), CancellationToken.None);
+            if (status.Paired && status.BranchId > 0)
             {
-                Log("Loading branches from " + baseUrl);
-                var branches = await ApiClient.FetchBranchesAsync(baseUrl, CancellationToken.None);
-                _autoStarting = true;
-                _cboBranch.DataSource = null;
-                _cboBranch.DisplayMember = nameof(BranchDto.Name);
-                _cboBranch.ValueMember = nameof(BranchDto.Id);
-                _cboBranch.DataSource = branches;
-
-                if (branches.Count == 0)
-                {
-                    _autoStarting = false;
-                    SetStatus("Offline — no branches found");
-                    Log("No restaurant branches returned by ERP.");
-                    MessageBox.Show(this, "No branches found. Check the ERP Base URL.", "POS Printer Agent",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                var preferId = _config.BranchId;
-                if (preferId > 0 && branches.Any(b => b.Id == preferId))
-                {
-                    _cboBranch.SelectedValue = preferId;
-                }
-                else
-                {
-                    _cboBranch.SelectedIndex = 0;
-                }
-
-                if (_cboBranch.SelectedValue != null)
-                {
-                    _config.BranchId = Convert.ToInt32(_cboBranch.SelectedValue);
-                }
-                else if (_cboBranch.SelectedItem is BranchDto first)
-                {
-                    _config.BranchId = first.Id;
-                }
-
-                _autoStarting = false;
-            }
-
-            if (_cboBranch.SelectedItem is BranchDto selectedBranch)
-            {
-                _config.BranchId = selectedBranch.Id;
-            }
-
-            if (_config.BranchId < 1)
-            {
-                SetStatus("Offline — select a branch");
+                ApplyPairing(status);
+                StopPairTimer();
+                await StartAgentAsync();
                 return;
             }
 
-            _config.Save();
-            await StartAgentAsync();
+            SetStatus("Not paired — pair this PC from ERP Printer Settings");
+            Log($"Not paired yet. In ERP: Printer Settings → enter device code {_config.EnsuredDeviceCode()} → Pair Agent.");
+            StartPairTimer();
         }
         catch (Exception ex)
         {
             SetStatus("Offline — connection failed");
             Log("Connect failed: " + ex.Message);
-            MessageBox.Show(this, "Could not connect to ERP:\n" + ex.Message, "POS Printer Agent",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
             _btnConnect.Enabled = true;
-            _autoStarting = false;
         }
+    }
+
+    private void ApplyPairing(PairStatusDto status)
+    {
+        _config.BranchId = status.BranchId;
+        _config.Save();
+        _lblBranch.Text = string.IsNullOrWhiteSpace(status.BranchName)
+            ? $"Branch: #{status.BranchId} (paired)"
+            : $"Branch: {status.BranchName} (paired)";
+        Log($"Paired to branch #{status.BranchId}" + (string.IsNullOrWhiteSpace(status.BranchName) ? "" : $" ({status.BranchName})") + ".");
+    }
+
+    private void StartPairTimer()
+    {
+        if (_pairTimer != null)
+        {
+            return;
+        }
+
+        _pairTimer = new System.Windows.Forms.Timer { Interval = 5000 };
+        _pairTimer.Tick += async (_, _) =>
+        {
+            if (_running || _busy)
+            {
+                return;
+            }
+
+            try
+            {
+                var status = await ApiClient.FetchPairStatusAsync(
+                    _config.BaseUrl, _config.EnsuredDeviceCode(), CancellationToken.None);
+                if (status.Paired && status.BranchId > 0)
+                {
+                    ApplyPairing(status);
+                    StopPairTimer();
+                    await StartAgentAsync();
+                }
+            }
+            catch
+            {
+                // ERP unreachable; keep waiting for pairing.
+            }
+        };
+        _pairTimer.Start();
+    }
+
+    private void StopPairTimer()
+    {
+        _pairTimer?.Stop();
+        _pairTimer?.Dispose();
+        _pairTimer = null;
     }
 
     private async Task StartAgentAsync()
@@ -406,6 +488,7 @@ public partial class MainForm : Form
     private void StopAgent(bool silent = false)
     {
         _running = false;
+        StopPairTimer();
         _pollTimer?.Stop();
         _pollTimer?.Dispose();
         _pollTimer = null;
@@ -467,6 +550,14 @@ public partial class MainForm : Form
             {
                 try
                 {
+                    if (_config.PrintAsImage)
+                    {
+                        var savedPath = SlipPrinter.SaveJobAsImage(job, AgentConfig.DebugImagesFolder);
+                        await client.AckAsync(job.Id, true, "debug image: " + savedPath, ct);
+                        Log($"Job #{job.Id} saved as image (debug): {savedPath}");
+                        continue;
+                    }
+
                     Log($"Printing job #{job.Id} ({job.Zone}) → {job.SystemPrinterName}");
                     SlipPrinter.PrintJob(job);
                     await client.AckAsync(job.Id, true, null, ct);

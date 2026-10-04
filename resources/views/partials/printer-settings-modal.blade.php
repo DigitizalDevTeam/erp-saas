@@ -39,6 +39,18 @@
                 <p class="text-muted small mb-3">
                     {{ __('pos.download_print_agent_help') }}
                 </p>
+                <div class="mb-3 border rounded p-3 bg-light">
+                    <label class="form-label fw-semibold" for="printer-settings-pair-code">{{ __('Pair Print Agent (this PC)') }}</label>
+                    <div class="input-group">
+                        <input type="text" id="printer-settings-pair-code" class="form-control text-uppercase" maxlength="16"
+                               placeholder="{{ __('Device code e.g. A1B2C3D4') }}" autocomplete="off">
+                        <button type="button" class="btn btn-success" id="printer-settings-pair-btn">
+                            <i class="ti ti-link me-1"></i>{{ __('Pair Agent') }}
+                        </button>
+                    </div>
+                    <div class="form-text">{{ __('Open the Print Agent on the cashier PC, copy its device code here and pair. The agent then uses this branch automatically — no URL or branch setup on the PC.') }}</div>
+                    <div id="printer-settings-pair-msg" class="small mt-1"></div>
+                </div>
                 <div class="mb-3">
                     <label class="form-label" for="printer-settings-branch">{{ __('Branch') }}</label>
                     <select id="printer-settings-branch" class="form-select">
@@ -200,6 +212,29 @@
 
         $(document).on('hidden.bs.modal', '#printerSettingsModal', function () {
             stopStatusPolling();
+        });
+
+        $(document).on('click', '#printer-settings-pair-btn', function () {
+            var $btn = $(this);
+            var code = ($('#printer-settings-pair-code').val() || '').trim();
+            var branchId = $('#printer-settings-branch').val();
+            var $msg = $('#printer-settings-pair-msg');
+            if (!code) { $msg.removeClass('text-success').addClass('text-danger').text(@json(__('Enter the device code shown in the Print Agent.'))); return; }
+            if (!branchId) { $msg.removeClass('text-success').addClass('text-danger').text(@json(__('Select a branch first.'))); return; }
+            $btn.prop('disabled', true);
+            $.ajax({
+                url: @json(route('pos.restaurant.pair-agent')),
+                method: 'POST',
+                data: { device_code: code, branch_id: branchId, _token: '{{ csrf_token() }}' },
+                success: function (res) {
+                    $msg.removeClass('text-danger').addClass('text-success').text((res && res.message) ? res.message : @json(__('Print Agent paired.')));
+                },
+                error: function (xhr) {
+                    var message = (xhr.responseJSON && (xhr.responseJSON.error || xhr.responseJSON.message)) || @json(__('Could not pair the Print Agent.'));
+                    $msg.removeClass('text-success').addClass('text-danger').text(message);
+                },
+                complete: function () { $btn.prop('disabled', false); }
+            });
         });
 
         $(document).on('click', '#printer-settings-save-btn', function () {

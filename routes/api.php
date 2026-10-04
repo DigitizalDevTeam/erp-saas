@@ -18,6 +18,7 @@ Route::post('login', [ApiController::class, 'login']);
 
 // Printer agent — no login; agent connects with ERP Base URL + branch only.
 Route::get('printer-agent/branches', [PosPrinterAgentApiController::class, 'branches']);
+Route::post('printer-agent/pair-status', [PosPrinterAgentApiController::class, 'pairStatus']);
 Route::post('printer-agent/heartbeat', [PosPrinterAgentApiController::class, 'heartbeat']);
 Route::get('printer-agent/logo', [PosPrinterAgentApiController::class, 'logo']);
 Route::post('printer-agent/printers', [PosPrinterAgentApiController::class, 'syncPrinters']);

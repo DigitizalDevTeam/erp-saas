@@ -4922,5 +4922,14 @@
     "Zoom Meeting successfully created.": "Zoom Meeting successfully created.",
     "Zoom Settings": "Zoom Settings",
     "`Cancle Request": "`Cancle Request",
-    "{select} entries per page": "{select} entries per page"
+    "{select} entries per page": "{select} entries per page",
+    "Pair Print Agent (this PC)": "Pair Print Agent (this PC)",
+    "Pair Agent": "Pair Agent",
+    "Device code e.g. A1B2C3D4": "Device code e.g. A1B2C3D4",
+    "Open the Print Agent on the cashier PC, copy its device code here and pair. The agent then uses this branch automatically — no URL or branch setup on the PC.": "Open the Print Agent on the cashier PC, copy its device code here and pair. The agent then uses this branch automatically — no URL or branch setup on the PC.",
+    "Enter the device code shown in the Print Agent.": "Enter the device code shown in the Print Agent.",
+    "Select a branch first.": "Select a branch first.",
+    "Could not pair the Print Agent.": "Could not pair the Print Agent.",
+    "Print Agent paired to :branch.": "Print Agent paired to :branch.",
+    "Print Agent paired.": "Print Agent paired."
 }
