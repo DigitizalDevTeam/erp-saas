@@ -214,6 +214,7 @@
                 <tr>
                     <th>{{ __('Description') }}</th>
                     <th class="qty">{{ __('Qty') }}</th>
+                    <th class="vat">{{ __('Unit (Incl. VAT)') }}</th>
                     <th class="vat">{{ __('VAT') }}</th>
                     <th class="total">{{ __('Total') }}</th>
                 </tr>
@@ -228,6 +229,7 @@
                             @endif
                         </td>
                         <td class="qty">{{ $value['quantity'] ?? '' }}</td>
+                        <td class="vat">{{ $value['unit_incl_vat'] ?? '' }}</td>
                         <td class="vat">{{ \Illuminate\Support\Str::endsWith((string) ($value['tax'] ?? ''), '%') ? ($value['tax'] ?: '0%') : (($value['tax'] ?? '0') . '%') }}</td>
                         <td class="total">{{ $value['subtotal'] ?? '' }}</td>
                     </tr>

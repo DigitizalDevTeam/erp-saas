@@ -222,6 +222,29 @@ class PosController extends Controller
     }
 
     /**
+     * VAT-inclusive unit price for a session cart row (receipt column).
+     */
+    public static function unitInclVatForSessionRow(array $v): float
+    {
+        $qty = (float) ($v['quantity'] ?? 0);
+        if (isset($v['unit_subtotal']) && (float) $v['unit_subtotal'] > 0) {
+            return round((float) $v['unit_subtotal'], 2);
+        }
+        $price = (float) ($v['price'] ?? 0);
+        $taxRate = (float) ($v['tax'] ?? 0);
+        $subtotal = (float) ($v['subtotal'] ?? 0);
+        $priceType = (string) ($v['price_type'] ?? 'exclusive');
+        if (($priceType === 'inclusive' || ! empty($v['subtotal_includes_tax'])) && $subtotal > 0 && $qty > 0) {
+            return round($subtotal / $qty, 2);
+        }
+        if ($taxRate > 0) {
+            return round($price * (1 + $taxRate / 100), 2);
+        }
+
+        return round($price, 2);
+    }
+
+    /**
      * @return array{unit: float, total: float}
      */
     protected function restaurantLineMoney(PosProduct $line, ?ProductService $product, float $taxRate): array
@@ -1576,6 +1599,8 @@ class PosController extends Controller
                 $sales['data'][$key]['product_tax'] = $value['product_tax'] ?? '-';
                 $sales['data'][$key]['tax_amount'] = Auth::user()->priceFormat($tax);
                 $sales['data'][$key]['subtotal'] = Auth::user()->priceFormat($value['subtotal']);
+                $sales['data'][$key]['unit_incl_vat'] = $sales['data'][$key]['unit_incl_vat']
+                    ?? Auth::user()->priceFormat(self::unitInclVatForSessionRow(is_array($value) ? $value : []));
                 $mainsubtotal += $value['subtotal'];
 
                 $summaryLines[] = [
@@ -2632,6 +2657,8 @@ class PosController extends Controller
                         $sales['data'][$key]['tax'] = $value['tax'] . '%';
                         $sales['data'][$key]['tax_amount'] = Auth::user()->priceFormat($tax);
                         $sales['data'][$key]['subtotal'] = Auth::user()->priceFormat($value['subtotal']);
+                $sales['data'][$key]['unit_incl_vat'] = $sales['data'][$key]['unit_incl_vat']
+                    ?? Auth::user()->priceFormat(self::unitInclVatForSessionRow(is_array($value) ? $value : []));
                         $mainsubtotal += $value['subtotal'];
                     }
                     if (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
@@ -4833,6 +4860,7 @@ class PosController extends Controller
                         'tax' => $taxRate . '%',
                         'product_tax' => $taxRate . '%',
                         'tax_amount' => $user->priceFormat($tax),
+                        'unit_incl_vat' => $user->priceFormat($amounts['unit']),
                         'subtotal' => $user->priceFormat($lineTotal),
                         'description' => $item->description ?? '',
                     ];
@@ -4948,6 +4976,8 @@ class PosController extends Controller
             $sales['data'][$key]['product_tax'] = $value['product_tax'];
             $sales['data'][$key]['tax_amount'] = Auth::user()->priceFormat($tax);
             $sales['data'][$key]['subtotal'] = Auth::user()->priceFormat($value['subtotal']);
+                $sales['data'][$key]['unit_incl_vat'] = $sales['data'][$key]['unit_incl_vat']
+                    ?? Auth::user()->priceFormat(self::unitInclVatForSessionRow(is_array($value) ? $value : []));
             $mainsubtotal += $value['subtotal'];
         }
 
