@@ -927,7 +927,7 @@
         var POS_PENDING_KEY = 'pos_pending_sales';
         var POS_CACHE_PRODUCTS = 'pos_cache_products';
         var POS_CACHE_CATEGORIES = 'pos_cache_categories';
-        var POS_PRODUCT_HTML_VER = 'pv11';
+        var POS_PRODUCT_HTML_VER = 'pv12';
         var posSyncUrl = '{{ route("pos.sync") }}';
         var posEmptyCartUrl = '{{ route("warehouse-empty-cart") }}';
         var posRestaurantOrderUrl = '{{ route("pos.restaurant.order") }}';
@@ -4309,7 +4309,8 @@
                     var price = parseFloat($el.data('product-price')) || 0;
                     var taxRate = parseFloat($el.data('product-tax')) || 0;
                     var imgSrc = $el.data('product-image') || '';
-                    var unitLine = posRoundMoney(price * (1 + taxRate / 100));
+                    var shelfUnit = parseFloat($el.data('product-inclusive-price')) || 0;
+                    var unitLine = shelfUnit > 0 ? posRoundMoney(shelfUnit) : posRoundMoney(price * (1 + taxRate / 100));
                     var qty = 1;
                     var subtotal = unitLine;
                     var $row = $(tbodySel + ' tr[id="' + rowIdPrefix + id + '"]');

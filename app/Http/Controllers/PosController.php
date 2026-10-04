@@ -137,21 +137,33 @@ class PosController extends Controller
         ?ProductService $product = null,
         ?float $variantSalePrice = null
     ): float {
-        if ($storedUnitSubtotal !== null && $storedUnitSubtotal > 0) {
-            return round($storedUnitSubtotal, 2);
-        }
-
         $exclusiveUnit = round($exclusiveUnit, 2);
+        $storedUnitSubtotal = $storedUnitSubtotal !== null ? round($storedUnitSubtotal, 2) : null;
+
+        // Shelf price is the source of truth for VAT-inclusive products.
+        // The rounded net (500 / 1.16 = 431.03) must never be turned back
+        // into an inclusive unit (431.03 * 1.16 = 499.99) anywhere in the
+        // chain: cart, send-to-production, payment, receipts, reports.
         if ($taxRate > 0 && $product && $product->isSalePriceInclusive()) {
             $catalog = ($variantSalePrice !== null && $variantSalePrice > 0)
                 ? round($variantSalePrice, 2)
                 : round((float) ($product->sale_price ?? 0), 2);
             if ($catalog > 0) {
                 $derivedNet = round($catalog / (1 + ($taxRate / 100)), 2);
-                if (abs($derivedNet - $exclusiveUnit) < 0.001) {
+                if (abs($derivedNet - $exclusiveUnit) <= 0.011) {
+                    return $catalog;
+                }
+                // A stored unit a cent or two off the shelf price is the
+                // same rounding drift (499.99 saved instead of 500).
+                if ($storedUnitSubtotal !== null && $storedUnitSubtotal > 0
+                    && abs($storedUnitSubtotal - $catalog) <= 0.02) {
                     return $catalog;
                 }
             }
+        }
+
+        if ($storedUnitSubtotal !== null && $storedUnitSubtotal > 0) {
+            return $storedUnitSubtotal;
         }
 
         if ($taxRate > 0) {
@@ -159,6 +171,54 @@ class PosController extends Controller
         }
 
         return $exclusiveUnit;
+    }
+
+    /**
+     * Net/VAT split for a VAT-inclusive line total.
+     *
+     * @return array{line_total: float, net: float, tax: float}
+     */
+    public static function amountsFromInclusiveTotal(float $lineTotal, float $taxRate): array
+    {
+        $lineTotal = round($lineTotal, 2);
+        if ($taxRate > 0 && $lineTotal > 0) {
+            $net = round($lineTotal / (1 + ($taxRate / 100)), 2);
+            $tax = round($lineTotal - $net, 2);
+        } else {
+            $net = $lineTotal;
+            $tax = 0.0;
+        }
+
+        return ['line_total' => $lineTotal, 'net' => $net, 'tax' => $tax];
+    }
+
+    /**
+     * Money for one saved POS line using the shelf-price rule, so printed
+     * receipts and reports agree with the cart (500 x 2 = 1000.00).
+     *
+     * @return array{unit: float, line_total: float, net: float, tax: float}
+     */
+    public static function posLineAmountsForItem(PosProduct $item, ?ProductService $product = null): array
+    {
+        $qty = (float) $item->quantity;
+        $taxRate = (float) Utility::totalTaxRate($item->tax);
+        $product = $product ?: $item->product;
+        $variantPrice = ($item->variant && $item->variant->sale_price !== null)
+            ? (float) $item->variant->sale_price
+            : null;
+        $stored = ($item->unit_subtotal !== null && (float) $item->unit_subtotal > 0)
+            ? (float) $item->unit_subtotal
+            : null;
+        $unit = self::resolveRestaurantInclusiveUnit(
+            (float) $item->price,
+            $taxRate,
+            $stored,
+            $product instanceof ProductService ? $product : null,
+            $variantPrice
+        );
+        $amounts = self::amountsFromInclusiveTotal($unit * $qty, $taxRate);
+
+        return ['unit' => $unit] + $amounts;
     }
 
     /**
@@ -3345,7 +3405,9 @@ class PosController extends Controller
                     if ($line->voided_at || $line->removed_from_cart_at) {
                         continue;
                     }
-                    $checkTotal += (float) ($line->price * $line->quantity - $line->discount);
+                    $checkProduct = $line->product;
+                    $checkTaxRate = $this->resolvePosLineTaxRate($line, $checkProduct instanceof ProductService ? $checkProduct : null);
+                    $checkTotal += $this->restaurantLineMoney($line, $checkProduct instanceof ProductService ? $checkProduct : null, $checkTaxRate)['total'];
                 }
                 $checks[] = [
                     'pos_id' => $check->id,
@@ -4756,7 +4818,7 @@ class PosController extends Controller
                     $price = (float) $item->price;
                     $qty = (int) $item->quantity;
                     $taxRate = (float) Utility::totalTaxRate($item->tax);
-                    $amounts = self::inclusivePosLineAmounts($price, $qty, $taxRate);
+                    $amounts = self::posLineAmountsForItem($item, $product);
                     $tax = $amounts['tax'];
                     $lineTotal = $amounts['line_total'];
                     $mainsubtotal += $lineTotal;
@@ -4787,7 +4849,7 @@ class PosController extends Controller
                     $price = (float) $item->price;
                     $qty = (int) $item->quantity;
                     $taxRate = (float) Utility::totalTaxRate($item->tax);
-                    $amounts = self::inclusivePosLineAmounts($price, $qty, $taxRate);
+                    $amounts = self::posLineAmountsForItem($item);
                     $net = $amounts['net'];
                     $vatAmount = $amounts['tax'];
                     $key = (string) $taxRate;
@@ -5147,7 +5209,7 @@ class PosController extends Controller
             $price = (float) $item->price;
             $qty = (int) $item->quantity;
             $taxRate = (float) Utility::totalTaxRate($item->tax);
-            $amounts = self::inclusivePosLineAmounts($price, $qty, $taxRate);
+            $amounts = self::posLineAmountsForItem($item, $product);
             $tax = $amounts['tax'];
             $lineTotal = $amounts['line_total'];
             $mainsubtotal += $lineTotal;
@@ -5178,7 +5240,7 @@ class PosController extends Controller
             $price = (float) $item->price;
             $qty = (int) $item->quantity;
             $taxRate = (float) Utility::totalTaxRate($item->tax);
-            $amounts = self::inclusivePosLineAmounts($price, $qty, $taxRate);
+            $amounts = self::posLineAmountsForItem($item);
             $net = $amounts['net'];
             $vatAmount = $amounts['tax'];
             $key = (string) $taxRate;
