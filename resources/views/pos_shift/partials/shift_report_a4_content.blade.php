@@ -219,6 +219,8 @@
     </table>
     @endforeach
 
+    @include('report.partials.pos_shift_min_stock_alert_a4')
+
     <table class="shift-a4-sign">
         <tr>
             <td><div class="shift-a4-sign-line">{{ __('Cashier') }} — {{ $pos_shift->user ? $pos_shift->user->name : '-' }}</div></td>

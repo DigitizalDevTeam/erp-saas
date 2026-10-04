@@ -377,7 +377,12 @@ class PosShiftController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
         $pos_shift->load(['branch', 'user', 'cashDrops.user', 'cashIns.user']);
-        $metrics = app(PosShiftReportService::class)->buildShiftMetrics($pos_shift, \Auth::user()->creatorId());
+        $creatorId = \Auth::user()->creatorId();
+        $service = app(PosShiftReportService::class);
+        $metrics = $service->buildShiftMetrics($pos_shift, $creatorId);
+        $minimumStock = $service->minimumStockAlertRows($creatorId, $pos_shift->branch ? $pos_shift->branch->resolveDefaultWarehouseId() : null);
+        $metrics['minimumStockRows'] = $minimumStock['rows'];
+        $metrics['minimumStockThreshold'] = $minimumStock['globalThreshold'];
 
         $printFormat = request()->input('print');
         if (in_array($printFormat, ['a4', '80'], true)) {

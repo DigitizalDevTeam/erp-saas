@@ -267,6 +267,8 @@
                 </table>
             </div>
             @endforeach
+
+            @include('report.partials.pos_shift_min_stock_alert_card')
         </div>
     </div>
 @endsection

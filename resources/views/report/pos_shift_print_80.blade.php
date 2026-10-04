@@ -100,6 +100,8 @@
     <div class="row"><span>{{ __('pos.void_summary') }}:</span><span>{{ $aggregates['voidedCount'] }}</span></div>
     @endif
 
+    @include('report.partials.pos_shift_min_stock_alert_80')
+
     <div class="solid"></div>
     <div class="c" style="margin-top:16px;">________________________</div>
     <div class="c">{{ __('Manager Signature') }}</div>

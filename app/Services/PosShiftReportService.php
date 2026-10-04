@@ -14,6 +14,7 @@ use App\Models\PosShift;
 use App\Models\PosTable;
 use App\Models\User;
 use App\Models\Utility;
+use App\Models\WarehouseProduct;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -423,6 +424,54 @@ class PosShiftReportService
             ->values();
 
         return [$regular, $internal];
+    }
+
+    /**
+     * Products at or below the minimum stock alert quantity for the POS shift report footer.
+     * Uses the same warehouse stock logic as the Minimum Stock Alert report:
+     * per-product low_stock_threshold wins, otherwise the POS low-stock default applies.
+     *
+     * @return array{rows: Collection, globalThreshold: float}
+     */
+    public function minimumStockAlertRows(int $creatorId, ?int $warehouseId = null): array
+    {
+        $globalThreshold = (float) (Utility::getValByName('pos_low_stock_threshold') ?: 10);
+
+        $rows = WarehouseProduct::query()
+            ->join('product_services', 'warehouse_products.product_id', '=', 'product_services.id')
+            ->join('warehouses', 'warehouse_products.warehouse_id', '=', 'warehouses.id')
+            ->leftJoin('product_service_categories', 'product_services.category_id', '=', 'product_service_categories.id')
+            ->where('warehouse_products.created_by', $creatorId)
+            ->where('product_services.created_by', $creatorId)
+            ->whereIn('product_services.type', ['product', 'kit'])
+            ->where(function ($qq) use ($globalThreshold) {
+                $qq->where(function ($q2) {
+                    $q2->whereNotNull('product_services.low_stock_threshold')
+                        ->whereRaw('warehouse_products.quantity <= product_services.low_stock_threshold');
+                })->orWhere(function ($q2) use ($globalThreshold) {
+                    $q2->whereNull('product_services.low_stock_threshold')
+                        ->whereRaw('warehouse_products.quantity <= ?', [$globalThreshold]);
+                });
+            })
+            ->when($warehouseId, fn ($q) => $q->where('warehouse_products.warehouse_id', $warehouseId))
+            ->select([
+                'warehouse_products.warehouse_id',
+                'warehouse_products.product_id',
+                'warehouse_products.quantity as warehouse_quantity',
+                'warehouses.name as warehouse_name',
+                'product_services.name as product_name',
+                'product_services.sku',
+                'product_services.type',
+                'product_services.sale_price',
+                'product_services.low_stock_threshold',
+                'product_service_categories.name as category_name',
+            ])
+            ->orderBy('warehouses.name')
+            ->orderBy('warehouse_products.quantity')
+            ->orderBy('product_services.name')
+            ->get();
+
+        return ['rows' => $rows, 'globalThreshold' => $globalThreshold];
     }
 
     /**

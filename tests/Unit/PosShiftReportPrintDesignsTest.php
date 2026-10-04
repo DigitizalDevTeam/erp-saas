@@ -84,4 +84,44 @@ class PosShiftReportPrintDesignsTest extends TestCase
         $this->assertStringContainsString('productQtySummary', $slip);
         $this->assertStringContainsString('window.print()', $slip);
     }
+
+    public function test_pos_shift_reports_end_with_minimum_stock_alert_table(): void
+    {
+        $service = file_get_contents(app_path('Services/PosShiftReportService.php'));
+        $this->assertStringContainsString('function minimumStockAlertRows', $service);
+        $this->assertStringContainsString('WarehouseProduct::query()', $service);
+        $this->assertStringContainsString('low_stock_threshold', $service);
+        $this->assertStringContainsString('pos_low_stock_threshold', $service);
+        $this->assertStringContainsString('warehouse_quantity', $service);
+
+        $reportController = file_get_contents(app_path('Http/Controllers/ReportController.php'));
+        $this->assertStringContainsString('minimumStockAlertRows', $reportController);
+        $this->assertStringContainsString("'minimumStockRows'", $reportController);
+
+        $shiftController = file_get_contents(app_path('Http/Controllers/PosShiftController.php'));
+        $this->assertStringContainsString('minimumStockAlertRows', $shiftController);
+        $this->assertStringContainsString('resolveDefaultWarehouseId', $shiftController);
+        $this->assertStringContainsString("'minimumStockRows'", $shiftController);
+
+        $a4Partial = file_get_contents(resource_path('views/report/partials/pos_shift_min_stock_alert_a4.blade.php'));
+        $this->assertStringContainsString('Minimum Stock Alert', $a4Partial);
+        $this->assertStringContainsString('Warehouse Stock', $a4Partial);
+        $this->assertStringContainsString('Low stock alert at', $a4Partial);
+        $this->assertStringContainsString('No products at or below the minimum stock alert.', $a4Partial);
+
+        $multiA4 = file_get_contents(resource_path('views/report/partials/pos_shift_report_a4_content.blade.php'));
+        $singleA4 = file_get_contents(resource_path('views/pos_shift/partials/shift_report_a4_content.blade.php'));
+        $this->assertStringContainsString('pos_shift_min_stock_alert_a4', $multiA4);
+        $this->assertStringContainsString('pos_shift_min_stock_alert_a4', $singleA4);
+
+        $multi80 = file_get_contents(resource_path('views/report/pos_shift_print_80.blade.php'));
+        $single80 = file_get_contents(resource_path('views/pos_shift/report_print_80.blade.php'));
+        $this->assertStringContainsString('pos_shift_min_stock_alert_80', $multi80);
+        $this->assertStringContainsString('pos_shift_min_stock_alert_80', $single80);
+
+        $multiPage = file_get_contents(resource_path('views/report/pos_shift.blade.php'));
+        $singlePage = file_get_contents(resource_path('views/pos_shift/report.blade.php'));
+        $this->assertStringContainsString('pos_shift_min_stock_alert_card', $multiPage);
+        $this->assertStringContainsString('pos_shift_min_stock_alert_card', $singlePage);
+    }
 }
