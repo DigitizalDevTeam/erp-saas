@@ -37,6 +37,23 @@ class GlobalPrinterSettingsPermissionTest extends TestCase
         $this->assertStringContainsString("hasRole('Administrador')", $user);
     }
 
+    public function test_printer_settings_ajax_sends_csrf_header_and_never_fails_silently(): void
+    {
+        $modal = file_get_contents(resource_path('views/partials/printer-settings-modal.blade.php'));
+        // CSRF goes in the X-CSRF-TOKEN header (read live from the page meta
+        // tag, same as the other POS AJAX calls), not only baked into the body.
+        $this->assertStringContainsString('printerSettingsCsrf', $modal);
+        $this->assertStringContainsString("'X-CSRF-TOKEN': printerSettingsCsrf()", $modal);
+        // A stale-token 419 gets a clear "refresh the page" message, and toast
+        // failures fall back to alert() so a save click is never silent.
+        $this->assertStringContainsString('xhr.status === 419', $modal);
+        $this->assertStringContainsString('Session expired. Please refresh the page and try again.', $modal);
+        $this->assertStringContainsString('alert(message)', $modal);
+        // The script block must parse in the browser: a broken literal token
+        // field here once killed every click handler in this modal.
+        $this->assertStringNotContainsString('<redacted>', $modal);
+    }
+
     public function test_header_button_and_global_modal_are_permission_gated(): void
     {
         $header = file_get_contents(resource_path('views/partials/admin/header.blade.php'));

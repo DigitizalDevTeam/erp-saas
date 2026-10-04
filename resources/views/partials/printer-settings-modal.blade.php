@@ -123,6 +123,28 @@
             return $('#printer-settings-branch').val() || '';
         }
 
+        function printerSettingsCsrf() {
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            return meta ? (meta.getAttribute('content') || '') : '';
+        }
+
+        function printerSettingsToast(title, message, type) {
+            if (typeof show_toastr === 'function') {
+                try {
+                    show_toastr(title, message, type);
+                    return;
+                } catch (e) { /* fall through to alert */ }
+            }
+            alert(message);
+        }
+
+        function printerSettingsErrorMessage(xhr) {
+            if (xhr && xhr.status === 419) {
+                return '{{ __("Session expired. Please refresh the page and try again.") }}';
+            }
+            return (xhr && xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("Error") }}';
+        }
+
         function refreshAgentStatus() {
             var branchId = currentBranchId();
             if (!branchId) {
@@ -179,10 +201,7 @@
                     startStatusPolling();
                 },
                 error: function (xhr) {
-                    var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("Error") }}';
-                    if (typeof show_toastr === 'function') {
-                        show_toastr('{{ __("Error") }}', msg, 'error');
-                    }
+                    printerSettingsToast('{{ __("Error") }}', printerSettingsErrorMessage(xhr), 'error');
                 }
             });
         }
@@ -214,9 +233,7 @@
         $(document).on('click', '#printer-settings-save-btn', function () {
             var branchId = currentBranchId();
             if (!branchId) {
-                if (typeof show_toastr === 'function') {
-                    show_toastr('{{ __("Error") }}', '{{ __("Please select a branch.") }}', 'error');
-                }
+                printerSettingsToast('{{ __("Error") }}', '{{ __("Please select a branch.") }}', 'error');
                 return;
             }
             var $btn = $(this);
@@ -224,8 +241,10 @@
             $.ajax({
                 url: '{{ route("pos.restaurant.print-config") }}',
                 type: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': printerSettingsCsrf()
+                },
                 data: {
-                    _token: <redacted>
                     branch_id: branchId,
                     kitchen_printer_id: $('#printer-settings-kitchen').val() || '',
                     bar_printer_id: $('#printer-settings-bar').val() || '',
@@ -234,9 +253,7 @@
                     save_image_when_offline: $('#printer-settings-save-image').is(':checked') ? 1 : 0
                 },
                 success: function (res) {
-                    if (typeof show_toastr === 'function') {
-                        show_toastr('{{ __("Success") }}', (res && res.message) ? res.message : '{{ __("Printer configuration saved.") }}', 'success');
-                    }
+                    printerSettingsToast('{{ __("Success") }}', (res && res.message) ? res.message : '{{ __("Printer configuration saved.") }}', 'success');
                     var modalEl = document.getElementById('printerSettingsModal');
                     if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
                         bootstrap.Modal.getOrCreateInstance(modalEl).hide();
@@ -245,10 +262,7 @@
                     }
                 },
                 error: function (xhr) {
-                    var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("Error") }}';
-                    if (typeof show_toastr === 'function') {
-                        show_toastr('{{ __("Error") }}', msg, 'error');
-                    }
+                    printerSettingsToast('{{ __("Error") }}', printerSettingsErrorMessage(xhr), 'error');
                 },
                 complete: function () {
                     $btn.prop('disabled', false);
