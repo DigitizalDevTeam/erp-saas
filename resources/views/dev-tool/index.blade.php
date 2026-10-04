@@ -127,6 +127,21 @@
                 </div>
             </div>
 
+            <div class="card mb-3">
+                <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <h5 class="mb-0">{{ __('Cache') }}</h5>
+                    <form method="POST" action="{{ route('dev-tool.clear-all-caches') }}" onsubmit="return confirm('{{ __('Clear all caches now? Compiled views, application cache, configuration, routes and permissions. No data is deleted.') }}');">
+                        @csrf
+                        <button type="submit" class="btn btn-sm btn-danger">
+                            {{ __('Clear everything') }}
+                        </button>
+                    </form>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0 text-muted">{{ __('Clears compiled views, application cache, configuration cache, route cache, event cache, compiled services and the permission cache. Use this after uploading updated files so the new code takes effect. No data is deleted.') }}</p>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <h5 class="mb-0">{{ __('Laravel log') }}</h5>

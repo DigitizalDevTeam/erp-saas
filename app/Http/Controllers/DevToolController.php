@@ -141,6 +141,62 @@ class DevToolController extends Controller
     }
 
     /**
+     * Clear every runtime cache in one click (compiled Blade views,
+     * application cache, config, route, event, compiled services and the
+     * Spatie permission cache), so freshly uploaded files take effect
+     * without cPanel/terminal access. No data is touched.
+     */
+    public function clearAllCaches()
+    {
+        if ($denied = $this->denyUnlessSuperAdmin()) {
+            return $denied;
+        }
+
+        $cleared = [];
+        $commands = [
+            'view:clear' => __('compiled views'),
+            'cache:clear' => __('application cache'),
+            'config:clear' => __('configuration cache'),
+            'route:clear' => __('route cache'),
+            'event:clear' => __('event cache'),
+            'clear-compiled' => __('compiled services'),
+        ];
+
+        try {
+            foreach ($commands as $command => $label) {
+                Artisan::call($command);
+                $cleared[] = $label;
+            }
+
+            if (array_key_exists('permission:cache-reset', Artisan::all())) {
+                Artisan::call('permission:cache-reset');
+                $cleared[] = __('permission cache');
+            }
+        } catch (\Throwable $e) {
+            $message = $e->getMessage();
+            foreach (['(SQL:', '(Connection:'] as $marker) {
+                $pos = strpos($message, $marker);
+                if ($pos !== false) {
+                    $message = trim(substr($message, 0, $pos));
+                }
+            }
+
+            return redirect()->route('dev-tool.index')
+                ->with('error', __('Cache clear stopped on :step. :reason', [
+                    'step' => $label ?? $command ?? '',
+                    'reason' => $message !== '' ? $message : __('The cache could not be cleared.'),
+                ]));
+        }
+
+        if (function_exists('opcache_reset')) {
+            @opcache_reset();
+        }
+
+        return redirect()->route('dev-tool.index')
+            ->with('success', __('All caches cleared: :list.', ['list' => implode(', ', $cleared)]));
+    }
+
+    /**
      * Run pending migrations one file at a time.
      * If the table or column already exists, record that migration and continue.
      *
