@@ -27,7 +27,7 @@
                 </div>
             </div>
             <div class="pos-mz-badge">
-                {{ $printSource === 'restaurant' ? __('Bill') : $paymentDocumentTitle }}<br>
+                {{ $paymentDocumentTitle }}<br>
                 {{ $details['pos_id'] ?? '' }}
             </div>
         </div>

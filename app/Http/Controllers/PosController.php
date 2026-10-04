@@ -4676,6 +4676,7 @@ class PosController extends Controller
         $user = Auth::user();
         $settings = Utility::settings();
         $posPayments = collect();
+        $isBillDocument = $request->boolean('bill');
 
         if ($request->pos_id && Auth::user()->canManagePos()) {
             $pos = Pos::with(['items', 'customer', 'warehouse', 'posPayments', 'table', 'branch'])->where('id', $request->pos_id)->where('created_by', $user->creatorId())->first();
@@ -4741,6 +4742,7 @@ class PosController extends Controller
                         'receiptLinkUrl' => $receiptLinkUrl,
                         'printSource' => $printSource,
                         'isBalancePayment' => true,
+                        'isBillDocument' => $isBillDocument,
                         'balancePaymentExtra' => $balancePaymentExtra,
                         'settings' => $settings,
                         'receiptUser' => $receiptUser,
@@ -4806,7 +4808,7 @@ class PosController extends Controller
                 $receiptLinkUrl = URL::signedRoute('pos.receipt.link', ['id' => Crypt::encrypt($pos->id)]);
                 \Log::info('Receipt link URL: ' . $receiptLinkUrl);
                 $printSource = in_array($request->get('source'), ['restaurant'], true) ? 'restaurant' : 'retail';
-                return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'printSource', 'receiptUser', 'pos'));
+                return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'vatBreakdown', 'bankAccounts', 'segundaVia', 'posIdRaw', 'receiptLinkUrl', 'printSource', 'receiptUser', 'pos', 'isBillDocument'));
             }
         }
 
@@ -4902,7 +4904,7 @@ class PosController extends Controller
             'barcodeFormat' => Auth::user()->barcodeFormat(),
         ];
 
-        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource'));
+        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource', 'isBillDocument'));
 
     }
 
@@ -4984,7 +4986,7 @@ class PosController extends Controller
         }
 
         session()->put('pos', $sess);
-        $params = array_merge($request->only(['warehouse_name', 'discount', 'vc_name', 'pos_table_id', 'pos_shift_id', 'pos_order_type', 'pos_id']), ['source' => 'restaurant']);
+        $params = array_merge($request->only(['warehouse_name', 'discount', 'vc_name', 'pos_table_id', 'pos_shift_id', 'pos_order_type', 'pos_id']), ['source' => 'restaurant', 'bill' => 1]);
         if ($tableId && $shiftId) {
             $table = PosTable::find($tableId);
             if ($table) {
@@ -5088,7 +5090,8 @@ class PosController extends Controller
         }
 
         // Use selected Slip Layout (existing / compact1–3) for restaurant View Bill.
-        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource', 'settings', 'posIdRaw'));
+        $isBillDocument = true;
+        return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource', 'settings', 'posIdRaw', 'isBillDocument'));
     }
 
     /**

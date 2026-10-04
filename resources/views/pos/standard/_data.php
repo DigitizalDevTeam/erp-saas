@@ -68,6 +68,10 @@ $paymentDocumentTitle = \App\Models\Pos::documentTypeLabel($posDocumentType);
 if ($isBalancePayment) {
     $paymentDocumentTitle = __('Receipt');
 }
+// Bill shown before payment is an account statement (Extrato de Conta), never a cash sale.
+if (! empty($isBillDocument)) {
+    $paymentDocumentTitle = __('Account Statement');
+}
 $creditPmt = $hasCreditPayment ? $posPayments->first(function ($p) {
     return strtolower($p->payment_method ?? '') === 'credit';
 }) : null;
