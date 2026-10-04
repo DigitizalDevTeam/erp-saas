@@ -57,8 +57,13 @@ class PosProductTypeTagTest extends TestCase
         $this->assertStringContainsString('4', $html);
     }
 
-    public function test_counts_row_hidden_when_all_zero(): void
+    public function test_counts_row_always_visible_even_when_all_zero(): void
     {
-        $this->assertSame('', ProductServiceController::posProductCountsHtml(0, 0, 0));
+        $html = ProductServiceController::posProductCountsHtml(0, 0, 0);
+        $this->assertStringContainsString('pos-product-counts', $html);
+        $this->assertStringContainsString('Options', $html);
+        $this->assertStringContainsString('Ingredients', $html);
+        $this->assertStringContainsString('Variants', $html);
+        $this->assertStringContainsString('0', $html);
     }
 }

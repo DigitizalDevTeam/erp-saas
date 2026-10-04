@@ -927,7 +927,7 @@
         var POS_PENDING_KEY = 'pos_pending_sales';
         var POS_CACHE_PRODUCTS = 'pos_cache_products';
         var POS_CACHE_CATEGORIES = 'pos_cache_categories';
-        var POS_PRODUCT_HTML_VER = 'pv10';
+        var POS_PRODUCT_HTML_VER = 'pv11';
         var posSyncUrl = '{{ route("pos.sync") }}';
         var posEmptyCartUrl = '{{ route("warehouse-empty-cart") }}';
         var posRestaurantOrderUrl = '{{ route("pos.restaurant.order") }}';
