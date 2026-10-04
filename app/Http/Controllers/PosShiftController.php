@@ -379,6 +379,13 @@ class PosShiftController extends Controller
         $pos_shift->load(['branch', 'user', 'cashDrops.user', 'cashIns.user']);
         $metrics = app(PosShiftReportService::class)->buildShiftMetrics($pos_shift, \Auth::user()->creatorId());
 
+        $printFormat = request()->input('print');
+        if (in_array($printFormat, ['a4', '80'], true)) {
+            return view($printFormat === 'a4' ? 'pos_shift.report_print_a4' : 'pos_shift.report_print_80', array_merge($metrics, [
+                'pos_shift' => $pos_shift,
+            ]));
+        }
+
         return view('pos_shift.report', array_merge($metrics, [
             'pos_shift' => $pos_shift,
         ]));

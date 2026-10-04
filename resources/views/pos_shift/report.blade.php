@@ -10,7 +10,8 @@
 @endsection
 
 @section('action-btn')
-    <button type="button" class="btn btn-sm btn-primary" onclick="window.print();"><i class="ti ti-printer"></i> {{ __('Print') }}</button>
+    <a href="{{ route('pos-shift.report', ['pos_shift' => $pos_shift, 'print' => 'a4']) }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary"><i class="ti ti-file-text"></i> {{ __('Print A4') }}</a>
+    <a href="{{ route('pos-shift.report', ['pos_shift' => $pos_shift, 'print' => '80']) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary"><i class="ti ti-receipt"></i> {{ __('Print 80mm Slip') }}</a>
     <a href="{{ route('pos-shift.show', $pos_shift) }}" class="btn btn-sm btn-secondary">{{ __('Back') }}</a>
 @endsection
 

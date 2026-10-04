@@ -2930,6 +2930,25 @@ class ReportController extends Controller
 
         $aggregates = $service->buildAggregates($shiftIds, $creatorId, $filter['product_id']);
 
+        $printFormat = $request->input('print');
+        if (in_array($printFormat, ['a4', '80'], true)) {
+            $printShiftRows = [];
+            foreach (PosShift::whereIn('id', $shiftIds)->with(['branch', 'user'])->orderByDesc('opened_at')->get() as $shift) {
+                $printShiftRows[] = [
+                    'shift' => $shift,
+                    'metrics' => $service->buildShiftMetrics($shift, $creatorId),
+                ];
+            }
+
+            return view($printFormat === 'a4' ? 'report.pos_shift_print_a4' : 'report.pos_shift_print_80', compact(
+                'filter',
+                'summary',
+                'aggregates',
+                'printShiftRows',
+                'shiftIds'
+            ));
+        }
+
         $shifts = $service->queryShifts($creatorId, $filter)->paginate(50)->withQueryString();
         $shiftRows = [];
         foreach ($shifts as $shift) {
