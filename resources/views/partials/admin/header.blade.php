@@ -112,6 +112,13 @@
                 @endImpersonating
                 @endif
 
+                @if(\Auth::check() && \Auth::user()->canManagePrinters())
+                    <li class="dash-h-item">
+                        <a href="javascript:void(0)" class="dash-head-link" id="global-printer-settings-btn" title="{{ __('Printer Settings') }}">
+                            <i class="ti ti-printer"></i>
+                        </a>
+                    </li>
+                @endif
                 @if( \Auth::user()->type !='client' && \Auth::user()->type !='super admin' )
                     <li class="dropdown dash-h-item drp-notification">
                         <a class="dash-head-link arrow-none me-0" href="{{ url('chats') }}" aria-haspopup="false"

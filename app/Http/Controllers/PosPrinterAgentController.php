@@ -13,9 +13,11 @@ class PosPrinterAgentController extends Controller
 {
     public function agentPrinters(Request $request)
     {
-        if (! Auth::user()->canManagePos()) {
+        $printerActor = PosActorService::restaurantActor();
+        if (! Auth::user()->canManagePrinters() && ! ($printerActor && $printerActor->canManagePrinters())) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
+
 
         $request->validate([
             'branch_id' => 'required|integer|exists:branches,id',
@@ -66,9 +68,11 @@ class PosPrinterAgentController extends Controller
 
     public function agentStatus(Request $request)
     {
-        if (! Auth::user()->canManagePos()) {
+        $printerActor = PosActorService::restaurantActor();
+        if (! Auth::user()->canManagePrinters() && ! ($printerActor && $printerActor->canManagePrinters())) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
+
 
         $request->validate([
             'branch_id' => 'required|integer|exists:branches,id',
@@ -96,13 +100,9 @@ class PosPrinterAgentController extends Controller
     {
         $actor = PosActorService::restaurantActor();
         $loggedInUser = Auth::user();
-        $canChangePrintSettings = ($actor && $actor->canChangePosPrintSettings())
-            || ($loggedInUser && $loggedInUser->canChangePosPrintSettings());
+        $canChangePrintSettings = ($actor && $actor->canManagePrinters())
+            || ($loggedInUser && $loggedInUser->canManagePrinters());
         if (! $canChangePrintSettings) {
-            return response()->json(['error' => __('Permission denied.')], 403);
-        }
-
-        if (! Auth::user()->canManagePos()) {
             return response()->json(['error' => __('Permission denied.')], 403);
         }
 

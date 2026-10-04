@@ -279,6 +279,9 @@
             </div>
         </div>
     </div>
+    @if(\Auth::check() && \Auth::user()->canManagePrinters())
+        @include('partials.printer-settings-modal')
+    @endif
     @include('partials.admin.footer')
     @include('Chatify::layouts.footerLinks')
     <!-- @include('auto-logout') -->

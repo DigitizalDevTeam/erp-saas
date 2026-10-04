@@ -249,7 +249,7 @@ class RolePermissionUiCatalog
     {
         return [
             'give pos credit' => 'Allow credit payment at POS',
-            'change pos print settings' => 'Change POS print settings',
+            'manage printers' => 'Manage Printers',
             'pos restaurant full' => 'POS Restaurant Full',
             'pos restaurant waiter' => 'POS Restaurant Waiter',
             'pos restaurant manager' => 'POS Restaurant Manager',
@@ -266,7 +266,7 @@ class RolePermissionUiCatalog
     {
         return [
             'give pos credit' => 'pos',
-            'change pos print settings' => 'pos',
+            'manage printers' => 'pos',
             'pos restaurant full' => 'pos',
             'pos restaurant waiter' => 'pos',
             'pos restaurant manager' => 'pos',
