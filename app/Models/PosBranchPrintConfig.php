@@ -13,10 +13,12 @@ class PosBranchPrintConfig extends Model
         'bar_printer_id',
         'default_printer_id',
         'use_print_agent_for_invoice',
+        'save_image_when_offline',
     ];
 
     protected $casts = [
         'use_print_agent_for_invoice' => 'boolean',
+        'save_image_when_offline' => 'boolean',
     ];
 
     public function branch()
