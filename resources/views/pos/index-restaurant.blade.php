@@ -4264,6 +4264,13 @@
                         if ($openTableBtn.length && !$openTableBtn.hasClass('d-none') && $tableGridWrap.length && $tableGridWrap.hasClass('d-none')) {
                             $openTableBtn.trigger('click');
                         }
+                        // No table yet: scroll the table picker into view at the
+                        // top of the screen so the user selects a table first.
+                        if ($tableGridWrap.length && !$tableGridWrap.hasClass('d-none')) {
+                            $tableGridWrap.get(0).scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        } else {
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
                         return;
                     }
                 }
