@@ -131,9 +131,7 @@ Copy `PosPrinterAgent.exe` to the kitchen/cashier PC (or run it from this folder
    - `https://your-company.example.com`
 3. Click **Connect**.
 4. Wait until branches load into the dropdown.
-5. If this PC was paired in ERP **Printer Settings**, its branch is selected automatically. Otherwise select the correct **Branch** from the dropdown; changing branch restarts the agent for that branch.
-
-The agent also shows a device code. A user with **manage printers** can enter that code in ERP **Printer Settings** to pair this PC to a branch.
+5. Select the correct **Branch** from the dropdown; changing branch restarts the agent for that branch.
 
 Settings are saved under:
 
@@ -179,7 +177,7 @@ Place a test order that sends kitchen/bar slips. The agent should pick up the jo
 - [ ] `php artisan migrate` (ERP root)
 - [ ] `cd printer-agent` → `dotnet restore`
 - [ ] Rebuild / republish EXE (`dotnet publish ...` or `dotnet run`)
-- [ ] Run agent → Connect with Base URL → paired branch auto-selects, or select Branch from the dropdown
+- [ ] Run agent → Connect with Base URL → select Branch from the dropdown
 - [ ] In ERP Printer Settings → Agent **Online** → select Kitchen/Bar/Default printers → Save
 - [ ] Print a test kitchen/bar slip
 
@@ -192,7 +190,6 @@ These must be reachable at `{BaseUrl}/api/...`:
 | Method | Path |
 |---|---|
 | `GET` | `/api/printer-agent/branches` |
-| `POST` | `/api/printer-agent/pair-status` |
 | `POST` | `/api/printer-agent/heartbeat` |
 | `GET` | `/api/printer-agent/logo?branch_id=` |
 | `POST` | `/api/printer-agent/printers` |

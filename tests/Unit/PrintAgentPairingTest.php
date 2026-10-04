@@ -5,10 +5,10 @@ namespace Tests\Unit;
 use Tests\TestCase;
 
 /**
- * Print Agent pairing: agent shows a device code; a "manage printers"
- * user pairs it from the browser session (Printer Settings modal), so the
- * agent needs no manual URL/branch setup. Agent also supports
- * start-with-Windows and print-as-image debug (C# side).
+ * Print Agent device-code pairing was removed from the Windows agent:
+ * the agent now uses only ERP Base URL + Branch dropdown. The server-side
+ * pairing table/endpoints remain only as dormant legacy compatibility.
+ * Agent also supports start-with-Windows and print-as-image debug (C# side).
  */
 class PrintAgentPairingTest extends TestCase
 {
@@ -43,17 +43,27 @@ class PrintAgentPairingTest extends TestCase
         $this->assertStringContainsString('canAccessBranchForPos', $ctl);
     }
 
-    public function test_agent_source_has_pairing_autostart_and_debug_image(): void
+    public function test_agent_source_has_no_device_code_pairing(): void
     {
         $main = file_get_contents(base_path('printer-agent/MainForm.cs'));
-        $this->assertStringContainsString('FetchPairStatusAsync', $main);
+        $this->assertStringNotContainsString('FetchPairStatusAsync', $main);
+        $this->assertStringNotContainsString('DeviceCode', $main);
+        $this->assertStringNotContainsString('device code', strtolower($main));
+        $this->assertStringNotContainsString('PairTimer', $main);
         $this->assertStringContainsString('Start with Windows', $main);
         $this->assertStringContainsString('Print as image (debug)', $main);
         $this->assertStringContainsString('_cboBranch', $main);
 
         $config = file_get_contents(base_path('printer-agent/AgentConfig.cs'));
-        $this->assertStringContainsString('EnsuredDeviceCode', $config);
+        $this->assertStringNotContainsString('EnsuredDeviceCode', $config);
+        $this->assertStringNotContainsString('DeviceCode', $config);
+        $this->assertStringNotContainsString('BranchManuallySelected', $config);
         $this->assertStringContainsString('DebugImagesFolder', $config);
+
+        $api = file_get_contents(base_path('printer-agent/ApiClient.cs'));
+        $this->assertStringNotContainsString('FetchPairStatusAsync', $api);
+        $this->assertStringNotContainsString('PairStatusDto', $api);
+        $this->assertStringNotContainsString('pair-status', $api);
 
         $printer = file_get_contents(base_path('printer-agent/SlipPrinter.cs'));
         $this->assertStringContainsString('SaveJobAsImage', $printer);
@@ -75,7 +85,7 @@ class PrintAgentPairingTest extends TestCase
         $this->assertStringNotContainsString('SaveSlipLogoFromFile', $main);
 
         $config = file_get_contents(base_path('printer-agent/AgentConfig.cs'));
-        $this->assertStringContainsString('BranchManuallySelected', $config);
+        $this->assertStringNotContainsString('BranchManuallySelected', $config);
 
         $api = file_get_contents(base_path('printer-agent/ApiClient.cs'));
         $this->assertStringContainsString('/printer-agent/branches', $api);

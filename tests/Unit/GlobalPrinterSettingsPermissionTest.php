@@ -41,6 +41,9 @@ class GlobalPrinterSettingsPermissionTest extends TestCase
         $this->assertStringContainsString('id="printerSettingsModal"', $modal);
         $this->assertStringContainsString('id="printer-settings-branch"', $modal);
         $this->assertStringContainsString('id="printer-settings-save-image"', $modal);
+        $this->assertStringNotContainsString('printer-settings-pair-code', $modal);
+        $this->assertStringNotContainsString('printer-settings-pair-btn', $modal);
+        $this->assertStringNotContainsString('Pair Print Agent', $modal);
     }
 
     public function test_pos_screens_no_longer_carry_printer_settings(): void
