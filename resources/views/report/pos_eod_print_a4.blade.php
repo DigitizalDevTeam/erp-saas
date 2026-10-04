@@ -19,7 +19,6 @@
     h2.sec { font-size:11px; font-weight:bold; text-transform:uppercase; margin:12px 0 4px; }
     table.data { width:100%; border-collapse:collapse; table-layout:fixed; }
     table.data th, table.data td { border:1px solid #999; padding:3px 6px; text-align:left; }
-    table.data th:first-child, table.data td:first-child { width:40%; }
     .meta td { white-space:nowrap; overflow:hidden; }
     table.data th { font-weight:bold; }
     .num { text-align:right !important; }
@@ -85,6 +84,7 @@
 
     <h2 class="sec">{{ __('SALES BY PAYMENT METHOD') }}</h2>
     <table class="data">
+        <colgroup><col style="width:40%"><col style="width:20%"><col style="width:20%"><col style="width:20%"></colgroup>
         <thead><tr><th>{{ __('PAYMENT METHOD') }}</th><th class="num">{{ __('Receipts') }}</th><th class="num">{{ __('AMOUNT') }}</th><th class="num">{{ __('Share') }}</th></tr></thead>
         <tbody>
         @foreach($paymentMethodRows as $r)
@@ -101,42 +101,46 @@
 
     <h2 class="sec">{{ __('CASH RECEIVED') }}</h2>
     <table class="data">
+        <colgroup><col style="width:40%"><col style="width:20%"><col style="width:20%"><col style="width:20%"></colgroup>
         <tbody>
-            <tr><td>{{ __('Cash from sales') }}</td><td class="num">{{ $fmt($cashTotal ?? 0) }}</td></tr>
+            <tr><td>{{ __('Cash from sales') }}</td><td class="num" colspan="3">{{ $fmt($cashTotal ?? 0) }}</td></tr>
             @if(isset($cashFromBalance) && $cashFromBalance > 0)
-                <tr><td>{{ __('Cash from balance payments') }}</td><td class="num">{{ $fmt($cashFromBalance) }}</td></tr>
+                <tr><td>{{ __('Cash from balance payments') }}</td><td class="num" colspan="3">{{ $fmt($cashFromBalance) }}</td></tr>
             @endif
         </tbody>
-        <tfoot><tr><td>{{ __('Total cash received') }}</td><td class="num">{{ $fmt($totalCashReceived) }}</td></tr></tfoot>
+        <tfoot><tr><td>{{ __('Total cash received') }}</td><td class="num" colspan="3">{{ $fmt($totalCashReceived) }}</td></tr></tfoot>
     </table>
 
     @if(!empty($accountsReceivableRows) && count($accountsReceivableRows) > 0)
     <h2 class="sec">{{ __('pos.accounts_receivable') }}</h2>
     <table class="data">
-        <thead><tr><th>{{ __('Invoice') }}</th><th class="num">{{ __('Total') }}</th><th class="num">{{ __('Outstanding') }}</th></tr></thead>
+        <colgroup><col style="width:40%"><col style="width:20%"><col style="width:20%"><col style="width:20%"></colgroup>
+        <thead><tr><th>{{ __('Invoice') }}</th><th class="num">{{ __('Total') }}</th><th class="num" colspan="2">{{ __('Outstanding') }}</th></tr></thead>
         <tbody>
         @foreach($accountsReceivableRows as $ar)
-            <tr><td>{{ $ar['invoice_id'] }}</td><td class="num">{{ $fmt($ar['total']) }}</td><td class="num">{{ $fmt($ar['outstanding']) }}</td></tr>
+            <tr><td>{{ $ar['invoice_id'] }}</td><td class="num">{{ $fmt($ar['total']) }}</td><td class="num" colspan="2">{{ $fmt($ar['outstanding']) }}</td></tr>
         @endforeach
         </tbody>
-        <tfoot><tr><td>{{ __('pos.total_outstanding') }}</td><td class="num"></td><td class="num">{{ $fmt($accountsReceivableTotal) }}</td></tr></tfoot>
+        <tfoot><tr><td>{{ __('pos.total_outstanding') }}</td><td class="num"></td><td class="num" colspan="2">{{ $fmt($accountsReceivableTotal) }}</td></tr></tfoot>
     </table>
     @endif
 
     <h2 class="sec">{{ __('SALES PER EMPLOYEE') }}</h2>
     <table class="data">
-        <thead><tr><th>{{ __('Employee') }}</th><th class="num">{{ __('Receipts') }}</th><th class="num">{{ __('AMOUNT') }}</th></tr></thead>
+        <colgroup><col style="width:40%"><col style="width:20%"><col style="width:20%"><col style="width:20%"></colgroup>
+        <thead><tr><th>{{ __('Employee') }}</th><th class="num">{{ __('Receipts') }}</th><th class="num" colspan="2">{{ __('AMOUNT') }}</th></tr></thead>
         <tbody>
         @foreach($salesPerEmployee as $r)
-            <tr><td>{{ $r['name'] }}</td><td class="num">{{ $r['count'] }}</td><td class="num">{{ $fmt($r['amount']) }}</td></tr>
+            <tr><td>{{ $r['name'] }}</td><td class="num">{{ $r['count'] }}</td><td class="num" colspan="2">{{ $fmt($r['amount']) }}</td></tr>
         @endforeach
         </tbody>
-        <tfoot><tr><td>{{ __('Total') }}</td><td class="num">{{ $receiptsCount }}</td><td class="num">{{ $fmt($totalSales) }}</td></tr></tfoot>
+        <tfoot><tr><td>{{ __('Total') }}</td><td class="num">{{ $receiptsCount }}</td><td class="num" colspan="2">{{ $fmt($totalSales) }}</td></tr></tfoot>
     </table>
 
     @if(count($categorySummary ?? []) > 0)
     <h2 class="sec">{{ __('SALES BY SECTION') }}</h2>
     <table class="data">
+        <colgroup><col style="width:40%"><col style="width:20%"><col style="width:20%"><col style="width:20%"></colgroup>
         <thead><tr><th>{{ __('SECTION') }}</th><th class="num">{{ __('Items') }}</th><th class="num">{{ __('AMOUNT') }}</th><th class="num">{{ __('Share') }}</th></tr></thead>
         <tbody>
         @php $totalCat = array_sum(array_map(fn ($c) => (float) $c['amount'], $categorySummary)); @endphp
@@ -156,6 +160,7 @@
     @if(count($taxSummary ?? []) > 0)
     <h2 class="sec">{{ __('TAXES') }}</h2>
     <table class="data">
+        <colgroup><col style="width:40%"><col style="width:20%"><col style="width:20%"><col style="width:20%"></colgroup>
         <thead><tr><th>{{ __('TAX') }}</th><th class="num">{{ __('BASE') }}</th><th class="num">{{ __('QUOTA') }}</th><th class="num">{{ __('TOTAL') }}</th></tr></thead>
         <tbody>
         @foreach($taxSummary as $taxName => $r)
@@ -168,13 +173,14 @@
     @if(count($itemsSold ?? []) > 0)
     <h2 class="sec">{{ __('SUMMARY OF ITEMS SOLD') }}</h2>
     <table class="data">
-        <thead><tr><th>{{ __('ITEM') }}</th><th class="num">{{ __('Qty') }}</th><th class="num">{{ __('AMOUNT') }}</th></tr></thead>
+        <colgroup><col style="width:40%"><col style="width:20%"><col style="width:20%"><col style="width:20%"></colgroup>
+        <thead><tr><th>{{ __('ITEM') }}</th><th class="num">{{ __('Qty') }}</th><th class="num" colspan="2">{{ __('AMOUNT') }}</th></tr></thead>
         <tbody>
         @foreach($itemsSold as $itemName => $row)
-            <tr><td>{{ $itemName }}</td><td class="num">{{ number_format((float) $row['qty'], 2) }}</td><td class="num">{{ $fmt($row['amount']) }}</td></tr>
+            <tr><td>{{ $itemName }}</td><td class="num">{{ number_format((float) $row['qty'], 2) }}</td><td class="num" colspan="2">{{ $fmt($row['amount']) }}</td></tr>
         @endforeach
         </tbody>
-        <tfoot><tr><td>{{ __('Total') }}</td><td class="num">{{ number_format($itemsQtyTotal, 2) }}</td><td class="num">{{ $fmt($totalSales) }}</td></tr></tfoot>
+        <tfoot><tr><td>{{ __('Total') }}</td><td class="num">{{ number_format($itemsQtyTotal, 2) }}</td><td class="num" colspan="2">{{ $fmt($totalSales) }}</td></tr></tfoot>
     </table>
     @endif
 
