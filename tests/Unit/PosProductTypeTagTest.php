@@ -44,4 +44,21 @@ class PosProductTypeTagTest extends TestCase
     {
         $this->assertStringContainsString('Does not affect stock', ProductServiceController::posDoesNotAffectStockTagHtml('kit', true));
     }
+
+    public function test_counts_row_shows_options_ingredients_variants(): void
+    {
+        $html = ProductServiceController::posProductCountsHtml(3, 2, 4);
+        $this->assertStringContainsString('pos-product-counts', $html);
+        $this->assertStringContainsString('Options', $html);
+        $this->assertStringContainsString('3', $html);
+        $this->assertStringContainsString('Ingredients', $html);
+        $this->assertStringContainsString('2', $html);
+        $this->assertStringContainsString('Variants', $html);
+        $this->assertStringContainsString('4', $html);
+    }
+
+    public function test_counts_row_hidden_when_all_zero(): void
+    {
+        $this->assertSame('', ProductServiceController::posProductCountsHtml(0, 0, 0));
+    }
 }
