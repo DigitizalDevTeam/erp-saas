@@ -121,6 +121,7 @@ class ProductOptionService
             : ProductService::whereIn('id', $optionIds)
                 ->where('created_by', $product->created_by)
                 ->with('unit')
+                ->withCount('variants')
                 ->get()
                 ->keyBy('id');
 
@@ -161,6 +162,9 @@ class ProductOptionService
                 'is_required' => (bool) ($item->is_required ?? false),
                 'stock_qty' => $stock['stock_qty'],
                 'unit' => $stock['unit'],
+                // Option products are products too: show their stock behaviour in the picker.
+                'does_not_affect_stock' => ! (bool) ($op->affect_stock ?? true),
+                'variants_count' => (int) ($op->variants_count ?? 0),
             ];
         }
 
