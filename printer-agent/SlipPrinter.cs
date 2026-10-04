@@ -637,7 +637,7 @@ public static class SlipPrinter
             "change": 0
           },
           "vat_breakdown": [
-            { "rate": 16, "net": 344.82, "tax": 55.17 }
+            { "rate": 16, "net": 344.82, "tax": 55.17, "total": 399.99 }
           ],
           "payment": { "method": "Cash" },
           "footer": ["Thank You For Shopping With Us. Please visit again."]
@@ -964,21 +964,27 @@ public static class SlipPrinter
             && vatBreakdown.ValueKind == JsonValueKind.Array
             && vatBreakdown.GetArrayLength() > 0)
         {
-            AddFull(lines, PadColumns(
+            AddFull(lines, PadBreakdown(
                 Label(labels, "vat", "VAT"),
                 Label(labels, "net_amount", "Net Amount"),
-                "",
-                Label(labels, "tax", "Tax")), bold: true);
+                Label(labels, "tax", "Tax"),
+                Label(labels, "total", "Total")), bold: true);
             foreach (var vb in vatBreakdown.EnumerateArray())
             {
                 var rate = GetDecimal(vb, "rate");
                 var net = GetDecimal(vb, "net");
                 var tax = GetDecimal(vb, "tax");
-                AddFull(lines, PadColumns(
+                var rowTotal = GetDecimal(vb, "total");
+                if (rowTotal == 0)
+                {
+                    rowTotal = net + tax; // older payloads without a total field
+                }
+
+                AddFull(lines, PadBreakdown(
                     rate.ToString("0", CultureInfo.InvariantCulture) + "%",
                     FormatMoney(net, currency),
-                    "",
-                    FormatMoney(tax, currency)));
+                    FormatMoney(tax, currency),
+                    FormatMoney(rowTotal, currency)));
             }
 
             AddSeparator(lines, '-');
@@ -1242,6 +1248,23 @@ public static class SlipPrinter
         }
 
         return Fit(c1, 12) + Fit(c2, 4, true) + " " + Fit(c3, 7, true) + " " + Fit(c4, 7, true);
+    }
+
+    private static string PadBreakdown(string c1, string c2, string c3, string c4)
+    {
+        // 32-char thermal VAT breakdown: rate(4) net(9) tax(9) total(10)
+        static string Fit(string s, int w, bool right = false)
+        {
+            s ??= "";
+            if (s.Length > w)
+            {
+                s = s[..w];
+            }
+
+            return right ? s.PadLeft(w) : s.PadRight(w);
+        }
+
+        return Fit(c1, 4) + Fit(c2, 9, true) + Fit(c3, 9, true) + Fit(c4, 10, true);
     }
 
     private static List<SlipLine> BuildSlipLines(PrintJobDto job)
