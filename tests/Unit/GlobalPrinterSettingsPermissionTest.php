@@ -52,6 +52,9 @@ class GlobalPrinterSettingsPermissionTest extends TestCase
         // The script block must parse in the browser: a broken literal token
         // field here once killed every click handler in this modal.
         $this->assertStringNotContainsString('<redacted>', $modal);
+        // Handlers bind on DOMContentLoaded: admin pages load jQuery in the
+        // footer after this partial, so immediate execution never binds there.
+        $this->assertStringContainsString("document.addEventListener('DOMContentLoaded'", $modal);
     }
 
     public function test_header_button_and_global_modal_are_permission_gated(): void
