@@ -125,6 +125,7 @@ return [
     'certified_by' => 'Certified by',
     'certificate_nr' => 'Certificate NR',
     'view_bill' => 'View Bill',
+    'bill' => 'Bill',
     'invoice_tools' => 'Invoice tools',
     'number_of_copies' => 'Number of copies',
     'segunda_via' => 'Segunda Via',

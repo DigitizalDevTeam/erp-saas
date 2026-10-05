@@ -5154,6 +5154,7 @@ class PosController extends Controller
             $sales['data'][$key]['product_tax'] = $value['product_tax'];
             $sales['data'][$key]['tax_amount'] = $user->priceFormat($tax);
             $sales['data'][$key]['subtotal'] = $user->priceFormat($value['subtotal']);
+            $sales['data'][$key]['unit_incl_vat'] = $user->priceFormat(self::unitInclVatForSessionRow(is_array($value) ? $value : []));
             $mainsubtotal += $value['subtotal'];
         }
         $discount = !empty($request->discount) ? $request->discount : 0;

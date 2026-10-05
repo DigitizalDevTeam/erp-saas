@@ -5,9 +5,9 @@ namespace Tests\Unit;
 use Tests\TestCase;
 
 /**
- * View Bill (before payment) must be titled "Account Statement"
- * (pt: "Extrato de Conta"), never "Cash Sale". Paid receipts keep
- * the POS document type title. Covers every receipt layout.
+ * View Bill (before payment) must be titled "Bill"
+ * (pt: "Extrato de Conta"), never "Cash Sale" or "Account Statement".
+ * Paid receipts keep the POS document type title. Covers every layout.
  */
 class PosBillDocumentTitleTest extends TestCase
 {
@@ -15,14 +15,14 @@ class PosBillDocumentTitleTest extends TestCase
     {
         $src = file_get_contents(resource_path('views/pos/standard/_data.php'));
         $this->assertStringContainsString("if (! empty(\$isBillDocument))", $src);
-        $this->assertStringContainsString("\$paymentDocumentTitle = __('Account Statement');", $src);
+        $this->assertStringContainsString("\$paymentDocumentTitle = __('pos.bill');", $src);
     }
 
     public function test_compact_layouts_override_title_for_bill(): void
     {
         $src = file_get_contents(resource_path('views/pos/receipts/_prepare.php'));
         $this->assertStringContainsString("if (! empty(\$isBillDocument))", $src);
-        $this->assertStringContainsString("\$paymentDocumentTitle = __('Account Statement');", $src);
+        $this->assertStringContainsString("\$paymentDocumentTitle = __('pos.bill');", $src);
     }
 
     public function test_compact2_badge_uses_resolved_title(): void
@@ -52,9 +52,9 @@ class PosBillDocumentTitleTest extends TestCase
         }
     }
 
-    public function test_popup_title_is_account_statement(): void
+    public function test_popup_title_is_bill(): void
     {
         $src = file_get_contents(resource_path('views/pos/index-restaurant.blade.php'));
-        $this->assertStringContainsString('__("Account Statement")', $src);
+        $this->assertStringContainsString('__("pos.bill")', $src);
     }
 }

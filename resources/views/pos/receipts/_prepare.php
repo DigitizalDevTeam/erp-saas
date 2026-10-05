@@ -91,7 +91,7 @@ $isCreditDocument = ($posDocumentType === \App\Models\Pos::DOCUMENT_TYPE_CREDIT_
 $paymentDocumentTitle = \App\Models\Pos::documentTypeLabel($posDocumentType);
 // Bill shown before payment is an account statement (Extrato de Conta), never a cash sale.
 if (! empty($isBillDocument)) {
-    $paymentDocumentTitle = __('Account Statement');
+    $paymentDocumentTitle = __('pos.bill');
 }
 $fmtMoney = function ($amount) use ($priceUser) {
     if ($priceUser && method_exists($priceUser, 'priceFormat')) {

@@ -1033,7 +1033,7 @@ public static class SlipPrinter
         if (HasPrintableValue(qrB64))
         {
             AddSeparator(lines, '-');
-            AddImageFromBase64(lines, qrB64, 0.42f);
+            AddImageFromBase64(lines, qrB64, 0.62f);
         }
 
         // --- Footer ---

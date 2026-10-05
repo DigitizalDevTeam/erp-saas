@@ -13,6 +13,31 @@
         <div class="card-body p-3">
             <h6 class="card-title mb-2">{{ __('Process Payment') }}</h6>
 
+            @if (!empty($sales['data']))
+                <div class="table-responsive mb-2">
+                    <table class="table table-sm align-middle mb-0 small">
+                        <thead>
+                            <tr>
+                                <th>{{ __('Description') }}</th>
+                                <th class="text-center">{{ __('Qty') }}</th>
+                                <th class="text-end">{{ __('Unit (Incl. VAT)') }}</th>
+                                <th class="text-end">{{ __('Total') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($sales['data'] as $row)
+                                <tr>
+                                    <td>{{ $row['name'] ?? '' }}</td>
+                                    <td class="text-center">{{ $row['quantity'] ?? '' }}</td>
+                                    <td class="text-end">{{ $row['unit_incl_vat'] ?? '' }}</td>
+                                    <td class="text-end">{{ $row['subtotal'] ?? '' }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+
             {{-- Order Summary (no full invoice) --}}
             <div class="card bg-light mb-2">
                 <div class="card-body py-2 px-3 small">

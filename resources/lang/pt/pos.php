@@ -255,6 +255,7 @@ return [
     'agent_template_classic' => 'Clássico',
     'agent_template_compact' => 'Compacto',
     'view_bill' => 'Ver conta',
+    'bill' => 'Extrato de Conta',
     'void' => 'Anular',
     'void_password_label' => 'Introduza a palavra-passe de gerente/administrador ou a palavra-passe POS',
     'void_password_optional_manager' => 'Opcional para gerente/administrador. Deixe em branco para anular diretamente.',
