@@ -855,7 +855,8 @@ public static class SlipPrinter
         }
         else
         {
-            AddFull(lines, PadColumns(descLabel, qtyLabel, priceLabel, totalLabel), bold: true);
+            var unitHeader = priceLabel.Length > 7 ? "UNIT" : priceLabel;
+            AddFull(lines, PadColumns(descLabel, qtyLabel, unitHeader, totalLabel), bold: true);
         }
 
         AddSeparator(lines, '-');
