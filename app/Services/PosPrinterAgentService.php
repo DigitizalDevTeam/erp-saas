@@ -191,7 +191,7 @@ class PosPrinterAgentService
         }
 
         $isPaid = $pos->posPayments->isNotEmpty();
-        $title = $isPaid ? __('Receipt') : __('Account Statement');
+        $title = $isPaid ? __('Receipt') : __('pos.bill');
 
         $payload = self::buildReceiptPayloadFromPos($pos, $user);
         $payload['render'] = 'native';
@@ -771,7 +771,7 @@ class PosPrinterAgentService
         $documentTitle = Pos::documentTypeLabel($docType);
         $isPaid = $pos->posPayments->isNotEmpty();
         if (! $isPaid) {
-            $documentTitle = __('Account Statement');
+            $documentTitle = __('pos.bill');
             $posNumber = Pos::billDocumentNumber($posNumber, $settings);
         }
 

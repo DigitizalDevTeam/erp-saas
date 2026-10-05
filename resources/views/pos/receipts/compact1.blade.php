@@ -148,7 +148,7 @@
 
         @if(!empty($qrSvg) || !empty($qrHtml))
             <div class="text-center mt-2">
-                <div class="view-qrcode-receipt-svg d-inline-block" style="width:40mm;height:40mm;">
+                <div class="view-qrcode-receipt-svg d-inline-block" style="width:50mm;height:50mm;">
                     @if(!empty($qrSvg)){!! $qrSvg !!}@else{!! $qrHtml !!}@endif
                 </div>
             </div>

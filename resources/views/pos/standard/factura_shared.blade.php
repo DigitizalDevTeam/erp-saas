@@ -46,7 +46,7 @@
 .mz-factura .label { font-size:6.5pt; color:var(--muted); text-transform:uppercase; }
 .mz-factura .value { font-weight:700; color:#111; font-size:8pt; }
 .mz-factura .bottom { margin-top:5mm; padding-top:3mm; border-top:1px solid var(--line); display:grid; grid-template-columns:38mm 1fr 40mm; gap:3mm; align-items:center; }
-.mz-factura .view-qrcode-receipt-svg, .mz-factura .view-qrcode-receipt { width:36mm; height:36mm; }
+.mz-factura .view-qrcode-receipt-svg, .mz-factura .view-qrcode-receipt { width:50mm; height:50mm; }
 .mz-factura .view-qrcode-receipt-svg svg { display:block !important; width:100% !important; height:100% !important; }
 .mz-factura .validation { font-size:7pt; line-height:1.4; color:#111; }
 .mz-factura .powered { text-align:right; font-size:7pt; color:var(--muted); }

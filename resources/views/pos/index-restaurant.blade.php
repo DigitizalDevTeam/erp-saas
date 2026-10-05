@@ -2458,7 +2458,7 @@
                     pos_order_type: orderType,
                     pos_id: (orderType === 'delivery' || orderType === 'takeaway') && $('#pos_restaurant_pos_id').length ? ($('#pos_restaurant_pos_id').val() || '') : ''
                 };
-                $('#commonModal .modal-title').html('{{ __("Account Statement") }}');
+                $('#commonModal .modal-title').html('{{ __("pos.bill") }}');
                 $('.modal-dialog').removeClass('modal-xl modal-lg modal-md modal-sm').addClass('modal-md');
                 $.ajax({
                     url: '{{ route("pos.bill.view") }}',

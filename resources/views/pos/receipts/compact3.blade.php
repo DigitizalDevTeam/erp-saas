@@ -153,7 +153,7 @@
 .mz-l3 .tax-table td:first-child { text-align: left; }
 .mz-l3 .qr-wrap { display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 6px 0; }
 .mz-l3 .view-qrcode-receipt-svg,
-.mz-l3 .view-qrcode-receipt { width: 40mm; height: 40mm; flex-shrink: 0; }
+.mz-l3 .view-qrcode-receipt { width: 50mm; height: 50mm; flex-shrink: 0; }
 .mz-l3 .view-qrcode-receipt-svg svg { display: block !important; width: 100% !important; height: 100% !important; }
 .mz-l3 .validation { max-width: 38mm; font-size: 8px; color: #111; }
 .mz-l3 .footer { font-size: 8px; text-align: center !important; color: #111; }
