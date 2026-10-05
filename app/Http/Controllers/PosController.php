@@ -3725,6 +3725,49 @@ class PosController extends Controller
                 $product,
                 $variantSalePrice
             );
+            // Line note ("comment"): trust the posted payload first; if it arrived
+            // empty, fall back to the note persisted in the restaurant session cart
+            // (saved on note blur via update-cart) so the note survives Send and
+            // shows in the cart, the production NOTES column and kitchen slips.
+            $lineDescription = isset($item['description'])
+                ? mb_substr(trim((string) $item['description']), 0, 200)
+                : '';
+            if ($lineDescription === '') {
+                $sessAllCarts = $request->session()->get('pos_restaurant_cart', []);
+                $sessKeys = [];
+                if ($tableId && $shiftId) {
+                    $sessKeys[] = $tableId . '_' . $shiftId;
+                }
+                if ($orderType && $shiftId) {
+                    $sessKeys[] = $orderType . '_' . $shiftId;
+                }
+                if ($pos && $pos->id) {
+                    $sessKeys[] = 'pos_' . $pos->id;
+                }
+                $postedLineKey = isset($item['cart_line_key']) ? (string) $item['cart_line_key'] : '';
+                foreach (array_unique($sessKeys) as $sessKeyName) {
+                    $sessCart = $sessAllCarts[$sessKeyName] ?? [];
+                    if (! is_array($sessCart)) {
+                        continue;
+                    }
+                    foreach ($sessCart as $sessLineKey => $sessLine) {
+                        $sessLine = (array) $sessLine;
+                        if ((int) ($sessLine['id'] ?? 0) !== (int) $product->id) {
+                            continue;
+                        }
+                        if ($postedLineKey !== ''
+                            && (string) $sessLineKey !== $postedLineKey
+                            && (string) ($sessLine['cart_line_key'] ?? '') !== $postedLineKey) {
+                            continue;
+                        }
+                        $sessDesc = trim((string) ($sessLine['description'] ?? ''));
+                        if ($sessDesc !== '') {
+                            $lineDescription = mb_substr($sessDesc, 0, 200);
+                            break 2;
+                        }
+                    }
+                }
+            }
             $line = PosProduct::create([
                 'pos_id' => $pos->id,
                 'product_id' => $product->id,
@@ -3734,7 +3777,7 @@ class PosController extends Controller
                 'unit_subtotal' => $inclusiveUnit,
                 'tax' => $taxId,
                 'discount' => (float) ($item['discount'] ?? 0),
-                'description' => $item['description'] ?? null,
+                'description' => $lineDescription !== '' ? $lineDescription : null,
                 'selected_options_json' => ProductOptionService::encodeOptions($selectedOpts),
                 'status' => PosProduct::STATUS_PENDING,
                 'sent_at' => $now,
