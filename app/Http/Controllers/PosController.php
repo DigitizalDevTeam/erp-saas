@@ -5182,6 +5182,24 @@ class PosController extends Controller
             }
         }
 
+        // Give the bill the same print context as the invoice: with the branch
+        // set, the receipt templates enable the Print Agent (when configured)
+        // for the bill too, instead of always falling back to browser print.
+        $billBranchId = 0;
+        if ($posIdRaw) {
+            $billBranchId = (int) (Pos::where('id', $posIdRaw)->value('branch_id') ?? 0);
+        }
+        if ($billBranchId <= 0 && $shiftId) {
+            $billBranchId = (int) (PosShift::where('id', $shiftId)->value('branch_id') ?? 0);
+        }
+        if ($billBranchId > 0) {
+            $billBranch = Branch::where('id', $billBranchId)->where('created_by', $user->creatorId())->first();
+            $details['branch'] = [
+                'id' => $billBranchId,
+                'name' => $billBranch ? (string) $billBranch->name : '',
+            ];
+        }
+
         // Use selected Slip Layout (existing / compact1–3) for restaurant View Bill.
         $isBillDocument = true;
         return view(Utility::posReceiptViewName($settings ?? null), compact('details', 'sales', 'customer', 'productServices', 'barcode', 'posPayments', 'segundaVia', 'printSource', 'settings', 'posIdRaw', 'isBillDocument'));
