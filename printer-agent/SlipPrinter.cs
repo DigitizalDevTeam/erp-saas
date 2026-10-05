@@ -391,20 +391,22 @@ public static class SlipPrinter
             case SlipLineKind.Columns:
             {
                 var cols = line.Columns ?? Array.Empty<string>();
-                var c1 = cols.Length > 0 ? cols[0] : "";
-                var c2 = cols.Length > 1 ? cols[1] : "";
-                var c3 = cols.Length > 2 ? cols[2] : "";
-                var c4 = cols.Length > 3 ? cols[3] : "";
-                const float gap = 4f;
-                float w2 = Math.Max(22f, g.MeasureString(string.IsNullOrEmpty(c2) ? "0" : c2, font).Width + 2f);
-                float w3 = Math.Max(48f, g.MeasureString(string.IsNullOrEmpty(c3) ? "0" : c3, font).Width + 2f);
-                float w4 = Math.Max(52f, g.MeasureString(string.IsNullOrEmpty(c4) ? "0" : c4, font).Width + 2f);
-                float used = w2 + w3 + w4 + (gap * 3f);
-                float w1 = Math.Max(36f, width - used);
-                if (w1 + used > width)
+                if (cols.Length == 0)
                 {
-                    w1 = Math.Max(36f, width - used);
+                    return lineHeight;
                 }
+
+                const float gap = 4f;
+                var widths = new float[cols.Length];
+                float used = gap * (cols.Length - 1);
+                for (var i = 1; i < cols.Length; i++)
+                {
+                    var t = string.IsNullOrEmpty(cols[i]) ? "0" : cols[i];
+                    widths[i] = Math.Max(i == 1 ? 22f : 44f, g.MeasureString(t, font).Width + 2f);
+                    used += widths[i];
+                }
+
+                widths[0] = Math.Max(36f, width - used);
 
                 using var near = new StringFormat
                 {
@@ -421,13 +423,13 @@ public static class SlipPrinter
                     Trimming = StringTrimming.None,
                 };
                 var h = lineHeight + 1f;
-                g.DrawString(c1, font, brush, new RectangleF(left, y, w1, h), near);
-                float x = left + w1 + gap;
-                g.DrawString(c2, font, brush, new RectangleF(x, y, w2, h), far);
-                x += w2 + gap;
-                g.DrawString(c3, font, brush, new RectangleF(x, y, w3, h), far);
-                x += w3 + gap;
-                g.DrawString(c4, font, brush, new RectangleF(x, y, w4, h), far);
+                float x = left;
+                for (var i = 0; i < cols.Length; i++)
+                {
+                    g.DrawString(cols[i], font, brush, new RectangleF(x, y, widths[i], h), i == 0 ? near : far);
+                    x += widths[i] + gap;
+                }
+
                 return h;
             }
             default:
@@ -625,6 +627,7 @@ public static class SlipPrinter
               "qty": 2,
               "price": 172.41,
               "unit_incl_vat": 199.99,
+              "vat_rate": 16,
               "line_total": 399.99,
               "tax_label": "VAT 16%"
             }
@@ -843,20 +846,23 @@ public static class SlipPrinter
             ? Label(labels, "product", "PRODUCT")
             : Label(labels, "description", "DESCRIPTION");
         var qtyLabel = Label(labels, "qty", "QTY");
+        var vatLabel = Label(labels, "vat", "VAT");
         var priceLabel = Label(labels, "unit_incl_vat", "UNIT (INCL. VAT)");
         var totalLabel = Label(labels, "total", "TOTAL");
         if (classic)
         {
-            AddColumns(lines, descLabel, qtyLabel, priceLabel, totalLabel, bold: true);
+            AddColumns(lines, descLabel, qtyLabel, vatLabel, priceLabel, totalLabel, bold: true);
         }
         else if (compact)
         {
-            AddColumns(lines, descLabel, priceLabel, qtyLabel, totalLabel, bold: true);
+            AddColumns(lines, descLabel, qtyLabel, vatLabel, priceLabel, totalLabel, bold: true);
         }
         else
         {
-            var unitHeader = priceLabel.Length > 7 ? "UNIT" : priceLabel;
-            AddFull(lines, PadColumns(descLabel, qtyLabel, unitHeader, totalLabel), bold: true);
+            var descHeader = descLabel.Length > 9 ? "DESC" : descLabel;
+            var vatHeader = vatLabel.Length > 4 ? "VAT" : vatLabel;
+            var unitHeader = priceLabel.Length > 8 ? "UNIT" : priceLabel;
+            AddFull(lines, PadColumns(descHeader, qtyLabel, vatHeader, unitHeader, totalLabel), bold: true);
         }
 
         AddSeparator(lines, '-');
@@ -885,29 +891,48 @@ public static class SlipPrinter
                     lineTotal = qty * price;
                 }
 
-                var taxLabel = GetString(row, "tax_label");
                 var note = GetString(row, "note");
 
                 var qtyText = qty > 0 ? qty.ToString(CultureInfo.InvariantCulture) : "";
+                var vatText = FormatRate(GetDecimal(row, "vat_rate"));
+                if (vatText.Length == 0)
+                {
+                    // Older payloads only carry the "VAT 16%" label text.
+                    var taxLabel = GetString(row, "tax_label");
+                    var digitAt = -1;
+                    for (var i = 0; i < taxLabel.Length; i++)
+                    {
+                        if (char.IsDigit(taxLabel[i]))
+                        {
+                            digitAt = i;
+                            break;
+                        }
+                    }
+
+                    if (digitAt >= 0)
+                    {
+                        var pctAt = taxLabel.IndexOf('%', digitAt);
+                        if (pctAt > digitAt)
+                        {
+                            vatText = taxLabel.Substring(digitAt, pctAt - digitAt + 1).Trim();
+                        }
+                    }
+                }
+
                 var priceText = FormatMoney(price, currency);
                 var totalText = FormatMoney(lineTotal, currency);
                 if (classic)
                 {
-                    AddColumns(lines, name, qtyText, priceText, totalText, bold: true);
+                    AddColumns(lines, name, qtyText, vatText, priceText, totalText, bold: true);
                 }
                 else if (compact)
                 {
-                    AddColumns(lines, name, priceText, qtyText, totalText, bold: true);
+                    AddColumns(lines, name, qtyText, vatText, priceText, totalText, bold: true);
                 }
                 else
                 {
                     AddFull(lines, name, bold: true);
-                    AddFull(lines, PadColumns("", qtyText, priceText, totalText));
-                }
-
-                if (HasPrintableValue(taxLabel))
-                {
-                    AddFull(lines, taxLabel.Trim());
+                    AddFull(lines, PadColumns("", qtyText, vatText, priceText, totalText));
                 }
 
                 if (HasPrintableValue(note))
@@ -1239,9 +1264,9 @@ public static class SlipPrinter
         return luma < 235;
     }
 
-    private static string PadColumns(string c1, string c2, string c3, string c4)
+    private static string PadColumns(string c1, string c2, string c3, string c4, string c5)
     {
-        // Monospace-friendly 32-char thermal layout: desc(12) qty(4) price(8) total(8)
+        // Monospace-friendly 36-char thermal layout: desc(9) qty(3) vat(4) unit(8) total(9)
         static string Fit(string s, int w, bool right = false)
         {
             s ??= "";
@@ -1253,7 +1278,7 @@ public static class SlipPrinter
             return right ? s.PadLeft(w) : s.PadRight(w);
         }
 
-        return Fit(c1, 12) + Fit(c2, 4, true) + " " + Fit(c3, 7, true) + " " + Fit(c4, 7, true);
+        return Fit(c1, 9) + Fit(c2, 3, true) + " " + Fit(c3, 4, true) + " " + Fit(c4, 8, true) + " " + Fit(c5, 9, true);
     }
 
     private static string PadBreakdown(string c1, string c2, string c3, string c4)
@@ -1541,6 +1566,14 @@ public static class SlipPrinter
     private static void AddFull(List<SlipLine> lines, string text, bool bold = false)
         => lines.Add(new SlipLine { Kind = SlipLineKind.Full, Text = text ?? "", Bold = bold });
 
+    private static void AddColumns(List<SlipLine> lines, string c1, string c2, string c3, string c4, string c5, bool bold = false)
+        => lines.Add(new SlipLine
+        {
+            Kind = SlipLineKind.Columns,
+            Columns = new[] { c1 ?? "", c2 ?? "", c3 ?? "", c4 ?? "", c5 ?? "" },
+            Bold = bold,
+        });
+
     private static void AddColumns(List<SlipLine> lines, string c1, string c2, string c3, string c4, bool bold = false)
         => lines.Add(new SlipLine
         {
@@ -1604,6 +1637,16 @@ public static class SlipPrinter
         }
 
         return "";
+    }
+
+    private static string FormatRate(decimal rate)
+    {
+        if (rate <= 0)
+        {
+            return "";
+        }
+
+        return rate.ToString("0.##", CultureInfo.InvariantCulture) + "%";
     }
 
     private static string FormatMoney(decimal amount)
