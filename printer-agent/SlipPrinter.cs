@@ -859,9 +859,9 @@ public static class SlipPrinter
         }
         else
         {
-            var descHeader = descLabel.Length > 15 ? "DESC" : descLabel;
+            var descHeader = descLabel.Length > 21 ? "DESC" : descLabel;
             var vatHeader = vatLabel.Length > 4 ? "VAT" : vatLabel;
-            var unitHeader = priceLabel.Length > 7 ? "UNIT" : priceLabel;
+            var unitHeader = priceLabel.Length > 8 ? "UNIT" : priceLabel;
             AddFull(lines, PadColumns(descHeader, qtyLabel, vatHeader, unitHeader, totalLabel), bold: true);
         }
 
@@ -931,7 +931,7 @@ public static class SlipPrinter
                 }
                 else
                 {
-                    var nameChunks = WrapText(name, 15);
+                    var nameChunks = WrapText(name, 21);
                     if (nameChunks.Count == 0)
                     {
                         nameChunks.Add("");
@@ -1317,7 +1317,7 @@ public static class SlipPrinter
 
     private static string PadColumns(string c1, string c2, string c3, string c4, string c5)
     {
-        // Monospace-friendly 40-char thermal layout: desc(15) qty(3) vat(4) unit(7) total(8)
+        // Monospace-friendly 48-char thermal layout: desc(21) qty(3) vat(4) unit(8) total(9)
         static string Fit(string s, int w, bool right = false)
         {
             s ??= "";
@@ -1329,7 +1329,7 @@ public static class SlipPrinter
             return right ? s.PadLeft(w) : s.PadRight(w);
         }
 
-        return Fit(c1, 15) + Fit(c2, 3, true) + " " + Fit(c3, 4, true) + " " + Fit(c4, 7, true) + " " + Fit(c5, 8, true);
+        return Fit(c1, 21) + Fit(c2, 3, true) + " " + Fit(c3, 4, true) + " " + Fit(c4, 8, true) + " " + Fit(c5, 9, true);
     }
 
     private static string PadBreakdown(string c1, string c2, string c3, string c4)
