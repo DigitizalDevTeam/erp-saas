@@ -705,6 +705,7 @@ class PosPrinterAgentService
                 'qty' => $qty,
                 'price' => round($price, 2),
                 'unit_incl_vat' => round((float) ($amounts['unit'] ?? 0), 2),
+                'vat_rate' => round((float) $taxRate, 2),
                 'line_total' => round($lineTotal, 2),
                 'tax_label' => $taxRate > 0 ? (__('VAT') . ' ' . rtrim(rtrim(number_format($taxRate, 2, '.', ''), '0'), '.') . '%') : '',
                 'note' => (string) ($item->description ?? ''),

@@ -37,5 +37,11 @@ class PosBillPrintLikeInvoiceTest extends TestCase
         $cs = file_get_contents(base_path('printer-agent/SlipPrinter.cs'));
         $this->assertStringContainsString('GetDecimal(row, "unit_incl_vat")', $cs);
         $this->assertStringContainsString('Label(labels, "unit_incl_vat", "UNIT (INCL. VAT)")', $cs);
+        $this->assertStringContainsString('priceLabel.Length > 8 ? "UNIT" : priceLabel', $cs);
+        // VAT rate column right after Qty, fed by the payload vat_rate.
+        $this->assertStringContainsString("'vat_rate' => round((float) \$taxRate, 2)", $svc);
+        $this->assertStringContainsString('Label(labels, "vat", "VAT")', $cs);
+        $this->assertStringContainsString('GetDecimal(row, "vat_rate")', $cs);
+        $this->assertStringContainsString('PadColumns("", qtyText, vatText, priceText, totalText)', $cs);
     }
 }
