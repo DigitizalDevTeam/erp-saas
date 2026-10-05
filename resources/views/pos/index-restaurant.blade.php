@@ -2753,7 +2753,7 @@
                         }
                         appendSlipLabels(r.options, '{{ __("pos.production_options") }}');
                         appendSlipLabels(r.ingredients, '{{ __("pos.production_ingredients") }}');
-                        var noteHtml = note ? '<br><span class="note-bold">' + note + '</span>' : '';
+                        var noteHtml = note ? '<br><span class="note-bold">{{ __("Note") }}: ' + note + '</span>' : '';
                         w.document.write('<tr><td>' + name + optHtml + noteHtml + '</td><td>' + r.qty + '</td></tr>');
                     });
                     w.document.write('</tbody></table></body></html>');

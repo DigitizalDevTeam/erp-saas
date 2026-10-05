@@ -2115,7 +2115,7 @@
                     if (jobs.length === 0) {
                         // Fallback: print only the unsent rows we collected (never full order).
                         var w = window.open('', '_blank', 'width=380,height=400');
-                        w.document.write('<html><head><title>{{ __("pos.kitchen_slip") }}</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note{font-size:12px;color:#555;font-style:italic;}.addon-banner{font-weight:bold;font-size:16px;margin:8px 0;border:2px solid #000;padding:6px;text-align:center;}</style></head><body>');
+                        w.document.write('<html><head><title>{{ __("pos.kitchen_slip") }}</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note{font-size:12px;color:#555;font-style:italic;}.note-bold{font-weight:bold;font-size:14px;color:#000;}.addon-banner{font-weight:bold;font-size:16px;margin:8px 0;border:2px solid #000;padding:6px;text-align:center;}</style></head><body>');
                         w.document.write('<h3>{{ __("pos.kitchen_slip") }}</h3>');
                         if (isAddon) {
                             w.document.write('<div class="addon-banner">{{ __("pos.kitchen_slip_addon") }}</div>');
@@ -2138,7 +2138,7 @@
                             }
                             appendSlipLabels(r.options);
                             appendSlipLabels(r.ingredients);
-                            w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + optHtml + '</td><td>' + r.qty + '</td><td class="note">' + note + '</td></tr>');
+                            w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + optHtml + '</td><td>' + r.qty + '</td><td class="note-bold">' + note + '</td></tr>');
                         });
                         w.document.write('</tbody></table></body></html>');
                         w.document.close();
@@ -2153,7 +2153,7 @@
                         (function(jobTitle, jobRows, d, addon, ref) {
                             setTimeout(function() {
                                 var w = window.open('', '_blank', 'width=380,height=400');
-                                w.document.write('<html><head><title>' + (jobTitle || '{{ __("pos.kitchen_slip") }}') + '</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note{font-size:12px;color:#555;font-style:italic;}.addon-banner{font-weight:bold;font-size:16px;margin:8px 0;border:2px solid #000;padding:6px;text-align:center;}</style></head><body>');
+                                w.document.write('<html><head><title>' + (jobTitle || '{{ __("pos.kitchen_slip") }}') + '</title><style>body{font-family:monospace;padding:12px;font-size:14px;}h3{margin:0 0 8px;}table{width:100%;}td{padding:4px 0;}td:last-child{text-align:right;}.note{font-size:12px;color:#555;font-style:italic;}.note-bold{font-weight:bold;font-size:14px;color:#000;}.addon-banner{font-weight:bold;font-size:16px;margin:8px 0;border:2px solid #000;padding:6px;text-align:center;}</style></head><body>');
                                 w.document.write('<h3>' + (jobTitle || '{{ __("pos.kitchen_slip") }}') + '</h3>');
                                 if (addon) {
                                     w.document.write('<div class="addon-banner">{{ __("pos.kitchen_slip_addon") }}</div>');
@@ -2166,6 +2166,7 @@
                                 w.document.write('<table><thead><tr><th>{{ __("pos.name") }}</th><th>{{ __("pos.qty") }}</th></tr></thead><tbody>');
                                 jobRows.forEach(function(r) {
                                     var optHtml = '';
+                                    var noteHtml = (r.note || '') ? '<br><span class="note-bold">{{ __("Note") }}: ' + String(r.note).replace(/</g, '&lt;') + '</span>' : '';
                                     function appendSlipLabels(list) {
                                         (Array.isArray(list) ? list : []).forEach(function (opt) {
                                             var label = typeof opt === 'string' ? opt : (opt && opt.name ? opt.name : '');
@@ -2175,7 +2176,7 @@
                                     }
                                     appendSlipLabels(r.options);
                                     appendSlipLabels(r.ingredients);
-                                    w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + optHtml + '</td><td>' + (r.qty || '') + '</td></tr>');
+                                    w.document.write('<tr><td>' + (r.name || '').replace(/</g, '&lt;') + optHtml + noteHtml + '</td><td>' + (r.qty || '') + '</td></tr>');
                                 });
                                 w.document.write('</tbody></table></body></html>');
                                 w.document.close();

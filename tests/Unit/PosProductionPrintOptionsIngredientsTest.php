@@ -71,4 +71,37 @@ class PosProductionPrintOptionsIngredientsTest extends TestCase
         $this->assertStringContainsString("'production_options' => 'Opções'", $pt);
         $this->assertStringContainsString("'production_ingredients' => 'Ingredientes'", $pt);
     }
+
+    public function test_kitchen_receipt_prints_line_note_bold(): void
+    {
+        // Server print jobs must carry the per-line note through to the slip.
+        $jobs = PosPrintRoutingService::buildProductionPrintJobs(1, 1, [
+            [
+                'name' => 'Burger',
+                'qty' => 1,
+                'note' => 'No onion, extra spicy',
+                'print_zone' => 'kitchen',
+                'pos_printer_id' => null,
+                'options' => [],
+                'ingredients' => [],
+            ],
+        ]);
+        $this->assertSame('No onion, extra spicy', $jobs[0]['rows'][0]['note']);
+
+        // Browser kitchen slip (main POS page) prints the note in bold, in both
+        // the server-jobs path and the unsent-rows fallback path.
+        $index = file_get_contents(resource_path('views/pos/index.blade.php'));
+        $this->assertStringContainsString('.note-bold{font-weight:bold;', $index);
+        $this->assertStringContainsString('<span class="note-bold">', $index);
+        $this->assertStringContainsString('<td class="note-bold">', $index);
+
+        // Browser kitchen slip (restaurant POS page) also prints it bold.
+        $restaurant = file_get_contents(resource_path('views/pos/index-restaurant.blade.php'));
+        $this->assertStringContainsString('.note-bold{font-weight:bold;', $restaurant);
+        $this->assertStringContainsString('<span class="note-bold">', $restaurant);
+
+        // Print-agent kitchen/bar slip prints the note bold as well.
+        $agent = file_get_contents(base_path('printer-agent/SlipPrinter.cs'));
+        $this->assertStringContainsString('AddKv(lines, "Notes", note.Trim(), bold: true);', $agent);
+    }
 }
