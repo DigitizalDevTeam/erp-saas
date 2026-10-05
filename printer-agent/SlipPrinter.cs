@@ -624,6 +624,7 @@ public static class SlipPrinter
               "name": "Testing product",
               "qty": 2,
               "price": 172.41,
+              "unit_incl_vat": 199.99,
               "line_total": 399.99,
               "tax_label": "VAT 16%"
             }
@@ -842,7 +843,7 @@ public static class SlipPrinter
             ? Label(labels, "product", "PRODUCT")
             : Label(labels, "description", "DESCRIPTION");
         var qtyLabel = Label(labels, "qty", "QTY");
-        var priceLabel = Label(labels, "price", "PRICE");
+        var priceLabel = Label(labels, "unit_incl_vat", "UNIT (INCL. VAT)");
         var totalLabel = Label(labels, "total", "TOTAL");
         if (classic)
         {
@@ -872,7 +873,11 @@ public static class SlipPrinter
                 }
 
                 var name = GetString(row, "name");
-                var price = GetDecimal(row, "price");
+                var price = GetDecimal(row, "unit_incl_vat");
+                if (price <= 0)
+                {
+                    price = GetDecimal(row, "price");
+                }
                 var lineTotal = GetDecimal(row, "line_total");
                 if (lineTotal <= 0 && qty > 0 && price > 0)
                 {
