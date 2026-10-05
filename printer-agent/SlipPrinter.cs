@@ -408,12 +408,11 @@ public static class SlipPrinter
 
                 widths[0] = Math.Max(36f, width - used);
 
-                using var near = new StringFormat
+                using var wrap = new StringFormat
                 {
                     Alignment = StringAlignment.Near,
                     LineAlignment = StringAlignment.Near,
-                    FormatFlags = StringFormatFlags.NoWrap,
-                    Trimming = StringTrimming.EllipsisCharacter,
+                    Trimming = StringTrimming.None,
                 };
                 using var far = new StringFormat
                 {
@@ -422,11 +421,12 @@ public static class SlipPrinter
                     FormatFlags = StringFormatFlags.NoWrap,
                     Trimming = StringTrimming.None,
                 };
-                var h = lineHeight + 1f;
+                var nameSize = g.MeasureString(cols[0], font, new SizeF(widths[0], 2000f), wrap);
+                var h = Math.Max(lineHeight + 1f, nameSize.Height);
                 float x = left;
                 for (var i = 0; i < cols.Length; i++)
                 {
-                    g.DrawString(cols[i], font, brush, new RectangleF(x, y, widths[i], h), i == 0 ? near : far);
+                    g.DrawString(cols[i], font, brush, new RectangleF(x, y, widths[i], h), i == 0 ? wrap : far);
                     x += widths[i] + gap;
                 }
 
@@ -623,7 +623,7 @@ public static class SlipPrinter
           },
           "rows": [
             {
-              "name": "Testing product",
+              "name": "Arroz De Legumes Com Frango",
               "qty": 2,
               "price": 172.41,
               "unit_incl_vat": 199.99,
@@ -859,9 +859,9 @@ public static class SlipPrinter
         }
         else
         {
-            var descHeader = descLabel.Length > 9 ? "DESC" : descLabel;
+            var descHeader = descLabel.Length > 15 ? "DESC" : descLabel;
             var vatHeader = vatLabel.Length > 4 ? "VAT" : vatLabel;
-            var unitHeader = priceLabel.Length > 8 ? "UNIT" : priceLabel;
+            var unitHeader = priceLabel.Length > 7 ? "UNIT" : priceLabel;
             AddFull(lines, PadColumns(descHeader, qtyLabel, vatHeader, unitHeader, totalLabel), bold: true);
         }
 
@@ -931,8 +931,17 @@ public static class SlipPrinter
                 }
                 else
                 {
-                    AddFull(lines, name, bold: true);
-                    AddFull(lines, PadColumns("", qtyText, vatText, priceText, totalText));
+                    var nameChunks = WrapText(name, 15);
+                    if (nameChunks.Count == 0)
+                    {
+                        nameChunks.Add("");
+                    }
+
+                    AddFull(lines, PadColumns(nameChunks[0], qtyText, vatText, priceText, totalText), bold: true);
+                    for (var i = 1; i < nameChunks.Count; i++)
+                    {
+                        AddFull(lines, nameChunks[i], bold: true);
+                    }
                 }
 
                 if (HasPrintableValue(note))
@@ -1264,9 +1273,51 @@ public static class SlipPrinter
         return luma < 235;
     }
 
+    private static List<string> WrapText(string text, int width)
+    {
+        var result = new List<string>();
+        var current = "";
+        foreach (var rawWord in (text ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var word = rawWord;
+            while (word.Length > width)
+            {
+                if (current.Length > 0)
+                {
+                    result.Add(current);
+                    current = "";
+                }
+
+                result.Add(word[..width]);
+                word = word[width..];
+            }
+
+            if (current.Length == 0)
+            {
+                current = word;
+            }
+            else if (current.Length + 1 + word.Length <= width)
+            {
+                current += " " + word;
+            }
+            else
+            {
+                result.Add(current);
+                current = word;
+            }
+        }
+
+        if (current.Length > 0)
+        {
+            result.Add(current);
+        }
+
+        return result;
+    }
+
     private static string PadColumns(string c1, string c2, string c3, string c4, string c5)
     {
-        // Monospace-friendly 36-char thermal layout: desc(9) qty(3) vat(4) unit(8) total(9)
+        // Monospace-friendly 40-char thermal layout: desc(15) qty(3) vat(4) unit(7) total(8)
         static string Fit(string s, int w, bool right = false)
         {
             s ??= "";
@@ -1278,7 +1329,7 @@ public static class SlipPrinter
             return right ? s.PadLeft(w) : s.PadRight(w);
         }
 
-        return Fit(c1, 9) + Fit(c2, 3, true) + " " + Fit(c3, 4, true) + " " + Fit(c4, 8, true) + " " + Fit(c5, 9, true);
+        return Fit(c1, 15) + Fit(c2, 3, true) + " " + Fit(c3, 4, true) + " " + Fit(c4, 7, true) + " " + Fit(c5, 8, true);
     }
 
     private static string PadBreakdown(string c1, string c2, string c3, string c4)
