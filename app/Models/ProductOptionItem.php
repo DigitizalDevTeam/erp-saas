@@ -11,12 +11,14 @@ class ProductOptionItem extends Model
         'option_product_id',
         'option_group',
         'is_required',
+        'quantity',
         'sort_order',
         'created_by',
     ];
 
     protected $casts = [
         'is_required' => 'boolean',
+        'quantity' => 'float',
     ];
 
     public function parent()

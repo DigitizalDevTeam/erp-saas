@@ -45,4 +45,4 @@
         variants: @json(__('Variants')),
     };
 </script>
-<script src="{{ asset('js/product-options-picker.js') }}?v=20261004a"></script>
+<script src="{{ asset('js/product-options-picker.js') }}?v=20261006a"></script>

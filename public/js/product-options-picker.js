@@ -98,8 +98,14 @@
         var skuHtml = opt.sku
             ? ' <small class="text-muted">(' + escapeHtml(opt.sku) + ')</small>'
             : '';
+        var setupQty = parseFloat(opt.quantity);
+        if (!(setupQty > 0)) {
+            setupQty = 1;
+        }
         var qtyHtml =
-            '<input type="number" class="form-control form-control-sm erp-opt-qty flex-shrink-0" style="width:4rem" min="0.0001" step="any" value="1" title="' +
+            '<input type="number" class="form-control form-control-sm erp-opt-qty flex-shrink-0" style="width:4rem" min="0.0001" step="any" value="' +
+            setupQty +
+            '" title="' +
             escapeHtml(t('qty', 'Qty')) +
             '">';
         var stockQty = opt.stock_qty != null && opt.stock_qty !== '' ? opt.stock_qty : '—';
