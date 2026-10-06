@@ -71,7 +71,7 @@
                 <thead>
                 <tr>
                     <th>{{ __('Product') }}</th>
-                    <th>{{ __('Price') }}</th>
+                    <th>{{ __('Unit (Incl. VAT)') }}</th>
                     <th>{{ __('Qty') }}</th>
                     <th>{{ __('Total') }}</th>
                 </tr>
@@ -79,7 +79,7 @@
                 <tbody>
                 <tr>
                     <td><div class="item-name">Testing product</div><div class="item-tax">{{ __('VAT') }} 16%</div></td>
-                    <td class="num">172,41</td>
+                    <td class="num">199,99</td>
                     <td class="num">2</td>
                     <td class="num">399,99</td>
                 </tr>
@@ -105,8 +105,8 @@
             <div class="kv"><span>{{ __('Currency') }}:</span><span>{{ $currency }}</span></div>
             <div class="kv"><span>{{ __('pos.table') }}:</span><span>01</span></div>
             <div class="rule"></div>
-            <div class="row4 head"><span>{{ __('Description') }}</span><span>{{ __('Qty') }}</span><span>{{ __('Price') }}</span><span>{{ __('Total') }}</span></div>
-            <div class="row4"><span class="item-name">Testing product</span><span>2</span><span>172,41</span><span>399,99</span></div>
+            <div class="row4 head"><span>{{ __('Description') }}</span><span>{{ __('Qty') }}</span><span>{{ __('Unit (Incl. VAT)') }}</span><span>{{ __('Total') }}</span></div>
+            <div class="row4"><span class="item-name">Testing product</span><span>2</span><span>199,99</span><span>399,99</span></div>
             <div class="item-tax">{{ __('VAT') }} 16%</div>
             <div class="rule"></div>
             <div class="kv"><span>{{ __('Sub Total') }}</span><span>399,99 {{ $currency }}</span></div>
@@ -127,7 +127,7 @@
             <div class="rule"></div>
             <div class="item-name">Testing product</div>
             <div class="item-tax">{{ __('VAT') }} 16%</div>
-            <div class="amounts">2 &nbsp; 172,41 &nbsp; 399,99</div>
+            <div class="amounts">2 &nbsp; 199,99 &nbsp; 399,99</div>
             <div class="rule"></div>
             <div class="kv"><span>{{ __('Sub Total') }}</span><span>399,99 {{ $currency }}</span></div>
             <div class="kv"><span>{{ __('Discount') }}</span><span>0,00 {{ $currency }}</span></div>
