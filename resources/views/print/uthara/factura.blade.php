@@ -143,7 +143,7 @@
                 <th>#</th>
                 <th class="description">{{ __('Product and description') }}</th>
                 <th class="center">{{ __('Qty') }}</th>
-                <th class="num">{{ __('Unit Price') }}</th>
+                <th class="num">{{ __('Unit (Incl. VAT)') }}</th>
                 <th class="num">{{ __('Total') }}</th>
             </tr>
         </thead>
@@ -158,7 +158,7 @@
                     @endif
                 </td>
                 <td class="center">{{ $line['quantity'] }}</td>
-                <td class="num">{{ $line['price'] }}</td>
+                <td class="num">{{ $line['unit_incl_vat'] ?? $line['price'] }}</td>
                 <td class="num"><strong>{{ $line['total'] }}</strong></td>
             </tr>
         @empty
