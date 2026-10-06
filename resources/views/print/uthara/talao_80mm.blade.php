@@ -46,7 +46,8 @@
 .mz-talao-uthara .col-desc{width:auto}
 .mz-talao-uthara .qty{width:8mm;text-align:center}
 .mz-talao-uthara .vat{width:12mm;text-align:right;white-space:nowrap}
-.mz-talao-uthara .total{width:22mm;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mz-talao-uthara .unit{width:17mm;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mz-talao-uthara .total{width:19mm;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .mz-talao-uthara .item-detail{display:block;font-size:8px;color:#444;margin-top:.5mm;font-weight:400}
 .mz-talao-uthara .totals{width:100%;margin-top:1mm}
 .mz-talao-uthara .totals .grand{
@@ -140,6 +141,7 @@
                 <th class="col-desc">{{ __('Description') }}</th>
                 <th class="qty">{{ __('Qty') }}</th>
                 <th class="vat">{{ __('VAT') }}</th>
+                <th class="unit">{{ __('Unit (Incl. VAT)') }}</th>
                 <th class="total">{{ __('Total') }}</th>
             </tr>
         </thead>
@@ -154,6 +156,7 @@
                 </td>
                 <td class="qty">{{ $value['quantity'] ?? '' }}</td>
                 <td class="vat">{{ \Illuminate\Support\Str::endsWith((string) ($value['tax'] ?? ''), '%') ? ($value['tax'] ?: '0%') : (($value['tax'] ?? '0') . '%') }}</td>
+                <td class="unit">{{ $value['unit_incl_vat'] ?? '' }}</td>
                 <td class="total">{{ $value['subtotal'] ?? '' }}</td>
             </tr>
         @endforeach

@@ -214,6 +214,8 @@ class UtharaPrintRenderer
                 'quantity' => $qty,
                 'price' => $fmt($price),
                 'price_raw' => $price,
+                'unit_incl_vat' => $qty > 0 ? $fmt(($lineNet + $lineTax) / $qty) : $fmt($price * (1 + $taxRate / 100)),
+                'unit_incl_vat_raw' => $qty > 0 ? ($lineNet + $lineTax) / $qty : $price * (1 + $taxRate / 100),
                 'total' => $fmt($lineNet + $lineTax),
                 'total_raw' => $lineNet + $lineTax,
                 'tax_rate' => $taxRate,
