@@ -107,7 +107,19 @@ class PosShiftReportPrintDesignsTest extends TestCase
         $this->assertStringContainsString('Minimum Stock Alert', $a4Partial);
         $this->assertStringContainsString('Warehouse Stock', $a4Partial);
         $this->assertStringContainsString('Low stock alert at', $a4Partial);
-        $this->assertStringContainsString('No products at or below the minimum stock alert.', $a4Partial);
+        // Hidden entirely when nothing is at/below the minimum (no empty section).
+        $this->assertStringContainsString('($minimumStockRows ?? collect())->isNotEmpty()', $a4Partial);
+        $this->assertStringNotContainsString('No products at or below the minimum stock alert.', $a4Partial);
+
+        $p80Partial = file_get_contents(resource_path('views/report/partials/pos_shift_min_stock_alert_80.blade.php'));
+        $this->assertStringContainsString('MINIMUM STOCK ALERT', $p80Partial);
+        $this->assertStringContainsString('($minimumStockRows ?? collect())->isNotEmpty()', $p80Partial);
+        $this->assertStringNotContainsString('No products at or below the minimum stock alert.', $p80Partial);
+
+        $cardPartial = file_get_contents(resource_path('views/report/partials/pos_shift_min_stock_alert_card.blade.php'));
+        $this->assertStringContainsString('Minimum Stock Alert', $cardPartial);
+        $this->assertStringContainsString('($minimumStockRows ?? collect())->isNotEmpty()', $cardPartial);
+        $this->assertStringNotContainsString('No products at or below the minimum stock alert.', $cardPartial);
 
         $multiA4 = file_get_contents(resource_path('views/report/partials/pos_shift_report_a4_content.blade.php'));
         $singleA4 = file_get_contents(resource_path('views/pos_shift/partials/shift_report_a4_content.blade.php'));
@@ -123,5 +135,37 @@ class PosShiftReportPrintDesignsTest extends TestCase
         $singlePage = file_get_contents(resource_path('views/pos_shift/report.blade.php'));
         $this->assertStringContainsString('pos_shift_min_stock_alert_card', $multiPage);
         $this->assertStringContainsString('pos_shift_min_stock_alert_card', $singlePage);
+    }
+
+    public function test_minimum_stock_alert_section_hidden_when_empty_and_shown_with_rows(): void
+    {
+        $partials = [
+            'report.partials.pos_shift_min_stock_alert_a4',
+            'report.partials.pos_shift_min_stock_alert_80',
+            'report.partials.pos_shift_min_stock_alert_card',
+        ];
+
+        foreach ($partials as $partial) {
+            $empty = view($partial, ['minimumStockRows' => collect(), 'minimumStockThreshold' => 10])->render();
+            $this->assertStringNotContainsString('Stock Alert', $empty, $partial . ' must render nothing when no product is at/below its minimum');
+            $this->assertStringNotContainsString('STOCK ALERT', $empty, $partial . ' must render nothing when no product is at/below its minimum');
+        }
+
+        $row = (object) [
+            'warehouse_name' => 'Armazém Principal',
+            'product_name' => 'Molho Picante',
+            'sku' => 'ML-001',
+            'category_name' => 'Molhos',
+            'warehouse_quantity' => 3,
+            'low_stock_threshold' => 10,
+        ];
+
+        foreach ($partials as $partial) {
+            $html = view($partial, ['minimumStockRows' => collect([$row]), 'minimumStockThreshold' => 10])->render();
+            $this->assertStringContainsString('Molho Picante', $html, $partial . ' must list the low product');
+            $this->assertStringContainsString('3.00', $html, $partial . ' must show the current quantity');
+            $this->assertStringContainsString('10.00', $html, $partial . ' must show the minimum quantity');
+            $this->assertStringContainsString('7.00', $html, $partial . ' must show the shortage');
+        }
     }
 }

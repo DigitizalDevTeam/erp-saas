@@ -1,3 +1,4 @@
+@if(($minimumStockRows ?? collect())->isNotEmpty())
 <div class="card mt-3">
     <div class="card-header"><h6 class="mb-0">{{ __('Minimum Stock Alert') }}</h6></div>
     <div class="card-body table-border-style">
@@ -19,7 +20,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse(($minimumStockRows ?? collect()) as $r)
+                    @foreach(($minimumStockRows ?? collect()) as $r)
                         @php
                             $threshold = $r->low_stock_threshold !== null ? (float) $r->low_stock_threshold : (float) ($minimumStockThreshold ?? 10);
                             $stockQty = (float) $r->warehouse_quantity;
@@ -34,11 +35,10 @@
                             <td class="text-end">{{ number_format($threshold, 2) }}</td>
                             <td class="text-end text-danger">{{ number_format($shortage, 2) }}</td>
                         </tr>
-                    @empty
-                        <tr><td colspan="7" class="text-center text-muted">{{ __('No products at or below the minimum stock alert.') }}</td></tr>
-                    @endforelse
+                    @endforeach
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+@endif
