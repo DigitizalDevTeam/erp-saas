@@ -1,3 +1,4 @@
+@if(($minimumStockRows ?? collect())->isNotEmpty())
 <h2 class="shift-a4-section">{{ __('Minimum Stock Alert') }}</h2>
 <p>{{ __('Products with stock equal to or less than their Low stock alert at value.') }} {{ __('Default threshold') }}: <strong>{{ number_format((float) ($minimumStockThreshold ?? 10), 2) }}</strong></p>
 <table class="shift-a4-data">
@@ -13,7 +14,7 @@
         </tr>
     </thead>
     <tbody>
-    @forelse(($minimumStockRows ?? collect()) as $r)
+    @foreach(($minimumStockRows ?? collect()) as $r)
         @php
             $threshold = $r->low_stock_threshold !== null ? (float) $r->low_stock_threshold : (float) ($minimumStockThreshold ?? 10);
             $stockQty = (float) $r->warehouse_quantity;
@@ -28,8 +29,7 @@
             <td class="shift-a4-num">{{ number_format($threshold, 2) }}</td>
             <td class="shift-a4-num">{{ number_format($shortage, 2) }}</td>
         </tr>
-    @empty
-        <tr><td colspan="7" class="shift-a4-center-cell">{{ __('No products at or below the minimum stock alert.') }}</td></tr>
-    @endforelse
+    @endforeach
     </tbody>
 </table>
+@endif
