@@ -443,7 +443,11 @@ class JournalEntryController extends Controller
                     'date' => $journalEntry->date,
                 ];
             }
-            Utility::addTransactionLines($data, 'create');
+            // 'edit' is idempotent: when the journal already has ledger lines
+            // (e.g. posted by a service), Approving updates them in place
+            // instead of inserting a duplicate set that double-counts the
+            // journal in Trial Balance and Balance Sheet.
+            Utility::addTransactionLines($data, 'edit');
         }
 
         $journalEntry->status = JournalEntry::STATUS_APPROVED;

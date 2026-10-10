@@ -56,6 +56,10 @@ class JournalEntryPoster
         $journal->date = $date;
         $journal->reference = $reference;
         $journal->description = $description;
+        // This poster writes the ledger lines immediately, so the journal is
+        // already in effect. Leaving it "pending" lets a later manual Approve
+        // post the same lines a second time and double-count the journal.
+        $journal->status = JournalEntry::STATUS_APPROVED;
         $journal->created_by = $createdBy;
         $journal->accounting_period = $accountingPeriod;
         $journal->save();
