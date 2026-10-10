@@ -98,6 +98,18 @@ class ChartOfAccount extends Model
             return trim((string) $pick);
         }
 
-        return trim((string) ($this->name ?? ''));
+        if (trim((string) ($this->name ?? '')) !== '') {
+            return trim((string) $this->name);
+        }
+
+        // Never render a blank account description when the account only has
+        // a translated name (e.g. Portuguese-only chart accounts).
+        foreach ([$this->name_pt_br, $this->name_fr, $this->name_es, $this->name_zh] as $translated) {
+            if ($translated !== null && trim((string) $translated) !== '') {
+                return trim((string) $translated);
+            }
+        }
+
+        return '';
     }
 }

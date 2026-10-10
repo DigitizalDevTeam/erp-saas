@@ -60,11 +60,11 @@ class DreDemonstracaoResultadosService
         'rev_711' => '711 - Mercadorias',
         'rev_712' => '712 - Produtos acabados e intermédios',
         'rev_713_718' => 'Vendas de serviços',
-        'rev_services' => 'Variação da produção',
-        'rev_production_var' => 'Investimentos realizados pela empresa',
-        'rev_investment' => 'Subsídios à exploração',
-        'rev_subsidies' => 'Proveitos suplementares',
-        'rev_supplementary' => 'Outros proveitos e ganhos operacionais',
+        'rev_services' => 'Prestação de serviços',
+        'rev_production_var' => 'Variação da produção',
+        'rev_investment' => 'Investimentos realizados pela empresa',
+        'rev_subsidies' => 'Subsídios à exploração',
+        'rev_supplementary' => 'Proveitos suplementares',
         'rev_other_ops' => 'Outros proveitos e ganhos operacionais',
         'rev_unclassified' => 'Outros proveitos e ganhos operacionais',
         'income_tax' => 'Impostos sobre rendimento',
@@ -191,10 +191,26 @@ class DreDemonstracaoResultadosService
         $minDate = min($year1, $year2).'-01-01';
         $maxDate = max($year1, $year2).'-12-31';
 
+        $closingJournalIds = DB::table('journal_entries')
+            ->where('created_by', $creatorId)
+            ->where('reference', 'like', 'FY-%-CLOSE%')
+            ->pluck('id')
+            ->map(static fn ($id) => (int) $id)
+            ->all();
+
         $rows = DB::table('transaction_lines as tl')
             ->join('chart_of_accounts as c', 'c.id', '=', 'tl.account_id')
             ->where('tl.created_by', $creatorId)
             ->whereBetween('tl.date', [$minDate, $maxDate])
+            // Same basis as the Profit & Loss statement (the reference report):
+            // year-end closing journals (FY-*-CLOSE*) only move class 6/7
+            // balances into result accounts — counting them here cancels the
+            // year's revenue and costs to zero after closing.
+            ->where(function ($w) use ($closingJournalIds) {
+                $w->whereNull('tl.reference')
+                    ->orWhere('tl.reference', '!=', 'Journal')
+                    ->orWhereNotIn('tl.reference_id', $closingJournalIds);
+            })
             ->groupBy(DB::raw('YEAR(tl.date)'), 'c.id', 'c.code', 'c.name', 'c.name_pt_br')
             ->select(
                 DB::raw('YEAR(tl.date) as fy'),

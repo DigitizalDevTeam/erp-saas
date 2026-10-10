@@ -3569,6 +3569,29 @@ class ReportController extends Controller
             : round($debit - $credit, 2);
     }
 
+    /** @var array<int, string>|null */
+    private ?array $reportAccountNameMap = null;
+
+    /**
+     * Display name for a chart account in the current user's language.
+     * Report queries select only the English `name`, which is blank for
+     * accounts that carry just a translated name (e.g. Portuguese-only
+     * class 7 accounts) — resolve through labelForLocale() instead.
+     */
+    private function reportAccountName(int $accountId, ?string $fallback = null): string
+    {
+        if ($this->reportAccountNameMap === null) {
+            $this->reportAccountNameMap = ChartOfAccount::query()
+                ->get()
+                ->mapWithKeys(static fn (ChartOfAccount $account) => [(int) $account->id => $account->labelForLocale()])
+                ->all();
+        }
+
+        $name = $this->reportAccountNameMap[$accountId] ?? '';
+
+        return $name !== '' ? $name : (string) ($fallback ?? '');
+    }
+
     /**
      * Year-end closing journals only move income and expense balances into equity.
      * Counting them inside a P&L period cancels out — or inverts — the year's result.
@@ -3665,7 +3688,7 @@ class ReportController extends Controller
                             $data = [
                                 'account_id' => $account['id'],
                                 'account_code' => $account['code'],
-                                'account_name' => $account['name'],
+                                'account_name' => $this->reportAccountName((int) ($account['id'] ?? 0), $account['name'] ?? null),
                                 'account' => 'parent',
                                 'totalCredit' => 0,
                                 'totalDebit' => 0,
@@ -3686,7 +3709,7 @@ class ReportController extends Controller
                                 $data = [
                                     'account_id' => $account['id'],
                                     'account_code' => $account['code'],
-                                    'account_name' => $account['name'],
+                                    'account_name' => $this->reportAccountName((int) ($account['id'] ?? 0), $account['name'] ?? null),
                                     'account' => 'subAccount',
                                     'totalCredit' => 0,
                                     'totalDebit' => 0,
@@ -3759,7 +3782,7 @@ class ReportController extends Controller
                     if ($Balance != 0) {
                         $data['account_id'] = $account['id'];
                         $data['account_code'] = $account['code'];
-                        $data['account_name'] = $account['name'];
+                        $data['account_name'] = $this->reportAccountName((int) ($account['id'] ?? 0), $account['name'] ?? null);
                         $data['account'] = '';
                         $data['totalCredit'] = 0;
                         $data['totalDebit'] = 0;
@@ -4539,7 +4562,7 @@ class ReportController extends Controller
                             $data = [
                                 'account_id' => $account['id'],
                                 'account_code' => $account['code'],
-                                'account_name' => $account['name'],
+                                'account_name' => $this->reportAccountName((int) ($account['id'] ?? 0), $account['name'] ?? null),
                                 'account' => 'parent',
                                 'totalCredit' => 0,
                                 'totalDebit' => 0,
@@ -4560,7 +4583,7 @@ class ReportController extends Controller
                                 $data = [
                                     'account_id' => $account['id'],
                                     'account_code' => $account['code'],
-                                    'account_name' => $account['name'],
+                                    'account_name' => $this->reportAccountName((int) ($account['id'] ?? 0), $account['name'] ?? null),
                                     'account' => 'subAccount',
                                     'totalCredit' => 0,
                                     'totalDebit' => 0,
@@ -4633,7 +4656,7 @@ class ReportController extends Controller
                     if ($Balance != 0) {
                         $data['account_id'] = $account['id'];
                         $data['account_code'] = $account['code'];
-                        $data['account_name'] = $account['name'];
+                        $data['account_name'] = $this->reportAccountName((int) ($account['id'] ?? 0), $account['name'] ?? null);
                         $data['account'] = '';
                         $data['totalCredit'] = 0;
                         $data['totalDebit'] = 0;
