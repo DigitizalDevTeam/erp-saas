@@ -417,6 +417,15 @@ class DreDemonstracaoResultadosService
             return $byCode;
         }
 
+        // The name fallback exists for legacy accounts without PCGAP codes.
+        // Never apply it to balance-sheet / result accounts (classes 1–5, 8):
+        // e.g. "Fornecedores" (suppliers, 42) contains "fornec…" and would
+        // otherwise be booked as a class 632 cost, distorting the statement.
+        $digits = preg_replace('/\D/', '', $code) ?? '';
+        if ($digits !== '' && ! in_array($digits[0], ['6', '7'], true)) {
+            return 'unmapped';
+        }
+
         $name = trim((string) ($namePt ?: $nameEn));
         if ($name === '') {
             return 'unmapped';

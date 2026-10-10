@@ -79,6 +79,10 @@ class ComparativeReportsConsistencyTest extends TestCase
             $row['created_by'] = 1;
             DB::table('transaction_lines')->insert($row);
         }
+
+        // Suppliers carries a Portuguese name that contains "fornec…" —
+        // it must never be classified as a class 632 cost by name fallback.
+        DB::table('chart_of_accounts')->where('id', 103)->update(['name_pt_br' => 'Fornecedores']);
     }
 
     private function closeYear(): void
@@ -101,6 +105,16 @@ class ComparativeReportsConsistencyTest extends TestCase
         $this->assertSame(1500.0, $after['B']['y1'], 'Revenue total (B) must survive year-end closing');
         $this->assertSame(500.0, $after['A']['y1'], 'Operating cost total (A) must survive year-end closing');
         $this->assertSame(1000.0, $after['net_result']['y1']);
+    }
+
+    public function test_balance_sheet_accounts_do_not_leak_into_dre_via_name_fallback(): void
+    {
+        // Suppliers (42, "Fornecedores") must not be classified as a 632 cost
+        // just because its Portuguese name contains "fornec…".
+        $report = DreDemonstracaoResultadosService::build(1, 2025, 2024);
+
+        $this->assertSame(100.0, $report['amounts']['c632']['y1']);
+        $this->assertSame(500.0, $report['A']['y1']);
     }
 
     public function test_dre_class_7_line_labels_describe_their_accounts(): void
