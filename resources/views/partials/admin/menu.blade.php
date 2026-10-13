@@ -24,10 +24,10 @@
         <a href="#" class="b-brand">
 
             @if ($setting['cust_darklayout'] && $setting['cust_darklayout'] == 'on')
-                <img src="{{ $logo . '/' . 'logo-light.png' . '?' . time() }}"
+                <img src="{{ $logo . '/' . (!empty($company_logos) ? $company_logos : 'logo-light.png') . '?' . time() }}"
                     alt="{{ config('app.name', 'ERP-SaaS') }}" class="logo logo-lg">
             @else
-                <img src="{{ $logo . '/' . 'logo-dark.png' . '?' . time() }}"
+                <img src="{{ $logo . '/' . (!empty($company_logo) ? $company_logo : 'logo-dark.png') . '?' . time() }}"
                     alt="{{ config('app.name', 'ERP-SaaS') }}" class="logo logo-lg">
             @endif
             <img src="{{ $logo . '/' . (!empty($company_favicon) ? $company_favicon : 'favicon.png') . '?' . time() }}"

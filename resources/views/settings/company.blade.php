@@ -481,104 +481,104 @@
                             <h5>{{ __('Brand Settings') }}</h5>
                             <small class="text-muted">{{ __('Edit your brand details') }}</small>
                         </div>
-                        <!--<div class="card-body p-3">-->
-                        <!--    <div class="row row-gap-1 mb-4">-->
-                        <!--        <div class="col-lg-4 col-sm-6 col-md-6">-->
-                        <!--            <div class="card mb-0">-->
-                        <!--                <div class="card-header p-3">-->
-                        <!--                    <h5>{{ __('Logo dark') }}</h5>-->
-                        <!--                </div>-->
-                        <!--                <div class="card-body p-3">-->
-                        <!--                    <div class="setting-card setting-logo-box">-->
-                        <!--                        <div class="logo-content">-->
-                        <!--                            <img id="image"-->
-                        <!--                                src="{{ $logo . '/' . (isset($logo_dark) && !empty($logo_dark) ? $logo_dark : 'logo-dark.png') . '?' . time() }}" width="100%" height="100%">-->
-                        <!--                        </div>-->
-                        <!--                        <div class="choose-files mt-3 text-center">-->
-                        <!--                            <label for="company_logo">-->
-                        <!--                                <div class=" bg-primary company_logo_update"> <i-->
-                        <!--                                        class="ti ti-upload px-1"></i>{{ __('Choose file here') }}-->
-                        <!--                                </div>-->
-                        <!--                                <input type="file" name="company_logo_dark" id="company_logo"-->
-                        <!--                                    class="form-control file" data-filename="company_logo_update">-->
-                        <!--                            </label>-->
-                        <!--                        </div>-->
-                        <!--                        @error('company_logo')-->
-                        <!--                            <div class="row">-->
-                        <!--                                <span class="invalid-logo" role="alert">-->
-                        <!--                                    <strong class="text-danger">{{ $message }}</strong>-->
-                        <!--                                </span>-->
-                        <!--                            </div>-->
-                        <!--                        @enderror-->
-                        <!--                    </div>-->
-                        <!--                </div>-->
-                        <!--            </div>-->
-                        <!--        </div>-->
-                        <!--        <div class="col-lg-4 col-sm-6 col-md-6">-->
-                        <!--            <div class="card mb-0">-->
-                        <!--                <div class="card-header p-3">-->
-                        <!--                    <h5>{{ __('Logo Light') }}</h5>-->
-                        <!--                </div>-->
-                        <!--                <div class="card-body p-3">-->
-                        <!--                    <div class=" setting-card setting-logo-box">-->
-                        <!--                        <div class="logo-content dark-logo">-->
-                        <!--                            <img id="image1"-->
-                        <!--                                src="{{ $logo . '/' . (isset($logo_light) && !empty($logo_light) ? $logo_light : 'logo-light.png') . '?' . time() }}" width="100%" height="100%">-->
-                        <!--                        </div>-->
-                        <!--                        <div class="choose-files mt-3 text-center">-->
-                        <!--                            <label for="company_logo_light">-->
-                        <!--                                <div class="bg-primary dark_logo_update"> <i-->
-                        <!--                                        class="ti ti-upload px-1"></i>{{ __('Choose file here') }}-->
-                        <!--                                </div>-->
-                        <!--                                <input type="file" class="form-control file"-->
-                        <!--                                    name="company_logo_light" id="company_logo_light"-->
-                        <!--                                    data-filename="dark_logo_update">-->
-                        <!--                            </label>-->
-                        <!--                        </div>-->
-                        <!--                        @error('company_logo_light')-->
-                        <!--                            <div class="row">-->
-                        <!--                                <span class="invalid-logo" role="alert">-->
-                        <!--                                    <strong class="text-danger">{{ $message }}</strong>-->
-                        <!--                                </span>-->
-                        <!--                            </div>-->
-                        <!--                        @enderror-->
-                        <!--                    </div>-->
-                        <!--                </div>-->
-                        <!--            </div>-->
-                        <!--        </div>-->
-                        <!--        <div class="col-lg-4 col-sm-6 col-md-6">-->
-                        <!--            <div class="card mb-0">-->
-                        <!--                <div class="card-header p-3">-->
-                        <!--                    <h5>{{ __('Favicon') }}</h5>-->
-                        <!--                </div>-->
-                        <!--                <div class="card-body p-3">-->
-                        <!--                    <div class=" setting-card setting-logo-box">-->
-                        <!--                        <div class="logo-content">-->
-                        <!--                            <img id="image2"-->
-                        <!--                                src="{{ $logo . '/' . (isset($company_favicon) && !empty($company_favicon) ? $company_favicon : 'favicon.png') . '?' . time() }}" width="100%" height="100%">-->
-                        <!--                        </div>-->
-                        <!--                        <div class="choose-files mt-3 text-center">-->
-                        <!--                            <label for="company_favicon">-->
-                        <!--                                <div class="bg-primary company_favicon_update"> <i-->
-                        <!--                                        class="ti ti-upload px-1"></i>{{ __('Choose file here') }}-->
-                        <!--                                </div>-->
-                        <!--                                <input type="file" class="form-control file"-->
-                        <!--                                    id="company_favicon" name="company_favicon"-->
-                        <!--                                    data-filename="company_favicon_update">-->
-                        <!--                            </label>-->
-                        <!--                        </div>-->
-                        <!--                        @error('logo')-->
-                        <!--                            <div class="row">-->
-                        <!--                                <span class="invalid-logo" role="alert">-->
-                        <!--                                    <strong class="text-danger">{{ $message }}</strong>-->
-                        <!--                                </span>-->
-                        <!--                            </div>-->
-                        <!--                        @enderror-->
-                        <!--                    </div>-->
-                        <!--                </div>-->
-                        <!--            </div>-->
-                        <!--        </div>-->
-                        <!--    </div>-->
+                        <div class="card-body p-3">
+                            <div class="row row-gap-1 mb-4">
+                                <div class="col-lg-4 col-sm-6 col-md-6">
+                                    <div class="card mb-0">
+                                        <div class="card-header p-3">
+                                            <h5>{{ __('Logo dark') }}</h5>
+                                        </div>
+                                        <div class="card-body p-3">
+                                            <div class="setting-card setting-logo-box">
+                                                <div class="logo-content">
+                                                    <img id="image"
+                                                        src="{{ $logo . '/' . (isset($logo_dark) && !empty($logo_dark) ? $logo_dark : 'logo-dark.png') . '?' . time() }}" width="100%" height="100%">
+                                                </div>
+                                                <div class="choose-files mt-3 text-center">
+                                                    <label for="company_logo">
+                                                        <div class=" bg-primary company_logo_update"> <i
+                                                                class="ti ti-upload px-1"></i>{{ __('Choose file here') }}
+                                                        </div>
+                                                        <input type="file" name="company_logo_dark" id="company_logo"
+                                                            class="form-control file" data-filename="company_logo_update">
+                                                    </label>
+                                                </div>
+                                                @error('company_logo')
+                                                    <div class="row">
+                                                        <span class="invalid-logo" role="alert">
+                                                            <strong class="text-danger">{{ $message }}</strong>
+                                                        </span>
+                                                    </div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-4 col-sm-6 col-md-6">
+                                    <div class="card mb-0">
+                                        <div class="card-header p-3">
+                                            <h5>{{ __('Logo Light') }}</h5>
+                                        </div>
+                                        <div class="card-body p-3">
+                                            <div class=" setting-card setting-logo-box">
+                                                <div class="logo-content dark-logo">
+                                                    <img id="image1"
+                                                        src="{{ $logo . '/' . (isset($logo_light) && !empty($logo_light) ? $logo_light : 'logo-light.png') . '?' . time() }}" width="100%" height="100%">
+                                                </div>
+                                                <div class="choose-files mt-3 text-center">
+                                                    <label for="company_logo_light">
+                                                        <div class="bg-primary dark_logo_update"> <i
+                                                                class="ti ti-upload px-1"></i>{{ __('Choose file here') }}
+                                                        </div>
+                                                        <input type="file" class="form-control file"
+                                                            name="company_logo_light" id="company_logo_light"
+                                                            data-filename="dark_logo_update">
+                                                    </label>
+                                                </div>
+                                                @error('company_logo_light')
+                                                    <div class="row">
+                                                        <span class="invalid-logo" role="alert">
+                                                            <strong class="text-danger">{{ $message }}</strong>
+                                                        </span>
+                                                    </div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-4 col-sm-6 col-md-6">
+                                    <div class="card mb-0">
+                                        <div class="card-header p-3">
+                                            <h5>{{ __('Favicon') }}</h5>
+                                        </div>
+                                        <div class="card-body p-3">
+                                            <div class=" setting-card setting-logo-box">
+                                                <div class="logo-content">
+                                                    <img id="image2"
+                                                        src="{{ $logo . '/' . (isset($company_favicon) && !empty($company_favicon) ? $company_favicon : 'favicon.png') . '?' . time() }}" width="100%" height="100%">
+                                                </div>
+                                                <div class="choose-files mt-3 text-center">
+                                                    <label for="company_favicon">
+                                                        <div class="bg-primary company_favicon_update"> <i
+                                                                class="ti ti-upload px-1"></i>{{ __('Choose file here') }}
+                                                        </div>
+                                                        <input type="file" class="form-control file"
+                                                            id="company_favicon" name="company_favicon"
+                                                            data-filename="company_favicon_update">
+                                                    </label>
+                                                </div>
+                                                @error('logo')
+                                                    <div class="row">
+                                                        <span class="invalid-logo" role="alert">
+                                                            <strong class="text-danger">{{ $message }}</strong>
+                                                        </span>
+                                                    </div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
                         <!--    <div class="row row-gap-1">-->
                         <!--        <div class="col-md-4 col-12">-->
