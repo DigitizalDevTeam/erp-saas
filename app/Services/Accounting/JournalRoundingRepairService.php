@@ -19,7 +19,28 @@ class JournalRoundingRepairService
     {
         $deduped = 0;
         $adjusted = 0;
+        $duplicateJournalsRemoved = 0;
         $warnings = [];
+
+        // Whole duplicate closing journals first: when the year-end closing
+        // ran twice (e.g. double-clicked), two journals share the same
+        // FY-*-CLOSE* reference, each with a single clean set of lines, so
+        // the per-line dedupe below cannot see them.
+        $companyIds = $companyId !== null
+            ? [$companyId]
+            : DB::table('journal_entries')
+                ->where('reference', 'like', 'FY-%-CLOSE%')
+                ->distinct()->pluck('created_by')->map(static fn ($id) => (int) $id)->all();
+
+        foreach ($companyIds as $cid) {
+            DB::transaction(function () use ($cid, &$duplicateJournalsRemoved, &$warnings) {
+                $result = $this->dedupeClosingJournals($cid);
+                $duplicateJournalsRemoved += $result['removed'];
+                foreach ($result['warnings'] as $warning) {
+                    $warnings[] = $warning;
+                }
+            });
+        }
 
         $journalQuery = TransactionLines::query()
             ->select('created_by', 'reference_id')
@@ -67,8 +88,87 @@ class JournalRoundingRepairService
         return [
             'deduped' => $deduped,
             'adjusted' => $adjusted,
+            'duplicateJournalsRemoved' => $duplicateJournalsRemoved,
             'warnings' => $warnings,
         ];
+    }
+
+    /**
+     * Remove whole duplicate year-end closing journals.
+     *
+     * The closing service posts one journal per reference (e.g.
+     * FY-2025-CLOSE-OP-EXP). If the run happened twice, two journals share
+     * the same (created_by, reference), each with a single clean set of
+     * ledger lines — invisible to the per-line dedupe. Only exact duplicates
+     * (identical journal items) are removed; anything else is reported for
+     * manual review and left untouched.
+     *
+     * @return array{removed: int, warnings: list<string>}
+     */
+    private function dedupeClosingJournals(int $createdBy): array
+    {
+        $removed = 0;
+        $warnings = [];
+
+        $duplicates = DB::table('journal_entries')
+            ->select('reference')
+            ->where('created_by', $createdBy)
+            ->where('reference', 'like', 'FY-%-CLOSE%')
+            ->groupBy('reference')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('reference');
+
+        foreach ($duplicates as $reference) {
+            $ids = DB::table('journal_entries')
+                ->where('created_by', $createdBy)
+                ->where('reference', $reference)
+                ->orderBy('id')
+                ->pluck('id')
+                ->map(static fn ($id) => (int) $id)
+                ->all();
+
+            $keepId = array_shift($ids);
+            $keepSignature = $this->closingJournalSignature($keepId);
+
+            foreach ($ids as $id) {
+                if ($this->closingJournalSignature($id) !== $keepSignature) {
+                    $warnings[] = "Company {$createdBy}, closing {$reference}: journal #{$id} differs from #{$keepId} — skipped (needs manual review).";
+                    continue;
+                }
+
+                DB::table('transaction_lines')
+                    ->where('reference', 'Journal')
+                    ->where('reference_id', $id)
+                    ->delete();
+                DB::table('journal_items')->where('journal', $id)->delete();
+                DB::table('journal_entries')->where('id', $id)->delete();
+                $removed++;
+            }
+        }
+
+        return ['removed' => $removed, 'warnings' => $warnings];
+    }
+
+    /**
+     * Identity of a closing journal: its items as account/debit/credit,
+     * order-independent.
+     */
+    private function closingJournalSignature(int $journalId): string
+    {
+        $items = DB::table('journal_items')
+            ->where('journal', $journalId)
+            ->orderBy('account')
+            ->orderBy('debit')
+            ->orderBy('credit')
+            ->get(['account', 'debit', 'credit'])
+            ->map(static fn ($row) => implode(':', [
+                (int) $row->account,
+                number_format(round((float) $row->debit, 2), 2, '.', ''),
+                number_format(round((float) $row->credit, 2), 2, '.', ''),
+            ]))
+            ->all();
+
+        return implode('|', $items);
     }
 
     /**
