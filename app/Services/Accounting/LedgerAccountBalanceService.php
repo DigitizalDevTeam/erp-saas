@@ -207,6 +207,10 @@ class LedgerAccountBalanceService
             ];
         }
 
+        // Fallback for journals that never got ledger lines: count their items.
+        // Anti-join via a non-correlated subquery (not a correlated NOT EXISTS):
+        // journals that already have transaction_lines must never have their
+        // items added on top, or every such journal counts twice in the report.
         $journalOnly = DB::table('journal_items as ji')
             ->join('journal_entries as je', 'ji.journal', '=', 'je.id')
             ->where('je.created_by', $creatorId)
@@ -219,11 +223,11 @@ class LedgerAccountBalanceService
                     $w->orWhereIn('je.id', $closingIdsForYear);
                 }
             })
-            ->whereNotExists(function ($q) {
-                $q->select(DB::raw(1))
-                    ->from('transaction_lines as tl')
-                    ->whereColumn('tl.reference_id', 'je.id')
-                    ->where('tl.reference', 'Journal');
+            ->whereNotIn('je.id', function ($q) {
+                $q->select('reference_id')
+                    ->from('transaction_lines')
+                    ->where('reference', 'Journal')
+                    ->whereNotNull('reference_id');
             });
 
         $this->applyJournalEntryPeriodFilter($journalOnly, $periodFrom, $periodTo, $fiscalYear);
