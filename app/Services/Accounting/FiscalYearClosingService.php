@@ -82,14 +82,10 @@ class FiscalYearClosingService
      */
     public function run(int $createdBy, int $fiscalYear, string $closingDate, int $accountingPeriod, bool $skipIfReferenceExists = true): array
     {
-        $messages = [];
-        $journalIds = [];
         $fromDate = sprintf('%04d-01-01', $fiscalYear);
         $toDate = $closingDate;
 
-        $cfg = config('fiscal_closing');
-        $classes = $cfg['classes'];
-        $codes = $cfg['accounts'];
+        $codes = config('fiscal_closing')['accounts'];
 
         $id81 = $this->resolver->resolveByCodeOrPrefix($createdBy, $codes['operating_results']);
         $id82 = $this->resolver->resolveByCodeOrPrefix($createdBy, $codes['financial_results']);
@@ -106,16 +102,36 @@ class FiscalYearClosingService
             ];
         }
 
+        // The closing posts inside a transaction with a locking existence
+        // check: two concurrent runs (double-click / retry) serialize here —
+        // the second one sees the first one's journals and refuses instead
+        // of posting a duplicate set.
+        return DB::transaction(function () use ($createdBy, $fiscalYear, $closingDate, $accountingPeriod, $skipIfReferenceExists, $fromDate, $toDate, $id81, $id82, $id83, $id85, $id88, $id44101) {
+            return $this->executeClosing($createdBy, $fiscalYear, $closingDate, $accountingPeriod, $skipIfReferenceExists, $fromDate, $toDate, $id81, $id82, $id83, $id85, $id88, $id44101);
+        });
+    }
+
+    /**
+     * Post all closing journals inside the run's transaction.
+     *
+     * @return array{success: bool, messages: array<int, string>, journals: array<int, int>}
+     */
+    private function executeClosing(int $createdBy, int $fiscalYear, string $closingDate, int $accountingPeriod, bool $skipIfReferenceExists, string $fromDate, string $toDate, ?int $id81, ?int $id82, ?int $id83, ?int $id85, ?int $id88, ?int $id44101): array
+    {
+        $messages = [];
+        $journalIds = [];
+
+        // Authoritative existence check. The locking read serializes
+        // concurrent runs on InnoDB: a second run blocks until the first
+        // commits, then sees its journals and refuses.
         if ($skipIfReferenceExists) {
-            $existingInWindow = JournalEntry::where('created_by', $createdBy)
+            $refs = JournalEntry::where('created_by', $createdBy)
                 ->where('reference', 'like', 'FY-%-CLOSE%')
                 ->whereBetween('date', [$fromDate, $toDate])
-                ->orderBy('id')
-                ->get(['id', 'reference']);
+                ->lockForUpdate()
+                ->pluck('reference')->unique()->values()->all();
 
-            if ($existingInWindow->isNotEmpty()) {
-                $refs = $existingInWindow->pluck('reference')->unique()->values()->all();
-
+            if ($refs !== []) {
                 return [
                     'success' => false,
                     'messages' => [__('Closing journals already exist in :y (:refs). Delete those journal entries first, or enable "allow duplicate" to replace them.', [
@@ -134,6 +150,9 @@ class FiscalYearClosingService
                 ]);
             }
         }
+
+        $cfg = config('fiscal_closing');
+        $classes = $cfg['classes'];
 
         $reserved = array_filter([$id81, $id82, $id83, $id85, $id88, $id44101]);
 
@@ -183,8 +202,8 @@ class FiscalYearClosingService
             }
         }
         $this->mergeSameAccountLines($linesOpExp);
-        if (count($linesOpExp) > 0) {
-            $j = $this->poster->post($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-OP-EXP', __('Fiscal year :y — close operating expenses', ['y' => $fiscalYear]), $linesOpExp, $accountingPeriod);
+        $j = $this->postClosingJournal($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-OP-EXP', __('Fiscal year :y — close operating expenses', ['y' => $fiscalYear]), $linesOpExp, $accountingPeriod, $messages);
+        if ($j) {
             $journalIds[] = (int) $j->id;
             $messages[] = __('Posted operating expense closing (journal #:num).', ['num' => $j->journal_id]);
         }
@@ -232,8 +251,8 @@ class FiscalYearClosingService
             }
         }
         $this->mergeSameAccountLines($linesOpInc);
-        if (count($linesOpInc) > 0) {
-            $j = $this->poster->post($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-OP-INC', __('Fiscal year :y — close operating income', ['y' => $fiscalYear]), $linesOpInc, $accountingPeriod);
+        $j = $this->postClosingJournal($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-OP-INC', __('Fiscal year :y — close operating income', ['y' => $fiscalYear]), $linesOpInc, $accountingPeriod, $messages);
+        if ($j) {
             $journalIds[] = (int) $j->id;
             $messages[] = __('Posted operating income closing (journal #:num).', ['num' => $j->journal_id]);
         }
@@ -282,8 +301,8 @@ class FiscalYearClosingService
             }
         }
         $this->mergeSameAccountLines($lines69);
-        if (count($lines69) > 0) {
-            $j = $this->poster->post($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-FIN-69', __('Fiscal year :y — close class 69', ['y' => $fiscalYear]), $lines69, $accountingPeriod);
+        $j = $this->postClosingJournal($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-FIN-69', __('Fiscal year :y — close class 69', ['y' => $fiscalYear]), $lines69, $accountingPeriod, $messages);
+        if ($j) {
             $journalIds[] = (int) $j->id;
             $messages[] = __('Posted financial expense closing (journal #:num).', ['num' => $j->journal_id]);
         }
@@ -331,8 +350,8 @@ class FiscalYearClosingService
             }
         }
         $this->mergeSameAccountLines($lines78);
-        if (count($lines78) > 0) {
-            $j = $this->poster->post($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-FIN-78', __('Fiscal year :y — close class 78', ['y' => $fiscalYear]), $lines78, $accountingPeriod);
+        $j = $this->postClosingJournal($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-FIN-78', __('Fiscal year :y — close class 78', ['y' => $fiscalYear]), $lines78, $accountingPeriod, $messages);
+        if ($j) {
             $journalIds[] = (int) $j->id;
             $messages[] = __('Posted financial income closing (journal #:num).', ['num' => $j->journal_id]);
         }
@@ -363,8 +382,8 @@ class FiscalYearClosingService
         }
 
         $this->mergeSameAccountLines($lines83);
-        if (count($lines83) > 0) {
-            $j = $this->poster->post($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-83', __('Fiscal year :y — transfer to account 83', ['y' => $fiscalYear]), $lines83, $accountingPeriod);
+        $j = $this->postClosingJournal($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-83', __('Fiscal year :y — transfer to account 83', ['y' => $fiscalYear]), $lines83, $accountingPeriod, $messages);
+        if ($j) {
             $journalIds[] = (int) $j->id;
             $messages[] = __('Posted transfer to current results (journal #:num).', ['num' => $j->journal_id]);
         }
@@ -384,7 +403,7 @@ class FiscalYearClosingService
                 return ['success' => false, 'messages' => $messages, 'journals' => $journalIds];
             }
             $loss = -$bal83;
-            $j = $this->poster->post(
+            $j = $this->postClosingJournal(
                 $createdBy,
                 $closingDate,
                 'FY-'.$fiscalYear.'-CLOSE-LOSS',
@@ -393,10 +412,13 @@ class FiscalYearClosingService
                     ['account' => $id88, 'debit' => $loss, 'credit' => 0, 'description' => __('Net loss for the year')],
                     ['account' => $id83, 'debit' => 0, 'credit' => $loss, 'description' => __('Net loss for the year')],
                 ],
-                $accountingPeriod
+                $accountingPeriod,
+                $messages
             );
-            $journalIds[] = (int) $j->id;
-            $messages[] = __('Posted net loss to account 88 (journal #:num).', ['num' => $j->journal_id]);
+            if ($j) {
+                $journalIds[] = (int) $j->id;
+                $messages[] = __('Posted net loss to account 88 (journal #:num).', ['num' => $j->journal_id]);
+            }
 
             return ['success' => true, 'messages' => $messages, 'journals' => $journalIds];
         }
@@ -417,12 +439,14 @@ class FiscalYearClosingService
             ['account' => $id85, 'debit' => $tax, 'credit' => 0, 'description' => __('Settlement to payable')],
             ['account' => $id44101, 'debit' => 0, 'credit' => $tax, 'description' => __('Income tax payable')],
         ];
-        $j = $this->poster->post($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-TAX', __('Fiscal year :y — income tax', ['y' => $fiscalYear]), $taxLines, $accountingPeriod);
-        $journalIds[] = (int) $j->id;
-        $messages[] = __('Posted IRPC and tax payable (journal #:num).', ['num' => $j->journal_id]);
+        $j = $this->postClosingJournal($createdBy, $closingDate, 'FY-'.$fiscalYear.'-CLOSE-TAX', __('Fiscal year :y — income tax', ['y' => $fiscalYear]), $taxLines, $accountingPeriod, $messages);
+        if ($j) {
+            $journalIds[] = (int) $j->id;
+            $messages[] = __('Posted IRPC and tax payable (journal #:num).', ['num' => $j->journal_id]);
+        }
 
         if (abs($net) >= 0.01) {
-            $j = $this->poster->post(
+            $j = $this->postClosingJournal(
                 $createdBy,
                 $closingDate,
                 'FY-'.$fiscalYear.'-CLOSE-TAX-NET',
@@ -431,13 +455,45 @@ class FiscalYearClosingService
                     ['account' => $id83, 'debit' => $net, 'credit' => 0, 'description' => __('Net profit after tax')],
                     ['account' => $id88, 'debit' => 0, 'credit' => $net, 'description' => __('Net profit after tax')],
                 ],
-                $accountingPeriod
+                $accountingPeriod,
+                $messages
             );
-            $journalIds[] = (int) $j->id;
-            $messages[] = __('Posted net profit to account 88 (journal #:num).', ['num' => $j->journal_id]);
+            if ($j) {
+                $journalIds[] = (int) $j->id;
+                $messages[] = __('Posted net profit to account 88 (journal #:num).', ['num' => $j->journal_id]);
+            }
         }
 
         return ['success' => true, 'messages' => $messages, 'journals' => $journalIds];
+    }
+
+
+    /**
+     * Post one closing journal, skipping when a journal with the same
+     * reference already exists (locked check). This is the last line of
+     * defence against a double-posted closing: even if two runs slip past
+     * the existence check together, only one of them posts each reference.
+     *
+     * @param  array<int, string>  $messages
+     */
+    private function postClosingJournal(int $createdBy, string $closingDate, string $reference, string $description, array $lines, int $accountingPeriod, array &$messages): ?JournalEntry
+    {
+        if (count($lines) === 0) {
+            return null;
+        }
+
+        $alreadyExists = JournalEntry::where('created_by', $createdBy)
+            ->where('reference', $reference)
+            ->lockForUpdate()
+            ->exists();
+
+        if ($alreadyExists) {
+            $messages[] = __('Skipped :reference — a closing journal with this reference already exists.', ['reference' => $reference]);
+
+            return null;
+        }
+
+        return $this->poster->post($createdBy, $closingDate, $reference, $description, $lines, $accountingPeriod);
     }
 
     /**

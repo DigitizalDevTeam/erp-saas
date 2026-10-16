@@ -24,6 +24,7 @@ class FixJournalRoundingImbalances extends Command
         $result = $service->repair($companyId);
 
         $this->info("Duplicate lines removed: {$result['deduped']}");
+        $this->info("Duplicate closing journals removed: {$result['duplicateJournalsRemoved']}");
         $this->info("Document groups adjusted: {$result['adjusted']}");
 
         foreach ($result['warnings'] as $warning) {
