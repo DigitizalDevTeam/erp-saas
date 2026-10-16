@@ -13,6 +13,7 @@ class DiagnoseClosingDuplicates extends Command
 {
     protected $signature = 'accounting:diagnose-closing
                             {--company= : Company id to inspect}
+                            {--company-name= : Company name to look up}
                             {--year= : Fiscal year to inspect}';
 
     protected $description = 'Show closing journals with item/line counts and duplicate-pair analysis (read-only)';
@@ -22,8 +23,17 @@ class DiagnoseClosingDuplicates extends Command
         $companyId = (int) ($this->option('company') ?? 0);
         $year = (int) ($this->option('year') ?? date('Y'));
 
+        if ($companyId <= 0 && $this->option('company-name')) {
+            $companyId = (int) DB::table('users')
+                ->where('name', 'like', '%'.$this->option('company-name').'%')
+                ->value('id');
+            if ($companyId > 0) {
+                $this->info('Resolved company id: '.$companyId);
+            }
+        }
+
         if ($companyId <= 0) {
-            $this->error('Pass --company=<id>.');
+            $this->error('Pass --company=<id> or --company-name=<name>.');
             return self::FAILURE;
         }
 
