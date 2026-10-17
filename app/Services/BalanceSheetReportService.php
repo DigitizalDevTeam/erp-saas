@@ -46,8 +46,10 @@ class BalanceSheetReportService
         ['section' => 'Equity', 'label' => 'Share premiums & reserves', 'code_label' => '52,55', 'prefixes' => ['52', '55']],
         ['section' => 'Equity', 'label' => 'Revaluation reserves', 'code_label' => '56', 'prefixes' => ['56']],
         ['section' => 'Equity', 'label' => 'Retained earnings / other equity', 'code_label' => '59', 'prefixes' => ['59']],
-        ['section' => 'Equity', 'label' => 'Net results', 'code_label' => '88', 'prefixes' => ['88']],
-        ['section' => 'Equity', 'label' => 'Current / interim results', 'code_label' => '81,82,83', 'prefixes' => ['81', '82', '83']],
+        // Face of the balanço reports period result under Net results (88). Closing
+        // accounts 81/82/83 hold the same result until transferred to 88 — map them
+        // here so interim balances are not shown on a separate line.
+        ['section' => 'Equity', 'label' => 'Net results', 'code_label' => '88', 'prefixes' => ['81', '82', '83', '88']],
     ];
 
     /** Lines kept on the face of the report even when the balance is zero. */

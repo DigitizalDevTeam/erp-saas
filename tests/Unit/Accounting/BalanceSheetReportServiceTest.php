@@ -40,6 +40,23 @@ class BalanceSheetReportServiceTest extends TestCase
         $this->assertSame(0.0, $snapshot['difference']);
     }
 
+    public function test_interim_result_accounts_report_under_net_results(): void
+    {
+        $snapshot = $this->snapshot([
+            ['code' => '11', 'type' => 'Assets', 'debit' => 73448.66, 'credit' => 0],
+            ['code' => '83', 'type' => 'Results', 'debit' => 0, 'credit' => 73448.66],
+        ]);
+
+        $this->assertEqualsWithDelta(73448.66, $this->lineFor($snapshot, 'Net results'), 0.001);
+        $this->assertSame(73448.66, $snapshot['totals']['Equity']);
+        $this->assertSame(0.0, $snapshot['difference']);
+
+        $rows = $this->rowsFrom($snapshot, $this->snapshot([]));
+        $this->assertNotNull($this->rowFor($rows, 'Net results'));
+        $this->assertNull($this->rowFor($rows, 'Current / interim results'));
+        $this->assertEqualsWithDelta(73448.66, $this->rowFor($rows, 'Net results')['current_year'], 0.001);
+    }
+
     public function test_overlapping_prefixes_are_not_double_counted(): void
     {
         $snapshot = $this->snapshot([
