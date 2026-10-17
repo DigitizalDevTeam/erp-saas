@@ -419,7 +419,7 @@
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">{{ __('Qty') }}</label>
-                        <input type="number" class="form-control" id="product_option_create_qty" value="1" min="0.0001" step="any">
+                        <input type="number" class="form-control" id="product_option_create_qty" value="1" min="0" step="any">
                     </div>
                     <div class="col-md-1">
                         <label class="form-label d-block">&nbsp;</label>
@@ -577,8 +577,9 @@
             const id = $('#product_option_create_select').val();
             const text = $('#product_option_create_select option:selected').text();
             const group = ($('#product_option_create_group').val() || '').trim();
-            const qtyRaw = parseFloat($('#product_option_create_qty').val());
-            const qty = (qtyRaw > 0) ? qtyRaw : 1;
+            const qtyField = $('#product_option_create_qty').val();
+            const qtyRaw = parseFloat(qtyField);
+            const qty = (qtyField === '' || qtyField === null) ? '' : (Number.isFinite(qtyRaw) && qtyRaw >= 0 ? qtyRaw : 0);
             const required = $('#product_option_create_required').is(':checked') ? '1' : '0';
             if (!id) return;
             const $tbody = $('#product_options_create_table tbody');
@@ -589,7 +590,7 @@
                 '<td><input type="text" class="form-control form-control-sm" name="product_options[' + optIdx + '][option_group]" value="' + $('<div>').text(group).html() + '" placeholder="{{ __("Group") }}"></td>' +
                 '<td><input type="hidden" name="product_options[' + optIdx + '][is_required]" value="0">' +
                 '<input type="checkbox" class="form-check-input" name="product_options[' + optIdx + '][is_required]" value="1"' + (required === '1' ? ' checked' : '') + '></td>' +
-                '<td><input type="number" class="form-control form-control-sm" name="product_options[' + optIdx + '][quantity]" value="' + qty + '" min="0.0001" step="any"></td>' +
+                '<td><input type="number" class="form-control form-control-sm" name="product_options[' + optIdx + '][quantity]" value="' + qty + '" min="0" step="any"></td>' +
                 '<td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger product-option-remove"><i class="ti ti-trash"></i></button></td></tr>');
             optIdx++;
             $('#product_option_create_group').val('');

@@ -161,7 +161,8 @@ class ProductOptionService
                 'option_group' => $item->option_group ? (string) $item->option_group : null,
                 'is_required' => (bool) ($item->is_required ?? false),
                 // Qty set at product setup; the picker pre-fills it (cashier can change).
-                'quantity' => (($setupQty = (float) ($item->quantity ?? 1)) > 0) ? $setupQty : 1,
+                // 0 / empty are allowed on the product form and stored as 0.
+                'quantity' => self::normalizeSetupQuantity($item->quantity ?? 0),
                 'stock_qty' => $stock['stock_qty'],
                 'unit' => $stock['unit'],
                 // Option products are products too: show their stock behaviour in the picker.
@@ -673,7 +674,7 @@ class ProductOptionService
                     'created_by' => $creatorId,
                     'option_group' => ($group = trim((string) ($row['option_group'] ?? ''))) !== '' ? $group : null,
                     'is_required' => filter_var($row['is_required'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                    'quantity' => (($qty = (float) ($row['quantity'] ?? 1)) > 0) ? $qty : 1,
+                    'quantity' => self::normalizeSetupQuantity($row['quantity'] ?? null),
                 ]
             );
             $sort++;
@@ -686,5 +687,24 @@ class ProductOptionService
                 ->whereNotIn('option_product_id', $seen)
                 ->delete();
         }
+    }
+
+    /**
+     * Product-setup option qty: empty / blank / null → 0; negatives clamped to 0.
+     * Allows the options form to submit with 0 or an empty QTY field.
+     */
+    public static function normalizeSetupQuantity(mixed $raw): float
+    {
+        if ($raw === null || $raw === '') {
+            return 0.0;
+        }
+
+        if (is_string($raw) && trim($raw) === '') {
+            return 0.0;
+        }
+
+        $qty = (float) $raw;
+
+        return $qty < 0 ? 0.0 : $qty;
     }
 }
