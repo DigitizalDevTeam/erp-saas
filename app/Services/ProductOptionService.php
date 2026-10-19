@@ -462,13 +462,17 @@ class ProductOptionService
         int $warehouseId,
         int $creatorId,
         string $stockType,
-        string $descriptionPrefix,
+        string $saleNumber,
         int $typeId
     ): void {
         // Option qty is independent of parent line qty; $lineQuantity kept for call-site compatibility.
         if ($selected === []) {
             return;
         }
+
+        // The ledger description carries the ACTUAL deducted option qty per row
+        // (not the parent line qty), so the stock movement report reads truthfully.
+        $soldIn = $stockType === 'invoice' ? __('quantity sold in invoice') : __('quantity sold in pos');
 
         foreach ($selected as $row) {
             $optId = (int) $row['product_id'];
@@ -486,7 +490,7 @@ class ProductOptionService
             }
 
             if (($opt->type ?? null) === 'kit') {
-                PosKitDeductionService::deductForSale($optId, $deductQty, $warehouseId, $creatorId, $descriptionPrefix, $typeId);
+                PosKitDeductionService::deductForSale($optId, $deductQty, $warehouseId, $creatorId, $saleNumber, $typeId);
 
                 continue;
             }
@@ -497,7 +501,7 @@ class ProductOptionService
             if ($warehouseId > 0) {
                 Utility::warehouse_quantity('minus', $deductQty, $optId, $warehouseId);
             }
-            Utility::addProductStock($optId, $deductQty, $stockType, $descriptionPrefix, $typeId);
+            Utility::addProductStock($optId, $deductQty, $stockType, $deductQty . ' ' . $soldIn . ' ' . $saleNumber, $typeId);
         }
     }
 
@@ -611,8 +615,7 @@ class ProductOptionService
         }
 
         $qty = (float) ($lineValue['quantity'] ?? 0);
-        $description = $qty . ' ' . __('quantity sold in pos') . ' ' . $posNoFormatted;
-        self::deductOptionsForSale($selected, $qty, $warehouseId, $creatorId, 'pos', $description, $posId);
+        self::deductOptionsForSale($selected, $qty, $warehouseId, $creatorId, 'pos', $posNoFormatted, $posId);
 
         return true;
     }

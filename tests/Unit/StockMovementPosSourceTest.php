@@ -152,4 +152,17 @@ class StockMovementPosSourceTest extends TestCase
 
         $this->assertCount(0, $this->rows());
     }
+
+    public function test_pos_search_by_sku_finds_row(): void
+    {
+        \DB::table('stock_reports')->insert([
+            'product_id' => 10, 'quantity' => 40, 'type' => 'pos', 'type_id' => 7,
+            'description' => '40 quantity sold in pos POS-7', 'created_by' => 1,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $this->assertCount(1, $this->rows(['search' => 'OPT-40']));
+        $this->assertCount(1, $this->rows(['search' => 'opt-40']));
+        $this->assertCount(0, $this->rows(['search' => 'NOPE']));
+    }
 }

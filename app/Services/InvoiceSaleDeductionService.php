@@ -70,14 +70,13 @@ class InvoiceSaleDeductionService
 
         $selectedOptions = ProductOptionService::normalizeSelectedOptions($selectedOptionsJson);
         if (($product->options_enabled ?? false) && $selectedOptions !== []) {
-            $description = $quantity . ' ' . __('quantity sold in invoice') . ' ' . $invoiceNoFormatted;
             ProductOptionService::deductOptionsForSale(
                 $selectedOptions,
                 $quantity,
                 0,
                 $creatorId,
                 'invoice',
-                $description,
+                $invoiceNoFormatted,
                 $invoiceId
             );
 

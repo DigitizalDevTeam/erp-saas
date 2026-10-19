@@ -4518,10 +4518,10 @@ namespace App\Models;
                 $q->whereNull('product_variant_id');
             }
             $product = $q->first();
+            // Never silently skip a 'minus': if the warehouse row is missing,
+            // create it (as 'plus' does) so the deduction is recorded instead
+            // of diverging the warehouse figure from the global stock.
             if (!$product) {
-                if ($type === 'minus') {
-                    return;
-                }
                 $product = new WarehouseProduct();
                 $product->warehouse_id = $warehouse_id;
                 $product->product_id = $product_id;
