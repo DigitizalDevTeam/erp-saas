@@ -53,7 +53,7 @@
                     <a href="{{ route('reports.product.stock-movement.export', request()->query()) }}" class="btn btn-primary">
                         <i class="ti ti-file-export"></i> {{ __('Export CSV') }}
                     </a>
-                    <a href="{{ route('reports.product.stock-movement', array_merge(request()->query(), ['print' => 1])) }}" target="_blank" class="btn btn-primary">
+                    <a href="{{ route('reports.product.stock-movement', array_merge(request()->query(), ['print' => 1])) }}" target="_blank" class="btn btn-danger">
                         <i class="ti ti-printer text-white"></i> {{ __('Print') }}
                     </a>
                 </div>
