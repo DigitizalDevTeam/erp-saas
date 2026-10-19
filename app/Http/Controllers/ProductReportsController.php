@@ -1010,6 +1010,7 @@ class ProductReportsController extends Controller
             fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
             fputcsv($file, [
                 __('#'),
+                __('Date'),
                 __('ID'),
                 __('SKU'),
                 __('Description'),
@@ -1024,6 +1025,7 @@ class ProductReportsController extends Controller
             foreach ($rows as $i => $r) {
                 fputcsv($file, [
                     $i + 1,
+                    $r->sort_date ? date('Y-m-d H:i', strtotime($r->sort_date)) : '',
                     $r->product_id,
                     $r->sku ?: '',
                     $r->description,
@@ -1298,6 +1300,63 @@ class ProductReportsController extends Controller
                     'to_warehouse' => $to,
                     'to_warehouse_stock' => null,
                     'reason' => $ledgerDesc !== '' ? $ledgerDesc : '—',
+                    'sort_date' => $item->created_at,
+                ]);
+            }
+        }
+
+        if ($source === '' || $source === 'pos') {
+            $posQ = DB::table('stock_reports as sr')
+                ->join('product_services as p', 'p.id', '=', 'sr.product_id')
+                ->where('sr.created_by', $creatorId)
+                ->where('p.created_by', $creatorId)
+                ->where('sr.type', 'pos')
+                ->whereDate('sr.created_at', '>=', $dateFrom)
+                ->whereDate('sr.created_at', '<=', $dateTo)
+                ->select([
+                    'sr.id as ref_id',
+                    'sr.product_id',
+                    'p.sku',
+                    'p.name',
+                    'p.description as product_description',
+                    'sr.quantity',
+                    'sr.created_at',
+                    'sr.description as ledger_description',
+                    'p.quantity as current_stock',
+                ]);
+
+            if ($search !== '') {
+                $s = '%' . $search . '%';
+                $posQ->where(function ($qq) use ($s) {
+                    $qq->where('p.name', 'like', $s)
+                        ->orWhere('p.sku', 'like', $s)
+                        ->orWhere('p.description', 'like', $s)
+                        ->orWhere('p.id', 'like', $s)
+                        ->orWhere('sr.description', 'like', $s);
+                });
+            }
+
+            foreach ($posQ->get() as $item) {
+                $desc = trim((string) ($item->name ?? ''));
+                $extra = trim((string) ($item->product_description ?? ''));
+                if ($extra !== '') {
+                    $desc = $desc !== '' ? ($desc . ' — ' . $extra) : $extra;
+                }
+
+                $rows->push((object) [
+                    'detail_kind' => null,
+                    'detail_id' => null,
+                    'transaction_kind' => 'pos',
+                    'product_id' => (int) $item->product_id,
+                    'sku' => $item->sku,
+                    'description' => $desc,
+                    // Sales move stock out: negative movement shows the actual
+                    // deducted quantity (e.g. option qty 40 -> -40).
+                    'movement' => -round((float) $item->quantity, 2),
+                    'from_warehouse' => '—',
+                    'to_warehouse' => '—',
+                    'to_warehouse_stock' => $item->current_stock !== null ? round((float) $item->current_stock, 2) : null,
+                    'reason' => trim((string) ($item->ledger_description ?? '')) !== '' ? $item->ledger_description : __('POS sale'),
                     'sort_date' => $item->created_at,
                 ]);
             }

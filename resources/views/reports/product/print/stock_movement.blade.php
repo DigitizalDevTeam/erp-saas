@@ -5,6 +5,7 @@
         <thead>
             <tr>
                 <th>{{ __('#') }}</th>
+                <th>{{ __('Date') }}</th>
                 <th>{{ __('ID') }}</th>
                 <th>{{ __('SKU') }}</th>
                 <th>{{ __('Description') }}</th>
@@ -19,6 +20,7 @@
             @forelse($rows as $i => $r)
                 <tr>
                     <td>{{ $i + 1 }}</td>
+                    <td>{{ $r->sort_date ? date('Y-m-d H:i', strtotime($r->sort_date)) : '—' }}</td>
                     <td>{{ $r->product_id }}</td>
                     <td>{{ $r->sku ?: '—' }}</td>
                     <td>{{ $r->description ?: '—' }}</td>
@@ -35,7 +37,7 @@
                     <td>{{ $r->reason }}</td>
                 </tr>
             @empty
-                <tr><td colspan="9" class="empty">{{ __('No stock movements found for the selected period.') }}</td></tr>
+                <tr><td colspan="10" class="empty">{{ __('No stock movements found for the selected period.') }}</td></tr>
             @endforelse
         </tbody>
     </table>

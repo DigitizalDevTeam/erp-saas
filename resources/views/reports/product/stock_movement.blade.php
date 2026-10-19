@@ -27,6 +27,7 @@
                         <option value="transfer" {{ request('source') === 'transfer' ? 'selected' : '' }}>{{ __('Warehouse transfer') }}</option>
                         <option value="loss" {{ request('source') === 'loss' ? 'selected' : '' }}>{{ __('Loss / write-off') }}</option>
                         <option value="delete" {{ request('source') === 'delete' ? 'selected' : '' }}>{{ __('Delete') }}</option>
+                        <option value="pos" {{ request('source') === 'pos' ? 'selected' : '' }}>{{ __('POS sale') }}</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -67,13 +68,14 @@
         <div class="card">
             <div class="card-body table-border-style">
                 <p class="text-muted mb-3 no-print">
-                    {{ __('Warehouse transfers, losses, and deleted transfers with from/to warehouses and reasons.') }}
+                    {{ __('Warehouse transfers, losses, deleted transfers, and POS sales with from/to warehouses and reasons.') }}
                 </p>
                 <div class="table-responsive">
                     <table class="table table-striped align-middle table-sm">
                         <thead>
                             <tr>
                                 <th>{{ __('#') }}</th>
+                                <th>{{ __('Date') }}</th>
                                 <th>{{ __('ID') }}</th>
                                 <th>{{ __('SKU') }}</th>
                                 <th>{{ __('Description') }}</th>
@@ -89,6 +91,7 @@
                             @forelse($rows as $i => $r)
                                 <tr>
                                     <td>{{ $i + 1 }}</td>
+                                    <td class="text-nowrap">{{ $r->sort_date ? date('Y-m-d H:i', strtotime($r->sort_date)) : '—' }}</td>
                                     <td>{{ $r->product_id }}</td>
                                     <td>{{ $r->sku ?: '—' }}</td>
                                     <td>{{ $r->description ?: '—' }}</td>
@@ -118,7 +121,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center text-muted">{{ __('No stock movements found for the selected period.') }}</td>
+                                    <td colspan="11" class="text-center text-muted">{{ __('No stock movements found for the selected period.') }}</td>
                                 </tr>
                             @endforelse
                         </tbody>
