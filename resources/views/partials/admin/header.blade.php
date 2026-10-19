@@ -114,8 +114,8 @@
 
                 @if(\Auth::check() && \Auth::user()->canManagePrinters())
                     <li class="dash-h-item">
-                        <a href="javascript:void(0)" class="dash-head-link" id="global-printer-settings-btn" title="{{ __('Printer Settings') }}">
-                            <i class="ti ti-printer"></i>
+                        <a href="javascript:void(0)" class="dash-head-link" id="global-printer-settings-btn" title="{{ __('Printer Settings') }}" style="background-color:#dc3545;">
+                            <i class="ti ti-printer" style="color:#fff;"></i>
                         </a>
                     </li>
                 @endif
