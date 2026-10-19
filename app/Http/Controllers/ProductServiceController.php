@@ -1630,7 +1630,7 @@ class ProductServiceController extends Controller
                                 'option_group' => $oi->option_group ? (string) $oi->option_group : null,
                                 'is_required' => (bool) ($oi->is_required ?? false),
                                 // Qty set at product setup; the picker pre-fills it (matches productJsonExtras).
-                                'quantity' => (($setupQty = (float) ($oi->quantity ?? 1)) > 0) ? $setupQty : 1,
+                                'quantity' => ProductOptionService::normalizeSetupQuantity($oi->quantity ?? 0),
                                 'stock_qty' => $stock['stock_qty'],
                                 'unit' => $stock['unit'],
                             ];
