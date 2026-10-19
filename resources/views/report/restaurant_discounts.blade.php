@@ -13,9 +13,9 @@
         <div class="col-auto"><label class="form-label">End date</label><input type="date" name="end_date" class="form-control" value="{{ $end }}"></div>
         <div class="col-auto d-flex align-items-end"><button type="submit" class="btn btn-primary">Apply</button></div>
     </form>
-    <table class="table table-sm"><thead><tr><th>POS #</th><th>Date</th><th class="text-end">Line discount</th><th class="text-end">Payment discount</th></tr></thead>
+    <table class="table table-sm"><thead><tr><th>POS #</th><th>Date</th><th class="text-end">Discount</th></tr></thead>
     <tbody>
-        @forelse($rows as $pos)@php $lineDisc = $pos->items->sum('discount'); $payDisc = $pos->posPayments->sum('discount_amount'); @endphp<tr><td>{{ $pos->pos_id ?? $pos->id }}</td><td>{{ $pos->pos_date }}</td><td class="text-end">{{ Auth::user()->priceFormat($lineDisc) }}</td><td class="text-end">{{ Auth::user()->priceFormat($payDisc) }}</td></tr>@empty<tr><td colspan="4" class="text-center text-muted">No discounts.</td></tr>@endforelse
+        @forelse($rows as $pos)@php $disc = $pos->posPayments->sum('discount'); @endphp<tr><td>{{ $pos->pos_id ?? $pos->id }}</td><td>{{ $pos->pos_date }}</td><td class="text-end">{{ Auth::user()->priceFormat($disc) }}</td></tr>@empty<tr><td colspan="3" class="text-center text-muted">No discounts.</td></tr>@endforelse
     </tbody></table>
 </div></div></div></div>
 @endsection

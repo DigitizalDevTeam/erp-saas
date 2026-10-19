@@ -3471,14 +3471,16 @@ class ReportController extends Controller
         $start = $request->get('start_date', date('Y-m-d', strtotime('-30 days')));
         $end = $request->get('end_date', date('Y-m-d'));
         $poses = Pos::where('created_by', $creatorId)->whereBetween('pos_date', [$start, $end])->pluck('id');
-        $lineDiscount = (float) PosProduct::whereIn('pos_id', $poses)->sum('discount');
-        $paymentDiscount = (float) PosPayment::whereIn('pos_id', $poses)->sum('discount_amount');
-        $totalDiscount = $lineDiscount + $paymentDiscount;
+        // The order discount is stored once per order on the first/single payment
+        // (pos_payments.discount). The per-line column repeats the full order
+        // discount on every line and discount_amount holds payment amounts, so
+        // neither is a summable discount figure.
+        $totalDiscount = (float) PosPayment::whereIn('pos_id', $poses)->sum('discount');
         $rows = Pos::where('created_by', $creatorId)
             ->whereBetween('pos_date', [$start, $end])
             ->with(['posPayments', 'items'])
             ->get()
-            ->filter(fn($p) => $p->getTotalDiscount() > 0 || ($p->posPayments->sum('discount_amount') > 0));
+            ->filter(fn($p) => $p->posPayments->sum('discount') > 0);
         return view('report.restaurant_discounts', compact('rows', 'totalDiscount', 'start', 'end'));
     }
 

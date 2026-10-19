@@ -570,6 +570,51 @@ class PosController extends Controller
     }
 
     /**
+     * Phase 4: Discount above X% requires manager password. Returns a 403 JSON
+     * response when approval is missing, null when the discount may proceed.
+     * Must be called BEFORE any stock deduction or payment is recorded.
+     */
+    protected function discountManagerApprovalResponse(float $discountAmount, float $subtotal, Request $request): ?\Illuminate\Http\JsonResponse
+    {
+        if ($discountAmount <= 0 || $subtotal <= 0) {
+            return null;
+        }
+        $discountPercent = ($discountAmount / $subtotal) * 100;
+        $maxPercent = (float) (Utility::getValByName('pos_max_discount_percent') ?: 10);
+        if ($discountPercent > $maxPercent && ! PosAuditLogService::requireManagerPassword($request)) {
+            return response()->json(['code' => 403, 'error' => __('Manager password required for discount above :max%.', ['max' => $maxPercent])], 403);
+        }
+        if ($discountPercent > $maxPercent) {
+            PosAuditLogService::log(PosAuditLog::ACTION_DISCOUNT, null, null, __('Discount applied with manager approval'), ['percent' => round($discountPercent, 2), 'amount' => $discountAmount]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Subtotal used for the manager-approval discount check, from cart rows.
+     * Mirrors the totals used when the sale is actually charged.
+     *
+     * @param  array<string, mixed>|null  $rows
+     */
+    protected function posDiscountCheckSubtotal($rows): float
+    {
+        $subtotal = 0.0;
+        foreach ((array) $rows as $v) {
+            if (! is_array($v)) {
+                continue;
+            }
+            if (isset($v['subtotal'])) {
+                $subtotal += (float) $v['subtotal'];
+            } else {
+                $subtotal += (float) ($v['price'] ?? 0) * (float) ($v['quantity'] ?? 0);
+            }
+        }
+
+        return $subtotal;
+    }
+
+    /**
      * Default warehouse for the PIN user, or the logged-in user when no PIN is active.
      */
     protected function posActorDefaultWarehouseId(): ?int
@@ -1771,7 +1816,7 @@ class PosController extends Controller
      */
     protected function processOneSale(Request $request)
     {
-        $discount = $request->discount ?? 0;
+        $discount = max(0, (float) ($request->discount ?? 0));
         $user_id = Auth::user()->creatorId();
         $sales = $request->input('cart') ?: session()->get('pos');
 
@@ -2145,7 +2190,8 @@ class PosController extends Controller
      */
     public function store(Request $request)
     {
-        $discount = $request->discount;
+        // Discount is a fixed amount; never allow a negative value to inflate the total.
+        $discount = max(0, (float) $request->discount);
 
         if (Auth::user()->canManagePos()) {
 
@@ -2310,6 +2356,10 @@ class PosController extends Controller
                     $pos->payment_method = $request->payment_method ?? $pos->payment_method;
                     $this->assignPosSerialForDocumentType($pos, $documentType);
                     $pos->save();
+                    // Manager approval for large discounts: before any deduction or payment.
+                    if ($approval = $this->discountManagerApprovalResponse((float) $discount, $this->posDiscountCheckSubtotal($sales ?? []), $request)) {
+                        return $approval;
+                    }
                     $internalConsumptionTotal = null;
                     if (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
                         $internalConsumptionTotal = $this->applyInternalConsumptionCostToPosItems($pos, $user_id);
@@ -2546,6 +2596,11 @@ class PosController extends Controller
                 $branch_id = ($warehouse && $warehouse->branch_id) ? $warehouse->branch_id : Branch::where('created_by', $user_id)->value('id');
 
                 $shiftId = $this->resolvePosShiftId($request, $branch_id ? (int) $branch_id : null, $existingPos ?? null);
+
+                // Manager approval for large discounts: before the order or any deduction is created.
+                if ($approval = $this->discountManagerApprovalResponse((float) $discount, $this->posDiscountCheckSubtotal($sales ?? []), $request)) {
+                    return $approval;
+                }
 
                 $pos = new Pos();
                     $pos->pos_id = $pos_id;
@@ -5317,7 +5372,9 @@ class PosController extends Controller
         $details['user']['details'] = '<h6 class="text-dark"><b>' . ucfirst($user->name) . '</b></h6>';
         $sales = ['data' => [], 'discount' => '0', 'sub_total' => '0', 'total' => '0', 'tip' => '0'];
         $mainsubtotal = 0;
-        $discount = 0;
+        // The customer-facing QR receipt must reflect the discount like the
+        // printed receipt does (sum of pos_payments.discount).
+        $discount = $posPayments->isEmpty() ? 0 : (float) $posPayments->sum('discount');
         $totalTip = (float) $posPayments->sum('tip');
         foreach ($pos->items as $item) {
             if (! $this->isActivePosBillLine($item)) {

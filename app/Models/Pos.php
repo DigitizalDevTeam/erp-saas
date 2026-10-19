@@ -221,14 +221,10 @@ class Pos extends Model
     public function getTotalDiscount()
     {
 
-        $totalDiscount = 0;
-        foreach($this->items as $product)
-        {
-
-            $totalDiscount += $product->discount;
-        }
-
-        return $totalDiscount;
+        // The order discount is stored once per order on the first/single
+        // payment (pos_payments.discount). Summing the per-line column would
+        // multiply it by the line count.
+        return (float) $this->posPayments->sum('discount');
     }
 
 
