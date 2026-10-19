@@ -9,6 +9,7 @@ use App\Models\Plan;
 use App\Models\Pos;
 use App\Models\PosPayment;
 use App\Models\PosProduct;
+use App\Models\ProductRecipe;
 use App\Models\ProductService;
 use App\Models\ProductVariant;
 use App\Models\Quotation;
@@ -545,6 +546,27 @@ class PosController extends Controller
         }
 
         return $raw > 0 ? $raw : $fallback;
+    }
+
+    /**
+     * After the selected option SKUs were deducted for a POS line, also deduct the
+     * parent product's own BOM (recipe ingredients, or kit components). Without
+     * this, a product with both options and a recipe (e.g. coffee + 2 kg coffee
+     * powder) would never move its ingredient stock.
+     *
+     * @param  \App\Models\ProductService  $product
+     */
+    protected function deductParentBomAfterOptions($product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, ?string $identifiersNote = null, ?int $variantId = null): void
+    {
+        if (($product->type ?? null) === 'kit') {
+            PosKitDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId);
+
+            return;
+        }
+
+        if (ProductRecipe::where('product_id', (int) $product->id)->where('created_by', $creatorId)->exists()) {
+            PosRecipeDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId);
+        }
     }
 
     /**
@@ -2367,7 +2389,9 @@ class PosController extends Controller
                             'selected_options' => $lineSelectedOpts,
                             'selected_options_json' => $line->selected_options_json,
                         ], $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
-                            // options only
+                            // Options deducted; the parent's own BOM (recipe ingredients / kit
+                            // components) is still consumed per unit sold — deduct it as well.
+                            $this->deductParentBomAfterOptions($lineProduct, (float) $line->quantity, $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id, $lineIdNote, $lineVariantId);
                         } elseif (($lineProduct->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
                                 (int) $line->product_id,
@@ -2582,7 +2606,9 @@ class PosController extends Controller
                         $idNote2 = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
                         $deductByVariant2 = ($product->variants_enabled ?? false) && $product_variant_id;
                         if (ProductOptionService::tryDeductPosLine($product, $value, $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
-                            // options only
+                            // Options deducted; the parent's own BOM (recipe ingredients / kit
+                            // components) is still consumed per unit sold — deduct it as well.
+                            $this->deductParentBomAfterOptions($product, (float) $value['quantity'], $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id, $idNote2, $product_variant_id);
                         } elseif (($product->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
                                 (int) $product_id,

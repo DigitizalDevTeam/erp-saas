@@ -50,7 +50,7 @@ class ProductServiceController extends Controller
     private const POS_PRODUCT_CARD_COL_CLASS = 'col-xl-3 col-lg-3 col-md-3 col-sm-4 col-6';
 
     /** Bump when POS product card HTML shape changes (invalidates Laravel + client caches). */
-    private const POS_PRODUCT_HTML_CACHE_VER = 'pv14';
+    private const POS_PRODUCT_HTML_CACHE_VER = 'pv15';
 
     /** Type tag shown on POS product grid cards (type is chosen on product create). */
     public static function posProductTypeTagHtml(?string $type): string
@@ -1629,6 +1629,8 @@ class ProductServiceController extends Controller
                                 'purchase_price' => (float) ($op->purchase_price ?? 0),
                                 'option_group' => $oi->option_group ? (string) $oi->option_group : null,
                                 'is_required' => (bool) ($oi->is_required ?? false),
+                                // Qty set at product setup; the picker pre-fills it (matches productJsonExtras).
+                                'quantity' => (($setupQty = (float) ($oi->quantity ?? 1)) > 0) ? $setupQty : 1,
                                 'stock_qty' => $stock['stock_qty'],
                                 'unit' => $stock['unit'],
                             ];
@@ -2631,10 +2633,16 @@ class ProductServiceController extends Controller
                 continue;
             }
 
-            $exists = ProductRecipe::where('product_id', $productService->id)
+            $existing = ProductRecipe::where('product_id', $productService->id)
                 ->where('ingredient_product_id', $ingredientId)
-                ->exists();
-            if ($exists) {
+                ->first();
+            if ($existing) {
+                // Quantity edits must stick: update the row instead of silently ignoring them.
+                $existing->update([
+                    'quantity' => $qty,
+                    'unit_id' => ! empty($row['unit_id']) ? (int) $row['unit_id'] : null,
+                ]);
+
                 continue;
             }
 
