@@ -22,6 +22,8 @@ use App\Services\DocumentLayoutRenderer;
 use App\Services\PosAuditLogService;
 use App\Services\InvoiceSaleDeductionService;
 use App\Services\PosKitDeductionService;
+use App\Services\PosLineStockDeductionService;
+use App\Services\PosLineStockRestoreService;
 use App\Services\ProductOptionService;
 use App\Services\PosFefoDeductionService;
 use App\Services\PosRecipeDeductionService;
@@ -2433,57 +2435,17 @@ class PosController extends Controller
                                 ], 400);
                             }
                         }
-                        $lineWarehouseId = $this->posSaleLineWarehouseId($line, (int) $pos->warehouse_id);
-                        if (ProductOptionService::tryDeductPosLine($lineProduct, [
-                            'quantity' => $line->quantity,
-                            'selected_options' => $lineSelectedOpts,
-                            'selected_options_json' => $line->selected_options_json,
-                        ], $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
-                            // Options deducted; the parent's own BOM (recipe ingredients / kit
-                            // components) is still consumed per unit sold — deduct it as well.
-                            $this->deductParentBomAfterOptions($lineProduct, (float) $line->quantity, $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id, $lineIdNote, $lineVariantId);
-                        } elseif (($lineProduct->type ?? null) === 'kit') {
-                            PosKitDeductionService::deductForSale(
-                                (int) $line->product_id,
-                                (float) $line->quantity,
-                                $lineWarehouseId,
-                                $user_id,
-                                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
-                                (int) $pos->id
-                            );
-                        } elseif ($deductLineByVariant) {
-                            PosRecipeDeductionService::deductForSale(
-                                (int) $line->product_id,
-                                (float) $line->quantity,
-                                $lineWarehouseId,
-                                $user_id,
-                                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
-                                (int) $pos->id,
-                                $lineIdNote,
-                                $lineVariantId
-                            );
-                        } elseif (($lineProduct->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $line->product_id, $lineWarehouseId, (int) $user_id)) {
-                            PosFefoDeductionService::deductForSale(
-                                (int) $line->product_id,
-                                (float) $line->quantity,
-                                $lineWarehouseId,
-                                $user_id,
-                                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
-                                (int) $pos->id,
-                                $lineIdNote
-                            );
-                        } else {
-                            PosRecipeDeductionService::deductForSale(
-                                (int) $line->product_id,
-                                (float) $line->quantity,
-                                $lineWarehouseId,
-                                $user_id,
-                                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
-                                (int) $pos->id,
-                                $lineIdNote,
-                                $lineVariantId
-                            );
-                        }
+                        // Stock for restaurant lines is deducted when the line is
+                        // sent to production; deductLine() no-ops for lines that
+                        // already carry stock_deducted_at, so payment never
+                        // deducts twice. Unflagged lines (created before that
+                        // behaviour) are deducted here exactly as before.
+                        PosLineStockDeductionService::deductLine(
+                            $pos,
+                            $line,
+                            (int) $user_id,
+                            \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null)
+                        );
                         try {
                             InvoiceSaleDeductionService::assignIdentifiersForPosSale(
                                 (int) $line->product_id,
@@ -3867,6 +3829,15 @@ class PosController extends Controller
                 'pos_printer_id' => $resolvedPrinterId,
                 'warehouse_id' => ! empty($item['warehouse_id']) ? (int) $item['warehouse_id'] : null,
             ]);
+            // Stock moves at production time: deduct this line now (movement
+            // report entry appears immediately) and flag it so the later
+            // payment does not deduct it a second time.
+            PosLineStockDeductionService::deductLine(
+                $pos,
+                $line,
+                $creatorId,
+                \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null)
+            );
             // Keep $selectedOpts for kitchen slip details (already resolved above).
             $details = PosPrinterAgentService::buildLineProductDetails(
                 $product,
@@ -3971,6 +3942,14 @@ class PosController extends Controller
         }
         $pos->cancelled_at = now();
         $pos->save();
+        // Lines sent to production already moved their stock; return it.
+        $stockRestored = false;
+        $cancelPosNo = Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null);
+        foreach (PosProduct::where('pos_id', $pos->id)->get() as $cancelLine) {
+            if (PosLineStockRestoreService::restoreLine($pos, $cancelLine, (int) Auth::user()->creatorId(), $cancelPosNo)) {
+                $stockRestored = true;
+            }
+        }
         PosProduct::where('pos_id', $pos->id)->update(['status' => PosProduct::STATUS_CANCELLED]);
         PosAuditLogService::log(PosAuditLog::ACTION_CANCEL_ORDER, 'pos', (int) $pos->id, __('Order cancelled'), ['pos_id' => $pos->pos_id, 'table_id' => $pos->table_id]);
         DocumentVoidLog::create([
@@ -3980,7 +3959,7 @@ class PosController extends Controller
             'document_id' => $pos->id,
             'document_number' => Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
             'reason' => $request->input('reason'),
-            'stock_restored' => false,
+            'stock_restored' => $stockRestored,
             'accounting_note_created' => false,
         ]);
         return response()->json(['success' => true, 'message' => __('Order cancelled.')]);
@@ -4031,6 +4010,13 @@ class PosController extends Controller
         $posProduct->void_reason = $request->reason;
         $posProduct->voided_by = $actor->id;
         $posProduct->save();
+        // The line's stock was deducted when it was sent to production; return it.
+        PosLineStockRestoreService::restoreLine(
+            $pos,
+            $posProduct,
+            (int) $actor->creatorId(),
+            Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null)
+        );
         PosAuditLogService::log(
             PosAuditLog::ACTION_VOID_LINE,
             'pos_product',
@@ -4102,6 +4088,13 @@ class PosController extends Controller
             $posProduct->removed_from_cart_at = now();
             $posProduct->removed_from_cart_by = $actor->id;
             $posProduct->save();
+            // The line's stock was deducted when it was sent to production; return it.
+            PosLineStockRestoreService::restoreLine(
+                $pos,
+                $posProduct,
+                (int) $actor->creatorId(),
+                Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null)
+            );
 
             $productName = $posProduct->product ? $posProduct->product->name : (__('Product') . ' #' . $posProduct->product_id);
             PosAuditLogService::log(

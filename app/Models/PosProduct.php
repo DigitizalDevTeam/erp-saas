@@ -33,6 +33,8 @@ class PosProduct extends Model
         'selected_options_json',
         'status',
         'sent_at',
+        'stock_deducted_at',
+        'stock_restored_at',
         'prep_minutes',
         'ready_at',
         'print_zone',
@@ -46,6 +48,8 @@ class PosProduct extends Model
 
     protected $casts = [
         'sent_at' => 'datetime',
+        'stock_deducted_at' => 'datetime',
+        'stock_restored_at' => 'datetime',
         'ready_at' => 'datetime',
         'voided_at' => 'datetime',
         'removed_from_cart_at' => 'datetime',
