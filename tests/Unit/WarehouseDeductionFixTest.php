@@ -70,8 +70,9 @@ class WarehouseDeductionFixTest extends TestCase
             'quantity' => 500, 'affect_stock' => 1, 'options_enabled' => 0, 'created_by' => 1,
         ]);
 
-        // Parent line qty is 2, but the option's own qty is 50: the ledger
-        // description must carry 50 (what actually moved), not 2.
+        // Option qty 50 is per parent unit: selling 2 parents moves 100, and
+        // the ledger description must carry that actual total (100), not the
+        // bare setup qty (50) or the bare line qty (2).
         ProductOptionService::deductOptionsForSale(
             [['product_id' => 20, 'quantity' => 50]],
             2.0,
@@ -85,7 +86,8 @@ class WarehouseDeductionFixTest extends TestCase
         $row = \DB::table('stock_reports')->where('product_id', 20)->first();
         $this->assertNotNull($row);
         $this->assertSame('pos', $row->type);
-        $this->assertStringStartsWith('50 ', $row->description);
+        $this->assertSame(100, (int) $row->quantity);
+        $this->assertStringStartsWith('100 ', $row->description);
         $this->assertStringContainsString('PDV00055', $row->description);
         $this->assertStringNotContainsString('2 quantity sold', $row->description);
     }

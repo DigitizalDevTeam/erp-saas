@@ -52,7 +52,7 @@ class PosLineStockRestoreService
 
         if (($product->options_enabled ?? false) && $selectedOpts !== []) {
             foreach ($selectedOpts as $row) {
-                self::restoreOption($row, $warehouseId, $creatorId, $posNoFormatted, $posId);
+                self::restoreOption($row, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId);
             }
             // Parent BOM was deducted after the options; return it as well.
             self::restoreParentBom($product, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId);
@@ -71,10 +71,12 @@ class PosLineStockRestoreService
     /**
      * @param  array{product_id: int, quantity: float}  $row
      */
-    protected static function restoreOption(array $row, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId): void
+    protected static function restoreOption(array $row, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId): void
     {
         $optId = (int) ($row['product_id'] ?? 0);
-        $qty = (float) ($row['quantity'] ?? 1);
+        // Option quantity is per parent unit; restore setup qty x line qty,
+        // mirroring the deduction.
+        $qty = (float) ($row['quantity'] ?? 1) * ($lineQty > 0 ? $lineQty : 1);
         if ($optId <= 0 || $qty <= 0) {
             return;
         }

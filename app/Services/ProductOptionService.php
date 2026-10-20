@@ -465,18 +465,20 @@ class ProductOptionService
         string $saleNumber,
         int $typeId
     ): void {
-        // Option qty is independent of parent line qty; $lineQuantity kept for call-site compatibility.
         if ($selected === []) {
             return;
         }
 
-        // The ledger description carries the ACTUAL deducted option qty per row
-        // (not the parent line qty), so the stock movement report reads truthfully.
+        // An option's stored quantity is PER parent unit: the total deduction
+        // is setup quantity x sold line quantity (e.g. 50 per latte x 4 lattes
+        // = 200). The ledger description carries that total, so the stock
+        // movement report reads truthfully.
+        $multiplier = $lineQuantity > 0 ? $lineQuantity : 1;
         $soldIn = $stockType === 'invoice' ? __('quantity sold in invoice') : __('quantity sold in pos');
 
         foreach ($selected as $row) {
             $optId = (int) $row['product_id'];
-            $deductQty = (float) ($row['quantity'] ?? 1);
+            $deductQty = (float) ($row['quantity'] ?? 1) * $multiplier;
             if ($deductQty <= 0) {
                 continue;
             }
@@ -517,14 +519,16 @@ class ProductOptionService
         string $descriptionPrefix,
         int $typeId
     ): void {
-        // Option qty is independent of parent line qty; $lineQuantity kept for call-site compatibility.
         if ($selected === []) {
             return;
         }
 
+        // Mirror of deductOptionsForSale: restore setup quantity x line quantity.
+        $multiplier = $lineQuantity > 0 ? $lineQuantity : 1;
+
         foreach ($selected as $row) {
             $optId = (int) $row['product_id'];
-            $restoreQty = (float) ($row['quantity'] ?? 1);
+            $restoreQty = (float) ($row['quantity'] ?? 1) * $multiplier;
             if ($restoreQty <= 0) {
                 continue;
             }
@@ -555,14 +559,16 @@ class ProductOptionService
         string $description,
         int $typeId
     ): void {
-        // Option qty is independent of parent line qty; $lineQuantity kept for call-site compatibility.
         if ($selected === []) {
             return;
         }
 
+        // Same per-unit semantics as sales: add setup quantity x line quantity.
+        $multiplier = $lineQuantity > 0 ? $lineQuantity : 1;
+
         foreach ($selected as $row) {
             $optId = (int) $row['product_id'];
-            $addQty = (float) ($row['quantity'] ?? 1);
+            $addQty = (float) ($row['quantity'] ?? 1) * $multiplier;
             if ($addQty <= 0) {
                 continue;
             }
