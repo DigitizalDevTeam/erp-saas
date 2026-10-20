@@ -1080,13 +1080,20 @@ class PosController extends Controller
         return (float) ($batch[$tableId] ?? 0.0);
     }
 
-    protected function closeRestaurantTableIfFullyPaid(int $tableId, int $userId): void
+    protected function closeRestaurantTableIfFullyPaid(int $tableId, int $userId, ?int $shiftId = null): void
     {
-        $hasOpenChecks = Pos::where('table_id', $tableId)
+        // Only checks that can still be paid from this shift hold the table:
+        // a stale unpaid order from an earlier shift, or a check whose lines
+        // were all voided, must not keep the table occupied forever.
+        $openChecks = Pos::where('table_id', $tableId)
             ->where('created_by', $userId)
             ->whereNull('cancelled_at')
             ->whereDoesntHave('posPayments')
-            ->exists();
+            ->whereHas('items');
+        if ($shiftId) {
+            $openChecks->where('shift_id', $shiftId);
+        }
+        $hasOpenChecks = $openChecks->exists();
 
         if (! $hasOpenChecks) {
             PosTable::where('id', $tableId)->where('created_by', $userId)->update([
@@ -2169,7 +2176,7 @@ class PosController extends Controller
 
         // Phase 3: Close table after payment when all checks are paid (restaurant flow)
         if ($pos->table_id) {
-            $this->closeRestaurantTableIfFullyPaid((int) $pos->table_id, $user_id);
+            $this->closeRestaurantTableIfFullyPaid((int) $pos->table_id, $user_id, $pos->shift_id ? (int) $pos->shift_id : null);
         }
 
         $pos->load('items');
@@ -2543,7 +2550,7 @@ class PosController extends Controller
                     }
                     // Table becomes available after all checks on table are paid
                     if ($pos->table_id) {
-                        $this->closeRestaurantTableIfFullyPaid((int) $pos->table_id, $user_id);
+                        $this->closeRestaurantTableIfFullyPaid((int) $pos->table_id, $user_id, $pos->shift_id ? (int) $pos->shift_id : null);
                     }
                     $this->enqueueRestaurantReceiptPrintAgentJob($pos, $request);
                     return response()->json([
@@ -2779,6 +2786,11 @@ class PosController extends Controller
                     $this->attachPosChargeToHotelFolio($request, $pos, (float) $total, $user_id);
 
                     session()->forget('pos');
+
+                    // Table becomes available after all checks on table are paid
+                    if ($pos->table_id) {
+                        $this->closeRestaurantTableIfFullyPaid((int) $pos->table_id, $user_id, $pos->shift_id ? (int) $pos->shift_id : null);
+                    }
 
                     $this->enqueueRestaurantReceiptPrintAgentJob($pos, $request);
 
