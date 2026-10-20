@@ -83,13 +83,20 @@ class PosLineStockRestoreService
 
         $opt = ProductService::where('id', $optId)->where('created_by', $creatorId)->first()
             ?: ProductService::where('id', $optId)->first();
-        if (! $opt || ! ($opt->affect_stock ?? true)) {
+        if (! $opt) {
             return;
         }
 
+        // Kit options deducted their components on sale; return those. This
+        // must run before the affect_stock skip — kits always have
+        // affect_stock = false, so the kit branch was unreachable before.
         if (($opt->type ?? null) === 'kit') {
             self::restoreKitComponents($optId, $qty, $warehouseId, $creatorId, $posNoFormatted, $posId);
 
+            return;
+        }
+
+        if (! ($opt->affect_stock ?? true)) {
             return;
         }
 

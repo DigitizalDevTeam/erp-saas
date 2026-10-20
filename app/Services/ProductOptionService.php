@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ProductKitItem;
 use App\Models\ProductOptionItem;
 use App\Models\ProductService;
 use App\Models\Utility;
@@ -487,13 +488,24 @@ class ProductOptionService
             // created_by on the option row differs slightly from the POS actor company id.
             $opt = ProductService::where('id', $optId)->where('created_by', $creatorId)->first()
                 ?: ProductService::where('id', $optId)->first();
-            if (! $opt || ! ($opt->affect_stock ?? true)) {
+            if (! $opt) {
                 continue;
             }
 
+            // A kit never holds its own stock — affect_stock is always false
+            // for kits by design — so selling a kit as an option consumes its
+            // COMPONENTS (component qty x option qty x line qty). This branch
+            // must run before the affect_stock skip below, or a kit option
+            // would silently deduct nothing at all.
             if (($opt->type ?? null) === 'kit') {
-                PosKitDeductionService::deductForSale($optId, $deductQty, $warehouseId, $creatorId, $saleNumber, $typeId);
+                PosKitDeductionService::deductForSale($optId, $deductQty, $warehouseId, $creatorId, $saleNumber, $typeId, $stockType);
 
+                continue;
+            }
+
+            // The option product's own "Does not affect stock" toggle: when
+            // enabled on the option product itself, it moves no stock.
+            if (! ($opt->affect_stock ?? true)) {
                 continue;
             }
 
@@ -534,7 +546,32 @@ class ProductOptionService
             }
 
             $opt = ProductService::where('id', $optId)->where('created_by', $creatorId)->first();
-            if (! $opt || ! ($opt->affect_stock ?? true)) {
+            if (! $opt) {
+                continue;
+            }
+
+            // Kit options deducted their components on sale; return those
+            // (the kit itself holds no stock — see deductOptionsForSale).
+            if (($opt->type ?? null) === 'kit') {
+                $kitItems = ProductKitItem::where('kit_product_id', $optId)->where('created_by', $creatorId)->get();
+                foreach ($kitItems as $kitItem) {
+                    $componentQty = (float) $kitItem->quantity * $restoreQty;
+                    if ($componentQty <= 0) {
+                        continue;
+                    }
+                    $componentId = (int) $kitItem->component_product_id;
+                    $current = (float) (ProductService::where('id', $componentId)->value('quantity') ?? 0);
+                    ProductService::where('id', $componentId)->update(['quantity' => $current + $componentQty]);
+                    if ($warehouseId > 0) {
+                        Utility::warehouse_quantity('plus', $componentQty, $componentId, $warehouseId);
+                    }
+                    Utility::addProductStock($componentId, $componentQty, $stockType, $descriptionPrefix, $typeId);
+                }
+
+                continue;
+            }
+
+            if (! ($opt->affect_stock ?? true)) {
                 continue;
             }
 
@@ -575,6 +612,26 @@ class ProductOptionService
 
             $opt = ProductService::where('id', $optId)->where('created_by', $creatorId)->first();
             if (! $opt) {
+                continue;
+            }
+
+            // A purchased kit option stocks its components, never the kit
+            // itself (kits hold no own stock — mirror of the sale path).
+            if (($opt->type ?? null) === 'kit') {
+                $kitItems = ProductKitItem::where('kit_product_id', $optId)->where('created_by', $creatorId)->get();
+                foreach ($kitItems as $kitItem) {
+                    $componentQty = (float) $kitItem->quantity * $addQty;
+                    if ($componentQty <= 0) {
+                        continue;
+                    }
+                    $componentId = (int) $kitItem->component_product_id;
+                    Utility::total_quantity('plus', $componentQty, $componentId);
+                    if ($warehouseId > 0) {
+                        Utility::addWarehouseStock($componentId, $componentQty, $warehouseId);
+                    }
+                    Utility::addProductStock($componentId, $componentQty, $stockType, $description, $typeId);
+                }
+
                 continue;
             }
 

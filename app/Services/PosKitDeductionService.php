@@ -13,7 +13,7 @@ use App\Models\Utility;
  */
 class PosKitDeductionService
 {
-    public static function deductForSale(int $kitProductId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId): void
+    public static function deductForSale(int $kitProductId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId, string $stockType = 'pos'): void
     {
         if ($quantity <= 0) {
             return;
@@ -33,11 +33,11 @@ class PosKitDeductionService
             if ($componentQty <= 0) {
                 continue;
             }
-            self::deductProductQuantity((int) $item->component_product_id, $componentQty, $warehouseId, $creatorId, $posIdFormatted, $posId);
+            self::deductProductQuantity((int) $item->component_product_id, $componentQty, $warehouseId, $creatorId, $posIdFormatted, $posId, $stockType);
         }
     }
 
-    protected static function deductProductQuantity(int $productId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId): void
+    protected static function deductProductQuantity(int $productId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId, string $stockType = 'pos'): void
     {
         $product = ProductService::where('id', $productId)->where('created_by', $creatorId)->first();
         if (!$product) {
@@ -47,10 +47,13 @@ class PosKitDeductionService
         $original = (float) ($product->quantity ?? 0);
         $newQty = max(0, $original - $quantity);
         ProductService::where('id', $productId)->update(['quantity' => $newQty]);
-        Utility::warehouse_quantity('minus', $quantity, $productId, $warehouseId);
+        if ($warehouseId > 0) {
+            Utility::warehouse_quantity('minus', $quantity, $productId, $warehouseId);
+        }
 
-        $description = $quantity . ' ' . __('quantity sold in pos') . ' ' . $posIdFormatted;
-        Utility::addProductStock($productId, $quantity, 'pos', $description, $posId);
+        $soldIn = $stockType === 'invoice' ? __('quantity sold in invoice') : __('quantity sold in pos');
+        $description = $quantity . ' ' . $soldIn . ' ' . $posIdFormatted;
+        Utility::addProductStock($productId, $quantity, $stockType, $description, $posId);
     }
 }
 
