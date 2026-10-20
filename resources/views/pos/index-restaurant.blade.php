@@ -4647,10 +4647,20 @@
                         $('#displaytotal, .totalamount').text('0');
                         $('#btn-pur button').attr('disabled', 'disabled');
                         $('.btn-empty button').removeClass('btn-clear-cart');
-                        if (savedTableId && shiftId && branchId) {
-                            loadRestaurantOrder(savedTableId, shiftId, branchId, 'dine_in');
-                            if (branchId) loadRestaurantTables(branchId);
-                        } else {
+                        var showReceipt = function () {
+                            if (data && data.pos_id) {
+                                var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id + '&source=restaurant';
+                                $.get(receiptUrl, function (html) {
+                                    $('#commonModal .modal-title').html('');
+                                    $('#commonModal .modal-dialog').removeClass('modal-xl modal-lg').addClass('modal-sm');
+                                    $('#commonModal .body').html(html);
+                                    $('#commonModal').modal('show');
+                                });
+                            } else if (!savedTableId) {
+                                if ($('#commonModal').length) $('#commonModal').modal('hide');
+                            }
+                        };
+                        var releaseTableUi = function () {
                             $('#tbody-restaurant').html('<tr class="text-center no-found"><td colspan="1">{{ __("pos.no_data_found") }}</td></tr>');
                             updateRestaurantCartTotals(0);
                             $('#pos-pay-btn-restaurant').prop('disabled', true);
@@ -4662,17 +4672,43 @@
                             $('#pos-selected-table').text('—');
                             $('#pos-check-selector-wrap').addClass('d-none');
                             $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
-                        }
-                        if (data && data.pos_id) {
-                            var receiptUrl = '{{ url("printview/pos") }}?pos_id=' + data.pos_id + '&source=restaurant';
-                            $.get(receiptUrl, function (html) {
-                                $('#commonModal .modal-title').html('');
-                                $('#commonModal .modal-dialog').removeClass('modal-xl modal-lg').addClass('modal-sm');
-                                $('#commonModal .body').html(html);
-                                $('#commonModal').modal('show');
+                        };
+                        var keepTableUi = function () {
+                            if (savedTableId && shiftId && branchId) {
+                                loadRestaurantOrder(savedTableId, shiftId, branchId, 'dine_in');
+                                if (branchId) loadRestaurantTables(branchId);
+                            } else {
+                                releaseTableUi();
+                            }
+                        };
+                        if (savedTableId && shiftId) {
+                            // Payment succeeded: ask the server to release the table
+                            // (it closes only when every check of this shift is paid)
+                            // and update the screen from the live status, no refresh.
+                            $.ajax({
+                                type: 'POST',
+                                url: '{{ route("pos.restaurant.close-table-if-paid") }}',
+                                data: {
+                                    _token: $('meta[name="csrf-token"]').attr('content'),
+                                    pos_table_id: savedTableId,
+                                    pos_shift_id: shiftId
+                                },
+                                success: function (res) {
+                                    if (res && res.closed) {
+                                        releaseTableUi();
+                                    } else {
+                                        keepTableUi();
+                                    }
+                                    showReceipt();
+                                },
+                                error: function () {
+                                    keepTableUi();
+                                    showReceipt();
+                                }
                             });
-                        } else if (!savedTableId) {
-                            if ($('#commonModal').length) $('#commonModal').modal('hide');
+                        } else {
+                            keepTableUi();
+                            showReceipt();
                         }
                     }
                 });

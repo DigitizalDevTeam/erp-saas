@@ -60,7 +60,7 @@ class PosTableAutoCloseTest extends TestCase
 
         $this->controller = new class extends PosController
         {
-            public function closeTableIfPaid(int $tableId, int $userId, ?int $shiftId = null): void
+            public function runCloseCheck(int $tableId, int $userId, ?int $shiftId = null): void
             {
                 $this->closeRestaurantTableIfFullyPaid($tableId, $userId, $shiftId);
             }
@@ -123,7 +123,7 @@ class PosTableAutoCloseTest extends TestCase
         $table = $this->occupiedTable();
         $this->check($table, 7, paid: true);
 
-        $this->controller->closeTableIfPaid($table->id, 1, 7);
+        $this->controller->runCloseCheck($table->id, 1, 7);
 
         $table->refresh();
         $this->assertSame(PosTable::STATUS_AVAILABLE, $table->status);
@@ -138,7 +138,7 @@ class PosTableAutoCloseTest extends TestCase
         $this->check($table, 7, paid: true);
         $this->check($table, 7); // second open check, same shift
 
-        $this->controller->closeTableIfPaid($table->id, 1, 7);
+        $this->controller->runCloseCheck($table->id, 1, 7);
 
         $this->assertSame(PosTable::STATUS_OCCUPIED, $table->fresh()->status);
     }
@@ -149,7 +149,7 @@ class PosTableAutoCloseTest extends TestCase
         $this->check($table, 6); // abandoned yesterday, never paid, never cancelled
         $this->check($table, 7, paid: true);
 
-        $this->controller->closeTableIfPaid($table->id, 1, 7);
+        $this->controller->runCloseCheck($table->id, 1, 7);
 
         $this->assertSame(PosTable::STATUS_AVAILABLE, $table->fresh()->status);
     }
@@ -160,7 +160,7 @@ class PosTableAutoCloseTest extends TestCase
         $this->check($table, 7, withItems: false); // lines voided -> empty check
         $this->check($table, 7, paid: true);
 
-        $this->controller->closeTableIfPaid($table->id, 1, 7);
+        $this->controller->runCloseCheck($table->id, 1, 7);
 
         $this->assertSame(PosTable::STATUS_AVAILABLE, $table->fresh()->status);
     }
@@ -170,7 +170,7 @@ class PosTableAutoCloseTest extends TestCase
         $table = $this->occupiedTable();
         $this->check($table, 7); // nothing paid yet (payment failed / pending)
 
-        $this->controller->closeTableIfPaid($table->id, 1, 7);
+        $this->controller->runCloseCheck($table->id, 1, 7);
 
         $this->assertSame(PosTable::STATUS_OCCUPIED, $table->fresh()->status);
     }

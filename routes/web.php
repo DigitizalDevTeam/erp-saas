@@ -2410,6 +2410,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos/restaurant/order', [PosController::class, 'getRestaurantOrder'])->name('pos.restaurant.order')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant/delivery-takeaway-orders', [PosController::class, 'getRestaurantDeliveryTakeawayOrders'])->name('pos.restaurant.delivery-takeaway-orders')->middleware(['auth', 'XSS']);
     Route::post('pos/send-to-production', [PosController::class, 'sendToProduction'])->name('pos.send.to.production')->middleware(['auth', 'XSS']);
+    Route::post('pos/restaurant/close-table-if-paid', [PosController::class, 'closeTableIfPaid'])->name('pos.restaurant.close-table-if-paid')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant/agent-printers', [PosPrinterAgentController::class, 'agentPrinters'])->name('pos.restaurant.agent-printers')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant/agent-status', [PosPrinterAgentController::class, 'agentStatus'])->name('pos.restaurant.agent-status')->middleware(['auth', 'XSS']);
     Route::post('pos/restaurant/print-config', [PosPrinterAgentController::class, 'savePrintConfig'])->name('pos.restaurant.print-config')->middleware(['auth', 'XSS']);

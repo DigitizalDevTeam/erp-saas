@@ -1080,6 +1080,42 @@ class PosController extends Controller
         return (float) ($batch[$tableId] ?? 0.0);
     }
 
+    /**
+     * AJAX after a successful restaurant payment: release the table when
+     * every payable check of the shift is paid, and report the table's live
+     * status so the screen can update without a refresh. Never closes while
+     * a check of the current shift is still unpaid (payment pending/failed
+     * payments never reach this endpoint).
+     */
+    public function closeTableIfPaid(Request $request)
+    {
+        if (! Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $tableId = (int) $request->get('pos_table_id');
+        $shiftId = (int) $request->get('pos_shift_id');
+        if ($tableId <= 0) {
+            return response()->json(['error' => __('Table not found.')], 422);
+        }
+
+        $userId = Auth::user()->creatorId();
+        $table = PosTable::where('id', $tableId)->where('created_by', $userId)->first();
+        if (! $table) {
+            return response()->json(['error' => __('Table not found.')], 404);
+        }
+
+        $this->closeRestaurantTableIfFullyPaid($tableId, $userId, $shiftId > 0 ? $shiftId : null);
+
+        $table->refresh();
+
+        return response()->json([
+            'success' => true,
+            'status' => $table->status,
+            'closed' => $table->status === PosTable::STATUS_AVAILABLE,
+        ]);
+    }
+
     protected function closeRestaurantTableIfFullyPaid(int $tableId, int $userId, ?int $shiftId = null): void
     {
         // Only checks that can still be paid from this shift hold the table:
