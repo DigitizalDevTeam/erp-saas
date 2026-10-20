@@ -41,6 +41,7 @@ class HotelReservation extends Model
         'check_in_date',
         'check_out_date',
         'adults',
+        'extra_adults',
         'children',
         'infants',
         'source',
@@ -161,5 +162,10 @@ class HotelReservation extends Model
     public function reservationAddons()
     {
         return $this->hasMany(HotelReservationAddon::class);
+    }
+
+    public function priceLines()
+    {
+        return $this->hasMany(HotelReservationPriceLine::class);
     }
 }
