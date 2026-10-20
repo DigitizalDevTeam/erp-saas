@@ -7,6 +7,8 @@
 */
 
 use Modules\HotelManagement\Http\Controllers\HotelBookingSiteController;
+use Modules\HotelManagement\Http\Controllers\HotelPriceConfiguratorController;
+use Modules\HotelManagement\Http\Controllers\HotelPriceRuleController;
 use Modules\HotelManagement\Http\Controllers\HotelAddonController;
 use Modules\HotelManagement\Http\Controllers\HotelAccountingSettingsController;
 use Modules\HotelManagement\Http\Controllers\HotelCalendarController;
@@ -91,6 +93,11 @@ Route::group(['middleware' => ['verified']], function () {
 
             Route::get('hotel/ota-settings', [HotelOtaSettingsController::class, 'index'])->name('hotel.ota-settings.index');
             Route::post('hotel/ota-settings', [HotelOtaSettingsController::class, 'update'])->name('hotel.ota-settings.update');
+
+            Route::get('hotel/price-configurator', [HotelPriceConfiguratorController::class, 'index'])->name('hotel.price-configurator.index');
+            Route::post('hotel/price-configurator/settings', [HotelPriceConfiguratorController::class, 'updateSettings'])->name('hotel.price-configurator.settings');
+            Route::post('hotel/price-configurator/calculate', [HotelPriceConfiguratorController::class, 'calculate'])->name('hotel.price-configurator.calculate');
+            Route::resource('hotel/price-configurator/rules', HotelPriceRuleController::class)->names('hotel.price-rules')->except(['index', 'show']);
 
             Route::resource('hotel/groups', HotelGroupController::class)->names('hotel.groups');
 
