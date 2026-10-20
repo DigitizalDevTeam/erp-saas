@@ -116,14 +116,7 @@
                     <a class="dash-link" href="{{ route('hotel.booking-site.edit') }}">{{ __('Booking Site') }}</a>
                 </li>
                 @endcan
-                @can('hotel.menu.rooms_setup')
-                <li class="dash-item {{ str_starts_with($routeName, 'hotel.rate-plans.') ? 'active' : '' }}">
-                    <a class="dash-link" href="{{ route('hotel.rate-plans.index') }}">{{ __('Price per Period') }}</a>
-                </li>
-                <li class="dash-item {{ str_starts_with($routeName, 'hotel.addons.') ? 'active' : '' }}">
-                    <a class="dash-link" href="{{ route('hotel.addons.index') }}">{{ __('Add-ons & Extras') }}</a>
-                </li>
-                @endcan
+                {{-- Price per Period + Add-ons & Extras moved to Settings → Price Configurator. --}}
             </ul>
         </li>
         @endif

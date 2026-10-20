@@ -13,8 +13,6 @@
     <div class="col-md-3 form-group">{!! Form::label('hotel_room_type_id', __('Room Type')) !!}{!! Form::select('hotel_room_type_id', $roomTypes, $room->hotel_room_type_id, ['class' => 'form-control select2', 'id' => 'edit_room_type_id', 'required']) !!}</div>
     <div class="col-md-3 form-group">{!! Form::label('hotel_floor_id', __('Floor')) !!}{!! Form::select('hotel_floor_id', ['' => __('Select floor')] + $floors->toArray(), $room->hotel_floor_id, ['class' => 'form-control select2', 'id' => 'edit_hotel_floor_id']) !!}</div>
     <div class="col-md-3 form-group">{!! Form::label('status', __('Status')) !!}{!! Form::select('status', \Modules\HotelManagement\Entities\HotelRoom::statusOptions(), $room->status, ['class' => 'form-control']) !!}</div>
-    <div class="col-md-4 form-group">{!! Form::label('override_price', __('Nightly Override Price')) !!}{!! Form::number('override_price', $room->override_price, ['class' => 'form-control', 'step' => '0.01']) !!}</div>
-    <div class="col-md-4 form-group">{!! Form::label('monthly_override_price', __('Monthly Override Price')) !!}{!! Form::number('monthly_override_price', $room->monthly_override_price, ['class' => 'form-control', 'step' => '0.01']) !!}</div>
     <div class="col-md-4 form-group">{!! Form::label('notes', __('Notes')) !!}{!! Form::text('notes', $room->notes, ['class' => 'form-control']) !!}</div>
 </div>
 <button class="btn btn-primary">{{ __('Update') }}</button>

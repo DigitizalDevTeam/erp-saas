@@ -113,7 +113,11 @@ class HotelAccountingSettingsController extends Controller
                 'chart_laundry_revenue_id' => $request->input('chart_laundry_revenue_id') ?: null,
                 'chart_misc_revenue_id' => $request->input('chart_misc_revenue_id') ?: null,
                 'chart_vat_payable_id' => $request->input('chart_vat_payable_id') ?: null,
-                'default_vat_rate_percent' => $request->input('default_vat_rate_percent', 16),
+                // VAT % is edited in the Price Configurator; when the field
+                // is absent from the request, keep the stored rate.
+                'default_vat_rate_percent' => $request->has('default_vat_rate_percent')
+                    ? $request->input('default_vat_rate_percent', 16)
+                    : (HotelAccountingSetting::where('created_by', $creatorId)->value('default_vat_rate_percent') ?? 16),
                 'pos_invoice_when_charge_to_room' => $request->boolean('pos_invoice_when_charge_to_room'),
                 'require_minibar_scan_at_checkout' => $request->boolean('require_minibar_scan_at_checkout'),
                 'folio_payment_bank_map' => $map ?: null,

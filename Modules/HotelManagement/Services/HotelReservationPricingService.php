@@ -5,7 +5,9 @@ namespace Modules\HotelManagement\Services;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Modules\HotelManagement\Entities\HotelAddon;
+use Modules\HotelManagement\Entities\HotelPriceSetting;
 use Modules\HotelManagement\Entities\HotelRatePlan;
 use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelReservationAddon;
@@ -148,14 +150,32 @@ class HotelReservationPricingService
         }
 
         if ($user->can('manage hotel')) {
-            return 25.0;
+            return $this->configuredDiscountCap($user, true) ?? HotelPriceSetting::DEFAULT_DISCOUNT_CAP_MANAGER;
         }
 
         if ($user->can('manage hotel frontdesk') || $user->can('manage hotel reservation')) {
-            return 10.0;
+            return $this->configuredDiscountCap($user, false) ?? HotelPriceSetting::DEFAULT_DISCOUNT_CAP_FRONTDESK;
         }
 
         return 0.0;
+    }
+
+    /**
+     * Discount caps are editable in the Price Configurator (Taxes & charges
+     * tab); without a settings row the historical defaults apply.
+     */
+    private function configuredDiscountCap($user, bool $manager): ?float
+    {
+        if (! Schema::hasTable('hotel_price_settings') || ! method_exists($user, 'creatorId')) {
+            return null;
+        }
+
+        $setting = HotelPriceSetting::query()->where('created_by', $user->creatorId())->first();
+        if (! $setting) {
+            return null;
+        }
+
+        return (float) ($manager ? $setting->discount_cap_manager_percent : $setting->discount_cap_frontdesk_percent);
     }
 
     public function validateDiscountAmount(float $discountAmount, float $subTotal): bool

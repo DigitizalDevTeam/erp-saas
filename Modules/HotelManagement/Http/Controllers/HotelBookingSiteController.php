@@ -135,8 +135,10 @@ class HotelBookingSiteController extends Controller
             'meta_description' => $request->meta_description,
             'default_language' => $request->default_language ?: 'en',
             'payment_mode' => $request->payment_mode ?: HotelBookingSite::PAY_AT_HOTEL,
+            // Prepayment % is edited in the Price Configurator; when the
+            // field is absent from the request, keep the stored percent.
             'prepayment_percent' => ($request->payment_mode ?? '') === HotelBookingSite::PAY_PREPAY
-                ? max(1, min(100, (int) ($request->prepayment_percent ?: 100)))
+                ? max(1, min(100, (int) ($request->has('prepayment_percent') ? $request->prepayment_percent : ($site->prepayment_percent ?: 100))))
                 : 0,
             'is_published' => $request->boolean('is_published'),
             'amenities' => $amenities,
