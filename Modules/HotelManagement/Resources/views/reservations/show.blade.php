@@ -36,6 +36,49 @@
                 <hr><p class="small text-muted mb-0">{{ $reservation->notes }}</p>
             @endif
         </div></div>
+        @if(($reservation->priceLines && $reservation->priceLines->isNotEmpty()) || ($totals['occupancy_sub_total'] ?? 0) > 0 || ($reservation->reservationAddons && $reservation->reservationAddons->isNotEmpty()))
+        <div class="card shadow-sm mb-3"><div class="card-body">
+            <h6>{{ __('Price breakdown') }}</h6>
+            <table class="table table-sm align-middle mb-0">
+                <tbody>
+                    <tr>
+                        <td>{{ __('Room') }} — {{ Auth::user()->priceFormat($reservation->rate_per_night) }} × {{ $totals['units'] ?? 1 }} {{ strtolower($totals['unit_label'] ?? '') }}</td>
+                        <td class="text-end">{{ Auth::user()->priceFormat($totals['room_sub_total'] ?? 0) }}</td>
+                    </tr>
+                    @foreach($reservation->priceLines ?? [] as $line)
+                        <tr>
+                            <td>
+                                {{ $line->kind === 'child' ? __('Children') : __('Additional persons') }} ×{{ $line->qty }}
+                                <span class="text-muted">— {{ $line->rule_id ? $line->label : __('no rule — free') }}</span>
+                                @if($line->hotel_folio_line_id)<span class="badge bg-success">{{ __('Posted') }}</span>@endif
+                            </td>
+                            <td class="text-end">{{ Auth::user()->priceFormat($line->amount) }}</td>
+                        </tr>
+                    @endforeach
+                    @foreach($reservation->reservationAddons ?? [] as $row)
+                        <tr>
+                            <td>
+                                {{ $row->addon?->name ?? __('Addon') }} ×{{ $row->qty }}
+                                @if($row->rule_id)<span class="text-muted">— {{ __('rule price') }}</span>@endif
+                                @if($row->hotel_folio_line_id)<span class="badge bg-success">{{ __('Posted') }}</span>@endif
+                            </td>
+                            <td class="text-end">{{ Auth::user()->priceFormat($row->qty * $row->unit_price * ($row->billing_mode === 'per_night' ? max(1, (int) ($totals['units'] ?? 1)) : 1)) }}</td>
+                        </tr>
+                    @endforeach
+                    @if((float) $reservation->discount_amount > 0)
+                        <tr>
+                            <td>{{ __('Discount') }}</td>
+                            <td class="text-end">−{{ Auth::user()->priceFormat($reservation->discount_amount) }}</td>
+                        </tr>
+                    @endif
+                    <tr class="table-light fw-bold">
+                        <td>{{ __('Total') }}</td>
+                        <td class="text-end">{{ Auth::user()->priceFormat($totals['grand_total'] ?? 0) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div></div>
+        @endif
         @if($folio)
         <div class="card shadow-sm"><div class="card-body">
             <h6>{{ __('Room bill') }}</h6>

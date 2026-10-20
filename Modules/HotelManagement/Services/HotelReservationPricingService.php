@@ -112,7 +112,8 @@ class HotelReservationPricingService
         [$units, $unitLabel] = $this->calculateUnits($checkInAt, $checkOutAt, (string) ($reservation->billing_mode ?? 'nightly'));
         $roomSubTotal = round((float) $reservation->rate_per_night * $units, 2);
         $addonSubTotal = $this->reservationAddonSubtotal($reservation, $units);
-        $subTotal = round($roomSubTotal + $addonSubTotal, 2);
+        $occupancySubTotal = $this->reservationOccupancySubtotal($reservation);
+        $subTotal = round($roomSubTotal + $addonSubTotal + $occupancySubTotal, 2);
         $discount = round((float) $reservation->discount_amount, 2);
 
         return [
@@ -120,9 +121,26 @@ class HotelReservationPricingService
             'unit_label' => $unitLabel,
             'room_sub_total' => $roomSubTotal,
             'addon_sub_total' => $addonSubTotal,
+            'occupancy_sub_total' => $occupancySubTotal,
             'sub_total' => $subTotal,
             'grand_total' => max(0, round($subTotal - $discount, 2)),
         ];
+    }
+
+    private function reservationOccupancySubtotal(HotelReservation $reservation): float
+    {
+        if (! Schema::hasTable('hotel_reservation_price_lines')) {
+            return 0.0;
+        }
+
+        $reservation->loadMissing('priceLines');
+        $total = 0.0;
+
+        foreach ($reservation->priceLines as $line) {
+            $total += (float) $line->amount;
+        }
+
+        return round($total, 2);
     }
 
     private function reservationAddonSubtotal(HotelReservation $reservation, int $units): float

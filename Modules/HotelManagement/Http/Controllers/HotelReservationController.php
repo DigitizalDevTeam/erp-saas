@@ -20,6 +20,7 @@ use Modules\HotelManagement\Entities\HotelRoomType;
 use Modules\HotelManagement\Services\HotelAddonService;
 use Modules\HotelManagement\Services\HotelAuthorization;
 use Modules\HotelManagement\Services\HotelCheckInService;
+use Modules\HotelManagement\Services\HotelOccupancyPricingService;
 use Modules\HotelManagement\Services\HotelReservationPricingService;
 use Modules\HotelManagement\Services\HotelRoomStatusService;
 use Modules\HotelManagement\Support\HotelNationalityOptions;
@@ -31,6 +32,7 @@ class HotelReservationController extends Controller
         private readonly HotelAddonService $addonService,
         private readonly HotelRoomStatusService $roomStatusService,
         private readonly HotelCheckInService $checkInService,
+        private readonly HotelOccupancyPricingService $occupancyService,
     ) {
     }
 
@@ -202,6 +204,7 @@ class HotelReservationController extends Controller
             'ratePlan',
             'group',
             'reservationAddons.addon',
+            'priceLines',
             'stay.folio.lines',
             'stay.folio.payments' => fn ($q) => $q->with('creator')->orderBy('id'),
         ]);
@@ -309,6 +312,42 @@ class HotelReservationController extends Controller
     /**
      * @return HotelReservation|RedirectResponse
      */
+    /**
+     * Price Configurator charges for a save/quote request: occupancy lines
+     * (children + additional persons) and rule-resolved addon prices, all
+     * from the single engine so the form quote and the saved snapshot agree.
+     *
+     * @return array{charges: array, extra_adults: int, resolved_prices: array}
+     */
+    private function computeConfiguratorCharges(Request $request, array $quote, array $addonRows, int $creatorId, Carbon $checkInAt, Carbon $checkOutAt): array
+    {
+        $roomType = HotelRoomType::where('created_by', $creatorId)->find((int) $request->hotel_room_type_id);
+        $adults = (int) ($request->adults ?: 1);
+        $included = $this->occupancyService->resolveIncludedAdults($creatorId, $roomType);
+        $extraAdults = $request->filled('extra_adults')
+            ? (int) $request->extra_adults
+            : $this->occupancyService->suggestedExtraAdults($adults, $included);
+
+        $charges = $this->occupancyService->price(
+            $creatorId,
+            $roomType,
+            max(1, (int) ($quote['units'] ?? 1)),
+            $adults,
+            (int) ($request->children ?: 0),
+            $extraAdults,
+            $addonRows,
+            $checkInAt,
+            $checkOutAt
+        );
+
+        $resolvedPrices = [];
+        foreach ($charges['addon_lines'] as $line) {
+            $resolvedPrices[$line['addon_id']] = ['unit_price' => $line['unit_price'], 'rule_id' => $line['rule_id']];
+        }
+
+        return ['charges' => $charges, 'extra_adults' => $extraAdults, 'resolved_prices' => $resolvedPrices];
+    }
+
     protected function persistReservation(Request $request, bool $forceConfirmed = false)
     {
         $validator = \Validator::make($request->all(), [
@@ -337,6 +376,9 @@ class HotelReservationController extends Controller
             'meal_plan' => 'nullable|in:room_only,breakfast,half_board,full_board,all_inclusive',
             'booking_guarantee' => 'nullable|in:none,card,deposit,voucher',
             'payment_method' => 'nullable|string|max:50',
+            'adults' => 'nullable|integer|min:0|max:50',
+            'children' => 'nullable|integer|min:0|max:50',
+            'extra_adults' => 'nullable|integer|min:0|max:50',
             'infants' => 'nullable|integer|min:0',
             'special_requests' => 'nullable|array',
             'special_requests.*' => 'string|max:64',
@@ -376,15 +418,6 @@ class HotelReservationController extends Controller
             (string) $request->billing_mode
         );
 
-        $discountAmount = round((float) ($request->discount_amount ?: 0), 2);
-        if ($discountAmount > 0 && blank($request->discount_reason)) {
-            return redirect()->back()->withInput()->with('error', __('Discount justification is required.'));
-        }
-        if (! $this->pricingService->validateDiscountAmount($discountAmount, (float) $quote['subtotal'])) {
-            $maxPercent = rtrim(rtrim(number_format($this->pricingService->maxDiscountPercentForCurrentUser(), 2, '.', ''), '0'), '.');
-            return redirect()->back()->withInput()->with('error', __('Discount exceeds your allowed limit of :percent%.', ['percent' => $maxPercent]));
-        }
-
         $addonRows = $this->addonService->normalizeAddonInput($request->input('addons'));
         $occupancyError = $this->addonService->validateOccupancyForBooking(
             (int) $request->hotel_room_type_id,
@@ -395,6 +428,20 @@ class HotelReservationController extends Controller
         );
         if ($occupancyError) {
             return redirect()->back()->withInput()->with('error', $occupancyError);
+        }
+
+        $configurator = $this->computeConfiguratorCharges($request, $quote, $addonRows, $creatorId, $checkInAt, $checkOutAt);
+
+        $discountAmount = round((float) ($request->discount_amount ?: 0), 2);
+        if ($discountAmount > 0 && blank($request->discount_reason)) {
+            return redirect()->back()->withInput()->with('error', __('Discount justification is required.'));
+        }
+        // The discount comes off the whole bill, so the cap validates
+        // against the full subtotal (room + occupancy + addons).
+        $discountBase = (float) $quote['subtotal'] + (float) $configurator['charges']['charges_total'];
+        if (! $this->pricingService->validateDiscountAmount($discountAmount, $discountBase)) {
+            $maxPercent = rtrim(rtrim(number_format($this->pricingService->maxDiscountPercentForCurrentUser(), 2, '.', ''), '0'), '.');
+            return redirect()->back()->withInput()->with('error', __('Discount exceeds your allowed limit of :percent%.', ['percent' => $maxPercent]));
         }
 
         $preferredFloor = null;
@@ -450,6 +497,7 @@ class HotelReservationController extends Controller
             'check_in_date' => $checkInAt->toDateString(),
             'check_out_date' => $checkOutAt->toDateString(),
             'adults' => (int) ($request->adults ?: 1),
+            'extra_adults' => $configurator['extra_adults'],
             'children' => (int) ($request->children ?: 0),
             'infants' => (int) ($request->infants ?: 0),
             'source' => $request->source,
@@ -468,7 +516,8 @@ class HotelReservationController extends Controller
             'created_by' => $creatorId,
         ]);
 
-        $this->addonService->syncReservationAddons($reservation, $addonRows, $creatorId);
+        $this->addonService->syncReservationAddons($reservation, $addonRows, $creatorId, $configurator['resolved_prices']);
+        $this->addonService->syncReservationPriceLines($reservation, $configurator['charges']['occupancy_lines'], $creatorId);
 
         $reservation->load(['guest', 'roomType', 'room', 'ratePlan', 'reservationAddons']);
         $this->sendReservationEmail($reservation);
@@ -561,6 +610,9 @@ class HotelReservationController extends Controller
             'meal_plan' => 'nullable|in:room_only,breakfast,half_board,full_board,all_inclusive',
             'booking_guarantee' => 'nullable|in:none,card,deposit,voucher',
             'payment_method' => 'nullable|string|max:50',
+            'adults' => 'nullable|integer|min:0|max:50',
+            'children' => 'nullable|integer|min:0|max:50',
+            'extra_adults' => 'nullable|integer|min:0|max:50',
             'infants' => 'nullable|integer|min:0',
             'special_requests' => 'nullable|array',
             'special_requests.*' => 'string|max:64',
@@ -634,15 +686,6 @@ class HotelReservationController extends Controller
             (string) $request->billing_mode
         );
 
-        $discountAmount = round((float) ($request->discount_amount ?: 0), 2);
-        if ($discountAmount > 0 && blank($request->discount_reason)) {
-            return redirect()->back()->withInput()->with('error', __('Discount justification is required.'));
-        }
-        if (! $this->pricingService->validateDiscountAmount($discountAmount, (float) $quote['subtotal'])) {
-            $maxPercent = rtrim(rtrim(number_format($this->pricingService->maxDiscountPercentForCurrentUser(), 2, '.', ''), '0'), '.');
-            return redirect()->back()->withInput()->with('error', __('Discount exceeds your allowed limit of :percent%.', ['percent' => $maxPercent]));
-        }
-
         $addonRows = $this->addonService->normalizeAddonInput($request->input('addons'));
         $occupancyError = $this->addonService->validateOccupancyForBooking(
             (int) $request->hotel_room_type_id,
@@ -653,6 +696,20 @@ class HotelReservationController extends Controller
         );
         if ($occupancyError) {
             return redirect()->back()->withInput()->with('error', $occupancyError);
+        }
+
+        $configurator = $this->computeConfiguratorCharges($request, $quote, $addonRows, $creatorId, $checkInAt, $checkOutAt);
+
+        $discountAmount = round((float) ($request->discount_amount ?: 0), 2);
+        if ($discountAmount > 0 && blank($request->discount_reason)) {
+            return redirect()->back()->withInput()->with('error', __('Discount justification is required.'));
+        }
+        // The discount comes off the whole bill, so the cap validates
+        // against the full subtotal (room + occupancy + addons).
+        $discountBase = (float) $quote['subtotal'] + (float) $configurator['charges']['charges_total'];
+        if (! $this->pricingService->validateDiscountAmount($discountAmount, $discountBase)) {
+            $maxPercent = rtrim(rtrim(number_format($this->pricingService->maxDiscountPercentForCurrentUser(), 2, '.', ''), '0'), '.');
+            return redirect()->back()->withInput()->with('error', __('Discount exceeds your allowed limit of :percent%.', ['percent' => $maxPercent]));
         }
 
         $preferredFloor = null;
@@ -701,6 +758,7 @@ class HotelReservationController extends Controller
             'check_in_date' => $checkInAt->toDateString(),
             'check_out_date' => $checkOutAt->toDateString(),
             'adults' => (int) ($request->adults ?: 1),
+            'extra_adults' => $configurator['extra_adults'],
             'children' => (int) ($request->children ?: 0),
             'infants' => (int) ($request->infants ?: 0),
             'source' => $wasCheckedIn ? $reservation->source : $request->source,
@@ -718,7 +776,8 @@ class HotelReservationController extends Controller
             'internal_notes' => $request->internal_notes,
         ]);
 
-        $this->addonService->syncReservationAddons($reservation, $addonRows, $creatorId);
+        $this->addonService->syncReservationAddons($reservation, $addonRows, $creatorId, $configurator['resolved_prices']);
+        $this->addonService->syncReservationPriceLines($reservation, $configurator['charges']['occupancy_lines'], $creatorId);
 
         if ($reservation->status === HotelReservation::STATUS_CHECKED_IN) {
             try {
@@ -729,6 +788,11 @@ class HotelReservationController extends Controller
             $reservation->load('stay.folio');
             if ($reservation->stay?->folio) {
                 $this->addonService->postReservationAddonsToFolio(
+                    $reservation,
+                    $reservation->stay->folio,
+                    $creatorId
+                );
+                $this->addonService->postReservationPriceLinesToFolio(
                     $reservation,
                     $reservation->stay->folio,
                     $creatorId
@@ -792,17 +856,50 @@ class HotelReservationController extends Controller
             return response()->json(['error' => __('Permission denied.')], 403);
         }
 
+        $creatorId = Auth::user()->creatorId();
         $checkInAt = $request->filled('check_in_at') ? Carbon::parse($request->get('check_in_at')) : null;
         $checkOutAt = $request->filled('check_out_at') ? Carbon::parse($request->get('check_out_at')) : null;
 
-        return response()->json($this->pricingService->quote(
-            Auth::user()->creatorId(),
+        $quote = $this->pricingService->quote(
+            $creatorId,
             (int) $request->get('hotel_room_type_id'),
             $request->filled('hotel_room_id') ? (int) $request->get('hotel_room_id') : null,
             $checkInAt,
             $checkOutAt,
             (string) $request->get('billing_mode', 'nightly')
-        ));
+        );
+
+        // Price Configurator charges (occupancy rules + rule-resolved addon
+        // prices) so the Live Summary matches the server-side save exactly.
+        $roomType = HotelRoomType::where('created_by', $creatorId)->find((int) $request->get('hotel_room_type_id'));
+        $included = $this->occupancyService->resolveIncludedAdults($creatorId, $roomType);
+        $adults = max(0, (int) $request->get('adults', 1));
+        $extraAdults = $request->filled('extra_adults')
+            ? (int) $request->get('extra_adults')
+            : $this->occupancyService->suggestedExtraAdults($adults, $included);
+        $addonRows = $this->addonService->normalizeAddonInput($request->input('addons'));
+        $charges = $this->occupancyService->price(
+            $creatorId,
+            $roomType,
+            max(1, (int) ($quote['units'] ?? 1)),
+            $adults,
+            max(0, (int) $request->get('children', 0)),
+            $extraAdults,
+            $addonRows,
+            $checkInAt,
+            $checkOutAt
+        );
+
+        return response()->json(array_merge($quote, [
+            'included_adults' => $included,
+            'suggested_extra_adults' => $this->occupancyService->suggestedExtraAdults($adults, $included),
+            'extra_adults' => $extraAdults,
+            'occupancy_lines' => $charges['occupancy_lines'],
+            'occupancy_total' => $charges['occupancy_total'],
+            'addon_lines' => $charges['addon_lines'],
+            'addons_total' => $charges['addons_total'],
+            'charges_total' => $charges['charges_total'],
+        ]));
     }
 
     public function suggestRoom(Request $request)

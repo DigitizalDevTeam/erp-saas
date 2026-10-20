@@ -235,7 +235,7 @@ class HotelNightAuditPreviewService
             $amount = (float) $line->line_total;
             $taxes += (float) $line->tax_amount;
             match ((string) $line->line_type) {
-                'room_charge', 'addon_charge' => $lodging += $amount,
+                'room_charge', 'addon_charge', 'occupancy_charge' => $lodging += $amount,
                 'pos_charge' => $services += $amount,
                 'laundry_charge' => $laundry += $amount,
                 'minibar_charge' => $minibar += $amount,

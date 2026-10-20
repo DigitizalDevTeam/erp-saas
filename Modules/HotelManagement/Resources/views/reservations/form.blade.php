@@ -23,6 +23,7 @@
         $selectedAddonRows = [['addon_id' => '', 'qty' => 1]];
     }
     $postedAddons = isset($reservation) ? $reservation->reservationAddons?->filter(fn ($row) => $row->isPosted()) : collect();
+    $extraBedAddonId = optional($addonsCatalog->firstWhere('type', \Modules\HotelManagement\Entities\HotelAddon::TYPE_EXTRA_BED))->id;
 @endphp
 <div class="row g-3">
     <div class="col-lg-9">
@@ -161,6 +162,7 @@
                     <div class="col-md-2">{!! Form::label('adults', __('Adults'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('adults', old('adults', $reservation?->adults ?? 1), ['class' => 'form-control', 'min' => 1]) !!}</div>
                     <div class="col-md-2">{!! Form::label('children', __('Children'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('children', old('children', $reservation?->children ?? 0), ['class' => 'form-control', 'min' => 0]) !!}</div>
                     <div class="col-md-2">{!! Form::label('infants', __('Infants'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('infants', old('infants', $reservation?->infants ?? 0), ['class' => 'form-control', 'min' => 0]) !!}</div>
+                    <div class="col-md-2">{!! Form::label('extra_adults', __('Additional persons'), ['class' => 'form-label small mb-1']) !!}{!! Form::number('extra_adults', old('extra_adults', $reservation?->extra_adults), ['class' => 'form-control', 'min' => 0, 'id' => 'extra_adults', 'placeholder' => __('Auto')]) !!}<small class="text-muted">{{ __('Auto = adults beyond the included count') }}</small></div>
                     <div class="col-md-3 d-flex align-items-end">
                         <div class="form-check">
                             {!! Form::checkbox('parking_requested', 1, old('parking_requested', $reservation?->parking_requested), ['class' => 'form-check-input', 'id' => 'parking_requested']) !!}
@@ -214,6 +216,17 @@
                     <button type="button" class="btn btn-sm btn-outline-primary" id="btn_add_addon_row"><i class="ti ti-plus me-1"></i>{{ __('Add row') }}</button>
                 </div>
                 <p class="text-muted small">{{ __('Extra bed is billed per night. Other addons follow their catalog billing mode.') }}</p>
+                @if($extraBedAddonId)
+                <div class="row g-2 align-items-end mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1" for="extra_beds">{{ __('Additional beds') }}</label>
+                        <input type="number" id="extra_beds" class="form-control" min="0" value="0">
+                    </div>
+                    <div class="col-md-9">
+                        <small class="text-muted">{{ __('Shortcut for the Extra Bed row below — priced by the Price Configurator addon rules.') }}</small>
+                    </div>
+                </div>
+                @endif
                 <div id="addon_rows">
                     @foreach($selectedAddonRows as $index => $row)
                         <div class="row g-2 align-items-end addon-row mb-2">
@@ -263,7 +276,7 @@
                 <div class="d-flex justify-content-between mb-1"><span class="text-muted">{{ __('Subtotal') }}</span><span id="sum_sub">—</span></div>
                 <div class="d-flex justify-content-between mb-2"><span class="text-muted">{{ __('Discount') }}</span><span id="sum_disc">—</span></div>
                 <div class="d-flex justify-content-between mb-2"><span class="text-muted">{{ __('Rate source') }}</span><span id="sum_source">—</span></div>
-                <div class="d-flex justify-content-between mb-2"><span class="text-muted">{{ __('Addons & extras') }}</span><span id="sum_addons">—</span></div>
+                <div id="sum_charges"></div>
                 <div class="d-flex justify-content-between mb-2"><span class="text-muted">{{ __('Max guests') }}</span><span id="sum_capacity">—</span></div>
                 <hr class="my-2">
                 <div class="d-flex justify-content-between"><strong>{{ __('Estimated total') }}</strong><strong class="text-primary" id="sum_total">—</strong></div>
@@ -284,6 +297,13 @@
         var billingModeSelect = document.getElementById('billing_mode');
         var guestAlertBox = document.getElementById('guest_alert_box');
         var autoBillingMode = true;
+        var extraBedAddonId = @json($extraBedAddonId ?? null);
+        var extraAdultsInput = document.getElementById('extra_adults');
+        // On the edit form the stored value counts as a manual choice.
+        var extraAdultsTouched = !!(extraAdultsInput && extraAdultsInput.value !== '');
+        if (extraAdultsInput) {
+            extraAdultsInput.addEventListener('input', function () { extraAdultsTouched = true; });
+        }
 
         function setSummaryText(id, value) {
             var el = document.getElementById(id);
@@ -363,29 +383,69 @@
             setSummaryText('sum_rate_label', summaryRateLabel);
         }
 
-        function calcAddonTotal(units) {
-            var total = 0;
+        function collectAddonRows() {
+            var rows = [];
             document.querySelectorAll('.addon-row').forEach(function (row) {
                 var select = row.querySelector('.addon-select');
                 var qtyInput = row.querySelector('.addon-qty');
                 if (!select || !select.value) return;
-                var opt = select.options[select.selectedIndex];
-                var price = parseFloat(opt.getAttribute('data-price') || 0) || 0;
-                var billing = opt.getAttribute('data-billing') || 'per_stay';
-                var qty = parseInt(qtyInput && qtyInput.value ? qtyInput.value : 1, 10) || 1;
-                var multiplier = billing === 'per_night' ? Math.max(1, units || 1) : 1;
-                total += price * qty * multiplier;
+                rows.push({ addon_id: select.value, qty: parseInt(qtyInput && qtyInput.value ? qtyInput.value : 1, 10) || 1 });
             });
-            return total;
+            return rows;
+        }
+
+        function escHtml(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+
+        function renderChargeLines(data) {
+            var box = document.getElementById('sum_charges');
+            if (!box) return;
+            var html = '';
+            (data.occupancy_lines || []).forEach(function (line) {
+                var label = (line.kind === 'child' ? '{{ __("Children") }}' : '{{ __("Additional persons") }}') + ' ×' + line.qty;
+                label += line.no_rule
+                    ? ' <span class="text-muted">({{ __("no rule — free") }})</span>'
+                    : ' <span class="text-muted">(' + escHtml(line.rule_name || '') + ')</span>';
+                html += '<div class="d-flex justify-content-between mb-2"><span class="text-muted">' + label + '</span><span>' + (parseFloat(line.amount || 0) || 0).toFixed(2) + '</span></div>';
+            });
+            (data.addon_lines || []).forEach(function (line) {
+                var label = escHtml(line.name) + ' ×' + line.qty;
+                if (line.rule_name) label += ' <span class="text-muted">(' + escHtml(line.rule_name) + ')</span>';
+                html += '<div class="d-flex justify-content-between mb-2"><span class="text-muted">' + label + '</span><span>' + (parseFloat(line.amount || 0) || 0).toFixed(2) + '</span></div>';
+            });
+            box.innerHTML = html;
+        }
+
+        function syncBedsFromRows() {
+            var bedsInput = document.getElementById('extra_beds');
+            if (!bedsInput || !extraBedAddonId) return;
+            var total = 0;
+            collectAddonRows().forEach(function (row) {
+                if (String(row.addon_id) === String(extraBedAddonId)) total += row.qty;
+            });
+            bedsInput.value = total;
         }
 
         function refreshQuote() {
+            syncBedsFromRows();
             var params = new URLSearchParams({
                 hotel_room_type_id: typeSelect ? typeSelect.value : '',
                 hotel_room_id: roomSelect ? roomSelect.value : '',
                 billing_mode: billingModeSelect ? billingModeSelect.value : 'nightly',
                 check_in_at: document.getElementById('check_in_at') ? document.getElementById('check_in_at').value : '',
-                check_out_at: document.getElementById('check_out_at') ? document.getElementById('check_out_at').value : ''
+                check_out_at: document.getElementById('check_out_at') ? document.getElementById('check_out_at').value : '',
+                adults: document.getElementById('adults') ? document.getElementById('adults').value : '',
+                children: document.getElementById('children') ? document.getElementById('children').value : ''
+            });
+            if (extraAdultsInput && extraAdultsInput.value !== '') {
+                params.set('extra_adults', extraAdultsInput.value);
+            }
+            collectAddonRows().forEach(function (row, i) {
+                params.set('addons[' + i + '][addon_id]', row.addon_id);
+                params.set('addons[' + i + '][qty]', row.qty);
             });
 
             updateRateLabels(billingModeSelect ? billingModeSelect.value : 'nightly');
@@ -397,16 +457,18 @@
                     if (rateField && data.rate_amount != null) {
                         rateField.value = data.rate_amount;
                     }
+                    if (extraAdultsInput && !extraAdultsTouched && data.extra_adults != null) {
+                        extraAdultsInput.value = data.extra_adults;
+                    }
                     var discount = parseFloat(document.getElementById('discount_amount') ? document.getElementById('discount_amount').value : 0) || 0;
                     var subtotal = parseFloat(data.subtotal || 0) || 0;
-                    var roomTotal = Math.max(0, subtotal - discount);
-                    var addonTotal = calcAddonTotal(parseInt(data.units || 1, 10));
-                    var total = roomTotal + addonTotal;
+                    var chargesTotal = parseFloat(data.charges_total || 0) || 0;
+                    var total = Math.max(0, subtotal + chargesTotal - discount);
+                    renderChargeLines(data);
                     setSummaryText('sum_nights', String(data.units || 1));
                     setSummaryText('sum_rate', (parseFloat(data.rate_amount || 0) || 0).toFixed(2));
                     setSummaryText('sum_sub', subtotal.toFixed(2));
                     setSummaryText('sum_disc', discount.toFixed(2));
-                    setSummaryText('sum_addons', addonTotal.toFixed(2));
                     setSummaryText('sum_total', total.toFixed(2));
                     setSummaryText('sum_source', String(data.rate_plan_name || data.source || '{{ __("setup") }}'));
 
@@ -618,7 +680,50 @@
             });
         }
 
-        ['adults', 'children'].forEach(function (id) {
+        var bedsInput = document.getElementById('extra_beds');
+        if (bedsInput && extraBedAddonId) {
+            bedsInput.addEventListener('change', function () {
+                var wanted = Math.max(0, parseInt(bedsInput.value || 0, 10) || 0);
+                var rows = addonRows ? addonRows.querySelectorAll('.addon-row') : [];
+                var applied = false;
+                rows.forEach(function (row) {
+                    var select = row.querySelector('.addon-select');
+                    var qty = row.querySelector('.addon-qty');
+                    if (!select || !qty) return;
+                    if (String(select.value) === String(extraBedAddonId)) {
+                        if (!applied && wanted > 0) {
+                            qty.value = wanted;
+                            applied = true;
+                        } else {
+                            select.value = '';
+                            qty.value = '1';
+                        }
+                    }
+                });
+                if (!applied && wanted > 0) {
+                    var emptyRow = null;
+                    rows.forEach(function (row) {
+                        var select = row.querySelector('.addon-select');
+                        if (!emptyRow && select && !select.value) emptyRow = row;
+                    });
+                    if (emptyRow) {
+                        emptyRow.querySelector('.addon-select').value = String(extraBedAddonId);
+                        emptyRow.querySelector('.addon-qty').value = wanted;
+                    } else if (addAddonBtn) {
+                        addAddonBtn.click();
+                        var newRows = addonRows.querySelectorAll('.addon-row');
+                        var last = newRows[newRows.length - 1];
+                        if (last) {
+                            last.querySelector('.addon-select').value = String(extraBedAddonId);
+                            last.querySelector('.addon-qty').value = wanted;
+                        }
+                    }
+                }
+                refreshQuote();
+            });
+        }
+
+        ['adults', 'children', 'extra_adults'].forEach(function (id) {
             var el = document.getElementById(id);
             if (el) {
                 el.addEventListener('change', refreshQuote);
