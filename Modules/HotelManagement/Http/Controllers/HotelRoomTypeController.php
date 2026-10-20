@@ -127,7 +127,9 @@ class HotelRoomTypeController extends Controller
         }
 
         $creatorId = (int) Auth::user()->creatorId();
-        $nightly = (float) ($request->nightly_rate ?: 0);
+        // Rates are edited in the Price Configurator; when a rate field is
+        // absent from the request, keep the stored rate.
+        $nightly = $request->has('nightly_rate') ? (float) ($request->nightly_rate ?: 0) : (float) $room_type->nightly_rate;
 
         $data = [
             'name' => $request->name,
@@ -135,7 +137,7 @@ class HotelRoomTypeController extends Controller
             'unit_category' => $request->unit_category,
             'base_price' => $nightly,
             'nightly_rate' => $nightly,
-            'monthly_rate' => $request->monthly_rate ?: 0,
+            'monthly_rate' => $request->has('monthly_rate') ? ($request->monthly_rate ?: 0) : $room_type->monthly_rate,
             'default_billing_mode' => $request->default_billing_mode,
             'max_occupancy' => $request->max_occupancy,
             'is_active' => $request->has('is_active'),

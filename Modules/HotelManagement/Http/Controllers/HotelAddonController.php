@@ -27,16 +27,8 @@ class HotelAddonController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        if (! Schema::hasTable('hotel_addons')) {
-            return redirect()->back()->with('error', __('Run migrations to enable addons catalog.'));
-        }
-
-        $addons = HotelAddon::where('created_by', Auth::user()->creatorId())
-            ->orderBy('type')
-            ->orderBy('name')
-            ->get();
-
-        return view('hotelmanagement::addons.index', compact('addons'));
+        // The addon catalog is managed in the Price Configurator (Extra items tab).
+        return redirect()->route('hotel.price-configurator.index', ['tab' => 'addons']);
     }
 
     public function create()

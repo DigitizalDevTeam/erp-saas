@@ -38,10 +38,6 @@
             {!! Form::label('chart_misc_revenue_id', __('Misc revenue')) !!}
             {!! Form::select('chart_misc_revenue_id', $chartRevenueOptions, $setting->chart_misc_revenue_id, ['class' => 'form-control']) !!}
         </div>
-        <div class="col-md-4">
-            {!! Form::label('default_vat_rate_percent', __('Default VAT % (reference only)')) !!}
-            {!! Form::number('default_vat_rate_percent', old('default_vat_rate_percent', $setting->default_vat_rate_percent ?? 16), ['class' => 'form-control', 'step' => '0.01', 'min' => '0', 'max' => '100']) !!}
-        </div>
         <div class="col-md-8 d-flex align-items-end">
             <div class="form-check">
                 {!! Form::checkbox('pos_invoice_when_charge_to_room', 1, $setting->pos_invoice_when_charge_to_room, ['class' => 'form-check-input', 'id' => 'pos_inv_room']) !!}

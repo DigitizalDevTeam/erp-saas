@@ -193,6 +193,67 @@ class HotelReservationPricingServiceTest extends TestCase
         $this->assertSame(80.0, $result['weekend_rate']);
     }
 
+    public function test_discount_caps_default_then_follow_price_settings(): void
+    {
+        Schema::create('hotel_price_settings', function ($table) {
+            $table->id();
+            $table->unsignedBigInteger('created_by');
+            $table->unsignedInteger('included_adults')->default(2);
+            $table->decimal('discount_cap_manager_percent', 5, 2)->default(25);
+            $table->decimal('discount_cap_frontdesk_percent', 5, 2)->default(10);
+            $table->timestamps();
+        });
+
+        try {
+            $service = new HotelReservationPricingService();
+            $makeUser = function (array $perms) {
+                $user = new class extends \App\Models\User
+                {
+                    public array $permMap = [];
+
+                    public function can($ability, $arguments = [])
+                    {
+                        return $this->permMap[$ability] ?? false;
+                    }
+
+                    public function creatorId()
+                    {
+                        return 1;
+                    }
+                };
+                $user->permMap = $perms;
+
+                return $user;
+            };
+
+            // No settings row: historical defaults (25 manager / 10 front desk / 0 others).
+            \Illuminate\Support\Facades\Auth::login($makeUser(['manage hotel' => true]));
+            $this->assertSame(25.0, $service->maxDiscountPercentForCurrentUser());
+
+            \Illuminate\Support\Facades\Auth::login($makeUser(['manage hotel reservation' => true]));
+            $this->assertSame(10.0, $service->maxDiscountPercentForCurrentUser());
+
+            \Illuminate\Support\Facades\Auth::login($makeUser([]));
+            $this->assertSame(0.0, $service->maxDiscountPercentForCurrentUser());
+
+            // With a Price Configurator settings row, the caps follow it.
+            DB::table('hotel_price_settings')->insert([
+                'created_by' => 1, 'included_adults' => 2,
+                'discount_cap_manager_percent' => 30, 'discount_cap_frontdesk_percent' => 12,
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+
+            \Illuminate\Support\Facades\Auth::login($makeUser(['manage hotel' => true]));
+            $this->assertSame(30.0, $service->maxDiscountPercentForCurrentUser());
+
+            \Illuminate\Support\Facades\Auth::login($makeUser(['manage hotel frontdesk' => true]));
+            $this->assertSame(12.0, $service->maxDiscountPercentForCurrentUser());
+        } finally {
+            \Illuminate\Support\Facades\Auth::logout();
+            Schema::dropIfExists('hotel_price_settings');
+        }
+    }
+
     public function test_flat_rate_when_weekend_rate_not_set(): void
     {
         $this->seedPeriodPlan(null);

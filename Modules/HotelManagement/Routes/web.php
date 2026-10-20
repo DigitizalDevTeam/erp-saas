@@ -96,6 +96,8 @@ Route::group(['middleware' => ['verified']], function () {
 
             Route::get('hotel/price-configurator', [HotelPriceConfiguratorController::class, 'index'])->name('hotel.price-configurator.index');
             Route::post('hotel/price-configurator/settings', [HotelPriceConfiguratorController::class, 'updateSettings'])->name('hotel.price-configurator.settings');
+            Route::post('hotel/price-configurator/room-rates', [HotelPriceConfiguratorController::class, 'updateRoomRates'])->name('hotel.price-configurator.room-rates');
+            Route::post('hotel/price-configurator/taxes', [HotelPriceConfiguratorController::class, 'updateTaxes'])->name('hotel.price-configurator.taxes');
             Route::post('hotel/price-configurator/calculate', [HotelPriceConfiguratorController::class, 'calculate'])->name('hotel.price-configurator.calculate');
             Route::resource('hotel/price-configurator/rules', HotelPriceRuleController::class)->names('hotel.price-rules')->except(['index', 'show']);
 

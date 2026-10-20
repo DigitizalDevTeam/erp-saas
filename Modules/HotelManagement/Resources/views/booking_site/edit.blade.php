@@ -112,11 +112,7 @@
                         'prepay' => __('Stripe online payment'),
                     ], old('payment_mode', $site->payment_mode ?: 'pay_at_hotel'), ['class' => 'form-control', 'id' => 'payment_mode']) !!}
                 </div>
-                <div class="col-md-4" id="prepay_percent_wrap">
-                    {!! Form::label('prepayment_percent', __('Prepayment %')) !!}
-                    {!! Form::number('prepayment_percent', old('prepayment_percent', $site->prepayment_percent ?: 100), ['class' => 'form-control', 'min' => 1, 'max' => 100]) !!}
-                    <small class="text-muted">{{ __('100 = full prepay, 50 = deposit') }}</small>
-                </div>
+
                 <div class="col-12">
                     {!! Form::label('meta_description', __('Meta description')) !!}
                     {!! Form::textarea('meta_description', old('meta_description', $site->meta_description), ['class' => 'form-control', 'rows' => 2]) !!}

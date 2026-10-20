@@ -265,8 +265,10 @@ class HotelRoomController extends Controller
             'hotel_room_type_id' => $request->hotel_room_type_id,
             'hotel_floor_id' => $request->hotel_floor_id ?: null,
             'room_no' => $request->room_no,
-            'override_price' => $request->override_price ?: null,
-            'monthly_override_price' => $request->monthly_override_price ?: null,
+            // Override prices are edited in the Price Configurator; when the
+            // field is absent from the request, keep the stored override.
+            'override_price' => $request->has('override_price') ? ($request->override_price ?: null) : $room->override_price,
+            'monthly_override_price' => $request->has('monthly_override_price') ? ($request->monthly_override_price ?: null) : $room->monthly_override_price,
             'notes' => $request->notes,
         ]);
 

@@ -35,14 +35,8 @@ class HotelRatePlanController extends Controller
             return redirect()->back()->with('error', __('Permission denied.'));
         }
 
-        $ratePlans = HotelRatePlan::where('created_by', Auth::user()->creatorId())
-            ->with('roomType')
-            ->orderByRaw("CASE WHEN plan_type = 'promotional' THEN 0 ELSE 1 END")
-            ->orderBy('priority')
-            ->orderBy('name')
-            ->get();
-
-        return view('hotelmanagement::rate_plans.index', compact('ratePlans'));
+        // Rate plans are managed in the Price Configurator (Price per Period tab).
+        return redirect()->route('hotel.price-configurator.index', ['tab' => 'rate-plans']);
     }
 
     public function create()
