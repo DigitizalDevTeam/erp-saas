@@ -17,6 +17,12 @@ class HotelAddon extends Model
 
     public const TYPE_LAUNDRY = 'laundry';
 
+    public const TYPE_CHAIR = 'chair';
+
+    public const TYPE_SOFA = 'sofa';
+
+    public const TYPE_PILLOW = 'pillow';
+
     public const TYPE_OTHER = 'other';
 
     public const BILLING_PER_NIGHT = 'per_night';
@@ -49,6 +55,9 @@ class HotelAddon extends Model
             self::TYPE_BREAKFAST => __('Breakfast'),
             self::TYPE_PARKING => __('Parking'),
             self::TYPE_LAUNDRY => __('Laundry'),
+            self::TYPE_CHAIR => __('Chair'),
+            self::TYPE_SOFA => __('Sofa'),
+            self::TYPE_PILLOW => __('Pillow'),
             self::TYPE_OTHER => __('Other'),
         ];
     }

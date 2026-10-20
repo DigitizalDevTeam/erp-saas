@@ -12,6 +12,7 @@ class HotelReservationAddon extends Model
     protected $fillable = [
         'hotel_reservation_id',
         'hotel_addon_id',
+        'rule_id',
         'qty',
         'unit_price',
         'billing_mode',

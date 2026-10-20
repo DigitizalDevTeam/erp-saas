@@ -23,6 +23,7 @@ class HotelRoomType extends Model
         'monthly_rate',
         'default_billing_mode',
         'max_occupancy',
+        'included_adults',
         'is_active',
         'created_by',
     ];
