@@ -50,7 +50,7 @@ class ProductServiceController extends Controller
     private const POS_PRODUCT_CARD_COL_CLASS = 'col-xl-3 col-lg-3 col-md-3 col-sm-4 col-6';
 
     /** Bump when POS product card HTML shape changes (invalidates Laravel + client caches). */
-    private const POS_PRODUCT_HTML_CACHE_VER = 'pv15';
+    private const POS_PRODUCT_HTML_CACHE_VER = 'pv16';
 
     /** Type tag shown on POS product grid cards (type is chosen on product create). */
     public static function posProductTypeTagHtml(?string $type): string
@@ -1609,7 +1609,11 @@ class ProductServiceController extends Controller
                         $useWarehouseStock = $restaurantWarehouseId > 0;
                         foreach ($product->optionItems as $oi) {
                             $op = $oi->optionProduct;
-                            if (! $op || ($op->type ?? '') !== 'product' || ($op->type ?? '') === 'ingredient' || ($op->options_enabled ?? false)) {
+                            // Every option assigned on the product form is offered at
+                            // sale time. The option product's own type (product, kit,
+                            // ingredient) or its own options flag must not hide it:
+                            // the sale/deduction code handles all of them.
+                            if (! $op) {
                                 continue;
                             }
                             $stock = ProductOptionService::optionStockDisplay(

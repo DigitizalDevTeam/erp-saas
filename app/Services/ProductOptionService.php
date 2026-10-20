@@ -141,10 +141,9 @@ class ProductOptionService
         $options = [];
         foreach ($items as $item) {
             $op = $products->get($item->option_product_id);
-            if (! $op || ($op->type ?? '') !== 'product') {
-                continue;
-            }
-            if ((bool) ($op->options_enabled ?? false)) {
+            // Every assigned option is offered, whatever the option product's
+            // own type or options flag (mirrors the POS card payload).
+            if (! $op) {
                 continue;
             }
             $stock = self::optionStockDisplay(
