@@ -8,6 +8,7 @@ use Modules\HotelManagement\Entities\HotelAddon;
 use Modules\HotelManagement\Entities\HotelFolio;
 use Modules\HotelManagement\Entities\HotelReservation;
 use Modules\HotelManagement\Entities\HotelReservationAddon;
+use Modules\HotelManagement\Entities\HotelReservationPriceLine;
 use Modules\HotelManagement\Entities\HotelRoomType;
 
 class HotelAddonService
@@ -15,6 +16,7 @@ class HotelAddonService
     public function __construct(
         private readonly HotelPosChargeService $chargeService,
         private readonly HotelReservationPricingService $pricingService,
+        private readonly HotelOccupancyPricingService $occupancyService,
     ) {
     }
 
@@ -106,8 +108,11 @@ class HotelAddonService
 
     /**
      * @param  array<int, array{addon_id:int,qty:int}>  $addonRows
+     * @param  array<int, array{unit_price:float, rule_id:int|null}>  $resolvedPrices  Price Configurator
+     *                                                                                 rule-resolved prices per addon id;
+     *                                                                                 empty = catalog prices (legacy behaviour).
      */
-    public function syncReservationAddons(HotelReservation $reservation, array $addonRows, int $creatorId): void
+    public function syncReservationAddons(HotelReservation $reservation, array $addonRows, int $creatorId, array $resolvedPrices = []): void
     {
         if (! Schema::hasTable('hotel_reservation_addons')) {
             return;
@@ -138,11 +143,13 @@ class HotelAddonService
                 continue;
             }
 
+            $resolved = $resolvedPrices[$addon->id] ?? null;
             HotelReservationAddon::create([
                 'hotel_reservation_id' => $reservation->id,
                 'hotel_addon_id' => $addon->id,
+                'rule_id' => $resolved['rule_id'] ?? null,
                 'qty' => $row['qty'],
-                'unit_price' => $addon->price,
+                'unit_price' => $resolved !== null ? (float) $resolved['unit_price'] : $addon->price,
                 'billing_mode' => $addon->billing_mode,
                 'created_by' => $creatorId,
             ]);
@@ -186,6 +193,87 @@ class HotelAddonService
     }
 
     /**
+     * Snapshot the Price Configurator occupancy lines (children /
+     * additional persons) onto a reservation. Mirrors syncReservationAddons:
+     * unposted lines are replaced; a kind that is already posted to the
+     * folio is left untouched.
+     *
+     * @param  array<int, array<string, mixed>>  $occupancyLines  Engine lines from HotelOccupancyPricingService::price()
+     */
+    public function syncReservationPriceLines(HotelReservation $reservation, array $occupancyLines, int $creatorId): void
+    {
+        if (! Schema::hasTable('hotel_reservation_price_lines')) {
+            return;
+        }
+
+        $reservation->loadMissing('priceLines');
+        $postedKinds = $reservation->priceLines
+            ->filter(fn (HotelReservationPriceLine $line) => $line->hotel_folio_line_id !== null)
+            ->pluck('kind')
+            ->all();
+
+        $reservation->priceLines()->whereNull('hotel_folio_line_id')->delete();
+
+        foreach ($occupancyLines as $line) {
+            if (in_array($line['kind'], $postedKinds, true)) {
+                continue;
+            }
+            HotelReservationPriceLine::create([
+                'created_by' => $creatorId,
+                'hotel_reservation_id' => $reservation->id,
+                'kind' => $line['kind'],
+                'label' => $line['label'],
+                'rule_id' => $line['rule_id'] ?? null,
+                'qty' => (int) $line['qty'],
+                'unit_price' => (float) $line['unit_price'],
+                'units' => (int) $line['units'],
+                'amount' => (float) $line['amount'],
+            ]);
+        }
+    }
+
+    /**
+     * Post unposted occupancy price lines to the folio on the room revenue
+     * channel, mirroring postReservationAddonsToFolio. Zero-amount lines
+     * (no rule matched — free) never post.
+     */
+    public function postReservationPriceLinesToFolio(HotelReservation $reservation, HotelFolio $folio, int $creatorId): void
+    {
+        if (! Schema::hasTable('hotel_reservation_price_lines')) {
+            return;
+        }
+
+        $reservation->loadMissing('priceLines');
+
+        foreach ($reservation->priceLines as $priceLine) {
+            if ($priceLine->hotel_folio_line_id !== null || (float) $priceLine->amount <= 0) {
+                continue;
+            }
+
+            $billQty = max(1, (int) $priceLine->qty) * max(1, (int) $priceLine->units);
+            $description = $priceLine->label;
+            if ((int) $priceLine->units > 1) {
+                $description .= ' (' . (int) $priceLine->qty . ' × ' . (int) $priceLine->units . ' ' . __('Nights') . ')';
+            } elseif ((int) $priceLine->qty > 1) {
+                $description .= ' × ' . (int) $priceLine->qty;
+            }
+
+            $line = $this->chargeService->addOccupancyChargeToFolio(
+                $folio,
+                [
+                    'description' => $description,
+                    'quantity' => $billQty,
+                    'unit_price' => (float) $priceLine->unit_price,
+                    'revenue_channel' => 'room',
+                ],
+                $creatorId
+            );
+
+            $priceLine->update(['hotel_folio_line_id' => $line->id]);
+        }
+    }
+
+    /**
      * @param  array<int, array{addon_id:int,qty:int}>  $addonRows
      */
     public function estimateAddonsTotal(HotelReservation $reservation, array $addonRows, int $creatorId): float
@@ -194,25 +282,21 @@ class HotelAddonService
             return 0.0;
         }
 
-        $addons = HotelAddon::where('created_by', $creatorId)
-            ->whereIn('id', collect($addonRows)->pluck('addon_id')->unique()->all())
-            ->get()
-            ->keyBy('id');
+        // Rule-resolved prices via the Price Configurator engine, so
+        // estimates match what the reservation save path will snapshot.
+        $roomType = $reservation->hotel_room_type_id
+            ? HotelRoomType::where('created_by', $creatorId)->find((int) $reservation->hotel_room_type_id)
+            : null;
+        $lines = $this->occupancyService->priceAddonRows(
+            $creatorId,
+            $addonRows,
+            $this->billingUnits($reservation),
+            $roomType?->id !== null ? (int) $roomType->id : null,
+            $reservation->check_in_at ? Carbon::parse($reservation->check_in_at) : null,
+            $reservation->check_out_at ? Carbon::parse($reservation->check_out_at) : null
+        );
 
-        $units = $this->billingUnits($reservation);
-        $total = 0.0;
-
-        foreach ($addonRows as $row) {
-            $addon = $addons->get($row['addon_id']);
-            if (! $addon) {
-                continue;
-            }
-            $qty = max(1, (int) $row['qty']);
-            $multiplier = $addon->billing_mode === HotelAddon::BILLING_PER_NIGHT ? max(1, $units) : 1;
-            $total += $qty * (float) $addon->price * $multiplier;
-        }
-
-        return round($total, 2);
+        return round(array_sum(array_column($lines, 'amount')), 2);
     }
 
     private function billingUnits(HotelReservation $reservation): int

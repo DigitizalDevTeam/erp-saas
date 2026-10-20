@@ -48,6 +48,15 @@ class HotelPosChargeService
         return $this->addChargeLine($folio, $payload, $creatorId, 'addon_charge');
     }
 
+    public function addOccupancyChargeToFolio(HotelFolio $folio, array $payload, int $creatorId): HotelFolioLine
+    {
+        if (empty($payload['revenue_channel'])) {
+            $payload['revenue_channel'] = 'room';
+        }
+
+        return $this->addChargeLine($folio, $payload, $creatorId, 'occupancy_charge');
+    }
+
     public function addRoomChargeToFolio(HotelFolio $folio, array $payload, int $creatorId): HotelFolioLine
     {
         if (empty($payload['revenue_channel'])) {

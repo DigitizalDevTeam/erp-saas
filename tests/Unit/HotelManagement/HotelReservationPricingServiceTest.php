@@ -254,6 +254,52 @@ class HotelReservationPricingServiceTest extends TestCase
         }
     }
 
+    public function test_reservation_totals_include_occupancy_price_lines(): void
+    {
+        Schema::create('hotel_reservation_price_lines', function ($table) {
+            $table->id();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->unsignedBigInteger('hotel_reservation_id')->nullable();
+            $table->string('kind', 32);
+            $table->string('label');
+            $table->unsignedBigInteger('rule_id')->nullable();
+            $table->unsignedInteger('qty')->default(0);
+            $table->decimal('unit_price', 15, 2)->default(0);
+            $table->unsignedInteger('units')->default(1);
+            $table->decimal('amount', 15, 2)->default(0);
+            $table->unsignedBigInteger('hotel_folio_line_id')->nullable();
+            $table->timestamps();
+        });
+
+        try {
+            DB::table('hotel_reservation_price_lines')->insert([
+                'created_by' => 1, 'hotel_reservation_id' => 99, 'kind' => 'child',
+                'label' => 'Kids family pack', 'rule_id' => null, 'qty' => 3,
+                'unit_price' => 300, 'units' => 2, 'amount' => 1800,
+                'hotel_folio_line_id' => null, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+
+            $reservation = new HotelReservation();
+            $reservation->forceFill([
+                'id' => 99,
+                'check_in_at' => '2026-06-01 14:00:00',
+                'check_out_at' => '2026-06-03 11:00:00',
+                'billing_mode' => 'nightly',
+                'rate_per_night' => 1000,
+                'discount_amount' => 0,
+            ]);
+
+            $totals = (new HotelReservationPricingService())->reservationTotals($reservation);
+
+            $this->assertSame(2000.0, $totals['room_sub_total']);
+            $this->assertSame(1800.0, $totals['occupancy_sub_total']);
+            $this->assertSame(3800.0, $totals['sub_total']);
+            $this->assertSame(3800.0, $totals['grand_total']);
+        } finally {
+            Schema::dropIfExists('hotel_reservation_price_lines');
+        }
+    }
+
     public function test_flat_rate_when_weekend_rate_not_set(): void
     {
         $this->seedPeriodPlan(null);

@@ -110,6 +110,7 @@ class HotelCheckInService
             $reservation->refresh();
             $reservation->load('reservationAddons');
             $this->addonService->postReservationAddonsToFolio($reservation, $folio, $creatorId);
+            $this->addonService->postReservationPriceLinesToFolio($reservation, $folio, $creatorId);
 
             return $stay->fresh(['folio']);
         });
