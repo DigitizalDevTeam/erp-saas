@@ -1017,7 +1017,7 @@ class ProductServiceController extends Controller
                         ->get();
                 }
 
-                $productService->load(['variants', 'optionItems.optionProduct:id,name,sku,sale_price,purchase_price']);
+                $productService->load(['variants', 'optionItems.optionProduct:id,name,sku,type,sale_price,purchase_price']);
 
                 $optionItems = $productService->optionItems;
                 $optionProducts = ProductService::where('created_by', \Auth::user()->creatorId())
