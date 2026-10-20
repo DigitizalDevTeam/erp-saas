@@ -154,6 +154,7 @@ class ProductOptionService
             $options[] = [
                 'product_id' => (int) $op->id,
                 'name' => $op->name,
+                'type' => $op->type ?? 'product',
                 'sku' => $op->sku,
                 'sale_price' => $op->exclusiveSaleUnitPrice(),
                 'purchase_price' => $op->exclusivePurchaseUnitPrice(),

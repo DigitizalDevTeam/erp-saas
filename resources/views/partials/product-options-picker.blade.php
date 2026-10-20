@@ -43,6 +43,10 @@
         qty: @json(__('Qty')),
         noStock: @json(__('Does not affect stock')),
         variants: @json(__('Variants')),
+        type_product: @json(__('Product')),
+        type_service: @json(__('Service')),
+        type_kit: @json(__('Kit')),
+        type_ingredient: @json(__('Ingredient')),
     };
 </script>
-<script src="{{ asset('js/product-options-picker.js') }}?v=20261006a"></script>
+<script src="{{ asset('js/product-options-picker.js') }}?v=20261021a"></script>

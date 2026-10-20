@@ -53,21 +53,38 @@ class ProductServiceController extends Controller
     private const POS_PRODUCT_HTML_CACHE_VER = 'pv16';
 
     /** Type tag shown on POS product grid cards (type is chosen on product create). */
-    public static function posProductTypeTagHtml(?string $type): string
+    /** Shared product-type tag labels/classes (POS cards, option rows, create/edit pages). */
+    public static function posProductTypeTagMap(): array
     {
-        $typeMap = [
+        return [
             'product' => ['label' => __('Product'), 'class' => 'bg-primary'],
             'service' => ['label' => __('Service'), 'class' => 'bg-info'],
             'kit' => ['label' => __('Kit'), 'class' => 'bg-warning text-dark'],
             'ingredient' => ['label' => __('Ingredient'), 'class' => 'bg-secondary'],
         ];
+    }
+
+    public static function posProductTypeTagHtml(?string $type): string
+    {
         $typeKey = strtolower((string) ($type ?? 'product'));
         if ($typeKey === '') {
             $typeKey = 'product';
         }
-        $typeInfo = $typeMap[$typeKey] ?? ['label' => ucfirst($typeKey), 'class' => 'bg-secondary'];
+        $typeInfo = self::posProductTypeTagMap()[$typeKey] ?? ['label' => ucfirst($typeKey), 'class' => 'bg-secondary'];
 
         return '<span class="badge ' . $typeInfo['class'] . ' pos-product-type-tag position-absolute top-0 start-0 m-1" style="z-index:2">' . e($typeInfo['label']) . '</span>';
+    }
+
+    /** Inline (non-positioned) product-type badge for option rows and form tables. */
+    public static function posProductTypeBadgeHtml(?string $type): string
+    {
+        $typeKey = strtolower((string) ($type ?? 'product'));
+        if ($typeKey === '') {
+            $typeKey = 'product';
+        }
+        $typeInfo = self::posProductTypeTagMap()[$typeKey] ?? ['label' => ucfirst($typeKey), 'class' => 'bg-secondary'];
+
+        return '<span class="badge ' . $typeInfo['class'] . '">' . e($typeInfo['label']) . '</span>';
     }
 
     /** "Does not affect stock" tag shown on POS product grid cards when that checkbox is set on create/edit. */
@@ -1628,6 +1645,7 @@ class ProductServiceController extends Controller
                             $opts[] = [
                                 'product_id' => (int) $op->id,
                                 'name' => $op->name,
+                                'type' => $op->type ?? 'product',
                                 'sku' => $op->sku,
                                 'sale_price' => $op->exclusiveSaleUnitPrice(),
                                 'purchase_price' => (float) ($op->purchase_price ?? 0),

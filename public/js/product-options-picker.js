@@ -114,6 +114,20 @@
             '<small class="badge bg-danger mb-0 rounded qty_badge flex-shrink-0 text-nowrap">' +
             escapeHtml(String(stockQty) + (stockUnit ? ' ' + stockUnit : '')) +
             '</small>';
+        var typeMap = {
+            product: ['type_product', 'Product', 'bg-primary'],
+            service: ['type_service', 'Service', 'bg-info'],
+            kit: ['type_kit', 'Kit', 'bg-warning text-dark'],
+            ingredient: ['type_ingredient', 'Ingredient', 'bg-secondary']
+        };
+        var typeKey = String(opt.type || 'product').toLowerCase();
+        var typeInfo = typeMap[typeKey] || [null, typeKey.charAt(0).toUpperCase() + typeKey.slice(1), 'bg-secondary'];
+        var typeBadge =
+            '<small class="badge ' +
+            typeInfo[2] +
+            ' mb-0 rounded flex-shrink-0 text-nowrap">' +
+            escapeHtml(typeInfo[0] ? t(typeInfo[0], typeInfo[1]) : typeInfo[1]) +
+            '</small>';
         var noStockBadge = opt.does_not_affect_stock
             ? '<small class="badge bg-dark mb-0 rounded flex-shrink-0 text-nowrap">' +
               escapeHtml(t('noStock', 'Does not affect stock')) +
@@ -147,6 +161,7 @@
             escapeHtml(opt.name) +
             skuHtml +
             '</span>' +
+            typeBadge +
             stockBadge +
             noStockBadge +
             variantsBadge +

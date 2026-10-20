@@ -409,7 +409,7 @@
                         <select class="form-select" id="product_option_create_select">
                             <option value="">{{ __('Select product') }}</option>
                             @foreach(($optionProducts ?? []) as $op)
-                                <option value="{{ $op->id }}">{{ $op->name }}{{ $op->sku ? ' (' . $op->sku . ')' : '' }}</option>
+                                <option value="{{ $op->id }}" data-type="{{ $op->type ?? 'product' }}">{{ $op->name }}{{ $op->sku ? ' (' . $op->sku . ')' : '' }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -560,6 +560,12 @@
 
     (function () {
         let optIdx = 0;
+        const OPT_TYPE_TAGS = { product: [@json(__('Product')), 'bg-primary'], service: [@json(__('Service')), 'bg-info'], kit: [@json(__('Kit')), 'bg-warning text-dark'], ingredient: [@json(__('Ingredient')), 'bg-secondary'] };
+        function optTypeBadgeHtml(type) {
+            const key = String(type || 'product').toLowerCase();
+            const info = OPT_TYPE_TAGS[key] || [key.charAt(0).toUpperCase() + key.slice(1), 'bg-secondary'];
+            return ' <span class="badge ' + info[1] + '">' + $('<div>').text(info[0]).html() + '</span>';
+        }
         function renderOptEmpty() {
             const $tbody = $('#product_options_create_table tbody');
             if ($tbody.find('tr[data-option-row]').length === 0) {
@@ -585,7 +591,7 @@
             const $tbody = $('#product_options_create_table tbody');
             if ($tbody.find('tr[data-empty-row]').length) $tbody.empty();
             if ($tbody.find('input[value="' + id + '"]').length) return;
-            $tbody.append('<tr data-option-row><td>' + $('<div>').text(text).html() +
+            $tbody.append('<tr data-option-row><td>' + $('<div>').text(text).html() + optTypeBadgeHtml($('#product_option_create_select option:selected').data('type')) +
                 '<input type="hidden" name="product_options[' + optIdx + '][option_product_id]" value="' + id + '"></td>' +
                 '<td><input type="text" class="form-control form-control-sm" name="product_options[' + optIdx + '][option_group]" value="' + $('<div>').text(group).html() + '" placeholder="{{ __("Group") }}"></td>' +
                 '<td><input type="hidden" name="product_options[' + optIdx + '][is_required]" value="0">' +

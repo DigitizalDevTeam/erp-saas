@@ -55,6 +55,6 @@ class ProductOptionSetupQtyTest extends TestCase
         $this->assertStringContainsString('setupQty +', $js);
 
         $partial = file_get_contents(resource_path('views/partials/product-options-picker.blade.php'));
-        $this->assertStringContainsString('?v=20261006a', $partial);
+        $this->assertStringContainsString('?v=20261021a', $partial);
     }
 }
