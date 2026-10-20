@@ -19,7 +19,9 @@
         || str_starts_with($routeName, 'hotel.accounting-settings');
     $reportsActive = str_starts_with($routeName, 'hotel.reports.')
         || str_starts_with($routeName, 'hotel.night-audit.');
-    $settingsActive = str_starts_with($routeName, 'hotel.ota-settings.');
+    $settingsActive = str_starts_with($routeName, 'hotel.ota-settings.')
+        || str_starts_with($routeName, 'hotel.price-configurator.')
+        || str_starts_with($routeName, 'hotel.price-rules.');
 @endphp
 <li class="dash-item dash-hasmenu {{ str_starts_with($routeName, 'hotel.') ? 'active dash-trigger' : '' }}">
     <a href="#!" class="dash-link">
@@ -172,6 +174,11 @@
                 <li class="dash-item {{ str_starts_with($routeName, 'hotel.ota-settings.') ? 'active' : '' }}">
                     <a class="dash-link" href="{{ route('hotel.ota-settings.index') }}">{{ __('OTA / Integrations') }}</a>
                 </li>
+                @can('manage hotel')
+                <li class="dash-item {{ (str_starts_with($routeName, 'hotel.price-configurator.') || str_starts_with($routeName, 'hotel.price-rules.')) ? 'active' : '' }}">
+                    <a class="dash-link" href="{{ route('hotel.price-configurator.index') }}">{{ __('Price Configurator') }}</a>
+                </li>
+                @endcan
             </ul>
         </li>
         @endcan

@@ -250,6 +250,15 @@ class HotelAuthorization
         return $user->can('manage hotel') || $user->can('manage hotel reservation');
     }
 
+    public static function managePriceConfigurator(User|null $user = null): bool
+    {
+        $user = self::user($user);
+
+        // Prices are a manager-level control: reservation staff keep
+        // booking with the rules, they do not edit them.
+        return $user !== null && $user->can('manage hotel');
+    }
+
     public static function manageBookingSite(User|null $user = null): bool
     {
         $user = self::user($user);
