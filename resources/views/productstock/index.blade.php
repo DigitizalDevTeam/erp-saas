@@ -126,7 +126,7 @@
                             <tbody>
                             @foreach ($productServices as $productService)
                                 <tr class="font-style">
-                                    <td>{{ $productService->name }}</td>
+                                    <td>{{ $productService->name }}@if($productService->type === 'ingredient') <span class="badge bg-secondary">{{ __('Ingredient') }}</span>@endif</td>
                                     <td>{{ $productService->sku }}</td>
                                     <td>{{ $productService->display_quantity ?? $productService->quantity }}</td>
                                     <td class="Action">

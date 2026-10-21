@@ -29,7 +29,7 @@ class ProductStockController extends Controller
         }
 
         $productServices = ProductService::where('created_by', '=', \Auth::user()->creatorId())
-            ->where('type', '=', 'product')
+            ->whereIn('type', ['product', 'ingredient'])
             ->orderBy('name')
             ->get();
 
@@ -59,13 +59,16 @@ class ProductStockController extends Controller
         $warehouses = warehouse::where('created_by', \Auth::user()->creatorId())->orderBy('name')->pluck('name', 'id');
         $warehouses->prepend(__('Select Warehouse'), '');
         $products = ProductService::where('created_by', \Auth::user()->creatorId())
-            ->where('type', 'product')
+            ->whereIn('type', ['product', 'ingredient'])
             ->orderBy('name')
-            ->get(['id', 'name', 'sku'])
+            ->get(['id', 'name', 'sku', 'type'])
             ->mapWithKeys(function ($product) {
                 $label = (string) $product->name;
                 if (! empty($product->sku)) {
                     $label .= ' (' . $product->sku . ')';
+                }
+                if ($product->type === 'ingredient') {
+                    $label .= ' — ' . __('Ingredient');
                 }
 
                 return [(string) $product->id => $label];
@@ -116,7 +119,7 @@ class ProductStockController extends Controller
             if ($pid <= 0 || $qty <= 0) {
                 continue;
             }
-            $product = ProductService::where('created_by', $creatorId)->where('type', 'product')->find($pid);
+            $product = ProductService::where('created_by', $creatorId)->whereIn('type', ['product', 'ingredient'])->find($pid);
             if (! $product) {
                 return redirect()->back()->with('error', __('Invalid product selection.'))->withInput();
             }
@@ -403,7 +406,7 @@ class ProductStockController extends Controller
         }
 
         $productServices = ProductService::where('created_by', $creatorId)
-            ->where('type', 'product')
+            ->whereIn('type', ['product', 'ingredient'])
             ->orderBy('name')
             ->get();
 
