@@ -112,4 +112,14 @@ class ChartOfAccount extends Model
 
         return '';
     }
+
+    /**
+     * "code - name" dropdown label in the given (or current user's)
+     * language — the locale-aware replacement for the raw SQL
+     * CONCAT(code, ' - ', name) builders.
+     */
+    public function codeNameForLocale(?string $lang = null): string
+    {
+        return trim((string) ($this->code ?? '')) . ' - ' . $this->labelForLocale($lang);
+    }
 }

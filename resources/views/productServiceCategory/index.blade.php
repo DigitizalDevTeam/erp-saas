@@ -43,7 +43,7 @@
                                     <td class="font-style">
                                         {{ __(\App\Models\ProductServiceCategory::$catTypes[$category->type]) }}
                                     </td>
-                                    <td>{{ (!empty($category->chartAccount)?$category->chartAccount->name :'-') }}</td>
+                                    <td>{{ (!empty($category->chartAccount)?$category->chartAccount->labelForLocale() :'-') }}</td>
 
                                     <td class="Action">
                                         <span>

@@ -188,10 +188,9 @@ class ChartOfAccountController extends Controller
             $end = date('Y-m-t');
         }
 
-        $accounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
-            ->where('created_by', \Auth::user()->creatorId())
+        $accounts = ChartOfAccount::where('created_by', \Auth::user()->creatorId())
             ->get()
-            ->pluck('code_name', 'id');
+            ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
         $accounts->prepend('Select Account', '');
 
         $account = ! empty($request->account)

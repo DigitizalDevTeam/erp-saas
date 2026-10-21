@@ -244,7 +244,7 @@
                                                                 $chartAccount = \App\Models\ChartOfAccount::find($item->chart_account_id);
                                                             @endphp
 
-                                                            <td>{{!empty($chartAccount) ? $chartAccount->name : '-'}}</td>
+                                                            <td>{{!empty($chartAccount) ? $chartAccount->labelForLocale() : '-'}}</td>
                                                             <td>{{\Auth::user()->priceFormat($item->amount)}}</td>
 
                                                             <td>{{!empty($item->description)?$item->description:'-'}}</td>
@@ -263,7 +263,7 @@
                                                         @php
                                                             $chartAccount = \App\Models\ChartOfAccount::find($item['chart_account_id']);
                                                         @endphp
-                                                        <td>{{!empty($chartAccount) ? $chartAccount->name : '-'}}</td>
+                                                        <td>{{!empty($chartAccount) ? $chartAccount->labelForLocale() : '-'}}</td>
                                                         <td>{{\Auth::user()->priceFormat($item['amount'])}}</td>
                                                         <td>-</td>
                                                         <td class="text-end">{{\Auth::user()->priceFormat($item['amount'])}}</td>

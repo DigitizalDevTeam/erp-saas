@@ -397,7 +397,7 @@
                                                             );
                                                         @endphp
 
-                                                        <td>{{ !empty($chartAccount) ? $chartAccount->name : '-' }}</td>
+                                                        <td>{{ !empty($chartAccount) ? $chartAccount->labelForLocale() : '-' }}</td>
                                                         <td>{{ \Auth::user()->priceFormat($item->amount) }}</td>
 
                                                         <td>{{ !empty($item->description) ? $item->description : '-' }}</td>
@@ -420,7 +420,7 @@
                                                                 $item['chart_account_id'],
                                                             );
                                                         @endphp
-                                                        <td>{{ !empty($chartAccount) ? $chartAccount->name : '-' }}</td>
+                                                        <td>{{ !empty($chartAccount) ? $chartAccount->labelForLocale() : '-' }}</td>
                                                         <td>{{ \Auth::user()->priceFormat($item['amount']) }}</td>
                                                         <td>-</td>
                                                         <td class="text-end">

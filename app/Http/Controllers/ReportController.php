@@ -1291,25 +1291,40 @@ class ReportController extends Controller
             if (!empty($request->account)) {
                 $chart_accounts = ChartOfAccount::where('id', $request->account)->where('created_by', \Auth::user()->creatorId())->get();
                 // $accounts = ChartOfAccount::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
-                $accounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.parent')
+                $accounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh', 'chart_of_accounts.parent')
                 ->where('parent', '=', 0)
                 ->where('created_by', \Auth::user()->creatorId())->get()
-                ->toarray();
+                ->map(fn ($account) => [
+                    'id' => $account->id,
+                    'code' => $account->code,
+                    'name' => $account->labelForLocale(),
+                    'parent' => $account->parent,
+                ])->toarray();
 
             } else {
                 $chart_accounts = ChartOfAccount::where('created_by', \Auth::user()->creatorId())->get();
                 // $accounts = $chart_accounts->pluck('name', 'id');
-                $accounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.parent')
+                $accounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh', 'chart_of_accounts.parent')
                 ->where('parent', '=', 0)
                 ->where('created_by', \Auth::user()->creatorId())->get()
-                ->toarray();
+                ->map(fn ($account) => [
+                    'id' => $account->id,
+                    'code' => $account->code,
+                    'name' => $account->labelForLocale(),
+                    'parent' => $account->parent,
+                ])->toarray();
             }
 
-            $subAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_account_parents.account');
+            $subAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh', 'chart_of_account_parents.account');
             $subAccounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id');
             $subAccounts->where('chart_of_accounts.parent', '!=', 0);
             $subAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
-            $subAccounts = $subAccounts->get()->toArray();
+            $subAccounts = $subAccounts->get()->map(fn ($account) => [
+                'id' => $account->id,
+                'code' => $account->code,
+                'name' => $account->labelForLocale(),
+                'account' => $account->account,
+            ])->toArray();
 
             $balance = 0;
             $debit = 0;

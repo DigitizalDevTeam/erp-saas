@@ -42,7 +42,7 @@
                             <tbody>
                             @foreach ($accounts as $account)
                                 <tr class="font-style">
-                                    <td>{{ (!empty($account->chartAccount)?$account->chartAccount->name :'-') }}</td>
+                                    <td>{{ (!empty($account->chartAccount)?$account->chartAccount->labelForLocale() :'-') }}</td>
                                     <td>{{  $account->holder_name}}</td>
                                     <td>{{  $account->bank_name}}</td>
                                     <td>{{  $account->account_number}}</td>

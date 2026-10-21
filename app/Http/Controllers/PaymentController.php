@@ -71,9 +71,8 @@ class PaymentController extends Controller
 
             $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
 
-            $chartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
-                ->where('created_by', \Auth::user()->creatorId())->get()
-                ->pluck('code_name', 'id');
+            $chartAccounts = ChartOfAccount::where('created_by', \Auth::user()->creatorId())->get()
+                ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
             $chartAccounts->prepend('Select Account', '');
             return view('payment.create', compact('venders', 'categories', 'accounts', 'chartAccounts'));
         } else {
@@ -210,9 +209,8 @@ class PaymentController extends Controller
 
             $accounts = BankAccount::select('*', \DB::raw("CONCAT(bank_name,' ',holder_name) AS name"))->where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
 
-            $chartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
-                ->where('created_by', \Auth::user()->creatorId())->get()
-                ->pluck('code_name', 'id');
+            $chartAccounts = ChartOfAccount::where('created_by', \Auth::user()->creatorId())->get()
+                ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
             $chartAccounts->prepend('Select Account', '');
 
             return view('payment.edit', compact('venders', 'categories', 'accounts', 'payment', 'chartAccounts'));

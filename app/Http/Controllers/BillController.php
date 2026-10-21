@@ -99,16 +99,20 @@ class BillController extends Controller
             $product_services = ProductService::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $product_services->prepend('Select Item', '');
 
-            $chartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
-                ->where('created_by', \Auth::user()->creatorId())->get()
-                ->pluck('code_name', 'id');
+            $chartAccounts = ChartOfAccount::where('created_by', \Auth::user()->creatorId())->get()
+                ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
             $chartAccounts->prepend('Select Account', '');
 
-            $subAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name' , 'chart_of_account_parents.account');
+            $subAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh' , 'chart_of_account_parents.account');
             $subAccounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id');
             $subAccounts->where('chart_of_accounts.parent', '!=', 0);
             $subAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
-            $subAccounts = $subAccounts->get()->toArray();
+            $subAccounts = $subAccounts->get()->map(fn ($account) => [
+                'id' => $account->id,
+                'code' => $account->code,
+                'name' => $account->labelForLocale(),
+                'account' => $account->account,
+            ])->toArray();
 
             return view('bill.create', compact('venders', 'bill_number', 'product_services', 'category', 'customFields', 'vendorId','chartAccounts' , 'subAccounts'));
         }
@@ -417,16 +421,20 @@ class BillController extends Controller
                 $bill->customField = CustomField::getData($bill, 'bill');
                 $customFields      = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'bill')->get();
 
-                $chartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
-                    ->where('created_by', \Auth::user()->creatorId())->get()
-                    ->pluck('code_name', 'id');
+                $chartAccounts = ChartOfAccount::where('created_by', \Auth::user()->creatorId())->get()
+                    ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
                 $chartAccounts->prepend('Select Account', '');
 
-                $subAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name' , 'chart_of_account_parents.account');
+                $subAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh' , 'chart_of_account_parents.account');
                 $subAccounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id');
                 $subAccounts->where('chart_of_accounts.parent', '!=', 0);
                 $subAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
-                $subAccounts = $subAccounts->get()->toArray();
+                $subAccounts = $subAccounts->get()->map(fn ($account) => [
+                    'id' => $account->id,
+                    'code' => $account->code,
+                    'name' => $account->labelForLocale(),
+                    'account' => $account->account,
+                ])->toArray();
 
                 //for item and account show in repeater
                 $item      = $bill->items;

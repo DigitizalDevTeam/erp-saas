@@ -34,9 +34,8 @@ class ProductServiceCategoryController extends Controller
 
             $types = array_merge($type, $types);
 
-            $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
-                ->where('created_by', \Auth::user()->creatorId())->get()
-                ->pluck('code_name', 'id');
+            $chart_accounts = ChartOfAccount::where('created_by', \Auth::user()->creatorId())->get()
+                ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
             $chart_accounts->prepend('Select Account', '');
 
             $parentOptions = $this->parentOptionsForUser((int) \Auth::user()->creatorId());
@@ -249,56 +248,61 @@ class ProductServiceCategoryController extends Controller
 
         $chart_accounts = [];
         if ($request->type == 'income') {
-            $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name, chart_of_accounts.id as id'))
+            $chart_accounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh')
             ->leftjoin('chart_of_account_types', 'chart_of_account_types.id','chart_of_accounts.type')
             ->where('chart_of_account_types.name' ,'Income')
             ->where('parent', '=', 0)
             ->where('chart_of_accounts.created_by', \Auth::user()->creatorId())->get()
-            ->pluck('code_name', 'id');
+            ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
         } elseif ($request->type == 'expense') {
-            $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name, chart_of_accounts.id as id'))
+            $chart_accounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh')
             ->leftjoin('chart_of_account_types', 'chart_of_account_types.id','chart_of_accounts.type')
             ->where('chart_of_account_types.name' ,'Expenses')
             ->where('parent', '=', 0)
             ->where('chart_of_accounts.created_by', \Auth::user()->creatorId())->get()
-            ->pluck('code_name', 'id');
+            ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
         } elseif ($request->type == 'asset') {
-            $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name, chart_of_accounts.id as id'))
+            $chart_accounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh')
             ->leftjoin('chart_of_account_types', 'chart_of_account_types.id','chart_of_accounts.type')
             ->where('chart_of_account_types.name' ,'Assets')
             ->where('parent', '=', 0)
             ->where('chart_of_accounts.created_by', \Auth::user()->creatorId())->get()
-            ->pluck('code_name', 'id');
+            ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
         } elseif ($request->type == 'liability') {
-            $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name, chart_of_accounts.id as id'))
+            $chart_accounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh')
             ->leftjoin('chart_of_account_types', 'chart_of_account_types.id','chart_of_accounts.type')
             ->where('chart_of_account_types.name' ,'Liabilities')
             ->where('parent', '=', 0)
             ->where('chart_of_accounts.created_by', \Auth::user()->creatorId())->get()
-            ->pluck('code_name', 'id');
+            ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
         } elseif ($request->type == 'equity') {
-            $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name, chart_of_accounts.id as id'))
+            $chart_accounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh')
             ->leftjoin('chart_of_account_types', 'chart_of_account_types.id','chart_of_accounts.type')
             ->where('chart_of_account_types.name' ,'Equity')
             ->where('parent', '=', 0)
             ->where('chart_of_accounts.created_by', \Auth::user()->creatorId())->get()
-            ->pluck('code_name', 'id');
+            ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
         } elseif ($request->type == 'costs of good sold') {
-            $chart_accounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name, chart_of_accounts.id as id'))
+            $chart_accounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh')
             ->leftjoin('chart_of_account_types', 'chart_of_account_types.id','chart_of_accounts.type')
             ->where('chart_of_account_types.name' ,'Costs of Goods Sold')
             ->where('parent', '=', 0)
             ->where('chart_of_accounts.created_by', \Auth::user()->creatorId())->get()
-            ->pluck('code_name', 'id');
+            ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
         } else {
             $chart_accounts = 0;
         }
 
-        $subAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name' , 'chart_of_account_parents.account');
+        $subAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh' , 'chart_of_account_parents.account');
         $subAccounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id');
         $subAccounts->where('chart_of_accounts.parent', '!=', 0);
         $subAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
-        $subAccounts = $subAccounts->get()->toArray();
+        $subAccounts = $subAccounts->get()->map(fn ($account) => [
+            'id' => $account->id,
+            'code' => $account->code,
+            'name' => $account->labelForLocale(),
+            'account' => $account->account,
+        ])->toArray();
 
     $response = [
         'chart_accounts' => $chart_accounts,

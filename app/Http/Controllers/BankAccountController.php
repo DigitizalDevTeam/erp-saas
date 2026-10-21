@@ -66,17 +66,22 @@ class BankAccountController extends Controller
     {
         if(\Auth::user()->can('create bank account'))
         {
-            $chartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
-            ->where('parent', '=', 0)
+            $chartAccounts = ChartOfAccount::where('parent', '=', 0)
                 ->where('created_by', \Auth::user()->creatorId())->get()
-                ->pluck('code_name', 'id');
+                ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
             $chartAccounts->prepend('Select Account', '');
 
-            $subAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name, chart_of_accounts.id, chart_of_accounts.code, chart_of_accounts.name , chart_of_account_parents.account'));
+            $subAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh' , 'chart_of_account_parents.account');
             $subAccounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id');
             $subAccounts->where('chart_of_accounts.parent', '!=', 0);
             $subAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
-            $subAccounts = $subAccounts->get()->toArray();
+            $subAccounts = $subAccounts->get()->map(fn ($account) => [
+                'id' => $account->id,
+                'code' => $account->code,
+                'code_name' => $account->codeNameForLocale(),
+                'name' => $account->labelForLocale(),
+                'account' => $account->account,
+            ])->toArray();
 
 
             $customFields = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'account')->get();
@@ -145,17 +150,22 @@ class BankAccountController extends Controller
         {
             if($bankAccount->created_by == \Auth::user()->creatorId())
             {
-                $chartAccounts = ChartOfAccount::select(\DB::raw('CONCAT(code, " - ", name) AS code_name, id'))
-                ->where('parent', '=', 0)
+                $chartAccounts = ChartOfAccount::where('parent', '=', 0)
                     ->where('created_by', \Auth::user()->creatorId())->get()
-                    ->pluck('code_name', 'id');
+                    ->mapWithKeys(fn ($account) => [$account->id => $account->codeNameForLocale()]);
                 $chartAccounts->prepend('Select Account', 0);
 
-                $subAccounts = ChartOfAccount::select(\DB::raw('CONCAT(chart_of_accounts.code, " - ", chart_of_accounts.name) AS code_name, chart_of_accounts.id, chart_of_accounts.code, chart_of_accounts.name , chart_of_account_parents.account'));
+                $subAccounts = ChartOfAccount::select('chart_of_accounts.id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.name_pt_br', 'chart_of_accounts.name_fr', 'chart_of_accounts.name_es', 'chart_of_accounts.name_zh' , 'chart_of_account_parents.account');
                 $subAccounts->leftjoin('chart_of_account_parents', 'chart_of_accounts.parent', 'chart_of_account_parents.id');
                 $subAccounts->where('chart_of_accounts.parent', '!=', 0);
                 $subAccounts->where('chart_of_accounts.created_by', \Auth::user()->creatorId());
-                $subAccounts = $subAccounts->get()->toArray();
+                $subAccounts = $subAccounts->get()->map(fn ($account) => [
+                    'id' => $account->id,
+                    'code' => $account->code,
+                    'code_name' => $account->codeNameForLocale(),
+                    'name' => $account->labelForLocale(),
+                    'account' => $account->account,
+                ])->toArray();
 
                 $bankAccount->customField = CustomField::getData($bankAccount, 'account');
                 $customFields             = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'account')->get();
