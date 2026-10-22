@@ -4,6 +4,26 @@
 @endsection
 @push('css-page')
     <link rel="stylesheet" href="{{ asset('css/jquery.dataTables.min.css') }}">
+    <style>
+        .ss-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: #6d6a85; margin-bottom: 12px; }
+        .ss-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+        table.ss-chart { width: 100%; border-collapse: collapse; font-size: 13px; }
+        table.ss-chart th, table.ss-chart td { padding: 8px 10px; border-bottom: 1px solid #eef0f6; text-align: center; }
+        table.ss-chart th { background: #f6f6fb; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+        table.ss-chart th:first-child, table.ss-chart td:first-child { text-align: left; }
+        table.ss-chart .ss-section td { background: #eef0fa; font-weight: 700; color: #51459d; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+        .ss-item-name { font-weight: 600; }
+        .ss-item-sku { color: #9a97ad; font-size: 12px; }
+        .ss-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; background: #eceff1; color: #546e7a; }
+        .ss-b-product { background: #e3f2fd; color: #1565c0; }
+        .ss-b-option { background: #ede7f6; color: #5e35b1; }
+        .ss-qty { font-weight: 700; }
+        .ss-zero { color: #d32f2f; font-weight: 700; background: #fdecea; }
+        .ss-low { color: #e65100; font-weight: 700; }
+        .ss-total { background: #fafafc; font-weight: 700; }
+        .ss-sell td { background: #e8f5e9; font-weight: 700; color: #1b5e20; border-top: 2px solid #a5d6a7; }
+        .ss-sell td.ss-zero { background: #fdecea; color: #b71c1c; }
+    </style>
 @endpush
 @push('script-page')
     <script src="{{ asset('js/jquery.dataTables.min.js') }}"></script>
@@ -207,6 +227,138 @@
             });
         });
     </script>
+    <script>
+        (function () {
+            var ssCurrentId = null;
+            var ssBaseUrl = '{{ url('productservice') }}';
+
+            function ssEsc(s) {
+                return $('<div>').text(s === null || s === undefined ? '' : String(s)).html();
+            }
+
+            function ssQty(q) {
+                var n = Math.round((parseFloat(q) || 0) * 100) / 100;
+                return String(n);
+            }
+
+            function ssCellClass(qty, threshold) {
+                qty = parseFloat(qty) || 0;
+                if (qty <= 0) {
+                    return 'ss-zero';
+                }
+                if (threshold !== null && threshold !== undefined && threshold > 0 && qty <= threshold) {
+                    return 'ss-low';
+                }
+                return '';
+            }
+
+            function ssTypeLabel(type) {
+                if (!type) {
+                    return '-';
+                }
+                return type.charAt(0).toUpperCase() + type.slice(1);
+            }
+
+            function ssRowHtml(item, badgeLabel, badgeClass) {
+                var group = item.group ? ' <span class="ss-item-sku">(' + ssEsc(item.group) + ')</span>' : '';
+                var html = '<tr>'
+                    + '<td><span class="ss-item-name">' + ssEsc(item.name) + '</span> <span class="ss-item-sku">' + ssEsc(item.sku) + '</span>' + group + '</td>'
+                    + '<td><span class="ss-badge ' + badgeClass + '">' + ssEsc(badgeLabel) + '</span></td>'
+                    + '<td>' + (item.per_sale === null || item.per_sale === undefined ? '—' : '× ' + ssQty(item.per_sale)) + '</td>';
+                ssWarehouses.forEach(function (w) {
+                    var qty = item.stock ? (item.stock[w.id] || 0) : 0;
+                    var cls = ssCellClass(qty, item.low_stock_threshold);
+                    html += '<td class="' + (cls || 'ss-qty') + '">' + ssQty(qty) + '</td>';
+                });
+                html += '<td class="ss-total">' + ssQty(item.total) + '</td></tr>';
+                return html;
+            }
+
+            var ssWarehouses = [];
+
+            function ssRender(data) {
+                ssWarehouses = data.warehouses || [];
+                $('#stockStatusTitle').text('{{ __('Stock Status') }} — ' + data.product.name + ' (SKU ' + (data.product.sku || '-') + ')');
+
+                if (!ssWarehouses.length) {
+                    $('#stockStatusBody').html('<p class="text-muted text-center py-3">{{ __('No warehouses found.') }}</p>');
+                    return;
+                }
+
+                var head = '<tr><th style="width:30%">{{ __('Item') }}</th><th>{{ __('Type') }}</th><th>{{ __('Per Sale') }}</th>';
+                ssWarehouses.forEach(function (w) {
+                    head += '<th>' + ssEsc(w.name) + '</th>';
+                });
+                head += '<th>{{ __('Total') }}</th></tr>';
+
+                var colspan = 3 + ssWarehouses.length + 1;
+                var body = '';
+                body += '<tr class="ss-section"><td colspan="' + colspan + '">{{ __('Product') }}</td></tr>';
+                body += ssRowHtml(data.product_stock, ssTypeLabel(data.product_stock.type), 'ss-b-product');
+
+                if (data.options && data.options.length) {
+                    body += '<tr class="ss-section"><td colspan="' + colspan + '">{{ __('Assigned Product Options') }}</td></tr>';
+                    data.options.forEach(function (item) {
+                        body += ssRowHtml(item, '{{ __('Option') }}', 'ss-b-option');
+                    });
+                }
+
+                if (data.ingredients && data.ingredients.length) {
+                    body += '<tr class="ss-section"><td colspan="' + colspan + '">{{ __('Recipe Ingredients') }}</td></tr>';
+                    data.ingredients.forEach(function (item) {
+                        body += ssRowHtml(item, ssTypeLabel(item.type), '');
+                    });
+                }
+
+                var sell = '<tr class="ss-sell"><td colspan="3">{{ __('Can sell now (product + recipe, per warehouse)') }}</td>';
+                ssWarehouses.forEach(function (w) {
+                    var v = data.can_sell ? data.can_sell[w.id] : 0;
+                    if (v !== null && v !== undefined && v >= data.unlimited_value) {
+                        sell += '<td>∞</td>';
+                    } else {
+                        sell += '<td class="' + ((parseFloat(v) || 0) <= 0 ? 'ss-zero' : '') + '">' + ssQty(v) + '</td>';
+                    }
+                });
+                sell += '<td>—</td></tr>';
+
+                $('#stockStatusBody').html(
+                    '<div class="table-responsive"><table class="ss-chart"><thead>' + head + '</thead><tbody>' + body + sell + '</tbody></table></div>'
+                );
+            }
+
+            function ssLoad() {
+                if (!ssCurrentId) {
+                    return;
+                }
+                $('#stockStatusBody').html('<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>');
+                $.ajax({
+                    url: ssBaseUrl + '/' + ssCurrentId + '/stock-status',
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function (data) {
+                        ssRender(data);
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __('Unable to load stock status.') }}';
+                        $('#stockStatusBody').html('<p class="text-danger text-center py-3">' + ssEsc(msg) + '</p>');
+                    }
+                });
+            }
+
+            $(document).on('click', '.stock-status-btn', function (e) {
+                e.preventDefault();
+                ssCurrentId = $(this).data('id');
+                var modalEl = document.getElementById('stockStatusModal');
+                var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                modal.show();
+                ssLoad();
+            });
+
+            $(document).on('click', '#stockStatusRefresh', function () {
+                ssLoad();
+            });
+        })();
+    </script>
 @endpush
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{route('dashboard')}}">{{__('Dashboard')}}</a></li>
@@ -285,6 +437,29 @@
                             <tbody></tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="stockStatusModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="stockStatusTitle">{{ __('Stock Status') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="ss-legend">
+                        <span><span class="ss-dot" style="background:#2e7d32"></span>{{ __('In stock') }}</span>
+                        <span><span class="ss-dot" style="background:#e65100"></span>{{ __('Low — at or below the low stock alert') }}</span>
+                        <span><span class="ss-dot" style="background:#d32f2f"></span>{{ __('Out of stock') }}</span>
+                    </div>
+                    <div id="stockStatusBody"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Close') }}</button>
+                    <button type="button" class="btn btn-primary" id="stockStatusRefresh"><i class="ti ti-refresh"></i> {{ __('Refresh') }}</button>
                 </div>
             </div>
         </div>

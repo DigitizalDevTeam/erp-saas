@@ -338,6 +338,7 @@ class ProductServiceController extends Controller
                 'shelf' => __('Shelf'),
                 'row' => __('Row'),
                 'warehouse' => __('Warehouse Details'),
+                'stock_status' => __('Stock Status'),
                 'edit' => __('Edit'),
                 'edit_product' => __('Edit Product'),
                 'delete' => __('Delete'),
@@ -640,6 +641,11 @@ class ProductServiceController extends Controller
                 .'<a href="#" class="mx-3 btn btn-sm align-items-center bg-warning" data-url="'.e($base.'/'.$id.'/detail').'"'
                 .' data-ajax-popup="true" data-bs-toggle="tooltip" title="'.e($labels['warehouse']).'" data-title="'.e($labels['warehouse']).'">'
                 .'<i class="ti ti-eye text-white"></i></a></div>';
+
+            $actionHtml .= '<div class="action-btn me-2 d-inline-block">'
+                .'<a href="#" class="mx-3 btn btn-sm align-items-center bg-primary stock-status-btn" data-id="'.$id.'"'
+                .' data-bs-toggle="tooltip" title="'.e($labels['stock_status']).'">'
+                .'<i class="ti ti-chart-bar text-white"></i></a></div>';
 
             if ($canEdit) {
                 $actionHtml .= '<div class="action-btn me-2 d-inline-block">'
@@ -1425,6 +1431,24 @@ class ProductServiceController extends Controller
     {
         $products = WarehouseProduct::with(['warehouse'])->where('product_id', '=', $id)->where('created_by', '=', \Auth::user()->creatorId())->get();
         return view('productservice.detail', compact('products'));
+    }
+
+    /**
+     * JSON for the Products list "Stock Status" popup: this product,
+     * its assigned options and its recipe ingredients, per warehouse.
+     */
+    public function stockStatus($id, \App\Services\ProductStockStatusService $service)
+    {
+        if (! \Auth::user()->can('manage product & service')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $product = ProductService::where('created_by', \Auth::user()->creatorId())->find($id);
+        if (! $product) {
+            return response()->json(['error' => __('Product not found.')], 404);
+        }
+
+        return response()->json($service->chartFor($product, (int) \Auth::user()->creatorId()));
     }
 
     public function searchProducts(Request $request)

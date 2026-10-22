@@ -990,6 +990,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('productservice/{id}/show-on-pos', [ProductServiceController::class, 'toggleShowOnPos'])->name('productservice.show-on-pos')->middleware(['auth', 'XSS']);
     Route::post('productservice/{id}/affect-stock', [ProductServiceController::class, 'toggleAffectStock'])->name('productservice.affect-stock')->middleware(['auth', 'XSS']);
     Route::get('productservice/{id}/detail', [ProductServiceController::class, 'warehouseDetail'])->name('productservice.detail');
+    Route::get('productservice/{id}/stock-status', [ProductServiceController::class, 'stockStatus'])->name('productservice.stock-status');
     Route::post('productservice/{id}/kit-items', [ProductServiceController::class, 'kitItemStore'])->name('productservice.kit-items.store')->middleware(['auth', 'XSS']);
     Route::delete('productservice/{id}/kit-items/{kit_item}', [ProductServiceController::class, 'kitItemDestroy'])->name('productservice.kit-items.destroy')->middleware(['auth', 'XSS']);
     Route::post('empty-cart', [ProductServiceController::class, 'emptyCart'])->middleware(['auth', 'XSS']);
