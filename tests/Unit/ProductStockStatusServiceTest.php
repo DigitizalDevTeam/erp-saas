@@ -206,11 +206,41 @@ class ProductStockStatusServiceTest extends TestCase
     public function test_can_sell_matches_pos_availability(): void
     {
         $chart = $this->chart();
+        $sellable = $chart['product_stock']['sellable'];
 
         // BAR: Hortelã is 0 -> nothing sellable even with 100 Laranjas.
-        $this->assertSame(0, $chart['can_sell'][$this->bar->id]);
+        $this->assertSame(0, $sellable[$this->bar->id]);
         // BEBIDAS: min(own 8, Açúcar floor(3 / 0.5) = 6, Hortelã 7) = 6.
-        $this->assertSame(6, $chart['can_sell'][$this->bebidas->id]);
+        $this->assertSame(6, $sellable[$this->bebidas->id]);
+    }
+
+    public function test_option_sellable_includes_its_own_recipe(): void
+    {
+        // An option is a product too: Café Expresso is an option of
+        // Sumo Natural (per sale 2) and itself needs Café em Grão.
+        $expresso = $this->makeProduct('Café Expresso', '0000455', 'product', null);
+        $grao = $this->makeProduct('Café em Grão', '0000456', 'ingredient', null);
+        $this->stock($expresso->id, $this->bar->id, 10);
+        $this->stock($expresso->id, $this->bebidas->id, 4);
+        $this->stock($grao->id, $this->bar->id, 3);
+        $this->recipe($expresso->id, $grao->id, 1);
+
+        $option = new ProductOptionItem();
+        $option->parent_product_id = $this->sumo->id;
+        $option->option_product_id = $expresso->id;
+        $option->quantity = 2;
+        $option->created_by = $this->creatorId;
+        $option->save();
+
+        $chart = $this->chart();
+        $row = collect($chart['options'])->firstWhere('name', 'Café Expresso');
+
+        $this->assertNotNull($row);
+        $this->assertSame(2.0, $row['per_sale']);
+        // Own stock alone would allow 10 / 4 — its recipe caps it:
+        // BAR min(10, 3) = 3 (badge: Can sell x1), BEBIDAS min(4, 0) = 0.
+        $this->assertSame(3, $row['sellable'][$this->bar->id]);
+        $this->assertSame(0, $row['sellable'][$this->bebidas->id]);
     }
 
     public function test_no_affect_stock_items_are_flagged_for_dash_display(): void
@@ -253,7 +283,7 @@ class ProductStockStatusServiceTest extends TestCase
         $chart = (new ProductStockStatusService(new PosWarehouseAvailabilityService()))
             ->chartFor($service, $this->creatorId);
 
-        $this->assertSame($chart['unlimited_value'], $chart['can_sell'][$this->bar->id]);
+        $this->assertSame($chart['unlimited_value'], $chart['product_stock']['sellable'][$this->bar->id]);
         $this->assertSame([], $chart['options']);
         $this->assertSame([], $chart['ingredients']);
     }

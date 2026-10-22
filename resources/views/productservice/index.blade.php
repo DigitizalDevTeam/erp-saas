@@ -28,8 +28,9 @@
         .ss-zero { color: #d32f2f; font-weight: 700; background: #fdecea; }
         .ss-low { color: #e65100; font-weight: 700; }
         .ss-total { background: #fafafc; font-weight: 700; }
-        .ss-sell td { background: #e8f5e9; font-weight: 700; color: #1b5e20; border-top: 2px solid #a5d6a7; }
-        .ss-sell td.ss-zero { background: #fdecea; color: #b71c1c; }
+        .ss-sellbadge { display: inline-block; margin-top: 3px; padding: 1px 7px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+        .ss-can { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+        .ss-cant { background: #fdecea; color: #b71c1c; border: 1px solid #ef9a9a; }
     </style>
 @endpush
 @push('script-page')
@@ -266,6 +267,24 @@
                 return type.charAt(0).toUpperCase() + type.slice(1);
             }
 
+            var ssUnlimited = 999999;
+
+            function ssSellBadge(item, warehouseId) {
+                var sellable = item.sellable ? item.sellable[warehouseId] : null;
+                if (sellable === null || sellable === undefined) {
+                    return '';
+                }
+                if (sellable >= ssUnlimited) {
+                    return '<span class="ss-sellbadge ss-can">{{ __('Can sell') }}</span>';
+                }
+                var per = item.per_sale && item.per_sale > 0 ? parseFloat(item.per_sale) : 1;
+                var times = Math.floor(sellable / per);
+                if (times >= 1) {
+                    return '<span class="ss-sellbadge ss-can">{{ __('Can sell') }} ×' + times + '</span>';
+                }
+                return '<span class="ss-sellbadge ss-cant">{{ __('Cannot sell') }}</span>';
+            }
+
             function ssRowHtml(item, badgeLabel, badgeClass) {
                 var noStock = item.affect_stock === false;
                 var group = item.group ? ' <span class="ss-item-sku">(' + ssEsc(item.group) + ')</span>' : '';
@@ -281,7 +300,7 @@
                     }
                     var qty = item.stock ? (item.stock[w.id] || 0) : 0;
                     var cls = ssCellClass(qty, item.low_stock_threshold);
-                    html += '<td class="' + (cls || 'ss-qty') + '">' + ssQty(qty) + '</td>';
+                    html += '<td class="' + (cls || 'ss-qty') + '"><div>' + ssQty(qty) + '</div>' + ssSellBadge(item, w.id) + '</td>';
                 });
                 html += '<td class="ss-total">' + (noStock ? '—' : ssQty(item.total)) + '</td></tr>';
                 return html;
@@ -291,6 +310,9 @@
 
             function ssRender(data) {
                 ssWarehouses = data.warehouses || [];
+                if (data.unlimited_value) {
+                    ssUnlimited = data.unlimited_value;
+                }
                 $('#stockStatusTitle').text('{{ __('Stock Status') }} — ' + data.product.name + ' (SKU ' + (data.product.sku || '-') + ')');
 
                 if (!ssWarehouses.length) {
@@ -323,19 +345,8 @@
                     });
                 }
 
-                var sell = '<tr class="ss-sell"><td colspan="3">{{ __('Can sell now (product + recipe, per warehouse)') }}</td>';
-                ssWarehouses.forEach(function (w) {
-                    var v = data.can_sell ? data.can_sell[w.id] : 0;
-                    if (v !== null && v !== undefined && v >= data.unlimited_value) {
-                        sell += '<td>∞</td>';
-                    } else {
-                        sell += '<td class="' + ((parseFloat(v) || 0) <= 0 ? 'ss-zero' : '') + '">' + ssQty(v) + '</td>';
-                    }
-                });
-                sell += '<td>—</td></tr>';
-
                 $('#stockStatusBody').html(
-                    '<div class="table-responsive"><table class="ss-chart"><thead>' + head + '</thead><tbody>' + body + sell + '</tbody></table></div>'
+                    '<div class="table-responsive"><table class="ss-chart"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>'
                 );
             }
 

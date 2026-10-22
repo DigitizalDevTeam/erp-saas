@@ -12,8 +12,12 @@ use Illuminate\Support\Facades\DB;
  * "Stock Status" popup: the product itself, every assigned product
  * option and every recipe ingredient, with stock per warehouse.
  *
- * "Can sell" mirrors the restaurant POS picker exactly
- * (PosWarehouseAvailabilityService with no options selected).
+ * Every row also carries its own sellable quantity per warehouse —
+ * its own stock plus its own recipe ingredients — computed with the
+ * same check the restaurant POS picker runs
+ * (PosWarehouseAvailabilityService with no options selected), so an
+ * option that is itself a product with ingredients is judged by
+ * those ingredients too.
  */
 class ProductStockStatusService
 {
@@ -53,13 +57,22 @@ class ProductStockStatusService
         }
         $stock = $this->stockByWarehouse(array_values(array_unique($relatedIds)), $warehouseIds, $creatorId);
 
-        $row = function (ProductService $item, ?float $perSale, ?string $group = null) use ($stock, $warehouseIds) {
+        $row = function (ProductService $item, ?float $perSale, ?string $group = null) use ($stock, $warehouseIds, $creatorId) {
             $perWarehouse = [];
             $total = 0.0;
             foreach ($warehouseIds as $warehouseId) {
                 $qty = (float) ($stock[(int) $item->id][$warehouseId] ?? 0);
                 $perWarehouse[$warehouseId] = $qty;
                 $total += $qty;
+            }
+
+            // Sellable units of THIS item per warehouse: its own stock
+            // plus its own recipe ingredients — an option is a product
+            // too and can depend on ingredients of its own. Same check
+            // the POS picker runs (no sub-options selected).
+            $sellable = [];
+            foreach ($warehouseIds as $warehouseId) {
+                $sellable[$warehouseId] = $this->availability->maxSellableQty($item, $warehouseId, null, [], $creatorId);
             }
 
             return [
@@ -72,6 +85,7 @@ class ProductStockStatusService
                 'affect_stock' => (bool) ($item->affect_stock ?? true),
                 'low_stock_threshold' => $item->low_stock_threshold !== null ? (int) $item->low_stock_threshold : null,
                 'stock' => $perWarehouse,
+                'sellable' => $sellable,
                 'total' => $total,
             ];
         };
@@ -90,11 +104,6 @@ class ProductStockStatusService
             }
         }
 
-        $canSell = [];
-        foreach ($warehouseIds as $warehouseId) {
-            $canSell[$warehouseId] = $this->availability->maxSellableQty($product, $warehouseId, null, [], $creatorId);
-        }
-
         return [
             'product' => [
                 'id' => (int) $product->id,
@@ -106,7 +115,6 @@ class ProductStockStatusService
             'product_stock' => $row($product, null),
             'options' => $options,
             'ingredients' => $ingredients,
-            'can_sell' => $canSell,
             // maxSellableQty() sentinel for "nothing in this line consumes stock".
             'unlimited_value' => 999999,
         ];
