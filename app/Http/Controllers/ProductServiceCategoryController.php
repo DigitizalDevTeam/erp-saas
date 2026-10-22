@@ -76,6 +76,7 @@ class ProductServiceCategoryController extends Controller
             $category->type = $request->type;
             $category->parent_id = $request->filled('parent_id') ? (int) $request->parent_id : null;
             $category->print_zone = $request->type === 'product & service' ? ($request->print_zone ?: null) : null;
+            $category->show_on_pos = $request->boolean('show_on_pos');
             $category->chart_account_id = !empty($request->chart_account) ? $request->chart_account : 0;
             $category->created_by = \Auth::user()->creatorId();
             $category->save();
@@ -131,6 +132,7 @@ class ProductServiceCategoryController extends Controller
                 $category->type = $request->type;
                 $category->parent_id = $request->filled('parent_id') ? (int) $request->parent_id : null;
                 $category->print_zone = $request->type === 'product & service' ? ($request->print_zone ?: null) : null;
+                $category->show_on_pos = $request->boolean('show_on_pos');
                 $category->chart_account_id = !empty($request->chart_account) ? $request->chart_account : 0;
                 $category->save();
 
@@ -210,6 +212,12 @@ class ProductServiceCategoryController extends Controller
         $rows = ProductServiceCategory::query()
             ->where('created_by', $creatorId)
             ->where('type', 'product & service')
+            ->where(function ($q) {
+                // "Show on POS" off: no button in the category bar, and
+                // its subcategories stay unreachable under it. NULL
+                // (pre-toggle rows) counts as shown.
+                $q->where('show_on_pos', 1)->orWhereNull('show_on_pos');
+            })
             ->orderBy('name')
             ->get(['id', 'name', 'parent_id']);
 

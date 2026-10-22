@@ -12,7 +12,12 @@ class ProductServiceCategory extends Model
         'type',
         'parent_id',
         'print_zone',
+        'show_on_pos',
         'created_by',
+    ];
+
+    protected $casts = [
+        'show_on_pos' => 'boolean',
     ];
 
     public static $categoryType = [
@@ -86,6 +91,12 @@ class ProductServiceCategory extends Model
             ->leftjoin('product_services as pu','product_service_categories.id' ,'=','pu.category_id')
             ->where('product_service_categories.created_by', '=', Auth::user()->creatorId())
             ->where('product_service_categories.type', 0)
+            ->where(function ($q) {
+                // POS category buttons only: "Show on POS" off hides the
+                // category here; NULL (pre-toggle rows) counts as shown.
+                $q->where('product_service_categories.show_on_pos', 1)
+                    ->orWhereNull('product_service_categories.show_on_pos');
+            })
             ->orderBy('product_service_categories.id', 'DESC')->groupBy('product_service_categories.id')->get();
 
         return $cat;

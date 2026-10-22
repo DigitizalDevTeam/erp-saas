@@ -39,6 +39,15 @@
             <small class="text-muted">{{ __('Products in this category print here unless overridden on the product.') }}</small>
         </div>
 
+        <div class="form-group col-md-12 pos-visibility-field {{ $category->type == 'product & service' ? '' : 'd-none' }}">
+            <div class="form-check form-switch">
+                <input type="hidden" name="show_on_pos" value="0">
+                <input class="form-check-input" type="checkbox" name="show_on_pos" id="show_on_pos" value="1" {{ ($category->show_on_pos ?? true) ? 'checked' : '' }}>
+                <label class="form-check-label" for="show_on_pos">{{ __('Show on POS') }}</label>
+            </div>
+            <small class="text-muted">{{ __('Turn off to hide this category from the POS category buttons. Its products still appear under All Categories.') }}</small>
+        </div>
+
         <div class="form-group col-md-12">
             {{ Form::label('color', __('Category Color'),['class'=>'form-label']) }}<x-required></x-required>
             {{ Form::text('color', null, array('class' => 'form-control jscolor','required'=>'required')) }}
@@ -62,9 +71,11 @@
         if (type != 'product & service') {
             $('.account').removeClass('d-none').addClass('d-block');
             $('.pos-print-routing-field').addClass('d-none').removeClass('d-block');
+            $('.pos-visibility-field').addClass('d-none').removeClass('d-block');
         } else {
             $('.account').addClass('d-none').removeClass('d-block');
             $('.pos-print-routing-field').removeClass('d-none').addClass('d-block');
+            $('.pos-visibility-field').removeClass('d-none').addClass('d-block');
         }
     }
 
