@@ -213,6 +213,37 @@ class ProductStockStatusServiceTest extends TestCase
         $this->assertSame(6, $chart['can_sell'][$this->bebidas->id]);
     }
 
+    public function test_no_affect_stock_items_are_flagged_for_dash_display(): void
+    {
+        // A kit (never affects stock itself) with a no-stock option: the
+        // popup shows "—" + a "Does not affect stock" tag for both rows,
+        // driven by this flag.
+        $kit = $this->makeProduct('Menu Executivo', '0000800', 'kit', null);
+        $kit->affect_stock = false;
+        $kit->save();
+
+        $napkin = $this->makeProduct('Guardanapo', '0000810', 'product', null);
+        $napkin->affect_stock = false;
+        $napkin->save();
+        $this->stock($napkin->id, $this->bar->id, 500);
+
+        $option = new ProductOptionItem();
+        $option->parent_product_id = $kit->id;
+        $option->option_product_id = $napkin->id;
+        $option->quantity = 1;
+        $option->created_by = $this->creatorId;
+        $option->save();
+
+        $chart = (new ProductStockStatusService(new PosWarehouseAvailabilityService()))
+            ->chartFor($kit, $this->creatorId);
+
+        $this->assertFalse($chart['product_stock']['affect_stock']);
+        $this->assertCount(1, $chart['options']);
+        $this->assertFalse($chart['options'][0]['affect_stock']);
+        // Stock numbers are still in the payload; the popup hides them.
+        $this->assertSame(500.0, $chart['options'][0]['stock'][$this->bar->id]);
+    }
+
     public function test_service_without_stock_or_recipe_is_unlimited(): void
     {
         $service = $this->makeProduct('Corte de Cabelo', '0000900', 'service', null);

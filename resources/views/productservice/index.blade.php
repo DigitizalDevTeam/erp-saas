@@ -15,6 +15,13 @@
         .ss-item-name { font-weight: 600; }
         .ss-item-sku { color: #9a97ad; font-size: 12px; }
         .ss-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; background: #eceff1; color: #546e7a; }
+        .ss-nostock { background: #f1f0f7; color: #6d6a85; border: 1px solid #d9d6e8; margin-left: 6px; }
+        /* Fixed popup width at every screen size/zoom (Bootstrap's modal-xl
+           steps 1140/800/500px at window breakpoints); the chart scrolls
+           sideways instead of squeezing when there are many warehouses. */
+        .ss-dialog { width: 96vw; max-width: 1200px; }
+        table.ss-chart th, table.ss-chart td { white-space: nowrap; }
+        table.ss-chart th:first-child, table.ss-chart td:first-child { white-space: normal; min-width: 170px; }
         .ss-b-product { background: #e3f2fd; color: #1565c0; }
         .ss-b-option { background: #ede7f6; color: #5e35b1; }
         .ss-qty { font-weight: 700; }
@@ -260,17 +267,23 @@
             }
 
             function ssRowHtml(item, badgeLabel, badgeClass) {
+                var noStock = item.affect_stock === false;
                 var group = item.group ? ' <span class="ss-item-sku">(' + ssEsc(item.group) + ')</span>' : '';
+                var tag = noStock ? '<span class="ss-badge ss-nostock">{{ __('Does not affect stock') }}</span>' : '';
                 var html = '<tr>'
-                    + '<td><span class="ss-item-name">' + ssEsc(item.name) + '</span> <span class="ss-item-sku">' + ssEsc(item.sku) + '</span>' + group + '</td>'
+                    + '<td><span class="ss-item-name">' + ssEsc(item.name) + '</span> <span class="ss-item-sku">' + ssEsc(item.sku) + '</span>' + group + tag + '</td>'
                     + '<td><span class="ss-badge ' + badgeClass + '">' + ssEsc(badgeLabel) + '</span></td>'
                     + '<td>' + (item.per_sale === null || item.per_sale === undefined ? '—' : '× ' + ssQty(item.per_sale)) + '</td>';
                 ssWarehouses.forEach(function (w) {
+                    if (noStock) {
+                        html += '<td>—</td>';
+                        return;
+                    }
                     var qty = item.stock ? (item.stock[w.id] || 0) : 0;
                     var cls = ssCellClass(qty, item.low_stock_threshold);
                     html += '<td class="' + (cls || 'ss-qty') + '">' + ssQty(qty) + '</td>';
                 });
-                html += '<td class="ss-total">' + ssQty(item.total) + '</td></tr>';
+                html += '<td class="ss-total">' + (noStock ? '—' : ssQty(item.total)) + '</td></tr>';
                 return html;
             }
 
@@ -443,7 +456,7 @@
     </div>
 
     <div class="modal fade" id="stockStatusModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable ss-dialog">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="stockStatusTitle">{{ __('Stock Status') }}</h5>
