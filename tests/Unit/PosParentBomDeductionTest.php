@@ -44,6 +44,7 @@ class PosParentBomDeductionTest extends TestCase
             $table->integer('product_id');
             $table->integer('ingredient_product_id');
             $table->decimal('quantity', 15, 4)->default(0);
+            $table->string('unit', 16)->nullable();
             $table->integer('unit_id')->nullable();
             $table->integer('created_by')->nullable();
             $table->timestamps();

@@ -40,7 +40,7 @@ class ProductOptionSetupQtyTest extends TestCase
             $blade = file_get_contents(resource_path("views/productservice/{$view}.blade.php"));
             $this->assertStringContainsString('<th width="110">{{ __(\'Qty\') }}</th>', $blade, $view);
             $this->assertStringContainsString('[quantity]', $blade, $view);
-            $this->assertStringContainsString('colspan="5"', $blade, $view);
+            $this->assertStringContainsString('colspan="6"', $blade, $view);
             $this->assertStringContainsString('min="0"', $blade, $view);
             $this->assertStringNotContainsString('min="0.0001" step="any"', $blade, $view);
         }

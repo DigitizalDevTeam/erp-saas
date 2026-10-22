@@ -741,6 +741,7 @@ class ProductOptionService
                     'option_group' => ($group = trim((string) ($row['option_group'] ?? ''))) !== '' ? $group : null,
                     'is_required' => filter_var($row['is_required'] ?? false, FILTER_VALIDATE_BOOLEAN),
                     'quantity' => self::normalizeSetupQuantity($row['quantity'] ?? null),
+                    'unit' => \App\Support\MeasurementUnits::normalize($row['unit'] ?? null),
                 ]
             );
             $sort++;

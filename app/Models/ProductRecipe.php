@@ -10,6 +10,7 @@ class ProductRecipe extends Model
         'product_id',
         'ingredient_product_id',
         'quantity',
+        'unit',
         'unit_id',
         'created_by',
     ];

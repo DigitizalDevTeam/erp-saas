@@ -12,6 +12,7 @@ class ProductOptionItem extends Model
         'option_group',
         'is_required',
         'quantity',
+        'unit',
         'sort_order',
         'created_by',
     ];

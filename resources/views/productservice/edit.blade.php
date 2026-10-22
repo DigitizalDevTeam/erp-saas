@@ -409,6 +409,7 @@
                                 <th>{{ __('Group') }}</th>
                                 <th>{{ __('Required') }}</th>
                                 <th width="110">{{ __('Qty') }}</th>
+                                <th width="180">{{ __('Unit') }}</th>
                                 <th width="60"></th>
                             </tr>
                         </thead>
@@ -419,6 +420,8 @@
                                     <td>
                                         {{ $oi->optionProduct->name }}{{ $oi->optionProduct->sku ? ' (' . $oi->optionProduct->sku . ')' : '' }}
                                         {!! \App\Http\Controllers\ProductServiceController::posProductTypeBadgeHtml($oi->optionProduct->type ?? null) !!}
+                                        @php $oiProduct = ($optionProducts ?? collect())->firstWhere('id', $oi->option_product_id); @endphp
+                                        @if($oiProduct && $oiProduct->unit)<div class="text-muted small">{{ __('Product unit') }}: {{ $oiProduct->unit->name }}</div>@endif
                                         <input type="hidden" name="product_options[{{ $loop->index }}][option_product_id]" value="{{ $oi->option_product_id }}">
                                     </td>
                                     <td>
@@ -431,26 +434,34 @@
                                     <td>
                                         <input type="number" class="form-control form-control-sm" name="product_options[{{ $loop->index }}][quantity]" value="{{ ($oi->quantity === null || $oi->quantity === '') ? '' : (0 + $oi->quantity) }}" min="0" step="any">
                                     </td>
+                                    <td>
+                                        <select name="product_options[{{ $loop->index }}][unit]" class="form-select form-select-sm measurement-unit-select">
+                                            <option value="">{{ __('Select unit') }}</option>
+                                            @foreach(\App\Support\MeasurementUnits::all() as $muCode => $muLabel)
+                                                <option value="{{ $muCode }}" {{ ($oi->unit ?? null) === $muCode ? 'selected' : '' }}>{{ $muLabel }}</option>
+                                            @endforeach
+                                        </select>
+                                    </td>
                                     <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger product-option-remove"><i class="ti ti-trash"></i></button></td>
                                 </tr>
                                 @endif
                             @empty
-                                <tr class="text-muted" data-empty-row><td colspan="5">{{ __('No options added yet.') }}</td></tr>
+                                <tr class="text-muted" data-empty-row><td colspan="6">{{ __('No options added yet.') }}</td></tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
                 <div class="row g-2 align-items-end">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">{{ __('Product') }}</label>
                         <select class="form-select" id="product_option_edit_select">
                             <option value="">{{ __('Select product') }}</option>
                             @foreach(($optionProducts ?? []) as $op)
-                                <option value="{{ $op->id }}" data-type="{{ $op->type ?? 'product' }}">{{ $op->name }}{{ $op->sku ? ' (' . $op->sku . ')' : '' }}</option>
+                                <option value="{{ $op->id }}" data-type="{{ $op->type ?? 'product' }}" data-suggest="{{ \App\Support\MeasurementUnits::suggestForProduct($op) ?? '' }}">{{ $op->name }}{{ $op->sku ? ' (' . $op->sku . ')' : '' }}</option>
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">{{ __('Group') }}</label>
                         <input type="text" class="form-control" id="product_option_edit_group" placeholder="{{ __('e.g. Doneness, Ice') }}">
                     </div>
@@ -458,6 +469,16 @@
                         <label class="form-label">{{ __('Qty') }}</label>
                         <input type="number" class="form-control" id="product_option_edit_qty" value="1" min="0" step="any">
                     </div>
+                    <div class="col-md-2">
+                        <label class="form-label">{{ __('Unit') }}</label>
+                        <select class="form-select measurement-unit-select" id="product_option_edit_unit">
+                            <option value="">{{ __('Select unit') }}</option>
+                            @foreach(\App\Support\MeasurementUnits::all() as $muCode => $muLabel)
+                                <option value="{{ $muCode }}">{{ $muLabel }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
                     <div class="col-md-1">
                         <label class="form-label d-block">&nbsp;</label>
                         <div class="form-check mt-2">
@@ -547,6 +568,9 @@
     <input type="submit" value="{{__('Update')}}" class="btn  btn-primary">
 </div>
 {{Form::close()}}
+<script>window.MEASUREMENT_UNITS = @json(\App\Support\MeasurementUnits::all()); window.MEASUREMENT_UNIT_PLACEHOLDER = @json(__('Select unit'));</script>
+<script src="{{ asset('js/measurement-units.js') }}?v=20261022a"></script>
+<script>if (window.MeasurementUnitsUI) { MeasurementUnitsUI.enhance(document); }</script>
 <script>
     document.getElementById('pro_image').onchange = function () {
         var src = URL.createObjectURL(this.files[0])
@@ -646,14 +670,19 @@
         function renderRecipeEmptyIfNeeded() {
             const $tbody = $('#product_recipes_edit_table tbody');
             if ($tbody.find('tr[data-new-recipe-row]').length === 0 && $tbody.find('tr[data-existing-recipe-row]').length === 0) {
-                $tbody.html('<tr class="text-muted recipe-empty-row"><td colspan="3">{{ __("No ingredients added yet.") }}</td></tr>');
+                $tbody.html('<tr class="text-muted recipe-empty-row"><td colspan="4">{{ __("No ingredients added yet.") }}</td></tr>');
             }
         }
 
+        $('#recipe_ingredient_edit_select').on('change', function () {
+            const s = $(this).find('option:selected').data('suggest');
+            if (window.MeasurementUnitsUI) MeasurementUnitsUI.setValue($('#recipe_ingredient_edit_unit')[0], s || '');
+        });
         $('#recipe_ingredient_edit_add_btn').on('click', function () {
             const ingredientId = $('#recipe_ingredient_edit_select').val();
             const ingredientText = $('#recipe_ingredient_edit_select option:selected').text();
             const qty = parseFloat($('#recipe_ingredient_edit_qty').val() || '0');
+            const unit = $('#recipe_ingredient_edit_unit').val() || '';
             if (!ingredientId || !qty || qty <= 0) return;
 
             const $tbody = $('#product_recipes_edit_table tbody');
@@ -669,6 +698,10 @@
                     <td class="text-end">
                         ${qty}
                         <input type="hidden" name="product_recipes[${recipeRowIdx}][quantity]" value="${qty}">
+                    </td>
+                    <td>
+                        ${unit ? $('<div>').text(unit).html() : '—'}
+                        <input type="hidden" name="product_recipes[${recipeRowIdx}][unit]" value="${unit}">
                     </td>
                     <td class="text-end">
                         <button type="button" class="btn btn-sm btn-outline-danger recipe-row-remove" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}"><i class="ti ti-trash"></i></button>
@@ -814,7 +847,7 @@
         function renderOptEmpty() {
             const $tbody = $('#product_options_edit_table tbody');
             if ($tbody.find('tr[data-option-row]').length === 0) {
-                $tbody.html('<tr class="text-muted" data-empty-row><td colspan="5">{{ __("No options added yet.") }}</td></tr>');
+                $tbody.html('<tr class="text-muted" data-empty-row><td colspan="6">{{ __("No options added yet.") }}</td></tr>');
             }
         }
         function syncOptVisibility() {
@@ -825,6 +858,10 @@
         }
         $(document).on('change', '#options_enabled_edit', syncOptVisibility);
         $(document).on('click', '.type', syncOptVisibility);
+        $('#product_option_edit_select').on('change', function () {
+            const s = $(this).find('option:selected').data('suggest');
+            if (window.MeasurementUnitsUI) MeasurementUnitsUI.setValue($('#product_option_edit_unit')[0], s || '');
+        });
         $('#product_option_edit_add_btn').on('click', function () {
             const id = $('#product_option_edit_select').val();
             const text = $('#product_option_edit_select option:selected').text();
@@ -833,6 +870,7 @@
             const qtyRaw = parseFloat(qtyField);
             const qty = (qtyField === '' || qtyField === null) ? '' : (Number.isFinite(qtyRaw) && qtyRaw >= 0 ? qtyRaw : 0);
             const required = $('#product_option_edit_required').is(':checked') ? '1' : '0';
+            const unit = $('#product_option_edit_unit').val() || '';
             if (!id) return;
             const $tbody = $('#product_options_edit_table tbody');
             if ($tbody.find('tr[data-empty-row]').length) $tbody.empty();
@@ -843,11 +881,14 @@
                 '<td><input type="hidden" name="product_options[' + optIdx + '][is_required]" value="0">' +
                 '<input type="checkbox" class="form-check-input" name="product_options[' + optIdx + '][is_required]" value="1"' + (required === '1' ? ' checked' : '') + '></td>' +
                 '<td><input type="number" class="form-control form-control-sm" name="product_options[' + optIdx + '][quantity]" value="' + qty + '" min="0" step="any"></td>' +
+                '<td>' + (window.MeasurementUnitsUI ? MeasurementUnitsUI.selectHtml('product_options[' + optIdx + '][unit]', unit) : '') + '</td>' +
                 '<td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger product-option-remove"><i class="ti ti-trash"></i></button></td></tr>');
+            if (window.MeasurementUnitsUI) MeasurementUnitsUI.enhance($tbody);
             optIdx++;
             $('#product_option_edit_group').val('');
             $('#product_option_edit_qty').val('1');
             $('#product_option_edit_required').prop('checked', false);
+            if (window.MeasurementUnitsUI) MeasurementUnitsUI.setValue($('#product_option_edit_unit')[0], '');
         });
         $(document).on('click', '#product_options_edit_table .product-option-remove', function () {
             $(this).closest('tr').remove();

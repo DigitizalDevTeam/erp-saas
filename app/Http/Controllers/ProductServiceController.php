@@ -2686,6 +2686,7 @@ class ProductServiceController extends Controller
                 // Quantity edits must stick: update the row instead of silently ignoring them.
                 $existing->update([
                     'quantity' => $qty,
+                    'unit' => \App\Support\MeasurementUnits::normalize($row['unit'] ?? null),
                     'unit_id' => ! empty($row['unit_id']) ? (int) $row['unit_id'] : null,
                 ]);
 
@@ -2696,6 +2697,7 @@ class ProductServiceController extends Controller
                 'product_id' => (int) $productService->id,
                 'ingredient_product_id' => $ingredientId,
                 'quantity' => $qty,
+                'unit' => \App\Support\MeasurementUnits::normalize($row['unit'] ?? null),
                 'unit_id' => ! empty($row['unit_id']) ? (int) $row['unit_id'] : null,
                 'created_by' => $creatorId,
             ]);
