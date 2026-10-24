@@ -510,7 +510,9 @@ class ProductOptionService
             }
 
             $original = (float) ($opt->quantity ?? 0);
-            $newQty = max(0, $original - $deductQty);
+            $newQty = $opt->allowsNegativeStock()
+                ? $original - $deductQty
+                : max(0, $original - $deductQty);
             ProductService::where('id', $optId)->update(['quantity' => $newQty]);
             if ($warehouseId > 0) {
                 Utility::warehouse_quantity('minus', $deductQty, $optId, $warehouseId);

@@ -4508,6 +4508,23 @@ namespace App\Models;
 
         }
 
+        /**
+         * Whether one product's warehouse (and global) stock may go below
+         * zero: only when its own "Allow negative stock" toggle is on.
+         * Batch-tracked and identifier-tracked products never qualify
+         * (see ProductService::allowsNegativeStock()).
+         */
+        public static function allowsNegativeStock($product_id): bool
+        {
+            $query = ProductService::where('id', (int) $product_id);
+            if (\Auth::check()) {
+                $query->where('created_by', \Auth::user()->creatorId());
+            }
+            $product = $query->first();
+
+            return $product ? $product->allowsNegativeStock() : false;
+        }
+
         //quantity update in warehouse details
         public static function warehouse_quantity($type, $quantity, $product_id, $warehouse_id, $product_variant_id = null)
         {
@@ -4534,7 +4551,11 @@ namespace App\Models;
 
             $pro_quantity = (float) ($product->quantity ?? 0);
             if ($type == 'minus') {
-                $product->quantity = max(0, $pro_quantity - $quantity);
+                // Flagged products may go below zero; every other product
+                // keeps the old clamp at zero.
+                $product->quantity = self::allowsNegativeStock($product_id)
+                    ? $pro_quantity - $quantity
+                    : max(0, $pro_quantity - $quantity);
             } else {
                 $product->quantity = $pro_quantity + $quantity;
             }
@@ -4754,7 +4775,10 @@ namespace App\Models;
                 $product_quantity = (float) $quantity;
             }
 
-            if ($product_quantity <= 0) {
+            // A zero-or-negative result deletes the warehouse row — unless
+            // the product allows negative stock, in which case the negative
+            // balance is kept as a real row.
+            if ($product_quantity <= 0 && ! self::allowsNegativeStock($product_id)) {
                 if ($product) {
                     $product->delete();
                 }

@@ -55,7 +55,9 @@ class PosRecipeDeductionService
             return;
         }
         $original = (float) $product->quantity;
-        $newQty = max(0, $original - $quantity);
+        $newQty = $product->allowsNegativeStock()
+            ? $original - $quantity
+            : max(0, $original - $quantity);
         ProductService::where('id', $productId)->update(['quantity' => $newQty]);
         Utility::warehouse_quantity('minus', $quantity, $productId, $warehouseId, $productVariantId);
         $description = $quantity . ' ' . __('quantity sold in pos') . ' ' . $posIdFormatted . $extraDescriptionSuffix;

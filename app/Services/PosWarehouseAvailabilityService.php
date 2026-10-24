@@ -42,6 +42,10 @@ class PosWarehouseAvailabilityService
                 if (! $opt || ! ($opt->affect_stock ?? true)) {
                     continue;
                 }
+                // A flagged option may go negative: it never blocks the sale.
+                if ($opt->allowsNegativeStock()) {
+                    continue;
+                }
                 $need = (float) ($optRow['quantity'] ?? 1);
                 if ($need <= 0) {
                     continue;
@@ -51,7 +55,7 @@ class PosWarehouseAvailabilityService
                     return 0;
                 }
             }
-        } elseif ($affectStock) {
+        } elseif ($affectStock && ! $product->allowsNegativeStock()) {
             if ($product->variants_enabled ?? false) {
                 $limits[] = (int) floor($product->variantStockInWarehouse($warehouseId, $variantId));
             } else {
@@ -62,6 +66,12 @@ class PosWarehouseAvailabilityService
         foreach ($recipes as $recipe) {
             $ingredient = $recipe->ingredientProduct;
             if (! $ingredient || ($ingredient->type ?? '') !== 'ingredient') {
+                continue;
+            }
+            // Per-product only: a flagged ingredient never limits the sale;
+            // an unflagged ingredient still limits it, even when the parent
+            // product itself is flagged.
+            if ($ingredient->allowsNegativeStock()) {
                 continue;
             }
             $per = (float) $recipe->quantity;

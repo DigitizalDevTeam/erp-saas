@@ -32,6 +32,7 @@ class ProductService extends Model
         'low_stock_threshold',
         'max_stock_threshold',
         'affect_stock',
+        'allow_negative_stock',
         'identifier_tracking',
         'identifier_type',
         'warranty_days',
@@ -59,6 +60,7 @@ class ProductService extends Model
 
     protected $casts = [
         'affect_stock' => 'boolean',
+        'allow_negative_stock' => 'boolean',
         'show_on_pos' => 'boolean',
         'identifier_tracking' => 'boolean',
         'batch_tracking' => 'boolean',
@@ -67,6 +69,19 @@ class ProductService extends Model
         'last_min_stock_alert_at' => 'datetime',
         'last_max_stock_alert_at' => 'datetime',
     ];
+
+    /**
+     * Whether this product may be sold below zero stock. Per-product
+     * only: ingredients, options, and kit components need their own
+     * toggle. Batch-tracked and identifier-tracked products never
+     * qualify — lots and serials cannot go negative.
+     */
+    public function allowsNegativeStock(): bool
+    {
+        return (bool) ($this->allow_negative_stock ?? false)
+            && ! ($this->batch_tracking ?? false)
+            && ! ($this->identifier_tracking ?? false);
+    }
 
     public function taxes()
     {

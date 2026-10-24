@@ -260,6 +260,13 @@
             </div>
             <small class="text-muted">{{ __('When checked: on POS sale this product’s own quantity is not used. (For kits, define components after creating the kit.)') }}</small>
         </div>
+        <div class="form-group col-md-12 quantity allow-negative-stock-option">
+            <div class="form-check">
+                {{ Form::checkbox('allow_negative_stock', '1', false, ['class' => 'form-check-input', 'id' => 'allow_negative_stock_create']) }}
+                {{ Form::label('allow_negative_stock', __('Allow negative stock'), ['class' => 'form-check-label', 'for' => 'allow_negative_stock_create']) }}
+            </div>
+            <small class="text-muted">{{ __('When checked: selling more than on hand is allowed and stock can go below zero for this product.') }}</small>
+        </div>
 
         <div class="col-md-12">
             <div class="form-check">
@@ -536,6 +543,10 @@
         }
 
         $('.product-batch-section').toggle(isProduct || isIngredient);
+
+        // Negative-stock toggle: shown for products and ingredients only,
+        // hidden for kits and services (they hold no sellable stock).
+        $('.allow-negative-stock-option').toggle(isProduct || isIngredient);
 
         if (isIngredient) {
             $('#product_variants_create_section').hide();

@@ -45,7 +45,9 @@ class PosKitDeductionService
         }
 
         $original = (float) ($product->quantity ?? 0);
-        $newQty = max(0, $original - $quantity);
+        $newQty = $product->allowsNegativeStock()
+            ? $original - $quantity
+            : max(0, $original - $quantity);
         ProductService::where('id', $productId)->update(['quantity' => $newQty]);
         if ($warehouseId > 0) {
             Utility::warehouse_quantity('minus', $quantity, $productId, $warehouseId);

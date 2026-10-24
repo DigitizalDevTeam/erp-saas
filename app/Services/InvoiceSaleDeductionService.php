@@ -198,7 +198,11 @@ class InvoiceSaleDeductionService
         if (!$p) return;
 
         $original = (float) ($p->quantity ?? 0);
-        $newQty = max(0, $original - $quantity);
+        // Invoices deduct the global quantity only (no warehouse rows in
+        // this path, as before) — a flagged product's global may go negative.
+        $newQty = $p->allowsNegativeStock()
+            ? $original - $quantity
+            : max(0, $original - $quantity);
         ProductService::where('id', $productId)->update(['quantity' => $newQty]);
 
         $description = $quantity . ' ' . __(' quantity sold in invoice') . ' ' . $invoiceNoFormatted . $extraDescriptionSuffix;

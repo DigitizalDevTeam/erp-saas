@@ -885,6 +885,11 @@ class ProductServiceController extends Controller
                 'ingredient' => true,
                 default => ! $request->boolean('does_not_affect_stock'),
             };
+            // Negative stock is hidden (and forced off) for kit and service
+            // types on the form — they hold no sellable stock of their own.
+            $productService->allow_negative_stock        = in_array($request->type, ['kit', 'service'], true)
+                ? false
+                : $request->boolean('allow_negative_stock');
             if ($request->type === 'ingredient') {
                 $productService->sale_price = $request->filled('sale_price') ? $request->sale_price : 0;
             }
@@ -1166,6 +1171,11 @@ class ProductServiceController extends Controller
                 'ingredient' => true,
                 default => ! $request->boolean('does_not_affect_stock'),
             };
+            // Negative stock is hidden (and forced off) for kit and service
+            // types on the form — they hold no sellable stock of their own.
+            $productService->allow_negative_stock        = in_array($request->type, ['kit', 'service'], true)
+                ? false
+                : $request->boolean('allow_negative_stock');
             if ($request->type === 'ingredient') {
                 $productService->sale_price = $request->filled('sale_price') ? $request->sale_price : 0;
             }
