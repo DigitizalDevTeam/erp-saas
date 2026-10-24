@@ -237,8 +237,11 @@ class LowStockNotificationTest extends TestCase
         $this->assertStringContainsString('Notifications', $header);
         $this->assertStringContainsString('notif-badge', $header);
         $this->assertStringContainsString('notif-mark-all', $header);
-        // Counter mirrors the chat counter: always shown, never hidden at 0.
+        // Counter mirrors the chat counter: always shown, never hidden at 0,
+        // and sized by the same fixed-circle .message-counter rule — but
+        // never .custom_messanger_counter, which chat scripts overwrite.
         $this->assertStringNotContainsString('display:none', $header);
+        $this->assertStringContainsString('notif-badge" class="bg-danger dash-h-badge message-counter', $header);
         $this->assertStringContainsString('low-stock-notifications', $header);
         $this->assertStringContainsString('Low stock', $header);
         $this->assertStringNotContainsString('lsn-badge', $header);

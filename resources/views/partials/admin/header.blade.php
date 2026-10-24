@@ -146,7 +146,11 @@
                     <li class="dropdown dash-h-item drp-notification">
                         <a class="dash-head-link dropdown-toggle arrow-none me-0" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false" title="{{ __('Notifications') }}">
                             <i class="ti ti-bell"></i>
-                            <span id="notif-badge" class="bg-danger dash-h-badge"> {{ $lowStockUnreadCount }}<span class="sr-only"></span></span>
+                            {{-- Same sizing as the chat counter: .message-counter
+                                (custom.css) is what makes it a fixed 15px circle.
+                                .custom_messanger_counter is NOT used here: chat
+                                scripts overwrite that class's text. --}}
+                            <span id="notif-badge" class="bg-danger dash-h-badge message-counter"> {{ $lowStockUnreadCount }}<span class="sr-only"></span></span>
                         </a>
                         <div class="dropdown-menu dash-h-dropdown dropdown-menu-end" style="width:360px;max-height:420px;overflow-y:auto;">
                             <div class="d-flex justify-content-between align-items-center px-3 pt-2 pb-1">
