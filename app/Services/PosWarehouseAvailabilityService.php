@@ -32,6 +32,17 @@ class PosWarehouseAvailabilityService
             $affectStock = false;
         }
 
+        // A recipe parent's own stock is never deducted at sale (only its
+        // ingredients are), so it must never limit the sale either. Before
+        // this, a dish with zero own stock was blocked even when every
+        // ingredient it consumes was flagged to go negative — and even
+        // when an unflagged ingredient had stock, the own-stock zero still
+        // blocked instead of that ingredient's real limit. Unflagged
+        // ingredients still limit the sale through the recipes loop below.
+        $hasIngredientRecipes = $recipes->contains(
+            fn ($recipe) => ($recipe->ingredientProduct->type ?? '') === 'ingredient'
+        );
+
         $limits = [];
 
         if ($optionsSelected) {
@@ -55,7 +66,7 @@ class PosWarehouseAvailabilityService
                     return 0;
                 }
             }
-        } elseif ($affectStock && ! $product->allowsNegativeStock()) {
+        } elseif ($affectStock && ! $product->allowsNegativeStock() && ! $hasIngredientRecipes) {
             if ($product->variants_enabled ?? false) {
                 $limits[] = (int) floor($product->variantStockInWarehouse($warehouseId, $variantId));
             } else {
