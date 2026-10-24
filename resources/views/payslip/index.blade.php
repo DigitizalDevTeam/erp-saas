@@ -104,9 +104,9 @@
         $(document).ready(function() {
             callback();
 
-            function callback() {
-                var month = $(".month_date").val();
-                var year = $(".year_date").val();
+            function callback(monthArg, yearArg) {
+                var month = monthArg || $(".month_date").val();
+                var year = yearArg || $(".year_date").val();
 
                 $('.filter_month').val(month);
                 $('.filter_year').val(year);
@@ -120,6 +120,19 @@
                 }
 
                 var datePicker = year + '-' + month;
+
+                // Destroy the old DataTable BEFORE writing new rows.
+                // destroy() restores the table layout captured at the
+                // first search, so destroying after writing new rows
+                // wiped them and every later search showed the first
+                // search's result again.
+                try {
+                    if (window.payslipTable) {
+                        window.payslipTable.destroy();
+                        window.payslipTable = null;
+                    }
+                } catch (e) {}
+                $('#pc-dt-render-column-cells tbody').html('<tr><td colspan="7" class="text-center">{{ __('Searching for') }} ' + datePicker + '...</td></tr>');
 
                 $.ajax({
                     url: '{{ route('payslip.search_json') }}',
@@ -281,12 +294,9 @@
                         }
 
                         $('#pc-dt-render-column-cells tbody').html(tr);
-                        // Re-searching re-creates the table: destroy the old
-                        // DataTable first, or the second search can break.
+                        // Old table was already destroyed before the
+                        // request (see above); just create the new one.
                         try {
-                            if (window.payslipTable) {
-                                window.payslipTable.destroy();
-                            }
                             window.payslipTable = new simpleDatatables.DataTable('#pc-dt-render-column-cells', (typeof getDatatableLabels === 'function' ? getDatatableLabels() : (typeof window.datatableLabels === 'object' && window.datatableLabels ? { labels: window.datatableLabels } : {})));
                         } catch (e) {
                             // Table rows are already rendered above; a
@@ -310,9 +320,10 @@
                 callback();
             });
 
-            // Explicit Search button: same search as the auto-apply on change.
+            // Explicit Search button: read the dropdowns at click time
+            // and pass them in, so a stale read cannot reuse the old month.
             $(document).on("click", "#payslip_search", function() {
-                callback();
+                callback($(".month_date").val(), $(".year_date").val());
             });
 
             //bulkpayment Click
