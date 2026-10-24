@@ -4561,6 +4561,13 @@ namespace App\Models;
             }
             $product->save();
 
+            // Header low-stock bell: re-evaluate this product in this
+            // warehouse (covers POS deductions, kit/option deductions,
+            // voids/restores and warehouse loss — every path through here).
+            \App\Services\LowStockNotificationService::checkProductWarehouse(
+                (int) $product_id, (int) $warehouse_id, (int) $product->created_by
+            );
+
         }
 
         //warehouse transfer
@@ -4588,6 +4595,13 @@ namespace App\Models;
                     $fromWarehouse->save();
                 }
             }
+
+            // A transfer changes stock in both warehouses: re-check both
+            // for the header low-stock bell (source may fall below Low,
+            // destination may recover above it).
+            $companyId = (int) ($toWarehouse->created_by ?? $fromWarehouse->created_by ?? (\Auth::check() ? \Auth::user()->creatorId() : 0));
+            \App\Services\LowStockNotificationService::checkProductWarehouse((int) $product_id, (int) $from_warehouse, $companyId);
+            \App\Services\LowStockNotificationService::checkProductWarehouse((int) $product_id, (int) $to_warehouse, $companyId);
         }
 
         //add quantity in product stock
@@ -4783,6 +4797,12 @@ namespace App\Models;
                     $product->delete();
                 }
 
+                // Row deleted = stock is now at/below any Low level: re-check
+                // for the header low-stock bell (uses the recomputed total).
+                \App\Services\LowStockNotificationService::checkProductWarehouse(
+                    (int) $product_id, (int) $warehouse_id, $creatorId
+                );
+
                 return;
             }
 
@@ -4800,6 +4820,10 @@ namespace App\Models;
                 [
                     'quantity' => $product_quantity,
                 ]
+            );
+
+            \App\Services\LowStockNotificationService::checkProductWarehouse(
+                (int) $product_id, (int) $warehouse_id, $creatorId
             );
         }
 

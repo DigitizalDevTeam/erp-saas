@@ -92,6 +92,7 @@ use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LeaveTypeController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\LoanOptionController;
+use App\Http\Controllers\LowStockNotificationController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MercadoPaymentController;
 use App\Http\Controllers\MolliePaymentController;
@@ -994,6 +995,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('productservice/{id}/stock-transfer', [ProductServiceController::class, 'stockTransfer'])->name('productservice.stock-transfer')->middleware(['auth', 'XSS']);
     Route::get('productservice/{id}/warehouse-stock-alerts', [ProductServiceController::class, 'warehouseStockAlerts'])->name('productservice.warehouse-stock-alerts');
     Route::post('productservice/{id}/warehouse-stock-alerts', [ProductServiceController::class, 'warehouseStockAlertsStore'])->name('productservice.warehouse-stock-alerts.store')->middleware(['auth', 'XSS']);
+    Route::post('low-stock-notifications/{id}/read', [LowStockNotificationController::class, 'markRead'])->name('low-stock-notifications.read')->middleware(['auth', 'XSS']);
+    Route::post('low-stock-notifications/read-all', [LowStockNotificationController::class, 'markAllRead'])->name('low-stock-notifications.read-all')->middleware(['auth', 'XSS']);
     Route::post('productservice/{id}/kit-items', [ProductServiceController::class, 'kitItemStore'])->name('productservice.kit-items.store')->middleware(['auth', 'XSS']);
     Route::delete('productservice/{id}/kit-items/{kit_item}', [ProductServiceController::class, 'kitItemDestroy'])->name('productservice.kit-items.destroy')->middleware(['auth', 'XSS']);
     Route::post('empty-cart', [ProductServiceController::class, 'emptyCart'])->middleware(['auth', 'XSS']);

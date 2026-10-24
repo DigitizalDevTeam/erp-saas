@@ -17,6 +17,15 @@
 
     $unseenCounter=App\Models\ChMessage::where('to_id', Auth::user()->id)->where('seen', 0)->count();
 
+    // Header low-stock bell: always visible, badge only when unread > 0.
+    // Computed here (like the chat counter) so every admin page carries it.
+    $lowStockUnreadCount = 0;
+    $lowStockNotifications = collect();
+    if (\Auth::check() && \Auth::user()->type !== 'client' && \Auth::user()->type !== 'super admin') {
+        $lowStockUnreadCount = \App\Services\LowStockNotificationService::unreadCountForUser(\Auth::user());
+        $lowStockNotifications = \App\Services\LowStockNotificationService::recentForUser(\Auth::user(), 10);
+    }
+
     $branchSwitcherBranches = collect();
     $companySwitcherCompanies = collect();
     if (\Auth::check() && \Auth::user()->type !== 'super admin') {
@@ -130,6 +139,31 @@
                         </a>
                     </li>
                 @endif
+                @if( \Auth::check() && \Auth::user()->type !='client' && \Auth::user()->type !='super admin' )
+                    <li class="dropdown dash-h-item drp-notification">
+                        <a class="dash-head-link dropdown-toggle arrow-none me-0" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false" title="{{ __('Low stock alerts') }}">
+                            <i class="ti ti-bell"></i>
+                            <span id="lsn-badge" class="bg-danger dash-h-badge" style="{{ $lowStockUnreadCount > 0 ? '' : 'display:none' }}">{{ $lowStockUnreadCount }}<span class="sr-only"></span></span>
+                        </a>
+                        <div class="dropdown-menu dash-h-dropdown dropdown-menu-end" style="width:360px;max-height:420px;overflow-y:auto;">
+                            <div class="d-flex justify-content-between align-items-center px-3 pt-2 pb-1">
+                                <strong>{{ __('Low stock alerts') }}</strong>
+                                <a href="#" id="lsn-mark-all" class="small text-primary">{{ __('Mark all read') }}</a>
+                            </div>
+                            <div id="lsn-list">
+                                @forelse ($lowStockNotifications as $n)
+                                    <a href="#" class="dropdown-item lsn-item {{ $n->is_read ? '' : 'fw-bold' }}" data-id="{{ $n->id }}">
+                                        <span class="d-block">{{ $n->product->name ?? __('Product') }} — {{ $n->warehouse->name ?? '' }}</span>
+                                        <small class="text-muted">{{ __('Qty') }} {{ (float) $n->quantity }} / {{ __('Low') }} {{ $n->low_stock_threshold }} · {{ $n->created_at ? $n->created_at->diffForHumans() : '' }}</small>
+                                        @if($n->resolved_at)<small class="text-success"> · {{ __('Recovered') }}</small>@endif
+                                    </a>
+                                @empty
+                                    <span class="dropdown-item text-muted">{{ __('No low stock alerts.') }}</span>
+                                @endforelse
+                            </div>
+                        </div>
+                    </li>
+                @endif
 
                 <li class="dropdown dash-h-item drp-language">
                     <a
@@ -165,3 +199,45 @@
         </div>
     </div>
     </header>
+<script>
+    // Low-stock bell actions (vanilla JS: this partial renders before
+    // jQuery is loaded at the page bottom, so no $ dependency here).
+    (function () {
+        var base = '{{ url('low-stock-notifications') }}';
+        function csrf() {
+            var m = document.querySelector('meta[name="csrf-token"]');
+            return m ? m.getAttribute('content') : '';
+        }
+        function setBadge(n) {
+            var b = document.getElementById('lsn-badge');
+            if (!b) return;
+            if (n > 0) { b.textContent = n; b.style.display = ''; }
+            else { b.style.display = 'none'; }
+        }
+        function post(url) {
+            return fetch(url, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            }).then(function (r) { return r.json(); });
+        }
+        document.querySelectorAll('.lsn-item').forEach(function (el) {
+            el.addEventListener('click', function (e) {
+                e.preventDefault();
+                post(base + '/' + el.getAttribute('data-id') + '/read').then(function (data) {
+                    el.classList.remove('fw-bold');
+                    if (data && typeof data.unread_count !== 'undefined') setBadge(data.unread_count);
+                }).catch(function () {});
+            });
+        });
+        var markAll = document.getElementById('lsn-mark-all');
+        if (markAll) {
+            markAll.addEventListener('click', function (e) {
+                e.preventDefault();
+                post(base + '/read-all').then(function () {
+                    document.querySelectorAll('.lsn-item').forEach(function (el) { el.classList.remove('fw-bold'); });
+                    setBadge(0);
+                }).catch(function () {});
+            });
+        }
+    })();
+</script>

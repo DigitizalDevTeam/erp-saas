@@ -1591,6 +1591,16 @@ class ProductServiceController extends Controller
             }
         });
 
+        // Saving a threshold can itself make current stock low (e.g. Low
+        // set above the quantity on hand): re-check every warehouse saved
+        // so the header bell reflects the new thresholds immediately.
+        foreach ((array) $request->input('warehouses', []) as $row) {
+            $warehouseId = (int) ($row['warehouse_id'] ?? 0);
+            if (in_array($warehouseId, $validWarehouseIds, true)) {
+                \App\Services\LowStockNotificationService::checkProductWarehouse((int) $product->id, $warehouseId, $creatorId);
+            }
+        }
+
         return response()->json(['success' => __('Warehouse stock alerts saved.'), 'saved' => $saved]);
     }
 
