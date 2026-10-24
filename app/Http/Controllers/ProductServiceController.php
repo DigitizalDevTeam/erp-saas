@@ -863,7 +863,7 @@ class ProductServiceController extends Controller
             $productService->purchase_price      = $request->purchase_price;
             $productService->tax_id              = !empty($request->tax_id) ? implode(',', $request->tax_id) : '';
             $productService->unit_id             = $request->unit_id;
-            $productService->unit_type           = $request->unit_type;
+            $productService->unit_type           = in_array($request->unit_type, ['kg', 'unit', 'cbm', 'sm', 'volume'], true) ? $request->unit_type : 'unit';
             $productService->price_level_id             = $request->price_level_id ?? null;
             $productService->quantity           = 0;
             $productService->type                       = $request->type;
@@ -1145,7 +1145,7 @@ class ProductServiceController extends Controller
                 $productService->purchase_price = $request->purchase_price;
                 $productService->tax_id         = !empty($request->tax_id) ? implode(',', $request->tax_id) : '';
                 $productService->unit_id        = $request->unit_id;
-                $productService->unit_type      = $request->unit_type;
+                $productService->unit_type      = in_array($request->unit_type, ['kg', 'unit', 'cbm', 'sm', 'volume'], true) ? $request->unit_type : $productService->unit_type;
                 $productService->price_level_id             = $request->price_level_id ?? null;
                 $productService->type                       = $request->type;
                 $productService->show_on_pos                = $request->boolean('show_on_pos');

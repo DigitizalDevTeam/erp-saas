@@ -141,20 +141,7 @@
                 {{__('Create unit here. ')}}<a href="{{route('product-unit.index')}}"><b>{{__('Create unit')}}</b></a>
             </div>
         </div>
-        <div class="form-group col-md-6">
-            {{ Form::label('unit_type', __('How stock is counted'),['class'=>'form-label']) }}<x-required></x-required>
-            @php
-                $unitTypeOptions = [
-                    'kg' => __('Kilogram (kg)'),
-                    'unit' => __('Piece / unit'),
-                    'cbm' => __('Cubic meter (CBM)'),
-                    'sm' => __('Square meter (SQM)'),
-                    'volume' => __('Volumetric weight'),
-                ];
-            @endphp
-            {{ Form::select('unit_type', $unitTypeOptions, null, array('class' => 'form-control select','required'=>'required', 'id' => 'unit_type_create')) }}
-            <small class="text-muted">{{ __('Used on purchase and stock screens so quantities match how you sell (weight, pieces, area, etc.).') }}</small>
-        </div>
+        <input type="hidden" name="unit_type" id="unit_type_create" value="unit">
         <div class="col-12 quantity" id="product_measures_create_section" style="display:none;">
             <div class="border rounded p-3 mb-2 bg-light">
                 <label class="form-label fw-semibold">{{ __('Size of one unit (optional)') }}</label>
