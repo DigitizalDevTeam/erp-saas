@@ -5559,6 +5559,10 @@ class PosController extends Controller
         $shift->closed_at = now();
         $shift->save();
 
+        // Shift-end low-stock report (per warehouse, min only). Never
+        // breaks the close: the service catches its own failures.
+        \App\Services\ShiftEndLowStockReportService::sendForShift($shift);
+
         $assignedTableIds = \App\Models\PosTableAssignment::where('shift_id', $shift->id)
             ->whereNull('unassigned_at')
             ->pluck('table_id')

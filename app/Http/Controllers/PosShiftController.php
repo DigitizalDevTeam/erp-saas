@@ -473,6 +473,10 @@ class PosShiftController extends Controller
         PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
         $this->releaseShiftTables($pos_shift);
 
+        // Shift-end low-stock report (per warehouse, min only). Never
+        // breaks the close: the service catches its own failures.
+        \App\Services\ShiftEndLowStockReportService::sendForShift($pos_shift);
+
         return redirect()->route('pos-shift.show', $pos_shift)->with('success', __('Shift closed successfully.'));
     }
 
@@ -522,6 +526,7 @@ class PosShiftController extends Controller
             $pos_shift->save();
             PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed (EOD)'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);
             $this->releaseShiftTables($pos_shift);
+            \App\Services\ShiftEndLowStockReportService::sendForShift($pos_shift);
         }
 
         return redirect()->route('report.pos.eod', ['date' => $date])->with('success', __('All open shifts have been closed.'));

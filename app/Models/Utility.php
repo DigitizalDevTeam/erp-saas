@@ -407,6 +407,7 @@ namespace App\Models;
                 "stock_alerts_send_email" => "on",
                 "stock_alerts_send_sms" => "off",
                 "stock_alerts_send_whatsapp" => "off",
+                "low_stock_warehouse_report_emails" => "",
 
                 "document_void_restore_stock" => "auto",
                 "document_void_default_warehouse_id" => "",
@@ -708,6 +709,7 @@ namespace App\Models;
                 "stock_alerts_send_email" => "on",
                 "stock_alerts_send_sms" => "off",
                 "stock_alerts_send_whatsapp" => "off",
+                "low_stock_warehouse_report_emails" => "",
 
                 "document_void_restore_stock" => "auto",
                 "document_void_default_warehouse_id" => "",

@@ -1836,6 +1836,20 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="form-group mb-0">
+                                        {{ Form::label('low_stock_warehouse_report_emails', __('Product Low Stock By Warehouses report'), ['class' => 'form-label']) }}
+                                        {{ Form::text('low_stock_warehouse_report_emails', isset($emailSetting['low_stock_warehouse_report_emails']) ? $emailSetting['low_stock_warehouse_report_emails'] : '', ['class' => 'form-control', 'placeholder' => __('Enter emails separated by commas')]) }}
+                                        <small class="text-muted">{{ __('Sent when a POS shift ends, listing the products at or below their Low level in each warehouse. Leave empty to skip.') }}</small>
+                                        @error('low_stock_warehouse_report_emails')
+                                            <span class="invalid-low_stock_warehouse_report_emails" role="alert">
+                                                <strong class="text-danger">{{ $message }}</strong>
+                                            </span>
+                                        @enderror
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="card-footer p-3">
                             <div class="form-group d-flex flex-wrap gap-2 align-items-center justify-content-end mb-0">
