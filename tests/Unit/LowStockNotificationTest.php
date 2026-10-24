@@ -226,13 +226,20 @@ class LowStockNotificationTest extends TestCase
         $this->assertSame(0, LowStockNotificationService::unreadCountForUser($staff));
     }
 
-    public function test_header_contains_bell_dropdown_and_endpoints(): void
+    public function test_header_contains_generic_bell_dropdown_and_endpoints(): void
     {
         $header = file_get_contents(base_path('resources/views/partials/admin/header.blade.php'));
 
+        // The bell is generic ("Notifications"), not stock-only: low stock
+        // is just the first feed plugged into it, rendered as one line
+        // with its quantity information.
         $this->assertStringContainsString('ti-bell', $header);
-        $this->assertStringContainsString('lsn-badge', $header);
+        $this->assertStringContainsString('Notifications', $header);
+        $this->assertStringContainsString('notif-badge', $header);
+        $this->assertStringContainsString('notif-mark-all', $header);
         $this->assertStringContainsString('low-stock-notifications', $header);
-        $this->assertStringContainsString('lsn-mark-all', $header);
+        $this->assertStringContainsString('Low stock', $header);
+        $this->assertStringNotContainsString('lsn-badge', $header);
+        $this->assertStringNotContainsString('Low stock alerts', $header);
     }
 }

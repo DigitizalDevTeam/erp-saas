@@ -17,7 +17,9 @@
 
     $unseenCounter=App\Models\ChMessage::where('to_id', Auth::user()->id)->where('seen', 0)->count();
 
-    // Header low-stock bell: always visible, badge only when unread > 0.
+    // Generic header notification bell: always visible, badge only when
+    // unread > 0. Today its feed is low-stock alerts; future notification
+    // types plug into this same dropdown, not a second bell.
     // Computed here (like the chat counter) so every admin page carries it.
     $lowStockUnreadCount = 0;
     $lowStockNotifications = collect();
@@ -141,24 +143,22 @@
                 @endif
                 @if( \Auth::check() && \Auth::user()->type !='client' && \Auth::user()->type !='super admin' )
                     <li class="dropdown dash-h-item drp-notification">
-                        <a class="dash-head-link dropdown-toggle arrow-none me-0" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false" title="{{ __('Low stock alerts') }}">
+                        <a class="dash-head-link dropdown-toggle arrow-none me-0" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false" title="{{ __('Notifications') }}">
                             <i class="ti ti-bell"></i>
-                            <span id="lsn-badge" class="bg-danger dash-h-badge" style="{{ $lowStockUnreadCount > 0 ? '' : 'display:none' }}">{{ $lowStockUnreadCount }}<span class="sr-only"></span></span>
+                            <span id="notif-badge" class="bg-danger dash-h-badge" style="{{ $lowStockUnreadCount > 0 ? '' : 'display:none' }}">{{ $lowStockUnreadCount }}<span class="sr-only"></span></span>
                         </a>
                         <div class="dropdown-menu dash-h-dropdown dropdown-menu-end" style="width:360px;max-height:420px;overflow-y:auto;">
                             <div class="d-flex justify-content-between align-items-center px-3 pt-2 pb-1">
-                                <strong>{{ __('Low stock alerts') }}</strong>
-                                <a href="#" id="lsn-mark-all" class="small text-primary">{{ __('Mark all read') }}</a>
+                                <strong>{{ __('Notifications') }}</strong>
+                                <a href="#" id="notif-mark-all" class="small text-primary">{{ __('Mark all read') }}</a>
                             </div>
-                            <div id="lsn-list">
+                            <div id="notif-list">
                                 @forelse ($lowStockNotifications as $n)
-                                    <a href="#" class="dropdown-item lsn-item {{ $n->is_read ? '' : 'fw-bold' }}" data-id="{{ $n->id }}">
-                                        <span class="d-block">{{ $n->product->name ?? __('Product') }} — {{ $n->warehouse->name ?? '' }}</span>
-                                        <small class="text-muted">{{ __('Qty') }} {{ (float) $n->quantity }} / {{ __('Low') }} {{ $n->low_stock_threshold }} · {{ $n->created_at ? $n->created_at->diffForHumans() : '' }}</small>
-                                        @if($n->resolved_at)<small class="text-success"> · {{ __('Recovered') }}</small>@endif
+                                    <a href="#" class="dropdown-item notif-item {{ $n->is_read ? '' : 'fw-bold' }}" data-id="{{ $n->id }}" title="{{ $n->created_at ? $n->created_at->diffForHumans() : '' }}">
+                                        <span class="d-block text-truncate">{{ __('Low stock') }}: {{ $n->product->name ?? __('Product') }} — {{ $n->warehouse->name ?? '' }} · {{ __('Qty') }} {{ (float) $n->quantity }} / {{ __('Low') }} {{ $n->low_stock_threshold }}@if($n->resolved_at) · {{ __('Recovered') }}@endif</span>
                                     </a>
                                 @empty
-                                    <span class="dropdown-item text-muted">{{ __('No low stock alerts.') }}</span>
+                                    <span class="dropdown-item text-muted">{{ __('No notifications.') }}</span>
                                 @endforelse
                             </div>
                         </div>
@@ -200,7 +200,7 @@
     </div>
     </header>
 <script>
-    // Low-stock bell actions (vanilla JS: this partial renders before
+    // Notification bell actions (vanilla JS: this partial renders before
     // jQuery is loaded at the page bottom, so no $ dependency here).
     (function () {
         var base = '{{ url('low-stock-notifications') }}';
@@ -209,7 +209,7 @@
             return m ? m.getAttribute('content') : '';
         }
         function setBadge(n) {
-            var b = document.getElementById('lsn-badge');
+            var b = document.getElementById('notif-badge');
             if (!b) return;
             if (n > 0) { b.textContent = n; b.style.display = ''; }
             else { b.style.display = 'none'; }
@@ -220,7 +220,7 @@
                 headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
             }).then(function (r) { return r.json(); });
         }
-        document.querySelectorAll('.lsn-item').forEach(function (el) {
+        document.querySelectorAll('.notif-item').forEach(function (el) {
             el.addEventListener('click', function (e) {
                 e.preventDefault();
                 post(base + '/' + el.getAttribute('data-id') + '/read').then(function (data) {
@@ -229,12 +229,12 @@
                 }).catch(function () {});
             });
         });
-        var markAll = document.getElementById('lsn-mark-all');
+        var markAll = document.getElementById('notif-mark-all');
         if (markAll) {
             markAll.addEventListener('click', function (e) {
                 e.preventDefault();
                 post(base + '/read-all').then(function () {
-                    document.querySelectorAll('.lsn-item').forEach(function (el) { el.classList.remove('fw-bold'); });
+                    document.querySelectorAll('.notif-item').forEach(function (el) { el.classList.remove('fw-bold'); });
                     setBadge(0);
                 }).catch(function () {});
             });
