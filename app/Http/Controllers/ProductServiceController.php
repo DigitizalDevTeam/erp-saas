@@ -1448,7 +1448,148 @@ class ProductServiceController extends Controller
             return response()->json(['error' => __('Product not found.')], 404);
         }
 
-        return response()->json($service->chartFor($product, (int) \Auth::user()->creatorId()));
+        $chart = $service->chartFor($product, (int) \Auth::user()->creatorId());
+        // Transfer button in the popup is shown only to users who may
+        // create a warehouse transfer (same permission as /warehouse-transfer).
+        $chart['can_transfer'] = \Auth::user()->can('create warehouse')
+            || \Auth::user()->can('menu.products_system.transfer');
+
+        return response()->json($chart);
+    }
+
+    /**
+     * Transfer stock of one Stock Status popup row (the product itself,
+     * one of its assigned options, or one of its recipe ingredients)
+     * between two warehouses of the same company.
+     *
+     * Same document as /warehouse-transfer: one WarehouseTransfer row
+     * plus transfer_out / transfer_in stock-ledger rows. The global
+     * product quantity does not change (stock only moves warehouses).
+     * Variant/bin rows are moved row-by-row so variant stock is never
+     * lumped into a single row, unlike the first-row-only helper used
+     * by the transfer page.
+     */
+    public function stockTransfer($id, Request $request)
+    {
+        $user = \Auth::user();
+        if (! $user->can('manage product & service')
+            || (! $user->can('create warehouse') && ! $user->can('menu.products_system.transfer'))) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $creatorId = (int) $user->creatorId();
+        $parent = ProductService::where('created_by', $creatorId)->find($id);
+        if (! $parent) {
+            return response()->json(['error' => __('Product not found.')], 404);
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'item_id' => 'required|integer|min:1',
+            'from_warehouse' => 'required|integer|min:1',
+            'to_warehouse' => 'required|integer|min:1',
+            'quantity' => 'required|numeric|min:0.0001',
+            'date' => 'nullable|date',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->getMessageBag()->first()], 422);
+        }
+
+        // The item must be a row of THIS popup: the parent product, one
+        // of its assigned options, or one of its recipe ingredients.
+        $allowedIds = [(int) $parent->id];
+        foreach ($parent->optionItems()->where('product_option_items.created_by', $creatorId)->get() as $option) {
+            $allowedIds[] = (int) $option->option_product_id;
+        }
+        foreach ($parent->recipes()->where('product_recipes.created_by', $creatorId)->get() as $recipe) {
+            $allowedIds[] = (int) $recipe->ingredient_product_id;
+        }
+        $itemId = (int) $request->item_id;
+        if (! in_array($itemId, $allowedIds, true)) {
+            return response()->json(['error' => __('Product not found.')], 404);
+        }
+
+        $item = ProductService::where('created_by', $creatorId)->find($itemId);
+        if (! $item || ! $item->affect_stock) {
+            return response()->json(['error' => __('This item does not affect stock and cannot be transferred.')], 422);
+        }
+
+        $fromId = (int) $request->from_warehouse;
+        $toId = (int) $request->to_warehouse;
+        if ($fromId === $toId) {
+            return response()->json(['error' => __('From and To warehouse must be different.')], 422);
+        }
+
+        $warehouses = \App\Models\warehouse::where('created_by', $creatorId)
+            ->whereIn('id', [$fromId, $toId])->get()->keyBy('id');
+        if (! isset($warehouses[$fromId], $warehouses[$toId])) {
+            return response()->json(['error' => __('Invalid warehouse.')], 422);
+        }
+
+        // Non-company users without the transfer menu permission may
+        // only transfer FROM their assigned warehouse(s) — same rule
+        // as WarehouseTransferController::fromWarehouseIds().
+        if ($user->type !== 'company' && $user->assignedWarehouseIds() !== []
+            && ! $user->can('menu.products_system.transfer')
+            && ! in_array($fromId, $user->assignedWarehouseIds(), true)) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $quantity = (float) $request->quantity;
+        $available = (float) WarehouseProduct::where('created_by', $creatorId)
+            ->where('product_id', $itemId)
+            ->where('warehouse_id', $fromId)
+            ->sum('quantity');
+        if ($quantity > $available) {
+            return response()->json(['error' => __('Insufficient quantity in source warehouse.')], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($creatorId, $itemId, $fromId, $toId, $quantity, $request, $warehouses) {
+                $transfer = new WarehouseTransfer();
+                $transfer->from_warehouse = $fromId;
+                $transfer->to_warehouse = $toId;
+                $transfer->product_id = $itemId;
+                $transfer->quantity = $quantity;
+                $transfer->date = $request->date ?: date('Y-m-d');
+                $transfer->created_by = $creatorId;
+                $transfer->save();
+
+                // Move row by row (variant / bin preserved on arrival).
+                $remaining = $quantity;
+                $sourceRows = WarehouseProduct::where('created_by', $creatorId)
+                    ->where('product_id', $itemId)
+                    ->where('warehouse_id', $fromId)
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
+                foreach ($sourceRows as $source) {
+                    if ($remaining <= 0) {
+                        break;
+                    }
+                    $take = min((float) $source->quantity, $remaining);
+                    $source->quantity = (float) $source->quantity - $take;
+                    if ($source->quantity <= 0) {
+                        $source->delete();
+                    } else {
+                        $source->save();
+                    }
+
+                    // Proven helper: matches variant (null-safe) + bin,
+                    // creates the destination row when missing.
+                    Utility::addWarehouseStock($itemId, $take, $toId, $source->row_no, $source->shelf_no, $source->product_variant_id);
+                    $remaining -= $take;
+                }
+
+                $route = ($warehouses[$fromId]->name ?? ('#' . $fromId))
+                    . ' → ' . ($warehouses[$toId]->name ?? ('#' . $toId));
+                Utility::addProductStock($itemId, $quantity, 'transfer_out', __('Transfer out') . ': ' . $route, $transfer->id);
+                Utility::addProductStock($itemId, $quantity, 'transfer_in', __('Transfer in') . ': ' . $route, $transfer->id);
+            });
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['success' => __('Warehouse transfer created successfully.')]);
     }
 
     public function searchProducts(Request $request)

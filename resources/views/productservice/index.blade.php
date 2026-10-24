@@ -31,6 +31,8 @@
         .ss-sellbadge { display: inline-block; margin-top: 3px; padding: 1px 7px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
         .ss-can { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
         .ss-cant { background: #fdecea; color: #b71c1c; border: 1px solid #ef9a9a; }
+        .ss-transfer-panel { display: none; margin-top: 16px; padding: 14px; border: 1px solid #d9d6e8; border-radius: 8px; background: #fafafc; }
+        .ss-transfer-panel .form-label { font-size: 12px; font-weight: 600; }
     </style>
 @endpush
 @push('script-page')
@@ -302,14 +304,26 @@
                     var cls = ssCellClass(qty, item.low_stock_threshold);
                     html += '<td class="' + (cls || 'ss-qty') + '"><div>' + ssQty(qty) + '</div>' + ssSellBadge(item, w.id) + '</td>';
                 });
-                html += '<td class="ss-total">' + (noStock ? '—' : ssQty(item.total)) + '</td></tr>';
+                html += '<td class="ss-total">' + (noStock ? '—' : ssQty(item.total)) + '</td>';
+                if (ssCanTransfer) {
+                    html += '<td>' + (noStock
+                        ? '<span class="text-muted small">—</span>'
+                        : '<button type="button" class="btn btn-sm btn-outline-primary ss-transfer-btn" data-item-id="' + item.id + '" data-item-name="' + ssEsc(item.name) + '">{{ __('Transfer') }}</button>') + '</td>';
+                }
+                html += '</tr>';
                 return html;
             }
 
             var ssWarehouses = [];
+            var ssCanTransfer = false;
+            var ssItemsById = {};
+            var ssTransferItem = null;
 
             function ssRender(data) {
                 ssWarehouses = data.warehouses || [];
+                ssCanTransfer = !!data.can_transfer;
+                ssTransferItem = null;
+                $('#stockTransferPanel').hide();
                 if (data.unlimited_value) {
                     ssUnlimited = data.unlimited_value;
                 }
@@ -320,13 +334,23 @@
                     return;
                 }
 
+                // Lookup for the transfer panel (product + options + ingredients).
+                ssItemsById = {};
+                [data.product_stock].concat(data.options || [], data.ingredients || []).forEach(function (item) {
+                    if (item) { ssItemsById[item.id] = item; }
+                });
+
                 var head = '<tr><th style="width:30%">{{ __('Item') }}</th><th>{{ __('Type') }}</th><th>{{ __('Per Sale') }}</th>';
                 ssWarehouses.forEach(function (w) {
                     head += '<th>' + ssEsc(w.name) + '</th>';
                 });
-                head += '<th>{{ __('Total') }}</th></tr>';
+                head += '<th>{{ __('Total') }}</th>';
+                if (ssCanTransfer) {
+                    head += '<th>{{ __('Transfer') }}</th>';
+                }
+                head += '</tr>';
 
-                var colspan = 3 + ssWarehouses.length + 1;
+                var colspan = 3 + ssWarehouses.length + 1 + (ssCanTransfer ? 1 : 0);
                 var body = '';
                 body += '<tr class="ss-section"><td colspan="' + colspan + '">{{ __('Product') }}</td></tr>';
                 body += ssRowHtml(data.product_stock, ssTypeLabel(data.product_stock.type), 'ss-b-product');
@@ -349,6 +373,96 @@
                     '<div class="table-responsive"><table class="ss-chart"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>'
                 );
             }
+
+            function ssTransferAvail() {
+                if (!ssTransferItem) { return; }
+                var fromId = parseInt($('#ssTransferFrom').val(), 10);
+                var qty = ssTransferItem.stock ? (ssTransferItem.stock[fromId] || 0) : 0;
+                $('#ssTransferAvail').text('{{ __('Available in source') }}: ' + ssQty(qty));
+            }
+
+            function ssOpenTransfer(itemId) {
+                var item = ssItemsById[itemId];
+                if (!item || item.affect_stock === false) { return; }
+                ssTransferItem = item;
+                $('#ssTransferTitle').text('{{ __('Transfer') }} — ' + item.name + (item.sku ? ' (SKU ' + item.sku + ')' : ''));
+                var fromHtml = '', toHtml = '';
+                ssWarehouses.forEach(function (w) {
+                    var qty = item.stock ? (item.stock[w.id] || 0) : 0;
+                    fromHtml += '<option value="' + w.id + '">' + ssEsc(w.name) + ' (' + ssQty(qty) + ')</option>';
+                    toHtml += '<option value="' + w.id + '">' + ssEsc(w.name) + '</option>';
+                });
+                $('#ssTransferFrom').html(fromHtml);
+                $('#ssTransferTo').html(toHtml);
+                // Default destination: first warehouse that is not the source.
+                if (ssWarehouses.length > 1) {
+                    $('#ssTransferTo').val(ssWarehouses[1].id);
+                }
+                var today = new Date().toISOString().slice(0, 10);
+                $('#ssTransferDate').val(today);
+                $('#ssTransferQty').val('');
+                $('#ssTransferError').hide().text('');
+                $('#stockTransferPanel').show();
+                ssTransferAvail();
+            }
+
+            $(document).on('click', '.ss-transfer-btn', function (e) {
+                e.preventDefault();
+                ssOpenTransfer(parseInt($(this).data('item-id'), 10));
+            });
+
+            $(document).on('change', '#ssTransferFrom', ssTransferAvail);
+
+            $(document).on('click', '#ssTransferCancel', function () {
+                $('#stockTransferPanel').hide();
+                ssTransferItem = null;
+            });
+
+            $(document).on('click', '#ssTransferSubmit', function () {
+                if (!ssTransferItem || !ssCurrentId) { return; }
+                var $btn = $(this);
+                var fromId = parseInt($('#ssTransferFrom').val(), 10);
+                var toId = parseInt($('#ssTransferTo').val(), 10);
+                var qty = parseFloat($('#ssTransferQty').val());
+                if (!qty || qty <= 0) {
+                    $('#ssTransferError').show().text('{{ __('Enter a quantity above 0.') }}');
+                    return;
+                }
+                if (fromId === toId) {
+                    $('#ssTransferError').show().text('{{ __('From and To warehouse must be different.') }}');
+                    return;
+                }
+                $btn.prop('disabled', true);
+                $.ajax({
+                    url: ssBaseUrl + '/' + ssCurrentId + '/stock-transfer',
+                    type: 'POST',
+                    dataType: 'json',
+                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    data: {
+                        item_id: ssTransferItem.id,
+                        from_warehouse: fromId,
+                        to_warehouse: toId,
+                        quantity: qty,
+                        date: $('#ssTransferDate').val()
+                    },
+                    success: function (res) {
+                        if (typeof show_toastr === 'function') {
+                            show_toastr('Success', res.success || '{{ __('Warehouse transfer created successfully.') }}', 'success');
+                        }
+                        ssLoad();
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __('Unable to transfer stock.') }}';
+                        $('#ssTransferError').show().text(msg);
+                        if (typeof show_toastr === 'function') {
+                            show_toastr('Error', msg, 'error');
+                        }
+                    },
+                    complete: function () {
+                        $btn.prop('disabled', false);
+                    }
+                });
+            });
 
             function ssLoad() {
                 if (!ssCurrentId) {
@@ -480,6 +594,34 @@
                         <span><span class="ss-dot" style="background:#d32f2f"></span>{{ __('Out of stock') }}</span>
                     </div>
                     <div id="stockStatusBody"></div>
+                    <div id="stockTransferPanel" class="ss-transfer-panel">
+                        <h6 id="ssTransferTitle" class="mb-3">{{ __('Transfer') }}</h6>
+                        <div class="row">
+                            <div class="col-md-3 form-group">
+                                <label class="form-label" for="ssTransferFrom">{{ __('From Warehouse') }}</label>
+                                <select class="form-control" id="ssTransferFrom"></select>
+                                <small class="text-muted d-block mt-1" id="ssTransferAvail"></small>
+                            </div>
+                            <div class="col-md-3 form-group">
+                                <label class="form-label" for="ssTransferTo">{{ __('To Warehouse') }}</label>
+                                <select class="form-control" id="ssTransferTo"></select>
+                            </div>
+                            <div class="col-md-3 form-group">
+                                <label class="form-label" for="ssTransferQty">{{ __('Quantity') }}</label>
+                                <input type="number" step="0.0001" min="0.0001" class="form-control" id="ssTransferQty" placeholder="0">
+                            </div>
+                            <div class="col-md-3 form-group">
+                                <label class="form-label" for="ssTransferDate">{{ __('Date') }}</label>
+                                <input type="date" class="form-control" id="ssTransferDate">
+                            </div>
+                        </div>
+                        <p class="text-danger small mb-2" id="ssTransferError" style="display:none"></p>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary btn-sm" id="ssTransferSubmit">{{ __('Transfer stock') }}</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="ssTransferCancel">{{ __('Cancel') }}</button>
+                        </div>
+                        <small class="text-muted d-block mt-2">{{ __('Same rules as Warehouse Transfer: From and To must differ, quantity cannot exceed stock in the source warehouse, and the move is recorded as a transfer document.') }}</small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Close') }}</button>
