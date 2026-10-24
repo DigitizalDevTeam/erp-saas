@@ -319,11 +319,27 @@
             var ssItemsById = {};
             var ssTransferItem = null;
 
+            // One thing at a time in this popup: either the stock chart
+            // or the transfer form — never both at once.
+            function ssShowChart() {
+                $('#stockStatusBody').show();
+                $('.ss-legend').show();
+                $('#stockStatusRefresh').show();
+                $('#stockTransferPanel').hide();
+            }
+
+            function ssShowTransfer() {
+                $('#stockStatusBody').hide();
+                $('.ss-legend').hide();
+                $('#stockStatusRefresh').hide();
+                $('#stockTransferPanel').show();
+            }
+
             function ssRender(data) {
                 ssWarehouses = data.warehouses || [];
                 ssCanTransfer = !!data.can_transfer;
                 ssTransferItem = null;
-                $('#stockTransferPanel').hide();
+                ssShowChart();
                 if (data.unlimited_value) {
                     ssUnlimited = data.unlimited_value;
                 }
@@ -386,6 +402,7 @@
                 if (!item || item.affect_stock === false) { return; }
                 ssTransferItem = item;
                 $('#ssTransferTitle').text('{{ __('Transfer') }} — ' + item.name + (item.sku ? ' (SKU ' + item.sku + ')' : ''));
+                $('#stockStatusTitle').text('{{ __('Transfer') }} — ' + item.name + (item.sku ? ' (SKU ' + item.sku + ')' : ''));
                 var fromHtml = '', toHtml = '';
                 ssWarehouses.forEach(function (w) {
                     var qty = item.stock ? (item.stock[w.id] || 0) : 0;
@@ -402,7 +419,7 @@
                 $('#ssTransferDate').val(today);
                 $('#ssTransferQty').val('');
                 $('#ssTransferError').hide().text('');
-                $('#stockTransferPanel').show();
+                ssShowTransfer();
                 ssTransferAvail();
             }
 
@@ -414,8 +431,8 @@
             $(document).on('change', '#ssTransferFrom', ssTransferAvail);
 
             $(document).on('click', '#ssTransferCancel', function () {
-                $('#stockTransferPanel').hide();
                 ssTransferItem = null;
+                ssShowChart();
             });
 
             $(document).on('click', '#ssTransferSubmit', function () {
@@ -618,7 +635,7 @@
                         <p class="text-danger small mb-2" id="ssTransferError" style="display:none"></p>
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-primary btn-sm" id="ssTransferSubmit">{{ __('Transfer stock') }}</button>
-                            <button type="button" class="btn btn-secondary btn-sm" id="ssTransferCancel">{{ __('Cancel') }}</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="ssTransferCancel">{{ __('Back to stock status') }}</button>
                         </div>
                         <small class="text-muted d-block mt-2">{{ __('Same rules as Warehouse Transfer: From and To must differ, quantity cannot exceed stock in the source warehouse, and the move is recorded as a transfer document.') }}</small>
                     </div>
