@@ -45,9 +45,9 @@
             <div class="card-header d-flex align-items-center justify-content-between gap-3 flex-wrap">
                 <h5>{{ __('Find Employee Payslip') }}</h5>
                 <div class="row flex-1 justify-content-end align-items-center row-gap-1">
-                    <div class="col-xxl-2 col-lg-3 col-md-6 col-12">
+                    <div class="col-auto" style="min-width: 160px;">
                         <div class="btn-box">
-                            <select class="form-control month_date " name="year" tabindex="-1" aria-hidden="true">
+                            <select class="form-control month_date " name="year" tabindex="-1" aria-hidden="true" style="width: 100%;">
                                 <option value="--">--</option>
                                 @foreach ($month as $k => $mon)
                                     @php
@@ -58,12 +58,13 @@
                             </select>
                         </div>
                     </div>
-                    <div class="col-xxl-2 col-lg-3 col-md-6 col-12">
+                    <div class="col-auto" style="min-width: 130px;">
                         <div class="btn-box">
-                            {{ Form::select('year', $year, date('Y'), ['class' => 'form-control year_date ']) }}
+                            {{ Form::select('year', $year, date('Y'), ['class' => 'form-control year_date ', 'style' => 'width: 100%;']) }}
                         </div>
                     </div>
                     <div class="col-auto d-flex gap-3">
+                        <input type="button" value="{{ __('Search') }}" class="btn btn-primary" id="payslip_search">
                         {{ Form::open(['route' => ['payslip.export'], 'method' => 'POST', 'id' => 'payslip_form']) }}
                         <input type="hidden" name="filter_month" class="filter_month">
                         <input type="hidden" name="filter_year" class="filter_year">
@@ -110,7 +111,7 @@
                 $('.filter_month').val(month);
                 $('.filter_year').val(year);
 
-                if (month == '') {
+                if (month == '' || month == '--') {
                     month = '{{ date('m', strtotime('last month')) }}';
                     year = '{{ date('Y') }}';
 
@@ -290,6 +291,11 @@
             }
 
             $(document).on("change", ".month_date,.year_date", function() {
+                callback();
+            });
+
+            // Explicit Search button: same search as the auto-apply on change.
+            $(document).on("click", "#payslip_search", function() {
                 callback();
             });
 
