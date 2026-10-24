@@ -301,7 +301,9 @@
                         return;
                     }
                     var qty = item.stock ? (item.stock[w.id] || 0) : 0;
-                    var cls = ssCellClass(qty, item.low_stock_threshold);
+                    var threshold = (item.low_stock_thresholds && item.low_stock_thresholds[w.id] !== undefined && item.low_stock_thresholds[w.id] !== null)
+                        ? item.low_stock_thresholds[w.id] : item.low_stock_threshold;
+                    var cls = ssCellClass(qty, threshold);
                     html += '<td class="' + (cls || 'ss-qty') + '"><div>' + ssQty(qty) + '</div>' + ssSellBadge(item, w.id) + '</td>';
                 });
                 html += '<td class="ss-total">' + (noStock ? '—' : ssQty(item.total)) + '</td>';
@@ -647,4 +649,134 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="warehouseStockAlertModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="wsaTitle">{{ __('Low / max stock per warehouse') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small" id="wsaSubtitle"></p>
+                    <div id="wsaBody"></div>
+                    <p class="text-danger small mb-0" id="wsaError" style="display:none"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Close') }}</button>
+                    <button type="button" class="btn btn-primary" id="wsaSave">{{ __('Save') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
+@push('scripts')
+    <script>
+        (function () {
+            var wsaCurrentId = null;
+            var wsaBaseUrl = '{{ url('productservice') }}';
+
+            function wsaEsc(s) {
+                return $('<div>').text(s === null || s === undefined ? '' : String(s)).html();
+            }
+
+            function wsaLoad() {
+                if (!wsaCurrentId) {
+                    return;
+                }
+                $('#wsaBody').html('<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>');
+                $('#wsaError').hide().text('');
+                $('#wsaSave').prop('disabled', true);
+                $.ajax({
+                    url: wsaBaseUrl + '/' + wsaCurrentId + '/warehouse-stock-alerts',
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function (data) {
+                        var p = data.product || {};
+                        $('#wsaTitle').text('{{ __('Low / max stock per warehouse') }} — ' + wsaEsc(p.name || ''));
+                        var lowNote = (p.low_stock_threshold !== null && p.low_stock_threshold !== undefined) ? p.low_stock_threshold : '{{ __('Default') }}';
+                        var maxNote = (p.max_stock_threshold !== null && p.max_stock_threshold !== undefined) ? p.max_stock_threshold : '{{ __('Optional') }}';
+                        $('#wsaSubtitle').text('{{ __('Leave a value empty to use the product value (Low: ') }}' + lowNote + '{{ __(', Max: ') }}' + maxNote + '{{ __(') or the system default.') }}');
+                        var rows = data.warehouses || [];
+                        if (rows.length === 0) {
+                            $('#wsaBody').html('<p class="text-muted text-center py-3">{{ __('No warehouses found for this company.') }}</p>');
+                            return;
+                        }
+                        var html = '<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr>'
+                            + '<th>{{ __('Warehouse') }}</th>'
+                            + '<th>{{ __('Current stock') }}</th>'
+                            + '<th>{{ __('Low stock alert at') }}</th>'
+                            + '<th>{{ __('Max stock alert at') }}</th>'
+                            + '</tr></thead><tbody>';
+                        rows.forEach(function (w) {
+                            html += '<tr data-warehouse-id="' + w.id + '">'
+                                + '<td>' + wsaEsc(w.name) + '</td>'
+                                + '<td>' + wsaEsc(w.current_quantity) + '</td>'
+                                + '<td><input type="number" min="0" step="1" class="form-control form-control-sm wsa-low" value="' + (w.low_stock_threshold !== null && w.low_stock_threshold !== undefined ? w.low_stock_threshold : '') + '" placeholder="' + wsaEsc(lowNote) + '"></td>'
+                                + '<td><input type="number" min="0" step="1" class="form-control form-control-sm wsa-max" value="' + (w.max_stock_threshold !== null && w.max_stock_threshold !== undefined ? w.max_stock_threshold : '') + '" placeholder="' + wsaEsc(maxNote) + '"></td>'
+                                + '</tr>';
+                        });
+                        html += '</tbody></table></div>';
+                        $('#wsaBody').html(html);
+                        $('#wsaSave').prop('disabled', false);
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __('Unable to load warehouse stock alerts.') }}';
+                        $('#wsaBody').html('<p class="text-danger text-center py-3">' + wsaEsc(msg) + '</p>');
+                    }
+                });
+            }
+
+            $(document).on('click', '.warehouse-stock-alert-btn', function (e) {
+                e.preventDefault();
+                wsaCurrentId = $(this).data('id');
+                var modalEl = document.getElementById('warehouseStockAlertModal');
+                var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                modal.show();
+                wsaLoad();
+            });
+
+            $(document).on('click', '#wsaSave', function () {
+                if (!wsaCurrentId) {
+                    return;
+                }
+                var $btn = $(this);
+                var warehouses = [];
+                $('#wsaBody tr[data-warehouse-id]').each(function () {
+                    var $row = $(this);
+                    warehouses.push({
+                        warehouse_id: parseInt($row.data('warehouse-id'), 10),
+                        low_stock_threshold: $row.find('.wsa-low').val(),
+                        max_stock_threshold: $row.find('.wsa-max').val()
+                    });
+                });
+                $('#wsaError').hide().text('');
+                $btn.prop('disabled', true);
+                $.ajax({
+                    url: wsaBaseUrl + '/' + wsaCurrentId + '/warehouse-stock-alerts',
+                    type: 'POST',
+                    dataType: 'json',
+                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    data: { warehouses: warehouses },
+                    success: function (res) {
+                        if (typeof show_toastr === 'function') {
+                            show_toastr('Success', res.success || '{{ __('Warehouse stock alerts saved.') }}', 'success');
+                        }
+                        var modalEl = document.getElementById('warehouseStockAlertModal');
+                        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __('Unable to save warehouse stock alerts.') }}';
+                        $('#wsaError').show().text(msg);
+                        if (typeof show_toastr === 'function') {
+                            show_toastr('Error', msg, 'error');
+                        }
+                    },
+                    complete: function () {
+                        $btn.prop('disabled', false);
+                    }
+                });
+            });
+        })();
+    </script>
+@endpush

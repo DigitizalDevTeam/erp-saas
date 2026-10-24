@@ -6,6 +6,7 @@ use App\Models\ProductService;
 use App\Models\warehouse;
 use App\Models\WarehouseProduct;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Full stock chart for one product, used by the Products list
@@ -56,8 +57,9 @@ class ProductStockStatusService
             }
         }
         $stock = $this->stockByWarehouse(array_values(array_unique($relatedIds)), $warehouseIds, $creatorId);
+        $alerts = $this->alertsByWarehouse(array_values(array_unique($relatedIds)), $warehouseIds, $creatorId);
 
-        $row = function (ProductService $item, ?float $perSale, ?string $group = null) use ($stock, $warehouseIds, $creatorId) {
+        $row = function (ProductService $item, ?float $perSale, ?string $group = null) use ($stock, $alerts, $warehouseIds, $creatorId) {
             $perWarehouse = [];
             $total = 0.0;
             foreach ($warehouseIds as $warehouseId) {
@@ -75,6 +77,17 @@ class ProductStockStatusService
                 $sellable[$warehouseId] = $this->availability->maxSellableQty($item, $warehouseId, null, [], $creatorId);
             }
 
+            // Per-warehouse low threshold: the warehouse's own alert
+            // value wins, otherwise the product's own threshold (same
+            // fallback as before — no system default is applied here).
+            $lowThresholds = [];
+            foreach ($warehouseIds as $warehouseId) {
+                $alertLow = $alerts[(int) $item->id][$warehouseId] ?? null;
+                $lowThresholds[$warehouseId] = $alertLow !== null
+                    ? (int) $alertLow
+                    : ($item->low_stock_threshold !== null ? (int) $item->low_stock_threshold : null);
+            }
+
             return [
                 'id' => (int) $item->id,
                 'name' => (string) $item->name,
@@ -84,6 +97,7 @@ class ProductStockStatusService
                 'per_sale' => $perSale,
                 'affect_stock' => (bool) ($item->affect_stock ?? true),
                 'low_stock_threshold' => $item->low_stock_threshold !== null ? (int) $item->low_stock_threshold : null,
+                'low_stock_thresholds' => $lowThresholds,
                 'stock' => $perWarehouse,
                 'sellable' => $sellable,
                 'total' => $total,
@@ -126,6 +140,35 @@ class ProductStockStatusService
      *
      * @return array<int, array<int, float>>
      */
+    /**
+     * Per-warehouse low alert values: product_id => warehouse_id => low.
+     * Only rows with a low value set are included; missing entries mean
+     * "fall back to the product's own threshold".
+     *
+     * @return array<int, array<int, int>>
+     */
+    private function alertsByWarehouse(array $productIds, array $warehouseIds, int $creatorId): array
+    {
+        // Graceful fallback for databases that have not run the alerts
+        // migration yet: no per-warehouse values, product thresholds apply.
+        if ($productIds === [] || $warehouseIds === [] || ! Schema::hasTable('product_warehouse_stock_alerts')) {
+            return [];
+        }
+
+        $rows = \App\Models\ProductWarehouseStockAlert::where('created_by', $creatorId)
+            ->whereIn('product_id', $productIds)
+            ->whereIn('warehouse_id', $warehouseIds)
+            ->whereNotNull('low_stock_threshold')
+            ->get(['product_id', 'warehouse_id', 'low_stock_threshold']);
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int) $row->product_id][(int) $row->warehouse_id] = (int) $row->low_stock_threshold;
+        }
+
+        return $map;
+    }
+
     private function stockByWarehouse(array $productIds, array $warehouseIds, int $creatorId): array
     {
         if ($productIds === [] || $warehouseIds === []) {

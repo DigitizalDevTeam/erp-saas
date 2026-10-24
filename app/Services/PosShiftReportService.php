@@ -441,18 +441,17 @@ class PosShiftReportService
             ->join('product_services', 'warehouse_products.product_id', '=', 'product_services.id')
             ->join('warehouses', 'warehouse_products.warehouse_id', '=', 'warehouses.id')
             ->leftJoin('product_service_categories', 'product_services.category_id', '=', 'product_service_categories.id')
+            ->leftJoin('product_warehouse_stock_alerts', function ($join) {
+                $join->on('product_warehouse_stock_alerts.product_id', '=', 'warehouse_products.product_id')
+                    ->on('product_warehouse_stock_alerts.warehouse_id', '=', 'warehouse_products.warehouse_id');
+            })
             ->where('warehouse_products.created_by', $creatorId)
             ->where('product_services.created_by', $creatorId)
             ->whereIn('product_services.type', ['product', 'kit'])
-            ->where(function ($qq) use ($globalThreshold) {
-                $qq->where(function ($q2) {
-                    $q2->whereNotNull('product_services.low_stock_threshold')
-                        ->whereRaw('warehouse_products.quantity <= product_services.low_stock_threshold');
-                })->orWhere(function ($q2) use ($globalThreshold) {
-                    $q2->whereNull('product_services.low_stock_threshold')
-                        ->whereRaw('warehouse_products.quantity <= ?', [$globalThreshold]);
-                });
-            })
+            // Per-warehouse alert low wins, then the product's own low,
+            // then the POS low-stock default — same fallback order as
+            // the product form's "Low stock alert at" field.
+            ->whereRaw('warehouse_products.quantity <= COALESCE(product_warehouse_stock_alerts.low_stock_threshold, product_services.low_stock_threshold, ?)', [$globalThreshold])
             ->when($warehouseId, fn ($q) => $q->where('warehouse_products.warehouse_id', $warehouseId))
             ->select([
                 'warehouse_products.warehouse_id',
@@ -463,7 +462,7 @@ class PosShiftReportService
                 'product_services.sku',
                 'product_services.type',
                 'product_services.sale_price',
-                'product_services.low_stock_threshold',
+                \DB::raw('COALESCE(product_warehouse_stock_alerts.low_stock_threshold, product_services.low_stock_threshold) as low_stock_threshold'),
                 'product_service_categories.name as category_name',
             ])
             ->orderBy('warehouses.name')

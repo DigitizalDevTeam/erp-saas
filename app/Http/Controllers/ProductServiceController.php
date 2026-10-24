@@ -339,6 +339,7 @@ class ProductServiceController extends Controller
                 'row' => __('Row'),
                 'warehouse' => __('Warehouse Details'),
                 'stock_status' => __('Stock Status'),
+                'stock_alerts' => __('Low / max stock per warehouse'),
                 'edit' => __('Edit'),
                 'edit_product' => __('Edit Product'),
                 'delete' => __('Delete'),
@@ -646,6 +647,13 @@ class ProductServiceController extends Controller
                 .'<a href="#" class="mx-3 btn btn-sm align-items-center bg-primary stock-status-btn" data-id="'.$id.'"'
                 .' data-bs-toggle="tooltip" title="'.e($labels['stock_status']).'">'
                 .'<i class="ti ti-chart-bar text-white"></i></a></div>';
+
+            if ($canEdit) {
+                $actionHtml .= '<div class="action-btn me-2 d-inline-block">'
+                    .'<a href="#" class="mx-3 btn btn-sm align-items-center bg-secondary warehouse-stock-alert-btn" data-id="'.$id.'"'
+                    .' data-bs-toggle="tooltip" title="'.e($labels['stock_alerts']).'">'
+                    .'<i class="ti ti-bell text-white"></i></a></div>';
+            }
 
             if ($canEdit) {
                 $actionHtml .= '<div class="action-btn me-2 d-inline-block">'
@@ -1455,6 +1463,125 @@ class ProductServiceController extends Controller
             || \Auth::user()->can('menu.products_system.transfer');
 
         return response()->json($chart);
+    }
+
+    /**
+     * Per-warehouse low / max stock alerts for one product, for the
+     * Action-column popup: every warehouse of the company at once, each
+     * with its own low and max input (different values per warehouse).
+     * Saved values are prefilled; an empty input means "fall back to the
+     * product's own threshold, then to the system default".
+     */
+    public function warehouseStockAlerts($id)
+    {
+        if (! \Auth::user()->can('edit product & service')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $creatorId = (int) \Auth::user()->creatorId();
+        $product = ProductService::where('created_by', $creatorId)->find($id);
+        if (! $product) {
+            return response()->json(['error' => __('Product not found.')], 404);
+        }
+
+        $warehouses = \App\Models\warehouse::where('created_by', $creatorId)
+            ->orderBy('id')
+            ->get(['id', 'name']);
+
+        $stock = \App\Models\WarehouseProduct::where('created_by', $creatorId)
+            ->where('product_id', $product->id)
+            ->groupBy('warehouse_id')
+            ->select('warehouse_id', \DB::raw('SUM(quantity) as qty'))
+            ->pluck('qty', 'warehouse_id');
+
+        $alerts = \App\Models\ProductWarehouseStockAlert::where('created_by', $creatorId)
+            ->where('product_id', $product->id)
+            ->get()
+            ->keyBy('warehouse_id');
+
+        return response()->json([
+            'product' => [
+                'id' => (int) $product->id,
+                'name' => (string) $product->name,
+                'sku' => (string) ($product->sku ?? ''),
+                'low_stock_threshold' => $product->low_stock_threshold !== null ? (int) $product->low_stock_threshold : null,
+                'max_stock_threshold' => $product->max_stock_threshold !== null ? (int) $product->max_stock_threshold : null,
+            ],
+            'warehouses' => $warehouses->map(function ($w) use ($stock, $alerts) {
+                $alert = $alerts->get($w->id);
+
+                return [
+                    'id' => (int) $w->id,
+                    'name' => (string) $w->name,
+                    'current_quantity' => (float) ($stock[$w->id] ?? 0),
+                    'low_stock_threshold' => $alert && $alert->low_stock_threshold !== null ? (int) $alert->low_stock_threshold : null,
+                    'max_stock_threshold' => $alert && $alert->max_stock_threshold !== null ? (int) $alert->max_stock_threshold : null,
+                ];
+            })->values()->all(),
+        ]);
+    }
+
+    /**
+     * Save the per-warehouse low / max values from the popup. A row with
+     * both values empty is deleted, so it falls back to the product's
+     * own thresholds instead of storing a dead row.
+     */
+    public function warehouseStockAlertsStore($id, Request $request)
+    {
+        if (! \Auth::user()->can('edit product & service')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $creatorId = (int) \Auth::user()->creatorId();
+        $product = ProductService::where('created_by', $creatorId)->find($id);
+        if (! $product) {
+            return response()->json(['error' => __('Product not found.')], 404);
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'warehouses' => 'required|array',
+            'warehouses.*.warehouse_id' => 'required|integer|min:1',
+            'warehouses.*.low_stock_threshold' => 'nullable|integer|min:0',
+            'warehouses.*.max_stock_threshold' => 'nullable|integer|min:0',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->getMessageBag()->first()], 422);
+        }
+
+        $validWarehouseIds = \App\Models\warehouse::where('created_by', $creatorId)
+            ->pluck('id')
+            ->map(fn ($v) => (int) $v)
+            ->all();
+
+        $saved = 0;
+        \DB::transaction(function () use ($request, $product, $creatorId, $validWarehouseIds, &$saved) {
+            foreach ((array) $request->input('warehouses', []) as $row) {
+                $warehouseId = (int) ($row['warehouse_id'] ?? 0);
+                if (! in_array($warehouseId, $validWarehouseIds, true)) {
+                    continue;
+                }
+                $low = ($row['low_stock_threshold'] === '' || $row['low_stock_threshold'] === null)
+                    ? null : (int) $row['low_stock_threshold'];
+                $max = ($row['max_stock_threshold'] === '' || $row['max_stock_threshold'] === null)
+                    ? null : (int) $row['max_stock_threshold'];
+
+                if ($low === null && $max === null) {
+                    \App\Models\ProductWarehouseStockAlert::where('created_by', $creatorId)
+                        ->where('product_id', $product->id)
+                        ->where('warehouse_id', $warehouseId)
+                        ->delete();
+                    continue;
+                }
+
+                \App\Models\ProductWarehouseStockAlert::updateOrCreate(
+                    ['product_id' => $product->id, 'warehouse_id' => $warehouseId],
+                    ['created_by' => $creatorId, 'low_stock_threshold' => $low, 'max_stock_threshold' => $max]
+                );
+                $saved++;
+            }
+        });
+
+        return response()->json(['success' => __('Warehouse stock alerts saved.'), 'saved' => $saved]);
     }
 
     /**

@@ -992,6 +992,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('productservice/{id}/detail', [ProductServiceController::class, 'warehouseDetail'])->name('productservice.detail');
     Route::get('productservice/{id}/stock-status', [ProductServiceController::class, 'stockStatus'])->name('productservice.stock-status');
     Route::post('productservice/{id}/stock-transfer', [ProductServiceController::class, 'stockTransfer'])->name('productservice.stock-transfer')->middleware(['auth', 'XSS']);
+    Route::get('productservice/{id}/warehouse-stock-alerts', [ProductServiceController::class, 'warehouseStockAlerts'])->name('productservice.warehouse-stock-alerts');
+    Route::post('productservice/{id}/warehouse-stock-alerts', [ProductServiceController::class, 'warehouseStockAlertsStore'])->name('productservice.warehouse-stock-alerts.store')->middleware(['auth', 'XSS']);
     Route::post('productservice/{id}/kit-items', [ProductServiceController::class, 'kitItemStore'])->name('productservice.kit-items.store')->middleware(['auth', 'XSS']);
     Route::delete('productservice/{id}/kit-items/{kit_item}', [ProductServiceController::class, 'kitItemDestroy'])->name('productservice.kit-items.destroy')->middleware(['auth', 'XSS']);
     Route::post('empty-cart', [ProductServiceController::class, 'emptyCart'])->middleware(['auth', 'XSS']);
