@@ -24,7 +24,10 @@ return new class extends Migration
                 $table->timestamp('resolved_at')->nullable();
                 $table->timestamps();
 
-                $table->index(['company_id', 'product_id', 'warehouse_id', 'resolved_at']);
+                // Short explicit name: Laravel's auto-generated name for
+                // these four columns is 76 chars, over MySQL's 64-char
+                // identifier limit (error 1059 on migrate).
+                $table->index(['company_id', 'product_id', 'warehouse_id', 'resolved_at'], 'lsn_company_product_warehouse');
             });
         }
 
