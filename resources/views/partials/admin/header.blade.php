@@ -159,8 +159,9 @@
                             </div>
                             <div id="notif-list">
                                 @forelse ($lowStockNotifications as $n)
-                                    <a href="#" class="dropdown-item notif-item {{ $n->is_read ? '' : 'fw-bold' }}" data-id="{{ $n->id }}" title="{{ $n->created_at ? $n->created_at->diffForHumans() : '' }}">
-                                        <span class="d-block text-truncate">{{ __('Low stock') }}: {{ $n->product->name ?? __('Product') }} — {{ $n->warehouse->name ?? '' }} · {{ __('Qty') }} {{ (float) $n->quantity }} / {{ __('Low') }} {{ $n->low_stock_threshold }}@if($n->resolved_at) · {{ __('Recovered') }}@endif</span>
+                                    <a href="#" class="dropdown-item notif-item text-wrap {{ $n->is_read ? '' : 'fw-bold' }}" data-id="{{ $n->id }}">
+                                        <span class="d-block">{{ __('Low stock') }}: {{ $n->product->name ?? __('Product') }} — {{ $n->warehouse->name ?? '' }}@if($n->resolved_at) · {{ __('Recovered') }}@endif</span>
+                                        <small class="text-muted d-block">{{ __('Qty') }} {{ (float) $n->quantity }} / {{ __('Low') }} {{ $n->low_stock_threshold }} · {{ $n->created_at ? $n->created_at->diffForHumans() : '' }}</small>
                                     </a>
                                 @empty
                                     <span class="dropdown-item text-muted">{{ __('No notifications.') }}</span>

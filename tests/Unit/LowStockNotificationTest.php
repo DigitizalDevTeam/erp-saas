@@ -231,8 +231,9 @@ class LowStockNotificationTest extends TestCase
         $header = file_get_contents(base_path('resources/views/partials/admin/header.blade.php'));
 
         // The bell is generic ("Notifications"), not stock-only: low stock
-        // is just the first feed plugged into it, rendered as one line
-        // with its quantity information.
+        // is just the first feed plugged into it. Items wrap fully (no
+        // truncation): product + warehouse on the first line, quantity
+        // info as small text on the second line.
         $this->assertStringContainsString('ti-bell', $header);
         $this->assertStringContainsString('Notifications', $header);
         $this->assertStringContainsString('notif-badge', $header);
@@ -244,6 +245,8 @@ class LowStockNotificationTest extends TestCase
         $this->assertStringContainsString('notif-badge" class="bg-danger dash-h-badge message-counter', $header);
         $this->assertStringContainsString('low-stock-notifications', $header);
         $this->assertStringContainsString('Low stock', $header);
+        $this->assertStringContainsString('notif-item text-wrap', $header);
+        $this->assertStringNotContainsString('text-truncate', $header);
         $this->assertStringNotContainsString('lsn-badge', $header);
         $this->assertStringNotContainsString('Low stock alerts', $header);
     }
