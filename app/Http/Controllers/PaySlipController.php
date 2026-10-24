@@ -368,6 +368,75 @@ class PaySlipController extends Controller
 
     }
 
+    // Payslip logo popup (opened from /payslip next to Generate Payslip).
+    // The logo is stored as the per-company setting 'payslip_logo' in
+    // uploads/logo, so no migration is needed. Payslip PDFs use it
+    // first and fall back to the company logo when none is set.
+    public function logoForm()
+    {
+        if (\Auth::user()->type == 'Employee') {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $logo = Utility::getValByName('payslip_logo');
+        $logoUrl = !empty($logo) ? Utility::get_file('uploads/logo') . '/' . $logo : null;
+
+        return view('payslip.logo', compact('logo', 'logoUrl'));
+    }
+
+    public function logoStore(Request $request)
+    {
+        if (\Auth::user()->type == 'Employee') {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $creatorId = \Auth::user()->creatorId();
+        $oldLogo = Utility::getValByName('payslip_logo');
+
+        if ($request->boolean('remove_logo')) {
+            \DB::table('settings')->where('name', 'payslip_logo')->where('created_by', $creatorId)->delete();
+            if (!empty($oldLogo) && file_exists(storage_path('uploads/logo/' . $oldLogo))) {
+                @unlink(storage_path('uploads/logo/' . $oldLogo));
+            }
+
+            return redirect()->route('payslip.index')->with('success', __('Payslip logo removed. Payslips will use the company logo again.'));
+        }
+
+        $validator = \Validator::make(
+            $request->all(),
+            [
+                'payslip_logo' => 'required|mimes:png,jpg,jpeg|max:20480',
+            ]
+        );
+
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', $validator->messages()->first());
+        }
+
+        $extension = strtolower($request->file('payslip_logo')->getClientOriginalExtension());
+        $logoName = $creatorId . '-payslip-logo.' . $extension;
+        $path = Utility::upload_file($request, 'payslip_logo', $logoName, 'uploads/logo', ['mimes:png,jpg,jpeg', 'max:20480']);
+
+        if ($path['flag'] != 1) {
+            return redirect()->back()->with('error', __($path['msg']));
+        }
+
+        \DB::insert(
+            'insert into settings (`value`, `name`,`created_by`) values (?, ?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`) ',
+            [
+                $logoName,
+                'payslip_logo',
+                $creatorId,
+            ]
+        );
+
+        if (!empty($oldLogo) && $oldLogo !== $logoName && file_exists(storage_path('uploads/logo/' . $oldLogo))) {
+            @unlink(storage_path('uploads/logo/' . $oldLogo));
+        }
+
+        return redirect()->route('payslip.index')->with('success', __('Payslip logo saved. It will now show on payslips.'));
+    }
+
     public function pdf($id, $month)
     {
         $payslip  = PaySlip::where('employee_id', $id)->where('salary_month', $month)->where('created_by', \Auth::user()->creatorId())->first();

@@ -1,6 +1,7 @@
 @php
     $logo=\App\Models\Utility::get_file('uploads/logo');
-    $company_logo = \App\Models\Utility::GetLogo();
+    $payslip_logo = \App\Models\Utility::getValByName('payslip_logo');
+    $company_logo = !empty($payslip_logo) ? $payslip_logo : \App\Models\Utility::GetLogo();
 @endphp
 
 <div class="card bg-none card-box">
