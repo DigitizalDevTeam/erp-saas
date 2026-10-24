@@ -102,6 +102,31 @@
 @push('script-page')
     <script>
         $(document).ready(function() {
+            // Put the payslip table back to a plain table, removing every
+            // DataTable wrapper around it. This is DOM-based, not
+            // instance-based: if a previous search left a wrapper behind
+            // (or nested one wrapper inside another), destroy() on a stale
+            // instance cannot clean it up, and the next search would show
+            // the entries-per-page / search / pagination controls twice.
+            // Unwrapping removes the wrapper (and its controls) with it.
+            function payslipResetTable() {
+                try {
+                    var table = document.getElementById('pc-dt-render-column-cells');
+                    while (table && table.parentElement && table.parentElement.classList.contains('dataTable-container')) {
+                        var wrapper = table.parentElement.parentElement;
+                        var parent = wrapper.parentElement;
+                        if (!parent) {
+                            break;
+                        }
+                        parent.replaceChild(table, wrapper);
+                    }
+                    if (table) {
+                        table.classList.remove('dataTable-table');
+                    }
+                } catch (e) {}
+                window.payslipTable = null;
+            }
+
             callback();
 
             function callback(monthArg, yearArg) {
@@ -121,17 +146,10 @@
 
                 var datePicker = year + '-' + month;
 
-                // Destroy the old DataTable BEFORE writing new rows.
-                // destroy() restores the table layout captured at the
-                // first search, so destroying after writing new rows
-                // wiped them and every later search showed the first
-                // search's result again.
-                try {
-                    if (window.payslipTable) {
-                        window.payslipTable.destroy();
-                        window.payslipTable = null;
-                    }
-                } catch (e) {}
+                // Reset the table BEFORE writing new rows. Destroying
+                // after writing wiped the new rows and made every later
+                // search show the first search's result again.
+                payslipResetTable();
                 $('#pc-dt-render-column-cells tbody').html('<tr><td colspan="7" class="text-center">{{ __('Searching for') }} ' + datePicker + '...</td></tr>');
 
                 $.ajax({
@@ -293,9 +311,16 @@
                             tr = '<tr><td colspan="7" class="text-center">{{ __('No payslips found for this month') }} (' + datePicker + ')</td></tr>';
                         }
 
+                        // Reset again here, BEFORE writing rows. Two
+                        // searches can be in flight at once (changing the
+                        // month fires one, clicking Search fires another),
+                        // and the second success must not create a second
+                        // DataTable on top of the first — that is what
+                        // duplicated the entries-per-page, search and
+                        // pagination controls. Resetting after writing
+                        // would wipe the new rows, so reset first.
+                        payslipResetTable();
                         $('#pc-dt-render-column-cells tbody').html(tr);
-                        // Old table was already destroyed before the
-                        // request (see above); just create the new one.
                         try {
                             window.payslipTable = new simpleDatatables.DataTable('#pc-dt-render-column-cells', (typeof getDatatableLabels === 'function' ? getDatatableLabels() : (typeof window.datatableLabels === 'object' && window.datatableLabels ? { labels: window.datatableLabels } : {})));
                         } catch (e) {
