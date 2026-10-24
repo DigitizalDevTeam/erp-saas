@@ -670,7 +670,7 @@
         </div>
     </div>
 @endsection
-@push('scripts')
+@push('script-page')
     <script>
         (function () {
             var wsaCurrentId = null;

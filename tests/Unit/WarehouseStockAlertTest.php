@@ -283,6 +283,22 @@ class WarehouseStockAlertTest extends TestCase
         $this->assertStringContainsString('warehouse-stock-alert-btn', $blade);
         $this->assertStringContainsString('warehouse-stock-alerts', $blade);
 
+        // Regression guard (2026-10-24): the popup JS was first pushed to
+        // @push('scripts'), a stack the admin layout never yields, so the
+        // button rendered but the click did nothing. It must live in a
+        // @push('script-page') block, which the admin footer yields.
+        preg_match_all("/@push\\('script-page'\\)(.*?)@endpush/s", $blade, $matches);
+        $scriptPageBlocks = $matches[1] ?? [];
+        $this->assertNotEmpty($scriptPageBlocks);
+        $found = false;
+        foreach ($scriptPageBlocks as $block) {
+            if (str_contains($block, 'warehouse-stock-alert-btn')) {
+                $found = true;
+                break;
+            }
+        }
+        $this->assertTrue($found, 'Warehouse alert JS must be inside a script-page push block.');
+
         $controller = file_get_contents(base_path('app/Http/Controllers/ProductServiceController.php'));
         $this->assertStringContainsString('warehouse-stock-alert-btn', $controller);
     }
