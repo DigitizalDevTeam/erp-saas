@@ -129,6 +129,10 @@
                         "_token": "{{ csrf_token() }}",
                     },
                     success: function(data) {
+                        // search_json returns an array when slips exist, but
+                        // {data: []} when none exist for the month — normalise
+                        // both, otherwise an empty month silently shows nothing.
+                        var rows = Array.isArray(data) ? data : (data && data.data ? data.data : []);
 
                         function renderstatus(data, cell, row) {
                             if (data == 'Paid')
@@ -201,8 +205,8 @@
                             return view + payslip + clickToPaid + edit + deleted + form;
                         }
                         var tr = '';
-                        if (data.length > 0) {
-                            $.each(data, function(indexInArray, valueOfElement) {
+                        if (rows.length > 0) {
+                            $.each(rows, function(indexInArray, valueOfElement) {
 
 
 
@@ -273,17 +277,29 @@
                                     '</tr>';
                             });
                         } else {
-                            // var colspan = $('#pc-dt-render-column-cells thead tr th').length;
-                            // var tr = '<tr><td class="dataTables-empty" colspan="' + colspan +
-                            //     '">{{ __('No entries found') }}</td></tr>';
+                            tr = '<tr><td colspan="7" class="text-center">{{ __('No payslips found for this month') }} (' + datePicker + ')</td></tr>';
                         }
 
                         $('#pc-dt-render-column-cells tbody').html(tr);
-                        new simpleDatatables.DataTable('#pc-dt-render-column-cells', (typeof getDatatableLabels === 'function' ? getDatatableLabels() : (typeof window.datatableLabels === 'object' && window.datatableLabels ? { labels: window.datatableLabels } : {})));
+                        // Re-searching re-creates the table: destroy the old
+                        // DataTable first, or the second search can break.
+                        try {
+                            if (window.payslipTable) {
+                                window.payslipTable.destroy();
+                            }
+                            window.payslipTable = new simpleDatatables.DataTable('#pc-dt-render-column-cells', (typeof getDatatableLabels === 'function' ? getDatatableLabels() : (typeof window.datatableLabels === 'object' && window.datatableLabels ? { labels: window.datatableLabels } : {})));
+                        } catch (e) {
+                            // Table rows are already rendered above; a
+                            // DataTable error must not hide them.
+                        }
 
                     },
-                    error: function(data) {
-
+                    error: function(xhr) {
+                        var msg = (xhr && xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : '{{ __('Search failed. Please reload the page and try again.') }}';
+                        if (typeof show_toastr === 'function') {
+                            show_toastr('error', msg);
+                        }
+                        $('#pc-dt-render-column-cells tbody').html('<tr><td colspan="7" class="text-center">' + msg + '</td></tr>');
                     }
 
                 });
