@@ -1634,6 +1634,8 @@ Route::group(['middleware' => ['verified']], function () {
 
     Route::get('payslip/send/{id}/{m}', [PaySlipController::class, 'send'])->name('payslip.send')->middleware(['auth', 'XSS']);
     Route::get('payslip/delete/{id}', [PaySlipController::class, 'destroy'])->name('payslip.delete')->middleware(['auth', 'XSS']);
+    Route::get('payslip/logo', [PaySlipController::class, 'logoForm'])->name('payslip.logo')->middleware(['auth', 'XSS']);
+    Route::post('payslip/logo', [PaySlipController::class, 'logoStore'])->name('payslip.logo.store')->middleware(['auth', 'XSS']);
     Route::resource('payslip', PaySlipController::class)->middleware(['auth', 'XSS'])->except(['create', 'show']);
 
     Route::resource('company-policy', CompanyPolicyController::class)->middleware(['auth', 'XSS']);

@@ -28,6 +28,10 @@
                         </div>
                     </div>
                     <div class="col-auto float-end">
+                        @if (\Auth::user()->type != 'Employee')
+                            <a href="#" data-url="{{ route('payslip.logo') }}" data-ajax-popup="true" data-size="md"
+                                data-title="{{ __('Payslip Logo') }}" class="btn btn-primary me-2">{{ __('Payslip Logo') }}</a>
+                        @endif
                         <a href="#" class="btn  btn-primary"
                             onclick="document.getElementById('payslip_form').submit(); return false;"
                             data-bs-toggle="tooltip" title="{{ __('payslip') }}"
