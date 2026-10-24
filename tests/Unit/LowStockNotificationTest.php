@@ -237,6 +237,8 @@ class LowStockNotificationTest extends TestCase
         $this->assertStringContainsString('Notifications', $header);
         $this->assertStringContainsString('notif-badge', $header);
         $this->assertStringContainsString('notif-mark-all', $header);
+        // Counter mirrors the chat counter: always shown, never hidden at 0.
+        $this->assertStringNotContainsString('display:none', $header);
         $this->assertStringContainsString('low-stock-notifications', $header);
         $this->assertStringContainsString('Low stock', $header);
         $this->assertStringNotContainsString('lsn-badge', $header);

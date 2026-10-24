@@ -17,8 +17,9 @@
 
     $unseenCounter=App\Models\ChMessage::where('to_id', Auth::user()->id)->where('seen', 0)->count();
 
-    // Generic header notification bell: always visible, badge only when
-    // unread > 0. Today its feed is low-stock alerts; future notification
+    // Generic header notification bell: always visible, counter always
+    // shown like the chat counter (including 0). Today its feed is
+    // low-stock alerts; future notification
     // types plug into this same dropdown, not a second bell.
     // Computed here (like the chat counter) so every admin page carries it.
     $lowStockUnreadCount = 0;
@@ -145,7 +146,7 @@
                     <li class="dropdown dash-h-item drp-notification">
                         <a class="dash-head-link dropdown-toggle arrow-none me-0" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false" title="{{ __('Notifications') }}">
                             <i class="ti ti-bell"></i>
-                            <span id="notif-badge" class="bg-danger dash-h-badge" style="{{ $lowStockUnreadCount > 0 ? '' : 'display:none' }}">{{ $lowStockUnreadCount }}<span class="sr-only"></span></span>
+                            <span id="notif-badge" class="bg-danger dash-h-badge"> {{ $lowStockUnreadCount }}<span class="sr-only"></span></span>
                         </a>
                         <div class="dropdown-menu dash-h-dropdown dropdown-menu-end" style="width:360px;max-height:420px;overflow-y:auto;">
                             <div class="d-flex justify-content-between align-items-center px-3 pt-2 pb-1">
@@ -208,11 +209,12 @@
             var m = document.querySelector('meta[name="csrf-token"]');
             return m ? m.getAttribute('content') : '';
         }
+        // Same as the chat counter: the number is always shown, even 0.
         function setBadge(n) {
             var b = document.getElementById('notif-badge');
             if (!b) return;
-            if (n > 0) { b.textContent = n; b.style.display = ''; }
-            else { b.style.display = 'none'; }
+            b.textContent = ' ' + n;
+            b.style.display = '';
         }
         function post(url) {
             return fetch(url, {
