@@ -4,6 +4,8 @@ namespace Modules\HotelManagement\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
+use App\Models\ChartOfAccount;
+use App\Services\Accounting\ChartOfAccountCsvImportService;
 use App\Support\PayrollChartAccountOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -40,6 +42,9 @@ class HotelAccountingSettingsController extends Controller
         $chartGuestArOptions = PayrollChartAccountOptions::listAssetsForCurrentUser(__('—'))->all();
         $chartVatPayableOptions = PayrollChartAccountOptions::listLiabilitiesForCurrentUser(__('—'))->all();
         $chartRevenueOptions = PayrollChartAccountOptions::listIncomeForCurrentUser(__('—'))->all();
+        // The "Initial Chart of Account" button shows only when this company
+        // has no chart of accounts at all — once any account exists it hides.
+        $hasChartAccount = ChartOfAccount::where('created_by', $creatorId)->exists();
 
         $this->appendChartAccountIfMissing($chartGuestArOptions, $setting->chart_guest_ar_id, $creatorId);
         $this->appendChartAccountIfMissing($chartVatPayableOptions, $setting->chart_vat_payable_id, $creatorId);
@@ -53,8 +58,43 @@ class HotelAccountingSettingsController extends Controller
             'paymentMethods',
             'chartGuestArOptions',
             'chartVatPayableOptions',
-            'chartRevenueOptions'
+            'chartRevenueOptions',
+            'hasChartAccount'
         ));
+    }
+
+    /**
+     * Create the initial (PGC) chart of accounts for the current company.
+     * Only available when the company has no chart accounts yet; a second
+     * click after the import simply reports that the chart already exists.
+     */
+    public function initialChart(ChartOfAccountCsvImportService $service)
+    {
+        if (! $this->canManage()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $creatorId = (int) Auth::user()->creatorId();
+
+        if (ChartOfAccount::where('created_by', $creatorId)->exists()) {
+            return redirect()->route('hotel.accounting-settings.index')
+                ->with('error', __('Chart of accounts already exists.'));
+        }
+
+        $result = $service->importForCompany($creatorId, true);
+
+        if (($result['status'] ?? '') === 'imported') {
+            return redirect()->route('hotel.accounting-settings.index')
+                ->with('success', __('Initial chart of accounts created (:count accounts).', ['count' => $result['imported'] ?? 0]));
+        }
+
+        if (($result['status'] ?? '') === 'skipped') {
+            return redirect()->route('hotel.accounting-settings.index')
+                ->with('error', __('Chart of accounts already exists.'));
+        }
+
+        return redirect()->route('hotel.accounting-settings.index')
+            ->with('error', $result['error'] ?? __('Could not create the initial chart of accounts.'));
     }
 
     public function update(Request $request)

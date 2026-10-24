@@ -11,6 +11,14 @@
 <div class="card shadow-sm">
     <div class="card-body">
         <p class="text-muted small">{{ __('Map chart of account IDs for guest folio finalization (invoice journal) and folio payments. VAT uses folio tax_total when set; otherwise net is derived from folio lines.') }}</p>
+        @if(!$hasChartAccount)
+        <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <span>{{ __('No chart of accounts found for this company. Create the initial chart of accounts first, then map the accounts below.') }}</span>
+            {!! Form::open(['route' => 'hotel.accounting-settings.initial-chart', 'method' => 'POST', 'class' => 'm-0']) !!}
+            <button type="submit" class="btn btn-primary">{{ __('Initial Chart of Account') }}</button>
+            {!! Form::close() !!}
+        </div>
+        @endif
         {!! Form::open(['route' => 'hotel.accounting-settings.update', 'method' => 'POST', 'class' => 'row g-3']) !!}
         <div class="col-md-6">
             {!! Form::label('chart_guest_ar_id', __('Guest accounts receivable')) !!}

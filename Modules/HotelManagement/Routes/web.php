@@ -54,6 +54,7 @@ Route::group(['middleware' => ['verified']], function () {
 
             Route::get('hotel/accounting-settings', [HotelAccountingSettingsController::class, 'index'])->name('hotel.accounting-settings.index');
             Route::post('hotel/accounting-settings', [HotelAccountingSettingsController::class, 'update'])->name('hotel.accounting-settings.update');
+            Route::post('hotel/accounting-settings/initial-chart', [HotelAccountingSettingsController::class, 'initialChart'])->name('hotel.accounting-settings.initial-chart');
 
             Route::get('hotel/calendar', [HotelCalendarController::class, 'index'])->name('hotel.calendar');
             Route::get('hotel/calendar/events', [HotelCalendarController::class, 'events'])->name('hotel.calendar.events');
