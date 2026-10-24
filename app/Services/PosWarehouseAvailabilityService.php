@@ -79,6 +79,11 @@ class PosWarehouseAvailabilityService
             if (! $ingredient || ($ingredient->type ?? '') !== 'ingredient') {
                 continue;
             }
+            // No-affect ingredients are never stock-checked, just like
+            // no-affect options above.
+            if (! ($ingredient->affect_stock ?? true)) {
+                continue;
+            }
             // Per-product only: a flagged ingredient never limits the sale;
             // an unflagged ingredient still limits it, even when the parent
             // product itself is flagged.

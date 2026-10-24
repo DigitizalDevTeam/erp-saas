@@ -113,10 +113,15 @@ class PosLineStockRestoreService
 
         // The parent BOM deduction only ran when recipes exist, and
         // PosRecipeDeductionService then deducts ingredients only.
+        // No-affect ingredients were never deducted, so they are never
+        // added back either (or a void would create stock from nothing).
         $recipes = ProductRecipe::where('product_id', (int) $product->id)->where('created_by', $creatorId)->with('ingredientProduct')->get();
         foreach ($recipes as $recipe) {
             $ingredient = $recipe->ingredientProduct;
             if (! $ingredient || ($ingredient->type ?? '') !== 'ingredient') {
+                continue;
+            }
+            if (! ($ingredient->affect_stock ?? true)) {
                 continue;
             }
             $qty = (float) $recipe->quantity * $lineQty;
@@ -144,6 +149,9 @@ class PosLineStockRestoreService
             foreach ($recipes as $recipe) {
                 $ingredient = $recipe->ingredientProduct;
                 if (! $ingredient || ($ingredient->type ?? '') !== 'ingredient') {
+                    continue;
+                }
+                if (! ($ingredient->affect_stock ?? true)) {
                     continue;
                 }
                 $qty = (float) $recipe->quantity * $lineQty;

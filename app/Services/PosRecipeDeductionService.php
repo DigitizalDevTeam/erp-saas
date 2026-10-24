@@ -39,6 +39,11 @@ class PosRecipeDeductionService
                 if (! $ingredient || ($ingredient->type ?? '') !== 'ingredient') {
                     continue;
                 }
+                // No-affect ingredients move no stock, mirroring the
+                // availability check and the option deduction path.
+                if (! ($ingredient->affect_stock ?? true)) {
+                    continue;
+                }
                 self::deductProductQuantity($ingredient->id, $ingredientQty, $warehouseId, $creatorId, $posIdFormatted, $posId, '', null);
             }
         } elseif ($product->affect_stock ?? true) {

@@ -251,7 +251,7 @@
             {{ Form::number('max_stock_threshold', $productService->max_stock_threshold, array('class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Optional'))) }}
             <small class="text-muted">{{ __('Alert when quantity is above this (optional).') }}</small>
         </div>
-        <div class="form-group col-md-12 quantity product-stock-option {{in_array($productService->type, ['service','kit','ingredient']) ? 'd-none':''}}">
+        <div class="form-group col-md-12 quantity product-stock-option {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}">
             <div class="form-check">
                 {{ Form::checkbox('does_not_affect_stock', '1', !($productService->affect_stock ?? true), ['class' => 'form-check-input', 'id' => 'does_not_affect_stock_edit']) }}
                 {{ Form::label('does_not_affect_stock', __('Does not affect stock (e.g. composite dish – components are deducted separately)'), ['class' => 'form-check-label', 'for' => 'does_not_affect_stock_edit']) }}
@@ -317,7 +317,7 @@
             </div>
         </div>
 
-        <div class="col-12 quantity {{in_array($productService->type, ['service','kit','ingredient']) ? 'd-none':''}}" id="product_variants_edit_section">
+        <div class="col-12 quantity {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}" id="product_variants_edit_section">
             <hr class="my-3">
             <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
                 <div>
@@ -605,7 +605,7 @@
         if (isIngredient) {
             $('#product_variants_edit_section').addClass('d-none');
             $('.pos-only-field').addClass('d-none');
-            $('.product-stock-option').addClass('d-none');
+            $('.product-stock-option').removeClass('d-none');
             $('input[name="sale_price"]').prop('readonly', true);
         } else {
             $('.pos-only-field').removeClass('d-none');

@@ -880,9 +880,12 @@ class ProductServiceController extends Controller
             $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
             $productService->low_stock_threshold         = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
             $productService->max_stock_threshold         = $request->filled('max_stock_threshold') ? (int) $request->max_stock_threshold : null;
+            // Kits never affect stock. Ingredients now respect the
+            // "Does not affect stock" checkbox like any other product:
+            // a no-affect ingredient is skipped by the availability check,
+            // the recipe deduction and the void restore alike.
             $productService->affect_stock                = match ($request->type) {
                 'kit' => false,
-                'ingredient' => true,
                 default => ! $request->boolean('does_not_affect_stock'),
             };
             // Negative stock is hidden (and forced off) for kit and service
@@ -1166,9 +1169,12 @@ class ProductServiceController extends Controller
                 $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
                 $productService->low_stock_threshold        = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
                 $productService->max_stock_threshold        = $request->filled('max_stock_threshold') ? (int) $request->max_stock_threshold : null;
-                $productService->affect_stock                = match ($request->type) {
+                // Kits never affect stock. Ingredients now respect the
+            // "Does not affect stock" checkbox like any other product:
+            // a no-affect ingredient is skipped by the availability check,
+            // the recipe deduction and the void restore alike.
+            $productService->affect_stock                = match ($request->type) {
                 'kit' => false,
-                'ingredient' => true,
                 default => ! $request->boolean('does_not_affect_stock'),
             };
             // Negative stock is hidden (and forced off) for kit and service
@@ -2129,9 +2135,11 @@ class ProductServiceController extends Controller
                         );
                     } elseif (($product->options_enabled ?? false) && $selectedOptions !== []) {
                         // Option qty is independent of parent qty: require absolute option stock only.
+                        // No-affect and negative-allowed options never block, mirroring
+                        // the restaurant availability check.
                         foreach ($selectedOptions as $optRow) {
                             $opt = ProductService::where('id', (int) $optRow['product_id'])->where('created_by', Auth::user()->creatorId())->first();
-                            if (! $opt || ! ($opt->affect_stock ?? true)) {
+                            if (! $opt || ! ($opt->affect_stock ?? true) || $opt->allowsNegativeStock()) {
                                 continue;
                             }
                             $need = (float) ($optRow['quantity'] ?? 1);
@@ -2165,7 +2173,10 @@ class ProductServiceController extends Controller
                             $productquantity = (int) floor(PosFefoDeductionService::availableQty((int) $product->id, $warId, (int) Auth::user()->creatorId()));
                         }
                     } else {
-                        $productquantity = $affectStock
+                        // A negative-allowed parent is never blocked by its
+                        // quantity here either: its sale may drive stock
+                        // below zero, exactly like the restaurant check.
+                        $productquantity = ($affectStock && ! $product->allowsNegativeStock())
                             ? ($usesRestaurantWarehouse
                                 ? $this->restaurantPosWarehouseStock($product, $warId)
                                 : (int) $product->quantity)

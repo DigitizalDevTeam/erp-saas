@@ -551,7 +551,7 @@
         if (isIngredient) {
             $('#product_variants_create_section').hide();
             $('.pos-only-field').addClass('d-none');
-            $('.product-stock-option').addClass('d-none');
+            $('.product-stock-option').removeClass('d-none');
             if (!$('input[name="sale_price"]').data('ingredient-prev')) {
                 $('input[name="sale_price"]').data('ingredient-prev', $('input[name="sale_price"]').val());
             }
