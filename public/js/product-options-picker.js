@@ -194,16 +194,18 @@
     }
 
     // Ingredients of an option product (an option is itself a product with
-    // its own recipe). Rendered under the option row, never inside the
-    // row's <label> — a click on a radio must not toggle the option.
-    // One radio group per ingredient: main (checked by default) or one
-    // alternative, each with its per-unit quantity.
+    // its own recipe). Rendered as a list-group row attached directly under
+    // its option row — never inside the row's <label>, so a click on a
+    // radio never toggles the option checkbox — so option + ingredients
+    // read as one group. Content is indented to line up under the option
+    // name (past the checkbox). One radio group per ingredient, laid out
+    // as two columns: main ingredient left, alternatives right.
     function renderOptionIngredients(opt) {
         if (!ctx.showOptionIngredients || !opt.ingredients || !opt.ingredients.length) {
             return '';
         }
         var html =
-            '<div class="erp-opt-ingredients border rounded p-2 mb-2 bg-light" data-option-id="' +
+            '<div class="erp-opt-ingredients list-group-item bg-light" style="padding-left:2.5rem" data-option-id="' +
             escapeHtml(String(opt.product_id)) +
             '">' +
             '<div class="fw-semibold small mb-1">' +
@@ -214,20 +216,19 @@
             html +=
                 '<div class="erp-opt-ing-group small mb-2" data-recipe-id="' +
                 escapeHtml(String(ing.recipe_id)) +
-                '">' +
-                '<div class="fw-semibold">' +
-                escapeHtml(ing.ingredient_name) +
-                '</div>';
+                '">';
             if (ing.affects_stock && ing.alternatives && ing.alternatives.length) {
                 var groupName = 'erp-opt-ing-' + opt.product_id + '-' + ing.recipe_id;
+                html += '<div class="row g-2">';
                 html +=
-                    '<label class="d-block"><input type="radio" class="form-check-input me-1" name="' +
+                    '<div class="col-6"><label class="d-block"><input type="radio" class="form-check-input me-1" name="' +
                     escapeHtml(groupName) +
                     '" value="" checked> ' +
                     escapeHtml(ing.ingredient_name + mainQty) +
                     ' (' +
                     escapeHtml(t('main', 'Main')) +
-                    ')</label>';
+                    ')</label></div>';
+                html += '<div class="col-6">';
                 ing.alternatives.forEach(function (a) {
                     var aQty = a.quantity != null ? ' — ' + a.quantity : '';
                     html +=
@@ -239,6 +240,7 @@
                         escapeHtml(a.name + aQty) +
                         '</label>';
                 });
+                html += '</div></div>';
             } else {
                 html += '<div class="text-muted">' + escapeHtml(ing.ingredient_name + mainQty) + '</div>';
             }
