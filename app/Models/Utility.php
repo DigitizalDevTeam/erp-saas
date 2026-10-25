@@ -4528,7 +4528,7 @@ namespace App\Models;
         }
 
         //quantity update in warehouse details
-        public static function warehouse_quantity($type, $quantity, $product_id, $warehouse_id, $product_variant_id = null)
+        public static function warehouse_quantity($type, $quantity, $product_id, $warehouse_id, $product_variant_id = null, $allowNegative = false)
         {
             $q = WarehouseProduct::where('warehouse_id', $warehouse_id)->where('product_id', $product_id);
             if ($product_variant_id !== null && $product_variant_id !== '' && (int) $product_variant_id > 0) {
@@ -4554,8 +4554,9 @@ namespace App\Models;
             $pro_quantity = (float) ($product->quantity ?? 0);
             if ($type == 'minus') {
                 // Flagged products may go below zero; every other product
-                // keeps the old clamp at zero.
-                $product->quantity = self::allowsNegativeStock($product_id)
+                // keeps the old clamp at zero — unless this one sale line
+                // was manager-authorized to go negative ($allowNegative).
+                $product->quantity = ($allowNegative || self::allowsNegativeStock($product_id))
                     ? $pro_quantity - $quantity
                     : max(0, $pro_quantity - $quantity);
             } else {

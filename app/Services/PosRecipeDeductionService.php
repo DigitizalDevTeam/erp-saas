@@ -20,7 +20,7 @@ class PosRecipeDeductionService
      * - Else if product affects stock: deduct product quantity.
      * - Else (does not affect stock, no recipe): deduct nothing.
      */
-    public static function deductForSale(int $productId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId, ?string $identifiersNote = null, ?int $productVariantId = null): void
+    public static function deductForSale(int $productId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId, ?string $identifiersNote = null, ?int $productVariantId = null, bool $allowNegative = false): void
     {
         $product = ProductService::where('id', $productId)->where('created_by', $creatorId)->first();
         if (!$product) {
@@ -44,27 +44,27 @@ class PosRecipeDeductionService
                 if (! ($ingredient->affect_stock ?? true)) {
                     continue;
                 }
-                self::deductProductQuantity($ingredient->id, $ingredientQty, $warehouseId, $creatorId, $posIdFormatted, $posId, '', null);
+                self::deductProductQuantity($ingredient->id, $ingredientQty, $warehouseId, $creatorId, $posIdFormatted, $posId, '', null, $allowNegative);
             }
         } elseif ($product->affect_stock ?? true) {
             // Normal product: deduct its own quantity
-            self::deductProductQuantity($productId, $quantity, $warehouseId, $creatorId, $posIdFormatted, $posId, $identifiersNote ?? '', $productVariantId);
+            self::deductProductQuantity($productId, $quantity, $warehouseId, $creatorId, $posIdFormatted, $posId, $identifiersNote ?? '', $productVariantId, $allowNegative);
         }
         // Else: does not affect stock and no recipe → nothing to deduct
     }
 
-    protected static function deductProductQuantity(int $productId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId, string $extraDescriptionSuffix = '', ?int $productVariantId = null): void
+    protected static function deductProductQuantity(int $productId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId, string $extraDescriptionSuffix = '', ?int $productVariantId = null, bool $allowNegative = false): void
     {
         $product = ProductService::where('id', $productId)->where('created_by', $creatorId)->first();
         if (!$product) {
             return;
         }
         $original = (float) $product->quantity;
-        $newQty = $product->allowsNegativeStock()
+        $newQty = ($allowNegative || $product->allowsNegativeStock())
             ? $original - $quantity
             : max(0, $original - $quantity);
         ProductService::where('id', $productId)->update(['quantity' => $newQty]);
-        Utility::warehouse_quantity('minus', $quantity, $productId, $warehouseId, $productVariantId);
+        Utility::warehouse_quantity('minus', $quantity, $productId, $warehouseId, $productVariantId, $allowNegative);
         $description = $quantity . ' ' . __('quantity sold in pos') . ' ' . $posIdFormatted . $extraDescriptionSuffix;
         Utility::addProductStock($productId, $quantity, 'pos', $description, $posId);
     }

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Pos;
+use App\Models\PosAuditLog;
 use App\Models\PosProduct;
 use App\Models\ProductRecipe;
 use App\Models\ProductService;
@@ -54,14 +55,20 @@ class PosLineStockDeductionService
 
         $selectedOpts = ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null);
 
+        // A manager-authorized line may take its whole ladder below zero:
+        // parent, options, recipe ingredients and kit components alike.
+        // Lots are never oversold, so an authorized line skips the FEFO
+        // branch and deducts from warehouse stock instead.
+        $allowNegative = ! empty($line->negative_stock_authorized_by);
+
         if (ProductOptionService::tryDeductPosLine($product, [
             'quantity' => $line->quantity,
             'selected_options' => $selectedOpts,
             'selected_options_json' => $line->selected_options_json,
-        ], $warehouseId, $creatorId, $posNoFormatted, $posId)) {
+        ], $warehouseId, $creatorId, $posNoFormatted, $posId, $allowNegative)) {
             // Options deducted; the parent's own BOM (recipe ingredients /
             // kit components) is still consumed per unit sold.
-            self::deductParentBom($product, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId);
+            self::deductParentBom($product, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId, $allowNegative);
         } elseif (($product->type ?? null) === 'kit') {
             PosKitDeductionService::deductForSale(
                 (int) $line->product_id,
@@ -69,7 +76,9 @@ class PosLineStockDeductionService
                 $warehouseId,
                 $creatorId,
                 $posNoFormatted,
-                $posId
+                $posId,
+                'pos',
+                $allowNegative
             );
         } elseif (($product->variants_enabled ?? false) && $variantId) {
             PosRecipeDeductionService::deductForSale(
@@ -80,9 +89,10 @@ class PosLineStockDeductionService
                 $posNoFormatted,
                 $posId,
                 $identifiersNote,
-                $variantId
+                $variantId,
+                $allowNegative
             );
-        } elseif (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $line->product_id, $warehouseId, $creatorId)) {
+        } elseif (! $allowNegative && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $line->product_id, $warehouseId, $creatorId))) {
             PosFefoDeductionService::deductForSale(
                 (int) $line->product_id,
                 $lineQty,
@@ -101,12 +111,22 @@ class PosLineStockDeductionService
                 $posNoFormatted,
                 $posId,
                 $identifiersNote,
-                $variantId
+                $variantId,
+                $allowNegative
             );
         }
 
         $line->stock_deducted_at = now();
         $line->save();
+
+        if ($allowNegative) {
+            PosAuditLogService::log(PosAuditLog::ACTION_NEGATIVE_STOCK, 'pos_product', (int) $line->id, __('Negative stock sale authorized by manager'), [
+                'product_id' => (int) $line->product_id,
+                'warehouse_id' => $warehouseId,
+                'quantity' => $lineQty,
+                'authorized_by' => (int) $line->negative_stock_authorized_by,
+            ]);
+        }
 
         return true;
     }
@@ -115,16 +135,16 @@ class PosLineStockDeductionService
      * Mirror of PosController::deductParentBomAfterOptions(): after the
      * selected options were deducted, consume the parent product's own BOM.
      */
-    protected static function deductParentBom(ProductService $product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, ?string $identifiersNote, ?int $variantId): void
+    protected static function deductParentBom(ProductService $product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, ?string $identifiersNote, ?int $variantId, bool $allowNegative = false): void
     {
         if (($product->type ?? null) === 'kit') {
-            PosKitDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId);
+            PosKitDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, 'pos', $allowNegative);
 
             return;
         }
 
         if (ProductRecipe::where('product_id', (int) $product->id)->where('created_by', $creatorId)->exists()) {
-            PosRecipeDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId);
+            PosRecipeDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId, $allowNegative);
         }
     }
 }

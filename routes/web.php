@@ -2472,6 +2472,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('product-categories', [ProductServiceCategoryController::class, 'getProductCategories'])->name('product.categories')->middleware(['auth', 'XSS']);
     Route::get('product-categories-json', [ProductServiceCategoryController::class, 'getProductCategoriesJson'])->name('product.categories.json')->middleware(['auth', 'XSS']);
     Route::get('add-to-cart/{id}/{session}', [ProductServiceController::class, 'addToCart'])->middleware(['auth', 'XSS']);
+    Route::post('pos/negative-stock-authorize', [PosController::class, 'authorizeNegativeStock'])->name('pos.negative-stock.authorize')->middleware(['auth', 'XSS']);
     Route::patch('update-cart', [ProductServiceController::class, 'updateCart'])->middleware(['auth', 'XSS']);
     Route::delete('remove-from-cart', [ProductServiceController::class, 'removeFromCart'])->middleware(['auth', 'XSS']);
 

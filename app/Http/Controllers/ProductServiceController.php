@@ -24,6 +24,7 @@ use App\Models\ProductRecipe;
 use App\Models\ProductVariant;
 use App\Models\PurchaseProduct;
 use App\Services\BatchLotDeductionService;
+use App\Services\NegativeStockAuthorizationService;
 use App\Services\PosFefoDeductionService;
 use App\Services\PosWarehouseAvailabilityService;
 use App\Services\PosPrintRoutingService;
@@ -2012,6 +2013,50 @@ class ProductServiceController extends Controller
         }
     }
 
+    /**
+     * Gate for a POS add that would take stock below zero.
+     *
+     * Returns [bool $mayProceed, ?int $authorizerId, ?JsonResponse $blockResponse]:
+     * - flagged products never block;
+     * - batch/serial products always block with the plain out-of-stock error;
+     * - a signed-in manager, or a recent manager grant for this product,
+     *   proceeds and the line is marked with that manager;
+     * - everyone else gets a 403 the POS turns into a manager PIN popup.
+     */
+    protected function negativeStockGate(Request $request, $product, ?int $variantId, string $shortName, float $available, float $requested): array
+    {
+        if ($product->allowsNegativeStock()) {
+            return [true, null, null];
+        }
+        if (NegativeStockAuthorizationService::neverNegative($product)) {
+            return [false, null, response()->json([
+                'code' => 404,
+                'status' => 'Error',
+                'error' => __('This product is out of stock!'),
+            ], 404)];
+        }
+        $actor = NegativeStockAuthorizationService::actor();
+        if (NegativeStockAuthorizationService::canAuthorizeDirectly($actor)) {
+            return [true, (int) $actor->id, null];
+        }
+        $grant = NegativeStockAuthorizationService::grantFor((int) $product->id, $variantId);
+        if ($grant) {
+            return [true, (int) $grant['manager_id'], null];
+        }
+
+        return [false, null, response()->json([
+            'code' => 403,
+            'status' => 'Error',
+            'error' => __('This sale would take stock below zero. Manager authorization is required.'),
+            'manager_approval_required' => true,
+            'product_id' => (int) $product->id,
+            'product_variant_id' => $variantId,
+            'product_name' => $shortName,
+            'available' => $available,
+            'requested' => $requested,
+        ], 403)];
+    }
+
     public function addToCart(Request $request, $id, $session_key)
     {
 
@@ -2119,6 +2164,11 @@ class ProductServiceController extends Controller
                 $cartLineKey .= ProductOptionService::optionsLineKeySuffix($selectedOptions);
             }
 
+            // Manager who authorized this add to sell below zero (null =
+            // normal sale). Carried onto the cart line and, later, the
+            // saved sale line, so that one line may deduct below zero.
+            $negativeAuthorizedBy = null;
+
             if ($product) {
                 if ($isPosSession) {
                     // Products that do not affect stock (e.g. composite dishes with BOM): allow sale without product-level quantity check
@@ -2153,14 +2203,15 @@ class ProductServiceController extends Controller
                                 ? $this->restaurantPosWarehouseStock($opt, $warId)
                                 : (int) floor((float) ($opt->quantity ?? 0));
                             if ($need > 0 && $have < $need) {
-                                return response()->json(
-                                    [
-                                        'code' => 404,
-                                        'status' => 'Error',
-                                        'error' => __('This product is out of stock!'),
-                                    ],
-                                    404
-                                );
+                                // Short option: the manager authorizes this
+                                // option, and the whole line is marked.
+                                [$mayProceed, $optAuthorizer, $blockResponse] = $this->negativeStockGate($request, $opt, null, $opt->name ?? $product->name, $have, $need);
+                                if (! $mayProceed) {
+                                    return $blockResponse;
+                                }
+                                if ($optAuthorizer) {
+                                    $negativeAuthorizedBy = $optAuthorizer;
+                                }
                             }
                         }
                         $productquantity = 999999;
@@ -2205,14 +2256,13 @@ class ProductServiceController extends Controller
             }
 
             if ($isPosSession && $productquantity == 0) {
-                return response()->json(
-                    [
-                        'code' => 404,
-                        'status' => 'Error',
-                        'error' => __('This product is out of stock!'),
-                    ],
-                    404
-                );
+                [$mayProceed, $authorizerId, $blockResponse] = $this->negativeStockGate($request, $product, $variantId, $product->name, 0, 1);
+                if (! $mayProceed) {
+                    return $blockResponse;
+                }
+                if ($authorizerId) {
+                    $negativeAuthorizedBy = $authorizerId;
+                }
             }
 
             $productname = $product->name;
@@ -2383,6 +2433,7 @@ class ProductServiceController extends Controller
                         'product_variant_id' => $variantId,
                         'selected_options' => $selectedOptions,
                         'selected_options_json' => $selectedOptionsJson,
+                        'negative_stock_authorized_by' => $negativeAuthorizedBy,
                     ];
                     $carthtml .= view('pos.partials.restaurant-cart-row', [
                         'line' => $line,
@@ -2400,6 +2451,9 @@ class ProductServiceController extends Controller
                 $carthtml .= '<div class="card-body p-2">';
                 $carthtml .= '<div class="d-flex justify-content-between align-items-start gap-2">';
                 $carthtml .= '<div class="flex-grow-1 min-w-0"><h6 class="mb-0 text-dark fw-bold text-truncate name">' . e($displayName) . '</h6>';
+                if ($negativeAuthorizedBy) {
+                    $carthtml .= '<span class="badge bg-warning text-dark neg-stock-badge mt-1">' . __('Manager approved') . '</span>';
+                }
                 if ($sku) {
                     $carthtml .= '<small class="text-muted d-block">SKU: ' . e($sku) . '</small>';
                 }
@@ -2480,6 +2534,7 @@ class ProductServiceController extends Controller
                 'printer_name' => $printerName ? strip_tags(html_entity_decode($printerName)) : '',
                 'warehouse_id' => $lineWarehouseId > 0 ? $lineWarehouseId : null,
                 'warehouse_name' => $lineWarehouseName,
+                'negative_stock_authorized_by' => $negativeAuthorizedBy,
             ];
 
             // if cart is empty then this the first product
@@ -2489,14 +2544,13 @@ class ProductServiceController extends Controller
                 ];
 
                 if ($originalquantity < $cart[$cartLineKey]['quantity'] && $isPosSession) {
-                    return response()->json(
-                        [
-                            'code' => 404,
-                            'status' => 'Error',
-                            'error' => __('This product is out of stock!'),
-                        ],
-                        404
-                    );
+                    [$mayProceed, $authorizerId, $blockResponse] = $this->negativeStockGate($request, $product, $variantId, $displayName, $originalquantity, $cart[$cartLineKey]['quantity']);
+                    if (! $mayProceed) {
+                        return $blockResponse;
+                    }
+                    if ($authorizerId) {
+                        $cart[$cartLineKey]['negative_stock_authorized_by'] = $authorizerId;
+                    }
                 }
 
                 if ($tableKey !== null) {
@@ -2552,15 +2606,16 @@ class ProductServiceController extends Controller
                 );
                 $cart[$cartLineKey]['originalquantity'] = $originalquantity;
 
-                if ($originalquantity < $cart[$cartLineKey]['quantity'] && $isPosSession) {
-                    return response()->json(
-                        [
-                            'code' => 404,
-                            'status' => 'Error',
-                            'error' => __('This product is out of stock!'),
-                        ],
-                        404
-                    );
+                // A line already authorized keeps its authorization as it
+                // grows; a fresh over-stock increment needs a manager.
+                if ($originalquantity < $cart[$cartLineKey]['quantity'] && $isPosSession && empty($cart[$cartLineKey]['negative_stock_authorized_by'])) {
+                    [$mayProceed, $authorizerId, $blockResponse] = $this->negativeStockGate($request, $product, $variantId, $displayName, $originalquantity, $cart[$cartLineKey]['quantity']);
+                    if (! $mayProceed) {
+                        return $blockResponse;
+                    }
+                    if ($authorizerId) {
+                        $cart[$cartLineKey]['negative_stock_authorized_by'] = $authorizerId;
+                    }
                 }
 
                 if ($tableKey !== null) {
@@ -2586,14 +2641,13 @@ class ProductServiceController extends Controller
             $cart[$cartLineKey] = $linePayload;
 
             if ($originalquantity < $cart[$cartLineKey]['quantity'] && $isPosSession) {
-                return response()->json(
-                    [
-                        'code' => 404,
-                        'status' => 'Error',
-                        'error' => __('This product is out of stock!'),
-                    ],
-                    404
-                );
+                [$mayProceed, $authorizerId, $blockResponse] = $this->negativeStockGate($request, $product, $variantId, $displayName, $originalquantity, $cart[$cartLineKey]['quantity']);
+                if (! $mayProceed) {
+                    return $blockResponse;
+                }
+                if ($authorizerId) {
+                    $cart[$cartLineKey]['negative_stock_authorized_by'] = $authorizerId;
+                }
             }
 
             if ($tableKey !== null) {

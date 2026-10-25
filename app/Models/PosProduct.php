@@ -35,6 +35,7 @@ class PosProduct extends Model
         'sent_at',
         'stock_deducted_at',
         'stock_restored_at',
+        'negative_stock_authorized_by',
         'prep_minutes',
         'ready_at',
         'print_zone',
@@ -54,6 +55,7 @@ class PosProduct extends Model
         'voided_at' => 'datetime',
         'removed_from_cart_at' => 'datetime',
         'prep_minutes' => 'integer',
+        'negative_stock_authorized_by' => 'integer',
     ];
 
     public function dueAt(): ?\Carbon\Carbon

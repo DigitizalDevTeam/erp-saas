@@ -13,7 +13,7 @@ use App\Models\Utility;
  */
 class PosKitDeductionService
 {
-    public static function deductForSale(int $kitProductId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId, string $stockType = 'pos'): void
+    public static function deductForSale(int $kitProductId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId, string $stockType = 'pos', bool $allowNegative = false): void
     {
         if ($quantity <= 0) {
             return;
@@ -33,11 +33,11 @@ class PosKitDeductionService
             if ($componentQty <= 0) {
                 continue;
             }
-            self::deductProductQuantity((int) $item->component_product_id, $componentQty, $warehouseId, $creatorId, $posIdFormatted, $posId, $stockType);
+            self::deductProductQuantity((int) $item->component_product_id, $componentQty, $warehouseId, $creatorId, $posIdFormatted, $posId, $stockType, $allowNegative);
         }
     }
 
-    protected static function deductProductQuantity(int $productId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId, string $stockType = 'pos'): void
+    protected static function deductProductQuantity(int $productId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId, string $stockType = 'pos', bool $allowNegative = false): void
     {
         $product = ProductService::where('id', $productId)->where('created_by', $creatorId)->first();
         if (!$product) {
@@ -45,12 +45,12 @@ class PosKitDeductionService
         }
 
         $original = (float) ($product->quantity ?? 0);
-        $newQty = $product->allowsNegativeStock()
+        $newQty = ($allowNegative || $product->allowsNegativeStock())
             ? $original - $quantity
             : max(0, $original - $quantity);
         ProductService::where('id', $productId)->update(['quantity' => $newQty]);
         if ($warehouseId > 0) {
-            Utility::warehouse_quantity('minus', $quantity, $productId, $warehouseId);
+            Utility::warehouse_quantity('minus', $quantity, $productId, $warehouseId, null, $allowNegative);
         }
 
         $soldIn = $stockType === 'invoice' ? __('quantity sold in invoice') : __('quantity sold in pos');

@@ -844,6 +844,7 @@
 
     @include('pos.partials.variant-picker-modal')
     @include('pos.partials.warehouse-picker-modal')
+    @include('pos.partials.negative-stock-auth-modal')
     @include('partials.product-options-picker')
 
     <div class="position-fixed top-0 end-0 p-3" style="z-index: 99999">
@@ -1891,10 +1892,13 @@
                 var unitSubAttr = it.unit_subtotal != null
                     ? it.unit_subtotal
                     : (qty > 0 ? posRoundMoney(Math.max(0, sub - optsAmt) / qty) : '');
-                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-voided="' + (isVoided ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-unit-subtotal="' + unitSubAttr + '" data-options-amount="' + optsAmt + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '" data-warehouse-id="' + (it.warehouse_id || '') + '" data-selected-options="' + esc(selOptsRaw) + '" data-option-labels="' + esc(JSON.stringify(optionLabels)) + '">';
+                var html = '<tr class="pos-cart-row-compact ' + rowClass + ' ' + sentClass + '" data-product-id="' + it.id + '" data-line-id="' + (it.line_id || '') + '" data-cart-line-key="' + esc(cartKey) + '" data-product-variant-id="' + (it.product_variant_id || '') + '" data-is-sent="' + (it.is_sent ? '1' : '0') + '" data-voided="' + (isVoided ? '1' : '0') + '" data-status="' + esc(it.status || '') + '" id="' + rowId + '" data-name="' + esc(lineName) + '" data-price="' + it.price + '" data-price-type="' + esc(it.price_type || 'exclusive') + '" data-quantity="' + qty + '" data-tax="' + (it.tax || 0) + '" data-subtotal="' + sub + '" data-unit-subtotal="' + unitSubAttr + '" data-options-amount="' + optsAmt + '" data-discount="0" data-print-zone="' + esc(it.print_zone) + '" data-printer-id="' + (it.pos_printer_id || '') + '" data-printer-name="' + esc(it.printer_name) + '" data-warehouse-id="' + (it.warehouse_id || '') + '" data-negative-stock-authorized-by="' + (it.negative_stock_authorized_by || '') + '" data-selected-options="' + esc(selOptsRaw) + '" data-option-labels="' + esc(JSON.stringify(optionLabels)) + '">';
                 html += '<td class="pos-cart-line-cell p-0 border-0"><div class="pos-cart-line"><div class="pos-cart-line__row">';
                 html += '<div class="pos-cart-line__main min-w-0">';
                 html += '<span class="pos-cart-line__name name" title="' + esc(lineName) + '">' + esc(lineName) + '</span>';
+                if (it.negative_stock_authorized_by) {
+                    html += '<span class="badge bg-warning text-dark neg-stock-badge ms-1">{{ __("Manager approved") }}</span>';
+                }
                 if (optionLabels.length) {
                     html += '<span class="pos-cart-line__options">';
                     optionLabels.forEach(function (label) {
@@ -2040,7 +2044,7 @@
                         var tax = parseFloat(it.tax) || 0;
                         var qty = (it.quantity || 0);
                         var sub = posRestaurantServerSubtotal(it, qty);
-                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: qty, price: price, tax: tax, subtotal: sub, options_amount: 0, unit_subtotal: it.unit_subtotal != null ? parseFloat(it.unit_subtotal) : (qty > 0 ? posRoundMoney(sub / qty) : null), description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || it.id, waiter_name: it.waiter_name || res.waiter_name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null });
+                        list.push({ line_id: it.line_id, id: it.id, name: it.name, quantity: qty, price: price, tax: tax, subtotal: sub, options_amount: 0, unit_subtotal: it.unit_subtotal != null ? parseFloat(it.unit_subtotal) : (qty > 0 ? posRoundMoney(sub / qty) : null), description: (it.description || '').trim(), print_zone: it.print_zone || '', pos_printer_id: it.pos_printer_id || null, printer_name: it.printer_name || '', pro_image: it.pro_image || 'default.png', status: it.status || 'pending', is_sent: !!it.is_sent, voided_at: it.voided_at || null, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || it.id, waiter_name: it.waiter_name || res.waiter_name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null, negative_stock_authorized_by: it.negative_stock_authorized_by || null });
                     });
                     sessionItems.forEach(function (it) {
                         var id = it.id;
@@ -2053,7 +2057,7 @@
                         var unitSub = it.unit_subtotal != null
                             ? parseFloat(it.unit_subtotal)
                             : (qty > 0 ? posRoundMoney(sub / qty) : null);
-                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, unit_subtotal: unitSub, options_amount: optsAmt, description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || id, waiter_name: it.waiter_name || res.waiter_name || posCurrentTableWaiter.name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || posCurrentTableWaiter.id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null });
+                        list.push({ line_id: null, id: id, name: it.name || '', quantity: qty, price: price, tax: tax, subtotal: sub, unit_subtotal: unitSub, options_amount: optsAmt, description: (it.description || '').trim(), print_zone: (it.print_zone || ''), pos_printer_id: it.pos_printer_id || null, printer_name: (it.printer_name || ''), pro_image: (it.pro_image || 'default.png'), status: 'not_sent', is_sent: false, product_variant_id: it.product_variant_id || null, cart_line_key: it.cart_line_key || id, waiter_name: it.waiter_name || res.waiter_name || posCurrentTableWaiter.name || '', waiter_user_id: it.waiter_user_id || res.waiter_user_id || posCurrentTableWaiter.id || '', selected_options: it.selected_options || null, selected_options_json: it.selected_options_json || null, negative_stock_authorized_by: it.negative_stock_authorized_by || null });
                     });
                     if (res.waiter_name || res.waiter_user_id) {
                         posCurrentTableWaiter = {
@@ -2805,6 +2809,8 @@
                     if (!isNaN(vid) && vid > 0) line.product_variant_id = vid;
                     var lineWh = parseInt($(this).attr('data-warehouse-id'), 10);
                     if (!isNaN(lineWh) && lineWh > 0) line.warehouse_id = lineWh;
+                    var negAuth = parseInt($(this).attr('data-negative-stock-authorized-by'), 10);
+                    if (!isNaN(negAuth) && negAuth > 0) line.negative_stock_authorized_by = negAuth;
                     var selAttr = $(this).attr('data-selected-options');
                     var selOpts = posParseSelectedOptionsAttr(selAttr);
                     if (selOpts && selOpts.length) {
@@ -3956,6 +3962,9 @@
                         );
                     });
                     $('#posWarehousePickerConfirm').prop('disabled', !recommended);
+                    // No warehouse can cover this item: offer manager
+                    // authorization instead of leaving the waiter stuck.
+                    $('#posWarehousePickerManagerBtn').toggleClass('d-none', !(!recommended && list.length));
                     $('#posWarehousePickerModal').data('posWarehouseCtx', {
                         $el: $el,
                         $btn: $btn,
@@ -3987,6 +3996,25 @@
                 posSetRestaurantWarehouseDropdown(picked);
                 posRestaurantRunAddToCartAjax(d.$el, d.$btn, d.wasDisabled, d.productVariantId, d.ctx, d.selectedOptions, picked);
             });
+
+            $(document).on('click', '#posWarehousePickerManagerBtn', function () {
+                var d = $('#posWarehousePickerModal').data('posWarehouseCtx');
+                if (!d || !d.$el) return;
+                posOpenNegStockAuthModal({
+                    product_id: d.$el.data('product-id'),
+                    product_variant_id: d.productVariantId || '',
+                    product_name: '',
+                    available: 0,
+                    requested: 1
+                }, function () {
+                    $('#posWarehousePickerList input[name="pos_warehouse_pick"]').prop('disabled', false);
+                    $('#posWarehousePickerConfirm').prop('disabled', false);
+                    $('#posWarehousePickerManagerBtn').addClass('d-none');
+                    $('#posWarehousePickerHint').text('{{ __("Manager authorization accepted — pick a warehouse.") }}');
+                });
+            });
+
+            @include('pos.partials.negative-stock-auth-script')
 
             function posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, productVariantId, ctx, selectedOptions, warehouseOverride) {
                 var isRestaurant = ctx.isRestaurant;
@@ -4113,6 +4141,12 @@
                     },
                     error: function (data) {
                         data = data.responseJSON || {};
+                        if (data.manager_approval_required) {
+                            posOpenNegStockAuthModal(data, function () {
+                                posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, productVariantId, ctx, selectedOptions, warehouseOverride);
+                            });
+                            return;
+                        }
                         show_toastr('{{ __("Error") }}', data.error || '{{ __("pos.error") }}', 'error');
                     },
                     complete: function() {
