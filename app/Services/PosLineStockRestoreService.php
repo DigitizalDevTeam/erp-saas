@@ -54,6 +54,7 @@ class PosLineStockRestoreService
             foreach ($selectedOpts as $row) {
                 self::restoreOption($row, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId);
             }
+            self::restoreOptionRecipes($selectedOpts, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId);
             // Parent BOM was deducted after the options; return it as well.
             self::restoreParentBom($product, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId);
         } elseif (($product->type ?? null) === 'kit') {
@@ -101,6 +102,19 @@ class PosLineStockRestoreService
         }
 
         self::addBack($optId, $qty, $warehouseId, $creatorId, $posNoFormatted, $posId, true);
+    }
+
+    /**
+     * Return option recipe ingredients deducted at send (restaurant only),
+     * honoring the order-time picks stored on the line.
+     *
+     * @param  array<int, array{product_id: int, quantity: float}>  $selectedOpts
+     */
+    protected static function restoreOptionRecipes(array $selectedOpts, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId): void
+    {
+        foreach (ProductOptionService::optionRecipeMovements($selectedOpts, $lineQty, $creatorId) as $move) {
+            self::addBack($move['product_id'], $move['quantity'], $warehouseId, $creatorId, $posNoFormatted, $posId, true);
+        }
     }
 
     protected static function restoreParentBom(ProductService $product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId): void

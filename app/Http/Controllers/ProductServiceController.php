@@ -3083,6 +3083,8 @@ class ProductServiceController extends Controller
      * Alternatives for one recipe row, in the order the user picked them.
      * Only real ingredients of this company survive; the parent product
      * and the main ingredient itself can never be an alternative.
+     * Accepts the new form (alternative id => quantity, empty = same as
+     * the main ingredient) and the old plain list of ids.
      * No-op when the alternatives table does not exist yet (migration
      * not run): the product save itself must never break over this.
      */
@@ -3091,27 +3093,39 @@ class ProductServiceController extends Controller
         if (! Schema::hasTable('product_recipe_alternatives')) {
             return;
         }
-        $ids = [];
+        $pairs = [];
         if (is_array($alternatives)) {
-            foreach ($alternatives as $altId) {
-                $altId = (int) $altId;
-                if ($altId > 0 && $altId !== $parentId && $altId !== (int) $recipe->ingredient_product_id && ! in_array($altId, $ids, true)) {
-                    $ids[] = $altId;
+            if (array_is_list($alternatives)) {
+                foreach ($alternatives as $altId) {
+                    $altId = (int) $altId;
+                    if ($altId > 0 && $altId !== $parentId && $altId !== (int) $recipe->ingredient_product_id && ! array_key_exists($altId, $pairs)) {
+                        $pairs[$altId] = null;
+                    }
+                }
+            } else {
+                foreach ($alternatives as $altId => $qty) {
+                    $altId = (int) $altId;
+                    if ($altId > 0 && $altId !== $parentId && $altId !== (int) $recipe->ingredient_product_id && ! array_key_exists($altId, $pairs)) {
+                        $pairs[$altId] = (is_numeric($qty) && (float) $qty > 0) ? (float) $qty : null;
+                    }
                 }
             }
         }
-        if ($ids !== []) {
-            $valid = ProductService::whereIn('id', $ids)->where('created_by', $creatorId)->where('type', 'ingredient')->pluck('id')->map(fn ($id) => (int) $id)->all();
-            $ids = array_values(array_filter($ids, fn ($id) => in_array($id, $valid, true)));
+        if ($pairs !== []) {
+            $valid = ProductService::whereIn('id', array_keys($pairs))->where('created_by', $creatorId)->where('type', 'ingredient')->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $pairs = array_filter($pairs, fn ($qty, $id) => in_array($id, $valid, true), ARRAY_FILTER_USE_BOTH);
         }
         ProductRecipeAlternative::where('product_recipe_id', $recipe->id)->delete();
-        foreach ($ids as $order => $altId) {
+        $order = 0;
+        foreach ($pairs as $altId => $qty) {
             ProductRecipeAlternative::create([
                 'product_recipe_id' => $recipe->id,
                 'alternative_product_id' => $altId,
+                'quantity' => $qty,
                 'sort_order' => $order,
                 'created_by' => $creatorId,
             ]);
+            $order++;
         }
     }
 
@@ -3232,7 +3246,9 @@ class ProductServiceController extends Controller
 
         return response()->json(ProductOptionService::productJsonExtras(
             $productservice,
-            $warId > 0 ? $warId : null
+            $warId > 0 ? $warId : null,
+            null,
+            $request->boolean('with_ingredients')
         ));
     }
 

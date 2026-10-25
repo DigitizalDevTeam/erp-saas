@@ -99,7 +99,9 @@ class RecipeIngredientSubstitutionService
             throw new InvalidArgumentException('The main ingredient is still in stock.');
         }
 
-        $quantity = (float) $recipe->quantity * (float) $line->quantity;
+        // The alternative's own quantity when set, otherwise the main
+        // ingredient's recipe quantity (same rule as the POS popup picks).
+        $quantity = $defined->effectiveQuantity((float) $recipe->quantity) * (float) $line->quantity;
         if ($quantity <= 0) {
             throw new InvalidArgumentException('Nothing to substitute for this ingredient.');
         }

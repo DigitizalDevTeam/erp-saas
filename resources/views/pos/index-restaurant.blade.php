@@ -4275,7 +4275,7 @@
                 };
                 window.ErpProductOptions.open(item, function (selected) {
                     posRestaurantRunAddToCartAjax($el, $btn, wasDisabled, variantId, ctx, selected);
-                }, { forPurchase: false });
+                }, { forPurchase: false, showOptionIngredients: true });
             }
 
             function posLoadProductOptions($el, done) {
@@ -4290,7 +4290,7 @@
                     url: url,
                     type: 'GET',
                     dataType: 'json',
-                    data: { war_id: warId || '0' },
+                    data: { war_id: warId || '0', with_ingredients: 1 },
                     success: function (resp) {
                         if (resp && resp.options_enabled) {
                             $el.attr('data-options-enabled', '1');
@@ -4298,6 +4298,7 @@
                         var list = (resp && resp.options) ? resp.options : [];
                         if (list.length) {
                             $el.attr('data-options', JSON.stringify(list));
+                            $el.attr('data-options-with-ingredients', '1');
                         }
                         done(resp, list);
                     },
@@ -4312,7 +4313,7 @@
                 var opts = [];
                 try { opts = rawO ? JSON.parse(rawO) : []; } catch (e) { opts = []; }
 
-                if (posProductHasOptions($el) && opts.length) {
+                if (posProductHasOptions($el) && opts.length && $el.attr('data-options-with-ingredients') === '1') {
                     posOpenOptionsModal($el, $btn, wasDisabled, variantId, ctx, opts);
                     return;
                 }

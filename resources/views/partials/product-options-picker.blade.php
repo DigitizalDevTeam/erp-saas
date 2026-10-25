@@ -47,6 +47,8 @@
         type_service: @json(__('Service')),
         type_kit: @json(__('Kit')),
         type_ingredient: @json(__('Ingredient')),
+        ingredients: @json(__('Ingredients')),
+        main: @json(__('Main')),
     };
 </script>
-<script src="{{ asset('js/product-options-picker.js') }}?v=20261021a"></script>
+<script src="{{ asset('js/product-options-picker.js') }}?v=20261026a"></script>
