@@ -186,6 +186,20 @@
                                                 <th class="text-end">{{__('Amount')}}</th>
                                             </tr>
 
+                                            @if (!empty($payslip->inss_employee_amount) && (float) $payslip->inss_employee_amount > 0)
+                                                <tr>
+                                                    <td>{{__('INSS')}}</td>
+                                                    <td>{{ __('Employee (3%)') }}</td>
+                                                    <td class="text-end">{{  $user->priceFormat( $payslip->inss_employee_amount)}}</td>
+                                                </tr>
+                                            @endif
+                                            @if (!empty($payslip->irps_amount) && (float) $payslip->irps_amount > 0)
+                                                <tr>
+                                                    <td>{{__('IRPS')}}</td>
+                                                    <td>{{ __('Withholding') }}</td>
+                                                    <td class="text-end">{{  $user->priceFormat( $payslip->irps_amount)}}</td>
+                                                </tr>
+                                            @endif
                                             @foreach($payslipDetail['deduction']['loan'] as $loan)
                                                 <tr>
                                                     <td>{{__('Loan')}}</td>

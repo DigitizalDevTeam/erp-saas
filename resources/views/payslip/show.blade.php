@@ -32,6 +32,9 @@
                                     <a data-toggle="tab" href="#deduction">{{__('Saturation Deduction')}}</a>
                                 </li>
                                 <li>
+                                    <a data-toggle="tab" href="#tax">{{__('Tax')}}</a>
+                                </li>
+                                <li>
                                     <a data-toggle="tab" href="#payment">{{__('Other Payment')}}</a>
                                 </li>
                                 <li>
@@ -195,6 +198,41 @@
 
                                                             </tr>
                                                         @endforeach
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="tax" class="tab-pane">
+                                    <div class="row">
+                                        <div class="col-lg-12">
+                                            <div class="card bg-none mb-0">
+                                                <div class="table-responsive">
+                                                    <table class="table align-items-center">
+                                                        <thead>
+                                                        <tr>
+                                                            <th>{{__('Title')}}</th>
+                                                            <th>{{__('Type')}}</th>
+                                                            <th>{{__('Amount')}}</th>
+                                                        </tr>
+                                                        </thead>
+                                                        <tbody class="list">
+                                                        @if (!empty($payslip->inss_employee_amount) && (float) $payslip->inss_employee_amount > 0)
+                                                            <tr>
+                                                                <td>{{__('INSS')}}</td>
+                                                                <td>{{ __('Employee (3%)') }}</td>
+                                                                <td>{{ \Auth::user()->priceFormat($payslip->inss_employee_amount)}}</td>
+                                                            </tr>
+                                                        @endif
+                                                        @if (!empty($payslip->irps_amount) && (float) $payslip->irps_amount > 0)
+                                                            <tr>
+                                                                <td>{{__('IRPS')}}</td>
+                                                                <td>{{ __('Withholding') }}</td>
+                                                                <td>{{ \Auth::user()->priceFormat($payslip->irps_amount)}}</td>
+                                                            </tr>
+                                                        @endif
                                                         </tbody>
                                                     </table>
                                                 </div>
