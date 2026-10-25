@@ -22,11 +22,13 @@
                     <th>{{ __('Ingredient') }}</th>
                     <th class="text-end">{{ __('Qty per unit sold') }}</th>
                     <th width="180">{{ __('Unit') }}</th>
+                    <th width="180">{{ __('Alternatives') }}</th>
                     <th width="60"></th>
                 </tr>
             </thead>
             <tbody>
                 @forelse($recipeItems as $ri)
+                    @php $riAlts = ($recipeAlternativesAvailable ?? false) ? ($ri->alternatives ?? []) : []; @endphp
                     <tr data-existing-recipe-row="{{ $ri->id }}">
                         <td>{{ $ri->ingredientProduct ? $ri->ingredientProduct->name : '-' }}{{ $ri->ingredientProduct && $ri->ingredientProduct->sku ? ' (' . $ri->ingredientProduct->sku . ')' : '' }}@if($ri->ingredientProduct && $ri->ingredientProduct->unit)<div class="text-muted small">{{ __('Product unit') }}: {{ $ri->ingredientProduct->unit->name }}</div>@endif
                             <input type="hidden" name="product_recipes[existing_{{ $ri->id }}][ingredient_product_id]" value="{{ $ri->ingredient_product_id }}">
@@ -42,6 +44,14 @@
                                 @endforeach
                             </select>
                         </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-info recipe-alternatives-btn" data-recipe-key="existing_{{ $ri->id }}" data-ingredient-id="{{ $ri->ingredient_product_id }}" data-ingredient-name="{{ $ri->ingredientProduct ? $ri->ingredientProduct->name : '' }}">{{ __('Alternatives') }} (<span class="recipe-alt-count">{{ count($riAlts) }}</span>)</button>
+                            <span class="recipe-alternatives-inputs">
+                                @foreach($riAlts as $alt)
+                                    <input type="hidden" name="product_recipes[existing_{{ $ri->id }}][alternatives][]" value="{{ $alt->alternative_product_id }}">
+                                @endforeach
+                            </span>
+                        </td>
                         <td class="text-end">
                             <button type="button" class="btn btn-sm btn-outline-danger recipe-row-remove" title="{{ __('Remove') }}" aria-label="{{ __('Remove') }}">
                                 <i class="ti ti-trash"></i>
@@ -49,7 +59,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr class="text-muted recipe-empty-row"><td colspan="4">{{ __('No ingredients added yet.') }}</td></tr>
+                    <tr class="text-muted recipe-empty-row"><td colspan="5">{{ __('No ingredients added yet.') }}</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -86,3 +96,99 @@
         <small class="text-muted d-block mt-2">{{ __('After adding/removing ingredients, click Update to save.') }}</small>
     @endif
 </div>
+
+{{-- Alternatives picker modal (shared by the create/edit recipe tables) --}}
+<div class="modal fade" id="recipeAlternativesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ __('Alternatives for') }} <span id="recipe-alt-ingredient-name"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">{{ __('Pick alternative ingredients in order. At cooking time the cook picks one manually when the main ingredient is missing.') }}</p>
+                <div id="recipe-alt-list" class="mb-3"></div>
+                <div class="d-flex gap-2">
+                    <select class="form-select" id="recipe-alt-select">
+                        <option value="">{{ __('Select ingredient') }}</option>
+                        @foreach($ingredientProducts as $ing)
+                            <option value="{{ $ing->id }}">{{ $ing->name }}{{ $ing->sku ? ' (' . $ing->sku . ')' : '' }}</option>
+                        @endforeach
+                    </select>
+                    <button type="button" class="btn btn-primary" id="recipe-alt-add-btn">{{ __('Add') }}</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="recipe-alt-save-btn">{{ __('Save') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    var modalEl = document.getElementById('recipeAlternativesModal');
+    if (!modalEl) return;
+    var currentBtn = null;
+    var currentList = [];
+    function esc(s) { var el = document.createElement('textarea'); el.textContent = (s == null ? '' : String(s)); return el.innerHTML; }
+    function renderList() {
+        var wrap = document.getElementById('recipe-alt-list');
+        if (!currentList.length) { wrap.innerHTML = '<p class="text-muted small mb-0">{{ __('No alternatives yet.') }}</p>'; return; }
+        var html = '';
+        currentList.forEach(function (a, idx) {
+            html += '<div class="d-flex justify-content-between align-items-center border rounded px-2 py-1 mb-1"><span>' + (idx + 1) + '. ' + esc(a.name) + '</span><button type="button" class="btn btn-sm btn-outline-danger recipe-alt-remove" data-idx="' + idx + '"><i class="ti ti-trash"></i></button></div>';
+        });
+        wrap.innerHTML = html;
+    }
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.recipe-alternatives-btn');
+        if (btn) {
+            currentBtn = btn;
+            document.getElementById('recipe-alt-ingredient-name').textContent = btn.getAttribute('data-ingredient-name') || '';
+            var row = btn.closest('tr');
+            currentList = [];
+            if (row) {
+                row.querySelectorAll('.recipe-alternatives-inputs input').forEach(function (inp) {
+                    var opt = document.querySelector('#recipe-alt-select option[value="' + inp.value + '"]');
+                    currentList.push({ id: inp.value, name: opt ? opt.textContent : ('#' + inp.value) });
+                });
+            }
+            renderList();
+            $('#recipeAlternativesModal').modal('show');
+            return;
+        }
+        var rm = e.target.closest('.recipe-alt-remove');
+        if (rm) {
+            currentList.splice(parseInt(rm.getAttribute('data-idx'), 10), 1);
+            renderList();
+        }
+    });
+    document.getElementById('recipe-alt-add-btn').addEventListener('click', function () {
+        var sel = document.getElementById('recipe-alt-select');
+        if (!sel.value) return;
+        var mainId = currentBtn ? currentBtn.getAttribute('data-ingredient-id') : null;
+        if (mainId && String(sel.value) === String(mainId)) return;
+        if (currentList.some(function (a) { return String(a.id) === String(sel.value); })) return;
+        currentList.push({ id: sel.value, name: sel.options[sel.selectedIndex].text });
+        renderList();
+        sel.value = '';
+    });
+    document.getElementById('recipe-alt-save-btn').addEventListener('click', function () {
+        if (!currentBtn) return;
+        var row = currentBtn.closest('tr');
+        var key = currentBtn.getAttribute('data-recipe-key');
+        var container = row ? row.querySelector('.recipe-alternatives-inputs') : null;
+        if (container) {
+            var html = '';
+            currentList.forEach(function (a) {
+                html += '<input type="hidden" name="product_recipes[' + key + '][alternatives][]" value="' + a.id + '">';
+            });
+            container.innerHTML = html;
+        }
+        var countEl = currentBtn.querySelector('.recipe-alt-count');
+        if (countEl) { countEl.textContent = currentList.length; }
+        $('#recipeAlternativesModal').modal('hide');
+    });
+})();
+</script>

@@ -21,6 +21,7 @@ use App\Models\PriceLevel;
 use App\Models\PosPrinter;
 use App\Models\ProductKitItem;
 use App\Models\ProductRecipe;
+use App\Models\ProductRecipeAlternative;
 use App\Models\ProductVariant;
 use App\Models\PurchaseProduct;
 use App\Services\BatchLotDeductionService;
@@ -1054,14 +1055,19 @@ class ProductServiceController extends Controller
                     ->get();
                 $recipeItems = collect();
                 if ($productService->type === 'product') {
+                    $recipeWith = ['ingredientProduct:id,name,sku'];
+                    if (Schema::hasTable('product_recipe_alternatives')) {
+                        $recipeWith[] = 'alternatives.alternativeProduct:id,name';
+                    }
                     $recipeItems = ProductRecipe::where('product_id', $productService->id)
                         ->where('created_by', \Auth::user()->creatorId())
-                        ->with(['ingredientProduct:id,name,sku'])
+                        ->with($recipeWith)
                         ->orderBy('id')
                         ->get();
                 }
+                $recipeAlternativesAvailable = Schema::hasTable('product_recipe_alternatives');
 
-                return view('productservice.edit', compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'incomeSubAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitItems', 'kitComponents', 'optionItems', 'optionProducts', 'ingredientProducts', 'recipeItems'));
+                return view('productservice.edit', compact('category', 'unit', 'tax', 'productService', 'customFields', 'incomeChartAccounts', 'expenseChartAccounts', 'incomeSubAccounts', 'expenseSubAccounts', 'priceLevels', 'printers', 'kitItems', 'kitComponents', 'optionItems', 'optionProducts', 'ingredientProducts', 'recipeItems', 'recipeAlternativesAvailable'));
             } else {
                 return response()->json(['error' => __('Permission denied.')], 401);
             }
@@ -2947,6 +2953,8 @@ class ProductServiceController extends Controller
         $creatorId = (int) Auth::user()->creatorId();
 
         if ($productService->type !== 'product') {
+            $doomed = ProductRecipe::where('product_id', $productService->id)->where('created_by', $creatorId)->pluck('id')->all();
+            $this->deleteRecipeAlternativesFor($doomed);
             ProductRecipe::where('product_id', $productService->id)->where('created_by', $creatorId)->delete();
 
             return;
@@ -2954,6 +2962,12 @@ class ProductServiceController extends Controller
 
         $removeIds = $request->input('remove_recipe_ids', []);
         if (is_array($removeIds) && count($removeIds) > 0) {
+            $doomed = ProductRecipe::where('product_id', $productService->id)
+                ->where('created_by', $creatorId)
+                ->whereIn('id', array_map('intval', $removeIds))
+                ->pluck('id')
+                ->all();
+            $this->deleteRecipeAlternativesFor($doomed);
             ProductRecipe::where('product_id', $productService->id)
                 ->where('created_by', $creatorId)
                 ->whereIn('id', array_map('intval', $removeIds))
@@ -2990,11 +3004,12 @@ class ProductServiceController extends Controller
                     'unit' => \App\Support\MeasurementUnits::normalize($row['unit'] ?? null),
                     'unit_id' => ! empty($row['unit_id']) ? (int) $row['unit_id'] : null,
                 ]);
+                $this->syncRecipeAlternatives($existing, $row['alternatives'] ?? [], $creatorId, (int) $productService->id);
 
                 continue;
             }
 
-            ProductRecipe::create([
+            $recipe = ProductRecipe::create([
                 'product_id' => (int) $productService->id,
                 'ingredient_product_id' => $ingredientId,
                 'quantity' => $qty,
@@ -3002,7 +3017,52 @@ class ProductServiceController extends Controller
                 'unit_id' => ! empty($row['unit_id']) ? (int) $row['unit_id'] : null,
                 'created_by' => $creatorId,
             ]);
+            $this->syncRecipeAlternatives($recipe, $row['alternatives'] ?? [], $creatorId, (int) $productService->id);
         }
+    }
+
+    /**
+     * Alternatives for one recipe row, in the order the user picked them.
+     * Only real ingredients of this company survive; the parent product
+     * and the main ingredient itself can never be an alternative.
+     * No-op when the alternatives table does not exist yet (migration
+     * not run): the product save itself must never break over this.
+     */
+    protected function syncRecipeAlternatives(ProductRecipe $recipe, mixed $alternatives, int $creatorId, int $parentId): void
+    {
+        if (! Schema::hasTable('product_recipe_alternatives')) {
+            return;
+        }
+        $ids = [];
+        if (is_array($alternatives)) {
+            foreach ($alternatives as $altId) {
+                $altId = (int) $altId;
+                if ($altId > 0 && $altId !== $parentId && $altId !== (int) $recipe->ingredient_product_id && ! in_array($altId, $ids, true)) {
+                    $ids[] = $altId;
+                }
+            }
+        }
+        if ($ids !== []) {
+            $valid = ProductService::whereIn('id', $ids)->where('created_by', $creatorId)->where('type', 'ingredient')->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $ids = array_values(array_filter($ids, fn ($id) => in_array($id, $valid, true)));
+        }
+        ProductRecipeAlternative::where('product_recipe_id', $recipe->id)->delete();
+        foreach ($ids as $order => $altId) {
+            ProductRecipeAlternative::create([
+                'product_recipe_id' => $recipe->id,
+                'alternative_product_id' => $altId,
+                'sort_order' => $order,
+                'created_by' => $creatorId,
+            ]);
+        }
+    }
+
+    protected function deleteRecipeAlternativesFor(array $recipeIds): void
+    {
+        if ($recipeIds === [] || ! Schema::hasTable('product_recipe_alternatives')) {
+            return;
+        }
+        ProductRecipeAlternative::whereIn('product_recipe_id', $recipeIds)->delete();
     }
 
     protected function syncProductVariants(ProductService $productService, Request $request): void

@@ -125,6 +125,11 @@
                                                 <div class="small text-muted">{{ __('Sku') }}: {{ $productSku }}</div>
                                             @endif
                                             <div class="small text-muted">{{ __('Price') }}: {{ $linePrice }}</div>
+                                            @if(!empty($lineSubstitutedLabels[$line->id] ?? []))
+                                                @foreach($lineSubstitutedLabels[$line->id] as $lbl)
+                                                    <div class="small text-success">{{ __('Substituted') }}: {{ $lbl }}</div>
+                                                @endforeach
+                                            @endif
                                         </td>
                                         <td>{{ $line->quantity }}</td>
                                         <td><small class="text-muted">{{ $line->description ?: '—' }}</small></td>
@@ -162,6 +167,9 @@
                                             @if(in_array($line->status, [\App\Models\PosProduct::STATUS_PENDING, \App\Models\PosProduct::STATUS_IN_PREPARATION]))
                                                 <button type="button" class="btn btn-sm btn-success pos-production-set-status" data-id="{{ $line->id }}" data-status="ready"><i class="ti ti-check"></i> {{ __('pos.status_ready') }}</button>
                                             @endif
+                                            @if(!empty($lineSubstitutes[$line->id] ?? []))
+                                                <button type="button" class="btn btn-sm btn-outline-info pos-production-substitute" data-line-id="{{ $line->id }}"><i class="ti ti-refresh"></i> {{ __('pos.substitute') }}</button>
+                                            @endif
                                         </td>
                                     </tr>
                                 @empty
@@ -172,6 +180,25 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Substitute ingredient modal (manual pick at cooking time) --}}
+    <div class="modal fade" id="posProdSubstituteModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">{{ __('pos.substitute_ingredient') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-2">{{ __('pos.substitute_hint') }}</p>
+                    <div id="pos-prod-substitute-list"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
                 </div>
             </div>
         </div>
@@ -247,6 +274,44 @@ $(function() {
             url: updateLineUrl.replace('__ID__', id),
             type: 'PATCH',
             data: { _token: csrf, status: status, _method: 'PATCH' },
+            success: function(res) {
+                if (res.success) {
+                    location.reload();
+                }
+            },
+            error: function(xhr) {
+                var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("Error") }}';
+                show_toastr('{{ __("Error") }}', msg, 'error');
+            }
+        });
+    });
+    var lineSubstitutes = {!! \Illuminate\Support\Js::from($lineSubstitutes ?? []) !!};
+    var substituteLineUrl = "{{ route('pos.production.line.substitute', ['line' => '__ID__']) }}";
+    $(document).on('click', '.pos-production-substitute', function() {
+        var lineId = $(this).data('line-id');
+        var items = lineSubstitutes[lineId] || lineSubstitutes[String(lineId)] || [];
+        var html = '';
+        items.forEach(function (it) {
+            html += '<div class="mb-3"><div class="fw-semibold">' + $('<div>').text(it.main_name).html() + ' <span class="text-muted small">({{ __("pos.needed") }} ' + it.needed_qty + ')</span></div>';
+            html += '<div class="d-flex gap-2 mt-1"><select class="form-select form-select-sm pos-prod-sub-select">';
+            it.alternatives.forEach(function (a) {
+                html += '<option value="' + a.id + '">' + $('<div>').text(a.name).html() + '</option>';
+            });
+            html += '</select><button type="button" class="btn btn-sm btn-primary pos-prod-sub-confirm" data-line-id="' + lineId + '" data-recipe-id="' + it.recipe_id + '">{{ __("pos.substitute") }}</button></div></div>';
+        });
+        if (!html) { html = '<p class="text-muted small mb-0">{{ __("pos.no_data_found") }}</p>'; }
+        $('#pos-prod-substitute-list').html(html);
+        $('#posProdSubstituteModal').modal('show');
+    });
+    $(document).on('click', '.pos-prod-sub-confirm', function() {
+        var btn = $(this);
+        var lineId = btn.data('line-id');
+        var recipeId = btn.data('recipe-id');
+        var altId = btn.closest('div').find('.pos-prod-sub-select').val();
+        $.ajax({
+            url: substituteLineUrl.replace('__ID__', lineId),
+            type: 'POST',
+            data: { _token: csrf, recipe_id: recipeId, alternative_product_id: altId },
             success: function(res) {
                 if (res.success) {
                     location.reload();

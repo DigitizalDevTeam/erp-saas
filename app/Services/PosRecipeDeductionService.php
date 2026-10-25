@@ -68,4 +68,14 @@ class PosRecipeDeductionService
         $description = $quantity . ' ' . __('quantity sold in pos') . ' ' . $posIdFormatted . $extraDescriptionSuffix;
         Utility::addProductStock($productId, $quantity, 'pos', $description, $posId);
     }
+
+    /**
+     * Deduct a substituted ingredient at cooking time: same mechanics as a
+     * normal recipe deduction, only the stock-report note names the main
+     * ingredient it replaced.
+     */
+    public static function deductForSubstitution(int $alternativeId, float $quantity, int $warehouseId, int $creatorId, string $posIdFormatted, int $posId, string $mainName): void
+    {
+        self::deductProductQuantity($alternativeId, $quantity, $warehouseId, $creatorId, $posIdFormatted, $posId, ' (substituted for ' . $mainName . ')', null);
+    }
 }
