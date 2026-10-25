@@ -33,4 +33,9 @@ class ProductRecipe extends Model
     {
         return $this->belongsTo(ProductServiceUnit::class, 'unit_id', 'id');
     }
+
+    public function alternatives()
+    {
+        return $this->hasMany(ProductRecipeAlternative::class, 'product_recipe_id', 'id')->orderBy('sort_order')->orderBy('id');
+    }
 }

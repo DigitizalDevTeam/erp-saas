@@ -2450,6 +2450,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('pos-restaurant-settings', [\App\Http\Controllers\PosRestaurantSettingsController::class, 'store'])->name('pos-restaurant-settings.store')->middleware(['auth', 'XSS']);
     Route::get('pos-production', [PosProductionController::class, 'index'])->name('pos.production.index')->middleware(['auth', 'XSS']);
     Route::patch('pos-production/line/{line}', [PosProductionController::class, 'updateLineStatus'])->name('pos.production.line.update')->middleware(['auth', 'XSS']);
+    Route::post('pos-production/line/{line}/substitute', [PosProductionController::class, 'substituteLineIngredient'])->name('pos.production.line.substitute')->middleware(['auth', 'XSS']);
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
     Route::get('pos/retail/{cid?}', [PosController::class, 'index'])->name('pos.index')->defaults('cid', null)->middleware(['auth', 'XSS', 'revalidate']);

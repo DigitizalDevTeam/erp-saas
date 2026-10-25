@@ -715,6 +715,10 @@
                         ${unit ? $('<div>').text(unit).html() : '—'}
                         <input type="hidden" name="product_recipes[${recipeRowIdx}][unit]" value="${unit}">
                     </td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-outline-info recipe-alternatives-btn" data-recipe-key="${recipeRowIdx}" data-ingredient-id="${ingredientId}" data-ingredient-name="${$('<div>').text(ingredientText).html().replace(/"/g, '&quot;')}">{{ __('Alternatives') }} (<span class="recipe-alt-count">0</span>)</button>
+                        <span class="recipe-alternatives-inputs"></span>
+                    </td>
                     <td class="text-end">
                         <button type="button" class="btn btn-sm btn-outline-danger recipe-row-remove"><i class="ti ti-trash"></i></button>
                     </td>
