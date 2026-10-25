@@ -351,6 +351,7 @@
                 if (!shiftId) {
                     listEl.innerHTML = initialHtml;
                     if (captionEl) { captionEl.textContent = ''; }
+                    delete selectEl.dataset.loadedShift;
                     return;
                 }
                 listEl.innerHTML = '<p class="text-muted small mb-0">{{ __('Loading...') }}</p>';
@@ -359,9 +360,13 @@
                     .then(function (res) {
                         if (res.error) {
                             listEl.innerHTML = '<p class="text-danger small mb-0">' + esc(res.error) + '</p>';
+                            delete selectEl.dataset.loadedShift;
                             return;
                         }
-                        if (captionEl) { captionEl.textContent = '{{ __('Tables of') }} ' + (res.shift_label || ''); }
+                        // The list now shows the other waiter's tables, so
+                        // Transfer (on submit) moves them TO this shift.
+                        selectEl.dataset.loadedShift = shiftId;
+                        if (captionEl) { captionEl.textContent = '{{ __('Tables of') }} ' + (res.shift_label || '') + ' — {{ __('Ticked tables will move to this shift.') }}'; }
                         if (!res.tables || res.tables.length === 0) {
                             listEl.innerHTML = '<p class="text-muted small mb-0">{{ __('No tables assigned to this shift.') }}</p>';
                             return;
@@ -374,6 +379,7 @@
                     })
                     .catch(function () {
                         listEl.innerHTML = '<p class="text-danger small mb-0">{{ __('pos.error') }}</p>';
+                        delete selectEl.dataset.loadedShift;
                     });
             });
         })();
@@ -381,6 +387,17 @@
             e.preventDefault();
             var form = this;
             var data = new FormData(form);
+            // When the list shows another waiter's tables, Transfer moves the
+            // ticked tables FROM that waiter TO this shift (reverse of the
+            // default direction). Without this swap the submit would silently
+            // do nothing: the endpoint would look for the tables on this
+            // shift, find none, and report success anyway.
+            var loadedShiftId = document.getElementById('transferToShift').dataset.loadedShift;
+            if (loadedShiftId) {
+                var currentShiftId = data.get('from_shift_id');
+                data.set('from_shift_id', loadedShiftId);
+                data.set('to_shift_id', currentShiftId);
+            }
             var tableIds = [];
             form.querySelectorAll('input[name="table_ids[]"]:checked').forEach(function(cb) { tableIds.push(cb.value); });
             if (tableIds.length === 0) {
