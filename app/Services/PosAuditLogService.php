@@ -146,7 +146,13 @@ class PosAuditLogService
         ?int $subjectId = null,
         ?string $description = null,
         array $meta = []
-    ): PosAuditLog {
+    ): ?PosAuditLog {
+        // Deduction-time logging runs in tests without the table; without
+        // a table there is nowhere to log, so skip instead of throwing.
+        // (Checked per call, never memoized — see the schema lesson.)
+        if (! \Illuminate\Support\Facades\Schema::hasTable('pos_audit_logs')) {
+            return null;
+        }
         $user = Auth::user();
         $actor = PosActorService::restaurantActor() ?? $user;
         return PosAuditLog::create([

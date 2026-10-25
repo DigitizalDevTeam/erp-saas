@@ -19,6 +19,7 @@ class PosAuditLog extends Model
     const ACTION_REFUND = 'refund';
     const ACTION_VOID_LINE = 'void_line';
     const ACTION_DELETE_LINE = 'delete_line';
+    const ACTION_NEGATIVE_STOCK = 'negative_stock_sale';
     const ACTION_SWITCH_USER = 'switch_user';
 
     protected $fillable = [

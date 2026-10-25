@@ -64,6 +64,7 @@
     data-printer-id="{{ $line->pos_printer_id ?? '' }}"
     data-printer-name="{{ $line->printer_name ?? '' }}"
     data-warehouse-id="{{ (int) ($line->warehouse_id ?? 0) }}"
+    data-negative-stock-authorized-by="{{ $line->negative_stock_authorized_by ?? '' }}"
     data-selected-options="{{ e($selectedOptionsJson) }}"
     data-option-labels="{{ e($optionLabelsJson) }}">
     <td class="pos-cart-line-cell p-0 border-0">
@@ -71,6 +72,9 @@
             <div class="pos-cart-line__row">
                 <div class="pos-cart-line__main min-w-0">
                     <span class="pos-cart-line__name name" title="{{ $lineName }}">{{ $lineName }}</span>
+                    @if(!empty($line->negative_stock_authorized_by))
+                        <span class="badge bg-warning text-dark neg-stock-badge ms-1">{{ __('Manager approved') }}</span>
+                    @endif
                     @if($optionLabels !== [])
                         <span class="pos-cart-line__options">
                             @foreach($optionLabels as $optionLabel)

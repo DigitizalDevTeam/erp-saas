@@ -464,7 +464,8 @@ class ProductOptionService
         int $creatorId,
         string $stockType,
         string $saleNumber,
-        int $typeId
+        int $typeId,
+        bool $allowNegative = false
     ): void {
         if ($selected === []) {
             return;
@@ -498,7 +499,7 @@ class ProductOptionService
             // must run before the affect_stock skip below, or a kit option
             // would silently deduct nothing at all.
             if (($opt->type ?? null) === 'kit') {
-                PosKitDeductionService::deductForSale($optId, $deductQty, $warehouseId, $creatorId, $saleNumber, $typeId, $stockType);
+                PosKitDeductionService::deductForSale($optId, $deductQty, $warehouseId, $creatorId, $saleNumber, $typeId, $stockType, $allowNegative);
 
                 continue;
             }
@@ -510,12 +511,12 @@ class ProductOptionService
             }
 
             $original = (float) ($opt->quantity ?? 0);
-            $newQty = $opt->allowsNegativeStock()
+            $newQty = ($allowNegative || $opt->allowsNegativeStock())
                 ? $original - $deductQty
                 : max(0, $original - $deductQty);
             ProductService::where('id', $optId)->update(['quantity' => $newQty]);
             if ($warehouseId > 0) {
-                Utility::warehouse_quantity('minus', $deductQty, $optId, $warehouseId);
+                Utility::warehouse_quantity('minus', $deductQty, $optId, $warehouseId, null, $allowNegative);
             }
             Utility::addProductStock($optId, $deductQty, $stockType, $deductQty . ' ' . $soldIn . ' ' . $saleNumber, $typeId);
         }
@@ -668,7 +669,7 @@ class ProductOptionService
      *
      * @param  array<string, mixed>  $lineValue
      */
-    public static function tryDeductPosLine(?ProductService $product, array $lineValue, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId): bool
+    public static function tryDeductPosLine(?ProductService $product, array $lineValue, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, bool $allowNegative = false): bool
     {
         if (! $product || ! ($product->options_enabled ?? false)) {
             return false;
@@ -680,7 +681,7 @@ class ProductOptionService
         }
 
         $qty = (float) ($lineValue['quantity'] ?? 0);
-        self::deductOptionsForSale($selected, $qty, $warehouseId, $creatorId, 'pos', $posNoFormatted, $posId);
+        self::deductOptionsForSale($selected, $qty, $warehouseId, $creatorId, 'pos', $posNoFormatted, $posId, $allowNegative);
 
         return true;
     }

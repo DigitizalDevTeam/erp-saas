@@ -12,6 +12,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                <button type="button" class="btn btn-warning d-none" id="posWarehousePickerManagerBtn">{{ __('Manager authorization') }}</button>
                 <button type="button" class="btn btn-primary" id="posWarehousePickerConfirm">{{ __('Add to Cart') }}</button>
             </div>
         </div>

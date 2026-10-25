@@ -27,6 +27,7 @@ use App\Services\PosLineStockRestoreService;
 use App\Services\ProductOptionService;
 use App\Services\PosFefoDeductionService;
 use App\Services\PosRecipeDeductionService;
+use App\Services\NegativeStockAuthorizationService;
 use App\Services\PosWarehouseAvailabilityService;
 use App\Services\PosPrintRoutingService;
 use App\Services\PosPrinterAgentService;
@@ -558,17 +559,74 @@ class PosController extends Controller
      *
      * @param  \App\Models\ProductService  $product
      */
-    protected function deductParentBomAfterOptions($product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, ?string $identifiersNote = null, ?int $variantId = null): void
+    protected function deductParentBomAfterOptions($product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, ?string $identifiersNote = null, ?int $variantId = null, bool $allowNegative = false): void
     {
         if (($product->type ?? null) === 'kit') {
-            PosKitDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId);
+            PosKitDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, 'pos', $allowNegative);
 
             return;
         }
 
         if (ProductRecipe::where('product_id', (int) $product->id)->where('created_by', $creatorId)->exists()) {
-            PosRecipeDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId);
+            PosRecipeDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId, $allowNegative);
         }
+    }
+
+    /**
+     * Manager authorization for a below-zero sale (restaurant + retail POS).
+     * The waiter enters a manager's account password or POS PIN; on success
+     * a short-lived grant is stored in the session so the next add-to-cart
+     * for this product may proceed, and the line is marked with the manager.
+     * Managers signed in on the terminal need no password.
+     */
+    public function authorizeNegativeStock(Request $request)
+    {
+        if (! Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $creatorId = (int) Auth::user()->creatorId();
+        $product = ProductService::where('id', (int) $request->get('product_id'))
+            ->where('created_by', $creatorId)
+            ->first();
+        if (! $product) {
+            return response()->json(['error' => __('This Product is not found!')], 404);
+        }
+        if ($product->allowsNegativeStock()) {
+            return response()->json(['authorized' => true, 'manager_id' => null]);
+        }
+        if (NegativeStockAuthorizationService::neverNegative($product)) {
+            return response()->json(['error' => __('This product cannot be sold below zero stock, even with manager authorization.')], 422);
+        }
+        $authorizer = NegativeStockAuthorizationService::authorizerForRequest($request, $creatorId);
+        if (! $authorizer) {
+            return response()->json(['error' => __('Manager password or PIN is incorrect.')], 403);
+        }
+        $variantId = (int) $request->get('product_variant_id');
+        NegativeStockAuthorizationService::storeGrant(
+            (int) $product->id,
+            $variantId > 0 ? $variantId : null,
+            (int) $authorizer->id
+        );
+
+        return response()->json([
+            'authorized' => true,
+            'manager_id' => (int) $authorizer->id,
+            'manager_name' => $authorizer->name,
+        ]);
+    }
+
+    /**
+     * Audit entry for a manager-authorized below-zero line, written when
+     * its stock is actually deducted at payment time.
+     */
+    protected function logNegativeStockSale(int $posItemId, int $productId, int $warehouseId, float $quantity, int $authorizedBy): void
+    {
+        PosAuditLogService::log(PosAuditLog::ACTION_NEGATIVE_STOCK, 'pos_product', $posItemId, __('Negative stock sale authorized by manager'), [
+            'product_id' => $productId,
+            'warehouse_id' => $warehouseId,
+            'quantity' => $quantity,
+            'authorized_by' => $authorizedBy,
+        ]);
     }
 
     /**
@@ -2073,10 +2131,15 @@ class PosController extends Controller
             $storedLineWarehouse = $this->posSaleLineWarehouseId($value, 0);
             $positems->warehouse_id = $storedLineWarehouse > 0 ? $storedLineWarehouse : null;
             $lineWarehouseId = $storedLineWarehouse > 0 ? $storedLineWarehouse : (int) $warehouse_id;
+            // Manager-authorized below-zero line: keep the authorizer on
+            // the row and let this line's whole deduction ladder go
+            // negative (lots never do).
+            $allowNegative = ! empty($value['negative_stock_authorized_by']);
+            $positems->negative_stock_authorized_by = $allowNegative ? (int) $value['negative_stock_authorized_by'] : null;
             $positems->save();
             $idNote = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
             $deductByVariant = ($product->variants_enabled ?? false) && $product_variant_id;
-            if (ProductOptionService::tryDeductPosLine($product, $value, $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
+            if (ProductOptionService::tryDeductPosLine($product, $value, $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id, $allowNegative)) {
                 // options only
             } elseif (($product->type ?? null) === 'kit') {
                 PosKitDeductionService::deductForSale(
@@ -2085,7 +2148,9 @@ class PosController extends Controller
                     $lineWarehouseId,
                     $user_id,
                     \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
-                    (int) $pos->id
+                    (int) $pos->id,
+                    'pos',
+                    $allowNegative
                 );
             } elseif ($deductByVariant) {
                 PosRecipeDeductionService::deductForSale(
@@ -2096,9 +2161,10 @@ class PosController extends Controller
                     \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                     (int) $pos->id,
                     $idNote,
-                    $product_variant_id
+                    $product_variant_id,
+                    $allowNegative
                 );
-            } elseif (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $lineWarehouseId, (int) $user_id)) {
+            } elseif (! $allowNegative && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $lineWarehouseId, (int) $user_id))) {
                 // Auto FEFO when batch tracking enabled or lots exist
                 PosFefoDeductionService::deductForSale(
                     (int) $product_id,
@@ -2118,8 +2184,12 @@ class PosController extends Controller
                     \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                     (int) $pos->id,
                     $idNote,
-                    $product_variant_id
+                    $product_variant_id,
+                    $allowNegative
                 );
+            }
+            if ($allowNegative) {
+                $this->logNegativeStockSale((int) $positems->id, (int) $product_id, (int) $lineWarehouseId, (float) $value['quantity'], (int) $value['negative_stock_authorized_by']);
             }
             try {
                 InvoiceSaleDeductionService::assignIdentifiersForPosSale(
@@ -2662,13 +2732,18 @@ class PosController extends Controller
                         $storedLineWarehouse = $this->posSaleLineWarehouseId($value, 0);
                         $positems->warehouse_id = $storedLineWarehouse > 0 ? $storedLineWarehouse : null;
                         $lineWarehouseId = $storedLineWarehouse > 0 ? $storedLineWarehouse : (int) $warehouse_id;
+                        // Manager-authorized below-zero line: keep the
+                        // authorizer on the row and let this line's whole
+                        // deduction ladder go negative (lots never do).
+                        $allowNegative = ! empty($value['negative_stock_authorized_by']);
+                        $positems->negative_stock_authorized_by = $allowNegative ? (int) $value['negative_stock_authorized_by'] : null;
                         $positems->save();
                         $idNote2 = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
                         $deductByVariant2 = ($product->variants_enabled ?? false) && $product_variant_id;
-                        if (ProductOptionService::tryDeductPosLine($product, $value, $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id)) {
+                        if (ProductOptionService::tryDeductPosLine($product, $value, $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id, $allowNegative)) {
                             // Options deducted; the parent's own BOM (recipe ingredients / kit
                             // components) is still consumed per unit sold — deduct it as well.
-                            $this->deductParentBomAfterOptions($product, (float) $value['quantity'], $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id, $idNote2, $product_variant_id);
+                            $this->deductParentBomAfterOptions($product, (float) $value['quantity'], $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id, $idNote2, $product_variant_id, $allowNegative);
                         } elseif (($product->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
                                 (int) $product_id,
@@ -2676,7 +2751,9 @@ class PosController extends Controller
                                 $lineWarehouseId,
                                 $user_id,
                                 \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
-                                (int) $pos->id
+                                (int) $pos->id,
+                                'pos',
+                                $allowNegative
                             );
                         } elseif ($deductByVariant2) {
                             PosRecipeDeductionService::deductForSale(
@@ -2687,9 +2764,10 @@ class PosController extends Controller
                                 \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
                                 $idNote2,
-                                $product_variant_id
+                                $product_variant_id,
+                                $allowNegative
                             );
-                        } elseif (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $lineWarehouseId, (int) $user_id)) {
+                        } elseif (! $allowNegative && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $lineWarehouseId, (int) $user_id))) {
                             PosFefoDeductionService::deductForSale(
                                 (int) $product_id,
                                 (float) $value['quantity'],
@@ -2708,8 +2786,12 @@ class PosController extends Controller
                                 \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
                                 (int) $pos->id,
                                 $idNote2,
-                                $product_variant_id
+                                $product_variant_id,
+                                $allowNegative
                             );
+                        }
+                        if ($allowNegative) {
+                            $this->logNegativeStockSale((int) $positems->id, (int) $product_id, (int) $lineWarehouseId, (float) $value['quantity'], (int) $value['negative_stock_authorized_by']);
                         }
                         try {
                             InvoiceSaleDeductionService::assignIdentifiersForPosSale(
@@ -3403,6 +3485,7 @@ class PosController extends Controller
                         ? ProductOptionService::normalizeSelectedOptions($line->selected_options_json)
                         : [],
                     'warehouse_id' => ! empty($line->warehouse_id) ? (int) $line->warehouse_id : null,
+                    'negative_stock_authorized_by' => $line->negative_stock_authorized_by ? (int) $line->negative_stock_authorized_by : null,
                 ];
             }
         }
@@ -3876,6 +3959,7 @@ class PosController extends Controller
                 'print_zone' => $printZone,
                 'pos_printer_id' => $resolvedPrinterId,
                 'warehouse_id' => ! empty($item['warehouse_id']) ? (int) $item['warehouse_id'] : null,
+                'negative_stock_authorized_by' => ! empty($item['negative_stock_authorized_by']) ? (int) $item['negative_stock_authorized_by'] : null,
             ]);
             // Stock moves at production time: deduct this line now (movement
             // report entry appears immediately) and flag it so the later

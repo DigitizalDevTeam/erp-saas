@@ -2992,6 +2992,7 @@
                 var tbodySel = isRestaurant ? '#tbody-restaurant' : '#tbody';
                 var rowIdPrefix = isRestaurant ? 'product-id-r-' : 'product-id-';
                 var totalSel = isRestaurant ? '#pos-restaurant-total' : '#displaytotal, .totalamount';
+                @include('pos.partials.negative-stock-auth-script')
                 var runAddToCart = function (measureData, productVariantId, selectedOptions) {
                 if (!navigator.onLine && $el.data('product-id')) {
                     if (String($el.attr('data-variants-enabled')) === '1' || posProductHasOptions($el)) {
@@ -3109,6 +3110,9 @@
                                             }
                                             $row.find('.subtotal').text(addCommas(value.subtotal));
                                             $row.find('input[name="quantity"]').val(value.quantity);
+                                            if (value.negative_stock_authorized_by && !$row.find('.neg-stock-badge').length) {
+                                                $row.find('.name').first().after('<span class="badge bg-warning text-dark neg-stock-badge ms-1">{{ __("Manager approved") }}</span>');
+                                            }
                                         }
                                         sum += value.subtotal;
                                     });
@@ -3133,6 +3137,12 @@
                     },
                     error: function (data) {
                         data = data.responseJSON || {};
+                        if (data.manager_approval_required) {
+                            posOpenNegStockAuthModal(data, function () {
+                                runAddToCart(measureData, productVariantId, selectedOptions);
+                            });
+                            return;
+                        }
                         show_toastr('{{ __("Error") }}', data.error || '{{ __("pos.error") }}', 'error');
                     },
                     complete: function() {
@@ -3649,6 +3659,7 @@
         })();
     </script>
 @include('pos.partials.variant-picker-modal')
+@include('pos.partials.negative-stock-auth-modal')
 @include('partials.product-options-picker')
 <div class="modal fade" id="posMeasureModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-sm">
