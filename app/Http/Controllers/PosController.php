@@ -3737,10 +3737,13 @@ class PosController extends Controller
         if ($defaultPrep < 1) {
             $defaultPrep = 15;
         }
-        $prepMinutes = (int) ($request->input('prep_minutes') ?: $defaultPrep);
-        if ($prepMinutes < 1) {
-            $prepMinutes = $defaultPrep;
+        // Order-level override from the prep-time modal: only when the
+        // waiter typed a value. Empty means "use each item's default".
+        $orderPrepOverride = $request->filled('prep_minutes') ? (int) $request->input('prep_minutes') : null;
+        if ($orderPrepOverride !== null && $orderPrepOverride < 1) {
+            $orderPrepOverride = null;
         }
+        $prepMinutes = $orderPrepOverride ?? $defaultPrep;
         $itemProductIds = collect($request->items)->pluck('id')->filter()->unique()->values()->all();
         $productsById = $itemProductIds
             ? ProductService::whereIn('id', $itemProductIds)->where('created_by', $creatorId)->with('category')->get()->keyBy('id')
@@ -3757,10 +3760,12 @@ class PosController extends Controller
             if ($variantError) {
                 return response()->json(['error' => $variantError], 422);
             }
-            $linePrep = isset($item['prep_minutes']) ? (int) $item['prep_minutes'] : $prepMinutes;
-            if ($linePrep < 1) {
-                $linePrep = $prepMinutes;
-            }
+            // Per line: explicit item time → order-level override typed
+            // in the modal → this product's own default → global default.
+            $productPrep = (int) ($product->preparation_time ?? 0);
+            $linePrep = isset($item['prep_minutes']) && (int) $item['prep_minutes'] >= 1
+                ? (int) $item['prep_minutes']
+                : ($orderPrepOverride ?? ($productPrep >= 1 ? $productPrep : $defaultPrep));
             $selectedOpts = ProductOptionService::normalizeSelectedOptions(
                 $item['selected_options'] ?? $item['selected_options_json'] ?? null
             );

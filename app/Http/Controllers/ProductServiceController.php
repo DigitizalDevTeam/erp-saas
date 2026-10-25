@@ -847,6 +847,7 @@ class ProductServiceController extends Controller
                 'category_id' => 'required',
                 'unit_id' => 'required',
                 'type' => ['required', Rule::in(['product', 'service', 'kit', 'ingredient'])],
+                'preparation_time' => 'nullable|integer|min:1|max:480',
             ];
             if ($request->type === 'ingredient') {
                 $rules['sale_price'] = 'nullable|numeric|min:0';
@@ -880,6 +881,7 @@ class ProductServiceController extends Controller
             $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
             $productService->low_stock_threshold         = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
             $productService->max_stock_threshold         = $request->filled('max_stock_threshold') ? (int) $request->max_stock_threshold : null;
+            $productService->preparation_time            = $request->filled('preparation_time') ? (int) $request->preparation_time : null;
             // Kits never affect stock. Ingredients now respect the
             // "Does not affect stock" checkbox like any other product:
             // a no-affect ingredient is skipped by the availability check,
@@ -1137,6 +1139,7 @@ class ProductServiceController extends Controller
                     'category_id' => 'required',
                     'unit_id' => 'required',
                     'type' => ['required', Rule::in(['product', 'service', 'kit', 'ingredient'])],
+                    'preparation_time' => 'nullable|integer|min:1|max:480',
 
                 ];
                 if ($request->type === 'ingredient') {
@@ -1169,6 +1172,7 @@ class ProductServiceController extends Controller
                 $productService->pos_printer_id             = $request->filled('pos_printer_id') ? (int) $request->pos_printer_id : null;
                 $productService->low_stock_threshold        = $request->filled('low_stock_threshold') ? (int) $request->low_stock_threshold : null;
                 $productService->max_stock_threshold        = $request->filled('max_stock_threshold') ? (int) $request->max_stock_threshold : null;
+                $productService->preparation_time           = $request->filled('preparation_time') ? (int) $request->preparation_time : null;
                 // Kits never affect stock. Ingredients now respect the
             // "Does not affect stock" checkbox like any other product:
             // a no-affect ingredient is skipped by the availability check,

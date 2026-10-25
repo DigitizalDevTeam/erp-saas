@@ -251,6 +251,11 @@
             {{ Form::number('max_stock_threshold', $productService->max_stock_threshold, array('class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Optional'))) }}
             <small class="text-muted">{{ __('Alert when quantity is above this (optional).') }}</small>
         </div>
+        <div class="form-group col-md-6 quantity {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}">
+            {{ Form::label('preparation_time', __('Preparation time (minutes)'),['class'=>'form-label']) }}
+            {{ Form::number('preparation_time', $productService->preparation_time, array('class' => 'form-control', 'min' => 1, 'max' => 480, 'step' => 1, 'placeholder' => __('Default'))) }}
+            <small class="text-muted">{{ __('Default time to prepare this item on restaurant orders. Leave empty to use the global default.') }}</small>
+        </div>
         <div class="form-group col-md-12 quantity product-stock-option {{in_array($productService->type, ['service','kit']) ? 'd-none':''}}">
             <div class="form-check">
                 {{ Form::checkbox('does_not_affect_stock', '1', !($productService->affect_stock ?? true), ['class' => 'form-check-input', 'id' => 'does_not_affect_stock_edit']) }}
