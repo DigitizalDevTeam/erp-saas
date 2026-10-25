@@ -563,6 +563,31 @@ class PosShiftController extends Controller
     }
 
     /**
+     * Active tables of one shift, for the Transfer Tables popup: when the
+     * "To waiter (shift)" dropdown changes, the popup loads that shift's
+     * tables instead of only showing the current shift's list.
+     */
+    public function assignedTables(PosShift $pos_shift)
+    {
+        if (!\Auth::user()->canManagePos() || $pos_shift->created_by != \Auth::user()->creatorId()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        if (\Auth::user()->can('pos restaurant waiter') && !\Auth::user()->can('pos restaurant full') && !\Auth::user()->can('pos restaurant manager')) {
+            return response()->json(['error' => __('Only Cashier or Manager can transfer tables.')], 403);
+        }
+        $tables = PosTableAssignment::where('shift_id', $pos_shift->id)
+            ->whereNull('unassigned_at')
+            ->with('table')
+            ->get()
+            ->map(fn ($a) => ['id' => $a->table_id, 'name' => $a->table ? $a->table->name : '-'])
+            ->values();
+        return response()->json([
+            'shift_label' => ($pos_shift->user ? $pos_shift->user->name : __('Shift')) . ' #' . $pos_shift->id,
+            'tables' => $tables,
+        ]);
+    }
+
+    /**
      * Transfer tables from one shift (waiter) to another. Only Cashier/Manager or pos restaurant full.
      */
     public function transferTables(Request $request)

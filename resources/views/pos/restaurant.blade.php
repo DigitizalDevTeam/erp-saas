@@ -696,7 +696,8 @@
             </div>
             <div class="modal-body">
                 <label class="form-label" for="pos-prep-minutes-input">{{ __('Minutes until ready') }}</label>
-                <input type="number" id="pos-prep-minutes-input" class="form-control" min="1" max="480" step="1" value="{{ (int) ($posDefaultPrepMinutes ?? 15) }}">
+                <input type="number" id="pos-prep-minutes-input" class="form-control" min="1" max="480" step="1" placeholder="{{ __('Product defaults') }}">
+                <small class="text-muted d-block">{{ __('Leave empty to use each item\'s own default preparation time (or the global default). Type a value to use it for the whole order.') }}</small>
                 <small class="text-muted">{{ __('If prep exceeds this time before Ready / delivery, an overtime alert is shown on Production.') }}</small>
             </div>
             <div class="modal-footer">

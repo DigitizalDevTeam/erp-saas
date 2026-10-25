@@ -253,6 +253,11 @@
             {{ Form::number('max_stock_threshold', null, array('class' => 'form-control', 'min' => 0, 'step' => 1, 'placeholder' => __('Optional'))) }}
             <small class="text-muted">{{ __('Alert when quantity is above this (optional).') }}</small>
         </div>
+        <div class="form-group col-md-6 quantity">
+            {{ Form::label('preparation_time', __('Preparation time (minutes)'),['class'=>'form-label']) }}
+            {{ Form::number('preparation_time', null, array('class' => 'form-control', 'min' => 1, 'max' => 480, 'step' => 1, 'placeholder' => __('Default'))) }}
+            <small class="text-muted">{{ __('Default time to prepare this item on restaurant orders. Leave empty to use the global default.') }}</small>
+        </div>
         <div class="form-group col-md-12 quantity product-stock-option">
             <div class="form-check">
                 {{ Form::checkbox('does_not_affect_stock', '1', false, ['class' => 'form-check-input', 'id' => 'does_not_affect_stock_create']) }}

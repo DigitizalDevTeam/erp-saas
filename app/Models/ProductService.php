@@ -31,6 +31,7 @@ class ProductService extends Model
         'pos_printer_id',
         'low_stock_threshold',
         'max_stock_threshold',
+        'preparation_time',
         'affect_stock',
         'allow_negative_stock',
         'identifier_tracking',
@@ -59,6 +60,7 @@ class ProductService extends Model
     ];
 
     protected $casts = [
+        'preparation_time' => 'integer',
         'affect_stock' => 'boolean',
         'allow_negative_stock' => 'boolean',
         'show_on_pos' => 'boolean',

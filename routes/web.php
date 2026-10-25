@@ -2440,6 +2440,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos-shift/{pos_shift}/assign-table', [PosShiftController::class, 'assignTableForm'])->name('pos-shift.assign-table')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/{pos_shift}/assign-table', [PosShiftController::class, 'assignTable'])->name('pos-shift.assign-table.store')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/transfer-tables', [PosShiftController::class, 'transferTables'])->name('pos-shift.transfer-tables')->middleware(['auth', 'XSS']);
+    Route::get('pos-shift/{pos_shift}/assigned-tables', [PosShiftController::class, 'assignedTables'])->name('pos-shift.assigned-tables')->middleware(['auth', 'XSS']);
     Route::post('pos-shift/open-from-pos', [PosShiftController::class, 'openFromPos'])->name('pos-shift.open-from-pos')->middleware(['auth', 'XSS']);
     Route::post('pos/close-all-shifts-and-eod', [PosShiftController::class, 'closeAllShiftsAndRedirectToEod'])->name('pos.close-all-shifts-and-eod')->middleware(['auth', 'XSS']);
     Route::resource('pos-shift', PosShiftController::class)->middleware(['auth', 'XSS', 'revalidate']);

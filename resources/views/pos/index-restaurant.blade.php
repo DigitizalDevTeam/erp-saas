@@ -2843,8 +2843,6 @@
                     orderType: orderType,
                     isNonDineIn: isNonDineIn
                 };
-                var defPrep = parseInt($('#pos-prep-minutes-input').val(), 10) || {{ (int) ($posDefaultPrepMinutes ?? 15) }};
-                $('#pos-prep-minutes-input').val(defPrep);
                 var modalEl = document.getElementById('posPrepTimeModal');
                 if (modalEl && window.bootstrap && bootstrap.Modal) {
                     bootstrap.Modal.getOrCreateInstance(modalEl).show();
@@ -2858,8 +2856,9 @@
                 if (!payload || !payload.items || !payload.items.length) {
                     return;
                 }
-                var prepMinutes = parseInt($('#pos-prep-minutes-input').val(), 10);
-                if (!prepMinutes || prepMinutes < 1) {
+                var prepRaw = ($('#pos-prep-minutes-input').val() || '').trim();
+                var prepMinutes = prepRaw === '' ? null : parseInt(prepRaw, 10);
+                if (prepMinutes !== null && (!prepMinutes || prepMinutes < 1)) {
                     show_toastr('{{ __("Error") }}', '{{ __("Please enter preparation time in minutes.") }}', 'error');
                     return;
                 }
@@ -2875,9 +2874,9 @@
                     shift_id: payload.shiftId,
                     order_type: payload.orderType,
                     items: payload.items,
-                    items_json: JSON.stringify(payload.items || []),
-                    prep_minutes: prepMinutes
+                    items_json: JSON.stringify(payload.items || [])
                 };
+                if (prepMinutes) { sendData.prep_minutes = prepMinutes; }
                 if (payload.isNonDineIn) {
                     sendData.guest_name = ($('#pos-guest-name').val() || '').trim();
                     sendData.guest_email = ($('#pos-guest-email').val() || '').trim();
