@@ -2181,7 +2181,7 @@
                     .addClass('btn-outline-primary');
                 $('#pos-restaurant-customer-grid-wrap').toggleClass('d-none', isDineIn);
                 $('#pos-restaurant-manage-tables-wrap').toggleClass('d-none', !isDineIn);
-                $('#pos-join-table-restaurant, #pos-split-bill-restaurant').toggleClass('d-none', !isDineIn);
+                $('#pos-join-table-restaurant, #pos-split-bill-restaurant, #pos-transfer-items-restaurant').toggleClass('d-none', !isDineIn);
                 var $closeBtn = $('#pos-close-table-btn');
                 if (isDineIn) {
                     $closeBtn.toggleClass('d-none', ($closeBtn.data('table-status') || '') !== 'occupied');
@@ -3408,6 +3408,91 @@
                         $('#posJoinTableModal').modal('hide');
                         show_toastr('{{ __("Success") }}', data.message || '{{ __("Orders merged successfully.") }}', 'success');
                         loadRestaurantOrder(targetTableId, shiftId, branchId);
+                        if (branchId) loadRestaurantTables(branchId);
+                    },
+                    error: function (xhr) {
+                        var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __("pos.error") }}';
+                        show_toastr('{{ __("Error") }}', msg, 'error');
+                    }
+                });
+            });
+
+            $(document).on('click', '#pos-transfer-items-restaurant', function () {
+                var sourceTableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                var branchId = $('#pos-restaurant-branch').val();
+                var shiftId = $('#pos_shift_id_hidden').val();
+                var sourceName = $('#pos_restaurant_table_name').val() || $('#pos-selected-table').text() || ('Table ' + sourceTableId);
+                if (!sourceTableId || !branchId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_table") }}', 'error');
+                    return;
+                }
+                if (!shiftId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.open_shift_required_for_branch") }}', 'error');
+                    return;
+                }
+                $('#pos-transfer-from-table-name').text(sourceName);
+                $('#pos-transfer-items-select-all').prop('checked', false);
+                $('#posTransferItemsModal').modal('show');
+                $('#pos-transfer-items-list').html('<p class="text-muted small mb-0">{{ __("Loading...") }}</p>');
+                $('#pos-transfer-target-list').html('<p class="text-muted small mb-0">{{ __("Loading...") }}</p>');
+                $.get('{{ route("pos.restaurant.transfer-items-data") }}', { branch_id: branchId, table_id: sourceTableId, shift_id: shiftId }, function (res) {
+                    var html = '';
+                    (res.items || []).forEach(function (it) {
+                        var label = posEscapeHtml(it.name || ('Item #' + it.line_id)) + ' <span class="text-muted">x' + it.quantity + (it.status ? ' - ' + posEscapeHtml(it.status) : '') + '</span>';
+                        if (it.option_labels && it.option_labels.length) {
+                            label += '<br><small class="text-muted">' + posEscapeHtml(it.option_labels.join(', ')) + '</small>';
+                        }
+                        html += '<div class="form-check"><input class="form-check-input pos-transfer-item" type="checkbox" value="' + it.line_id + '" id="ti' + it.line_id + '"><label class="form-check-label" for="ti' + it.line_id + '">' + label + '</label></div>';
+                    });
+                    if (html === '') {
+                        html = '<p class="text-muted small mb-0">{{ __("pos.no_transfer_items") }}</p>';
+                    }
+                    $('#pos-transfer-items-list').html(html);
+                }).fail(function () {
+                    $('#pos-transfer-items-list').html('<p class="text-muted small mb-0">{{ __("pos.error") }}</p>');
+                });
+                $.get(posRestaurantLayoutUrl, { branch_id: branchId, shift_id: shiftId }, function (res) {
+                    var tblList = '';
+                    var found = 0;
+                    (res.areas || []).forEach(function (area) {
+                        (area.tables || []).forEach(function (t) {
+                            if (String(t.id) === String(sourceTableId)) return;
+                            if (t.status !== 'occupied' && t.status !== 'reserved') return;
+                            found++;
+                            tblList += '<div class="form-check"><input class="form-check-input pos-transfer-target" type="radio" name="pos_transfer_target" value="' + t.id + '" id="tt' + t.id + '"><label class="form-check-label" for="tt' + t.id + '">' + posEscapeHtml(t.name || ('Table ' + t.id)) + '</label></div>';
+                        });
+                    });
+                    if (tblList === '') {
+                        tblList = '<p class="text-muted small mb-0">{{ __("pos.no_open_target_tables") }}</p>';
+                    }
+                    $('#pos-transfer-target-list').html(tblList);
+                }).fail(function () {
+                    $('#pos-transfer-target-list').html('<p class="text-muted small mb-0">{{ __("pos.error") }}</p>');
+                });
+            });
+            $(document).on('change', '#pos-transfer-items-select-all', function () {
+                $('.pos-transfer-item').prop('checked', $(this).is(':checked'));
+            });
+            $(document).on('click', '#pos-transfer-items-confirm', function () {
+                var sourceTableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                var targetTableId = $('.pos-transfer-target:checked').val();
+                var branchId = $('#pos-restaurant-branch').val();
+                var shiftId = $('#pos_shift_id_hidden').val();
+                if (!sourceTableId || !branchId || !shiftId) return;
+                var ids = [];
+                $('.pos-transfer-item:checked').each(function () { ids.push($(this).val()); });
+                if (ids.length === 0 || !targetTableId) {
+                    show_toastr('{{ __("Error") }}', '{{ __("pos.select_items_and_target") }}', 'error');
+                    return;
+                }
+                $.ajax({
+                    url: '{{ route("pos.restaurant.transfer-items") }}',
+                    method: 'POST',
+                    data: { _token: $('meta[name="csrf-token"]').attr('content'), branch_id: branchId, source_table_id: sourceTableId, target_table_id: targetTableId, shift_id: shiftId, line_ids: ids },
+                    success: function (data) {
+                        $('#posTransferItemsModal').modal('hide');
+                        show_toastr('{{ __("Success") }}', data.message || '{{ __("pos.items_transferred_success") }}', 'success');
+                        loadRestaurantOrder(sourceTableId, shiftId, branchId);
                         if (branchId) loadRestaurantTables(branchId);
                     },
                     error: function (xhr) {

@@ -2460,6 +2460,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('pos-restaurant/delete-lines', [PosController::class, 'deleteRestaurantLines'])->name('pos.restaurant.delete-lines');
     Route::post('pos-restaurant/join-tables', [PosController::class, 'joinRestaurantTables'])->name('pos.restaurant.join-tables');
     Route::post('pos-restaurant/move-table', [PosController::class, 'moveRestaurantTable'])->name('pos.restaurant.move-table');
+    Route::get('pos-restaurant/transfer-items-data', [PosController::class, 'transferItemsData'])->name('pos.restaurant.transfer-items-data');
+    Route::post('pos-restaurant/transfer-items', [PosController::class, 'transferRestaurantItems'])->name('pos.restaurant.transfer-items');
     Route::post('pos-restaurant/split-order', [PosController::class, 'splitRestaurantOrderByItems'])->name('pos.restaurant.split-order');
     Route::get('pos/customer-balance', [PosController::class, 'getCustomerBalance'])->name('pos.customer.balance')->middleware(['auth', 'XSS']);
     Route::get('pos/customer-outstanding-invoices', [PosController::class, 'getCustomerOutstandingInvoices'])->name('pos.customer.outstanding.invoices')->middleware(['auth', 'XSS']);

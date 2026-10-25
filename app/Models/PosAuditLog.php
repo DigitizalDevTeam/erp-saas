@@ -9,6 +9,7 @@ class PosAuditLog extends Model
     const ACTION_OPEN_TABLE = 'open_table';
     const ACTION_CLOSE_TABLE = 'close_table';
     const ACTION_SEND_ORDER = 'send_order';
+    const ACTION_TRANSFER_ITEMS = 'transfer_items';
     const ACTION_CANCEL_ORDER = 'cancel_order';
     const ACTION_DISCOUNT = 'discount';
     const ACTION_CASH_DROP = 'cash_drop';
