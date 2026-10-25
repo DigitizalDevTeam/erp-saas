@@ -33,3 +33,4 @@ printer-agent.zip
 /printer-agent/publish-*/
 *.exe
 *.pdb
+/storage/uploads/logo/
