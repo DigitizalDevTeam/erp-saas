@@ -16,6 +16,117 @@ use Illuminate\Http\Request;
 class ProductOptionService
 {
     /**
+     * Option recipes (restaurant send only): an option is itself a product,
+     * so its own recipe ingredients are consumed per option unit sold.
+     * Returns positive quantities to move: one entry per ingredient actually
+     * consumed. An order-time pick replaces the main ingredient with the
+     * alternative at the alternative's quantity (its own qty when set,
+     * else the main's recipe qty); an undefined or invalid pick falls back
+     * to the main ingredient. No-affect mains move nothing, mirroring the
+     * parent BOM rule. Retail/invoice paths never call this.
+     *
+     * @return array<int, array{product_id: int, quantity: float, description_suffix: string}>
+     */
+    public static function optionRecipeMovements(array $selected, float $lineQuantity, int $creatorId): array
+    {
+        if ($selected === []) {
+            return [];
+        }
+        $multiplier = $lineQuantity > 0 ? $lineQuantity : 1;
+        $optionIds = [];
+        foreach ($selected as $row) {
+            if (is_array($row) && (int) ($row['product_id'] ?? 0) > 0) {
+                $optionIds[] = (int) $row['product_id'];
+            }
+        }
+        if ($optionIds === []) {
+            return [];
+        }
+        $recipes = \App\Models\ProductRecipe::whereIn('product_id', $optionIds)
+            ->where('created_by', $creatorId)
+            ->with(['ingredientProduct', 'alternatives'])
+            ->orderBy('id')
+            ->get()
+            ->groupBy('product_id');
+        if ($recipes->isEmpty()) {
+            return [];
+        }
+        $movements = [];
+        foreach ($selected as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $optId = (int) ($row['product_id'] ?? 0);
+            $optQty = (float) ($row['quantity'] ?? 1);
+            if ($optId <= 0 || $optQty <= 0) {
+                continue;
+            }
+            $picks = [];
+            foreach ($row['ingredient_substitutes'] ?? [] as $sub) {
+                if (is_array($sub) && (int) ($sub['recipe_id'] ?? 0) > 0 && (int) ($sub['alternative_product_id'] ?? 0) > 0) {
+                    $picks[(int) $sub['recipe_id']] = (int) $sub['alternative_product_id'];
+                }
+            }
+            foreach ($recipes->get($optId, collect()) as $recipe) {
+                $main = $recipe->ingredientProduct;
+                if (! $main || ($main->type ?? '') !== 'ingredient' || ! ($main->affect_stock ?? true)) {
+                    continue;
+                }
+                $deductId = (int) $main->id;
+                $perUnit = (float) $recipe->quantity;
+                $suffix = '';
+                if (isset($picks[$recipe->id])) {
+                    $altRow = $recipe->alternatives->firstWhere('alternative_product_id', $picks[$recipe->id]);
+                    if ($altRow) {
+                        $alt = ProductService::where('id', $picks[$recipe->id])->where('created_by', $creatorId)->first();
+                        if ($alt && ($alt->type ?? '') === 'ingredient' && ($alt->affect_stock ?? true)) {
+                            $deductId = (int) $alt->id;
+                            $perUnit = $altRow->effectiveQuantity((float) $recipe->quantity);
+                            $suffix = ' (substituted for ' . $main->name . ')';
+                        }
+                    }
+                }
+                $total = $perUnit * $optQty * $multiplier;
+                if ($total > 0) {
+                    $movements[] = ['product_id' => $deductId, 'quantity' => $total, 'description_suffix' => $suffix];
+                }
+            }
+        }
+
+        return $movements;
+    }
+
+    /**
+     * Deduct option recipe ingredients at restaurant send, honoring
+     * order-time picks. Called from PosLineStockDeductionService only.
+     */
+    public static function deductOptionRecipesForSale(
+        array $selected,
+        float $lineQuantity,
+        int $warehouseId,
+        int $creatorId,
+        string $saleNumber,
+        int $typeId,
+        bool $allowNegative = false
+    ): void {
+        foreach (self::optionRecipeMovements($selected, $lineQuantity, $creatorId) as $move) {
+            $prod = ProductService::where('id', $move['product_id'])->where('created_by', $creatorId)->first();
+            if (! $prod) {
+                continue;
+            }
+            $original = (float) ($prod->quantity ?? 0);
+            $newQty = ($allowNegative || $prod->allowsNegativeStock())
+                ? $original - $move['quantity']
+                : max(0, $original - $move['quantity']);
+            ProductService::where('id', $move['product_id'])->update(['quantity' => $newQty]);
+            if ($warehouseId > 0) {
+                Utility::warehouse_quantity('minus', $move['quantity'], $move['product_id'], $warehouseId, null, $allowNegative);
+            }
+            Utility::addProductStock($move['product_id'], $move['quantity'], 'pos', $move['quantity'] . ' ' . __('quantity sold in pos') . ' ' . $saleNumber . $move['description_suffix'], $typeId);
+        }
+    }
+
+    /**
      * @return array<int, array{product_id: int, quantity: float, price: float}>
      */
     public static function normalizeSelectedOptions(mixed $raw): array
@@ -60,6 +171,28 @@ class ProductOptionService
             if ($name !== '') {
                 $entry['name'] = $name;
             }
+            // Order-time ingredient picks (restaurant POS popup): one
+            // alternative per recipe, kept through every normalize/encode
+            // round-trip so send, void restore and display all see them.
+            if (isset($row['ingredient_substitutes']) && is_array($row['ingredient_substitutes'])) {
+                $seenRecipes = [];
+                $subs = [];
+                foreach ($row['ingredient_substitutes'] as $sub) {
+                    if (! is_array($sub)) {
+                        continue;
+                    }
+                    $recipeId = (int) ($sub['recipe_id'] ?? 0);
+                    $altId = (int) ($sub['alternative_product_id'] ?? $sub['alternative_id'] ?? 0);
+                    if ($recipeId <= 0 || $altId <= 0 || isset($seenRecipes[$recipeId])) {
+                        continue;
+                    }
+                    $seenRecipes[$recipeId] = true;
+                    $subs[] = ['recipe_id' => $recipeId, 'alternative_product_id' => $altId];
+                }
+                if ($subs !== []) {
+                    $entry['ingredient_substitutes'] = $subs;
+                }
+            }
             $out[] = $entry;
         }
 
@@ -102,7 +235,7 @@ class ProductOptionService
      * @param  array<int|string, int|float>|null  $warehouseQuantities  product_id => qty
      * @return array{options_enabled: bool, options: array<int, array<string, mixed>>}
      */
-    public static function productJsonExtras(ProductService $product, ?int $warehouseId = null, ?array $warehouseQuantities = null): array
+    public static function productJsonExtras(ProductService $product, ?int $warehouseId = null, ?array $warehouseQuantities = null, bool $withIngredients = false): array
     {
         $enabled = (bool) ($product->options_enabled ?? false);
         if (! $enabled) {
@@ -139,6 +272,28 @@ class ProductOptionService
         }
         $warehouseQuantities = $warehouseQuantities ?? [];
 
+        // Option ingredients for the restaurant popup (only when asked):
+        // an option is itself a product, so it can have its own recipe.
+        $recipesByOption = collect();
+        $altsByRecipe = collect();
+        if ($withIngredients && $optionIds !== []) {
+            $recipes = \App\Models\ProductRecipe::whereIn('product_id', $optionIds)
+                ->where('created_by', $product->created_by)
+                ->with('ingredientProduct')
+                ->orderBy('id')
+                ->get();
+            $recipesByOption = $recipes->groupBy('product_id');
+            $recipeIds = $recipes->pluck('id')->all();
+            if ($recipeIds !== []) {
+                $alts = \App\Models\ProductRecipeAlternative::whereIn('product_recipe_id', $recipeIds)
+                    ->with('alternativeProduct')
+                    ->orderBy('sort_order')
+                    ->orderBy('id')
+                    ->get();
+                $altsByRecipe = $alts->groupBy('product_recipe_id');
+            }
+        }
+
         $options = [];
         foreach ($items as $item) {
             $op = $products->get($item->option_product_id);
@@ -170,6 +325,41 @@ class ProductOptionService
                 'does_not_affect_stock' => ! (bool) ($op->affect_stock ?? true),
                 'variants_count' => (int) ($op->variants_count ?? 0),
             ];
+            if ($withIngredients) {
+                $ingredients = [];
+                foreach ($recipesByOption->get($op->id, collect()) as $recipe) {
+                    $main = $recipe->ingredientProduct;
+                    if (! $main || ($main->type ?? '') !== 'ingredient') {
+                        continue;
+                    }
+                    $alts = [];
+                    foreach ($altsByRecipe->get($recipe->id, collect()) as $alt) {
+                        $ap = $alt->alternativeProduct;
+                        if (! $ap || ($ap->type ?? '') !== 'ingredient' || (int) $ap->id === (int) $main->id) {
+                            continue;
+                        }
+                        $alts[] = [
+                            'id' => (int) $ap->id,
+                            'name' => (string) $ap->name,
+                            'quantity' => $alt->effectiveQuantity((float) $recipe->quantity),
+                        ];
+                    }
+                    $unitLabel = '';
+                    if (! empty($recipe->unit)) {
+                        $unitLabel = \App\Support\MeasurementUnits::all()[$recipe->unit] ?? (string) $recipe->unit;
+                    }
+                    $ingredients[] = [
+                        'recipe_id' => (int) $recipe->id,
+                        'ingredient_id' => (int) $main->id,
+                        'ingredient_name' => (string) $main->name,
+                        'quantity' => (float) $recipe->quantity,
+                        'unit' => $unitLabel,
+                        'affects_stock' => (bool) ($main->affect_stock ?? true),
+                        'alternatives' => $alts,
+                    ];
+                }
+                $options[count($options) - 1]['ingredients'] = $ingredients;
+            }
         }
 
         return ['options_enabled' => true, 'options' => $options];
@@ -420,10 +610,73 @@ class ProductOptionService
             // Always show the qty (including 1) so kitchen/production slips
             // never hide how many of an option are needed.
             $name .= ' ×' . rtrim(rtrim(number_format($oq, 4, '.', ''), '0'), '.');
+            $pickLabels = self::optionSubstituteLabels($row);
+            if ($pickLabels !== []) {
+                $name .= ' — ' . implode('; ', $pickLabels);
+            }
             $lines[] = $name;
         }
 
         return $lines;
+    }
+
+    /**
+     * Order-time ingredient picks for one selected option, as kitchen
+     * labels: "Vinegar 1.5 instead of Wine 0.5". Stale picks (recipe or
+     * alternative gone) are skipped silently.
+     *
+     * @return array<int, string>
+     */
+    protected static function optionSubstituteLabels(array $row): array
+    {
+        $subs = $row['ingredient_substitutes'] ?? [];
+        if (! is_array($subs) || $subs === []) {
+            return [];
+        }
+        $optId = (int) ($row['product_id'] ?? 0);
+        if ($optId <= 0) {
+            return [];
+        }
+        $recipeIds = [];
+        $altIds = [];
+        foreach ($subs as $sub) {
+            if (is_array($sub) && (int) ($sub['recipe_id'] ?? 0) > 0 && (int) ($sub['alternative_product_id'] ?? 0) > 0) {
+                $recipeIds[] = (int) $sub['recipe_id'];
+                $altIds[] = (int) $sub['alternative_product_id'];
+            }
+        }
+        if ($recipeIds === []) {
+            return [];
+        }
+        $recipes = \App\Models\ProductRecipe::where('product_id', $optId)
+            ->whereIn('id', $recipeIds)
+            ->with('ingredientProduct')
+            ->get()
+            ->keyBy('id');
+        $altRows = \App\Models\ProductRecipeAlternative::whereIn('product_recipe_id', $recipeIds)
+            ->whereIn('alternative_product_id', $altIds)
+            ->get()
+            ->keyBy(fn ($a) => $a->product_recipe_id . '_' . $a->alternative_product_id);
+        $fmt = fn ($q) => rtrim(rtrim(number_format((float) $q, 4, '.', ''), '0'), '.');
+        $labels = [];
+        foreach ($subs as $sub) {
+            if (! is_array($sub)) {
+                continue;
+            }
+            $recipe = $recipes->get((int) ($sub['recipe_id'] ?? 0));
+            $altRow = $altRows->get(((int) ($sub['recipe_id'] ?? 0)) . '_' . ((int) ($sub['alternative_product_id'] ?? 0)));
+            if (! $recipe || ! $altRow) {
+                continue;
+            }
+            $main = $recipe->ingredientProduct;
+            $alt = ProductService::find((int) $sub['alternative_product_id']);
+            if (! $main || ! $alt) {
+                continue;
+            }
+            $labels[] = $alt->name . ' ' . $fmt($altRow->effectiveQuantity((float) $recipe->quantity)) . ' instead of ' . $main->name . ' ' . $fmt($recipe->quantity);
+        }
+
+        return $labels;
     }
 
     /**

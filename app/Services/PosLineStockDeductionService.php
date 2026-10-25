@@ -66,6 +66,9 @@ class PosLineStockDeductionService
             'selected_options' => $selectedOpts,
             'selected_options_json' => $line->selected_options_json,
         ], $warehouseId, $creatorId, $posNoFormatted, $posId, $allowNegative)) {
+            // Options deducted; option recipes (an option's own ingredients,
+            // honoring restaurant popup picks) are consumed too.
+            ProductOptionService::deductOptionRecipesForSale($selectedOpts, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $allowNegative);
             // Options deducted; the parent's own BOM (recipe ingredients /
             // kit components) is still consumed per unit sold.
             self::deductParentBom($product, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId, $allowNegative);

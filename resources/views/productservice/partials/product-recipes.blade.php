@@ -48,7 +48,7 @@
                             <button type="button" class="btn btn-sm btn-outline-info recipe-alternatives-btn" data-recipe-key="existing_{{ $ri->id }}" data-ingredient-id="{{ $ri->ingredient_product_id }}" data-ingredient-name="{{ $ri->ingredientProduct ? $ri->ingredientProduct->name : '' }}">{{ __('Alternatives') }} (<span class="recipe-alt-count">{{ count($riAlts) }}</span>)</button>
                             <span class="recipe-alternatives-inputs">
                                 @foreach($riAlts as $alt)
-                                    <input type="hidden" name="product_recipes[existing_{{ $ri->id }}][alternatives][]" value="{{ $alt->alternative_product_id }}">
+                                    <input type="hidden" name="product_recipes[existing_{{ $ri->id }}][alternatives][{{ $alt->alternative_product_id }}]" value="{{ $alt->quantity }}">
                                 @endforeach
                             </span>
                         </td>
@@ -115,6 +115,7 @@
                             <option value="{{ $ing->id }}">{{ $ing->name }}{{ $ing->sku ? ' (' . $ing->sku . ')' : '' }}</option>
                         @endforeach
                     </select>
+                    <input type="number" class="form-control" id="recipe-alt-add-qty" step="any" min="0.0001" placeholder="{{ __('Qty (empty = same as main)') }}" style="max-width:12rem">
                     <button type="button" class="btn btn-primary" id="recipe-alt-add-btn">{{ __('Add') }}</button>
                 </div>
             </div>
@@ -132,12 +133,13 @@
     var currentBtn = null;
     var currentList = [];
     function esc(s) { var el = document.createElement('textarea'); el.textContent = (s == null ? '' : String(s)); return el.innerHTML; }
+    function normQty(v) { if (v === '' || v == null || isNaN(parseFloat(v)) || parseFloat(v) <= 0) return ''; return String(v); }
     function renderList() {
         var wrap = document.getElementById('recipe-alt-list');
         if (!currentList.length) { wrap.innerHTML = '<p class="text-muted small mb-0">{{ __('No alternatives yet.') }}</p>'; return; }
         var html = '';
         currentList.forEach(function (a, idx) {
-            html += '<div class="d-flex justify-content-between align-items-center border rounded px-2 py-1 mb-1"><span>' + (idx + 1) + '. ' + esc(a.name) + '</span><button type="button" class="btn btn-sm btn-outline-danger recipe-alt-remove" data-idx="' + idx + '"><i class="ti ti-trash"></i></button></div>';
+            html += '<div class="d-flex justify-content-between align-items-center border rounded px-2 py-1 mb-1"><span>' + (idx + 1) + '. ' + esc(a.name) + '</span><span class="d-flex gap-2 align-items-center"><input type="number" class="form-control form-control-sm recipe-alt-qty" data-idx="' + idx + '" step="any" min="0.0001" placeholder="{{ __('Qty') }}" style="width:6rem" value="' + esc(a.qty || '') + '"><button type="button" class="btn btn-sm btn-outline-danger recipe-alt-remove" data-idx="' + idx + '"><i class="ti ti-trash"></i></button></span></div>';
         });
         wrap.innerHTML = html;
     }
@@ -150,8 +152,11 @@
             currentList = [];
             if (row) {
                 row.querySelectorAll('.recipe-alternatives-inputs input').forEach(function (inp) {
-                    var opt = document.querySelector('#recipe-alt-select option[value="' + inp.value + '"]');
-                    currentList.push({ id: inp.value, name: opt ? opt.textContent : ('#' + inp.value) });
+                    var m = inp.name.match(/\[alternatives\]\[(\d+)\]/);
+                    var altId = m ? m[1] : null;
+                    if (!altId) return;
+                    var opt = document.querySelector('#recipe-alt-select option[value="' + altId + '"]');
+                    currentList.push({ id: altId, name: opt ? opt.textContent : ('#' + altId), qty: normQty(inp.value) });
                 });
             }
             renderList();
@@ -164,15 +169,23 @@
             renderList();
         }
     });
+    document.addEventListener('change', function (e) {
+        var q = e.target.closest('.recipe-alt-qty');
+        if (q) {
+            var idx = parseInt(q.getAttribute('data-idx'), 10);
+            if (currentList[idx]) { currentList[idx].qty = normQty(q.value); }
+        }
+    });
     document.getElementById('recipe-alt-add-btn').addEventListener('click', function () {
         var sel = document.getElementById('recipe-alt-select');
         if (!sel.value) return;
         var mainId = currentBtn ? currentBtn.getAttribute('data-ingredient-id') : null;
         if (mainId && String(sel.value) === String(mainId)) return;
         if (currentList.some(function (a) { return String(a.id) === String(sel.value); })) return;
-        currentList.push({ id: sel.value, name: sel.options[sel.selectedIndex].text });
+        currentList.push({ id: sel.value, name: sel.options[sel.selectedIndex].text, qty: normQty(document.getElementById('recipe-alt-add-qty').value) });
         renderList();
         sel.value = '';
+        document.getElementById('recipe-alt-add-qty').value = '';
     });
     document.getElementById('recipe-alt-save-btn').addEventListener('click', function () {
         if (!currentBtn) return;
@@ -182,7 +195,7 @@
         if (container) {
             var html = '';
             currentList.forEach(function (a) {
-                html += '<input type="hidden" name="product_recipes[' + key + '][alternatives][]" value="' + a.id + '">';
+                html += '<input type="hidden" name="product_recipes[' + key + '][alternatives][' + a.id + ']" value="' + esc(normQty(a.qty)) + '">';
             });
             container.innerHTML = html;
         }

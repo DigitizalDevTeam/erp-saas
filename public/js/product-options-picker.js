@@ -82,12 +82,32 @@
             if (qty <= 0) {
                 qty = 1;
             }
-            selected.push({
+            var entry = {
                 product_id: parseInt(input.value, 10),
                 name: row.getAttribute('data-option-name') || '',
                 quantity: qty,
                 price: parseFloat(row.getAttribute('data-unit-price')) || 0,
-            });
+            };
+            // Order-time ingredient picks for this option (restaurant popup):
+            // one alternative per recipe; empty value means keep the main.
+            var ingDiv = modalEl.querySelector('.erp-opt-ingredients[data-option-id="' + input.value + '"]');
+            if (ingDiv) {
+                var subs = [];
+                ingDiv.querySelectorAll('.erp-opt-ing-group').forEach(function (grp) {
+                    var checked = grp.querySelector('input[type="radio"]:checked');
+                    var altVal = checked ? checked.value : '';
+                    if (altVal !== '' && altVal !== null) {
+                        subs.push({
+                            recipe_id: parseInt(grp.getAttribute('data-recipe-id'), 10),
+                            alternative_product_id: parseInt(altVal, 10),
+                        });
+                    }
+                });
+                if (subs.length) {
+                    entry.ingredient_substitutes = subs;
+                }
+            }
+            selected.push(entry);
         });
 
         return selected;
@@ -171,6 +191,61 @@
             qtyHtml +
             '</label>'
         );
+    }
+
+    // Ingredients of an option product (an option is itself a product with
+    // its own recipe). Rendered under the option row, never inside the
+    // row's <label> — a click on a radio must not toggle the option.
+    // One radio group per ingredient: main (checked by default) or one
+    // alternative, each with its per-unit quantity.
+    function renderOptionIngredients(opt) {
+        if (!ctx.showOptionIngredients || !opt.ingredients || !opt.ingredients.length) {
+            return '';
+        }
+        var html =
+            '<div class="erp-opt-ingredients border rounded p-2 mb-2 bg-light" data-option-id="' +
+            escapeHtml(String(opt.product_id)) +
+            '">' +
+            '<div class="fw-semibold small mb-1">' +
+            escapeHtml(t('ingredients', 'Ingredients')) +
+            '</div>';
+        opt.ingredients.forEach(function (ing) {
+            var mainQty = ing.quantity != null ? ' — ' + ing.quantity + (ing.unit ? ' ' + ing.unit : '') : '';
+            html +=
+                '<div class="erp-opt-ing-group small mb-2" data-recipe-id="' +
+                escapeHtml(String(ing.recipe_id)) +
+                '">' +
+                '<div class="fw-semibold">' +
+                escapeHtml(ing.ingredient_name) +
+                '</div>';
+            if (ing.affects_stock && ing.alternatives && ing.alternatives.length) {
+                var groupName = 'erp-opt-ing-' + opt.product_id + '-' + ing.recipe_id;
+                html +=
+                    '<label class="d-block"><input type="radio" class="form-check-input me-1" name="' +
+                    escapeHtml(groupName) +
+                    '" value="" checked> ' +
+                    escapeHtml(ing.ingredient_name + mainQty) +
+                    ' (' +
+                    escapeHtml(t('main', 'Main')) +
+                    ')</label>';
+                ing.alternatives.forEach(function (a) {
+                    var aQty = a.quantity != null ? ' — ' + a.quantity : '';
+                    html +=
+                        '<label class="d-block"><input type="radio" class="form-check-input me-1" name="' +
+                        escapeHtml(groupName) +
+                        '" value="' +
+                        escapeHtml(String(a.id)) +
+                        '"> ' +
+                        escapeHtml(a.name + aQty) +
+                        '</label>';
+                });
+            } else {
+                html += '<div class="text-muted">' + escapeHtml(ing.ingredient_name + mainQty) + '</div>';
+            }
+            html += '</div>';
+        });
+        html += '</div>';
+        return html;
     }
 
     function calcOptionsAmount(selected) {
@@ -271,6 +346,7 @@
             opts = opts || {};
             ctx.item = item;
             ctx.forPurchase = !!opts.forPurchase;
+            ctx.showOptionIngredients = !!opts.showOptionIngredients;
             ctx.onDone = typeof onDone === 'function' ? onDone : null;
 
             var modalEl = getModalEl();
@@ -311,6 +387,7 @@
                         '<div class="list-group">';
                     grp.items.forEach(function (opt) {
                         html += renderOptionRow(opt, 'checkbox', 'erp-opt-group-' + slugifyGroup(groupName) + '-' + opt.product_id);
+                        html += renderOptionIngredients(opt);
                     });
                     html += '</div></div>';
                     listEl.insertAdjacentHTML('beforeend', html);
@@ -325,6 +402,7 @@
                         '<div class="list-group">';
                     grouped.ungrouped.forEach(function (opt) {
                         addOnHtml += renderOptionRow(opt, 'checkbox', 'erp-opt-addon-' + opt.product_id);
+                        addOnHtml += renderOptionIngredients(opt);
                     });
                     addOnHtml += '</div></div>';
                     listEl.insertAdjacentHTML('beforeend', addOnHtml);
