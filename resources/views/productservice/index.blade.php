@@ -468,7 +468,11 @@
                         if (typeof show_toastr === 'function') {
                             show_toastr('Success', res.success || '{{ __('Warehouse transfer created successfully.') }}', 'success');
                         }
-                        ssLoad();
+                        if (res.transfer_id) {
+                            ssOpenPrintPopup(res.transfer_id);
+                        } else {
+                            ssLoad();
+                        }
                     },
                     error: function (xhr) {
                         var msg = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : '{{ __('Unable to transfer stock.') }}';
@@ -481,6 +485,33 @@
                         $btn.prop('disabled', false);
                     }
                 });
+            });
+
+            var ssPrintBaseUrl = '{{ url('warehouse-transfer') }}';
+
+            function ssOpenPrintPopup(transferId) {
+                var statusModalEl = document.getElementById('stockStatusModal');
+                var statusModal = bootstrap.Modal.getInstance(statusModalEl);
+                var printModalEl = document.getElementById('stockTransferPrintModal');
+                var printModal = bootstrap.Modal.getOrCreateInstance(printModalEl);
+                document.getElementById('ssPrintFrame').src = ssPrintBaseUrl + '/' + transferId + '/print';
+                // Close the stock status popup first, then open the print
+                // popup once it is fully hidden (keeps one backdrop only).
+                if (statusModal) {
+                    $(statusModalEl).one('hidden.bs.modal', function () {
+                        printModal.show();
+                    });
+                    statusModal.hide();
+                } else {
+                    printModal.show();
+                }
+            }
+
+            $(document).on('click', '#ssPrintBtn', function () {
+                var frame = document.getElementById('ssPrintFrame');
+                if (frame && frame.contentWindow) {
+                    frame.contentWindow.print();
+                }
             });
 
             function ssLoad() {
@@ -645,6 +676,24 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Close') }}</button>
                     <button type="button" class="btn btn-primary" id="stockStatusRefresh"><i class="ti ti-refresh"></i> {{ __('Refresh') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="stockTransferPrintModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">{{ __('Warehouse Transfer') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <iframe id="ssPrintFrame" src="about:blank" style="width:100%;height:70vh;border:0;" title="{{ __('Warehouse Transfer') }}"></iframe>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('Close') }}</button>
+                    <button type="button" class="btn btn-primary" id="ssPrintBtn"><i class="ti ti-printer"></i> {{ __('Print') }}</button>
                 </div>
             </div>
         </div>

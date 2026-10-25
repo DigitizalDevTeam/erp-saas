@@ -1696,8 +1696,9 @@ class ProductServiceController extends Controller
             return response()->json(['error' => __('Insufficient quantity in source warehouse.')], 422);
         }
 
+        $transferId = null;
         try {
-            DB::transaction(function () use ($creatorId, $itemId, $fromId, $toId, $quantity, $request, $warehouses) {
+            DB::transaction(function () use ($creatorId, $itemId, $fromId, $toId, $quantity, $request, $warehouses, &$transferId) {
                 $transfer = new WarehouseTransfer();
                 $transfer->from_warehouse = $fromId;
                 $transfer->to_warehouse = $toId;
@@ -1706,6 +1707,7 @@ class ProductServiceController extends Controller
                 $transfer->date = $request->date ?: date('Y-m-d');
                 $transfer->created_by = $creatorId;
                 $transfer->save();
+                $transferId = $transfer->id;
 
                 // Move row by row (variant / bin preserved on arrival).
                 $remaining = $quantity;
@@ -1742,7 +1744,7 @@ class ProductServiceController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
 
-        return response()->json(['success' => __('Warehouse transfer created successfully.')]);
+        return response()->json(['success' => __('Warehouse transfer created successfully.'), 'transfer_id' => $transferId]);
     }
 
     public function searchProducts(Request $request)
