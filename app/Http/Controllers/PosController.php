@@ -1245,6 +1245,25 @@ class PosController extends Controller
     }
 
     /**
+     * Release a joined source table: free the table itself and unassign it
+     * from its open shifts, so the shift page, the Transfer Tables popup
+     * and waiter-only floors stop showing it as that waiter's table.
+     * (Join previously freed only the table row and left the assignment
+     * active — the table still looked joined there.)
+     */
+    protected function releaseJoinedRestaurantTable(int $tableId, int $creatorId, array $openShiftIds): void
+    {
+        \App\Models\PosTable::where('id', $tableId)->where('created_by', $creatorId)->update($this->restaurantTableAvailablePayload());
+        $openShiftIds = array_values(array_unique(array_filter(array_map('intval', $openShiftIds))));
+        if ($openShiftIds !== []) {
+            \App\Models\PosTableAssignment::where('table_id', $tableId)
+                ->whereIn('shift_id', $openShiftIds)
+                ->whereNull('unassigned_at')
+                ->update(['unassigned_at' => now()]);
+        }
+    }
+
+    /**
      * Table IDs that have at least one unpaid line already sent to production.
      *
      * @param  int[]  $tableIds
@@ -4358,8 +4377,10 @@ class PosController extends Controller
                 $sourcePos->cancelled_at = now();
                 $sourcePos->save();
             }
-            // Always release joined source tables (clears waiter/customer/guests).
-            \App\Models\PosTable::where('id', $srcTableId)->where('created_by', $creatorId)->update($this->restaurantTableAvailablePayload());
+            // Always release joined source tables (clears waiter/customer/guests)
+            // and unassign them from their open shifts, so they stop showing
+            // as joined on the shift page and waiter floors.
+            $this->releaseJoinedRestaurantTable($srcTableId, $creatorId, $openShiftIds->all());
             foreach ($openShiftIds as $sid) {
                 $tableKey = $srcTableId . '_' . $sid;
                 if (isset($allCarts[$tableKey])) {
