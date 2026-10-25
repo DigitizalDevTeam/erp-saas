@@ -2,10 +2,10 @@
 
 namespace App\Support;
 
+use App\Jobs\SendLoggedEmailJob;
 use App\Services\EmailLogService;
 use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Mail;
 
 class LoggedMail
 {
@@ -22,20 +22,22 @@ class LoggedMail
         ]);
         unset($meta['source'], $meta['subject'], $meta['created_by'], $meta['user_id'], $meta['mail_settings']);
 
-        // Every email goes out with the SMTP settings saved on /systems
-        // (per-company values win field-by-field, /systems is the fallback),
-        // unless the caller supplied explicit settings (test-mail form).
-        MailConfig::apply($createdBy ? (int) $createdBy : null, is_array($mailSettings) ? $mailSettings : null);
-
+        // Queued, not sent inline: the SMTP wait moves to the queue worker
+        // and the page returns at once, so the UI never freezes on email.
+        // The job applies the company's SMTP settings and logs the outcome
+        // (success in handle(), final failure in failed()) exactly as the
+        // old inline send did. With QUEUE_CONNECTION=sync the job runs
+        // inline, so behaviour there is unchanged.
         try {
-            Mail::to($to)->send($mailable);
-
-            EmailLogService::logSuccess(
+            SendLoggedEmailJob::dispatch(
+                $to,
+                $mailable,
                 $recipients,
                 $subject,
                 $source,
                 (int) $createdBy,
                 $userId ? (int) $userId : null,
+                is_array($mailSettings) ? $mailSettings : null,
                 $meta
             );
         } catch (\Throwable $e) {
