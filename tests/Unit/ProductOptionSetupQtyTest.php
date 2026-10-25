@@ -55,8 +55,9 @@ class ProductOptionSetupQtyTest extends TestCase
         $this->assertStringContainsString('setupQty +', $js);
 
         $partial = file_get_contents(resource_path('views/partials/product-options-picker.blade.php'));
-        // Bumped when the picker gained option ingredients (Task 7) so
-        // browsers do not keep serving the cached picker without them.
-        $this->assertStringContainsString('?v=20261026a', $partial);
+        // Bumped when the picker gained option ingredients (Task 7) and
+        // again for the grouped two-column ingredients layout, so browsers
+        // do not keep serving a cached picker without them.
+        $this->assertStringContainsString('?v=20261026b', $partial);
     }
 }

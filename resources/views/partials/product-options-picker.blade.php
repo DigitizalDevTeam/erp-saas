@@ -51,4 +51,4 @@
         main: @json(__('Main')),
     };
 </script>
-<script src="{{ asset('js/product-options-picker.js') }}?v=20261026a"></script>
+<script src="{{ asset('js/product-options-picker.js') }}?v=20261026b"></script>
