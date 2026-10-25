@@ -29,6 +29,7 @@ use App\Services\PosFefoDeductionService;
 use App\Services\PosRecipeDeductionService;
 use App\Services\NegativeStockAuthorizationService;
 use App\Services\PosWarehouseAvailabilityService;
+use App\Services\RestaurantItemTransferService;
 use App\Services\PosPrintRoutingService;
 use App\Services\PosPrinterAgentService;
 use App\Services\PosRestaurantRoleService;
@@ -4546,6 +4547,217 @@ class PosController extends Controller
             'pos_id' => $targetPos->id,
             'target_table_id' => $targetTableId,
             'target_table_name' => $targetTable->name,
+        ]);
+    }
+
+    /**
+     * Open (unpaid) restaurant check for a table: the check on an open shift
+     * first (same order as the order screen), then the exact shift.
+     */
+    protected function openRestaurantPosForTable(int $tableId, int $branchId, int $shiftId, int $creatorId): ?Pos
+    {
+        $base = Pos::where('table_id', $tableId)
+            ->where('created_by', $creatorId)
+            ->whereNull('cancelled_at')
+            ->whereDoesntHave('posPayments');
+
+        if ($branchId > 0) {
+            $pos = (clone $base)->where('branch_id', $branchId)
+                ->whereHas('shift', fn ($q) => $q->where('status', \App\Models\PosShift::STATUS_OPEN))
+                ->first();
+            if ($pos) {
+                return $pos;
+            }
+        }
+        if ($shiftId > 0) {
+            $pos = (clone $base)->where('shift_id', $shiftId)->first();
+            if ($pos) {
+                return $pos;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Transfer-items popup data: the source table's saved order lines.
+     * Only active lines are listed (voided / removed / cancelled lines stay
+     * with the source check for audit). Unsent session-cart drafts are not
+     * part of the saved order, so they are not listed either.
+     */
+    public function transferItemsData(Request $request)
+    {
+        if (! Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $pinCheck = $this->restaurantPinActorOrJsonError();
+        if ($pinCheck instanceof \Illuminate\Http\JsonResponse) {
+            return $pinCheck;
+        }
+        $request->validate([
+            'branch_id' => 'required|exists:branches,id',
+            'table_id' => 'required|exists:pos_tables,id',
+            'shift_id' => 'required|exists:pos_shifts,id',
+        ]);
+        $creatorId = Auth::user()->creatorId();
+        $branchId = (int) $request->branch_id;
+        $tableId = (int) $request->table_id;
+        $shiftId = (int) $request->shift_id;
+        if ($resp = $this->assertRestaurantPosActorBranch($branchId)) {
+            return $resp;
+        }
+
+        $pos = $this->openRestaurantPosForTable($tableId, $branchId, $shiftId, $creatorId);
+        $items = [];
+        if ($pos) {
+            $pos->loadMissing(['items.product']);
+            foreach ($pos->items as $line) {
+                if (! $this->isActivePosBillLine($line) || $line->status === PosProduct::STATUS_CANCELLED) {
+                    continue;
+                }
+                $items[] = [
+                    'line_id' => $line->id,
+                    'name' => $this->resolvePosLineDisplayName($line, $line->product),
+                    'option_labels' => ProductOptionService::optionDisplayLines(
+                        ProductOptionService::normalizeSelectedOptions($line->selected_options_json ?? null)
+                    ),
+                    'quantity' => (int) $line->quantity,
+                    'status' => $line->status ?? PosProduct::STATUS_PENDING,
+                    'is_sent' => $line->sent_at !== null,
+                ];
+            }
+        }
+
+        return response()->json([
+            'pos_id' => $pos ? $pos->id : null,
+            'items' => $items,
+        ]);
+    }
+
+    /**
+     * Transfer items between open tables: ticked lines of the source table's
+     * order move into the destination table's existing order (a check is
+     * created for the destination first when it has none, like Join Table).
+     * Unticked lines stay. When nothing billable is left on the source table
+     * and no unsent draft sits in its session cart, the source check is
+     * cancelled and the table is released, like Join Table does.
+     */
+    public function transferRestaurantItems(Request $request)
+    {
+        if (! Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+        $pinCheck = $this->restaurantPinActorOrJsonError();
+        if ($pinCheck instanceof \Illuminate\Http\JsonResponse) {
+            return $pinCheck;
+        }
+        $request->validate([
+            'branch_id' => 'required|exists:branches,id',
+            'source_table_id' => 'required|exists:pos_tables,id',
+            'target_table_id' => 'required|exists:pos_tables,id|different:source_table_id',
+            'shift_id' => 'required|exists:pos_shifts,id',
+            'line_ids' => 'required|array|min:1',
+            'line_ids.*' => 'exists:pos_products,id',
+        ]);
+        $creatorId = Auth::user()->creatorId();
+        $branchId = (int) $request->branch_id;
+        $sourceTableId = (int) $request->source_table_id;
+        $targetTableId = (int) $request->target_table_id;
+        $shiftId = (int) $request->shift_id;
+        $lineIds = array_map('intval', $request->line_ids);
+
+        $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->first();
+        if (! $branch) {
+            return response()->json(['error' => __('Invalid branch.')], 422);
+        }
+        if ($resp = $this->assertRestaurantPosActorBranch($branchId)) {
+            return $resp;
+        }
+        $warehouse = warehouse::where('created_by', $creatorId)->where('branch_id', $branchId)->first()
+            ?: warehouse::where('created_by', $creatorId)->first();
+        if (! $warehouse) {
+            return response()->json(['error' => __('Please create or select a warehouse.')], 422);
+        }
+
+        $sourcePos = $this->openRestaurantPosForTable($sourceTableId, $branchId, $shiftId, $creatorId);
+        if (! $sourcePos) {
+            return response()->json(['error' => __('pos.no_open_order_on_table')], 422);
+        }
+        $targetTable = \App\Models\PosTable::where('id', $targetTableId)->where('created_by', $creatorId)->first();
+        if (! $targetTable) {
+            return response()->json(['error' => __('Table not found.')], 422);
+        }
+        $targetPos = $this->openRestaurantPosForTable($targetTableId, $branchId, $shiftId, $creatorId);
+        if (! $targetPos) {
+            $targetPos = new Pos();
+            $targetPos->document_type = Pos::DOCUMENT_TYPE_CASH_SALE;
+            $targetPos->pos_id = $this->invoicePosNumber(Pos::DOCUMENT_TYPE_CASH_SALE);
+            $targetPos->branch_id = $branchId;
+            $targetPos->order_type = Pos::ORDER_TYPE_DINE_IN;
+            $targetPos->table_id = $targetTableId;
+            $targetPos->shift_id = $shiftId;
+            $targetPos->customer_id = 0;
+            $targetPos->warehouse_id = $warehouse->id;
+            $targetPos->pos_date = date('Y-m-d');
+            $targetPos->payment_method = null;
+            $targetPos->created_by = $creatorId;
+            $targetPos->pos_user_id = PosActorService::posActorId();
+            $targetPos->save();
+        }
+        if ((int) $targetPos->id === (int) $sourcePos->id) {
+            return response()->json(['error' => __('pos.transfer_same_order')], 422);
+        }
+
+        // Unsent session-cart rows still sitting on the source table keep it occupied.
+        $openShiftIds = \App\Models\PosShift::where('branch_id', $branchId)
+            ->where('status', \App\Models\PosShift::STATUS_OPEN)
+            ->where('created_by', $creatorId)
+            ->pluck('id');
+        $allCarts = $request->session()->get('pos_restaurant_cart', []);
+        $sourceSessionRows = [];
+        foreach ($openShiftIds as $sid) {
+            $key = $sourceTableId . '_' . $sid;
+            if (! empty($allCarts[$key])) {
+                $sourceSessionRows = array_merge($sourceSessionRows, array_values((array) $allCarts[$key]));
+            }
+        }
+
+        try {
+            $result = (new RestaurantItemTransferService())->transferLines($sourcePos, $targetPos, $lineIds, $sourceSessionRows);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['error' => __($e->getMessage())], 422);
+        }
+
+        $sourceEmptied = (bool) $result['source_emptied'];
+        if ($sourceEmptied) {
+            $sourcePos->cancelled_at = now();
+            $sourcePos->save();
+            \App\Models\PosTable::where('id', $sourceTableId)->where('created_by', $creatorId)->update($this->restaurantTableAvailablePayload());
+        }
+
+        PosAuditLogService::log(
+            PosAuditLog::ACTION_TRANSFER_ITEMS,
+            'pos',
+            (int) $targetPos->id,
+            __('Items transferred between tables'),
+            [
+                'source_table_id' => $sourceTableId,
+                'target_table_id' => $targetTableId,
+                'line_ids' => $lineIds,
+                'items_moved' => $result['moved_count'],
+                'source_emptied' => $sourceEmptied,
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => __('pos.items_transferred_success'),
+            'moved_count' => $result['moved_count'],
+            'source_emptied' => $sourceEmptied,
+            'source_table_id' => $sourceTableId,
+            'target_table_id' => $targetTableId,
+            'target_table_name' => $targetTable->name,
+            'target_pos_id' => $targetPos->id,
         ]);
     }
 

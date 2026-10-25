@@ -383,6 +383,9 @@
                                 <button type="button" class="btn btn-outline-primary" id="pos-move-table-restaurant" title="{{ __('pos.move_table') }}">
                                     <i class="ti ti-arrows-right d-block"></i>
                                 </button>
+                                <button type="button" class="btn btn-outline-success" id="pos-transfer-items-restaurant" title="{{ $tp('pos.transfer_items', 'Transfer Items') }}">
+                                    <i class="ti ti-transfer d-block"></i>
+                                </button>
                                 <button type="button" class="btn btn-outline-warning" id="pos-split-bill-restaurant" title="{{ __('pos.split_bill') }}">
                                     <i class="ti ti-separator-horizontal d-block"></i>
                                 </button>
@@ -596,6 +599,34 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
                 <button type="button" class="btn btn-primary" id="pos-join-table-confirm">{{ __('pos.join_tables') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Transfer items modal --}}
+<div class="modal fade" id="posTransferItemsModal" tabindex="-1" aria-labelledby="posTransferItemsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="posTransferItemsModalLabel">{{ __('pos.transfer_items') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">{{ __('pos.transfer_items_hint') }}</p>
+                <p class="mb-2"><strong>{{ __('pos.from_table') }}:</strong> <span id="pos-transfer-from-table-name">—</span></p>
+                <label class="form-label">{{ __('pos.select_items_to_transfer') }}</label>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="pos-transfer-items-select-all">
+                    <label class="form-check-label" for="pos-transfer-items-select-all">{{ __('pos.select_all') }}</label>
+                </div>
+                <div id="pos-transfer-items-list" class="border rounded p-2 mb-3" style="max-height:220px;overflow-y:auto;"></div>
+                <label class="form-label">{{ __('pos.select_target_table') }}</label>
+                <div id="pos-transfer-target-list" class="border rounded p-2" style="max-height:220px;overflow-y:auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('pos.cancel') }}</button>
+                <button type="button" class="btn btn-primary" id="pos-transfer-items-confirm">{{ __('pos.transfer_items') }}</button>
             </div>
         </div>
     </div>
