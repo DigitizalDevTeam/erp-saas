@@ -299,7 +299,7 @@
                         <input type="hidden" name="from_shift_id" value="{{ $pos_shift->id }}">
                         <div class="mb-3">
                             <label class="form-label">{{ __('pos.to_shift') }}</label>
-                            <select name="to_shift_id" class="form-control" required>
+                            <select name="to_shift_id" id="transferToShift" class="form-control" required>
                                 <option value="">{{ __('pos.select_shift') }}</option>
                                 @foreach(\App\Models\PosShift::where('branch_id', $pos_shift->branch_id)->where('status', 'open')->where('id', '!=', $pos_shift->id)->where('created_by', \Auth::user()->creatorId())->with('user')->get() as $s)
                                     <option value="{{ $s->id }}">{{ $s->user ? $s->user->name : __('Shift') }} #{{ $s->id }}</option>
@@ -308,17 +308,20 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">{{ __('pos.select_tables_to_transfer') }}</label>
-                            @php
-                                $assigned = $pos_shift->tableAssignments->whereNull('unassigned_at');
-                            @endphp
-                            @forelse($assigned as $a)
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="table_ids[]" value="{{ $a->table_id }}" id="transfer_tbl_{{ $a->table_id }}">
-                                    <label class="form-check-label" for="transfer_tbl_{{ $a->table_id }}">{{ $a->table ? $a->table->name : '-' }}</label>
-                                </div>
-                            @empty
-                                <p class="text-muted small mb-0">{{ __('No tables assigned to this shift.') }}</p>
-                            @endforelse
+                            <p class="text-muted small mb-2" id="transferTablesCaption"></p>
+                            <div id="transferTablesList">
+                                @php
+                                    $assigned = $pos_shift->tableAssignments->whereNull('unassigned_at');
+                                @endphp
+                                @forelse($assigned as $a)
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="table_ids[]" value="{{ $a->table_id }}" id="transfer_tbl_{{ $a->table_id }}">
+                                        <label class="form-check-label" for="transfer_tbl_{{ $a->table_id }}">{{ $a->table ? $a->table->name : '-' }}</label>
+                                    </div>
+                                @empty
+                                    <p class="text-muted small mb-0">{{ __('No tables assigned to this shift.') }}</p>
+                                @endforelse
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -330,6 +333,50 @@
         </div>
     </div>
     <script>
+        // Load the selected waiter's tables when the "To waiter" dropdown
+        // changes; back to "Select shift" restores this shift's own list.
+        (function () {
+            var listEl = document.getElementById('transferTablesList');
+            var captionEl = document.getElementById('transferTablesCaption');
+            var selectEl = document.getElementById('transferToShift');
+            if (!listEl || !selectEl) { return; }
+            var initialHtml = listEl.innerHTML;
+            function esc(s) {
+                var el = document.createElement('textarea');
+                el.textContent = (s === null || s === undefined) ? '' : String(s);
+                return el.innerHTML;
+            }
+            selectEl.addEventListener('change', function () {
+                var shiftId = this.value;
+                if (!shiftId) {
+                    listEl.innerHTML = initialHtml;
+                    if (captionEl) { captionEl.textContent = ''; }
+                    return;
+                }
+                listEl.innerHTML = '<p class="text-muted small mb-0">{{ __('Loading...') }}</p>';
+                fetch('{{ url('pos-shift') }}/' + shiftId + '/assigned-tables', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (res.error) {
+                            listEl.innerHTML = '<p class="text-danger small mb-0">' + esc(res.error) + '</p>';
+                            return;
+                        }
+                        if (captionEl) { captionEl.textContent = '{{ __('Tables of') }} ' + (res.shift_label || ''); }
+                        if (!res.tables || res.tables.length === 0) {
+                            listEl.innerHTML = '<p class="text-muted small mb-0">{{ __('No tables assigned to this shift.') }}</p>';
+                            return;
+                        }
+                        var html = '';
+                        res.tables.forEach(function (t) {
+                            html += '<div class="form-check"><input class="form-check-input" type="checkbox" name="table_ids[]" value="' + t.id + '" id="transfer_tbl_' + t.id + '"><label class="form-check-label" for="transfer_tbl_' + t.id + '">' + esc(t.name) + '</label></div>';
+                        });
+                        listEl.innerHTML = html;
+                    })
+                    .catch(function () {
+                        listEl.innerHTML = '<p class="text-danger small mb-0">{{ __('pos.error') }}</p>';
+                    });
+            });
+        })();
         document.getElementById('transfer-tables-form') && document.getElementById('transfer-tables-form').addEventListener('submit', function(e) {
             e.preventDefault();
             var form = this;
