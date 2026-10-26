@@ -4834,10 +4834,18 @@
             });
 
             // Durable receipt Print → Print Agent (works even if AJAX-injected receipt scripts fail to eval).
-            // Does not change kitchen/production print. Skips when printview already handled the click.
+            // Does not change kitchen/production print. Skips when the footer
+            // script owns the button (data-print-footer-bound), so one click
+            // never queues two identical agent jobs.
             $(document).on('click.posAgentReceipt', '#commonModal #print', function (e) {
                 var $btn = $(this);
                 if ($btn.data('pos-agent-busy')) {
+                    return;
+                }
+                // Footer-owned button: the footer handler sends the job. This
+                // handler stays only as fallback for when the footer script
+                // never runs (then the button is unmarked and we send).
+                if (String($btn.attr('data-print-footer-bound') || '') === '1') {
                     return;
                 }
                 var useAgent = String($btn.attr('data-print-agent') || '') === '1'
