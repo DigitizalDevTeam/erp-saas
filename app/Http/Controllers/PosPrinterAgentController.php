@@ -168,6 +168,62 @@ class PosPrinterAgentController extends Controller
     }
 
     /**
+     * Queue a test print for the printer picked in Printer Settings.
+     * Same permission gates as saving the print config. The job targets
+     * the dropdown's printer (not the saved config), so it works before
+     * Save. When the agent is offline the job stays pending until it
+     * connects — the response says so instead of claiming it printed.
+     */
+    public function testPrint(Request $request)
+    {
+        $actor = PosActorService::restaurantActor();
+        $loggedInUser = Auth::user();
+        $canChangePrintSettings = ($actor && $actor->canManagePrinters())
+            || ($loggedInUser && $loggedInUser->canManagePrinters());
+        if (! $canChangePrintSettings) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $request->validate([
+            'branch_id' => 'required|integer|exists:branches,id',
+            'zone' => 'required|string|in:kitchen,bar,receipt',
+            'printer_id' => 'required|integer|min:1',
+        ]);
+
+        $creatorId = Auth::user()->creatorId();
+        $branchId = (int) $request->branch_id;
+
+        $branch = Branch::where('id', $branchId)->where('created_by', $creatorId)->first();
+        if (! $branch) {
+            return response()->json(['error' => __('Invalid branch.')], 422);
+        }
+
+        if (! Auth::user()->canAccessBranchForPos($branchId, 'restaurant')) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $job = PosPrinterAgentService::enqueueTestPrint(
+            $branchId,
+            $creatorId,
+            (string) $request->zone,
+            (int) $request->printer_id,
+            (string) ($loggedInUser->name ?? '')
+        );
+        if (! $job) {
+            return response()->json(['error' => __('Printer not found for this branch.')], 422);
+        }
+
+        $agent = PosPrinterAgentService::agentStatusForBranch($branchId, $creatorId);
+
+        return response()->json([
+            'success' => true,
+            'message' => __('Test print sent.'),
+            'job_id' => $job->id,
+            'agent_online' => (bool) ($agent['online'] ?? false),
+        ]);
+    }
+
+    /**
      * Pair a Print Agent device code to this user's company + the branch
      * selected in Printer Settings (from the logged-in browser session).
      */
