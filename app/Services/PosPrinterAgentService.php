@@ -617,6 +617,96 @@ class PosPrinterAgentService
      *
      * @param  array<string, mixed>  $payload
      */
+    /**
+     * Queue a one-page test print for the printer picked in Printer
+     * Settings. Uses the given printer id (the dropdown's current value,
+     * not the saved config), so a printer can be tested before pressing
+     * Save. The payload is the minimal shape the current agent already
+     * renders — slip lines for kitchen/bar, native receipt lines for the
+     * default printer — so no agent update is needed. Returns null for an
+     * unknown zone or a printer that does not belong to this
+     * branch/company. When the agent is offline the job simply stays
+     * pending until it connects.
+     */
+    public static function enqueueTestPrint(
+        int $branchId,
+        int $creatorId,
+        string $zone,
+        int $printerId,
+        string $operatorName = ''
+    ): ?PosPrintJob {
+        $zone = strtolower(trim($zone));
+        if (! in_array($zone, [PosPrintJob::ZONE_KITCHEN, PosPrintJob::ZONE_BAR, PosPrintJob::ZONE_RECEIPT], true)) {
+            return null;
+        }
+
+        $printer = PosAgentPrinter::where('id', $printerId)
+            ->where('branch_id', $branchId)
+            ->where('created_by', $creatorId)
+            ->first();
+        if (! $printer || (string) ($printer->system_name ?? '') === '') {
+            return null;
+        }
+
+        $zoneLabel = $zone === PosPrintJob::ZONE_KITCHEN
+            ? 'Kitchen'
+            : ($zone === PosPrintJob::ZONE_BAR ? 'Bar' : 'Receipt');
+        $printerLabel = (string) ($printer->display_name ?: $printer->system_name);
+        $now = now();
+
+        $payload = [
+            'zone' => $zone,
+            'title' => 'Test Print',
+            'doc_type' => 'receipt',
+            'render' => 'native',
+            'header' => [
+                'document_title' => 'TEST PRINT',
+                'pos_number' => 'TEST',
+                'operator' => $operatorName,
+                'table_no' => 'TEST',
+                'table_name' => 'TEST',
+                'waiter_name' => $operatorName,
+                'order_no' => 'TEST',
+                'order_type' => 'Test print — '.$zoneLabel.' Printer',
+                'date' => $now->format('Y-m-d'),
+                'time' => $now->format('H:i:s'),
+                'issued_at' => $now->format('Y-m-d H:i:s'),
+                'sent_at' => $now->toIso8601String(),
+            ],
+            'rows' => [
+                [
+                    'qty' => 1,
+                    'name' => 'TEST PRINT',
+                    'sku' => 'TEST',
+                    'price' => 0,
+                    'sale_price' => 0,
+                    'line_total' => 0,
+                    'note' => 'Test print from Printer Settings — '.$zoneLabel.' Printer ('.$printerLabel.')',
+                ],
+            ],
+            'totals' => [
+                'subtotal' => 0,
+                'discount' => 0,
+                'vat' => 0,
+                'tip' => 0,
+                'total' => 0,
+                'paid' => 0,
+                'change' => 0,
+            ],
+        ];
+
+        return PosPrintJob::create([
+            'branch_id' => $branchId,
+            'created_by' => $creatorId,
+            'pos_id' => null,
+            'zone' => $zone,
+            'system_printer_name' => $printer->system_name,
+            'title' => 'Test Print',
+            'payload' => $payload,
+            'status' => PosPrintJob::STATUS_PENDING,
+        ]);
+    }
+
     public static function enqueueReceiptJob(
         int $branchId,
         int $creatorId,

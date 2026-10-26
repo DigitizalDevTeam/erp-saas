@@ -52,21 +52,36 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="printer-settings-kitchen">{{ __('Kitchen Printer') }}</label>
-                    <select id="printer-settings-kitchen" class="form-select">
-                        <option value="">{{ __('Select printer') }}</option>
-                    </select>
+                    <div class="input-group">
+                        <select id="printer-settings-kitchen" class="form-select">
+                            <option value="">{{ __('Select printer') }}</option>
+                        </select>
+                        <button type="button" class="btn btn-outline-primary printer-settings-test-btn" data-zone="kitchen" data-target="#printer-settings-kitchen">
+                            <i class="ti ti-printer me-1"></i>{{ __('Test') }}
+                        </button>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="printer-settings-bar">{{ __('Bar Printer') }}</label>
-                    <select id="printer-settings-bar" class="form-select">
-                        <option value="">{{ __('Select printer') }}</option>
-                    </select>
+                    <div class="input-group">
+                        <select id="printer-settings-bar" class="form-select">
+                            <option value="">{{ __('Select printer') }}</option>
+                        </select>
+                        <button type="button" class="btn btn-outline-primary printer-settings-test-btn" data-zone="bar" data-target="#printer-settings-bar">
+                            <i class="ti ti-printer me-1"></i>{{ __('Test') }}
+                        </button>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="printer-settings-default">{{ __('Default Printer for Other Prints') }}</label>
-                    <select id="printer-settings-default" class="form-select">
-                        <option value="">{{ __('Select printer') }}</option>
-                    </select>
+                    <div class="input-group">
+                        <select id="printer-settings-default" class="form-select">
+                            <option value="">{{ __('Select printer') }}</option>
+                        </select>
+                        <button type="button" class="btn btn-outline-primary printer-settings-test-btn" data-zone="receipt" data-target="#printer-settings-default">
+                            <i class="ti ti-printer me-1"></i>{{ __('Test') }}
+                        </button>
+                    </div>
                     <small class="text-muted">{{ __('Used for bills, invoices, receipts, and other non-kitchen/bar prints via the Print Agent.') }}</small>
                 </div>
                 <div class="mb-3 form-check form-switch">
@@ -231,6 +246,50 @@
 
         $(document).on('hidden.bs.modal', '#printerSettingsModal', function () {
             stopStatusPolling();
+        });
+
+        $(document).on('click', '.printer-settings-test-btn', function () {
+            var $btn = $(this);
+            var zone = $btn.data('zone');
+            var $select = $($btn.data('target'));
+            var printerId = $select.val() || '';
+            var branchId = currentBranchId();
+            if (!branchId) {
+                printerSettingsToast('{{ __("Error") }}', '{{ __("Please select a branch.") }}', 'error');
+                return;
+            }
+            if (!printerId) {
+                printerSettingsToast('{{ __("Error") }}', '{{ __("Select a printer first.") }}', 'error');
+                return;
+            }
+            var originalHtml = $btn.html();
+            $btn.prop('disabled', true).html('{{ __("Sending...") }}');
+            $.ajax({
+                url: '{{ route("pos.restaurant.test-print") }}',
+                type: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': printerSettingsCsrf()
+                },
+                data: {
+                    branch_id: branchId,
+                    zone: zone,
+                    printer_id: printerId
+                },
+                success: function (res) {
+                    var printerLabel = $select.find('option:selected').text();
+                    if (res && res.agent_online) {
+                        printerSettingsToast('{{ __("Success") }}', '{{ __("Test print sent to") }} ' + printerLabel + '. {{ __("Check the printer.") }}', 'success');
+                    } else {
+                        printerSettingsToast('{{ __("Success") }}', '{{ __("Test print queued for") }} ' + printerLabel + '. {{ __("The agent is offline — it will print when the agent connects.") }}', 'success');
+                    }
+                },
+                error: function (xhr) {
+                    printerSettingsToast('{{ __("Error") }}', printerSettingsErrorMessage(xhr), 'error');
+                },
+                complete: function () {
+                    $btn.prop('disabled', false).html(originalHtml);
+                }
+            });
         });
 
         $(document).on('click', '#printer-settings-save-btn', function () {
