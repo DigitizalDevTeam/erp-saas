@@ -10,6 +10,7 @@
             'expectedCash' => $expectedCash ?? 0,
             'amountField' => 'amount',
             'hidePrint' => true,
+            'reportWarehouses' => $reportWarehouses ?? [],
         ])
     @endif
     <div class="form-group mt-3 mb-0">

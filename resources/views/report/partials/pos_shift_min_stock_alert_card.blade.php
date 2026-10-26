@@ -6,6 +6,9 @@
             {{ __('Products with stock equal to or less than their Low stock alert at value.') }}
             {{ __('Default threshold') }}: <strong>{{ number_format((float) ($minimumStockThreshold ?? 10), 2) }}</strong>
         </p>
+        @if(isset($minimumStockWarehouseNames))
+            <p class="text-muted mb-3">{{ __('Warehouses') }}: <strong>{{ count($minimumStockWarehouseNames) > 0 ? implode(', ', $minimumStockWarehouseNames) : __('None selected') }}</strong></p>
+        @endif
         <div class="table-responsive">
             <table class="table table-sm table-bordered mb-0">
                 <thead>

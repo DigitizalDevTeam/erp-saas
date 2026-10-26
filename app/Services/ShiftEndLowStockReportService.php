@@ -41,7 +41,11 @@ class ShiftEndLowStockReportService
 
             // Same rows as the shift report's Minimum Stock Alert section:
             // per-warehouse Low wins, then product Low, then the POS default.
-            $result = app(PosShiftReportService::class)->minimumStockAlertRows($companyId);
+            // When the shift was closed with a warehouse selection, the
+            // email follows it; otherwise it keeps the old all-warehouses
+            // behaviour.
+            $selection = $shift->report_warehouse_ids;
+            $result = app(PosShiftReportService::class)->minimumStockAlertRows($companyId, null, is_array($selection) ? $selection : null);
             $rows = $result['rows'] ?? [];
             if (count($rows) === 0) {
                 return 0;

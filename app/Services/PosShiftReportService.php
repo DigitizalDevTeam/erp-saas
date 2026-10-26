@@ -14,6 +14,7 @@ use App\Models\PosShift;
 use App\Models\PosTable;
 use App\Models\User;
 use App\Models\Utility;
+use App\Models\warehouse;
 use App\Models\WarehouseProduct;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -433,7 +434,13 @@ class PosShiftReportService
      *
      * @return array{rows: Collection, globalThreshold: float}
      */
-    public function minimumStockAlertRows(int $creatorId, ?int $warehouseId = null): array
+    /**
+     * @param  int[]|null  $warehouseIds  When non-null, rows are limited to
+     *     these warehouses (an empty array yields no rows — the user
+     *     selected nothing). When null, the legacy single-warehouse filter
+     *     applies, or all warehouses when that is null too.
+     */
+    public function minimumStockAlertRows(int $creatorId, ?int $warehouseId = null, ?array $warehouseIds = null): array
     {
         $globalThreshold = (float) (Utility::getValByName('pos_low_stock_threshold') ?: 10);
 
@@ -452,7 +459,8 @@ class PosShiftReportService
             // then the POS low-stock default — same fallback order as
             // the product form's "Low stock alert at" field.
             ->whereRaw('warehouse_products.quantity <= COALESCE(product_warehouse_stock_alerts.low_stock_threshold, product_services.low_stock_threshold, ?)', [$globalThreshold])
-            ->when($warehouseId, fn ($q) => $q->where('warehouse_products.warehouse_id', $warehouseId))
+            ->when($warehouseIds !== null, fn ($q) => $q->whereIn('warehouse_products.warehouse_id', $warehouseIds))
+            ->when($warehouseIds === null && $warehouseId, fn ($q) => $q->where('warehouse_products.warehouse_id', $warehouseId))
             ->select([
                 'warehouse_products.warehouse_id',
                 'warehouse_products.product_id',
@@ -471,6 +479,64 @@ class PosShiftReportService
             ->get();
 
         return ['rows' => $rows, 'globalThreshold' => $globalThreshold];
+    }
+
+    /**
+     * Normalize the warehouse checkboxes submitted when a shift is closed.
+     *
+     * Returns null when the field was absent (close paths without the
+     * picker, e.g. bulk EOD close) — callers then fall back to the old
+     * behaviour. Returns the submitted ids, intersected with the company's
+     * own warehouses, when present; an empty array means the user
+     * deliberately selected nothing. The selection is stored on the shift
+     * row only — never as a user preference or system setting.
+     *
+     * @return int[]|null
+     */
+    public function normalizeReportWarehouseIds($input, int $creatorId): ?array
+    {
+        if ($input === null) {
+            return null;
+        }
+
+        $ids = is_array($input) ? $input : [$input];
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', $ids),
+            fn ($id) => $id > 0
+        )));
+        if ($ids === []) {
+            return [];
+        }
+
+        $valid = warehouse::where('created_by', $creatorId)
+            ->whereIn('id', $ids)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        sort($valid);
+
+        return $valid;
+    }
+
+    /**
+     * Warehouse names for a stored shift selection, in name order.
+     * Used to label the report section with the warehouses it covers.
+     *
+     * @param  int[]  $ids
+     * @return string[]
+     */
+    public function reportWarehouseNames(array $ids, int $creatorId): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        return warehouse::where('created_by', $creatorId)
+            ->whereIn('id', $ids)
+            ->orderBy('name')
+            ->pluck('name')
+            ->map(fn ($name) => (string) $name)
+            ->all();
     }
 
     /**
