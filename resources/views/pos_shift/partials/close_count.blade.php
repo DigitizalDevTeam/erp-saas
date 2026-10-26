@@ -69,6 +69,24 @@
             <div class="invalid-feedback d-block">{{ $message }}</div>
         @enderror
     </div>
+    @if(!empty($reportWarehouses ?? []))
+        @php
+            $reportOld = old('report_warehouse_ids');
+            $reportChecked = is_array($reportOld) ? array_map('intval', $reportOld) : null;
+        @endphp
+        <div class="form-group mb-2">
+            <label class="form-label">{{ __('Warehouses for minimum stock report') }}</label>
+            <div class="border rounded p-2">
+                @foreach($reportWarehouses as $reportWarehouse)
+                    <div class="form-check">
+                        <input type="checkbox" name="report_warehouse_ids[]" value="{{ $reportWarehouse->id }}" id="report-warehouse-{{ $reportWarehouse->id }}" class="form-check-input" {{ $reportChecked === null || in_array((int) $reportWarehouse->id, $reportChecked, true) ? 'checked' : '' }}>
+                        <label class="form-check-label" for="report-warehouse-{{ $reportWarehouse->id }}">{{ $reportWarehouse->name }}</label>
+                    </div>
+                @endforeach
+            </div>
+            <div class="form-text">{{ __('Only the selected warehouses will show in this shift report.') }}</div>
+        </div>
+    @endif
     @unless($hidePrint ?? false)
     <button type="button" class="btn btn-outline-primary btn-sm shift-close-print">
         <i class="ti ti-printer"></i> {{ __('Print') }}

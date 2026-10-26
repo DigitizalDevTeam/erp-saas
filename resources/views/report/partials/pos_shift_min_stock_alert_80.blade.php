@@ -1,5 +1,8 @@
 @if(($minimumStockRows ?? collect())->isNotEmpty())
 <h3>{{ __('MINIMUM STOCK ALERT') }}</h3>
+@if(isset($minimumStockWarehouseNames))
+    <div class="row"><span>{{ __('Warehouses') }}:</span><span>{{ count($minimumStockWarehouseNames) > 0 ? implode(', ', $minimumStockWarehouseNames) : __('None selected') }}</span></div>
+@endif
     @foreach($minimumStockRows as $r)
         @php
             $threshold = $r->low_stock_threshold !== null ? (float) $r->low_stock_threshold : (float) ($minimumStockThreshold ?? 10);

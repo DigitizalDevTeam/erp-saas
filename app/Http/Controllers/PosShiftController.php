@@ -380,7 +380,17 @@ class PosShiftController extends Controller
         $creatorId = \Auth::user()->creatorId();
         $service = app(PosShiftReportService::class);
         $metrics = $service->buildShiftMetrics($pos_shift, $creatorId);
-        $minimumStock = $service->minimumStockAlertRows($creatorId, $pos_shift->branch ? $pos_shift->branch->resolveDefaultWarehouseId() : null);
+        // Warehouses picked when this shift was closed win over the branch
+        // default: the report shows only the selected warehouses. Shifts
+        // closed without a selection (or before this feature) keep the old
+        // behaviour — branch default warehouse, or all when there is none.
+        $selectedWarehouseIds = $pos_shift->report_warehouse_ids;
+        if (is_array($selectedWarehouseIds)) {
+            $minimumStock = $service->minimumStockAlertRows($creatorId, null, $selectedWarehouseIds);
+            $metrics['minimumStockWarehouseNames'] = $service->reportWarehouseNames($selectedWarehouseIds, $creatorId);
+        } else {
+            $minimumStock = $service->minimumStockAlertRows($creatorId, $pos_shift->branch ? $pos_shift->branch->resolveDefaultWarehouseId() : null);
+        }
         $metrics['minimumStockRows'] = $minimumStock['rows'];
         $metrics['minimumStockThreshold'] = $minimumStock['globalThreshold'];
 
@@ -415,6 +425,7 @@ class PosShiftController extends Controller
             'pos_shift' => $pos_shift,
             'salesTotal' => $metrics['salesTotal'] ?? 0,
             'expectedCash' => $metrics['expectedCash'] ?? 0,
+            'reportWarehouses' => \App\Models\warehouse::where('created_by', \Auth::user()->creatorId())->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -434,6 +445,8 @@ class PosShiftController extends Controller
             'closing_balance' => 'required|numeric|min:0',
             'tips' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:5000',
+            'report_warehouse_ids' => 'nullable|array',
+            'report_warehouse_ids.*' => 'integer|min:1',
         ], [
             'closing_balance.min' => __('Closing balance must be zero or positive (physical cash counted in the drawer).'),
         ]);
@@ -468,6 +481,11 @@ class PosShiftController extends Controller
         $pos_shift->notes = $request->notes;
         $pos_shift->sales_count = $paidPosIds->count();
         $pos_shift->sales_total = $salesTotal;
+        // Warehouses picked for this shift's report (null when the picker
+        // was not submitted — the report then falls back as before).
+        if ($request->has('report_warehouse_ids')) {
+            $pos_shift->report_warehouse_ids = app(PosShiftReportService::class)->normalizeReportWarehouseIds($request->input('report_warehouse_ids'), \Auth::user()->creatorId());
+        }
         $pos_shift->status = PosShift::STATUS_CLOSED;
         $pos_shift->save();
         PosAuditLogService::log(PosAuditLog::ACTION_CLOSE_SHIFT, 'pos_shift', (int) $pos_shift->id, __('Shift closed'), ['branch_id' => $pos_shift->branch_id, 'closing_balance' => $closingBalance, 'difference' => $difference]);

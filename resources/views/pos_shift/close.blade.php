@@ -27,6 +27,7 @@
                         'salesTotal' => $salesTotal ?? 0,
                         'expectedCash' => $expectedCash ?? 0,
                         'amountField' => 'closing_balance',
+                        'reportWarehouses' => $reportWarehouses ?? [],
                     ])
                     <div class="form-group mt-3">
                         {{ Form::label('tips', __('Tips'), ['class' => 'form-label']) }}

@@ -1,6 +1,9 @@
 @if(($minimumStockRows ?? collect())->isNotEmpty())
 <h2 class="shift-a4-section">{{ __('Minimum Stock Alert') }}</h2>
 <p>{{ __('Products with stock equal to or less than their Low stock alert at value.') }} {{ __('Default threshold') }}: <strong>{{ number_format((float) ($minimumStockThreshold ?? 10), 2) }}</strong></p>
+@if(isset($minimumStockWarehouseNames))
+<p>{{ __('Warehouses') }}: <strong>{{ count($minimumStockWarehouseNames) > 0 ? implode(', ', $minimumStockWarehouseNames) : __('None selected') }}</strong></p>
+@endif
 <table class="shift-a4-data">
     <thead>
         <tr>

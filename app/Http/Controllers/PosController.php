@@ -5827,7 +5827,8 @@ class PosController extends Controller
         $metrics = app(\App\Services\PosShiftReportService::class)->buildShiftMetrics($userOpenShift, \Auth::user()->creatorId());
         $expectedCash = (float) ($metrics['expectedCash'] ?? 0);
         $salesTotal = (float) ($metrics['salesTotal'] ?? 0);
-        return view('pos.add_closing_balance', compact('userOpenShift', 'expectedCash', 'salesTotal'));
+        $reportWarehouses = \App\Models\warehouse::where('created_by', \Auth::user()->creatorId())->orderBy('name')->get(['id', 'name']);
+        return view('pos.add_closing_balance', compact('userOpenShift', 'expectedCash', 'salesTotal', 'reportWarehouses'));
     }
     
     public function save_closing_balance(Request $request)
@@ -5837,6 +5838,8 @@ class PosController extends Controller
             'shift_id' => 'nullable|exists:pos_shifts,id',
             'tips' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:1000',
+            'report_warehouse_ids' => 'nullable|array',
+            'report_warehouse_ids.*' => 'integer|min:1',
         ]);
         $userId = PosActorService::posActorId();
         $shiftId = $request->shift_id;
@@ -5877,6 +5880,11 @@ class PosController extends Controller
         $shift->difference = round($difference, 2);
         $shift->tips = (float) ($request->tips ?? 0);
         $shift->notes = $request->notes ? trim($request->notes) : null;
+        // Warehouses picked for this shift's report (null when the picker
+        // was not submitted — the report then falls back as before).
+        if ($request->has('report_warehouse_ids')) {
+            $shift->report_warehouse_ids = app(\App\Services\PosShiftReportService::class)->normalizeReportWarehouseIds($request->input('report_warehouse_ids'), \Auth::user()->creatorId());
+        }
         $shift->status = \App\Models\PosShift::STATUS_CLOSED;
         $shift->closed_at = now();
         $shift->save();

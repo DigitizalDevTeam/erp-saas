@@ -24,6 +24,7 @@ class PosShift extends Model
         'notes',
         'sales_count',
         'sales_total',
+        'report_warehouse_ids',
         'status',
         'operational_shift',
         'created_by',
@@ -38,6 +39,7 @@ class PosShift extends Model
     protected $casts = [
         'opened_at' => 'datetime',
         'closed_at' => 'datetime',
+        'report_warehouse_ids' => 'array',
     ];
 
     public function branch()
