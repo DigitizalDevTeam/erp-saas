@@ -5882,7 +5882,9 @@ class PosController extends Controller
         $shift->notes = $request->notes ? trim($request->notes) : null;
         // Warehouses picked for this shift's report (null when the picker
         // was not submitted — the report then falls back as before).
-        if ($request->has('report_warehouse_ids')) {
+        // Guarded: if the migration has not run yet, the close must still
+        // succeed and the selection is simply skipped.
+        if ($request->has('report_warehouse_ids') && \Illuminate\Support\Facades\Schema::hasColumn('pos_shifts', 'report_warehouse_ids')) {
             $shift->report_warehouse_ids = app(\App\Services\PosShiftReportService::class)->normalizeReportWarehouseIds($request->input('report_warehouse_ids'), \Auth::user()->creatorId());
         }
         $shift->status = \App\Models\PosShift::STATUS_CLOSED;
