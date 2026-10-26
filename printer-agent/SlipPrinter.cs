@@ -1438,6 +1438,9 @@ public static class SlipPrinter
                 var qty = GetInt(row, "qty");
                 var name = GetString(row, "name");
                 var note = GetString(row, "note");
+                // Prices are still read for the ticket footer totals, but
+                // production slips never print them: no Sale Price and no
+                // Line Total lines (kitchen/bar only need what to make).
                 var price = GetDecimal(row, "price");
                 var salePrice = GetDecimal(row, "sale_price");
                 if (salePrice <= 0)
@@ -1464,11 +1467,6 @@ public static class SlipPrinter
                 if (HasPrintableValue(sku))
                 {
                     AddKv(lines, "SKU", sku.Trim());
-                }
-
-                if (salePrice > 0 || price > 0)
-                {
-                    AddKv(lines, "Sale Price", FormatMoney(salePrice > 0 ? salePrice : price));
                 }
 
                 // Separate Size / Color only when set (no combined Variants line, no N/A).
@@ -1541,44 +1539,12 @@ public static class SlipPrinter
                     AddKv(lines, "Group", string.Join(", ", groupSet));
                 }
 
-                if (row.TryGetProperty("ingredients", out var ingsEl) && ingsEl.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var ing in ingsEl.EnumerateArray())
-                    {
-                        var ingName = GetString(ing, "name");
-                        if (string.IsNullOrWhiteSpace(ingName))
-                        {
-                            continue;
-                        }
-
-                        var ingQty = GetDecimal(ing, "qty");
-                        if (ingQty <= 0)
-                        {
-                            ingQty = 1;
-                        }
-
-                        var qtyLabel = ingQty == Math.Truncate(ingQty)
-                            ? ((int)ingQty).ToString(CultureInfo.InvariantCulture)
-                            : ingQty.ToString("0.####", CultureInfo.InvariantCulture);
-                        var ingUnit = GetString(ing, "unit").Trim();
-                        if (!string.IsNullOrWhiteSpace(ingUnit))
-                        {
-                            qtyLabel += " " + ingUnit;
-                        }
-
-                        AddKv(lines, "Ingredient", ingName.Trim());
-                        AddKv(lines, "Qty", qtyLabel);
-                    }
-                }
+                // No ingredients on production slips: the kitchen/bar ticket
+                // shows what to make, not what it is made of.
 
                 if (HasPrintableValue(note))
                 {
                     AddKv(lines, "Notes", note.Trim(), bold: true);
-                }
-
-                if (price > 0 || lineTotal > 0)
-                {
-                    AddKv(lines, "Line Total", $"{FormatMoney(price)} x {qty} = {FormatMoney(lineTotal)}");
                 }
             }
         }
