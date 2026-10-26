@@ -309,6 +309,9 @@ var posRestaurantPrintReceiptUrl = '{{ route("pos.restaurant.print-receipt") }}'
         var copies = document.getElementById("print-copies") ? document.getElementById("print-copies").value : 1;
         doPrint(copies);
     });
+    // Mark this button as footer-owned so the restaurant page's fallback
+    // #print handler skips it instead of sending a second identical job.
+    $('#print').attr('data-print-footer-bound', '1');
     $(document).on('click','#segunda-via-link',function(){
         $.get('{{url("/")}}/printview/pos', {
             pos_id: '{{ (int)$posIdRaw }}',
