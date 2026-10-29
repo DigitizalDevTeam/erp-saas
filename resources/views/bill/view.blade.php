@@ -138,6 +138,13 @@
                             {{ __('Download') }}
                         </a>
                     </div>
+                    @if ($bill->isDeliveryDriven() && empty($bill->purchase_id))
+                        <div class="all-button-box">
+                            <a href="{{ route('bill.delivery-notes.create', \Crypt::encrypt($bill->id)) }}" class="btn btn-sm btn-primary">
+                                {{ __('New delivery note') }}
+                            </a>
+                        </div>
+                    @endif
                 </div>
             </div>
         @endif

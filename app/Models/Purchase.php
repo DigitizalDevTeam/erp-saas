@@ -20,6 +20,7 @@ class Purchase extends Model
         'converted_bill_id',
         'converted_invoice_id',
         'is_invoice_converted',
+        'stock_on_delivery',
         'vender_id',
         'warehouse_id',
         'purchase_date',
@@ -35,6 +36,18 @@ class Purchase extends Model
         'Partialy Paid',
         'Paid',
     ];
+    public function isDeliveryDriven(): bool
+    {
+        // Missing column (before the migration runs) means legacy: the
+        // order already added its stock at create time.
+        return (bool) ($this->stock_on_delivery ?? false);
+    }
+
+    public function deliveryNotes()
+    {
+        return $this->hasMany(PurchaseDeliveryNote::class, 'purchase_id', 'id');
+    }
+
     public function vender()
     {
         return $this->hasOne('App\Models\Vender', 'id', 'vender_id');

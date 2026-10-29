@@ -181,6 +181,13 @@ class BillController extends Controller
             $bill->purchase_id = $request->filled('purchase_id') ? (int) $request->purchase_id : null;
             $bill->proforma_id = $request->filled('proforma_id') ? (int) $request->proforma_id : null;
             $bill->suppress_inventory = $request->boolean('suppress_inventory');
+            // New standalone bills are delivery-driven like new purchase
+            // orders: stock comes only from a delivery note. Converted
+            // bills (suppress_inventory) are untouched — their stock
+            // belongs to their purchase order. Guarded for pre-migration.
+            if (\Illuminate\Support\Facades\Schema::hasColumn('bills', 'stock_on_delivery') && ! $bill->suppress_inventory) {
+                $bill->stock_on_delivery = 1;
+            }
             $bill->created_by     = \Auth::user()->creatorId();
             $bill->save();
 
@@ -227,12 +234,12 @@ class BillController extends Controller
                 }
 
                 //inventory management (Quantity) — skipped when bill mirrors an existing purchase (stock already received)
-                if (! $bill->suppress_inventory && ! empty($billProduct)) {
+                if (! $bill->suppress_inventory && ! ($bill->stock_on_delivery ?? false) && ! empty($billProduct)) {
                     Utility::total_quantity('plus', $billProduct->quantity, $billProduct->product_id);
                 }
 
                 //Product Stock Report
-                if (! $bill->suppress_inventory && ! empty($products[$i]['item'])) {
+                if (! $bill->suppress_inventory && ! ($bill->stock_on_delivery ?? false) && ! empty($products[$i]['item'])) {
                     $type = 'bill';
                     $type_id = $bill->id;
                     $description = $products[$i]['quantity'].'  '.__('quantity purchase in bill').' '. \Auth::user()->billNumberFormat($bill->bill_id);
@@ -381,7 +388,12 @@ class BillController extends Controller
                 $bill->customField = CustomField::getData($bill, 'bill');
                 $customFields      = CustomField::where('created_by', '=', \Auth::user()->creatorId())->where('module', '=', 'bill')->get();
 
-                return view('bill.view', compact('bill', 'vendor', 'items', 'billPayment', 'customFields'));
+                $billDeliveryLines = \App\Services\PurchaseDeliveryService::sourceLinesForBill($bill);
+                $billDeliveryNotes = \App\Services\PurchaseDeliveryService::tablesAvailable()
+                    ? $bill->deliveryNotes()->with('items')->orderByDesc('id')->get()
+                    : collect();
+
+                return view('bill.view', compact('bill', 'vendor', 'items', 'billPayment', 'customFields', 'billDeliveryLines', 'billDeliveryNotes'));
             }
             else
             {
@@ -515,7 +527,7 @@ class BillController extends Controller
                         $billProduct             = new BillProduct();
                         $billProduct->bill_id    = $bill->id;
 
-                        if (isset($products[$i]['items']) && ! $bill->suppress_inventory) {
+                        if (isset($products[$i]['items']) && ! $bill->suppress_inventory && ! ($bill->stock_on_delivery ?? false)) {
                             Utility::total_quantity('plus', $products[$i]['quantity'], $products[$i]['items']);
                         }
 
@@ -524,7 +536,7 @@ class BillController extends Controller
 
                     }
                     else{
-                        if (! $bill->suppress_inventory) {
+                        if (! $bill->suppress_inventory && ! ($bill->stock_on_delivery ?? false)) {
                             Utility::total_quantity('minus', $billProduct->quantity, $billProduct->product_id);
                         }
                     }
@@ -559,7 +571,7 @@ class BillController extends Controller
                         $billTotal= $billAccount->price;
                     }
 
-                    if ($products[$i]['id'] > 0 && ! $bill->suppress_inventory) {
+                    if ($products[$i]['id'] > 0 && ! $bill->suppress_inventory && ! ($bill->stock_on_delivery ?? false)) {
                         Utility::total_quantity('plus', $products[$i]['quantity'], $billProduct->product_id);
                     }
 
@@ -569,7 +581,7 @@ class BillController extends Controller
                     StockReport::where('type', '=', 'bill')->where('type_id', '=', $bill->id)->delete();
                     $description = $products[$i]['quantity'].'  '.__(' quantity purchase in bill').' '. \Auth::user()->billNumberFormat($bill->bill_id);
 
-                    if (isset($products[$i]['items']) && ! $bill->suppress_inventory) {
+                    if (isset($products[$i]['items']) && ! $bill->suppress_inventory && ! ($bill->stock_on_delivery ?? false)) {
                         Utility::addProductStock($products[$i]['items'], $products[$i]['quantity'], $type, $description, $type_id);
                     }
 
