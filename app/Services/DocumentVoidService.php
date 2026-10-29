@@ -117,6 +117,15 @@ class DocumentVoidService
 
     public static function voidBill(Bill $bill, array $options = []): DocumentVoidLog
     {
+        // A delivery-driven bill must not be voided away from its
+        // deliveries: voiding would not reverse the delivered stock
+        // (restoreBillStock only reverses ordered bill stock), so
+        // refuse rather than leave delivered stock stranded.
+        if (\App\Services\PurchaseDeliveryService::tablesAvailable()
+            && $bill->deliveryNotes()->exists()) {
+            throw new \RuntimeException(__('Cannot void a bill that already has delivery notes.'));
+        }
+
         if ((int) $bill->status === 5) {
             throw new \RuntimeException(__('Bill already cancelled.'));
         }

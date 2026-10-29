@@ -83,6 +83,57 @@
         @endif
     @endcan
 
+    @if (isset($deliveryLines))
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="mb-3">{{ __('Delivery') }}</h5>
+                        @if ($purchase->isDeliveryDriven())
+                            <p class="text-muted">{{ __('Stock for this order comes only from delivery notes. Ordered, delivered and remaining per line:') }}</p>
+                        @else
+                            <p class="text-muted">{{ __('This order was created before delivery notes, so its stock was already added when it was created. Delivery notes are only for new orders.') }}</p>
+                        @endif
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>{{ __('Product') }}</th>
+                                        <th>{{ __('Ordered') }}</th>
+                                        <th>{{ __('Delivered') }}</th>
+                                        <th>{{ __('Remaining') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($deliveryLines as $dRow)
+                                        <tr>
+                                            <td>{{ $dRow['product']->name ?? '' }}</td>
+                                            <td>{{ $dRow['ordered'] }}</td>
+                                            <td>{{ $dRow['delivered'] }}</td>
+                                            <td>{{ $dRow['remaining'] }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        @if ($purchase->isDeliveryDriven())
+                            @can('create purchase')
+                                <a href="{{ route('purchase.delivery-notes.create', \Crypt::encrypt($purchase->id)) }}" class="btn btn-sm btn-primary">{{ __('New delivery note') }}</a>
+                            @endcan
+                        @endif
+                        @if (isset($deliveryNotes) && $deliveryNotes->count())
+                            <div class="mt-3">
+                                @foreach ($deliveryNotes as $dNote)
+                                    <a href="{{ route('purchase-delivery-notes.show', \Crypt::encrypt($dNote->id)) }}" class="btn btn-sm btn-outline-secondary me-2">{{ __('Delivery note') }} DN-{{ $dNote->note_number }}</a>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     @can('send purchase')
         @if($purchase->status!=4)
         <div class="row">

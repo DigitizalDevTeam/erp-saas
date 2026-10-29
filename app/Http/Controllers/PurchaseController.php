@@ -222,6 +222,12 @@ class PurchaseController extends Controller
             $purchase->purchase_date  = $request->purchase_date;
             $purchase->purchase_number   = !empty($request->purchase_number) ? $request->purchase_number : 0;
             $purchase->status         =  0;
+            // New orders are delivery-driven: stock comes only from a
+            // delivery note, never from this create. Guarded so a pull
+            // without the migration still behaves exactly as before.
+            if (\Illuminate\Support\Facades\Schema::hasColumn('purchases', 'stock_on_delivery')) {
+                $purchase->stock_on_delivery = 1;
+            }
             $purchase->category_id    = $request->category_id;
             $purchase->created_by     = \Auth::user()->creatorId();
             if ($request->filled('purchase_quotation_id')) {
@@ -259,7 +265,10 @@ class PurchaseController extends Controller
                     if (! ($product->variants_enabled ?? false)) {
                         $variantId = null;
                     }
-                    if ($product && ($product->batch_tracking ?? false) && ($product->affect_stock ?? true)) {
+                    // Batch / expiry are checked at delivery time for
+                    // delivery-driven orders (see PurchaseDeliveryService).
+                    $deliveryDrivenStore = ! empty($purchase->stock_on_delivery);
+                    if (! $deliveryDrivenStore && $product && ($product->batch_tracking ?? false) && ($product->affect_stock ?? true)) {
                         if (trim((string) ($line['batch_no'] ?? '')) === '' || empty($line['expiry_date'] ?? null)) {
                             return redirect()->back()->with('error', __('Batch number and expiry date are required for batch-tracked products.'))->withInput();
                         }
@@ -285,9 +294,9 @@ class PurchaseController extends Controller
                         : null;
                     $purchaseProduct->save();
 
-                    $createExpiryLot = ($product && ($product->batch_tracking ?? false) && ($product->affect_stock ?? true))
+                    $createExpiryLot = ! $deliveryDrivenStore && (($product && ($product->batch_tracking ?? false) && ($product->affect_stock ?? true))
                         || ! empty($purchaseProduct->expiry_date)
-                        || ! empty($purchaseProduct->batch_no);
+                        || ! empty($purchaseProduct->batch_no));
                     if ($createExpiryLot) {
                         ProductExpiryLot::create([
                             'product_id' => (int) $purchaseProduct->product_id,
@@ -304,7 +313,7 @@ class PurchaseController extends Controller
                         ]);
                     }
 
-                    if ($product && ($product->identifier_tracking ?? false)) {
+                    if (! $deliveryDrivenStore && $product && ($product->identifier_tracking ?? false)) {
                         $raw = $line['identifiers'] ?? '';
                         $list = preg_split("/\r\n|\n|\r|,|;|\t/", (string) $raw);
                         $list = array_values(array_filter(array_map(function ($v) {
@@ -361,23 +370,27 @@ class PurchaseController extends Controller
                         $description .= ' | ' . __('Expiry') . ': ' . $purchaseProduct->expiry_date;
                     }
 
-                    $selectedOpts = \App\Services\ProductOptionService::normalizeSelectedOptions($purchaseProduct->selected_options_json);
-                    if (($product->options_enabled ?? false) && $selectedOpts !== []) {
-                        \App\Services\ProductOptionService::addOptionsForPurchase(
-                            $selectedOpts,
-                            (float) $purchaseProduct->quantity,
-                            $warehouseId,
-                            $creatorId,
-                            $type,
-                            $description,
-                            (int) $type_id
-                        );
-                    } else {
-                        Utility::total_quantity('plus', $purchaseProduct->quantity, $purchaseProduct->product_id);
-                        Utility::addProductStock($line['item'], $line['quantity'], $type, $description, $type_id);
+                    // Delivery-driven orders add NO stock here. Stock comes
+                    // only from a delivery note (PurchaseDeliveryService).
+                    if (! $deliveryDrivenStore) {
+                        $selectedOpts = \App\Services\ProductOptionService::normalizeSelectedOptions($purchaseProduct->selected_options_json);
+                        if (($product->options_enabled ?? false) && $selectedOpts !== []) {
+                            \App\Services\ProductOptionService::addOptionsForPurchase(
+                                $selectedOpts,
+                                (float) $purchaseProduct->quantity,
+                                $warehouseId,
+                                $creatorId,
+                                $type,
+                                $description,
+                                (int) $type_id
+                            );
+                        } else {
+                            Utility::total_quantity('plus', $purchaseProduct->quantity, $purchaseProduct->product_id);
+                            Utility::addProductStock($line['item'], $line['quantity'], $type, $description, $type_id);
 
-                        if (isset($line['item'])) {
-                            Utility::addWarehouseStock($line['item'], $line['quantity'], $warehouseId, $pRow, $pShelf, $variantId);
+                            if (isset($line['item'])) {
+                                Utility::addWarehouseStock($line['item'], $line['quantity'], $warehouseId, $pRow, $pShelf, $variantId);
+                            }
                         }
                     }
                 }
@@ -727,8 +740,12 @@ class PurchaseController extends Controller
                 $purchasePayment = PurchasePayment::where('purchase_id', $purchase->id)->first();
                 $vendor      = $purchase->vender;
                 $iteams      = $purchase->items;
+                $deliveryLines = \App\Services\PurchaseDeliveryService::sourceLinesForPurchase($purchase);
+                $deliveryNotes = \App\Services\PurchaseDeliveryService::tablesAvailable()
+                    ? $purchase->deliveryNotes()->with('items')->orderByDesc('id')->get()
+                    : collect();
 
-                return view('purchase.view', compact('purchase', 'vendor', 'iteams', 'purchasePayment'));
+                return view('purchase.view', compact('purchase', 'vendor', 'iteams', 'purchasePayment', 'deliveryLines', 'deliveryNotes'));
             }
             else
             {
@@ -794,6 +811,8 @@ class PurchaseController extends Controller
                 $purchase->purchase_date      = $request->purchase_date;
                 $purchase->category_id    = $request->category_id;
                 $purchase->save();
+                $isDeliveryDriven = $purchase->isDeliveryDriven();
+                $deliveryByLine = [];
                 $products = $request->items;
                 $creatorId = (int) \Auth::user()->creatorId();
 
@@ -808,7 +827,9 @@ class PurchaseController extends Controller
                         $purchaseProduct             = new PurchaseProduct();
                         $purchaseProduct->purchase_id    = $purchase->id;
 
-                        Utility::total_quantity('plus',$products[$i]['quantity'],$products[$i]['item']);
+                        if (! $isDeliveryDriven) {
+                            Utility::total_quantity('plus',$products[$i]['quantity'],$products[$i]['item']);
+                        }
                         $old_qty = 0;
                         $old_pid = null;
                         $old_vid = null;
@@ -821,7 +842,9 @@ class PurchaseController extends Controller
                         $old_pid = (int) $purchaseProduct->product_id;
                         $old_vid = $purchaseProduct->product_variant_id ? (int) $purchaseProduct->product_variant_id : null;
                         [$prev_row, $prev_shelf] = Utility::normalizeWarehouseLocation($purchaseProduct->row_no, $purchaseProduct->shelf_no);
-                        Utility::total_quantity('minus',$purchaseProduct->quantity,$purchaseProduct->product_id);
+                        if (! $isDeliveryDriven) {
+                            Utility::total_quantity('minus',$purchaseProduct->quantity,$purchaseProduct->product_id);
+                        }
                     }
 
                     if(isset($products[$i]['item']))
@@ -845,6 +868,16 @@ class PurchaseController extends Controller
                         $variantId = null;
                     }
 
+                    if ($isDeliveryDriven && $existingLine != null) {
+                        $deliveredForLine = \App\Services\PurchaseDeliveryService::deliveredQty('purchase', (int) $existingLine->id);
+                        if ($deliveredForLine > 0 && (int) $products[$i]['item'] !== (int) $existingLine->product_id) {
+                            return redirect()->back()->with('error', __('Cannot change the product of a line that already has deliveries.'))->withInput();
+                        }
+                        if ((float) $products[$i]['quantity'] < $deliveredForLine) {
+                            return redirect()->back()->with('error', __('Ordered quantity cannot be less than the delivered quantity.'))->withInput();
+                        }
+                    }
+
                     $purchaseProduct->quantity    = $products[$i]['quantity'];
                     $purchaseProduct->tax         = $products[$i]['tax'];
                     $purchaseProduct->discount    = $products[$i]['discount'];
@@ -856,22 +889,25 @@ class PurchaseController extends Controller
                     $purchaseProduct->product_variant_id = $variantId;
                     $purchaseProduct->save();
 
-                    if ($products[$i]['id']>0) {
+                    if ($products[$i]['id']>0 && ! $isDeliveryDriven) {
                         Utility::total_quantity('plus',$products[$i]['quantity'],$purchaseProduct->product_id);
 
                     }
 
-                    //Product Stock Report
-                    $type='purchase';
-                    $type_id = $purchase->id;
-                    StockReport::where('type','=','purchase')->where('type_id','=',$purchase->id)->delete();
-                    $description=$products[$i]['quantity'].'  '.__(' quantity add in purchase').' '. \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
+                    //Product Stock Report — skipped for delivery-driven
+                    //orders: their stock lives on delivery notes, not here.
+                    if (! $isDeliveryDriven) {
+                        $type='purchase';
+                        $type_id = $purchase->id;
+                        StockReport::where('type','=','purchase')->where('type_id','=',$purchase->id)->delete();
+                        $description=$products[$i]['quantity'].'  '.__(' quantity add in purchase').' '. \Auth::user()->purchaseNumberFormat($purchase->purchase_id);
 
-                    if(isset($products[$i]['item']) ){
-                        Utility::addProductStock( $products[$i]['item'],$products[$i]['quantity'],$type,$description,$type_id);
+                        if(isset($products[$i]['item']) ){
+                            Utility::addProductStock( $products[$i]['item'],$products[$i]['quantity'],$type,$description,$type_id);
+                        }
                     }
 
-                    if(isset($products[$i]['item']) && ! empty($request->warehouse_id)){
+                    if(! $isDeliveryDriven && isset($products[$i]['item']) && ! empty($request->warehouse_id)){
                         $wid = (int) $request->warehouse_id;
                         $new_pid = (int) $purchaseProduct->product_id;
                         $new_qty = (float) $purchaseProduct->quantity;
@@ -909,6 +945,24 @@ class PurchaseController extends Controller
         {
             if($purchase->created_by == \Auth::user()->creatorId())
             {
+                // Delivery-driven orders never added stock at create, so
+                // deleting one must not reverse the ordered quantity.
+                // If deliveries exist, the stock they added stays on the
+                // books — refuse the delete rather than silently losing it.
+                if ($purchase->isDeliveryDriven()) {
+                    if (\App\Services\PurchaseDeliveryService::tablesAvailable()
+                        && $purchase->deliveryNotes()->exists()) {
+                        return redirect()->back()->with('error', __('Cannot delete a purchase order that already has delivery notes.'));
+                    }
+                    foreach ($purchase->payments as $paymentRow) {
+                        PurchasePayment::find($paymentRow->id)?->delete();
+                    }
+                    PurchaseProduct::where('purchase_id', $purchase->id)->delete();
+                    $purchase->delete();
+
+                    return redirect()->route('purchase.index')->with('success', __('Purchase successfully deleted.'));
+                }
+
                 $purchase_products = PurchaseProduct::where('purchase_id',$purchase->id)->get();
 
                 $purchasepayments = $purchase->payments;

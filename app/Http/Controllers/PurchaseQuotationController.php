@@ -30,6 +30,49 @@ class PurchaseQuotationController extends Controller
         return view('vendor_quote.index', compact('quotes'));
     }
 
+    /**
+     * Smallest fitting best-price comparison: for one chosen product,
+     * list every supplier quote's unit price, lowest first, with the
+     * lowest highlighted. No new module, no price is changed here.
+     */
+    public function bestPrice(Request $request)
+    {
+        if (! Auth::user()->can('manage purchase')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+        $creatorId = Auth::user()->creatorId();
+        $products = ProductService::where('created_by', $creatorId)
+            ->where('type', '!=', 'service')
+            ->orderBy('name')
+            ->get()
+            ->pluck('name', 'id');
+        $products->prepend(__('Select Product'), '');
+
+        $rows = collect();
+        $productId = (int) $request->input('product_id', 0);
+        $product = $productId > 0
+            ? ProductService::where('id', $productId)->where('created_by', $creatorId)->first()
+            : null;
+        if ($product) {
+            $rows = \DB::table('purchase_quotation_products')
+                ->join('purchase_quotations', 'purchase_quotations.id', '=', 'purchase_quotation_products.purchase_quotation_id')
+                ->leftJoin('venders', 'venders.id', '=', 'purchase_quotations.vender_id')
+                ->where('purchase_quotations.created_by', $creatorId)
+                ->where('purchase_quotation_products.product_id', $product->id)
+                ->orderBy('purchase_quotation_products.price')
+                ->select(
+                    'purchase_quotation_products.price',
+                    'purchase_quotation_products.quantity',
+                    'purchase_quotations.purchase_quotation_id',
+                    'purchase_quotations.quote_date',
+                    'venders.name as vender_name'
+                )
+                ->get();
+        }
+
+        return view('vendor_quote.best_price', compact('products', 'product', 'rows'));
+    }
+
     public function create()
     {
         if (! Auth::user()->can('create purchase')) {

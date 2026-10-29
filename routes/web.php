@@ -190,6 +190,7 @@ use App\Http\Controllers\PayHereController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\ProformaController;
 use App\Http\Controllers\PurchaseQuotationController;
+use App\Http\Controllers\PurchaseDeliveryNoteController;
 use App\Http\Controllers\PurchaseProformaController;
 use App\Http\Controllers\ReferralProgramController;
 use App\Http\Controllers\TapController;
@@ -1224,6 +1225,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('bill/{id}/payment', [BillController::class, 'createPayment'])->name('bill.payment');
             Route::post('bill/{id}/payment/{pid}/destroy', [BillController::class, 'paymentDestroy'])->name('bill.payment.destroy');
             Route::get('bill/items', [BillController::class, 'items'])->name('bill.items');
+            Route::get('bill/{id}/delivery-notes/create', [PurchaseDeliveryNoteController::class, 'createForBill'])->name('bill.delivery-notes.create');
+            Route::post('bill/{id}/delivery-notes', [PurchaseDeliveryNoteController::class, 'storeForBill'])->name('bill.delivery-notes.store');
             Route::resource('bill', BillController::class);
         }
     );
@@ -2329,6 +2332,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('vendor-quote/{id}/convert-proforma', [PurchaseQuotationController::class, 'convertToProformaStore'])->name('vendor-quote.convert-proforma.store')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('vendor-quote/{id}/convert-purchase-proforma', [PurchaseProformaController::class, 'createFromVendorQuoteForm'])->name('vendor-quote.convert-purchase-proforma')->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('vendor-quote/{id}/convert-purchase-proforma', [PurchaseProformaController::class, 'createFromVendorQuote'])->name('vendor-quote.convert-purchase-proforma.store')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('vendor-quote/best-price', [PurchaseQuotationController::class, 'bestPrice'])->name('vendor-quote.best-price')->middleware(['auth', 'XSS', 'revalidate']);
     Route::resource('vendor-quote', PurchaseQuotationController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::any('vendor-quote/create/{cid}', [PurchaseQuotationController::class, 'quoteCreate'])->name('vendor_quotes.create')->middleware(['auth', 'XSS', 'revalidate']);
 
@@ -2366,6 +2370,9 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('purchase/{id}/resent', [PurchaseController::class, 'resent'])->name('purchase.resent');
             Route::get('purchase/convert-vendor-bill/{id}', [PurchaseController::class, 'convertToVendorBill'])->name('purchase.convert-vendor-bill');
             Route::get('purchase/convert-invoice/{id}', [PurchaseController::class, 'convertToInvoiceForm'])->name('purchase.convert-invoice.form');
+            Route::get('purchase/{id}/delivery-notes/create', [PurchaseDeliveryNoteController::class, 'createForPurchase'])->name('purchase.delivery-notes.create');
+            Route::post('purchase/{id}/delivery-notes', [PurchaseDeliveryNoteController::class, 'storeForPurchase'])->name('purchase.delivery-notes.store');
+            Route::get('purchase-delivery-notes/{id}', [PurchaseDeliveryNoteController::class, 'show'])->name('purchase-delivery-notes.show');
             Route::post('purchase/convert-invoice/{id}', [PurchaseController::class, 'convertToInvoiceStore'])->name('purchase.convert-invoice.store');
         }
 

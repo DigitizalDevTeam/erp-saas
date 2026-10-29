@@ -16,6 +16,7 @@ class Bill extends Model
         'purchase_id',
         'proforma_id',
         'suppress_inventory',
+        'stock_on_delivery',
         'category_id',
         'created_by',
         'voided_at',
@@ -36,6 +37,16 @@ class Bill extends Model
         'Paid',
         'Cancelled',
     ];
+
+    public function isDeliveryDriven(): bool
+    {
+        return (bool) ($this->stock_on_delivery ?? false);
+    }
+
+    public function deliveryNotes()
+    {
+        return $this->hasMany(PurchaseDeliveryNote::class, 'bill_id', 'id');
+    }
 
     public function customer()
     {

@@ -9,6 +9,7 @@
 
 @section('action-btn')
     <div class="float-end">
+        <a href="{{ route('vendor-quote.best-price') }}" class="btn btn-sm btn-outline-primary me-2">{{ __('Compare best price') }}</a>
         @can('create purchase')
             <a href="#" data-size="lg" data-url="{{ route('vendor-quote.create') }}" data-ajax-popup="true"
                 data-bs-toggle="tooltip" data-bs-original-title="{{__('Create')}}" data-title="{{ __('Vendor quote') }}" class="btn btn-sm btn-primary">
