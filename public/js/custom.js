@@ -203,7 +203,9 @@ $(document).on('click', 'a[data-ajax-popup="true"], button[data-ajax-popup="true
             taskCheckbox();
             common_bind("#commonModal");
             if (document.querySelector('#commonModal #assigned_users')) {
-                new Choices('#assigned_users', {
+                // Stored so the warehouse modal can rebuild the list
+                // when the branch changes (see warehouse create/edit).
+                window.warehouseAssignedUsersChoices = new Choices('#assigned_users', {
                     removeItemButton: true,
                     shouldSort: false,
                     searchResultLimit: 20,
