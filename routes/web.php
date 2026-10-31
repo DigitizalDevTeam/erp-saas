@@ -2344,6 +2344,9 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('purchase-proforma', PurchaseProformaController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::any('purchase-proforma/create/{cid}', [PurchaseProformaController::class, 'proformaCreate'])->name('purchase_proformas.create')->middleware(['auth', 'XSS', 'revalidate']);
 
+    // Must stay before the warehouse resource: otherwise "users"
+    // would be captured as a warehouse id by the show route.
+    Route::get('warehouse/users', [WarehouseController::class, 'usersForWarehouse'])->name('warehouse.users')->middleware(['auth', 'XSS', 'revalidate']);
     Route::resource('warehouse', WarehouseController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('warehouse/{warehouse}/document', [WarehouseController::class, 'uploadDocument'])->name('warehouse.document.upload')->middleware(['auth', 'XSS', 'revalidate']);
     Route::delete('warehouse/{warehouse}/document/{documentId}', [WarehouseController::class, 'deleteDocument'])->name('warehouse.document.delete')->middleware(['auth', 'XSS', 'revalidate']);

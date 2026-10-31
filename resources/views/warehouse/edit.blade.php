@@ -57,3 +57,4 @@
     <input type="submit" value="{{__('Edit')}}" class="btn  btn-primary">
 </div>
 {{ Form::close() }}
+@include('warehouse.partials.assigned-users-script')
