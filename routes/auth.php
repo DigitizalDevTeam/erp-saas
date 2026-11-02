@@ -22,6 +22,10 @@ Route::get('/login/{lang?}', [AuthenticatedSessionController::class, 'showLoginF
                 ->middleware('guest')
                 ->name('login');
 
+Route::get('/login/pos-users', [AuthenticatedSessionController::class, 'posUsersForCompany'])
+                ->middleware('guest')
+                ->name('login.pos-users');
+
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])
                 ->middleware('guest');
 

@@ -16,7 +16,6 @@ use App\Http\Requests\Auth\PosLoginRequest;
 use App\Providers\RouteServiceProvider;
 use App\Services\CompanyUserRoleService;
 use App\Services\PosActorService;
-use App\Services\PosLoginUserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -285,7 +284,17 @@ class AuthenticatedSessionController extends Controller
     }
 
     /**
-     * POS tab login: selected user + restaurant PIN → direct restaurant POS (no second PIN screen).
+     * POS tab login → direct restaurant POS (no second PIN screen).
+     *
+     * Two modes, one endpoint:
+     *  - email + PIN (first login, or after Change company): no user list.
+     *  - remembered company: hidden company_id + picked user_id + PIN,
+     *    where the user list is scoped to that one company only.
+     * The company shown after a first login is stored by the browser in
+     * localStorage (see the POS page script); this controller never
+     * stores email or PIN in localStorage, and it always re-validates
+     * user + PIN + company server-side, so a tampered hidden company_id
+     * cannot log anyone into another company.
      */
     public function storePosLogin(PosLoginRequest $request)
     {
@@ -312,30 +321,53 @@ class AuthenticatedSessionController extends Controller
 
         $request->ensureIsNotRateLimited();
 
-        $user = User::find($request->integer('user_id'));
         $pin = $request->normalizedPin();
+        $remembered = $request->isRememberedCompanyMode();
+        $posInput = $remembered
+            ? $request->only('company_id', 'user_id', 'login_mode')
+            : $request->only('email', 'login_mode');
 
-        if (! $user || ! $user->pos_pin || $user->pos_pin !== $pin) {
-            $request->hitRateLimit();
+        if ($remembered) {
+            // Remembered company: the hidden company_id is untrusted input.
+            // The user must actually belong to that company, otherwise this
+            // is a generic failure (no hint about which part was wrong).
+            $companyId = $request->integer('company_id');
+            $user = User::find($request->integer('user_id'));
 
-            throw ValidationException::withMessages([
-                'user_id' => __('Invalid user or PIN.'),
-            ]);
+            if (! $user || ! $user->pos_pin || $user->pos_pin !== $pin
+                || ! $user->canManagePos()
+                || ! $this->userBelongsToCompany($user, $companyId)) {
+                $request->hitRateLimit();
+
+                throw ValidationException::withMessages([
+                    'user_id' => __('Invalid user or PIN.'),
+                ]);
+            }
+
+            $preLoginCompanyId = $companyId;
+        } else {
+            // Email is globally unique, so email + PIN identifies one user.
+            $email = $request->normalizedEmail();
+            $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+
+            // One generic error for unknown email, wrong PIN, and no POS
+            // access alike, so the response never reveals whether an email
+            // exists or whether that account has POS access.
+            if (! $user || ! $user->pos_pin || $user->pos_pin !== $pin || ! $user->canManagePos()) {
+                $request->hitRateLimit();
+
+                throw ValidationException::withMessages([
+                    'email' => __('Invalid email or PIN.'),
+                ]);
+            }
+
+            $preLoginCompanyId = $this->resolveLoginCompanyId($user);
         }
 
-        if (! $user->canManagePos()) {
-            $request->hitRateLimit();
-
-            throw ValidationException::withMessages([
-                'user_id' => __('This account does not have POS access.'),
-            ]);
-        }
-
-        $preLoginCompanyId = $this->resolveLoginCompanyId($user);
         $companyUser = $preLoginCompanyId ? User::where('id', $preLoginCompanyId)->first() : null;
 
         if ($user->is_disable == 0 && $user->type != 'company' && $user->type != 'super admin') {
-            return redirect()->back()->withInput($request->only('user_id', 'login_mode'))->with('status', __('Your Account is disable,please contact your Administrator.'));
+            return redirect()->back()->withInput($posInput)->with('status', __('Your Account is disable,please contact your Administrator.'));
         }
 
         $activeMembershipCount = $this->activeCompanyMembershipCount($user);
@@ -349,7 +381,7 @@ class AuthenticatedSessionController extends Controller
             && (int) $companyUser->is_enable_login === 0;
 
         if ($isUserLoginDisabled || $isCompanyLoginDisabled) {
-            return redirect()->back()->withInput($request->only('user_id', 'login_mode'))->with('status', __('Your Account is disable from company.'));
+            return redirect()->back()->withInput($posInput)->with('status', __('Your Account is disable from company.'));
         }
 
         User::defaultEmail();
@@ -358,7 +390,7 @@ class AuthenticatedSessionController extends Controller
         Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
 
-        $resolvedCompanyId = $this->resolveLoginCompanyId($user);
+        $resolvedCompanyId = $remembered ? $preLoginCompanyId : $this->resolveLoginCompanyId($user);
         if ($resolvedCompanyId) {
             $request->session()->put('active_company_id', (int) $resolvedCompanyId);
             CompanyUserRoleService::normalizeDefaultCompany($user);
@@ -374,13 +406,13 @@ class AuthenticatedSessionController extends Controller
         if ($user->delete_status == 0 || $status == 0) {
             Auth::logout();
 
-            return redirect()->back()->withInput($request->only('user_id', 'login_mode'))->with('status', __('Your Account is deleted by admin,please contact your Administrator.'));
+            return redirect()->back()->withInput($posInput)->with('status', __('Your Account is deleted by admin,please contact your Administrator.'));
         }
 
         if ($user->is_active == 0) {
             Auth::logout();
 
-            return redirect()->back()->withInput($request->only('user_id', 'login_mode'))->with('status', __('Your Account is deactive by admin,please contact your Administrator.'));
+            return redirect()->back()->withInput($posInput)->with('status', __('Your Account is deactive by admin,please contact your Administrator.'));
         }
 
         if ($companyUser && $companyUser->plan) {
@@ -388,7 +420,7 @@ class AuthenticatedSessionController extends Controller
             if ($plan && (int) $plan->pos !== 1) {
                 Auth::logout();
 
-                return redirect()->back()->withInput($request->only('user_id', 'login_mode'))->with('status', __('POS is not enabled on your plan.'));
+                return redirect()->back()->withInput($posInput)->with('status', __('POS is not enabled on your plan.'));
             }
         }
 
@@ -404,6 +436,16 @@ class AuthenticatedSessionController extends Controller
         ]);
 
         $request->clearRateLimit();
+
+        // Hand the resolved company to the POS page (flash, one request
+        // only) so it can store company id + name in the browser's
+        // localStorage. Nothing secret is flashed: id + display name only.
+        if ($resolvedCompanyId && $companyUser) {
+            $request->session()->flash('pos_remember_company', [
+                'id' => (int) $resolvedCompanyId,
+                'name' => (string) $companyUser->name,
+            ]);
+        }
 
         return redirect()->route('pos.restaurant.index');
     }
@@ -456,15 +498,103 @@ class AuthenticatedSessionController extends Controller
             ->count();
     }
 
+    /**
+     * Public user list for ONE remembered company only, used by the POS
+     * login page after localStorage supplies a company_id. This is NOT
+     * the old global list: no company_id (or an invalid one) returns an
+     * empty list, and every returned user belongs to that company.
+     */
+    public function posUsersForCompany(Request $request)
+    {
+        $companyId = (int) $request->query('company_id', 0);
+        $company = $companyId > 0 ? User::find($companyId) : null;
+
+        if (! $company || $company->type !== 'company'
+            || (int) $company->is_active !== 1
+            || (int) $company->delete_status !== 1
+            || (int) $company->is_enable_login === 0) {
+            return response()->json([]);
+        }
+
+        if ($company->plan) {
+            $plan = Plan::find($company->plan);
+            if ($plan && (int) $plan->pos !== 1) {
+                return response()->json([]);
+            }
+        }
+
+        $users = User::query()
+            ->whereNotNull('pos_pin')
+            ->where('pos_pin', '!=', '')
+            ->where('is_active', 1)
+            ->where('delete_status', 1)
+            ->where('type', '!=', 'super admin')
+            ->orderBy('name')
+            ->orderBy('email')
+            ->get();
+
+        $list = $users
+            ->filter(fn (User $user) => $this->userBelongsToCompany($user, $companyId)
+                && $user->canManagePos()
+                && ! ($user->is_disable == 0 && $user->type != 'company' && $user->type != 'super admin')
+                && ! ($user->type != 'super admin' && $user->type != 'company'
+                    && $this->activeCompanyMembershipCount($user) <= 1
+                    && (int) $user->is_enable_login === 0))
+            ->map(function (User $user) {
+                $name = trim((string) $user->name);
+
+                return [
+                    'id' => (int) $user->id,
+                    // Name + email in the label so two staff with the same
+                    // name in one company are still distinguishable.
+                    'display_label' => $name !== '' ? $name.' ('.$user->email.')' : (string) $user->email,
+                ];
+            })
+            ->values()
+            ->all();
+
+        return response()->json($list);
+    }
+
+    /**
+     * Does this user belong to this company? Union of the ways a user
+     * can be linked: company owner, created by the company, default
+     * company, or an active company_user membership. This is what stops
+     * a tampered hidden company_id from pulling another company's users
+     * or logging into another company.
+     */
+    private function userBelongsToCompany(User $user, int $companyId): bool
+    {
+        if ($companyId <= 0) {
+            return false;
+        }
+
+        if ((int) $user->id === $companyId) {
+            return true;
+        }
+
+        if ((int) $user->created_by === $companyId) {
+            return true;
+        }
+
+        if ((int) $user->default_company_id === $companyId) {
+            return true;
+        }
+
+        return $user->canAccessCompany($companyId);
+    }
+
     public function showLoginForm($lang = '')
     {
         $lang = Utility::resolveAuthLocale($lang);
         \App::setLocale($lang);
 
         $settings = Utility::settings();
-        $posLoginUsers = app(PosLoginUserService::class)->eligibleUsersForLoginDropdown();
 
-        return view('auth.login', compact('lang', 'settings', 'posLoginUsers'));
+        // Deliberately no user list: the POS tab starts as email + PIN,
+        // and a remembered company loads only its own users via
+        // posUsersForCompany() after localStorage supplies a company_id.
+        return view('auth.login', compact('lang', 'settings'));
     }
 
     public function showLinkRequestForm($lang = '')

@@ -5977,25 +5977,50 @@ class PosController extends Controller
     }
 
     /**
-     * Restaurant POS: clear PIN user and return to PIN entry.
+     * Restaurant POS Switch User: fully log out the current user.
+     *
+     * The old behaviour only cleared the PIN user and cart and sent the
+     * next waiter to PIN entry, while the first user's Laravel login
+     * stayed alive underneath. That is exactly what the client asked
+     * to end: Switch User must finish the existing login, so the next
+     * user logs in fully on the POS login screen (on a remembered
+     * terminal that is the read-only company + pick name + PIN, with
+     * no email typing). Browser localStorage is deliberately NOT
+     * cleared here — the remembered company belongs to the terminal,
+     * not to the user who just signed out.
      */
     public function logoutRestaurantPin(Request $request)
     {
         $previousPinId = session('pos_pin_user_id');
+        $previousAuthId = Auth::id();
         PosActorService::clearRestaurantTerminalSession();
-        PosActorService::requireRestaurantPinEntry();
-        if ($previousPinId) {
+        if ($previousPinId || $previousAuthId) {
             PosAuditLogService::log(
                 PosAuditLog::ACTION_SWITCH_USER,
                 'user',
-                (int) $previousPinId,
+                (int) ($previousPinId ?: $previousAuthId),
                 __('POS user signed out'),
-                ['from_user_id' => (int) $previousPinId]
+                [
+                    'from_user_id' => $previousPinId ? (int) $previousPinId : null,
+                    'from_auth_user_id' => $previousAuthId ? (int) $previousAuthId : null,
+                ]
             );
         }
-        $request->session()->regenerate();
 
-        return redirect()->route('pos.restaurant.index')->with('info', __('Enter PIN for the next user.'));
+        // Full logout, not just a PIN swap: clear every POS session key,
+        // end the web guard login, then invalidate the session itself
+        // so the previous user cannot be returned to.
+        $request->session()->forget([
+            PosActorService::SESSION_REQUIRE_PIN,
+            'pos_login_via_tab',
+            'active_company_id',
+        ]);
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login', ['tab' => 'pos'])
+            ->with('status', __('Signed out. Log in as the next user.'));
     }
 
     /**

@@ -388,7 +388,13 @@
                         @endif
 
                         @php
-                            $activeLoginTab = old('login_mode', 'erp');
+                            // ?tab=pos is how Switch User lands here after a full
+                            // logout, so the next waiter sees the POS panel at once
+                            // (with the remembered company, when the terminal has one).
+                            // Anything else falls back to the posted login_mode.
+                            $activeLoginTab = in_array(request()->query('tab'), ['erp', 'pos'], true)
+                                ? request()->query('tab')
+                                : old('login_mode', 'erp');
                         @endphp
 
                         <div class="login-tabs" role="tablist">
@@ -472,23 +478,22 @@
                         </div>
 
                         <div id="login-panel-pos" class="login-panel {{ $activeLoginTab === 'pos' ? 'active' : '' }}">
-                        {{ Form::open(['route' => 'login.pos', 'method' => 'post', 'class'=>'needs-validation', 'novalidate', 'id' => 'pos-login-form']) }}
+                        {{-- POS first login: email + PIN. No user list is ever
+                             rendered on this page. --}}
+                        <div id="pos-email-wrap">
+                        {{ Form::open(['route' => 'login.pos', 'method' => 'post', 'class'=>'needs-validation', 'novalidate', 'id' => 'pos-login-form-email']) }}
                         {{ Form::hidden('login_mode', 'pos') }}
 
                         <div class="form-group">
-                            <label class="form-label">{{ __('Select User') }}</label>
-                            <select name="user_id" class="form-control" required id="pos-login-user">
-                                <option value="">{{ __('Select User') }}</option>
-                                @foreach ($posLoginUsers ?? [] as $u)
-                                    <option value="{{ $u['id'] }}" @selected(old('user_id') == $u['id'])>
-                                        {{ $u['display_label'] }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @if (empty($posLoginUsers))
-                                <small class="text-muted d-block mt-2">{{ __('No POS users configured. Ask your administrator to set POS PIN on staff accounts.') }}</small>
-                            @endif
-                            @error('user_id')
+                            <label class="form-label">{{ __('Email') }}</label>
+                            {{ Form::email('email', old('email'), [
+                                'class' => 'form-control',
+                                'placeholder' => __('Email'),
+                                'required',
+                                'id' => 'pos-login-email',
+                                'autocomplete' => 'username',
+                            ]) }}
+                            @error('email')
                                 @if(old('login_mode') === 'pos')
                                     <small class="text-danger">{{ $message }}</small>
                                 @endif
@@ -527,9 +532,77 @@
                         @endif
 
                         <button type="submit" class="btn btn-primary w-100">{{ __('Open Restaurant POS') }}</button>
-                        <p class="text-muted small mt-3 mb-0">{{ __('Select your name, enter POS PIN, and open Restaurant POS.') }}</p>
+                        <p class="text-muted small mt-3 mb-0">{{ __('Enter your email, enter POS PIN, and open Restaurant POS.') }}</p>
 
                         {{ Form::close() }}
+                        </div>
+
+                        {{-- POS remembered company: shown only when this
+                             browser's localStorage holds a valid company.
+                             Company is NOT a dropdown: its name is shown in
+                             a read-only text input, and its id is kept in
+                             a hidden input. The user list below is loaded
+                             for that one company only. --}}
+                        <div id="pos-remembered-wrap" style="display:none">
+                        {{ Form::open(['route' => 'login.pos', 'method' => 'post', 'class'=>'needs-validation', 'novalidate', 'id' => 'pos-login-form-remembered']) }}
+                        {{ Form::hidden('login_mode', 'pos') }}
+
+                        <div class="form-group">
+                            <label class="form-label">{{ __('Company') }}</label>
+                            <input type="text" readonly id="pos-remembered-company-name" class="form-control" value="">
+                            <input type="hidden" name="company_id" id="pos-remembered-company-id" value="">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">{{ __('Select User') }}</label>
+                            <select name="user_id" class="form-control" required id="pos-remembered-user" data-old-user-id="{{ old('user_id') }}">
+                                <option value="">{{ __('Select User') }}</option>
+                            </select>
+                            <small id="pos-remembered-users-note" class="text-muted d-block mt-2" style="display:none"></small>
+                            @error('user_id')
+                                @if(old('login_mode') === 'pos')
+                                    <small class="text-danger">{{ $message }}</small>
+                                @endif
+                            @enderror
+                        </div>
+
+                        <div class="form-group">
+                            {{ Form::password('pos_pin', [
+                                'class' => 'form-control pos-pin-input',
+                                'placeholder' => __('POS PIN (4-8 digits)'),
+                                'required',
+                                'maxlength' => 8,
+                                'minlength' => 4,
+                                'autocomplete' => 'off',
+                                'inputmode' => 'numeric',
+                                'pattern' => '[0-9]*',
+                            ]) }}
+                            @error('pos_pin')
+                                <small class="text-danger">{{ $message }}</small>
+                            @enderror
+                        </div>
+
+                        <div class="form-check mb-3">
+                            {{ Form::checkbox('remember', 1, true, ['class'=>'form-check-input','id'=>'rememberMePosRemembered']) }}
+                            <label class="form-check-label" for="rememberMePosRemembered">
+                                {{ __('Keep me logged in') }}
+                            </label>
+                        </div>
+
+                        @if ($settings['recaptcha_module'] == 'on')
+                            @if ($settings['google_recaptcha_version'] == 'v2-checkbox')
+                                {!! NoCaptcha::display(['id' => 'pos-recaptcha-remembered']) !!}
+                            @else
+                                <input type="hidden" name="g-recaptcha-response" class="g-recaptcha-response-pos">
+                            @endif
+                        @endif
+
+                        <button type="submit" class="btn btn-primary w-100">{{ __('Open Restaurant POS') }}</button>
+                        <button type="button" id="pos-change-company" class="btn btn-outline-secondary w-100 mt-2">{{ __('Change company') }}</button>
+                        <p class="text-muted small mt-3 mb-0">{{ __('Company saved on this browser. Pick your name, enter POS PIN, and open Restaurant POS.') }}</p>
+
+                        {{ Form::close() }}
+                        </div>
                         </div>
                     </div>
                 </div>
@@ -557,13 +630,102 @@
                 });
             });
 
-            var posUserSelect = document.getElementById('pos-login-user');
-            var posPinInput = document.querySelector('#login-panel-pos .pos-pin-input');
-            if (posUserSelect && posPinInput) {
-                posUserSelect.addEventListener('change', function () {
-                    if (posUserSelect.value && panels.pos.classList.contains('active')) {
-                        posPinInput.focus();
+            // Remembered company (browser localStorage only, never email
+            // or PIN): id + name only. The server re-validates user + PIN
+            // + company on every login, so a tampered stored id cannot
+            // log anyone into another company.
+            var posStorageKey = 'pos_remembered_company';
+            var posEmailWrap = document.getElementById('pos-email-wrap');
+            var posRememberedWrap = document.getElementById('pos-remembered-wrap');
+            var posCompanyNameInput = document.getElementById('pos-remembered-company-name');
+            var posCompanyIdInput = document.getElementById('pos-remembered-company-id');
+            var posRememberedUser = document.getElementById('pos-remembered-user');
+            var posRememberedNote = document.getElementById('pos-remembered-users-note');
+            var posEmailInput = document.getElementById('pos-login-email');
+
+            function readRememberedCompany() {
+                try {
+                    var raw = localStorage.getItem(posStorageKey);
+                    if (!raw) { return null; }
+                    var company = JSON.parse(raw);
+                    if (company && company.id > 0 && company.name) { return company; }
+                } catch (e) { /* fall through to email form */ }
+                return null;
+            }
+
+            function showPosEmailForm() {
+                if (posEmailWrap) { posEmailWrap.style.display = ''; }
+                if (posRememberedWrap) { posRememberedWrap.style.display = 'none'; }
+            }
+
+            function loadRememberedUsers(companyId) {
+                if (!posRememberedUser) { return; }
+                fetch('{{ route('login.pos-users') }}?company_id=' + encodeURIComponent(companyId), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                }).then(function (r) { return r.json(); }).then(function (users) {
+                    var oldUserId = posRememberedUser.getAttribute('data-old-user-id') || '';
+                    posRememberedUser.innerHTML = '';
+                    var placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = '{{ __('Select User') }}';
+                    posRememberedUser.appendChild(placeholder);
+                    (users || []).forEach(function (u) {
+                        var opt = document.createElement('option');
+                        opt.value = u.id;
+                        opt.textContent = u.display_label;
+                        if (String(u.id) === String(oldUserId)) { opt.selected = true; }
+                        posRememberedUser.appendChild(opt);
+                    });
+                    if (!users || users.length === 0) {
+                        if (posRememberedNote) {
+                            posRememberedNote.style.display = '';
+                            posRememberedNote.textContent = '{{ __('No POS users for this company. Ask your administrator to set POS PIN on staff accounts, or change company.') }}';
+                        }
+                    } else if (posRememberedNote) {
+                        posRememberedNote.style.display = 'none';
                     }
+                }).catch(function () {
+                    if (posRememberedNote) {
+                        posRememberedNote.style.display = '';
+                        posRememberedNote.textContent = '{{ __('Could not load users for this company. Try again, or change company.') }}';
+                    }
+                });
+            }
+
+            function showPosRememberedForm(company) {
+                if (posCompanyNameInput) { posCompanyNameInput.value = company.name; }
+                if (posCompanyIdInput) { posCompanyIdInput.value = company.id; }
+                if (posEmailWrap) { posEmailWrap.style.display = 'none'; }
+                if (posRememberedWrap) { posRememberedWrap.style.display = ''; }
+                loadRememberedUsers(company.id);
+            }
+
+            var rememberedCompany = readRememberedCompany();
+            if (rememberedCompany) {
+                showPosRememberedForm(rememberedCompany);
+            } else {
+                showPosEmailForm();
+            }
+
+            var posChangeCompany = document.getElementById('pos-change-company');
+            if (posChangeCompany) {
+                posChangeCompany.addEventListener('click', function () {
+                    try { localStorage.removeItem(posStorageKey); } catch (e) {}
+                    showPosEmailForm();
+                    if (posEmailInput) { posEmailInput.focus(); }
+                });
+            }
+
+            if (posEmailInput) {
+                posEmailInput.addEventListener('change', function () {
+                    var pin = document.querySelector('#pos-email-wrap .pos-pin-input');
+                    if (posEmailInput.value && panels.pos.classList.contains('active') && pin) { pin.focus(); }
+                });
+            }
+            if (posRememberedUser) {
+                posRememberedUser.addEventListener('change', function () {
+                    var pin = document.querySelector('#pos-remembered-wrap .pos-pin-input');
+                    if (posRememberedUser.value && panels.pos.classList.contains('active') && pin) { pin.focus(); }
                 });
             }
         });
