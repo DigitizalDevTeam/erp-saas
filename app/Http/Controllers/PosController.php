@@ -2100,7 +2100,7 @@ class PosController extends Controller
         $pos->customer_id = $customer_id;
         $pos->warehouse_id = $warehouse_id;
         $pos->pos_date = date('Y-m-d');
-        $pos->payment_method = $request->payment_method;
+        $pos->payment_method = PosPayment::forcedMethodForDocumentType($documentType, $request->payment_method) ?? $request->payment_method;
         $pos->document_type = $documentType;
         $pos->created_by = $user_id;
         $pos->client_order_id = $clientOrderId;
@@ -2256,6 +2256,9 @@ class PosController extends Controller
                 if ($forceCreditPayment) {
                     $method = PosPayment::METHOD_CREDIT;
                 }
+                if (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+                    $method = PosPayment::METHOD_INTERNAL;
+                }
                 $posPayment->payment_method = $method;
                 $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? $request->credit_terms ?? null) : null;
                 $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? $customer_id ?? null) : null;
@@ -2263,7 +2266,7 @@ class PosController extends Controller
                 $posPayment->amount = $amt;
                 $posPayment->discount = $firstPayment ? (float) $discount : 0;
                 $posPayment->discount_amount = $amt;
-                $posPayment->tip = $firstPayment ? (float) ($request->tip ?? 0) : 0;
+                $posPayment->tip = ($firstPayment && ($pos->document_type ?? '') !== Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) ? (float) ($request->tip ?? 0) : 0;
                 $posPayment->notes = $firstPayment ? ($request->notes ?: null) : null;
                 $posPayment->created_by = $user_id;
                 $posPayment->save();
@@ -2284,9 +2287,11 @@ class PosController extends Controller
             $posPayment->pos_id = $pos->id;
             $posPayment->branch_id = $pos->branch_id;
             $posPayment->date = $request->date ?? date('Y-m-d');
-            $posPayment->payment_method = $forceCreditPayment
+            $posPayment->payment_method = (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION)
+                ? PosPayment::METHOD_INTERNAL
+                : ($forceCreditPayment
                 ? PosPayment::METHOD_CREDIT
-                : ($request->payment_method ?? PosPayment::METHOD_CASH);
+                : ($request->payment_method ?? PosPayment::METHOD_CASH));
             $posPayment->credit_terms = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->credit_terms ?? null) : null;
             $posPayment->customer_id = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->customer_id ?: $customer_id) : null;
             $posPayment->transaction_id = $request->transaction_id ?: null;
@@ -2294,7 +2299,7 @@ class PosController extends Controller
             $posPayment->change_amount = $changeAmount;
             $posPayment->discount = $discount;
             $posPayment->discount_amount = $totalPaid;
-            $posPayment->tip = (float) ($request->tip ?? 0);
+            $posPayment->tip = (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) ? 0 : (float) ($request->tip ?? 0);
             $posPayment->notes = $request->notes ?: null;
             $posPayment->created_by = $user_id;
             $posPayment->save();
@@ -2488,7 +2493,7 @@ class PosController extends Controller
                         $pos->shift_id = $shiftId;
                     }
                     $pos->customer_id = $customer_id;
-                    $pos->payment_method = $request->payment_method ?? $pos->payment_method;
+                    $pos->payment_method = PosPayment::forcedMethodForDocumentType($documentType, $request->payment_method) ?? ($request->payment_method ?? $pos->payment_method);
                     $this->assignPosSerialForDocumentType($pos, $documentType);
                     $pos->save();
                     // Manager approval for large discounts: before any deduction or payment.
@@ -2621,6 +2626,9 @@ class PosController extends Controller
                             if ($forceCreditPayment) {
                                 $method = PosPayment::METHOD_CREDIT;
                             }
+                            if (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+                                $method = PosPayment::METHOD_INTERNAL;
+                            }
                             $posPayment->payment_method = $method;
                             $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? $request->credit_terms ?? null) : null;
                             $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? $customer_id ?? null) : null;
@@ -2628,7 +2636,7 @@ class PosController extends Controller
                             $posPayment->amount = $amt;
                             $posPayment->discount = $firstPmt ? (float) $discount : 0;
                             $posPayment->discount_amount = $amt;
-                            $posPayment->tip = $firstPmt ? (float) ($request->tip ?? 0) : 0;
+                            $posPayment->tip = ($firstPmt && ($pos->document_type ?? '') !== Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) ? (float) ($request->tip ?? 0) : 0;
                             $posPayment->notes = $firstPmt ? ($request->notes ?: null) : null;
                             $posPayment->created_by = $user_id;
                             $posPayment->save();
@@ -2647,9 +2655,11 @@ class PosController extends Controller
                         $posPayment->pos_id = $pos->id;
                         $posPayment->branch_id = $pos->branch_id;
                         $posPayment->date = $request->date ?? date('Y-m-d');
-                        $posPayment->payment_method = $forceCreditPayment
+                        $posPayment->payment_method = (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION)
+                            ? PosPayment::METHOD_INTERNAL
+                            : ($forceCreditPayment
                             ? PosPayment::METHOD_CREDIT
-                            : ($request->payment_method ?? PosPayment::METHOD_CASH);
+                            : ($request->payment_method ?? PosPayment::METHOD_CASH));
                         $posPayment->credit_terms = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->credit_terms ?? null) : null;
                         $posPayment->customer_id = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->customer_id ?: $customer_id) : null;
                         $posPayment->transaction_id = $request->transaction_id ?: null;
@@ -2657,7 +2667,7 @@ class PosController extends Controller
                         $posPayment->change_amount = $changeAmount;
                         $posPayment->discount = $discount;
                         $posPayment->discount_amount = $total;
-                        $posPayment->tip = (float) ($request->tip ?? 0);
+                        $posPayment->tip = (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) ? 0 : (float) ($request->tip ?? 0);
                         $posPayment->notes = $request->notes ?: null;
                         $posPayment->created_by = $user_id;
                         $posPayment->save();
@@ -2706,7 +2716,7 @@ class PosController extends Controller
                     $pos->customer_id = $customer_id;
                     $pos->warehouse_id = $warehouse_id;
                     $pos->pos_date = date('Y-m-d');
-                    $pos->payment_method = $request->payment_method;
+                    $pos->payment_method = PosPayment::forcedMethodForDocumentType($documentType, $request->payment_method) ?? $request->payment_method;
                     $pos->document_type = $documentType;
                     $pos->created_by = $user_id;
                     $pos->save();
@@ -2873,6 +2883,9 @@ class PosController extends Controller
                             if ($forceCreditPayment) {
                                 $method = PosPayment::METHOD_CREDIT;
                             }
+                            if (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+                                $method = PosPayment::METHOD_INTERNAL;
+                            }
                             $posPayment->payment_method = $method;
                             $posPayment->credit_terms = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['credit_terms'] ?? $request->credit_terms ?? null) : null;
                             $posPayment->customer_id = $posPayment->payment_method === PosPayment::METHOD_CREDIT ? ($p['customer_id'] ?? $customer_id ?? null) : null;
@@ -2880,7 +2893,7 @@ class PosController extends Controller
                             $posPayment->amount = $amt;
                             $posPayment->discount = $firstPayment ? (float) $discount : 0;
                             $posPayment->discount_amount = $amt;
-                            $posPayment->tip = $firstPayment ? (float) ($request->tip ?? 0) : 0;
+                            $posPayment->tip = ($firstPayment && ($pos->document_type ?? '') !== Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) ? (float) ($request->tip ?? 0) : 0;
                             $posPayment->notes = $firstPayment ? ($request->notes ?: null) : null;
                             $posPayment->created_by = $user_id;
                             $posPayment->save();
@@ -2901,9 +2914,11 @@ class PosController extends Controller
                         $posPayment->pos_id = $pos->id;
                         $posPayment->branch_id = $pos->branch_id;
                         $posPayment->date = $request->date ?? date('Y-m-d');
-                        $posPayment->payment_method = $forceCreditPayment
+                        $posPayment->payment_method = (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION)
+                            ? PosPayment::METHOD_INTERNAL
+                            : ($forceCreditPayment
                             ? PosPayment::METHOD_CREDIT
-                            : ($request->payment_method ?? PosPayment::METHOD_CASH);
+                            : ($request->payment_method ?? PosPayment::METHOD_CASH));
                         $posPayment->credit_terms = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->credit_terms ?? null) : null;
                         $posPayment->customer_id = ($posPayment->payment_method === PosPayment::METHOD_CREDIT) ? ($request->customer_id ?: $customer_id) : null;
                         $posPayment->transaction_id = $request->transaction_id ?: null;
@@ -2911,7 +2926,7 @@ class PosController extends Controller
                         $posPayment->change_amount = $changeAmount;
                         $posPayment->discount = $discount;
                         $posPayment->discount_amount = $total;
-                        $posPayment->tip = (float) ($request->tip ?? 0);
+                        $posPayment->tip = (($pos->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) ? 0 : (float) ($request->tip ?? 0);
                         $posPayment->notes = $request->notes ?: null;
                         $posPayment->created_by = $user_id;
                         $posPayment->save();
@@ -5851,9 +5866,15 @@ class PosController extends Controller
         }
 
         $posIds = Pos::where('shift_id', $shift->id)->pluck('id');
-        $salesCount = $posIds->count();
+        // Internal Consumption is not a sale: exclude it from the shift's
+        // sales count and sales total (its payments are method 'internal',
+        // so cash/card/credit totals below already exclude it).
+        $regularPos = Pos::where('shift_id', $shift->id)->where(function ($q) {
+            $q->whereNull('document_type')->orWhere('document_type', '!=', Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION);
+        })->get();
+        $salesCount = $regularPos->count();
         $salesTotal = 0;
-        foreach (Pos::where('shift_id', $shift->id)->get() as $pos) {
+        foreach ($regularPos as $pos) {
             $salesTotal += $pos->getTotal();
         }
         $cashTotal = PosPayment::whereIn('pos_id', $posIds)->where('payment_method', 'cash')->sum('amount');

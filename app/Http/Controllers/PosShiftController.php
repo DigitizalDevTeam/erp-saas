@@ -453,7 +453,7 @@ class PosShiftController extends Controller
 
         $posIds = app(PosShiftReportService::class)->resolveShiftPosIds($pos_shift, \Auth::user()->creatorId());
         $paidPosIds = Pos::whereIn('id', $posIds)->whereHas('posPayments')->pluck('id');
-        $salesTotal = PosPayment::whereIn('pos_id', $posIds)->sum('amount');
+        $salesTotal = PosPayment::whereIn('pos_id', $posIds)->where(function ($q) { $q->whereNull('payment_method')->orWhere('payment_method', '!=', \App\Models\PosPayment::METHOD_INTERNAL); })->sum('amount');
         $cashTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
             $q->where('payment_method', \App\Models\PosPayment::METHOD_CASH)->orWhereNull('payment_method');
         })->sum('amount');
@@ -518,7 +518,7 @@ class PosShiftController extends Controller
 
         foreach ($openShifts as $pos_shift) {
             $posIds = Pos::where('shift_id', $pos_shift->id)->pluck('id');
-            $salesTotal = PosPayment::whereIn('pos_id', $posIds)->sum('amount');
+            $salesTotal = PosPayment::whereIn('pos_id', $posIds)->where(function ($q) { $q->whereNull('payment_method')->orWhere('payment_method', '!=', \App\Models\PosPayment::METHOD_INTERNAL); })->sum('amount');
             $cashTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
                 $q->where('payment_method', \App\Models\PosPayment::METHOD_CASH)->orWhereNull('payment_method');
             })->sum('amount');

@@ -30,14 +30,17 @@ class NightAuditOrchestratorService
 
             $posQuery = Pos::where('created_by', $creatorId)
                 ->whereDate('pos_date', $auditDate)
-                ->whereNull('cancelled_at');
+                ->whereNull('cancelled_at')
+                ->where(function ($q) {
+                    $q->whereNull('document_type')->orWhere('document_type', '!=', Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION);
+                });
             if ($branchId) {
                 $posQuery->where('branch_id', $branchId);
             }
             $posIds = $posQuery->pluck('id');
 
             $posSalesTotal = (float) Pos::whereIn('id', $posIds)->get()->sum(fn ($p) => $p->getTotal());
-            $posPaymentsTotal = (float) PosPayment::whereIn('pos_id', $posIds)->sum('amount');
+            $posPaymentsTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) { $q->whereNull('payment_method')->orWhere('payment_method', '!=', \App\Models\PosPayment::METHOD_INTERNAL); })->sum('amount');
 
             $byOperational = [];
             foreach (AttendanceShiftCatalog::operationalShiftOptions() as $code => $label) {
@@ -49,7 +52,7 @@ class NightAuditOrchestratorService
                 $ids = Pos::whereIn('shift_id', $shiftIds)->whereNull('cancelled_at')->pluck('id');
                 $byOperational[$code] = [
                     'label' => $label,
-                    'sales' => (float) PosPayment::whereIn('pos_id', $ids)->sum('amount'),
+                    'sales' => (float) PosPayment::whereIn('pos_id', $ids)->where(function ($q) { $q->whereNull('payment_method')->orWhere('payment_method', '!=', \App\Models\PosPayment::METHOD_INTERNAL); })->sum('amount'),
                     'shifts' => $shiftIds->count(),
                 ];
             }
@@ -95,7 +98,7 @@ class NightAuditOrchestratorService
         $count = 0;
         foreach ($query->get() as $shift) {
             $posIds = Pos::where('shift_id', $shift->id)->pluck('id');
-            $salesTotal = (float) PosPayment::whereIn('pos_id', $posIds)->sum('amount');
+            $salesTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) { $q->whereNull('payment_method')->orWhere('payment_method', '!=', \App\Models\PosPayment::METHOD_INTERNAL); })->sum('amount');
             $cashTotal = (float) PosPayment::whereIn('pos_id', $posIds)
                 ->where(function ($q) {
                     $q->where('payment_method', PosPayment::METHOD_CASH)->orWhereNull('payment_method');

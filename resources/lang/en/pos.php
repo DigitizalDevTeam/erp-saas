@@ -73,6 +73,7 @@ return [
     'payment_mpesa' => 'Mpesa',
     'payment_bank_transfer' => 'Bank Transfer',
     'payment_cheque' => 'Cheque',
+    'payment_internal' => 'Internal Consumption',
     'mixed_payment' => 'Mixed Payment',
     'amount_cannot_less_than_total' => 'Amount cannot be less than total.',
     'pos_detail' => 'POS Detail',

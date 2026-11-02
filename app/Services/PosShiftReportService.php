@@ -223,7 +223,10 @@ class PosShiftReportService
         $cashTotal += $balanceCash;
         $cardTotal = (float) PosPayment::whereIn('pos_id', $posIds)->whereIn('payment_method', ['card', 'visa', 'mpesa', 'bank_transfer', 'cheque'])->sum('amount');
         $creditTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', PosPayment::METHOD_CREDIT)->sum('amount');
-        $salesTotal = (float) PosPayment::whereIn('pos_id', $posIds)->sum('amount');
+        $salesTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
+            $q->whereNull('payment_method')->orWhere('payment_method', '!=', PosPayment::METHOD_INTERNAL);
+        })->sum('amount');
+        $internalTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where('payment_method', PosPayment::METHOD_INTERNAL)->sum('amount');
         $cashDropsTotal = (float) PosCashDrop::where('shift_id', $shift->id)->sum('amount');
         $cashInsTotal = (float) PosCashIn::where('shift_id', $shift->id)->sum('amount');
         $cashOutExpensesTotal = (float) Expense::where('pos_shift_id', $shift->id)
@@ -262,6 +265,7 @@ class PosShiftReportService
             'cardTotal' => $cardTotal,
             'creditTotal' => $creditTotal,
             'salesTotal' => $salesTotal,
+            'internalTotal' => $internalTotal,
             'cashDropsTotal' => $cashDropsTotal,
             'cashInsTotal' => $cashInsTotal,
             'cashOutExpensesTotal' => $cashOutExpensesTotal,
@@ -659,7 +663,9 @@ class PosShiftReportService
         $posIds = Pos::whereIn('shift_id', $shiftIds)->pluck('id');
         $salesTotal = 0;
         if ($posIds->isNotEmpty()) {
-            $salesTotal = (float) PosPayment::whereIn('pos_id', $posIds)->sum('amount');
+            $salesTotal = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
+                $q->whereNull('payment_method')->orWhere('payment_method', '!=', PosPayment::METHOD_INTERNAL);
+            })->sum('amount');
             $salesTotal += (float) InvoicePayment::whereIn('pos_shift_id', $shiftIds)->where('payment_method', 0)->sum('amount');
         }
 
@@ -724,6 +730,7 @@ class PosShiftReportService
         return match ($method) {
             PosPayment::METHOD_CASH, '' => __('pos.payment_cash'),
             PosPayment::METHOD_CREDIT => __('pos.payment_credit'),
+            PosPayment::METHOD_INTERNAL => __('pos.payment_internal'),
             'card', 'visa' => __('Card'),
             'mpesa' => 'M-Pesa',
             'bank_transfer' => __('Bank Transfer'),
@@ -745,6 +752,7 @@ class PosShiftReportService
             'bank_transfer' => __('Bank Transfer'),
             'cheque' => __('Cheque'),
             PosPayment::METHOD_CREDIT => __('pos.payment_credit'),
+            PosPayment::METHOD_INTERNAL => __('pos.payment_internal'),
         ];
     }
 }
