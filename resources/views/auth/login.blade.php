@@ -388,7 +388,13 @@
                         @endif
 
                         @php
-                            $activeLoginTab = old('login_mode', 'erp');
+                            // ?tab=pos is how Switch User lands here after a full
+                            // logout, so the next waiter sees the POS panel at once
+                            // (with the remembered company, when the terminal has one).
+                            // Anything else falls back to the posted login_mode.
+                            $activeLoginTab = in_array(request()->query('tab'), ['erp', 'pos'], true)
+                                ? request()->query('tab')
+                                : old('login_mode', 'erp');
                         @endphp
 
                         <div class="login-tabs" role="tablist">
