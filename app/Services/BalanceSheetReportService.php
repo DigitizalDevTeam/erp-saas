@@ -304,13 +304,29 @@ class BalanceSheetReportService
             ];
         }
 
+        // Client fix (73,448.66 case): the period result must appear under
+        // Net results (88) — the Net Profit/Loss line — not as a separate
+        // interim "Current Period Result" line. Totals already include
+        // net_income (see computeSnapshot), so folding it into the Net
+        // results row keeps the Equity rows summing to the Equity total.
+        // A closed year is unchanged: its net_income is already 0 after
+        // the double-count guard in computeSnapshot.
+        foreach ($rows as &$row) {
+            if ($row['code_label'] === '88') {
+                $row['current_year'] = round($row['current_year'] + round((float) ($current['net_income'] ?? 0), 2), 2);
+                $row['previous_year'] = round($row['previous_year'] + round((float) ($previous['net_income'] ?? 0), 2), 2);
+            }
+        }
+        unset($row);
+
         $extra = [
             ['section' => 'Assets', 'label' => 'Other assets', 'code_label' => '', 'key' => 'other.Assets'],
             ['section' => 'Assets', 'label' => 'Unclassified / deleted accounts', 'code_label' => '', 'key' => 'unclassified'],
             ['section' => 'Liabilities', 'label' => 'Other liabilities', 'code_label' => '', 'key' => 'other.Liabilities'],
             ['section' => 'Liabilities', 'label' => 'Unclassified / deleted accounts', 'code_label' => '', 'key' => 'unclassified_liabilities'],
             ['section' => 'Equity', 'label' => 'Other equity', 'code_label' => '', 'key' => 'other.Equity'],
-            ['section' => 'Equity', 'label' => 'Current Period Result', 'code_label' => '', 'key' => 'net_income'],
+            // No "Current Period Result" row anymore — it is folded into
+            // Net results (88) above.
         ];
 
         foreach ($extra as $definition) {

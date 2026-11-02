@@ -125,7 +125,7 @@
                                 @endif
                             </small>
                             <p class="text-muted small mb-0 mt-1">
-                                {{ __('Current Period Result is the net income/expense for the period; see Trial Balance income and expense accounts for detail.') }}
+                                {{ __('Net results (88) includes the current period net income/expense; see Trial Balance income and expense accounts for detail.') }}
                             </p>
                         </div>
                         <table class="table table-bordered">
