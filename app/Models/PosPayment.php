@@ -12,6 +12,10 @@ class PosPayment extends Model
     const METHOD_MIXED = 'mixed';
     const METHOD_MPESA = 'mpesa';
     const METHOD_BANK_TRANSFER = 'bank_transfer';
+    // Not a money-in method: Internal Consumption is stock used inside the
+    // restaurant, not a sale. Payments with this method must never count
+    // towards cash, card, credit or sales totals, or expected cash.
+    const METHOD_INTERNAL = 'internal';
 
     protected $fillable = [
         'pos_id',
@@ -46,8 +50,33 @@ class PosPayment extends Model
             self::METHOD_BANK_TRANSFER, 'bank transfer' => __('pos.payment_bank_transfer'),
             'cheque', 'check' => __('pos.payment_cheque'),
             self::METHOD_MIXED => __('pos.mixed_payment'),
+            self::METHOD_INTERNAL => __('pos.payment_internal'),
             default => ucfirst(str_replace('_', ' ', $method)),
         };
+    }
+
+    /**
+     * Method a document type forces, regardless of what was submitted.
+     * Internal Consumption forces 'internal' (never cash/card/cheque);
+     * Credit Sale forces 'credit'. Returns null when the caller may keep
+     * the requested method.
+     */
+    public static function forcedMethodForDocumentType(?string $documentType, ?string $requestedMethod = null): ?string
+    {
+        $type = strtolower(trim((string) $documentType));
+        if ($type === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION) {
+            return self::METHOD_INTERNAL;
+        }
+        if ($type === Pos::DOCUMENT_TYPE_CREDIT_SALE) {
+            return self::METHOD_CREDIT;
+        }
+
+        return null;
+    }
+
+    public static function isInternalConsumptionDocument(?string $documentType): bool
+    {
+        return strtolower(trim((string) $documentType)) === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION;
     }
 
     public function branch()

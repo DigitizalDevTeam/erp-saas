@@ -82,6 +82,7 @@
                         <option value="mpesa">{{ __('pos.payment_mpesa') }}</option>
                         <option value="bank_transfer">{{ __('pos.payment_bank_transfer') }}</option>
                         <option value="cheque">{{ __('pos.payment_cheque') }}</option>
+                        <option value="internal">{{ __('pos.payment_internal') }}</option>
                     </select>
                 </div>
 
@@ -208,12 +209,23 @@
         if ($('#payment_method').val() !== 'mixed') {
             $('#payment_amount').val(Number(totalRaw).toFixed(2));
         }
-        if (docType === 'credit_sale' && canGivePosCredit) {
-            $('#payment_method').val('credit');
-        } else if (docType === 'cash_sale' && $('#payment_method').val() === 'credit') {
-            $('#payment_method').val('cash');
-        } else if (docType === 'internal_consumption' && $('#payment_method').val() === 'credit') {
-            $('#payment_method').val('cash');
+        if (docType === 'internal_consumption') {
+            // Internal Consumption is not a sale and no money is received:
+            // the only payment method is Internal Consumption itself.
+            $('#payment_method').val('internal');
+            $('#payment_method').prop('disabled', true);
+            $('#payment_tip').val(0).prop('disabled', true);
+            $('#order-summary-tip-display').text(formatNum(0));
+        } else {
+            $('#payment_method').prop('disabled', false);
+            $('#payment_tip').prop('disabled', false);
+            if (docType === 'credit_sale' && canGivePosCredit) {
+                $('#payment_method').val('credit');
+            } else if (docType === 'cash_sale' && $('#payment_method').val() === 'credit') {
+                $('#payment_method').val('cash');
+            } else if ($('#payment_method').val() === 'internal') {
+                $('#payment_method').val('cash');
+            }
         }
         togglePaymentFields();
         updateChange();

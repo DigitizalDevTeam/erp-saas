@@ -2769,8 +2769,12 @@ class ReportController extends Controller
         foreach ($shifts as $s) {
             if ($s->status === 'open' || $s->sales_total === null) {
                 $posIds = Pos::where('shift_id', $s->id)->pluck('id');
-                $s->sales_count = $posIds->count();
-                $s->sales_total = Pos::where('shift_id', $s->id)->get()->sum(fn ($p) => $p->getTotal());
+                // Internal Consumption is not a sale: exclude it from count/total.
+                $regularPos = Pos::where('shift_id', $s->id)->where(function ($q) {
+                    $q->whereNull('document_type')->orWhere('document_type', '!=', Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION);
+                })->get();
+                $s->sales_count = $regularPos->count();
+                $s->sales_total = $regularPos->sum(fn ($p) => $p->getTotal());
                 $s->cash_total = (float) PosPayment::whereIn('pos_id', $posIds)->where(function ($q) {
                     $q->where('payment_method', PosPayment::METHOD_CASH)->orWhereNull('payment_method');
                 })->sum('amount');
