@@ -5281,5 +5281,20 @@
     @if(!empty($canChangePosPrintSettings))
         @include('partials.printer-settings-modal', ['posPrinterBranches' => collect($branches ?? [])->map(fn ($name, $id) => (object) ['id' => (int) $id, 'name' => (string) $name])->values()])
     @endif
+    {{-- Remembered POS company: after a successful POS login, the
+         controller flashes company id + name (one request only) and
+         this script stores them in the browser's localStorage, so the
+         next visit to the POS login screen can show the company in a
+         read-only input instead of asking for email again. Only id +
+         name are stored here, never email, PIN, or password. Logging
+         out does not clear localStorage, by design; Change company on
+         the login screen clears it. --}}
+    @if(session()->has('pos_remember_company'))
+        <script>
+            try {
+                localStorage.setItem('pos_remembered_company', JSON.stringify(@json(session('pos_remember_company'))));
+            } catch (e) { /* private mode etc: remembered company simply stays off */ }
+        </script>
+    @endif
 </body>
 </html>
