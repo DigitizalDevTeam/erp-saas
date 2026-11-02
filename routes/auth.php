@@ -18,13 +18,16 @@ Route::get('/register/{ref_id?}/{lang?}', [RegisteredUserController::class, 'sho
 Route::post('/register/store', [RegisteredUserController::class, 'store'])
                 ->middleware('guest')->name('register.store');
 
-Route::get('/login/{lang?}', [AuthenticatedSessionController::class, 'showLoginForm'])
-                ->middleware('guest')
-                ->name('login');
-
+// Static route FIRST: /login/{lang?} below would otherwise swallow
+// /login/pos-users (lang = "pos-users") and the remembered-company
+// dropdown would get the login HTML instead of JSON, so it stayed empty.
 Route::get('/login/pos-users', [AuthenticatedSessionController::class, 'posUsersForCompany'])
                 ->middleware('guest')
                 ->name('login.pos-users');
+
+Route::get('/login/{lang?}', [AuthenticatedSessionController::class, 'showLoginForm'])
+                ->middleware('guest')
+                ->name('login');
 
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])
                 ->middleware('guest');
