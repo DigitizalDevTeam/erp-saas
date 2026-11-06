@@ -1399,6 +1399,7 @@ Route::group(['middleware' => ['verified']], function () {
             ],
         ],
         function () {
+            Route::post('chart-of-account/auto-setup', [ChartOfAccountController::class, 'autoSetup'])->name('chart-of-account.auto-setup');
             Route::resource('chart-of-account', ChartOfAccountController::class);
         }
     );
