@@ -123,6 +123,7 @@ use App\Http\Controllers\BranchSalesTargetController;
 use App\Http\Controllers\PosPrinterController;
 use App\Http\Controllers\PosAuditLogController;
 use App\Http\Controllers\PosProductionController;
+use App\Http\Controllers\KitchenRecipeController;
 use App\Http\Controllers\PosTableController;
 use App\Http\Controllers\ProductServiceCategoryController;
 use App\Http\Controllers\ProductServiceController;
@@ -2462,6 +2463,14 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos-production', [PosProductionController::class, 'index'])->name('pos.production.index')->middleware(['auth', 'XSS']);
     Route::patch('pos-production/line/{line}', [PosProductionController::class, 'updateLineStatus'])->name('pos.production.line.update')->middleware(['auth', 'XSS']);
     Route::post('pos-production/line/{line}/substitute', [PosProductionController::class, 'substituteLineIngredient'])->name('pos.production.line.substitute')->middleware(['auth', 'XSS']);
+
+    // Kitchen Production — Phase 0: recipes and technical sheets only.
+    Route::post('kitchen-recipes/{recipe}/submit', [KitchenRecipeController::class, 'submit'])->name('kitchen.recipes.submit')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-recipes/{recipe}/approve', [KitchenRecipeController::class, 'approve'])->name('kitchen.recipes.approve')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-recipes/{recipe}/reject', [KitchenRecipeController::class, 'reject'])->name('kitchen.recipes.reject')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-recipes/{recipe}/archive', [KitchenRecipeController::class, 'archive'])->name('kitchen.recipes.archive')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-recipes/{recipe}/new-version', [KitchenRecipeController::class, 'newVersion'])->name('kitchen.recipes.new-version')->middleware(['auth', 'XSS']);
+    Route::resource('kitchen-recipes', KitchenRecipeController::class)->parameters(['kitchen-recipes' => 'recipe'])->names('kitchen.recipes')->middleware(['auth', 'XSS', 'revalidate']);
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
     Route::get('pos/retail/{cid?}', [PosController::class, 'index'])->name('pos.index')->defaults('cid', null)->middleware(['auth', 'XSS', 'revalidate']);

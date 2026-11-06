@@ -284,6 +284,13 @@ class SidebarMenuPermissionCatalog
                     self::node('Restaurant Settings', 'menu.pos_system.restaurant.settings', ['manage pos', 'pos restaurant full', 'pos restaurant manager']),
                     self::node('Restaurant Reports', 'menu.pos_system.restaurant.reports', ['manage pos', 'pos restaurant full', 'pos restaurant manager']),
                 ]),
+                // Kitchen Production (Phase 0: Recipes only; later phases add
+                // Production Orders, Kitchen Stock, Losses and Reports here).
+                self::node('Kitchen Production', 'menu.kitchen_production', [
+                    'manage kitchen production', 'create kitchen recipes', 'approve kitchen recipes',
+                ], [
+                    self::node('Recipes', 'menu.kitchen_production.recipes', ['manage kitchen production', 'create kitchen recipes', 'approve kitchen recipes']),
+                ]),
                 self::node('POS Shifts', 'menu.pos_system.shifts', ['manage pos', 'pos restaurant full', 'pos restaurant manager']),
                 self::node('EOD Report', 'menu.pos_system.eod', ['manage pos', 'pos restaurant full', 'pos restaurant manager']),
                 self::node('Branch Sales Targets', 'menu.pos_system.branch_sales_targets', ['manage pos']),

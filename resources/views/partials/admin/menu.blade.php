@@ -1605,6 +1605,30 @@
                             </li>
                             @endif
 
+                            {{-- ================= KITCHEN PRODUCTION ================= --}}
+                            @if (menu_can_node('menu.kitchen_production'))
+                            <li class="dash-item dash-hasmenu">
+                                <a href="#!" class="dash-link">
+                                    {{ __('Kitchen Production') }}
+                                    <span class="dash-arrow"><i data-feather="chevron-right"></i></span>
+                                </a>
+
+                                <ul class="dash-submenu">
+                                    @if (menu_can('menu.kitchen_production.recipes'))
+                                    <li class="dash-item {{ in_array(Request::route()->getName(), ['kitchen.recipes.index', 'kitchen.recipes.create', 'kitchen.recipes.show', 'kitchen.recipes.edit']) ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('kitchen.recipes.index') }}">{{ __('Recipes') }}</a>
+                                    </li>
+                                    @endif
+                                    <li class="dash-item disabled">
+                                        <a class="dash-link" href="#!">{{ __('Production Orders') }} <span class="badge bg-secondary">{{ __('Soon') }}</span></a>
+                                    </li>
+                                    <li class="dash-item disabled">
+                                        <a class="dash-link" href="#!">{{ __('Kitchen Stock') }} <span class="badge bg-secondary">{{ __('Soon') }}</span></a>
+                                    </li>
+                                </ul>
+                            </li>
+                            @endif
+
                             @if (menu_can('menu.pos_system.shifts'))
                             <li class="dash-item {{ Request::route()->getName() == 'pos-shift.index' ? 'active' : '' }}">
                                 <a class="dash-link" href="{{ route('pos-shift.index') }}">{{ __('POS Shifts') }}</a>
