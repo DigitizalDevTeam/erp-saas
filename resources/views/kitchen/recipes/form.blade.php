@@ -176,7 +176,7 @@
     </template>
 @endsection
 
-@section('script-page')
+@push('script-page')
 <script>
 (function () {
     var body = document.getElementById('recipe-lines-body');
@@ -200,4 +200,4 @@
     });
 })();
 </script>
-@endsection
+@endpush
