@@ -288,8 +288,11 @@ class SidebarMenuPermissionCatalog
                 // Production Orders, Kitchen Stock, Losses and Reports here).
                 self::node('Kitchen Production', 'menu.kitchen_production', [
                     'manage kitchen production', 'create kitchen recipes', 'approve kitchen recipes',
+                    'manage kitchen production orders', 'approve kitchen production orders',
                 ], [
                     self::node('Recipes', 'menu.kitchen_production.recipes', ['manage kitchen production', 'create kitchen recipes', 'approve kitchen recipes']),
+                    self::node('Production Orders', 'menu.kitchen_production.production_orders', ['manage kitchen production orders', 'approve kitchen production orders']),
+                    self::node('Kitchen Stock', 'menu.kitchen_production.kitchen_stock', ['manage kitchen production orders', 'approve kitchen production orders']),
                 ]),
                 self::node('POS Shifts', 'menu.pos_system.shifts', ['manage pos', 'pos restaurant full', 'pos restaurant manager']),
                 self::node('EOD Report', 'menu.pos_system.eod', ['manage pos', 'pos restaurant full', 'pos restaurant manager']),

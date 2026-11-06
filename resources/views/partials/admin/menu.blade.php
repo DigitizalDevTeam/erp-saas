@@ -1619,12 +1619,16 @@
                                         <a class="dash-link" href="{{ route('kitchen.recipes.index') }}">{{ __('Recipes') }}</a>
                                     </li>
                                     @endif
-                                    <li class="dash-item disabled">
-                                        <a class="dash-link" href="#!">{{ __('Production Orders') }} <span class="badge bg-secondary">{{ __('Soon') }}</span></a>
+                                    @if (menu_can('menu.kitchen_production.production_orders'))
+                                    <li class="dash-item {{ in_array(Request::route()->getName(), ['kitchen.production-orders.index', 'kitchen.production-orders.create', 'kitchen.production-orders.show', 'kitchen.production-orders.edit', 'kitchen.production-orders.complete']) ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('kitchen.production-orders.index') }}">{{ __('Production Orders') }}</a>
                                     </li>
-                                    <li class="dash-item disabled">
-                                        <a class="dash-link" href="#!">{{ __('Kitchen Stock') }} <span class="badge bg-secondary">{{ __('Soon') }}</span></a>
+                                    @endif
+                                    @if (menu_can('menu.kitchen_production.kitchen_stock'))
+                                    <li class="dash-item {{ in_array(Request::route()->getName(), ['kitchen.stock.index', 'kitchen.stock.show']) ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('kitchen.stock.index') }}">{{ __('Kitchen Stock') }}</a>
                                     </li>
+                                    @endif
                                 </ul>
                             </li>
                             @endif
