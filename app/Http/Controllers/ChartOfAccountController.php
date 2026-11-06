@@ -6,6 +6,7 @@ use App\Models\ChartOfAccount;
 use App\Models\ChartOfAccountSubType;
 use App\Models\ChartOfAccountType;
 use App\Models\ChartOfAccountParent;
+use App\Services\Accounting\ChartOfAccountCsvImportService;
 use App\Support\ChartOfAccountHierarchy;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -34,6 +35,8 @@ class ChartOfAccountController extends Controller
 
         $types = ChartOfAccountType::where('created_by', $creatorId)->orderBy('id')->get();
 
+        $hasChartAccount = ChartOfAccount::where('created_by', $creatorId)->exists();
+
         $ulane = auth()->user()->lang ?? 'en';
         $name_column = match ($ulane) {
             'fr' => 'name_fr',
@@ -51,7 +54,42 @@ class ChartOfAccountController extends Controller
             })->values();
         }
 
-        return view('chartOfAccount.index', compact('chartTree', 'types', 'filter', 'name_column'));
+        return view('chartOfAccount.index', compact('chartTree', 'types', 'filter', 'name_column', 'hasChartAccount'));
+    }
+
+    /**
+     * "Auto Setup Chart of Account" button on the Chart of Accounts page.
+     * Shows only when the company has no chart accounts yet, and creates
+     * the standard (PGC) chart from chart_new_data.csv for this company.
+     * Refuses when a chart already exists, so it can never duplicate one.
+     */
+    public function autoSetup(ChartOfAccountCsvImportService $service)
+    {
+        if (! \Auth::user()->can('create chart of account')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $creatorId = (int) \Auth::user()->creatorId();
+
+        if (ChartOfAccount::where('created_by', $creatorId)->exists()) {
+            return redirect()->route('chart-of-account.index')
+                ->with('error', __('Chart of accounts already exists.'));
+        }
+
+        $result = $service->importForCompany($creatorId, true);
+
+        if (($result['status'] ?? '') === 'imported') {
+            return redirect()->route('chart-of-account.index')
+                ->with('success', __('Chart of accounts set up successfully (:count accounts).', ['count' => $result['imported'] ?? 0]));
+        }
+
+        if (($result['status'] ?? '') === 'skipped') {
+            return redirect()->route('chart-of-account.index')
+                ->with('error', __('Chart of accounts already exists.'));
+        }
+
+        return redirect()->route('chart-of-account.index')
+            ->with('error', $result['error'] ?? __('Could not set up the chart of accounts.'));
     }
 
     public function create()

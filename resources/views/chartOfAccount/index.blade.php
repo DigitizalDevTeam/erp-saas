@@ -185,7 +185,18 @@
                                     'depth' => 0,
                                 ])
                             @empty
-                                <tr><td colspan="6" class="text-muted text-center">{{ __('No accounts found.') }}</td></tr>
+                                <tr>
+                                    <td colspan="6" class="text-center">
+                                        <p class="text-muted mb-2">{{ __('No accounts found.') }}</p>
+                                        @if (!$hasChartAccount)
+                                            @can('create chart of account')
+                                                {!! Form::open(['route' => 'chart-of-account.auto-setup', 'method' => 'POST', 'class' => 'd-inline']) !!}
+                                                    <button type="submit" class="btn btn-primary btn-sm">{{ __('Auto Setup Chart of Account') }}</button>
+                                                {!! Form::close() !!}
+                                            @endcan
+                                        @endif
+                                    </td>
+                                </tr>
                             @endforelse
                             </tbody>
                         </table>
