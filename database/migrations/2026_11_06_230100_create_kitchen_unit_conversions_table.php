@@ -21,7 +21,9 @@ return new class extends Migration
             $table->integer('created_by');
             $table->timestamps();
 
-            $table->unique(['created_by', 'from_unit_id', 'to_unit_id', 'product_id']);
+            // MySQL limits identifiers to 64 chars; the auto-generated name for
+            // this unique key is 77 chars, so it must be named explicitly.
+            $table->unique(['created_by', 'from_unit_id', 'to_unit_id', 'product_id'], 'kuc_created_by_units_product_unique');
             $table->index(['created_by', 'from_unit_id']);
         });
     }
