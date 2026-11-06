@@ -320,7 +320,7 @@ class KitchenRecipeController extends Controller
 
     protected function validateHeader(Request $request, int $creatorId, ?int $ignoreId = null, int $version = 1): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             // Versions of one recipe share the code, so uniqueness is
             // scoped per company AND version (migration 230000).
             'code' => ['required', 'string', 'max:50', Rule::unique('kitchen_recipes', 'code')->where('created_by', $creatorId)->where('version', $version)->ignore($ignoreId)],
@@ -341,6 +341,13 @@ class KitchenRecipeController extends Controller
             'branch_id' => ['nullable', 'integer'],
             'photo' => ['nullable', 'image', 'max:5120'],
         ]);
+
+        // The column is NOT NULL with a DB default of 0, but an explicit
+        // NULL in the insert overrides the default and MySQL rejects it
+        // (a blank loss field in the form submits as null). Default it here.
+        $validated['loss_percent'] = $validated['loss_percent'] ?? 0;
+
+        return $validated;
     }
 
     /**

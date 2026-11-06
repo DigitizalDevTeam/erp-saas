@@ -364,6 +364,25 @@ class KitchenRecipeWorkflowTest extends TestCase
             ->assertSee("getElementById('add-line-btn')", false);
     }
 
+    public function test_recipe_without_loss_percent_saves_as_zero(): void
+    {
+        // Regression: a blank loss field submits as null (empty string is
+        // converted to null), and an explicit NULL in the insert overrides
+        // the column's DB default of 0, so MySQL rejected the insert
+        // (23000, loss_percent cannot be null). Send null explicitly to
+        // reproduce the browser submit; merely omitting the key would let
+        // the DB default apply and would not reproduce it.
+        $payload = $this->recipePayload('KR-2026-0010');
+        $payload['loss_percent'] = null;
+
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('kitchen.recipes.store'), $payload)
+            ->assertRedirect();
+
+        $recipe = KitchenRecipe::where('code', 'KR-2026-0010')->firstOrFail();
+        $this->assertSame(0.0, (float) $recipe->loss_percent);
+    }
+
     public function test_ingredient_type_dish_is_hidden_from_pos(): void
     {
         DB::table('product_services')->insert([
