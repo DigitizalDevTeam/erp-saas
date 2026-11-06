@@ -67,11 +67,22 @@ class KitchenRecipe extends Model
         return $this->belongsTo(ProductServiceUnit::class, 'standard_portion_unit_id', 'id');
     }
 
-    /** Lines of THIS recipe version only. */
+    /**
+     * Lines of THIS recipe version only. Each version is a separate
+     * kitchen_recipes row with its own id (createNewVersion replicates the
+     * header and re-points the copied lines at the new row), so the
+     * kitchen_recipe_id alone identifies a version's lines.
+     *
+     * Do NOT add a ->where('version', $this->version) here: Laravel builds
+     * the eager-load query on a fresh, empty model instance (version is
+     * null there), so the eager load silently returned zero lines while
+     * direct lines() queries worked — the recipe detail page showed
+     * "No ingredients yet." even though the cost preview (same relation,
+     * direct query) computed the cost.
+     */
     public function lines()
     {
         return $this->hasMany(ProductRecipe::class, 'kitchen_recipe_id', 'id')
-            ->where('version', $this->version)
             ->orderBy('id');
     }
 

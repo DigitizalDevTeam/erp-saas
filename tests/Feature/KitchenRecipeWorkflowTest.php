@@ -383,6 +383,27 @@ class KitchenRecipeWorkflowTest extends TestCase
         $this->assertSame(0.0, (float) $recipe->loss_percent);
     }
 
+    public function test_show_page_renders_ingredient_lines(): void
+    {
+        // Regression: the detail page showed "No ingredients yet." even
+        // though the recipe had a line and the cost preview (same relation)
+        // computed the cost. lines() had a ->where('version', $this->version)
+        // which Laravel evaluates as null when it builds the eager-load
+        // query on a fresh model instance, so the eager load returned zero
+        // lines while direct lines() queries worked.
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('kitchen.recipes.store'), $this->recipePayload('KR-2026-0011'))
+            ->assertRedirect();
+
+        $recipe = KitchenRecipe::where('code', 'KR-2026-0011')->firstOrFail();
+
+        $this->actingAs(User::findOrFail(1))
+            ->get(route('kitchen.recipes.show', $recipe->id))
+            ->assertOk()
+            ->assertSee('Uncooked Rice', false)
+            ->assertSee('Cost Preview');
+    }
+
     public function test_ingredient_type_dish_is_hidden_from_pos(): void
     {
         DB::table('product_services')->insert([
