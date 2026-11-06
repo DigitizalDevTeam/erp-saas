@@ -340,6 +340,30 @@ class KitchenRecipeWorkflowTest extends TestCase
             ->assertSee('Coconut Rice');
     }
 
+    public function test_recipe_form_renders_add_ingredient_script(): void
+    {
+        // Regression: the form used @section('script-page') but the admin layout
+        // renders that name as a @stack, so the Add Ingredient JavaScript never
+        // reached the page and the button did nothing. It must be @push.
+        $this->actingAs(User::findOrFail(1))
+            ->get(route('kitchen.recipes.create'))
+            ->assertOk()
+            ->assertSee('add-line-btn', false)
+            ->assertSee("getElementById('add-line-btn')", false)
+            ->assertSee('recipe-line-template', false);
+
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('kitchen.recipes.store'), $this->recipePayload('KR-2026-0009'))
+            ->assertRedirect();
+
+        $recipe = KitchenRecipe::where('code', 'KR-2026-0009')->firstOrFail();
+
+        $this->actingAs(User::findOrFail(1))
+            ->get(route('kitchen.recipes.edit', $recipe->id))
+            ->assertOk()
+            ->assertSee("getElementById('add-line-btn')", false);
+    }
+
     public function test_ingredient_type_dish_is_hidden_from_pos(): void
     {
         DB::table('product_services')->insert([
