@@ -34,7 +34,17 @@ class TreasuryPaymentAttempt extends Model
         'state',
         'result',
         'payload_hash',
+        'amount_original',
+        'amount_base',
+        'currency',
+        'journal_id',
+        'entry_id',
         'created_by',
+    ];
+
+    protected $casts = [
+        'amount_original' => 'decimal:4',
+        'amount_base' => 'decimal:4',
     ];
 
     public function request()

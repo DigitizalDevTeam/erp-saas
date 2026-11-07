@@ -134,6 +134,7 @@ use App\Http\Controllers\GlDimensionController;
 use App\Http\Controllers\TreasuryAccountController;
 use App\Http\Controllers\TreasuryDimensionController;
 use App\Http\Controllers\TreasuryOpeningBalanceController;
+use App\Http\Controllers\TreasuryPaymentBatchController;
 use App\Http\Controllers\TreasuryPaymentRequestController;
 use App\Http\Controllers\TreasuryReceiptController;
 use App\Http\Controllers\TreasurySettingsController;
@@ -2645,7 +2646,14 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('treasury-payment-requests/{payment_request}/cancel', [TreasuryPaymentRequestController::class, 'cancel'])->name('treasury-payment-requests.cancel')->middleware(['auth', 'XSS']);
     Route::post('treasury-approval-steps/{step}/decide', [TreasuryPaymentRequestController::class, 'decide'])->name('treasury-approval-steps.decide')->middleware(['auth', 'XSS']);
     Route::post('treasury-approval-steps/{step}/substitute', [TreasuryPaymentRequestController::class, 'assignSubstitute'])->name('treasury-approval-steps.substitute')->middleware(['auth', 'XSS']);
+    Route::get('treasury-payment-requests/{payment_request}/execute', [TreasuryPaymentRequestController::class, 'executeForm'])->name('treasury-payment-requests.execute-form')->middleware(['auth', 'XSS']);
+    Route::post('treasury-payment-requests/{payment_request}/execute', [TreasuryPaymentRequestController::class, 'execute'])->name('treasury-payment-requests.execute')->middleware(['auth', 'XSS']);
+    Route::post('treasury-payment-attempts/{attempt}/report-timeout', [TreasuryPaymentRequestController::class, 'reportTimeout'])->name('treasury-payment-attempts.report-timeout')->middleware(['auth', 'XSS']);
+    Route::post('treasury-payment-attempts/{attempt}/confirm-provider-paid', [TreasuryPaymentRequestController::class, 'confirmProviderPaid'])->name('treasury-payment-attempts.confirm-provider-paid')->middleware(['auth', 'XSS']);
     Route::resource('treasury-payment-requests', TreasuryPaymentRequestController::class)->parameters(['treasury-payment-requests' => 'payment_request'])->names('treasury-payment-requests')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('treasury-payment-batches/{batch}/execute', [TreasuryPaymentBatchController::class, 'execute'])->name('treasury-payment-batches.execute')->middleware(['auth', 'XSS']);
+    Route::post('treasury-payment-batches/{batch}/cancel', [TreasuryPaymentBatchController::class, 'cancel'])->name('treasury-payment-batches.cancel')->middleware(['auth', 'XSS']);
+    Route::resource('treasury-payment-batches', TreasuryPaymentBatchController::class)->parameters(['treasury-payment-batches' => 'batch'])->names('treasury-payment-batches')->only(['index', 'create', 'store', 'show'])->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');

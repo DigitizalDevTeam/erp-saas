@@ -51,6 +51,11 @@
                 </form>
             @endif
         @endcan
+        @can('execute treasury payments')
+            @if (in_array($paymentRequest->state, ['approved', 'processing', 'outcome_unknown'], true))
+                <a href="{{ route('treasury-payment-requests.execute-form', $paymentRequest) }}" class="btn btn-sm btn-primary">{{ __('Execute payment') }}</a>
+            @endif
+        @endcan
     </div>
 @endsection
 
@@ -79,6 +84,9 @@
                             <strong>{{ __('Amount') }}</strong>
                             <div>{{ number_format((float) $paymentRequest->amount_original, 2) }} {{ $paymentRequest->currency }}</div>
                             <small class="text-muted">{{ number_format((float) $paymentRequest->amount_base, 2) }} {{ __('base') }}</small>
+                            @if ((float) ($paymentRequest->paid_amount_base ?? 0) > 0)
+                                <div><small class="text-muted">{{ __('Paid') }}: {{ number_format((float) $paymentRequest->paid_amount_original, 2) }} {{ $paymentRequest->currency }} — {{ __('remaining') }}: {{ number_format((float) $paymentRequest->remainingAmountOriginal(), 2) }} {{ $paymentRequest->currency }}</small></div>
+                            @endif
                         </div>
                         <div class="col-md-3 mb-3">
                             <strong>{{ __('Beneficiary') }}</strong>
@@ -254,7 +262,7 @@
                 <div class="card-header"><h5 class="mb-0">{{ __('Payment attempts') }}</h5></div>
                 <div class="card-body">
                     @if ($paymentRequest->attempts->isEmpty())
-                        <p class="text-muted">{{ __('No payment attempts yet. Execution is a later phase.') }}</p>
+                        <p class="text-muted">{{ __('No payment attempts yet.') }}</p>
                     @else
                         <div class="table-responsive">
                             <table class="table table-hover">
@@ -263,8 +271,11 @@
                                         <th>{{ __('Attempt') }}</th>
                                         <th>{{ __('Provider') }}</th>
                                         <th>{{ __('Provider reference') }}</th>
+                                        <th>{{ __('Amount') }}</th>
+                                        <th>{{ __('Journal') }}</th>
                                         <th>{{ __('State') }}</th>
                                         <th>{{ __('Result') }}</th>
+                                        <th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -273,8 +284,26 @@
                                             <td>{{ $attempt->attempt_number }}</td>
                                             <td>{{ $attempt->provider ?? '—' }}</td>
                                             <td>{{ $attempt->provider_reference ?? '—' }}</td>
+                                            <td>{{ $attempt->amount_original !== null ? number_format((float) $attempt->amount_original, 2) . ' ' . ($attempt->currency ?? $paymentRequest->currency) : '—' }}</td>
+                                            <td>{{ $attempt->journal_id ? '#' . $attempt->journal_id : '—' }}</td>
                                             <td>{{ ucfirst(str_replace('_', ' ', $attempt->state)) }}</td>
                                             <td>{{ $attempt->result ?? '—' }}</td>
+                                            <td class="text-end">
+                                                @can('execute treasury payments')
+                                                    @if ($attempt->isProcessing())
+                                                        <form method="POST" action="{{ route('treasury-payment-attempts.report-timeout', $attempt) }}" class="d-inline">
+                                                            @csrf
+                                                            <button type="submit" class="btn btn-sm btn-outline-warning" onclick="return confirm('{{ __('Report that this execution timed out? The outcome becomes unknown.') }}')">{{ __('Report timeout') }}</button>
+                                                        </form>
+                                                    @endif
+                                                    @if ($attempt->isOutcomeUnknown())
+                                                        <form method="POST" action="{{ route('treasury-payment-attempts.confirm-provider-paid', $attempt) }}" class="d-inline">
+                                                            @csrf
+                                                            <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('{{ __('Confirm the provider says this payment went through? The movement will be posted.') }}')">{{ __('Provider confirmed paid') }}</button>
+                                                        </form>
+                                                    @endif
+                                                @endcan
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
