@@ -126,6 +126,8 @@ use App\Http\Controllers\PosProductionController;
 use App\Http\Controllers\KitchenRecipeController;
 use App\Http\Controllers\CostCentreAllocationController;
 use App\Http\Controllers\CostCentreController;
+use App\Http\Controllers\CostCentreReportController;
+use App\Http\Controllers\GlDimensionController;
 use App\Http\Controllers\TreasuryDimensionController;
 use App\Http\Controllers\KitchenReportController;
 use App\Http\Controllers\KitchenCostControlController;
@@ -2562,6 +2564,23 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('treasury-dimensions/bill-payment/{payment}', [TreasuryDimensionController::class, 'update'])->name('treasury-dimensions.bill-payment.update')->middleware(['auth', 'XSS']);
     Route::get('treasury-dimensions/receipt/{receipt}/edit', [TreasuryDimensionController::class, 'editReceipt'])->name('treasury-dimensions.receipt.edit')->middleware(['auth', 'XSS']);
     Route::post('treasury-dimensions/receipt/{receipt}', [TreasuryDimensionController::class, 'updateReceipt'])->name('treasury-dimensions.receipt.update')->middleware(['auth', 'XSS']);
+
+    // Cost Centres — Phase 4: GL dimensions + reconciliation reports
+    // (plan §8, §13). The validate/centres/reverse routes are
+    // registered before the {journal} routes so they are not swallowed
+    // by a parameter.
+    Route::get('gl-dimensions', [GlDimensionController::class, 'index'])->name('gl-dimensions.index')->middleware(['auth', 'XSS']);
+    Route::post('gl-dimensions/validate', [GlDimensionController::class, 'validateSplit'])->name('gl-dimensions.validate')->middleware(['auth', 'XSS']);
+    Route::get('gl-dimensions/centres', [GlDimensionController::class, 'centres'])->name('gl-dimensions.centres')->middleware(['auth', 'XSS']);
+    Route::get('gl-dimensions/reverse', [GlDimensionController::class, 'reverseForm'])->name('gl-dimensions.reverse')->middleware(['auth', 'XSS']);
+    Route::post('gl-dimensions/reverse', [GlDimensionController::class, 'reverseStore'])->name('gl-dimensions.reverse.store')->middleware(['auth', 'XSS']);
+    Route::post('gl-dimensions/sync-bill/{bill}', [GlDimensionController::class, 'syncBill'])->name('gl-dimensions.sync-bill')->middleware(['auth', 'XSS']);
+    Route::get('gl-dimensions/journal/{journal}/edit', [GlDimensionController::class, 'edit'])->name('gl-dimensions.journal.edit')->middleware(['auth', 'XSS']);
+    Route::post('gl-dimensions/journal/{journal}', [GlDimensionController::class, 'update'])->name('gl-dimensions.journal.update')->middleware(['auth', 'XSS']);
+    Route::get('cost-centre-reports/expense', [CostCentreReportController::class, 'expense'])->name('cost-centre-reports.expense')->middleware(['auth', 'XSS']);
+    Route::get('cost-centre-reports/cash', [CostCentreReportController::class, 'cash'])->name('cost-centre-reports.cash')->middleware(['auth', 'XSS']);
+    Route::get('cost-centre-reports/reconciliation', [CostCentreReportController::class, 'reconciliation'])->name('cost-centre-reports.reconciliation')->middleware(['auth', 'XSS']);
+    Route::get('cost-centre-reports/unassigned', [CostCentreReportController::class, 'unassigned'])->name('cost-centre-reports.unassigned')->middleware(['auth', 'XSS']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');

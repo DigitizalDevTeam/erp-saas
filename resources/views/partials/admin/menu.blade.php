@@ -301,7 +301,7 @@
                                             </li>
                                         @endif
                                         @if (menu_can_node('menu.dashboard.accounting.cost_centres'))
-                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['cost-centres.index', 'cost-centres.create', 'cost-centres.edit', 'cost-centres.settings', 'treasury-dimensions.index', 'treasury-dimensions.bill-payment.edit', 'treasury-dimensions.receipt.edit']) ? 'active dash-trigger' : '' }}">
+                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['cost-centres.index', 'cost-centres.create', 'cost-centres.edit', 'cost-centres.settings', 'treasury-dimensions.index', 'treasury-dimensions.bill-payment.edit', 'treasury-dimensions.receipt.edit', 'gl-dimensions.index', 'gl-dimensions.journal.edit', 'gl-dimensions.reverse', 'cost-centre-reports.expense', 'cost-centre-reports.cash', 'cost-centre-reports.reconciliation', 'cost-centre-reports.unassigned']) ? 'active dash-trigger' : '' }}">
                                                 <a class="dash-link" href="#">{{ __('Cost Centres') }}<span class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                                                 <ul class="dash-submenu">
                                                     @if (menu_can('menu.dashboard.accounting.cost_centres.list'))
@@ -312,6 +312,16 @@
                                                     @if (menu_can('menu.dashboard.accounting.cost_centres.treasury_dimensions'))
                                                         <li class="dash-item {{ in_array(Request::route()->getName(), ['treasury-dimensions.index', 'treasury-dimensions.bill-payment.edit', 'treasury-dimensions.receipt.edit']) ? ' active' : '' }}">
                                                             <a class="dash-link" href="{{ route('treasury-dimensions.index') }}">{{ __('Treasury Dimensions') }}</a>
+                                                        </li>
+                                                    @endif
+                                                    @if (menu_can('menu.dashboard.accounting.cost_centres.gl_dimensions'))
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['gl-dimensions.index', 'gl-dimensions.journal.edit', 'gl-dimensions.reverse']) ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('gl-dimensions.index') }}">{{ __('GL Dimensions') }}</a>
+                                                        </li>
+                                                    @endif
+                                                    @if (menu_can('menu.dashboard.accounting.cost_centres.reports'))
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['cost-centre-reports.expense', 'cost-centre-reports.cash', 'cost-centre-reports.reconciliation', 'cost-centre-reports.unassigned']) ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('cost-centre-reports.expense') }}">{{ __('Reports') }}</a>
                                                         </li>
                                                     @endif
                                                     @if (menu_can('menu.dashboard.accounting.cost_centres.settings'))
