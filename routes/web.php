@@ -124,6 +124,7 @@ use App\Http\Controllers\PosPrinterController;
 use App\Http\Controllers\PosAuditLogController;
 use App\Http\Controllers\PosProductionController;
 use App\Http\Controllers\KitchenRecipeController;
+use App\Http\Controllers\KitchenReportController;
 use App\Http\Controllers\KitchenCostControlController;
 use App\Http\Controllers\KitchenLossController;
 use App\Http\Controllers\KitchenProductionOrderController;
@@ -2519,6 +2520,13 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('kitchen-cost-alerts', [KitchenCostControlController::class, 'alerts'])->name('kitchen.cost-alerts.index')->middleware(['auth', 'XSS']);
     Route::post('kitchen-cost-alerts/refresh', [KitchenCostControlController::class, 'refreshAlerts'])->name('kitchen.cost-alerts.refresh')->middleware(['auth', 'XSS']);
     Route::post('kitchen-cost-alerts/{alert}/acknowledge', [KitchenCostControlController::class, 'acknowledge'])->name('kitchen.cost-alerts.acknowledge')->middleware(['auth', 'XSS']);
+
+    // Kitchen Production — Phase 7: Reports + dashboard (plan §8/§9).
+    // 'dashboard' is registered before '{report}' so it is not swallowed by it.
+    Route::get('kitchen-reports', [KitchenReportController::class, 'index'])->name('kitchen.reports.index')->middleware(['auth', 'XSS']);
+    Route::get('kitchen-reports/dashboard', [KitchenReportController::class, 'dashboard'])->name('kitchen.reports.dashboard')->middleware(['auth', 'XSS']);
+    Route::get('kitchen-reports/{report}', [KitchenReportController::class, 'show'])->name('kitchen.reports.show')->middleware(['auth', 'XSS']);
+    Route::get('kitchen-reports/{report}/export/{format}', [KitchenReportController::class, 'export'])->name('kitchen.reports.export')->middleware(['auth', 'XSS']);
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
     Route::get('pos/retail/{cid?}', [PosController::class, 'index'])->name('pos.index')->defaults('cid', null)->middleware(['auth', 'XSS', 'revalidate']);
