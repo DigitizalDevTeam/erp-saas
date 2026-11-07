@@ -807,8 +807,23 @@ class TreasuryPaymentService
         });
     }
 
-    /** Resolve a processing attempt: paid / failed / outcome unknown. */
-    public function resolveAttempt(TreasuryPaymentAttempt $attempt, string $outcome, ?string $providerReference, ?string $result, int $actorId): TreasuryPaymentAttempt
+    /**
+     * Resolve an attempt: paid / failed / outcome unknown.
+     *
+     * Phase 3: an outcome-unknown attempt can be resolved to paid or
+     * failed once the provider has been queried (CA06) — the query
+     * tells you the outcome, and the ORIGINAL attempt is resolved,
+     * not a new one. A retry that sends the money again is a new
+     * attempt row (see retryAttempt).
+     *
+     * Phase 3 partial payments: when the paid amounts are given,
+     * the request tracks what has been paid and is PAID only when
+     * the paid base amount reaches the approved base amount; a
+     * smaller part leaves it PROCESSING. Without amounts (the
+     * Phase 2 provider flow) a paid outcome marks the whole
+     * request PAID, as before.
+     */
+    public function resolveAttempt(TreasuryPaymentAttempt $attempt, string $outcome, ?string $providerReference, ?string $result, int $actorId, ?string $amountOriginal = null, ?string $amountBase = null): TreasuryPaymentAttempt
     {
         if (! in_array($outcome, [
             TreasuryPaymentAttempt::STATE_PAID,
@@ -818,21 +833,53 @@ class TreasuryPaymentService
             throw new TreasuryException('Unknown attempt outcome (paid, failed or outcome unknown).');
         }
 
-        return DB::transaction(function () use ($attempt, $outcome, $providerReference, $result, $actorId) {
+        return DB::transaction(function () use ($attempt, $outcome, $providerReference, $result, $actorId, $amountOriginal, $amountBase) {
             $attempt = TreasuryPaymentAttempt::lockForUpdate()->findOrFail($attempt->id);
             $request = TreasuryPaymentRequest::lockForUpdate()->findOrFail($attempt->payment_request_id);
 
-            if (! $attempt->isProcessing()) {
-                throw new TreasuryException('Only a processing attempt can be resolved (state: ' . $attempt->state . ').');
+            if (! $attempt->isProcessing() && ! $attempt->isOutcomeUnknown()) {
+                throw new TreasuryException('Only a processing or outcome-unknown attempt can be resolved (state: ' . $attempt->state . ').');
+            }
+
+            if ($attempt->isOutcomeUnknown() && $outcome === TreasuryPaymentAttempt::STATE_OUTCOME_UNKNOWN) {
+                throw new TreasuryException('This attempt is already outcome unknown — query the provider, then resolve it to paid or failed, or retry with a new attempt.');
+            }
+
+            if ($amountOriginal !== null || $amountBase !== null) {
+                if ($amountOriginal === null || $amountBase === null) {
+                    throw new TreasuryException('A partial payment needs both the original and the base amount.');
+                }
+                if ($outcome !== TreasuryPaymentAttempt::STATE_PAID) {
+                    throw new TreasuryException('Paid amounts only apply to a paid outcome.');
+                }
+                if (bccomp($amountOriginal, '0', 4) <= 0 || bccomp($amountBase, '0', 4) <= 0) {
+                    throw new TreasuryException('The paid amounts must be greater than zero.');
+                }
+                if (bccomp($amountBase, $request->remainingAmountBase(), 4) > 0) {
+                    throw new TreasuryException('The paid amount exceeds the remaining amount of this request (' . $request->remainingAmountBase() . ').');
+                }
             }
 
             $attempt->state = $outcome;
             $attempt->provider_reference = $providerReference !== null ? trim($providerReference) : null;
             $attempt->result = $result;
+            if ($amountOriginal !== null) {
+                $attempt->amount_original = $this->decimalString($amountOriginal, 'Paid amount');
+                $attempt->amount_base = $this->decimalString($amountBase, 'Paid base amount');
+                $attempt->currency = $request->currency;
+            }
             $attempt->save();
 
             if ($outcome === TreasuryPaymentAttempt::STATE_PAID) {
-                $request->state = TreasuryPaymentRequest::STATE_PAID;
+                if ($amountOriginal !== null) {
+                    $request->paid_amount_original = bcadd((string) ($request->paid_amount_original ?? '0'), $amountOriginal, 4);
+                    $request->paid_amount_base = bcadd((string) ($request->paid_amount_base ?? '0'), $amountBase, 4);
+                    $request->state = bccomp((string) $request->paid_amount_base, (string) $request->amount_base, 4) >= 0
+                        ? TreasuryPaymentRequest::STATE_PAID
+                        : TreasuryPaymentRequest::STATE_PROCESSING;
+                } else {
+                    $request->state = TreasuryPaymentRequest::STATE_PAID;
+                }
             } elseif ($outcome === TreasuryPaymentAttempt::STATE_FAILED) {
                 $request->state = TreasuryPaymentRequest::STATE_FAILED;
                 $this->releaseActiveReservation($request, $actorId, 'Payment attempt failed.');
@@ -1152,9 +1199,15 @@ class TreasuryPaymentService
 
         $clientReference = trim((string) ($data['client_reference'] ?? ''));
         if ($clientReference !== '') {
+            // The DB unique index on (created_by, client_reference)
+            // blocks reuse in ANY state — including a cancelled
+            // request. The service check must match the index, or
+            // the reuse fails with a raw QueryException instead of
+            // a clean TreasuryException (Phase 2 rough edge, fixed
+            // in Phase 3: align the check with the DB, do not relax
+            // the index).
             $duplicate = TreasuryPaymentRequest::where('created_by', $creatorId)
                 ->where('client_reference', $clientReference)
-                ->whereIn('state', TreasuryPaymentRequest::OPEN_STATES)
                 ->when($existingId !== null, fn ($q) => $q->where('id', '!=', $existingId))
                 ->exists();
             if ($duplicate) {

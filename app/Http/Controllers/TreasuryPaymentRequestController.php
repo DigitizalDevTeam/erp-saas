@@ -13,6 +13,7 @@ use App\Models\TreasuryFundReservation;
 use App\Models\TreasuryPaymentRequest;
 use App\Models\Vender;
 use App\Services\TreasuryAccountService;
+use App\Services\TreasuryExecutionService;
 use App\Services\TreasuryPaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -31,11 +32,13 @@ class TreasuryPaymentRequestController extends Controller
 {
     protected TreasuryPaymentService $service;
     protected TreasuryAccountService $accounts;
+    protected TreasuryExecutionService $execution;
 
-    public function __construct(TreasuryPaymentService $service, ?TreasuryAccountService $accounts = null)
+    public function __construct(TreasuryPaymentService $service, ?TreasuryAccountService $accounts = null, ?TreasuryExecutionService $execution = null)
     {
         $this->service = $service;
         $this->accounts = $accounts ?? new TreasuryAccountService();
+        $this->execution = $execution ?? new TreasuryExecutionService();
     }
 
     public function index(Request $request)
@@ -438,6 +441,180 @@ class TreasuryPaymentRequestController extends Controller
 
         return redirect()->route('treasury-payment-requests.show', $step->payment_request_id)
             ->with('success', __('Substitute approver assigned.'));
+    }
+
+    // ------------------------------------------------------------------
+    // Phase 3 — execution
+    // ------------------------------------------------------------------
+
+    /**
+     * Execution screen: the recheck results are shown before the
+     * user confirms (plan §8 — account, counterparty, currency,
+     * amount and effect before submission).
+     */
+    public function executeForm(TreasuryPaymentRequest $paymentRequest)
+    {
+        if (! Auth::user()->can('execute treasury payments')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        [$paymentRequest, $redirect] = $this->scopedRequestOrRedirect($paymentRequest);
+        if ($redirect) {
+            return $redirect;
+        }
+
+        if (! in_array($paymentRequest->state, [
+            TreasuryPaymentRequest::STATE_APPROVED,
+            TreasuryPaymentRequest::STATE_PROCESSING,
+            TreasuryPaymentRequest::STATE_OUTCOME_UNKNOWN,
+        ], true)) {
+            return redirect()->route('treasury-payment-requests.show', $paymentRequest)
+                ->with('error', __('Only an approved payment request can be executed (state: :state).', ['state' => $paymentRequest->state]));
+        }
+
+        $preview = $this->execution->previewExecution(
+            (int) Auth::user()->creatorId(),
+            (int) $paymentRequest->id,
+            (string) $paymentRequest->remainingAmountOriginal(),
+            (int) Auth::user()->id
+        );
+
+        // A closed period alone does not hide the form: the user
+        // can still execute as an authorised adjustment to an open
+        // period (CA17). Any other failed check blocks execution.
+        $failing = array_values(array_filter($preview['checks'], fn ($check) => ! $check['passed']));
+        $onlyPeriodFails = count($failing) === 1 && $failing[0]['key'] === 'period';
+
+        return view('treasury.payment-requests.execute', [
+            'paymentRequest' => $paymentRequest,
+            'preview' => $preview,
+            'showForm' => $preview['can_execute'] || $onlyPeriodFails,
+            'idempotencyKey' => (string) \Illuminate\Support\Str::uuid(),
+        ]);
+    }
+
+    public function execute(Request $request, TreasuryPaymentRequest $paymentRequest)
+    {
+        if (! Auth::user()->can('execute treasury payments')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        [$paymentRequest, $redirect] = $this->scopedRequestOrRedirect($paymentRequest);
+        if ($redirect) {
+            return $redirect;
+        }
+
+        $request->validate([
+            'amount_original' => 'required|numeric|min:0.0001',
+            'posting_date' => 'nullable|date',
+            'provider_reference' => 'nullable|string|max:100',
+            'result' => 'nullable|string|max:1000',
+        ]);
+
+        $options = [
+            'provider' => TreasuryExecutionService::PROVIDER_MANUAL,
+            'idempotency_key' => trim((string) $request->input('idempotency_key', '')),
+            'posting_date' => $request->input('posting_date'),
+            'provider_reference' => $request->input('provider_reference'),
+            'result' => $request->input('result'),
+            'provider_queried' => $request->boolean('provider_queried'),
+            'executor_user_id' => (int) Auth::user()->id,
+        ];
+
+        if ($request->boolean('adjustment')) {
+            $options['adjustment'] = [
+                'authorised_by' => (int) $request->input('adjustment_authorised_by'),
+                'reason' => (string) $request->input('adjustment_reason', ''),
+            ];
+        }
+
+        try {
+            $result = $this->execution->execute(
+                (int) Auth::user()->creatorId(),
+                (int) $paymentRequest->id,
+                (string) $request->input('amount_original'),
+                (int) Auth::user()->id,
+                $options
+            );
+        } catch (TreasuryException $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+
+        if (! empty($result['replayed'])) {
+            return redirect()->route('treasury-payment-requests.show', $paymentRequest)
+                ->with('success', __('This execution was already recorded — the original result was returned, no second movement was posted.'));
+        }
+
+        $message = $result['request']->isPaid()
+            ? __('Payment executed and fully paid (:amount :currency). Journal #:journal.', [
+                'amount' => $result['amount_original'],
+                'currency' => $paymentRequest->currency,
+                'journal' => $result['journal'] ? $result['journal']->journal_id : '—',
+            ])
+            : __('Partial payment executed (:amount :currency). Remaining: :remaining :currency.', [
+                'amount' => $result['amount_original'],
+                'currency' => $paymentRequest->currency,
+                'remaining' => $result['request']->remainingAmountOriginal(),
+            ]);
+
+        return redirect()->route('treasury-payment-requests.show', $paymentRequest)->with('success', $message);
+    }
+
+    /** CA06 — the operator reports that the provider timed out. */
+    public function reportTimeout(Request $request, \App\Models\TreasuryPaymentAttempt $attempt)
+    {
+        if (! Auth::user()->can('execute treasury payments')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $attempt = $this->execution->reportTimeout(
+                (int) Auth::user()->creatorId(),
+                (int) $attempt->id,
+                (int) Auth::user()->id,
+                $request->input('reason')
+            );
+        } catch (TreasuryException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return redirect()->back()->with('error', __('Payment attempt not found for this company.'));
+        }
+
+        return redirect()->route('treasury-payment-requests.show', $attempt->payment_request_id)
+            ->with('success', __('Attempt marked as outcome unknown. Query the provider before retrying.'));
+    }
+
+    /** CA06 — the provider was queried and says the payment went through. */
+    public function confirmProviderPaid(Request $request, \App\Models\TreasuryPaymentAttempt $attempt)
+    {
+        if (! Auth::user()->can('execute treasury payments')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $request->validate([
+            'provider_reference' => 'nullable|string|max:100',
+            'result' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $result = $this->execution->confirmProviderPaid(
+                (int) Auth::user()->creatorId(),
+                (int) $attempt->id,
+                (int) Auth::user()->id,
+                $request->input('provider_reference'),
+                $request->input('result'),
+                ['executor_user_id' => (int) Auth::user()->id]
+            );
+        } catch (TreasuryException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return redirect()->back()->with('error', __('Payment attempt not found for this company.'));
+        }
+
+        return redirect()->route('treasury-payment-requests.show', $attempt->payment_request_id)
+            ->with('success', __('Provider confirmed the payment. The movement was posted (journal #:journal).', [
+                'journal' => $result['journal'] ? $result['journal']->journal_id : '—',
+            ]));
     }
 
     // ------------------------------------------------------------------

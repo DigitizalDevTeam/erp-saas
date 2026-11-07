@@ -92,6 +92,8 @@ class TreasuryPaymentRequest extends Model
         'rate_source',
         'rate_date',
         'amount_base',
+        'paid_amount_original',
+        'paid_amount_base',
         'due_date',
         'planned_date',
         'priority',
@@ -115,6 +117,8 @@ class TreasuryPaymentRequest extends Model
         'amount_original' => 'decimal:4',
         'exchange_rate' => 'decimal:10',
         'amount_base' => 'decimal:4',
+        'paid_amount_original' => 'decimal:4',
+        'paid_amount_base' => 'decimal:4',
         'due_date' => 'date',
         'planned_date' => 'date',
         'rate_date' => 'date',
@@ -184,6 +188,42 @@ class TreasuryPaymentRequest extends Model
     public function isOpen(): bool
     {
         return in_array($this->state, self::OPEN_STATES, true);
+    }
+
+    public function isPaid(): bool
+    {
+        return $this->state === self::STATE_PAID;
+    }
+
+    public function isProcessing(): bool
+    {
+        return $this->state === self::STATE_PROCESSING;
+    }
+
+    /**
+     * Phase 3 — partial payments: what is still unpaid, in the
+     * request currency and in base currency. The final part is
+     * always the exact remaining base amount, so the parts sum to
+     * the approved total with no rounding dust (RF04).
+     */
+    public function remainingAmountOriginal(): string
+    {
+        $remaining = bcsub((string) $this->amount_original, (string) ($this->paid_amount_original ?? '0'), 4);
+
+        return bccomp($remaining, '0', 4) < 0 ? '0.0000' : $remaining;
+    }
+
+    public function remainingAmountBase(): string
+    {
+        $remaining = bcsub((string) $this->amount_base, (string) ($this->paid_amount_base ?? '0'), 4);
+
+        return bccomp($remaining, '0', 4) < 0 ? '0.0000' : $remaining;
+    }
+
+    public function isPartiallyPaid(): bool
+    {
+        return bccomp((string) ($this->paid_amount_base ?? '0'), '0', 4) > 0
+            && bccomp($this->remainingAmountBase(), '0', 4) > 0;
     }
 
     /** Source documents as a list of ['type' => ..., 'id' => ...]. */
