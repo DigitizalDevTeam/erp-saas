@@ -24,6 +24,7 @@ use App\Models\Vender;
 use App\Models\TransactionLines;
 use App\Services\DocumentVoidService;
 use App\Services\DocumentLayoutRenderer;
+use App\Services\CostCentreAllocationService;
 use App\Services\Accounting\DocumentLedgerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -655,6 +656,20 @@ class BillController extends Controller
                     (string) $bill->bill_date
                 );
 
+                // Cost Centres — Phase 1 (plan §11 risk 2): the bill's
+                // transaction lines were just deleted and re-posted, so
+                // its allocations follow the same lifecycle. With an
+                // `allocations` payload the old splits are reversed and
+                // the new ones posted; without one, surviving splits are
+                // re-based to the new line amounts (percentage splits
+                // only — fixed splits stay reversed for re-allocation).
+                app(CostCentreAllocationService::class)->afterBillUpdated(
+                    $bill,
+                    $request->input('allocations'),
+                    (int) \Auth::user()->creatorId(),
+                    (int) \Auth::id()
+                );
+
                 return redirect()->route('bill.index')->with('success', __('Bill successfully updated.'));
             } else {
                 return redirect()->back()->with('error', __('Permission denied.'));
@@ -681,6 +696,13 @@ class BillController extends Controller
                 } catch (\Throwable $e) {
                     return redirect()->back()->with('error', $e->getMessage());
                 }
+
+                // Cost Centres — Phase 1: a voided bill takes its
+                // allocations with it (reversed, never orphaned).
+                app(CostCentreAllocationService::class)->reverseForSource(
+                    'bill', (int) $bill->id, (int) \Auth::user()->creatorId(), (int) \Auth::id(),
+                    __('Bill voided — allocation reversed.')
+                );
 
                 return redirect()->route('bill.index')->with('success', __('Bill cancelled successfully.'));
             }
@@ -739,6 +761,14 @@ class BillController extends Controller
             $productService = ProductService::find($billProduct->product_id);
 
             TransactionLines::where('reference_sub_id',$productService->id)->where('reference','Bill')->delete();
+
+            // Cost Centres — Phase 1: the deleted line takes its
+            // allocation with it (reversed, never orphaned).
+            $allocations = app(CostCentreAllocationService::class);
+            $allocations->reverseForLine('bill', (int) $bill->id, 'bill_product', (int) $billProduct->id, (int) \Auth::user()->creatorId(), (int) \Auth::id(), __('Bill line deleted — allocation reversed.'));
+            if ($request->filled('account_id')) {
+                $allocations->reverseForLine('bill', (int) $bill->id, 'bill_account', (int) $request->account_id, (int) \Auth::user()->creatorId(), (int) \Auth::id(), __('Bill line deleted — allocation reversed.'));
+            }
 
             BillProduct::where('id', '=', $request->id)->delete();
             BillAccount::where('id','=',$request->account_id)->delete();

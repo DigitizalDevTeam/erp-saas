@@ -18,6 +18,7 @@ use App\Models\StockReport;
 use App\Models\TransactionLines;
 use App\Models\Utility;
 use App\Models\Vender;
+use App\Services\CostCentreAllocationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -760,6 +761,15 @@ class ExpenseController extends Controller
                     Utility::addTransactionLines($data , 'edit');
                 }
 
+                // Cost Centres — Phase 1 (plan §11 risk 2): same
+                // lifecycle as the bill update — see BillController.
+                app(CostCentreAllocationService::class)->afterBillUpdated(
+                    $expense,
+                    $request->input('allocations'),
+                    (int) \Auth::user()->creatorId(),
+                    (int) \Auth::id()
+                );
+
                 return redirect()->route('expense.index')->with('success', __('Expense successfully updated.'));
             } else {
                 return redirect()->back()->with('error', __('Permission denied.'));
@@ -878,6 +888,14 @@ class ExpenseController extends Controller
 
             Utility::updateUserBalance('vendor', $expense->vender_id, $request->amount, 'credit');
 
+            // Cost Centres — Phase 1: the deleted line takes its
+            // allocation with it (reversed, never orphaned).
+            $allocations = app(CostCentreAllocationService::class);
+            $allocations->reverseForLine('expense', (int) $expense->id, 'bill_product', (int) $expenseProduct->id, (int) \Auth::user()->creatorId(), (int) \Auth::id(), __('Expense line deleted — allocation reversed.'));
+            if ($request->filled('account_id')) {
+                $allocations->reverseForLine('expense', (int) $expense->id, 'bill_account', (int) $request->account_id, (int) \Auth::user()->creatorId(), (int) \Auth::id(), __('Expense line deleted — allocation reversed.'));
+            }
+
             BillProduct::where('id', '=', $request->id)->delete();
             BillAccount::where('id', '=', $request->account_id)->delete();
 
@@ -913,6 +931,13 @@ class ExpenseController extends Controller
                 TransactionLines::where('reference_id', $expense->id)->where('reference', 'Expense Payment')->delete();
                 TransactionLines::where('reference_id', $expense->id)->where('reference', 'Expense')->delete();
                 TransactionLines::where('reference_id', $expense->id)->where('reference', 'Expense Account')->delete();
+
+                // Cost Centres — Phase 1: a deleted expense takes its
+                // allocations with it (reversed, never orphaned).
+                app(CostCentreAllocationService::class)->reverseForSource(
+                    'expense', (int) $expense->id, (int) \Auth::user()->creatorId(), (int) \Auth::id(),
+                    __('Expense deleted — allocation reversed.')
+                );
 
                 return redirect()->route('expense.index')->with('success', __('Expense successfully deleted.'));
             } else {

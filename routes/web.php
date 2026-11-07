@@ -124,6 +124,7 @@ use App\Http\Controllers\PosPrinterController;
 use App\Http\Controllers\PosAuditLogController;
 use App\Http\Controllers\PosProductionController;
 use App\Http\Controllers\KitchenRecipeController;
+use App\Http\Controllers\CostCentreAllocationController;
 use App\Http\Controllers\CostCentreController;
 use App\Http\Controllers\KitchenReportController;
 use App\Http\Controllers\KitchenCostControlController;
@@ -2535,6 +2536,20 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('cost-centres/settings', [CostCentreController::class, 'saveSettings'])->name('cost-centres.settings.save')->middleware(['auth', 'XSS']);
     Route::post('cost-centres/{cost_centre}/deactivate', [CostCentreController::class, 'deactivate'])->name('cost-centres.deactivate')->middleware(['auth', 'XSS']);
     Route::resource('cost-centres', CostCentreController::class)->parameters(['cost-centres' => 'cost_centre'])->names('cost-centres')->except(['show'])->middleware(['auth', 'XSS', 'revalidate']);
+
+    // Cost Centres — Phase 1: allocation engine (plan §5/§6). The
+    // validate/centres/by-line routes are registered before the
+    // resource-style routes so they are not swallowed by {allocation}.
+    Route::get('cost-centre-allocations', [CostCentreAllocationController::class, 'index'])->name('cost-centre-allocations.index')->middleware(['auth', 'XSS']);
+    Route::post('cost-centre-allocations/validate', [CostCentreAllocationController::class, 'validateSplit'])->name('cost-centre-allocations.validate')->middleware(['auth', 'XSS']);
+    Route::get('cost-centre-allocations/centres', [CostCentreAllocationController::class, 'centres'])->name('cost-centre-allocations.centres')->middleware(['auth', 'XSS']);
+    Route::get('cost-centre-allocations/by-line', [CostCentreAllocationController::class, 'byLine'])->name('cost-centre-allocations.by-line')->middleware(['auth', 'XSS']);
+    Route::post('cost-centre-allocations', [CostCentreAllocationController::class, 'store'])->name('cost-centre-allocations.store')->middleware(['auth', 'XSS']);
+    Route::post('cost-centre-allocations/{allocation}/reverse', [CostCentreAllocationController::class, 'reverse'])->name('cost-centre-allocations.reverse')->middleware(['auth', 'XSS']);
+    Route::post('cost-centre-allocations/{allocation}/approve', [CostCentreAllocationController::class, 'approve'])->name('cost-centre-allocations.approve')->middleware(['auth', 'XSS']);
+    Route::get('cost-centre-allocation-templates', [CostCentreAllocationController::class, 'templates'])->name('cost-centre-allocation-templates.index')->middleware(['auth', 'XSS']);
+    Route::post('cost-centre-allocation-templates', [CostCentreAllocationController::class, 'storeTemplate'])->name('cost-centre-allocation-templates.store')->middleware(['auth', 'XSS']);
+    Route::delete('cost-centre-allocation-templates/{template}', [CostCentreAllocationController::class, 'destroyTemplate'])->name('cost-centre-allocation-templates.destroy')->middleware(['auth', 'XSS']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
