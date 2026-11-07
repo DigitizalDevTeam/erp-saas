@@ -138,6 +138,7 @@ use App\Http\Controllers\TreasuryDimensionController;
 use App\Http\Controllers\TreasuryOpeningBalanceController;
 use App\Http\Controllers\TreasuryPaymentBatchController;
 use App\Http\Controllers\TreasuryPaymentRequestController;
+use App\Http\Controllers\TreasuryReconciliationController;
 use App\Http\Controllers\TreasuryPettyCashController;
 use App\Http\Controllers\TreasuryReceiptController;
 use App\Http\Controllers\TreasurySettingsController;
@@ -1458,6 +1459,20 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('bank-reconciliation/{bank_reconciliation_session}/auto-match', [BankReconciliationController::class, 'autoMatch'])->name('bank-reconciliation.auto-match');
             Route::post('bank-reconciliation/{bank_reconciliation_session}/manual-match', [BankReconciliationController::class, 'manualMatch'])->name('bank-reconciliation.manual-match');
             Route::post('bank-reconciliation/{bank_reconciliation_session}/unmatch', [BankReconciliationController::class, 'unmatch'])->name('bank-reconciliation.unmatch');
+            // Treasury Phase 7 — reconciliation hardening: close /
+            // reopen on the existing sessions, plus missing
+            // movements, Treasury-operation matches and API sync.
+            Route::post('bank-reconciliation/{bank_reconciliation_session}/close', [BankReconciliationController::class, 'close'])->name('bank-reconciliation.close');
+            Route::post('bank-reconciliation/{bank_reconciliation_session}/reopen', [BankReconciliationController::class, 'reopen'])->name('bank-reconciliation.reopen');
+            Route::get('bank-reconciliation/{bank_reconciliation_session}/lines/{line}/missing-movement', [TreasuryReconciliationController::class, 'missingMovementForm'])->name('treasury-reconciliation.missing-movement-form');
+            Route::post('bank-reconciliation/{bank_reconciliation_session}/lines/{line}/missing-movement', [TreasuryReconciliationController::class, 'proposeMissingMovement'])->name('treasury-reconciliation.missing-movement-propose');
+            Route::post('treasury-reconciliation/missing-movements/{movement}/confirm', [TreasuryReconciliationController::class, 'confirmMissingMovement'])->name('treasury-reconciliation.missing-movement-confirm');
+            Route::post('treasury-reconciliation/missing-movements/{movement}/reject', [TreasuryReconciliationController::class, 'rejectMissingMovement'])->name('treasury-reconciliation.missing-movement-reject');
+            Route::post('treasury-reconciliation/missing-movements/{movement}/reverse', [TreasuryReconciliationController::class, 'reverseMissingMovement'])->name('treasury-reconciliation.missing-movement-reverse');
+            Route::post('bank-reconciliation/{bank_reconciliation_session}/treasury-match', [TreasuryReconciliationController::class, 'matchTreasuryOperation'])->name('treasury-reconciliation.treasury-match');
+            Route::post('bank-reconciliation/{bank_reconciliation_session}/treasury-unmatch', [TreasuryReconciliationController::class, 'unmatchTreasuryOperation'])->name('treasury-reconciliation.treasury-unmatch');
+            Route::get('treasury-reconciliation/api-sync', [TreasuryReconciliationController::class, 'apiSyncForm'])->name('treasury-reconciliation.api-sync-form');
+            Route::post('treasury-reconciliation/api-sync', [TreasuryReconciliationController::class, 'apiSync'])->name('treasury-reconciliation.api-sync');
             Route::resource('journal-entry', JournalEntryController::class);
         }
     );

@@ -7,8 +7,10 @@ use App\Models\BankReconciliationMatch;
 use App\Models\BankReconciliationSession;
 use App\Models\BankStatementLine;
 use App\Models\Transaction;
+use App\Models\TreasuryOperation;
 use App\Services\Accounting\BankReconciliation\ReconciliationMatcher;
 use App\Services\Accounting\BankReconciliation\StatementImportService;
+use App\Services\TreasuryReconciliationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -73,6 +75,17 @@ class BankReconciliationController extends Controller
 
         $bank = BankAccount::findOrFail($validated['bank_account_id']);
 
+        // Phase 7 (CA11): the same file for the same bank account
+        // is a repeat import — refuse it before saving anything.
+        $fileHash = hash_file('sha256', $request->file('statement')->getRealPath());
+        if ($fileHash !== false) {
+            try {
+                (new TreasuryReconciliationService())->assertFileHashAvailable($creatorId, $bank->id, $fileHash);
+            } catch (\App\Exceptions\TreasuryException $e) {
+                return redirect()->back()->with('error', $e->getMessage())->withInput();
+            }
+        }
+
         $path = $request->file('statement')->store('bank-statements/'.$creatorId, 'local');
         if ($path === false) {
             return redirect()->back()
@@ -94,6 +107,7 @@ class BankReconciliationController extends Controller
         $session->status = 'draft';
         $session->original_filename = $request->file('statement')->getClientOriginalName();
         $session->stored_path = $path;
+        $session->file_hash = $fileHash !== false ? $fileHash : null;
         $session->column_mapping = null;
         $session->date_tolerance_days = $validated['date_tolerance_days'] ?? (int) config('bank_reconciliation.date_tolerance_days', 3);
         $session->created_by = $creatorId;
@@ -222,11 +236,22 @@ class BankReconciliationController extends Controller
                 ->with('error', $e->getMessage());
         }
 
+        // Phase 7 (CA11): drop lines this company already holds
+        // for the same bank account (same date + amount +
+        // description) and keep only the legitimate new ones.
+        $recon = new TreasuryReconciliationService();
+        $dedupe = $recon->dedupeSessionLines($bankReconciliationSession->fresh());
+
         $matcher->runAutoMatch($bankReconciliationSession->fresh());
+
+        $notice = __('Statement imported and auto-matching completed.');
+        if ($dedupe['removed'] > 0) {
+            $notice .= ' ' . __(':n duplicate line(s) already on file for this account were skipped.', ['n' => $dedupe['removed']]);
+        }
 
         return redirect()
             ->route('bank-reconciliation.show', $bankReconciliationSession)
-            ->with('success', __('Statement imported and auto-matching completed.'));
+            ->with('success', $notice);
     }
 
     public function show(BankReconciliationSession $bankReconciliationSession)
@@ -250,14 +275,19 @@ class BankReconciliationController extends Controller
         }
 
         $lines = BankStatementLine::where('session_id', $session->id)
-            ->with(['reconciliationMatch.erpTransaction'])
+            ->with(['matches.erpTransaction', 'matches.treasuryOperation'])
             ->orderBy('row_index')
             ->get();
 
-        $matched = $lines->filter(fn ($l) => $l->reconciliationMatch !== null);
-        $unmatchedStatement = $lines->filter(fn ($l) => $l->reconciliationMatch === null);
+        // Phase 7: one line may now carry several matches
+        // (one-to-many / many-to-one, CA12), so the matched table
+        // lists match rows, not lines.
+        $matchRows = $lines->flatMap(fn ($l) => $l->matches)->values();
+        $matched = $lines->filter(fn ($l) => $l->matches->isNotEmpty());
+        $unmatchedStatement = $lines->filter(fn ($l) => $l->matches->isEmpty());
 
         $usedTxIds = BankReconciliationMatch::where('session_id', $session->id)
+            ->whereNotNull('transaction_id')
             ->pluck('transaction_id')
             ->filter()
             ->all();
@@ -285,7 +315,102 @@ class BankReconciliationController extends Controller
             'unmatched_erp' => $unmatchedErp->count(),
         ];
 
-        return view('bankReconciliation.show', compact('session', 'matched', 'unmatchedStatement', 'unmatchedErp', 'stats'));
+        // Phase 7: close figures + missing movements + confirmed
+        // Treasury operations with a remaining residual on this
+        // bank account, for the manual Treasury-match form.
+        $recon = new TreasuryReconciliationService();
+        $summary = $recon->sessionSummary($session);
+        $missingMovements = $session->missingMovements()->with('statementLine')->orderByDesc('id')->get();
+
+        $unmatchedOperations = collect();
+        $treasuryAccountIds = \App\Models\TreasuryFinancialAccount::where('bank_account_id', $session->bank_account_id)
+            ->where('created_by', $session->created_by)
+            ->pluck('id')
+            ->all();
+        if ($treasuryAccountIds !== []) {
+            $operationIds = \App\Models\TreasuryEntry::whereIn('financial_account_id', $treasuryAccountIds)
+                ->distinct()
+                ->pluck('operation_id')
+                ->all();
+            $unmatchedOperations = TreasuryOperation::whereIn('id', $operationIds)
+                ->where('created_by', $session->created_by)
+                ->where('state', TreasuryOperation::STATE_CONFIRMED)
+                ->orderByDesc('id')
+                ->limit(100)
+                ->get()
+                ->map(function ($op) use ($recon, $session) {
+                    $op->residual_amount = $recon->operationResidual($op, $session);
+
+                    return $op;
+                })
+                ->filter(fn ($op) => bccomp((string) $op->residual_amount, '0', 4) > 0)
+                ->values();
+        }
+
+        return view('bankReconciliation.show', compact('session', 'matched', 'matchRows', 'unmatchedStatement', 'unmatchedErp', 'unmatchedOperations', 'missingMovements', 'summary', 'stats'));
+    }
+
+    /**
+     * Phase 7 — close a session. Needs the approve permission;
+     * the service refuses an unexplained difference.
+     */
+    public function close(Request $request, BankReconciliationSession $bankReconciliationSession)
+    {
+        if (! \Auth::user()->can(TreasuryReconciliationService::PERMISSION_APPROVE)) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $this->authorizeSession($bankReconciliationSession);
+
+        $data = $request->validate([
+            'statement_balance' => 'nullable|numeric',
+            'book_balance' => 'nullable|numeric',
+        ]);
+
+        try {
+            (new TreasuryReconciliationService())->closeSession(
+                \Auth::user()->creatorId(),
+                $bankReconciliationSession->id,
+                \Auth::id(),
+                $data
+            );
+        } catch (\App\Exceptions\TreasuryException $e) {
+            return redirect()->back()->with('error', $e->getMessage())->withInput();
+        }
+
+        return redirect()->route('bank-reconciliation.show', $bankReconciliationSession)
+            ->with('success', __('Statement closed. Statement, book, outstanding and explained differences reconcile.'));
+    }
+
+    /**
+     * Phase 7 — reopen a closed session. Needs the approve
+     * permission and a reason.
+     */
+    public function reopen(Request $request, BankReconciliationSession $bankReconciliationSession)
+    {
+        if (! \Auth::user()->can(TreasuryReconciliationService::PERMISSION_APPROVE)) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $this->authorizeSession($bankReconciliationSession);
+
+        $data = $request->validate([
+            'reopen_reason' => 'required|string|max:1000',
+        ]);
+
+        try {
+            (new TreasuryReconciliationService())->reopenSession(
+                \Auth::user()->creatorId(),
+                $bankReconciliationSession->id,
+                \Auth::id(),
+                $data['reopen_reason']
+            );
+        } catch (\App\Exceptions\TreasuryException $e) {
+            return redirect()->back()->with('error', $e->getMessage())->withInput();
+        }
+
+        return redirect()->route('bank-reconciliation.show', $bankReconciliationSession)
+            ->with('success', __('Statement reopened.'));
     }
 
     public function autoMatch(BankReconciliationSession $bankReconciliationSession, ReconciliationMatcher $matcher)
@@ -336,13 +461,17 @@ class BankReconciliationController extends Controller
             return redirect()->back()->with('error', __('This ERP transaction is already linked to another line in this session.'));
         }
 
+        // Phase 7: only ever touch the Transaction match row for
+        // this line — a line may also carry Treasury matches.
         BankReconciliationMatch::updateOrCreate(
             [
                 'session_id' => $bankReconciliationSession->id,
                 'statement_line_id' => $line->id,
+                'transaction_id' => $tx->id,
             ],
             [
-                'transaction_id' => $tx->id,
+                'treasury_operation_id' => null,
+                'matched_amount' => $line->amount !== null ? number_format(abs((float) $line->amount), 4, '.', '') : null,
                 'match_type' => 'manual',
             ]
         );
@@ -365,8 +494,11 @@ class BankReconciliationController extends Controller
             ],
         ]);
 
+        // Phase 7: only the Transaction match is removed here —
+        // Treasury matches have their own unmatch path.
         BankReconciliationMatch::where('session_id', $bankReconciliationSession->id)
             ->where('statement_line_id', $data['statement_line_id'])
+            ->whereNotNull('transaction_id')
             ->delete();
 
         return redirect()->back()->with('success', __('Match removed.'));
