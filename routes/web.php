@@ -2767,6 +2767,12 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('billing-contracts/{contract}/cancel', [BillingContractController::class, 'cancel'])->name('billing-contracts.cancel')->middleware(['auth', 'XSS']);
     Route::get('billing-contracts/{contract}/amend', [BillingContractController::class, 'amendForm'])->name('billing-contracts.amend-form')->middleware(['auth', 'XSS']);
     Route::post('billing-contracts/{contract}/amend', [BillingContractController::class, 'amend'])->name('billing-contracts.amend')->middleware(['auth', 'XSS']);
+    // Contract Management Phase 2 — recurring invoice generation.
+    Route::get('billing-contracts/due-queue', [BillingContractController::class, 'dueQueue'])->name('billing-contracts.due-queue')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/generate-now', [BillingContractController::class, 'generateNow'])->name('billing-contracts.generate-now')->middleware(['auth', 'XSS']);
+    Route::get('billing-contracts/{contract}/occurrences/{occurrence}', [BillingContractController::class, 'occurrenceShow'])->name('billing-contracts.occurrence-show')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/occurrences/{occurrence}/generate', [BillingContractController::class, 'generateOccurrence'])->name('billing-contracts.generate-occurrence')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/occurrences/{occurrence}/resend', [BillingContractController::class, 'resendOccurrence'])->name('billing-contracts.resend-occurrence')->middleware(['auth', 'XSS']);
     Route::resource('billing-contracts', BillingContractController::class)->parameters(['billing-contracts' => 'contract'])->names('billing-contracts')->except(['destroy'])->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);

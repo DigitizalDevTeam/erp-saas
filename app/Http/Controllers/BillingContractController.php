@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\BillingContractException;
 use App\Models\BillingContract;
+use App\Models\BillingContractOccurrence;
+use App\Models\BillingDeliveryAttempt;
 use App\Models\Customer;
+use App\Models\Invoice;
 use App\Models\ProductService;
 use App\Models\Tax;
 use App\Services\BillingContractService;
+use App\Services\BillingInvoiceService;
 use App\Services\BillingOccurrenceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,11 +34,13 @@ class BillingContractController extends Controller
 {
     protected BillingContractService $service;
     protected BillingOccurrenceService $occurrences;
+    protected BillingInvoiceService $billing;
 
-    public function __construct(BillingContractService $service, BillingOccurrenceService $occurrences)
+    public function __construct(BillingContractService $service, BillingOccurrenceService $occurrences, BillingInvoiceService $billing)
     {
         $this->service = $service;
         $this->occurrences = $occurrences;
+        $this->billing = $billing;
     }
 
     public function index(Request $request)
@@ -114,8 +120,14 @@ class BillingContractController extends Controller
 
         $contract->load(['customer', 'lines', 'revisions', 'auditEvents']);
         $occurrences = $contract->occurrences()->orderBy('period_start')->paginate(25);
+        // Phase 2: the invoices issued for this contract.
+        $invoices = $contract->occurrences()
+            ->whereNotNull('invoice_id')
+            ->with('invoice')
+            ->orderBy('period_start')
+            ->get();
 
-        return view('billing-contracts.show', compact('contract', 'occurrences'));
+        return view('billing-contracts.show', compact('contract', 'occurrences', 'invoices'));
     }
 
     public function edit(int $id)
@@ -180,6 +192,152 @@ class BillingContractController extends Controller
         $occurrences = $query->paginate(25);
 
         return view('billing-contracts.occurrences', compact('contract', 'occurrences'));
+    }
+
+    // ---------------------------------------------------------------
+    // Phase 2 — recurring invoice generation (AC02/AC03/AC07/AC08)
+    // ---------------------------------------------------------------
+
+    /** Due occurrences queue: all pending occurrences whose billing date has been reached. */
+    public function dueQueue(Request $request)
+    {
+        if (! $this->canView()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $creatorId = (int) Auth::user()->creatorId();
+        $occurrences = $this->billing->dueOccurrences($creatorId);
+
+        // Paginate the in-memory collection (the due set is small:
+        // one row per billing period per contract).
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = 25;
+        $occurrences = new \Illuminate\Pagination\LengthAwarePaginator(
+            $occurrences->forPage($page, $perPage)->values(),
+            $occurrences->count(),
+            $perPage,
+            $page,
+            ['path' => route('billing-contracts.due-queue'), 'query' => $request->query()]
+        );
+
+        return view('billing-contracts.due-queue', compact('occurrences'));
+    }
+
+    /** One occurrence: its invoice link, state history and delivery attempts. */
+    public function occurrenceShow(int $contractId, int $occurrenceId)
+    {
+        if (! $this->canView()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $contract = $this->contractForCompany((int) Auth::user()->creatorId(), $contractId);
+        } catch (BillingContractException $e) {
+            return redirect()->route('billing-contracts.index')->with('error', $e->getMessage());
+        }
+
+        $occurrence = $contract->occurrences()->with(['invoice', 'deliveryAttempts'])->find($occurrenceId);
+        if (! $occurrence) {
+            return redirect()->route('billing-contracts.show', $contract->id)
+                ->with('error', __('Occurrence not found for this contract.'));
+        }
+
+        $history = $contract->auditEvents()
+            ->where('occurrence_id', $occurrence->id)
+            ->orderBy('id')
+            ->get();
+        $attempt = $occurrence->invoice_id
+            ? BillingDeliveryAttempt::where('invoice_id', $occurrence->invoice_id)->first()
+            : null;
+
+        return view('billing-contracts.occurrence-show', compact('contract', 'occurrence', 'history', 'attempt'));
+    }
+
+    /** Manual "Generate now" for one contract (all its due occurrences). */
+    public function generateNow(int $id)
+    {
+        if (! Auth::user()->can('manage billing contracts')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $contract = $this->contractForCompany((int) Auth::user()->creatorId(), $id);
+            $results = $this->billing->generateDueForContract($contract, (int) Auth::id());
+        } catch (BillingContractException $e) {
+            return redirect()->route('billing-contracts.index')->with('error', $e->getMessage());
+        }
+
+        if ($results['failed'] > 0) {
+            $first = $results['failures'][0];
+            return redirect()->route('billing-contracts.show', $contract->id)
+                ->with('error', __(':n invoice(s) issued, :f failed. First failure: :e', [
+                    'n' => $results['generated'],
+                    'f' => $results['failed'],
+                    'e' => $first['error'],
+                ]));
+        }
+
+        return redirect()->route('billing-contracts.show', $contract->id)
+            ->with('success', __(':n invoice(s) issued.', ['n' => $results['generated']]));
+    }
+
+    /** Manual generate for one due occurrence (from the queue). */
+    public function generateOccurrence(int $contractId, int $occurrenceId)
+    {
+        if (! Auth::user()->can('manage billing contracts')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $contract = $this->contractForCompany((int) Auth::user()->creatorId(), $contractId);
+            $occurrence = $contract->occurrences()->find($occurrenceId);
+            if (! $occurrence) {
+                return redirect()->route('billing-contracts.due-queue')
+                    ->with('error', __('Occurrence not found for this contract.'));
+            }
+
+            $result = $this->billing->generateForOccurrence($occurrence, (int) Auth::id());
+        } catch (BillingContractException $e) {
+            return redirect()->route('billing-contracts.index')->with('error', $e->getMessage());
+        }
+
+        $message = $result['already_invoiced']
+            ? __('Invoice already exists for this period.')
+            : __('Invoice issued.');
+
+        return redirect()->route('billing-contracts.occurrence-show', [$contract->id, $occurrence->id])
+            ->with('success', $message);
+    }
+
+    /** Manual resend of an issued invoice's email (same invoice, same PDF). */
+    public function resendOccurrence(int $contractId, int $occurrenceId)
+    {
+        if (! Auth::user()->can('manage billing contracts')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $contract = $this->contractForCompany((int) Auth::user()->creatorId(), $contractId);
+            $occurrence = $contract->occurrences()->find($occurrenceId);
+            if (! $occurrence) {
+                return redirect()->route('billing-contracts.due-queue')
+                    ->with('error', __('Occurrence not found for this contract.'));
+            }
+
+            $result = $this->billing->resendInvoice($occurrence, (int) Auth::id());
+        } catch (BillingContractException $e) {
+            return redirect()->route('billing-contracts.index')->with('error', $e->getMessage());
+        }
+
+        if ($result['status'] === 'sent') {
+            return redirect()->route('billing-contracts.occurrence-show', [$contract->id, $occurrence->id])
+                ->with('success', __('Invoice email sent.'));
+        }
+
+        $attempt = $result['attempt'];
+        $error = $attempt->last_error ?? __('Email could not be sent.');
+        return redirect()->route('billing-contracts.occurrence-show', [$contract->id, $occurrence->id])
+            ->with('error', __('Email could not be sent: :e', ['e' => $error]));
     }
 
     /**

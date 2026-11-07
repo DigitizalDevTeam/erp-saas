@@ -17,6 +17,12 @@
             @if (in_array($contract->state, ['active', 'suspended']))
                 <a href="{{ route('billing-contracts.amend-form', $contract->id) }}" class="btn btn-sm btn-secondary">{{ __('Amend') }}</a>
             @endif
+            @if ($contract->state === 'active')
+                <form method="POST" action="{{ route('billing-contracts.generate-now', $contract->id) }}" class="d-inline">
+                    @csrf
+                    <button class="btn btn-sm btn-primary" type="submit">{{ __('Generate invoices now') }}</button>
+                </form>
+            @endif
         @endcan
     </div>
 @endsection
@@ -89,7 +95,7 @@
                             <tbody>
                                 @forelse ($occurrences as $occurrence)
                                     <tr>
-                                        <td>{{ $occurrence->period_start->format('Y-m-d') }} → {{ $occurrence->coverageEndInclusive() }}</td>
+                                        <td><a href="{{ route('billing-contracts.occurrence-show', [$contract->id, $occurrence->id]) }}">{{ $occurrence->period_start->format('Y-m-d') }} → {{ $occurrence->coverageEndInclusive() }}</a></td>
                                         <td>{{ $occurrence->billing_date->format('Y-m-d') }}</td>
                                         <td>{{ $occurrence->due_date->format('Y-m-d') }}</td>
                                         <td>{{ number_format((float) $occurrence->amount, 2) }} {{ $occurrence->currency }}</td>
@@ -102,6 +108,35 @@
                         </table>
                     </div>
                     {{ $occurrences->links() }}
+
+                    <h6 class="mt-4">{{ __('Invoices') }}</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr><th>{{ __('Period') }}</th><th>{{ __('Invoice') }}</th><th>{{ __('Issue date') }}</th><th>{{ __('Due date') }}</th><th>{{ __('Amount') }}</th><th>{{ __('Balance due') }}</th></tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($invoices as $occurrence)
+                                    <tr>
+                                        <td><a href="{{ route('billing-contracts.occurrence-show', [$contract->id, $occurrence->id]) }}">{{ $occurrence->period_start->format('Y-m-d') }} → {{ $occurrence->coverageEndInclusive() }}</a></td>
+                                        <td>
+                                            @if ($occurrence->invoice)
+                                                <a href="{{ route('invoice.show', \Crypt::encrypt($occurrence->invoice_id)) }}">{{ \Auth::user()->invoiceNumberFormat($occurrence->invoice->invoice_id) }}</a>
+                                            @else
+                                                —
+                                            @endif
+                                        </td>
+                                        <td>{{ $occurrence->invoice ? $occurrence->invoice->issue_date : '—' }}</td>
+                                        <td>{{ $occurrence->invoice ? $occurrence->invoice->due_date : '—' }}</td>
+                                        <td>{{ $occurrence->invoice ? number_format((float) $occurrence->invoice->getTotal(), 2) : '—' }}</td>
+                                        <td>{{ $occurrence->invoice ? number_format((float) $occurrence->invoice->getDue(), 2) : '—' }}</td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="6" class="text-center text-muted">{{ __('No invoices issued yet.') }}</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
