@@ -7,6 +7,7 @@ use App\Models\PosAuditLog;
 use App\Models\PosProduct;
 use App\Models\ProductRecipe;
 use App\Models\ProductService;
+use App\Services\KitchenPosSaleService;
 
 /**
  * Deducts stock for a saved restaurant POS line (a PosProduct row).
@@ -71,7 +72,12 @@ class PosLineStockDeductionService
             ProductOptionService::deductOptionRecipesForSale($selectedOpts, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $allowNegative);
             // Options deducted; the parent's own BOM (recipe ingredients /
             // kit components) is still consumed per unit sold.
-            self::deductParentBom($product, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId, $allowNegative);
+            self::deductParentBom($product, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId, $allowNegative, $selectedOpts, $line);
+            // Kitchen Production Phase 2: a selected option that is itself
+            // a prepared product (or whose recipe uses one) comes from
+            // its batches — the option's warehouse stock was just
+            // deducted, the batch it came from must fall as well.
+            self::consumePreparedOptions($selectedOpts, $lineQty, $warehouseId, $creatorId, $line);
         } elseif (($product->type ?? null) === 'kit') {
             PosKitDeductionService::deductForSale(
                 (int) $line->product_id,
@@ -93,7 +99,9 @@ class PosLineStockDeductionService
                 $posId,
                 $identifiersNote,
                 $variantId,
-                $allowNegative
+                $allowNegative,
+                $selectedOpts,
+                $line
             );
         } elseif (! $allowNegative && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $line->product_id, $warehouseId, $creatorId))) {
             PosFefoDeductionService::deductForSale(
@@ -115,7 +123,9 @@ class PosLineStockDeductionService
                 $posId,
                 $identifiersNote,
                 $variantId,
-                $allowNegative
+                $allowNegative,
+                $selectedOpts,
+                $line
             );
         }
 
@@ -138,7 +148,7 @@ class PosLineStockDeductionService
      * Mirror of PosController::deductParentBomAfterOptions(): after the
      * selected options were deducted, consume the parent product's own BOM.
      */
-    protected static function deductParentBom(ProductService $product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, ?string $identifiersNote, ?int $variantId, bool $allowNegative = false): void
+    protected static function deductParentBom(ProductService $product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, ?string $identifiersNote, ?int $variantId, bool $allowNegative = false, array $selectedOptions = [], ?PosProduct $line = null): void
     {
         if (($product->type ?? null) === 'kit') {
             PosKitDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, 'pos', $allowNegative);
@@ -147,7 +157,53 @@ class PosLineStockDeductionService
         }
 
         if (ProductRecipe::where('product_id', (int) $product->id)->where('created_by', $creatorId)->exists()) {
-            PosRecipeDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId, $allowNegative);
+            PosRecipeDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId, $allowNegative, $selectedOptions, $line);
+        }
+    }
+
+    /**
+     * Kitchen Production Phase 2: after the options were deducted from
+     * warehouse stock, the prepared batches they came from must fall
+     * too — a selected option that is itself a prepared product, and
+     * any prepared ingredient in an option's recipe.
+     *
+     * @param array<int, array{product_id: int, quantity: float}> $selectedOpts
+     */
+    protected static function consumePreparedOptions(array $selectedOpts, float $lineQty, int $warehouseId, int $creatorId, PosProduct $line): void
+    {
+        if ($selectedOpts === []) {
+            return;
+        }
+
+        $kitchen = app(KitchenPosSaleService::class);
+        $multiplier = $lineQty > 0 ? $lineQty : 1;
+
+        foreach ($selectedOpts as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $optId = (int) ($row['product_id'] ?? 0);
+            $optQty = (float) ($row['quantity'] ?? 1);
+            if ($optId <= 0 || $optQty <= 0) {
+                continue;
+            }
+
+            // The option product itself is a prepared product.
+            if ($kitchen->isPreparedProduct($optId, $creatorId)) {
+                $kitchen->consumeBatches($optId, $warehouseId, $creatorId, $optQty * $multiplier, (int) $line->id, false);
+            }
+        }
+
+        // Prepared ingredients in the options' recipes.
+        foreach (ProductOptionService::optionRecipeMovements($selectedOpts, $lineQty, $creatorId) as $move) {
+            $moveProduct = ProductService::where('id', (int) $move['product_id'])->where('created_by', $creatorId)->first();
+            if (! $moveProduct instanceof ProductService) {
+                continue;
+            }
+            if (! $kitchen->isPreparedProduct((int) $moveProduct->id, $creatorId)) {
+                continue;
+            }
+            $kitchen->consumeBatches((int) $moveProduct->id, $warehouseId, $creatorId, (float) $move['quantity'], (int) $line->id, false);
         }
     }
 }

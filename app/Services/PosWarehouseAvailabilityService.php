@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ProductRecipe;
 use App\Models\ProductService;
 use App\Models\WarehouseProduct;
+use App\Services\KitchenPosSaleService;
 
 /**
  * Whether a restaurant POS line can be sold from one warehouse:
@@ -74,9 +75,27 @@ class PosWarehouseAvailabilityService
             }
         }
 
+        // Kitchen Production Phase 2: a prepared product is sold from
+        // its batches only, so its sellable quantity is capped by the
+        // batches in this warehouse, not just by its warehouse stock.
+        $productIsPrepared = ! $product->allowsNegativeStock() && app(KitchenPosSaleService::class)->isPreparedProduct((int) $product->id, $creatorId);
+        if ($productIsPrepared) {
+            $perUnit = app(KitchenPosSaleService::class)->saleNeedForPreparedProduct($product, 1.0, $creatorId);
+            if ($perUnit > 0) {
+                $limits[] = (int) floor(app(KitchenPosSaleService::class)->batchRemaining((int) $product->id, $warehouseId, $creatorId) / $perUnit);
+            }
+        }
+
         foreach ($recipes as $recipe) {
             $ingredient = $recipe->ingredientProduct;
             if (! $ingredient || ($ingredient->type ?? '') !== 'ingredient') {
+                continue;
+            }
+            // Kitchen Production Phase 2: a prepared product's own recipe
+            // lines are production inputs — they were already deducted
+            // when the batch was produced, so they never limit a sale.
+            // Only the batch limit above applies to the product itself.
+            if ($productIsPrepared) {
                 continue;
             }
             // No-affect ingredients are never stock-checked, just like
@@ -95,6 +114,12 @@ class PosWarehouseAvailabilityService
                 continue;
             }
             $have = $this->qtyInWarehouse((int) $ingredient->id, $warehouseId, null, $creatorId);
+            // Kitchen Production Phase 2: a prepared ingredient is sold
+            // from its batches only — the batch remaining is the real
+            // limit, even when the warehouse stock is higher.
+            if (app(KitchenPosSaleService::class)->isPreparedProduct((int) $ingredient->id, $creatorId)) {
+                $have = min($have, (int) floor(app(KitchenPosSaleService::class)->batchRemaining((int) $ingredient->id, $warehouseId, $creatorId)));
+            }
             $limits[] = (int) floor($have / $per);
         }
 
