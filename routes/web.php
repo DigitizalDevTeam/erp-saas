@@ -132,6 +132,7 @@ use App\Http\Controllers\CostCentreDashboardController;
 use App\Http\Controllers\CostCentreReportController;
 use App\Http\Controllers\GlDimensionController;
 use App\Http\Controllers\BillingContractController;
+use App\Http\Controllers\BillingReportController;
 use App\Http\Controllers\TreasuryAccountController;
 use App\Http\Controllers\TreasuryAdvanceController;
 use App\Http\Controllers\TreasuryAuditTrailController;
@@ -2781,6 +2782,14 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('billing-contracts/{contract}/renew', [BillingContractController::class, 'renew'])->name('billing-contracts.renew')->middleware(['auth', 'XSS']);
     Route::post('billing-contracts/{contract}/renewals/{renewal}/abandon', [BillingContractController::class, 'abandonRenewal'])->name('billing-contracts.abandon-renewal')->middleware(['auth', 'XSS']);
     Route::resource('billing-contracts', BillingContractController::class)->parameters(['billing-contracts' => 'contract'])->names('billing-contracts')->except(['destroy'])->middleware(['auth', 'XSS', 'revalidate']);
+    // Contract Management Phase 4 — dashboard + reports + exports.
+    // 'dashboard' is registered before '{report}' so it is never
+    // captured as a report key.
+    Route::get('billing-reports/dashboard', [BillingReportController::class, 'dashboard'])->name('billing-reports.dashboard')->middleware(['auth', 'XSS']);
+    Route::get('billing-reports', [BillingReportController::class, 'index'])->name('billing-reports.index')->middleware(['auth', 'XSS']);
+    Route::get('billing-reports/{report}', [BillingReportController::class, 'show'])->name('billing-reports.show')->middleware(['auth', 'XSS']);
+    Route::post('billing-reports/{report}/export', [BillingReportController::class, 'requestExport'])->name('billing-reports.export-request')->middleware(['auth', 'XSS']);
+    Route::get('billing-reports/exports/{export}/download', [BillingReportController::class, 'download'])->name('billing-reports.export-download')->middleware(['auth', 'XSS', 'signed']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');

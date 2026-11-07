@@ -1194,6 +1194,16 @@
                                                     <a class="dash-link"
                                                         href="{{ route('billing-contracts.index') }}">{{ __('Billing Contracts') }}</a>
                                                 </li>
+                                                <li
+                                                    class="dash-item {{ (Request::route()->getName() ?? '') === 'billing-reports.dashboard' ? ' active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('billing-reports.dashboard') }}">{{ __('Billing Dashboard') }}</a>
+                                                </li>
+                                                <li
+                                                    class="dash-item {{ str_starts_with(Request::route()->getName() ?? '', 'billing-reports') && (Request::route()->getName() ?? '') !== 'billing-reports.dashboard' ? ' active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('billing-reports.index') }}">{{ __('Billing Reports') }}</a>
+                                                </li>
                                             @endif
                                             @if (menu_can('menu.accounting_system.sales.quotation'))
                                                 <li
