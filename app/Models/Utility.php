@@ -604,6 +604,8 @@ namespace App\Models;
                 'treasury_withholding_account_code' => '',
                 'treasury_discount_account_code' => '',
                 'treasury_customer_credit_account_code' => '',
+                'treasury_exchange_loss_account_code' => '',
+                'treasury_exchange_gain_account_code' => '',
                 'treasury_approval_rules' => '',
                 'treasury_reservation_threshold_base' => '0',
             ];

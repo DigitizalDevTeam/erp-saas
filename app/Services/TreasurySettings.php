@@ -40,6 +40,13 @@ class TreasurySettings
     public const KEY_WITHHOLDING_ACCOUNT_CODE = 'treasury_withholding_account_code';
     public const KEY_DISCOUNT_ACCOUNT_CODE = 'treasury_discount_account_code';
     public const KEY_CUSTOMER_CREDIT_ACCOUNT_CODE = 'treasury_customer_credit_account_code';
+    // Phase 4 — realised exchange-difference accounts (transfer
+    // FX). Empty means "use the documented default prefix" (loss
+    // 694 "Diferenças de câmbio desfavoráveis", gain 784
+    // "Diferenças de câmbio favoráveis" on the Hoya chart); when
+    // neither resolves, a transfer that needs the line is refused.
+    public const KEY_EXCHANGE_LOSS_ACCOUNT_CODE = 'treasury_exchange_loss_account_code';
+    public const KEY_EXCHANGE_GAIN_ACCOUNT_CODE = 'treasury_exchange_gain_account_code';
     // Phase 2 — approval rules (JSON list of levels) + reservation
     // threshold (base-currency amount at/above which approval reserves
     // funds). D4/D5 (plan §12): no client example was given, so the
@@ -74,6 +81,8 @@ class TreasurySettings
         self::KEY_WITHHOLDING_ACCOUNT_CODE => '',
         self::KEY_DISCOUNT_ACCOUNT_CODE => '',
         self::KEY_CUSTOMER_CREDIT_ACCOUNT_CODE => '',
+        self::KEY_EXCHANGE_LOSS_ACCOUNT_CODE => '',
+        self::KEY_EXCHANGE_GAIN_ACCOUNT_CODE => '',
         self::KEY_APPROVAL_RULES => '',
         self::KEY_RESERVATION_THRESHOLD => '0',
     ];
@@ -217,6 +226,8 @@ class TreasurySettings
             self::KEY_WITHHOLDING_ACCOUNT_CODE,
             self::KEY_DISCOUNT_ACCOUNT_CODE,
             self::KEY_CUSTOMER_CREDIT_ACCOUNT_CODE,
+            self::KEY_EXCHANGE_LOSS_ACCOUNT_CODE,
+            self::KEY_EXCHANGE_GAIN_ACCOUNT_CODE,
         ] as $key) {
             $values[$key] = substr(trim((string) ($input[$key] ?? '')), 0, 20);
         }

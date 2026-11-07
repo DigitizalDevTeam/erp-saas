@@ -138,6 +138,7 @@ use App\Http\Controllers\TreasuryPaymentBatchController;
 use App\Http\Controllers\TreasuryPaymentRequestController;
 use App\Http\Controllers\TreasuryReceiptController;
 use App\Http\Controllers\TreasurySettingsController;
+use App\Http\Controllers\TreasuryTransferController;
 use App\Http\Controllers\KitchenReportController;
 use App\Http\Controllers\KitchenCostControlController;
 use App\Http\Controllers\KitchenLossController;
@@ -2654,6 +2655,12 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('treasury-payment-batches/{batch}/execute', [TreasuryPaymentBatchController::class, 'execute'])->name('treasury-payment-batches.execute')->middleware(['auth', 'XSS']);
     Route::post('treasury-payment-batches/{batch}/cancel', [TreasuryPaymentBatchController::class, 'cancel'])->name('treasury-payment-batches.cancel')->middleware(['auth', 'XSS']);
     Route::resource('treasury-payment-batches', TreasuryPaymentBatchController::class)->parameters(['treasury-payment-batches' => 'batch'])->names('treasury-payment-batches')->only(['index', 'create', 'store', 'show'])->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('treasury-transfers/{transfer}/confirm', [TreasuryTransferController::class, 'confirmForm'])->name('treasury-transfers.confirm-form')->middleware(['auth', 'XSS']);
+    Route::post('treasury-transfers/{transfer}/confirm', [TreasuryTransferController::class, 'confirm'])->name('treasury-transfers.confirm')->middleware(['auth', 'XSS']);
+    Route::post('treasury-transfers/{transfer}/clear', [TreasuryTransferController::class, 'clear'])->name('treasury-transfers.clear')->middleware(['auth', 'XSS']);
+    Route::post('treasury-transfers/{transfer}/return', [TreasuryTransferController::class, 'return'])->name('treasury-transfers.return')->middleware(['auth', 'XSS']);
+    Route::post('treasury-transfers/{transfer}/cancel', [TreasuryTransferController::class, 'cancel'])->name('treasury-transfers.cancel')->middleware(['auth', 'XSS']);
+    Route::resource('treasury-transfers', TreasuryTransferController::class)->parameters(['treasury-transfers' => 'transfer'])->names('treasury-transfers')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
