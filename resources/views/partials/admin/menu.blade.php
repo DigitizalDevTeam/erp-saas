@@ -343,7 +343,7 @@
                                             </li>
                                         @endif
                                         @if (menu_can_node('menu.dashboard.accounting.treasury'))
-                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['treasury-accounts.index', 'treasury-accounts.create', 'treasury-accounts.edit', 'treasury-accounts.statement', 'treasury-opening-balances.index', 'treasury-opening-balances.create', 'treasury-opening-balances.edit', 'treasury-opening-balances.import', 'treasury-receipts.index', 'treasury-receipts.create', 'treasury-receipts.edit', 'treasury-receipts.show', 'treasury-payment-requests.index', 'treasury-payment-requests.create', 'treasury-payment-requests.edit', 'treasury-payment-requests.show', 'treasury-payment-requests.approvals', 'treasury-payment-requests.reservations', 'treasury-payment-requests.execute-form', 'treasury-payment-batches.index', 'treasury-payment-batches.create', 'treasury-payment-batches.show', 'treasury.settings']) ? 'active dash-trigger' : '' }}">
+                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['treasury-accounts.index', 'treasury-accounts.create', 'treasury-accounts.edit', 'treasury-accounts.statement', 'treasury-opening-balances.index', 'treasury-opening-balances.create', 'treasury-opening-balances.edit', 'treasury-opening-balances.import', 'treasury-receipts.index', 'treasury-receipts.create', 'treasury-receipts.edit', 'treasury-receipts.show', 'treasury-payment-requests.index', 'treasury-payment-requests.create', 'treasury-payment-requests.edit', 'treasury-payment-requests.show', 'treasury-payment-requests.approvals', 'treasury-payment-requests.reservations', 'treasury-payment-requests.execute-form', 'treasury-payment-batches.index', 'treasury-payment-batches.create', 'treasury-payment-batches.show', 'treasury-transfers.index', 'treasury-transfers.create', 'treasury-transfers.edit', 'treasury-transfers.show', 'treasury-transfers.confirm-form', 'treasury.settings']) ? 'active dash-trigger' : '' }}">
                                                 <a class="dash-link" href="#">{{ __('Treasury') }}<span class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                                                 <ul class="dash-submenu">
                                                     @if (menu_can('menu.dashboard.accounting.treasury.accounts'))
@@ -369,6 +369,11 @@
                                                     @if (menu_can('menu.dashboard.accounting.treasury.payment_requests'))
                                                         <li class="dash-item {{ in_array(Request::route()->getName(), ['treasury-payment-batches.index', 'treasury-payment-batches.create', 'treasury-payment-batches.show']) ? ' active' : '' }}">
                                                             <a class="dash-link" href="{{ route('treasury-payment-batches.index') }}">{{ __('Payment Batches') }}</a>
+                                                        </li>
+                                                    @endif
+                                                    @if (menu_can('menu.dashboard.accounting.treasury.transfers'))
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['treasury-transfers.index', 'treasury-transfers.create', 'treasury-transfers.edit', 'treasury-transfers.show', 'treasury-transfers.confirm-form']) ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('treasury-transfers.index') }}">{{ __('Transfers') }}</a>
                                                         </li>
                                                     @endif
                                                     @if (menu_can('menu.dashboard.accounting.treasury.approvals'))

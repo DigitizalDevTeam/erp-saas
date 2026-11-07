@@ -785,7 +785,7 @@ class TreasuryAccountService
                 ->join('treasury_operations', 'treasury_operations.id', '=', 'treasury_entries.operation_id')
                 ->where('treasury_entries.financial_account_id', $account->id)
                 ->whereIn('treasury_operations.state', ['confirmed', 'reversed'])
-                ->select('treasury_operations.posting_date', 'treasury_operations.reference', 'treasury_entries.direction', 'treasury_entries.amount_base', 'treasury_entries.id')
+                ->select('treasury_operations.posting_date', 'treasury_operations.reference', 'treasury_operations.type', 'treasury_entries.direction', 'treasury_entries.amount_base', 'treasury_entries.id')
                 ->orderBy('treasury_operations.posting_date')
                 ->orderBy('treasury_entries.id');
 
@@ -806,9 +806,20 @@ class TreasuryAccountService
                 $signed = $entry->direction === 'outflow'
                     ? $this->negate((string) $entry->amount_base)
                     : (string) $entry->amount_base;
+                // Phase 4: the line names the operation kind — a
+                // transfer leg is not a receipt.
+                $kind = match ((string) ($entry->type ?? '')) {
+                    'receipt' => 'receipt',
+                    'payment' => 'payment',
+                    'transfer' => 'transfer',
+                    'advance' => 'advance',
+                    'cash_movement' => 'cash movement',
+                    'adjustment' => 'adjustment',
+                    default => (string) ($entry->type ?? 'operation'),
+                };
                 $periodLines[] = [
                     'date' => (string) $entry->posting_date,
-                    'description' => 'Treasury receipt ' . $entry->reference,
+                    'description' => 'Treasury ' . $kind . ' ' . $entry->reference,
                     'amount_base' => $signed,
                     'sort' => (string) $entry->posting_date . '-1-' . $entry->id,
                 ];

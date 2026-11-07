@@ -139,6 +139,24 @@
                             </div>
                         </div>
 
+                        <h6 class="mt-3">{{ __('Transfer Exchange-Difference Accounts (Phase 4)') }}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" for="treasury_exchange_loss_account_code">{{ __('Exchange Difference — Loss Account Code') }}</label>
+                                    <input type="text" name="treasury_exchange_loss_account_code" id="treasury_exchange_loss_account_code" class="form-control" value="{{ old('treasury_exchange_loss_account_code', $settings['treasury_exchange_loss_account_code'] ?? '') }}" maxlength="20">
+                                    <small class="text-muted">{{ __('Leave empty to use the first chart account starting with 694 (unfavourable exchange differences).') }}</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" for="treasury_exchange_gain_account_code">{{ __('Exchange Difference — Gain Account Code') }}</label>
+                                    <input type="text" name="treasury_exchange_gain_account_code" id="treasury_exchange_gain_account_code" class="form-control" value="{{ old('treasury_exchange_gain_account_code', $settings['treasury_exchange_gain_account_code'] ?? '') }}" maxlength="20">
+                                    <small class="text-muted">{{ __('Leave empty to use the first chart account starting with 784 (favourable exchange differences).') }}</small>
+                                </div>
+                            </div>
+                        </div>
+
                         <button type="submit" class="btn btn-primary">{{ __('Save') }}</button>
                         <a href="{{ route('treasury-accounts.index') }}" class="btn btn-secondary">{{ __('Cancel') }}</a>
                     </form>
