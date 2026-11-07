@@ -132,6 +132,7 @@ use App\Http\Controllers\CostCentreDashboardController;
 use App\Http\Controllers\CostCentreReportController;
 use App\Http\Controllers\GlDimensionController;
 use App\Http\Controllers\TreasuryAccountController;
+use App\Http\Controllers\TreasuryAdvanceController;
 use App\Http\Controllers\TreasuryCashSessionController;
 use App\Http\Controllers\TreasuryDimensionController;
 use App\Http\Controllers\TreasuryOpeningBalanceController;
@@ -2682,6 +2683,26 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('treasury-petty-cash/expenses/{expense}/execute', [TreasuryPettyCashController::class, 'executeExpense'])->name('treasury-petty-cash.execute-expense')->middleware(['auth', 'XSS']);
     Route::post('treasury-petty-cash/expenses/{expense}/return-unspent', [TreasuryPettyCashController::class, 'returnUnspent'])->name('treasury-petty-cash.return-unspent')->middleware(['auth', 'XSS']);
     Route::resource('treasury-petty-cash', TreasuryPettyCashController::class)->parameters(['treasury-petty-cash' => 'fund'])->names('treasury-petty-cash')->only(['index', 'create', 'store', 'show', 'edit', 'update'])->middleware(['auth', 'XSS', 'revalidate']);
+    // Treasury Phase 6 — advances: submit / approve / disburse / substantiate / regularise / close.
+    Route::post('treasury-advances/{advance}/submit', [TreasuryAdvanceController::class, 'submit'])->name('treasury-advances.submit')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/{advance}/approve', [TreasuryAdvanceController::class, 'approve'])->name('treasury-advances.approve')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/{advance}/reject', [TreasuryAdvanceController::class, 'reject'])->name('treasury-advances.reject')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/{advance}/return-to-draft', [TreasuryAdvanceController::class, 'returnToDraft'])->name('treasury-advances.return-to-draft')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/{advance}/cancel', [TreasuryAdvanceController::class, 'cancel'])->name('treasury-advances.cancel')->middleware(['auth', 'XSS']);
+    Route::get('treasury-advances/{advance}/disburse', [TreasuryAdvanceController::class, 'disburseForm'])->name('treasury-advances.disburse-form')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/{advance}/disburse', [TreasuryAdvanceController::class, 'disburse'])->name('treasury-advances.disburse')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/{advance}/lines', [TreasuryAdvanceController::class, 'addLine'])->name('treasury-advances.add-line')->middleware(['auth', 'XSS']);
+    Route::get('treasury-advances/lines/{line}/edit', [TreasuryAdvanceController::class, 'lineForm'])->name('treasury-advances.line-form')->middleware(['auth', 'XSS']);
+    Route::put('treasury-advances/lines/{line}', [TreasuryAdvanceController::class, 'updateLine'])->name('treasury-advances.update-line')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/lines/{line}/resubmit', [TreasuryAdvanceController::class, 'resubmitLine'])->name('treasury-advances.resubmit-line')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/lines/{line}/review', [TreasuryAdvanceController::class, 'reviewLine'])->name('treasury-advances.review-line')->middleware(['auth', 'XSS']);
+    Route::get('treasury-advances/{advance}/return-unspent', [TreasuryAdvanceController::class, 'returnUnspentForm'])->name('treasury-advances.return-form')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/{advance}/return-unspent', [TreasuryAdvanceController::class, 'returnUnspent'])->name('treasury-advances.return-unspent')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/{advance}/reimbursement/approve', [TreasuryAdvanceController::class, 'approveReimbursement'])->name('treasury-advances.approve-reimbursement')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/{advance}/reimbursement/reject', [TreasuryAdvanceController::class, 'rejectReimbursement'])->name('treasury-advances.reject-reimbursement')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/{advance}/reimbursement/pay', [TreasuryAdvanceController::class, 'payReimbursement'])->name('treasury-advances.pay-reimbursement')->middleware(['auth', 'XSS']);
+    Route::post('treasury-advances/{advance}/close', [TreasuryAdvanceController::class, 'close'])->name('treasury-advances.close')->middleware(['auth', 'XSS']);
+    Route::resource('treasury-advances', TreasuryAdvanceController::class)->parameters(['treasury-advances' => 'advance'])->names('treasury-advances')->only(['index', 'create', 'store', 'show', 'edit', 'update'])->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');

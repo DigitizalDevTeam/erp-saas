@@ -55,6 +55,18 @@ class TreasurySettings
     // close that needs the line is refused.
     public const KEY_CASH_VARIANCE_SHORTAGE_ACCOUNT_CODE = 'treasury_cash_variance_shortage_account_code';
     public const KEY_CASH_VARIANCE_SURPLUS_ACCOUNT_CODE = 'treasury_cash_variance_surplus_account_code';
+    // Phase 6 — advance asset accounts (the chart account the
+    // disbursement debits). Empty means "use the documented default
+    // prefix" — employee advances 4512 "Adiantamentos aos
+    // trabalhadores", supplier advances 429 "Adiantamentos a
+    // fornecedores" on the Hoya chart; when neither resolves, a
+    // disbursement is refused (never guess).
+    public const KEY_EMPLOYEE_ADVANCE_ACCOUNT_CODE = 'treasury_employee_advance_account_code';
+    public const KEY_SUPPLIER_ADVANCE_ACCOUNT_CODE = 'treasury_supplier_advance_account_code';
+    // Phase 6 — block a new advance for a recipient who still has
+    // an outstanding advance. Off by default: a recipient may hold
+    // several advances until the company turns the block on.
+    public const KEY_ADVANCE_BLOCK_ON_OUTSTANDING = 'treasury_advance_block_on_outstanding';
     // Phase 2 — approval rules (JSON list of levels) + reservation
     // threshold (base-currency amount at/above which approval reserves
     // funds). D4/D5 (plan §12): no client example was given, so the
@@ -93,6 +105,9 @@ class TreasurySettings
         self::KEY_EXCHANGE_GAIN_ACCOUNT_CODE => '',
         self::KEY_CASH_VARIANCE_SHORTAGE_ACCOUNT_CODE => '',
         self::KEY_CASH_VARIANCE_SURPLUS_ACCOUNT_CODE => '',
+        self::KEY_EMPLOYEE_ADVANCE_ACCOUNT_CODE => '',
+        self::KEY_SUPPLIER_ADVANCE_ACCOUNT_CODE => '',
+        self::KEY_ADVANCE_BLOCK_ON_OUTSTANDING => '0',
         self::KEY_APPROVAL_RULES => '',
         self::KEY_RESERVATION_THRESHOLD => '0',
     ];
@@ -240,9 +255,13 @@ class TreasurySettings
             self::KEY_EXCHANGE_GAIN_ACCOUNT_CODE,
             self::KEY_CASH_VARIANCE_SHORTAGE_ACCOUNT_CODE,
             self::KEY_CASH_VARIANCE_SURPLUS_ACCOUNT_CODE,
+            self::KEY_EMPLOYEE_ADVANCE_ACCOUNT_CODE,
+            self::KEY_SUPPLIER_ADVANCE_ACCOUNT_CODE,
         ] as $key) {
             $values[$key] = substr(trim((string) ($input[$key] ?? '')), 0, 20);
         }
+
+        $values[self::KEY_ADVANCE_BLOCK_ON_OUTSTANDING] = ! empty($input[self::KEY_ADVANCE_BLOCK_ON_OUTSTANDING]) ? '1' : '0';
 
         // Phase 2 approval rules: a JSON list of levels. Invalid JSON
         // or a level list with no usable level keeps the default.

@@ -608,6 +608,9 @@ namespace App\Models;
                 'treasury_exchange_gain_account_code' => '',
                 'treasury_cash_variance_shortage_account_code' => '',
                 'treasury_cash_variance_surplus_account_code' => '',
+                'treasury_employee_advance_account_code' => '',
+                'treasury_supplier_advance_account_code' => '',
+                'treasury_advance_block_on_outstanding' => '0',
                 'treasury_approval_rules' => '',
                 'treasury_reservation_threshold_base' => '0',
             ];

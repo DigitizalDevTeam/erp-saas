@@ -386,6 +386,11 @@
                                                             <a class="dash-link" href="{{ route('treasury-petty-cash.index') }}">{{ __('Petty Cash') }}</a>
                                                         </li>
                                                     @endif
+                                                    @if (menu_can('menu.dashboard.accounting.treasury.advances'))
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['treasury-advances.index', 'treasury-advances.create', 'treasury-advances.edit', 'treasury-advances.show', 'treasury-advances.disburse-form', 'treasury-advances.return-form', 'treasury-advances.line-form']) ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('treasury-advances.index') }}">{{ __('Advances') }}</a>
+                                                        </li>
+                                                    @endif
                                                     @if (menu_can('menu.dashboard.accounting.treasury.approvals'))
                                                         <li class="dash-item {{ Request::route()->getName() == 'treasury-payment-requests.approvals' ? ' active' : '' }}">
                                                             <a class="dash-link" href="{{ route('treasury-payment-requests.approvals') }}">{{ __('Approvals') }}</a>

@@ -3271,6 +3271,12 @@ class UsersTableSeeder extends Seeder
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
             [
+                'name' => 'manage treasury advances',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
                 'name' => 'manage contract type',
                 'guard_name' => 'web',
                 'created_at' => date('Y-m-d H:i:s'),
@@ -4080,6 +4086,7 @@ class UsersTableSeeder extends Seeder
             'manage treasury transfers',
             'manage treasury cash sessions',
             'approve treasury cash variances',
+            'manage treasury advances',
             'manage contract type',
             'create contract type',
             'edit contract type',

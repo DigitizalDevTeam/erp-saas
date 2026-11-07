@@ -23,11 +23,15 @@ class TreasuryLineDimension extends Model
     public const TYPE_BILL_PAYMENT = 'bill_payment';
     public const TYPE_RECEIPT = 'receipt';
     public const TYPE_TREASURY_PAYMENT = 'treasury_payment';
+    // Phase 6 — an approved advance expense line, tagged with the
+    // cost centre on the line (payment_id = the line id).
+    public const TYPE_TREASURY_ADVANCE = 'treasury_advance';
 
     public const TYPES = [
         self::TYPE_BILL_PAYMENT,
         self::TYPE_RECEIPT,
         self::TYPE_TREASURY_PAYMENT,
+        self::TYPE_TREASURY_ADVANCE,
     ];
 
     public const SOURCE_INHERITED = 'inherited';

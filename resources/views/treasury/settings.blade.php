@@ -175,6 +175,35 @@
                             </div>
                         </div>
 
+                        <h6 class="mt-3">{{ __('Advance Accounts (Phase 6)') }}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" for="treasury_employee_advance_account_code">{{ __('Employee Advance — Asset Account Code') }}</label>
+                                    <input type="text" name="treasury_employee_advance_account_code" id="treasury_employee_advance_account_code" class="form-control" value="{{ old('treasury_employee_advance_account_code', $settings['treasury_employee_advance_account_code'] ?? '') }}" maxlength="20">
+                                    <small class="text-muted">{{ __('Leave empty to use the first chart account starting with 4512 (advances to employees).') }}</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" for="treasury_supplier_advance_account_code">{{ __('Supplier Advance — Asset Account Code') }}</label>
+                                    <input type="text" name="treasury_supplier_advance_account_code" id="treasury_supplier_advance_account_code" class="form-control" value="{{ old('treasury_supplier_advance_account_code', $settings['treasury_supplier_advance_account_code'] ?? '') }}" maxlength="20">
+                                    <small class="text-muted">{{ __('Leave empty to use the first chart account starting with 429 (advances to suppliers).') }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <div class="form-check">
+                                        <input type="checkbox" name="treasury_advance_block_on_outstanding" id="treasury_advance_block_on_outstanding" class="form-check-input" value="1" {{ ! empty($settings['treasury_advance_block_on_outstanding']) && $settings['treasury_advance_block_on_outstanding'] === '1' ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="treasury_advance_block_on_outstanding">{{ __('Block a new advance while the same recipient has money outstanding') }}</label>
+                                    </div>
+                                    <small class="text-muted">{{ __('Off by default. When on, a recipient with an outstanding disbursed advance cannot request another one.') }}</small>
+                                </div>
+                            </div>
+                        </div>
+
                         <button type="submit" class="btn btn-primary">{{ __('Save') }}</button>
                         <a href="{{ route('treasury-accounts.index') }}" class="btn btn-secondary">{{ __('Cancel') }}</a>
                     </form>
