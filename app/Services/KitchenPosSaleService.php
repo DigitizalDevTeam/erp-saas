@@ -911,6 +911,11 @@ class KitchenPosSaleService
      * was already deducted when the line was sent to production, so
      * this row is a waste log only — it must NOT move stock again.
      * The wasted item is the dish itself, costed at its food cost.
+     *
+     * The loss is also linked into the kitchen losses register
+     * (Phase 5) so it is traceable to the batch, the order and the
+     * POS line — that link is a no-op while the kitchen_losses table
+     * does not exist (minimal test schemas).
      */
     protected function recordKitchenLoss(Pos $pos, PosProduct $line, int $creatorId, string $destination, ?User $user): WarehouseLoss
     {
@@ -924,7 +929,7 @@ class KitchenPosSaleService
             ? (int) $line->warehouse_id
             : (int) ($pos->warehouse_id ?? 0);
 
-        return WarehouseLoss::create([
+        $writeOff = WarehouseLoss::create([
             'write_off_no' => $this->nextWriteOffNumber($creatorId),
             'warehouse_id' => $warehouseId,
             'product_id' => (int) $line->product_id,
@@ -944,6 +949,10 @@ class KitchenPosSaleService
             'delivery_destination' => $destination,
             'created_by' => $creatorId,
         ]);
+
+        app(KitchenLossService::class)->linkPosCancellationLoss($writeOff, $pos, $line, $creatorId, $destination, $user);
+
+        return $writeOff;
     }
 
     protected function nextWriteOffNumber(int $creatorId): string

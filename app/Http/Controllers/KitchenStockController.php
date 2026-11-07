@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\KitchenLoss;
 use App\Models\KitchenProductionBatch;
 use App\Models\warehouse;
+use App\Services\KitchenLossService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -13,7 +15,8 @@ use Illuminate\Support\Facades\Auth;
  * Read-only view of the prepared batches received into kitchen stock:
  * what was produced, what is left, and when it expires. A batch is
  * consumed FEFO by dish sales (Phase 2); this screen shows the
- * reconciliation produced - sold - lost = remaining (plan §9).
+ * reconciliation produced - sold - lost = remaining (plan §9) and the
+ * losses posted against the batch (Phase 5).
  */
 class KitchenStockController extends Controller
 {
@@ -57,6 +60,16 @@ class KitchenStockController extends Controller
 
         $batch->load('product', 'warehouse', 'order.recipe', 'order.lines.ingredient', 'order.lines.lotUsages.lot');
 
-        return view('kitchen.stock.show', compact('batch'));
+        $creatorId = (int) Auth::user()->creatorId();
+
+        $reconciliation = app(KitchenLossService::class)->reconciliation($batch, $creatorId);
+
+        $losses = KitchenLoss::where('created_by', $creatorId)
+            ->where('kitchen_production_batch_id', (int) $batch->id)
+            ->with('recordedBy')
+            ->orderByDesc('id')
+            ->get();
+
+        return view('kitchen.stock.show', compact('batch', 'reconciliation', 'losses'));
     }
 }

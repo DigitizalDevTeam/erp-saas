@@ -124,6 +124,7 @@ use App\Http\Controllers\PosPrinterController;
 use App\Http\Controllers\PosAuditLogController;
 use App\Http\Controllers\PosProductionController;
 use App\Http\Controllers\KitchenRecipeController;
+use App\Http\Controllers\KitchenLossController;
 use App\Http\Controllers\KitchenProductionOrderController;
 use App\Http\Controllers\KitchenProductionPlanController;
 use App\Http\Controllers\KitchenRequisitionController;
@@ -2504,6 +2505,12 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('kitchen-production-plans/{plan}/requisition', [KitchenRequisitionController::class, 'fromPlan'])->name('kitchen.requisitions.from-plan')->middleware(['auth', 'XSS']);
     Route::post('kitchen-production-orders/{order}/requisition', [KitchenRequisitionController::class, 'fromOrder'])->name('kitchen.requisitions.from-order')->middleware(['auth', 'XSS']);
     Route::resource('kitchen-requisitions', KitchenRequisitionController::class)->parameters(['kitchen-requisitions' => 'requisition'])->names('kitchen.requisitions')->middleware(['auth', 'XSS', 'revalidate']);
+
+    // Kitchen Production — Phase 5: Losses + internal consumption (plan §6).
+    Route::post('kitchen-losses/{loss}/approve', [KitchenLossController::class, 'approve'])->name('kitchen.losses.approve')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-losses/{loss}/reject', [KitchenLossController::class, 'reject'])->name('kitchen.losses.reject')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-losses/{loss}/post', [KitchenLossController::class, 'post'])->name('kitchen.losses.post')->middleware(['auth', 'XSS']);
+    Route::resource('kitchen-losses', KitchenLossController::class)->parameters(['kitchen-losses' => 'loss'])->names('kitchen.losses')->middleware(['auth', 'XSS', 'revalidate']);
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
     Route::get('pos/retail/{cid?}', [PosController::class, 'index'])->name('pos.index')->defaults('cid', null)->middleware(['auth', 'XSS', 'revalidate']);
