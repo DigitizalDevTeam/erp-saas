@@ -3151,6 +3151,18 @@ class UsersTableSeeder extends Seeder
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
             [
+                'name' => 'manage cost centre allocations',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
+                'name' => 'approve cost centre allocations',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
                 'name' => 'manage contract type',
                 'guard_name' => 'web',
                 'created_at' => date('Y-m-d H:i:s'),
@@ -3940,6 +3952,8 @@ class UsersTableSeeder extends Seeder
             'create cost centres',
             'edit cost centres',
             'deactivate cost centres',
+            'manage cost centre allocations',
+            'approve cost centre allocations',
             'manage contract type',
             'create contract type',
             'edit contract type',

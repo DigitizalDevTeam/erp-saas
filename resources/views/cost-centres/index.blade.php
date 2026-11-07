@@ -10,6 +10,11 @@
 
 @section('action-btn')
     <div class="float-end">
+        @can('manage cost centre allocations')
+            <a href="{{ route('cost-centre-allocations.index') }}" class="btn btn-sm btn-secondary">
+                <i class="ti ti-arrows-split"></i> {{ __('Allocations') }}
+            </a>
+        @endcan
         @can('edit cost centres')
             <a href="{{ route('cost-centres.settings') }}" class="btn btn-sm btn-secondary">
                 <i class="ti ti-settings"></i> {{ __('Settings') }}

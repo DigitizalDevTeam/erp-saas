@@ -984,6 +984,9 @@
                                             <a href="#" class="ti ti-trash text-white btn btn-sm repeater-action-btn bg-danger ms-2 " data-bs-toggle="tooltip" title="{{ __('Delete') }}" data-repeater-delete></a>
                                         </div>
                                         @endcan
+                                        @can('manage cost centre allocations')
+                                            <button type="button" class="btn btn-sm btn-outline-primary cc-allocate-btn" data-cc-line-type="bill_product" title="{{ __('Allocate cost centres') }}">{{ __('Allocate') }}</button>
+                                        @endcan
                                     </td>
                                 </tr>
                                 <tr>
@@ -1009,7 +1012,11 @@
                                     <td colspan="2" class="form-group">
                                             {{ Form::textarea('description', null, ['class'=>'form-control pro_description','rows'=>'1','placeholder'=>__('Description')]) }}
                                     </td>
-                                    <td></td>
+                                    <td>
+                                        @can('manage cost centre allocations')
+                                            <button type="button" class="btn btn-sm btn-outline-primary cc-allocate-btn" data-cc-line-type="bill_account" title="{{ __('Allocate cost centres') }}">{{ __('Allocate') }}</button>
+                                        @endcan
+                                    </td>
                                     <td class="text-end accountamount">
                                         0.00
                                     </td>
@@ -1068,5 +1075,6 @@
         </div>
         {{ Form::close() }}
     </div>
+    @include('cost-centres.allocations._modal', ['ccSourceType' => 'expense', 'ccSourceId' => $expense->id])
 @endsection
 
