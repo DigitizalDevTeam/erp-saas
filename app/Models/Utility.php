@@ -573,6 +573,18 @@ namespace App\Models;
                 // Default attendance profile for new employees (can override per employee)
                 'default_work_schedule_type' => 'office_fixed',
                 'default_grace_minutes' => '0',
+
+                // Cost Centres (Phase 0) — defaults mirror
+                // CostCentreSettings::DEFAULTS (same keys, same values).
+                'require_cost_centre_for_expenses' => '0',
+                'allow_splits' => '1',
+                'budget_policy' => 'off',
+                'dimension_on_cash_transactions' => 'optional',
+                'period_lock_policy' => 'block',
+                'rounding_account' => '',
+                'default_allocation_basis' => 'percentage',
+                // Plan decision D2: parents are summary-only.
+                'cost_centre_parents_summary_only' => '1',
             ];
 
             foreach ($data as $row) {

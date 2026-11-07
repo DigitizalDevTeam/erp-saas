@@ -68,6 +68,12 @@ class SidebarMenuPermissionCatalog
                         self::node('Income statement (comparative)', 'menu.dashboard.accounting.reports.income_statement_comparative', ['income vs expense report']),
                         self::node('Trial Balance', 'menu.dashboard.accounting.reports.trial_balance', ['trial balance report']),
                     ]),
+                    self::node('Cost Centres', 'menu.dashboard.accounting.cost_centres', [
+                        'view cost centres', 'create cost centres', 'edit cost centres', 'deactivate cost centres',
+                    ], [
+                        self::node('Cost Centre List', 'menu.dashboard.accounting.cost_centres.list', ['view cost centres']),
+                        self::node('Settings', 'menu.dashboard.accounting.cost_centres.settings', ['edit cost centres']),
+                    ]),
                 ]),
                 self::node('Product system', 'menu.dashboard.product_system', ['stock report'], [
                     self::node('Overview', 'menu.dashboard.product_system.overview', ['stock report']),

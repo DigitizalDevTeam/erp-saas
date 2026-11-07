@@ -124,6 +124,7 @@ use App\Http\Controllers\PosPrinterController;
 use App\Http\Controllers\PosAuditLogController;
 use App\Http\Controllers\PosProductionController;
 use App\Http\Controllers\KitchenRecipeController;
+use App\Http\Controllers\CostCentreController;
 use App\Http\Controllers\KitchenReportController;
 use App\Http\Controllers\KitchenCostControlController;
 use App\Http\Controllers\KitchenLossController;
@@ -2527,6 +2528,14 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('kitchen-reports/dashboard', [KitchenReportController::class, 'dashboard'])->name('kitchen.reports.dashboard')->middleware(['auth', 'XSS']);
     Route::get('kitchen-reports/{report}', [KitchenReportController::class, 'show'])->name('kitchen.reports.show')->middleware(['auth', 'XSS']);
     Route::get('kitchen-reports/{report}/export/{format}', [KitchenReportController::class, 'export'])->name('kitchen.reports.export')->middleware(['auth', 'XSS']);
+
+    // Cost Centres — Phase 0: master data only (list/tree, form, settings).
+    // 'settings' is registered before the resource so it is not swallowed by {cost_centre}.
+    Route::get('cost-centres/settings', [CostCentreController::class, 'settings'])->name('cost-centres.settings')->middleware(['auth', 'XSS']);
+    Route::post('cost-centres/settings', [CostCentreController::class, 'saveSettings'])->name('cost-centres.settings.save')->middleware(['auth', 'XSS']);
+    Route::post('cost-centres/{cost_centre}/deactivate', [CostCentreController::class, 'deactivate'])->name('cost-centres.deactivate')->middleware(['auth', 'XSS']);
+    Route::resource('cost-centres', CostCentreController::class)->parameters(['cost-centres' => 'cost_centre'])->names('cost-centres')->except(['show'])->middleware(['auth', 'XSS', 'revalidate']);
+
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
     Route::get('pos/retail/{cid?}', [PosController::class, 'index'])->name('pos.index')->defaults('cid', null)->middleware(['auth', 'XSS', 'revalidate']);

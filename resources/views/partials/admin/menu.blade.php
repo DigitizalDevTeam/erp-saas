@@ -300,6 +300,23 @@
                                                 </ul>
                                             </li>
                                         @endif
+                                        @if (menu_can_node('menu.dashboard.accounting.cost_centres'))
+                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['cost-centres.index', 'cost-centres.create', 'cost-centres.edit', 'cost-centres.settings']) ? 'active dash-trigger' : '' }}">
+                                                <a class="dash-link" href="#">{{ __('Cost Centres') }}<span class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
+                                                <ul class="dash-submenu">
+                                                    @if (menu_can('menu.dashboard.accounting.cost_centres.list'))
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['cost-centres.index', 'cost-centres.create', 'cost-centres.edit']) ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('cost-centres.index') }}">{{ __('Cost Centre List') }}</a>
+                                                        </li>
+                                                    @endif
+                                                    @if (menu_can('menu.dashboard.accounting.cost_centres.settings'))
+                                                        <li class="dash-item {{ Request::route()->getName() == 'cost-centres.settings' ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('cost-centres.settings') }}">{{ __('Settings') }}</a>
+                                                        </li>
+                                                    @endif
+                                                </ul>
+                                            </li>
+                                        @endif
                                     </ul>
                                 </li>
                             @endif
