@@ -133,7 +133,11 @@ use App\Http\Controllers\CostCentreReportController;
 use App\Http\Controllers\GlDimensionController;
 use App\Http\Controllers\TreasuryAccountController;
 use App\Http\Controllers\TreasuryAdvanceController;
+use App\Http\Controllers\TreasuryCashFlowAlertController;
+use App\Http\Controllers\TreasuryCashFlowController;
 use App\Http\Controllers\TreasuryCashSessionController;
+use App\Http\Controllers\TreasuryRecurringOccurrenceController;
+use App\Http\Controllers\TreasuryRecurringRuleController;
 use App\Http\Controllers\TreasuryDimensionController;
 use App\Http\Controllers\TreasuryOpeningBalanceController;
 use App\Http\Controllers\TreasuryPaymentBatchController;
@@ -2718,6 +2722,22 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('treasury-advances/{advance}/reimbursement/pay', [TreasuryAdvanceController::class, 'payReimbursement'])->name('treasury-advances.pay-reimbursement')->middleware(['auth', 'XSS']);
     Route::post('treasury-advances/{advance}/close', [TreasuryAdvanceController::class, 'close'])->name('treasury-advances.close')->middleware(['auth', 'XSS']);
     Route::resource('treasury-advances', TreasuryAdvanceController::class)->parameters(['treasury-advances' => 'advance'])->names('treasury-advances')->only(['index', 'create', 'store', 'show', 'edit', 'update'])->middleware(['auth', 'XSS', 'revalidate']);
+
+    // Treasury Phase 8 — cash flow + recurring commitments.
+    Route::get('treasury-cash-flow', [TreasuryCashFlowController::class, 'index'])->name('treasury-cash-flow.index')->middleware(['auth', 'XSS']);
+    Route::get('treasury-cash-flow/projections', [TreasuryCashFlowController::class, 'projections'])->name('treasury-cash-flow.projections')->middleware(['auth', 'XSS']);
+    Route::post('treasury-cash-flow/projections', [TreasuryCashFlowController::class, 'storeProjection'])->name('treasury-cash-flow.projections.store')->middleware(['auth', 'XSS']);
+    Route::delete('treasury-cash-flow/projections/{id}', [TreasuryCashFlowController::class, 'destroyProjection'])->name('treasury-cash-flow.projections.destroy')->middleware(['auth', 'XSS']);
+    Route::get('treasury-cash-flow-alerts', [TreasuryCashFlowAlertController::class, 'index'])->name('treasury-cash-flow-alerts.index')->middleware(['auth', 'XSS']);
+    Route::post('treasury-cash-flow-alerts/{id}/acknowledge', [TreasuryCashFlowAlertController::class, 'acknowledge'])->name('treasury-cash-flow-alerts.acknowledge')->middleware(['auth', 'XSS']);
+    Route::post('treasury-recurring-rules/{rule}/pause', [TreasuryRecurringRuleController::class, 'pause'])->name('treasury-recurring-rules.pause')->middleware(['auth', 'XSS']);
+    Route::post('treasury-recurring-rules/{rule}/resume', [TreasuryRecurringRuleController::class, 'resume'])->name('treasury-recurring-rules.resume')->middleware(['auth', 'XSS']);
+    Route::post('treasury-recurring-rules/{rule}/end', [TreasuryRecurringRuleController::class, 'end'])->name('treasury-recurring-rules.end')->middleware(['auth', 'XSS']);
+    Route::resource('treasury-recurring-rules', TreasuryRecurringRuleController::class)->parameters(['treasury-recurring-rules' => 'rule'])->names('treasury-recurring-rules')->except(['destroy'])->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('treasury-recurring-occurrences', [TreasuryRecurringOccurrenceController::class, 'index'])->name('treasury-recurring-occurrences.index')->middleware(['auth', 'XSS']);
+    Route::post('treasury-recurring-occurrences/{occurrence}/confirm', [TreasuryRecurringOccurrenceController::class, 'confirm'])->name('treasury-recurring-occurrences.confirm')->middleware(['auth', 'XSS']);
+    Route::post('treasury-recurring-occurrences/{occurrence}/paid', [TreasuryRecurringOccurrenceController::class, 'markPaid'])->name('treasury-recurring-occurrences.paid')->middleware(['auth', 'XSS']);
+    Route::post('treasury-recurring-occurrences/{occurrence}/skip', [TreasuryRecurringOccurrenceController::class, 'skip'])->name('treasury-recurring-occurrences.skip')->middleware(['auth', 'XSS']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');

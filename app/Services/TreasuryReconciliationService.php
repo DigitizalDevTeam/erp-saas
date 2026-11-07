@@ -1024,6 +1024,14 @@ class TreasuryReconciliationService
             $cursor->created_by = $creatorId;
             $cursor->cursor_value = $nextCursor !== null && trim($nextCursor) !== '' ? trim($nextCursor) : ($maxExternalId !== '' ? $maxExternalId : null);
             $cursor->last_synced_at = now();
+            // A successful import clears any earlier failure, so the
+            // Phase 8 sync-failure alert resolves itself. Guarded:
+            // databases that have not run the Phase 8 migration yet
+            // have no such columns.
+            if (Schema::hasColumn('treasury_statement_sync_cursors', 'last_error')) {
+                $cursor->last_error = null;
+                $cursor->last_error_at = null;
+            }
             $cursor->save();
 
             if ($imported > 0) {
@@ -1037,6 +1045,37 @@ class TreasuryReconciliationService
                 'cursor' => $cursor->cursor_value,
             ];
         });
+    }
+
+    /**
+     * Phase 8 — record a statement-sync failure on the cursor so
+     * the cash-flow alerts can surface it. A later successful
+     * import clears it (see importFromApi). Never throws: a
+     * failed recording must not mask the original error.
+     */
+    public function recordSyncFailure(int $creatorId, int $bankAccountId, string $sourceKey, string $message): void
+    {
+        try {
+            $bank = BankAccount::where('id', $bankAccountId)
+                ->where('created_by', $creatorId)
+                ->first();
+            if ($bank === null) {
+                return;
+            }
+
+            $sourceKey = trim($sourceKey) === '' ? 'default' : trim($sourceKey);
+
+            $cursor = TreasuryStatementSyncCursor::firstOrNew([
+                'bank_account_id' => $bank->id,
+                'source_key' => $sourceKey,
+            ]);
+            $cursor->created_by = $creatorId;
+            $cursor->last_error = substr(trim($message), 0, 500);
+            $cursor->last_error_at = now();
+            $cursor->save();
+        } catch (\Throwable) {
+            // Never mask the original sync error.
+        }
     }
 
     // ------------------------------------------------------------------

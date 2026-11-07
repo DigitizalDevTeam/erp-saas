@@ -613,6 +613,7 @@ namespace App\Models;
                 'treasury_advance_block_on_outstanding' => '0',
                 'treasury_approval_rules' => '',
                 'treasury_reservation_threshold_base' => '0',
+                'treasury_cashflow_threshold_base' => '0',
             ];
 
             foreach ($data as $row) {
