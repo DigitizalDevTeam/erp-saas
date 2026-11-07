@@ -90,6 +90,7 @@ class SidebarMenuPermissionCatalog
                         'execute treasury payments', 'manage treasury transfers',
                         'manage treasury cash sessions', 'approve treasury cash variances',
                         'manage treasury advances',
+                        'manage treasury reconciliation', 'approve treasury reconciliation',
                     ], [
                         self::node('Accounts', 'menu.dashboard.accounting.treasury.accounts', ['view treasury']),
                         self::node('Opening Balances', 'menu.dashboard.accounting.treasury.opening_balances', ['view treasury']),
@@ -99,6 +100,7 @@ class SidebarMenuPermissionCatalog
                         self::node('Cash Registers', 'menu.dashboard.accounting.treasury.cash_sessions', ['view treasury']),
                         self::node('Petty Cash', 'menu.dashboard.accounting.treasury.petty_cash', ['view treasury']),
                         self::node('Advances', 'menu.dashboard.accounting.treasury.advances', ['view treasury']),
+                        self::node('Reconciliation', 'menu.dashboard.accounting.treasury.reconciliation', ['manage treasury reconciliation']),
                         self::node('Approvals', 'menu.dashboard.accounting.treasury.approvals', ['approve treasury payments']),
                         self::node('Reservations', 'menu.dashboard.accounting.treasury.reservations', ['view treasury']),
                         self::node('Settings', 'menu.dashboard.accounting.treasury.settings', ['manage treasury accounts']),

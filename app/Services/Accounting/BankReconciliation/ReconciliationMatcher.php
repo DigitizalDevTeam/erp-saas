@@ -6,6 +6,9 @@ use App\Models\BankReconciliationMatch;
 use App\Models\BankReconciliationSession;
 use App\Models\BankStatementLine;
 use App\Models\Transaction;
+use App\Models\TreasuryEntry;
+use App\Models\TreasuryFinancialAccount;
+use App\Models\TreasuryOperation;
 use Carbon\Carbon;
 
 class ReconciliationMatcher
@@ -84,6 +87,7 @@ class ReconciliationMatcher
                     'session_id' => $session->id,
                     'statement_line_id' => $line->id,
                     'transaction_id' => $tx->id,
+                    'matched_amount' => number_format($targetAbs, 4, '.', ''),
                     'match_type' => 'auto',
                 ]);
 
@@ -91,6 +95,102 @@ class ReconciliationMatcher
                 $autoMatched++;
 
                 break;
+            }
+        }
+
+        // Phase 7 — then try the Treasury operations: a confirmed
+        // entry on this bank account with the same absolute amount
+        // and a posting date within tolerance. Only the approved
+        // exact-match rule auto-matches; anything else stays for
+        // manual confirmation.
+        $matchedLineIds = BankReconciliationMatch::where('session_id', $session->id)
+            ->pluck('statement_line_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->all();
+
+        $usedOperationIds = BankReconciliationMatch::where('session_id', $session->id)
+            ->whereNotNull('treasury_operation_id')
+            ->pluck('treasury_operation_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->all();
+
+        // Cross-session guard (CA12): an operation matched in another
+        // session must not be auto-matched again here. Snapshot the
+        // matched totals before this run; within-run consumption is
+        // tracked by $usedOperationIds below.
+        $matchedByOperation = BankReconciliationMatch::whereNotNull('treasury_operation_id')
+            ->selectRaw('treasury_operation_id, SUM(matched_amount) as total')
+            ->groupBy('treasury_operation_id')
+            ->pluck('total', 'treasury_operation_id')
+            ->map(fn ($total) => (float) $total)
+            ->all();
+
+        $treasuryAccountIds = TreasuryFinancialAccount::where('bank_account_id', $bankAccountId)
+            ->where('created_by', $creatorId)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($treasuryAccountIds !== []) {
+            $entries = TreasuryEntry::query()
+                ->join('treasury_operations', 'treasury_operations.id', '=', 'treasury_entries.operation_id')
+                ->where('treasury_operations.created_by', $creatorId)
+                ->where('treasury_operations.state', TreasuryOperation::STATE_CONFIRMED)
+                ->whereIn('treasury_entries.financial_account_id', $treasuryAccountIds)
+                ->select('treasury_entries.*')
+                ->orderBy('treasury_entries.confirmed_at')
+                ->orderBy('treasury_entries.id')
+                ->get();
+
+            foreach ($lines as $line) {
+                if (in_array((int) $line->id, $matchedLineIds, true)) {
+                    continue;
+                }
+
+                $lineDate = Carbon::parse($line->txn_date);
+                $targetAbs = abs((float) $line->amount);
+
+                foreach ($entries as $entry) {
+                    if (in_array((int) $entry->operation_id, $usedOperationIds, true)) {
+                        continue;
+                    }
+
+                    // The auto rule matches the operation's remaining
+                    // residual, never its full amount: an operation
+                    // partly matched in another session (or manually
+                    // here) must not be auto-matched for more than
+                    // what is left (CA12).
+                    $alreadyMatched = $matchedByOperation[(int) $entry->operation_id] ?? 0.0;
+                    $entryResidual = abs((float) $entry->amount_original) - $alreadyMatched;
+                    if ($entryResidual <= $eps) {
+                        continue;
+                    }
+                    if (abs($entryResidual - $targetAbs) > $eps) {
+                        continue;
+                    }
+
+                    $entryDate = $entry->confirmed_at ? Carbon::parse($entry->confirmed_at) : null;
+                    if ($entryDate !== null && abs($entryDate->diffInDays($lineDate)) > $tol) {
+                        continue;
+                    }
+
+                    BankReconciliationMatch::create([
+                        'session_id' => $session->id,
+                        'statement_line_id' => $line->id,
+                        'transaction_id' => null,
+                        'treasury_operation_id' => (int) $entry->operation_id,
+                        'matched_amount' => number_format($targetAbs, 4, '.', ''),
+                        'match_type' => 'auto',
+                    ]);
+
+                    $usedOperationIds[] = (int) $entry->operation_id;
+                    $matchedLineIds[] = (int) $line->id;
+                    $autoMatched++;
+
+                    break;
+                }
             }
         }
 

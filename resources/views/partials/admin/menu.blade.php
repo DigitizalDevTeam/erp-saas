@@ -391,6 +391,11 @@
                                                             <a class="dash-link" href="{{ route('treasury-advances.index') }}">{{ __('Advances') }}</a>
                                                         </li>
                                                     @endif
+                                                    @if (menu_can('menu.dashboard.accounting.treasury.reconciliation'))
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['bank-reconciliation.index', 'bank-reconciliation.create', 'bank-reconciliation.map', 'bank-reconciliation.show', 'treasury-reconciliation.api-sync-form']) ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('bank-reconciliation.index') }}">{{ __('Reconciliation') }}</a>
+                                                        </li>
+                                                    @endif
                                                     @if (menu_can('menu.dashboard.accounting.treasury.approvals'))
                                                         <li class="dash-item {{ Request::route()->getName() == 'treasury-payment-requests.approvals' ? ' active' : '' }}">
                                                             <a class="dash-link" href="{{ route('treasury-payment-requests.approvals') }}">{{ __('Approvals') }}</a>
