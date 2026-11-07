@@ -229,10 +229,12 @@ class SidebarMenuPermissionCatalog
                 ]),
                 self::node('Sales', 'menu.accounting_system.sales', [
                     'manage customer', 'manage proposal', 'manage invoice', 'manage quotation', 'manage revenue', 'manage credit note',
+                    'manage billing contracts', 'approve billing contracts',
                 ], [
                     self::node('Customer', 'menu.accounting_system.sales.customer', ['manage customer']),
                     self::node('Estimate', 'menu.accounting_system.sales.estimate', ['manage proposal']),
                     self::node('Invoice', 'menu.accounting_system.sales.invoice', ['manage invoice']),
+                    self::node('Billing Contracts', 'menu.accounting_system.sales.billing_contracts', ['manage billing contracts', 'approve billing contracts']),
                     self::node('Quotation', 'menu.accounting_system.sales.quotation', ['manage quotation']),
                     self::node('Sales Proforma Invoice', 'menu.accounting_system.sales.proforma', ['manage quotation']),
                     self::node('Revenue', 'menu.accounting_system.sales.revenue', ['manage revenue']),

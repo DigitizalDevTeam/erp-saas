@@ -131,6 +131,7 @@ use App\Http\Controllers\CostCentreController;
 use App\Http\Controllers\CostCentreDashboardController;
 use App\Http\Controllers\CostCentreReportController;
 use App\Http\Controllers\GlDimensionController;
+use App\Http\Controllers\BillingContractController;
 use App\Http\Controllers\TreasuryAccountController;
 use App\Http\Controllers\TreasuryAdvanceController;
 use App\Http\Controllers\TreasuryAuditTrailController;
@@ -2749,6 +2750,24 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('treasury-reports/{report}/export', [TreasuryReportController::class, 'requestExport'])->name('treasury-reports.export-request')->middleware(['auth', 'XSS']);
     Route::get('treasury-reports/exports/{export}/download', [TreasuryReportController::class, 'download'])->name('treasury-reports.export-download')->middleware(['auth', 'XSS', 'signed']);
     Route::get('treasury-audit-trail', [TreasuryAuditTrailController::class, 'index'])->name('treasury-audit-trail.index')->middleware(['auth', 'XSS']);
+
+    // Contract Management Phase 1 — billing contracts master.
+    // Separate from the generic project/client Contract module
+    // (contract/* routes): new tables, new models, new routes.
+    Route::post('billing-contracts/preview', [BillingContractController::class, 'preview'])->name('billing-contracts.preview')->middleware(['auth', 'XSS']);
+    Route::get('billing-contracts/{contract}/occurrences', [BillingContractController::class, 'occurrences'])->name('billing-contracts.occurrences')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/submit', [BillingContractController::class, 'submit'])->name('billing-contracts.submit')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/approve', [BillingContractController::class, 'approve'])->name('billing-contracts.approve')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/reject', [BillingContractController::class, 'reject'])->name('billing-contracts.reject')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/activate', [BillingContractController::class, 'activate'])->name('billing-contracts.activate')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/suspend', [BillingContractController::class, 'suspend'])->name('billing-contracts.suspend')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/resume', [BillingContractController::class, 'resume'])->name('billing-contracts.resume')->middleware(['auth', 'XSS']);
+    Route::get('billing-contracts/{contract}/end', [BillingContractController::class, 'endForm'])->name('billing-contracts.end-form')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/end', [BillingContractController::class, 'end'])->name('billing-contracts.end')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/cancel', [BillingContractController::class, 'cancel'])->name('billing-contracts.cancel')->middleware(['auth', 'XSS']);
+    Route::get('billing-contracts/{contract}/amend', [BillingContractController::class, 'amendForm'])->name('billing-contracts.amend-form')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/amend', [BillingContractController::class, 'amend'])->name('billing-contracts.amend')->middleware(['auth', 'XSS']);
+    Route::resource('billing-contracts', BillingContractController::class)->parameters(['billing-contracts' => 'contract'])->names('billing-contracts')->except(['destroy'])->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
