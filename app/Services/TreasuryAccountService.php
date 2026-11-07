@@ -615,7 +615,8 @@ class TreasuryAccountService
      * Posted balance = confirmed opening balances in base currency
      * (+ confirmed inflows − confirmed outflows, once later phases
      * add operations). Drafts never count; a reversed balance nets to
-     * zero through its reversal row.
+     * zero because its entry and its reversal entry (negated, on a
+     * confirmed operation) both count.
      */
     public function postedBalance(TreasuryFinancialAccount $account): string
     {
@@ -626,6 +627,25 @@ class TreasuryAccountService
         $total = '0.0000';
         foreach ($amounts as $amount) {
             $total = bcadd($total, (string) $amount, 4);
+        }
+
+        if (Schema::hasTable('treasury_entries') && Schema::hasTable('treasury_operations')) {
+            // 'reversed' operations count too: their entry and their
+            // reversal entry (negated, on a confirmed operation) net
+            // to zero. Counting only 'confirmed' would leave the
+            // negated reversal entry alone and read -amount.
+            $entries = DB::table('treasury_entries')
+                ->join('treasury_operations', 'treasury_operations.id', '=', 'treasury_entries.operation_id')
+                ->where('treasury_entries.financial_account_id', $account->id)
+                ->whereIn('treasury_operations.state', ['confirmed', 'reversed'])
+                ->select('treasury_entries.direction', 'treasury_entries.amount_base')
+                ->get();
+
+            foreach ($entries as $entry) {
+                $total = $entry->direction === 'outflow'
+                    ? bcsub($total, (string) $entry->amount_base, 4)
+                    : bcadd($total, (string) $entry->amount_base, 4);
+            }
         }
 
         return $total;
@@ -695,37 +715,90 @@ class TreasuryAccountService
     /**
      * Account statement (plan §10, Phase 0): pre-period balance +
      * running balance. Phase 0 movements are the confirmed opening
-     * balances only; later phases add operations as statement lines.
+     * balances only; Phase 1 adds confirmed treasury entries
+     * (receipt inflows) as statement lines, ordered by date.
      *
      * @return array{pre_period_balance: string, lines: array<int, array{date: string, description: string, amount_base: string, running_balance: string}>, closing_balance: string}
      */
     public function statement(TreasuryFinancialAccount $account, ?string $from, ?string $to): array
     {
-        $query = TreasuryOpeningBalance::where('financial_account_id', $account->id)
+        $prePeriod = '0.0000';
+        $lines = [];
+
+        // Opening balances (Phase 0).
+        $balanceQuery = TreasuryOpeningBalance::where('financial_account_id', $account->id)
             ->confirmed()
             ->orderBy('cut_off_date')
             ->orderBy('id');
 
-        $prePeriod = '0.0000';
         if ($from !== null && $from !== '') {
-            $preAmounts = (clone $query)->where('cut_off_date', '<', $from)->pluck('amount_base');
+            $preAmounts = (clone $balanceQuery)->where('cut_off_date', '<', $from)->pluck('amount_base');
             foreach ($preAmounts as $amount) {
                 $prePeriod = bcadd($prePeriod, (string) $amount, 4);
             }
-            $query->where('cut_off_date', '>=', $from);
+            $balanceQuery->where('cut_off_date', '>=', $from);
         }
         if ($to !== null && $to !== '') {
-            $query->where('cut_off_date', '<=', $to);
+            $balanceQuery->where('cut_off_date', '<=', $to);
         }
 
-        $running = $prePeriod;
-        $lines = [];
-        foreach ($query->get() as $row) {
-            $running = bcadd($running, (string) $row->amount_base, 4);
-            $lines[] = [
+        $periodLines = [];
+        foreach ($balanceQuery->get() as $row) {
+            $periodLines[] = [
                 'date' => $row->cut_off_date->format('Y-m-d'),
                 'description' => 'Opening balance ' . $row->batch_reference,
                 'amount_base' => (string) $row->amount_base,
+                'sort' => $row->cut_off_date->format('Y-m-d') . '-0-' . $row->id,
+            ];
+        }
+
+        // Phase 1: confirmed treasury entries (bank movements).
+        // 'reversed' operations count too — their entry and their
+        // reversal entry net to zero (same reason as postedBalance).
+        if (Schema::hasTable('treasury_entries') && Schema::hasTable('treasury_operations')) {
+            $entryQuery = DB::table('treasury_entries')
+                ->join('treasury_operations', 'treasury_operations.id', '=', 'treasury_entries.operation_id')
+                ->where('treasury_entries.financial_account_id', $account->id)
+                ->whereIn('treasury_operations.state', ['confirmed', 'reversed'])
+                ->select('treasury_operations.posting_date', 'treasury_operations.reference', 'treasury_entries.direction', 'treasury_entries.amount_base', 'treasury_entries.id')
+                ->orderBy('treasury_operations.posting_date')
+                ->orderBy('treasury_entries.id');
+
+            if ($from !== null && $from !== '') {
+                $preEntries = (clone $entryQuery)->where('treasury_operations.posting_date', '<', $from)->get();
+                foreach ($preEntries as $entry) {
+                    $prePeriod = $entry->direction === 'outflow'
+                        ? bcsub($prePeriod, (string) $entry->amount_base, 4)
+                        : bcadd($prePeriod, (string) $entry->amount_base, 4);
+                }
+                $entryQuery->where('treasury_operations.posting_date', '>=', $from);
+            }
+            if ($to !== null && $to !== '') {
+                $entryQuery->where('treasury_operations.posting_date', '<=', $to);
+            }
+
+            foreach ($entryQuery->get() as $entry) {
+                $signed = $entry->direction === 'outflow'
+                    ? $this->negate((string) $entry->amount_base)
+                    : (string) $entry->amount_base;
+                $periodLines[] = [
+                    'date' => (string) $entry->posting_date,
+                    'description' => 'Treasury receipt ' . $entry->reference,
+                    'amount_base' => $signed,
+                    'sort' => (string) $entry->posting_date . '-1-' . $entry->id,
+                ];
+            }
+        }
+
+        usort($periodLines, fn ($a, $b) => strcmp($a['sort'], $b['sort']));
+
+        $running = $prePeriod;
+        foreach ($periodLines as $line) {
+            $running = bcadd($running, $line['amount_base'], 4);
+            $lines[] = [
+                'date' => $line['date'],
+                'description' => $line['description'],
+                'amount_base' => $line['amount_base'],
                 'running_balance' => $running,
             ];
         }

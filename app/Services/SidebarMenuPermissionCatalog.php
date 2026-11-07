@@ -85,9 +85,11 @@ class SidebarMenuPermissionCatalog
                     ]),
                     self::node('Treasury', 'menu.dashboard.accounting.treasury', [
                         'view treasury', 'manage treasury accounts', 'reverse treasury operations',
+                        'create treasury receipts', 'confirm treasury receipts', 'allocate treasury receipts',
                     ], [
                         self::node('Accounts', 'menu.dashboard.accounting.treasury.accounts', ['view treasury']),
                         self::node('Opening Balances', 'menu.dashboard.accounting.treasury.opening_balances', ['view treasury']),
+                        self::node('Receipts', 'menu.dashboard.accounting.treasury.receipts', ['view treasury']),
                         self::node('Settings', 'menu.dashboard.accounting.treasury.settings', ['manage treasury accounts']),
                     ]),
                 ]),

@@ -134,6 +134,7 @@ use App\Http\Controllers\GlDimensionController;
 use App\Http\Controllers\TreasuryAccountController;
 use App\Http\Controllers\TreasuryDimensionController;
 use App\Http\Controllers\TreasuryOpeningBalanceController;
+use App\Http\Controllers\TreasuryReceiptController;
 use App\Http\Controllers\TreasurySettingsController;
 use App\Http\Controllers\KitchenReportController;
 use App\Http\Controllers\KitchenCostControlController;
@@ -2618,6 +2619,18 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('treasury-opening-balances/{balance}/approve', [TreasuryOpeningBalanceController::class, 'approve'])->name('treasury-opening-balances.approve')->middleware(['auth', 'XSS']);
     Route::post('treasury-opening-balances/{balance}/reverse', [TreasuryOpeningBalanceController::class, 'reverse'])->name('treasury-opening-balances.reverse')->middleware(['auth', 'XSS']);
     Route::resource('treasury-opening-balances', TreasuryOpeningBalanceController::class)->parameters(['treasury-opening-balances' => 'balance'])->names('treasury-opening-balances')->except(['show'])->middleware(['auth', 'XSS', 'revalidate']);
+
+    // Treasury — Phase 1: receipts + allocations (plan §5/§10).
+    Route::get('treasury-receipts/{receipt}/pdf', [TreasuryReceiptController::class, 'pdf'])->name('treasury-receipts.pdf')->middleware(['auth', 'XSS']);
+    Route::post('treasury-receipts/{receipt}/submit', [TreasuryReceiptController::class, 'submit'])->name('treasury-receipts.submit')->middleware(['auth', 'XSS']);
+    Route::post('treasury-receipts/{receipt}/confirm', [TreasuryReceiptController::class, 'confirm'])->name('treasury-receipts.confirm')->middleware(['auth', 'XSS']);
+    Route::post('treasury-receipts/{receipt}/reject', [TreasuryReceiptController::class, 'reject'])->name('treasury-receipts.reject')->middleware(['auth', 'XSS']);
+    Route::post('treasury-receipts/{receipt}/cancel', [TreasuryReceiptController::class, 'cancel'])->name('treasury-receipts.cancel')->middleware(['auth', 'XSS']);
+    Route::post('treasury-receipts/{receipt}/reverse', [TreasuryReceiptController::class, 'reverse'])->name('treasury-receipts.reverse')->middleware(['auth', 'XSS']);
+    Route::post('treasury-receipts/{receipt}/evidence', [TreasuryReceiptController::class, 'attachEvidence'])->name('treasury-receipts.evidence')->middleware(['auth', 'XSS']);
+    Route::post('treasury-receipts/{receipt}/allocate', [TreasuryReceiptController::class, 'allocate'])->name('treasury-receipts.allocate')->middleware(['auth', 'XSS']);
+    Route::post('treasury-receipts/{receipt}/apply-credit', [TreasuryReceiptController::class, 'applyCredit'])->name('treasury-receipts.apply-credit')->middleware(['auth', 'XSS']);
+    Route::resource('treasury-receipts', TreasuryReceiptController::class)->parameters(['treasury-receipts' => 'receipt'])->names('treasury-receipts')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');

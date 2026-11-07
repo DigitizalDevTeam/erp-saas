@@ -33,6 +33,13 @@ class TreasurySettings
     public const KEY_FORECAST_HORIZONS = 'treasury_forecast_horizons';
     public const KEY_STATEMENT_DATE_TOLERANCE_DAYS = 'treasury_statement_date_tolerance_days';
     public const KEY_STATEMENT_AUTO_MATCH = 'treasury_statement_auto_match';
+    // Phase 1 — chart account codes (exact code or prefix) used by the
+    // receipt journals. Empty means "use the documented default prefix";
+    // when neither resolves, confirmation is refused (never guess).
+    public const KEY_FEE_ACCOUNT_CODE = 'treasury_fee_account_code';
+    public const KEY_WITHHOLDING_ACCOUNT_CODE = 'treasury_withholding_account_code';
+    public const KEY_DISCOUNT_ACCOUNT_CODE = 'treasury_discount_account_code';
+    public const KEY_CUSTOMER_CREDIT_ACCOUNT_CODE = 'treasury_customer_credit_account_code';
 
     public const NEGATIVE_BALANCE_POLICIES = ['block', 'allow', 'approval'];
     public const RESERVATION_POLICIES = ['off', 'on'];
@@ -50,6 +57,10 @@ class TreasurySettings
         self::KEY_FORECAST_HORIZONS => '7,15,30,90',
         self::KEY_STATEMENT_DATE_TOLERANCE_DAYS => '3',
         self::KEY_STATEMENT_AUTO_MATCH => '0',
+        self::KEY_FEE_ACCOUNT_CODE => '',
+        self::KEY_WITHHOLDING_ACCOUNT_CODE => '',
+        self::KEY_DISCOUNT_ACCOUNT_CODE => '',
+        self::KEY_CUSTOMER_CREDIT_ACCOUNT_CODE => '',
     ];
 
     public static function forCompany(int $creatorId): array
@@ -129,6 +140,17 @@ class TreasurySettings
             ? (string) (int) $tolerance : self::DEFAULTS[self::KEY_STATEMENT_DATE_TOLERANCE_DAYS];
 
         $values[self::KEY_STATEMENT_AUTO_MATCH] = ! empty($input[self::KEY_STATEMENT_AUTO_MATCH]) ? '1' : '0';
+
+        // Phase 1 posting accounts: a chart code or prefix (digits,
+        // up to 20 chars). Empty keeps the default (no account set).
+        foreach ([
+            self::KEY_FEE_ACCOUNT_CODE,
+            self::KEY_WITHHOLDING_ACCOUNT_CODE,
+            self::KEY_DISCOUNT_ACCOUNT_CODE,
+            self::KEY_CUSTOMER_CREDIT_ACCOUNT_CODE,
+        ] as $key) {
+            $values[$key] = substr(trim((string) ($input[$key] ?? '')), 0, 20);
+        }
 
         foreach ($values as $name => $value) {
             DB::table('settings')->updateOrInsert(

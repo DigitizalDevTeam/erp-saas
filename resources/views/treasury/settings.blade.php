@@ -105,6 +105,40 @@
                             </div>
                         </div>
 
+                        <h6 class="mt-3">{{ __('Receipt Posting Accounts (Phase 1)') }}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" for="treasury_fee_account_code">{{ __('Bank Fee Account Code') }}</label>
+                                    <input type="text" name="treasury_fee_account_code" id="treasury_fee_account_code" class="form-control" value="{{ old('treasury_fee_account_code', $settings['treasury_fee_account_code'] ?? '') }}" maxlength="20">
+                                    <small class="text-muted">{{ __('Leave empty to use the first chart account starting with 61.') }}</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" for="treasury_withholding_account_code">{{ __('Withholding Account Code') }}</label>
+                                    <input type="text" name="treasury_withholding_account_code" id="treasury_withholding_account_code" class="form-control" value="{{ old('treasury_withholding_account_code', $settings['treasury_withholding_account_code'] ?? '') }}" maxlength="20">
+                                    <small class="text-muted">{{ __('Leave empty to use the first chart account starting with 24.') }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" for="treasury_discount_account_code">{{ __('Discount Account Code') }}</label>
+                                    <input type="text" name="treasury_discount_account_code" id="treasury_discount_account_code" class="form-control" value="{{ old('treasury_discount_account_code', $settings['treasury_discount_account_code'] ?? '') }}" maxlength="20">
+                                    <small class="text-muted">{{ __('Leave empty to use the first chart account starting with 61.') }}</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" for="treasury_customer_credit_account_code">{{ __('Customer Credit Liability Account Code') }}</label>
+                                    <input type="text" name="treasury_customer_credit_account_code" id="treasury_customer_credit_account_code" class="form-control" value="{{ old('treasury_customer_credit_account_code', $settings['treasury_customer_credit_account_code'] ?? '') }}" maxlength="20">
+                                    <small class="text-muted">{{ __('Leave empty to use the first chart account starting with 211.') }}</small>
+                                </div>
+                            </div>
+                        </div>
+
                         <button type="submit" class="btn btn-primary">{{ __('Save') }}</button>
                         <a href="{{ route('treasury-accounts.index') }}" class="btn btn-secondary">{{ __('Cancel') }}</a>
                     </form>

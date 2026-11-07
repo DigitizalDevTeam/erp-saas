@@ -343,7 +343,7 @@
                                             </li>
                                         @endif
                                         @if (menu_can_node('menu.dashboard.accounting.treasury'))
-                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['treasury-accounts.index', 'treasury-accounts.create', 'treasury-accounts.edit', 'treasury-accounts.statement', 'treasury-opening-balances.index', 'treasury-opening-balances.create', 'treasury-opening-balances.edit', 'treasury-opening-balances.import', 'treasury.settings']) ? 'active dash-trigger' : '' }}">
+                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['treasury-accounts.index', 'treasury-accounts.create', 'treasury-accounts.edit', 'treasury-accounts.statement', 'treasury-opening-balances.index', 'treasury-opening-balances.create', 'treasury-opening-balances.edit', 'treasury-opening-balances.import', 'treasury-receipts.index', 'treasury-receipts.create', 'treasury-receipts.edit', 'treasury-receipts.show', 'treasury.settings']) ? 'active dash-trigger' : '' }}">
                                                 <a class="dash-link" href="#">{{ __('Treasury') }}<span class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                                                 <ul class="dash-submenu">
                                                     @if (menu_can('menu.dashboard.accounting.treasury.accounts'))
@@ -354,6 +354,11 @@
                                                     @if (menu_can('menu.dashboard.accounting.treasury.opening_balances'))
                                                         <li class="dash-item {{ in_array(Request::route()->getName(), ['treasury-opening-balances.index', 'treasury-opening-balances.create', 'treasury-opening-balances.edit', 'treasury-opening-balances.import']) ? ' active' : '' }}">
                                                             <a class="dash-link" href="{{ route('treasury-opening-balances.index') }}">{{ __('Opening Balances') }}</a>
+                                                        </li>
+                                                    @endif
+                                                    @if (menu_can('menu.dashboard.accounting.treasury.receipts'))
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['treasury-receipts.index', 'treasury-receipts.create', 'treasury-receipts.edit', 'treasury-receipts.show']) ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('treasury-receipts.index') }}">{{ __('Receipts') }}</a>
                                                         </li>
                                                     @endif
                                                     @if (menu_can('menu.dashboard.accounting.treasury.settings'))
