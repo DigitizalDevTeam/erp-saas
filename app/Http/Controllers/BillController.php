@@ -26,6 +26,7 @@ use App\Services\DocumentVoidService;
 use App\Services\DocumentLayoutRenderer;
 use App\Services\CostCentreAllocationService;
 use App\Services\Accounting\DocumentLedgerService;
+use App\Support\SalesPurchaseNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -1034,6 +1035,14 @@ class BillController extends Controller
                 $accountId?->chart_account_id ? (int) $accountId->chart_account_id : null
             );
 
+            // Cost Centres — Phase 3: tag the payment with the bill's
+            // dimensions (inherit by default; an optional `dimensions`
+            // payload overrides). This only writes dimension rows — the
+            // money was already posted above, exactly once. A dimension
+            // failure must never break a payment, so it is caught and
+            // the dimensions screen can fix it later.
+            $this->tagPaymentDimensions($billPayment, $request);
+
             $billPaymentArr = [
                 'vender_name' => $vender->name,
                 'vender_email' => $vender->email,
@@ -1051,6 +1060,56 @@ class BillController extends Controller
 
         }
 
+    }
+
+    /**
+     * Cost Centres — Phase 3: tag a newly created bill payment with
+     * dimensions. Inherits the bill's split by default; an optional
+     * `dimensions` payload ({basis, lines}) overrides it. Dimension
+     * failures are caught and logged — the payment already succeeded,
+     * and the Treasury Dimensions screen can tag it later.
+     */
+    protected function tagPaymentDimensions(BillPayment $billPayment, Request $request): void
+    {
+        try {
+            if (! \Illuminate\Support\Facades\Schema::hasTable('treasury_line_dimensions')) {
+                return;
+            }
+
+            $creatorId = (int) \Auth::user()->creatorId();
+            $service = app(\App\Services\TreasuryDimensionService::class);
+
+            $dimensions = $request->input('dimensions');
+            if (is_array($dimensions) && ! empty($dimensions['lines'])) {
+                $lines = [];
+                foreach (array_values($dimensions['lines']) as $index => $line) {
+                    if (! is_array($line)) {
+                        continue;
+                    }
+                    $lines[] = [
+                        'cost_centre_id' => (int) ($line['cost_centre_id'] ?? 0),
+                        'percentage' => isset($line['percentage']) && $line['percentage'] !== '' ? (string) $line['percentage'] : null,
+                        'fixed_amount' => isset($line['fixed_amount']) && $line['fixed_amount'] !== '' ? (string) $line['fixed_amount'] : null,
+                        'sort_order' => (int) ($line['sort_order'] ?? $index),
+                    ];
+                }
+                $service->applyDimensions(
+                    \App\Models\TreasuryLineDimension::TYPE_BILL_PAYMENT,
+                    (int) $billPayment->id,
+                    $lines,
+                    (string) ($dimensions['basis'] ?? 'percentage'),
+                    $creatorId,
+                    (int) \Auth::id(),
+                    ! empty($dimensions['project_id']) ? (int) $dimensions['project_id'] : null
+                );
+
+                return;
+            }
+
+            $service->inheritForBillPayment($billPayment, $creatorId, (int) \Auth::id());
+        } catch (\Throwable $e) {
+            \Log::warning('Treasury dimension tagging failed for bill payment #'.$billPayment->id.': '.$e->getMessage());
+        }
     }
 
     public function paymentDestroy(Request $request, $bill_id, $payment_id)
@@ -1094,6 +1153,22 @@ class BillController extends Controller
             $type = 'Partial';
             $user = 'Vender';
             Transaction::destroyTransaction($payment_id, $type, $user);
+
+            // Cost Centres — Phase 3: the payment is gone, so its
+            // dimensions follow it (superseded, never orphaned).
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasTable('treasury_line_dimensions')) {
+                    app(\App\Services\TreasuryDimensionService::class)->removeForPayment(
+                        \App\Models\TreasuryLineDimension::TYPE_BILL_PAYMENT,
+                        (int) $payment_id,
+                        (int) \Auth::user()->creatorId(),
+                        (int) \Auth::id(),
+                        __('Bill payment deleted.')
+                    );
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Treasury dimension removal failed for deleted bill payment #'.$payment_id.': '.$e->getMessage());
+            }
 
             return redirect()->back()->with('success', __('Payment successfully deleted.'));
         }

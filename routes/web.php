@@ -126,6 +126,7 @@ use App\Http\Controllers\PosProductionController;
 use App\Http\Controllers\KitchenRecipeController;
 use App\Http\Controllers\CostCentreAllocationController;
 use App\Http\Controllers\CostCentreController;
+use App\Http\Controllers\TreasuryDimensionController;
 use App\Http\Controllers\KitchenReportController;
 use App\Http\Controllers\KitchenCostControlController;
 use App\Http\Controllers\KitchenLossController;
@@ -2550,6 +2551,17 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('cost-centre-allocation-templates', [CostCentreAllocationController::class, 'templates'])->name('cost-centre-allocation-templates.index')->middleware(['auth', 'XSS']);
     Route::post('cost-centre-allocation-templates', [CostCentreAllocationController::class, 'storeTemplate'])->name('cost-centre-allocation-templates.store')->middleware(['auth', 'XSS']);
     Route::delete('cost-centre-allocation-templates/{template}', [CostCentreAllocationController::class, 'destroyTemplate'])->name('cost-centre-allocation-templates.destroy')->middleware(['auth', 'XSS']);
+
+    // Cost Centres — Phase 3: Treasury integration (plan §7). The
+    // validate/centres routes are registered before the {payment}
+    // routes so they are not swallowed by a parameter.
+    Route::get('treasury-dimensions', [TreasuryDimensionController::class, 'index'])->name('treasury-dimensions.index')->middleware(['auth', 'XSS']);
+    Route::post('treasury-dimensions/validate', [TreasuryDimensionController::class, 'validateSplit'])->name('treasury-dimensions.validate')->middleware(['auth', 'XSS']);
+    Route::get('treasury-dimensions/centres', [TreasuryDimensionController::class, 'centres'])->name('treasury-dimensions.centres')->middleware(['auth', 'XSS']);
+    Route::get('treasury-dimensions/bill-payment/{payment}/edit', [TreasuryDimensionController::class, 'edit'])->name('treasury-dimensions.bill-payment.edit')->middleware(['auth', 'XSS']);
+    Route::post('treasury-dimensions/bill-payment/{payment}', [TreasuryDimensionController::class, 'update'])->name('treasury-dimensions.bill-payment.update')->middleware(['auth', 'XSS']);
+    Route::get('treasury-dimensions/receipt/{receipt}/edit', [TreasuryDimensionController::class, 'editReceipt'])->name('treasury-dimensions.receipt.edit')->middleware(['auth', 'XSS']);
+    Route::post('treasury-dimensions/receipt/{receipt}', [TreasuryDimensionController::class, 'updateReceipt'])->name('treasury-dimensions.receipt.update')->middleware(['auth', 'XSS']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
