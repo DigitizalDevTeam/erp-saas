@@ -1644,6 +1644,11 @@
                                         <a class="dash-link" href="{{ route('kitchen.losses.index') }}">{{ __('Losses') }}</a>
                                     </li>
                                     @endif
+                                    @if (menu_can('menu.kitchen_production.cost_control'))
+                                    <li class="dash-item {{ in_array(Request::route()->getName(), ['kitchen.cost-control.index', 'kitchen.cost-control.show', 'kitchen.cost-alerts.index']) ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('kitchen.cost-control.index') }}">{{ __('Cost Control') }}</a>
+                                    </li>
+                                    @endif
                                 </ul>
                             </li>
                             @endif

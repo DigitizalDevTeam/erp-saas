@@ -292,6 +292,7 @@ class SidebarMenuPermissionCatalog
                     'approve kitchen production plans',
                     'manage kitchen requisitions', 'approve kitchen requisitions',
                     'manage kitchen losses', 'approve kitchen losses',
+                    'view kitchen reports',
                 ], [
                     self::node('Recipes', 'menu.kitchen_production.recipes', ['manage kitchen production', 'create kitchen recipes', 'approve kitchen recipes']),
                     self::node('Production Orders', 'menu.kitchen_production.production_orders', ['manage kitchen production orders', 'approve kitchen production orders']),
@@ -299,6 +300,7 @@ class SidebarMenuPermissionCatalog
                     self::node('Production Plans', 'menu.kitchen_production.production_plans', ['manage kitchen production', 'approve kitchen production plans']),
                     self::node('Requisitions', 'menu.kitchen_production.requisitions', ['manage kitchen requisitions', 'approve kitchen requisitions']),
                     self::node('Losses', 'menu.kitchen_production.losses', ['manage kitchen losses', 'approve kitchen losses']),
+                    self::node('Cost Control', 'menu.kitchen_production.cost_control', ['view kitchen reports']),
                 ]),
                 self::node('POS Shifts', 'menu.pos_system.shifts', ['manage pos', 'pos restaurant full', 'pos restaurant manager']),
                 self::node('EOD Report', 'menu.pos_system.eod', ['manage pos', 'pos restaurant full', 'pos restaurant manager']),

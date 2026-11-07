@@ -29,7 +29,17 @@ class KitchenRecipeApprovalService
 {
     public function __construct(
         protected KitchenUnitConversionService $conversions,
+        // Optional so existing callers (and tests) that construct this
+        // service with one argument keep working; resolved from the
+        // container on first use when not given.
+        protected ?KitchenCostControlService $costControl = null,
     ) {
+    }
+
+    /** Lazy container resolution for the optional cost-control service. */
+    protected function costControl(): KitchenCostControlService
+    {
+        return $this->costControl ??= app(KitchenCostControlService::class);
     }
 
     public function submit(KitchenRecipe $recipe, User $user): KitchenRecipe
@@ -69,6 +79,12 @@ class KitchenRecipeApprovalService
         $recipe->approved_at = now();
         $recipe->approval_note = null;
         $recipe->save();
+
+        // Cost control (Phase 6): snapshot the expected cost at
+        // approval time, with the ingredient prices of this moment.
+        // The service no-ops when the snapshots table does not exist
+        // yet (a Phase 0–5 schema).
+        $this->costControl()->recordRecipeSnapshot($recipe->fresh());
 
         return $recipe->fresh();
     }
