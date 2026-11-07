@@ -7,6 +7,14 @@
 <body style="font-family: Arial, sans-serif; color: #222;">
     <p>{{ __('Hello') }} {{ $invoice->name ?? '' }},</p>
 
+    @if (! empty($isReminder))
+        <p>
+            {{ __('This is a friendly reminder that invoice') }}
+            <strong>{{ $invoice->invoice ?? '' }}</strong>
+            {{ __('was due on') }} {{ $invoice->due_date }}{{ __(' and is still unpaid. Please arrange payment at your earliest convenience.') }}
+        </p>
+    @endif
+
     <p>
         {{ __('Please find attached invoice') }}
         <strong>{{ $invoice->invoice ?? '' }}</strong>{{ __(' for the billing period covered by your contract.') }}

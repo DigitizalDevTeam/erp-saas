@@ -2773,6 +2773,13 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('billing-contracts/{contract}/occurrences/{occurrence}', [BillingContractController::class, 'occurrenceShow'])->name('billing-contracts.occurrence-show')->middleware(['auth', 'XSS']);
     Route::post('billing-contracts/{contract}/occurrences/{occurrence}/generate', [BillingContractController::class, 'generateOccurrence'])->name('billing-contracts.generate-occurrence')->middleware(['auth', 'XSS']);
     Route::post('billing-contracts/{contract}/occurrences/{occurrence}/resend', [BillingContractController::class, 'resendOccurrence'])->name('billing-contracts.resend-occurrence')->middleware(['auth', 'XSS']);
+    // Phase 3: payments, reminders, renewals.
+    Route::get('billing-contracts/{contract}/payments', [BillingContractController::class, 'payments'])->name('billing-contracts.payments')->middleware(['auth', 'XSS']);
+    Route::get('billing-contracts/{contract}/reminders', [BillingContractController::class, 'reminders'])->name('billing-contracts.reminders')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/occurrences/{occurrence}/remind', [BillingContractController::class, 'remindNow'])->name('billing-contracts.remind-now')->middleware(['auth', 'XSS']);
+    Route::get('billing-contracts/{contract}/renew', [BillingContractController::class, 'renewForm'])->name('billing-contracts.renew-form')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/renew', [BillingContractController::class, 'renew'])->name('billing-contracts.renew')->middleware(['auth', 'XSS']);
+    Route::post('billing-contracts/{contract}/renewals/{renewal}/abandon', [BillingContractController::class, 'abandonRenewal'])->name('billing-contracts.abandon-renewal')->middleware(['auth', 'XSS']);
     Route::resource('billing-contracts', BillingContractController::class)->parameters(['billing-contracts' => 'contract'])->names('billing-contracts')->except(['destroy'])->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);

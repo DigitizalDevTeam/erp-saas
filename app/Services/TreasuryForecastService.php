@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Exceptions\TreasuryException;
+use App\Models\BillingContract;
+use App\Models\BillingContractOccurrence;
 use App\Models\Invoice;
 use App\Models\PaySlip;
 use App\Models\TreasuryFinancialAccount;
@@ -10,6 +12,7 @@ use App\Models\TreasuryForecastItem;
 use App\Models\TreasuryOperation;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Treasury Phase 8 — cash-flow forecast (plan §5, §8, §10,
@@ -33,6 +36,15 @@ use Illuminate\Support\Facades\DB;
  * outstanding amount in forecast. Forecast and actual are
  * shown separately, never mixed: actuals are read from
  * confirmed treasury operations, never from forecast rows.
+ *
+ * Contract Management Phase 3: real contract projections now
+ * come from ACTIVE billing contracts (each future pending
+ * occurrence becomes one forecast item, linked by source_id =
+ * occurrence id). Manual contract estimates (source_id null)
+ * still exist and are labelled as estimates; real projections
+ * are labelled as contract projections and are system-managed
+ * (they cannot be edited or deleted by hand — they follow the
+ * contract).
  *
  * Scenarios are applied at read time, never stored:
  * late_receipts shifts inflows +7 days, higher_expenses
@@ -239,15 +251,18 @@ class TreasuryForecastService
                 $counts['payroll']++;
             }
 
-            // CA13: a contract projection is replaced by its issued
-            // invoice. The projection stays for audit, marked with
-            // the invoice reference, and is excluded from the
+            // CA13: a MANUAL contract estimate is replaced by its
+            // issued invoice. The projection stays for audit, marked
+            // with the invoice reference, and is excluded from the
             // totals; the invoice item above carries the
-            // outstanding amount.
+            // outstanding amount. Real contract projections
+            // (source_id = occurrence id) are handled by
+            // syncContractProjections below and skip this block.
             $projections = TreasuryForecastItem::where('created_by', $creatorId)
                 ->where('state', TreasuryForecastItem::STATE_FORECAST)
                 ->where('source_type', TreasuryForecastItem::SOURCE_CONTRACT)
                 ->whereNull('replacement_reference')
+                ->whereNull('source_id')
                 ->whereNotNull('document')
                 ->get();
 
@@ -268,8 +283,126 @@ class TreasuryForecastService
                 }
             }
 
+            // CA13 (real contracts, Phase 3): projections from
+            // ACTIVE billing contracts — one forecast item per
+            // future pending occurrence, linked by source_id.
+            $counts['contracts'] = $this->syncContractProjections($creatorId);
+
             return $counts;
         });
+    }
+
+    /**
+     * Contract Management Phase 3 — real contract projections
+     * (CA13). Each pending occurrence of an ACTIVE billing
+     * contract becomes one forecast item (source_type contract,
+     * source_id = occurrence id, inflow, amount = occurrence
+     * amount — ex-tax, as stored — expected on the billing
+     * date). When the occurrence is invoiced, the projection is
+     * marked replaced and the invoice item carries the amount
+     * instead — never double-counted. When the occurrence is
+     * skipped/cancelled or the contract stops being active, the
+     * projection is removed. Manual contract estimates
+     * (source_id null) are never touched here.
+     *
+     * @return int Number of projection rows created in this run.
+     */
+    protected function syncContractProjections(int $creatorId): int
+    {
+        if (! Schema::hasTable('billing_contracts')
+            || ! Schema::hasTable('billing_contract_occurrences')
+        ) {
+            return 0;
+        }
+
+        $kept = [];
+        $created = 0;
+
+        $contracts = BillingContract::where('created_by', $creatorId)
+            ->where('state', BillingContract::STATE_ACTIVE)
+            ->get();
+
+        foreach ($contracts as $contract) {
+            $occurrences = BillingContractOccurrence::where('contract_id', $contract->id)
+                ->where('created_by', $creatorId)
+                ->where('state', BillingContractOccurrence::STATE_PENDING)
+                ->get();
+
+            foreach ($occurrences as $occurrence) {
+                $kept[] = (int) $occurrence->id;
+
+                $amount = $this->decimalString($occurrence->amount, 'Occurrence amount');
+                $rate = $this->decimalString($contract->exchange_rate ?? '1', 'Contract exchange rate');
+                $amountBase = bcmul($amount, $rate, 4);
+                $billingDate = Carbon::parse($occurrence->billing_date)->format('Y-m-d');
+
+                $item = TreasuryForecastItem::firstOrCreate(
+                    [
+                        'created_by' => $creatorId,
+                        'source_type' => TreasuryForecastItem::SOURCE_CONTRACT,
+                        'source_id' => $occurrence->id,
+                    ],
+                    [
+                        'company_id' => $creatorId,
+                        'direction' => TreasuryForecastItem::DIRECTION_INFLOW,
+                        'amount' => $amount,
+                        'amount_base' => $amountBase,
+                        'currency' => $contract->currency,
+                        'expected_date' => $billingDate,
+                        'scenario' => TreasuryForecastItem::SCENARIO_BASELINE,
+                        'document' => $contract->reference,
+                        'description' => 'Contract ' . $contract->reference . ' — '
+                            . Carbon::parse($occurrence->period_start)->format('Y-m-d')
+                            . ' to ' . Carbon::parse($occurrence->period_end)->format('Y-m-d'),
+                        'state' => TreasuryForecastItem::STATE_FORECAST,
+                    ]
+                );
+
+                if ($item->wasRecentlyCreated) {
+                    $created++;
+                } elseif ($item->replacement_reference === null && (
+                    bccomp((string) $item->amount, $amount, 4) !== 0
+                    || bccomp((string) $item->amount_base, $amountBase, 4) !== 0
+                    || (string) $item->expected_date !== $billingDate
+                )) {
+                    // An amendment changed the amount or the date:
+                    // keep the projection in step with the occurrence.
+                    $item->amount = $amount;
+                    $item->amount_base = $amountBase;
+                    $item->expected_date = $billingDate;
+                    $item->save();
+                }
+            }
+        }
+
+        // Occurrence-linked projections: invoiced occurrences are
+        // replaced by their invoice item; skipped, cancelled or
+        // no-longer-active ones are removed.
+        $linked = TreasuryForecastItem::where('created_by', $creatorId)
+            ->where('source_type', TreasuryForecastItem::SOURCE_CONTRACT)
+            ->whereNotNull('source_id')
+            ->whereNull('replacement_reference')
+            ->get();
+
+        foreach ($linked as $item) {
+            $occurrence = BillingContractOccurrence::find($item->source_id);
+
+            if ($occurrence !== null
+                && $occurrence->state === BillingContractOccurrence::STATE_INVOICED
+                && $occurrence->invoice_id !== null
+            ) {
+                $contract = BillingContract::find($occurrence->contract_id);
+                $item->replacement_reference = $contract ? $contract->reference : '';
+                $item->save();
+                continue;
+            }
+
+            if ($occurrence === null || ! in_array((int) $item->source_id, $kept, true)) {
+                $item->delete();
+            }
+        }
+
+        return $created;
     }
 
     // ------------------------------------------------------------------
@@ -454,6 +587,12 @@ class TreasuryForecastService
             throw new TreasuryException('Only manual projections can be edited — system items are regenerated on refresh.');
         }
 
+        // A real contract projection (linked to an occurrence) is
+        // system-managed: it follows the contract, never a hand edit.
+        if ($item->source_type === TreasuryForecastItem::SOURCE_CONTRACT && $item->source_id !== null) {
+            throw new TreasuryException('This contract projection is managed by the billing contract and cannot be edited.');
+        }
+
         if ($item->isReplaced()) {
             throw new TreasuryException('This contract projection was replaced by its invoice and can no longer be edited.');
         }
@@ -498,6 +637,12 @@ class TreasuryForecastService
 
         if (! in_array($item->source_type, [TreasuryForecastItem::SOURCE_MANUAL, TreasuryForecastItem::SOURCE_CONTRACT, TreasuryForecastItem::SOURCE_EXPENSE], true)) {
             throw new TreasuryException('Only manual projections can be deleted — system items are regenerated on refresh.');
+        }
+
+        // A real contract projection (linked to an occurrence) is
+        // system-managed: it follows the contract, never a hand delete.
+        if ($item->source_type === TreasuryForecastItem::SOURCE_CONTRACT && $item->source_id !== null) {
+            throw new TreasuryException('This contract projection is managed by the billing contract and cannot be deleted.');
         }
 
         $item->delete();

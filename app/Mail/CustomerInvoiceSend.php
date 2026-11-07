@@ -32,20 +32,28 @@ class CustomerInvoiceSend extends Mailable
     /** @var string[] */
     public array $ccRecipients;
 
-    public function __construct(Invoice $invoice, ?string $pdfBinary = null, ?string $pdfFileName = null, array $ccRecipients = [])
+    /** True when this is a payment reminder (Phase 3): the subject and the letter change, the invoice and its PDF stay the same. */
+    public bool $isReminder;
+
+    public function __construct(Invoice $invoice, ?string $pdfBinary = null, ?string $pdfFileName = null, array $ccRecipients = [], bool $isReminder = false)
     {
         $this->invoice = $invoice;
         $this->pdfBinary = $pdfBinary;
         $this->pdfFileName = $pdfFileName;
         $this->ccRecipients = array_values(array_filter(array_map('trim', $ccRecipients)));
+        $this->isReminder = $isReminder;
     }
 
     public function build()
     {
         $number = $this->invoice->invoice ?? ('#' . (string) $this->invoice->invoice_id);
 
-        $mail = $this->view('email.customer_invoice_send')
-            ->subject(__('Invoice') . ' ' . $number);
+        $subject = $this->isReminder
+            ? __('Payment reminder') . ' — ' . __('Invoice') . ' ' . $number
+            : __('Invoice') . ' ' . $number;
+
+        $mail = $this->view('email.customer_invoice_send', ['isReminder' => $this->isReminder])
+            ->subject($subject);
 
         if ($this->ccRecipients !== []) {
             $mail->cc($this->ccRecipients);

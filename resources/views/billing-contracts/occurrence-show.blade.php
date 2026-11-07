@@ -23,6 +23,10 @@
                     @csrf
                     <button class="btn btn-sm btn-secondary" type="submit">{{ __('Resend invoice email') }}</button>
                 </form>
+                <form method="POST" action="{{ route('billing-contracts.remind-now', [$contract->id, $occurrence->id]) }}" class="d-inline">
+                    @csrf
+                    <button class="btn btn-sm btn-warning" type="submit">{{ __('Send payment reminder') }}</button>
+                </form>
             @endif
         @endcan
     </div>
@@ -76,6 +80,19 @@
                                 @if ($attempt->last_error) <br><small class="text-danger">{{ $attempt->last_error }}</small>@endif
                             @else
                                 {{ __('Not attempted.') }}
+                            @endif
+                        </dd>
+
+                        <dt class="col-sm-4">{{ __('Payment reminder') }}</dt>
+                        <dd class="col-sm-8">
+                            @if ($reminder)
+                                {{ ucfirst($reminder->status) }}
+                                — {{ __('sent') }} {{ $reminder->sent_count }} {{ __('time(s)') }}
+                                @if ($reminder->next_reminder_at) — {{ __('next') }}: {{ $reminder->next_reminder_at->format('Y-m-d') }}@endif
+                                @if ($reminder->last_sent_at) — {{ __('last sent') }}: {{ $reminder->last_sent_at->format('Y-m-d H:i') }}@endif
+                                @if ($reminder->last_error) <br><small class="text-danger">{{ $reminder->last_error }}</small>@endif
+                            @else
+                                {{ __('No reminder — the invoice is not overdue.') }}
                             @endif
                         </dd>
                     </dl>

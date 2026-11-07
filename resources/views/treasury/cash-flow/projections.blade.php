@@ -81,7 +81,7 @@
                                 <tbody>
                                     @foreach ($items as $item)
                                         <tr>
-                                            <td>{{ $item->source_type === 'contract' ? __('Contract estimate') : __('Manual') }}</td>
+                                            <td>{{ $item->source_type === 'contract' ? ($item->source_id ? __('Contract projection') : __('Contract estimate')) : __('Manual') }}</td>
                                             <td>{{ $item->document ?? '—' }}</td>
                                             <td>{{ ucfirst($item->direction) }}</td>
                                             <td class="text-end">{{ number_format((float) $item->amount, 2) }} {{ $item->currency }}</td>
@@ -90,12 +90,14 @@
                                             <td>{{ ucfirst($item->state) }}</td>
                                             <td>{{ $item->description ?? '—' }}</td>
                                             <td>
-                                                @if ($item->state === 'forecast')
+                                                @if ($item->state === 'forecast' && ! ($item->source_type === 'contract' && $item->source_id))
                                                     <form method="POST" action="{{ route('treasury-cash-flow.projections.destroy', $item->id) }}" onsubmit="return confirm('{{ __('Delete this projection?') }}')">
                                                         @csrf
                                                         @method('DELETE')
                                                         <button type="submit" class="btn btn-sm btn-outline-danger">{{ __('Delete') }}</button>
                                                     </form>
+                                                @elseif ($item->source_type === 'contract' && $item->source_id)
+                                                    <small class="text-muted">{{ __('Managed by the contract') }}</small>
                                                 @endif
                                             </td>
                                         </tr>

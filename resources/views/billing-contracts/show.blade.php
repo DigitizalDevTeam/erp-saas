@@ -23,6 +23,11 @@
                     <button class="btn btn-sm btn-primary" type="submit">{{ __('Generate invoices now') }}</button>
                 </form>
             @endif
+            @if ($canRenew)
+                <a href="{{ route('billing-contracts.renew-form', $contract->id) }}" class="btn btn-sm btn-success">{{ __('Renew') }}</a>
+            @endif
+            <a href="{{ route('billing-contracts.payments', $contract->id) }}" class="btn btn-sm btn-light">{{ __('Payments') }}</a>
+            <a href="{{ route('billing-contracts.reminders', $contract->id) }}" class="btn btn-sm btn-light">{{ __('Reminders') }}</a>
         @endcan
     </div>
 @endsection
@@ -200,6 +205,47 @@
                                 <li>#{{ $revision->revision_number }} — {{ $revision->effective_date->format('Y-m-d') }} — {{ $revision->reason }}</li>
                             @endforeach
                         </ul>
+                    @endif
+
+                    <h6 class="mt-4">{{ __('Payments') }}</h6>
+                    <ul class="list-unstyled">
+                        <li>{{ __('Invoiced') }}: {{ number_format((float) $paymentsSummary['invoiced'], 2) }} {{ $contract->currency }}</li>
+                        <li>{{ __('Paid') }}: {{ number_format((float) $paymentsSummary['paid'], 2) }} {{ $contract->currency }}</li>
+                        <li>{{ __('Outstanding') }}: {{ number_format((float) $paymentsSummary['outstanding'], 2) }} {{ $contract->currency }}</li>
+                        @if ($paymentsSummary['overdue_count'] > 0)
+                            <li class="text-danger">{{ __('Overdue') }}: {{ number_format((float) $paymentsSummary['overdue'], 2) }} {{ $contract->currency }} ({{ $paymentsSummary['overdue_count'] }})</li>
+                        @endif
+                    </ul>
+                    <a href="{{ route('billing-contracts.payments', $contract->id) }}" class="btn btn-sm btn-light w-100 mb-2">{{ __('View payments') }}</a>
+                    <a href="{{ route('billing-contracts.reminders', $contract->id) }}" class="btn btn-sm btn-light w-100 mb-2">{{ __('View reminders') }}</a>
+
+                    @if ($pendingRenewal || $renewalHistory->isNotEmpty())
+                        <h6 class="mt-4">{{ __('Renewals') }}</h6>
+                        <ul class="list-unstyled">
+                            @foreach ($renewalHistory as $renewal)
+                                <li>
+                                    <small>
+                                        {{ $renewal->effective_date->format('Y-m-d') }} —
+                                        @if ($renewal->newContract)
+                                            <a href="{{ route('billing-contracts.show', $renewal->new_contract_id) }}">{{ $renewal->newContract->reference }}</a>
+                                        @endif
+                                        — {{ ucfirst(str_replace('_', ' ', $renewal->status)) }}
+                                    </small>
+                                    @if ($renewal->status === 'pending')
+                                        @can('manage billing contracts')
+                                            <form method="POST" action="{{ route('billing-contracts.abandon-renewal', [$contract->id, $renewal->id]) }}" class="d-inline">
+                                                @csrf
+                                                <button class="btn btn-sm btn-link text-danger p-0" type="submit">{{ __('Abandon') }}</button>
+                                            </form>
+                                        @endcan
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+
+                    @if ($contract->renewed_from_id && $contract->renewedFrom)
+                        <p class="text-muted"><small>{{ __('Renewed from') }} <a href="{{ route('billing-contracts.show', $contract->renewed_from_id) }}">{{ $contract->renewedFrom->reference }}</a></small></p>
                     @endif
 
                     @if ($contract->auditEvents->isNotEmpty())
