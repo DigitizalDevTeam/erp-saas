@@ -92,7 +92,9 @@ class SidebarMenuPermissionCatalog
                         'manage treasury advances',
                         'manage treasury reconciliation', 'approve treasury reconciliation',
                         'manage treasury cash flow', 'manage treasury recurring',
+                        'view treasury reports',
                     ], [
+                        self::node('Dashboard', 'menu.dashboard.accounting.treasury.dashboard', ['view treasury reports']),
                         self::node('Accounts', 'menu.dashboard.accounting.treasury.accounts', ['view treasury']),
                         self::node('Opening Balances', 'menu.dashboard.accounting.treasury.opening_balances', ['view treasury']),
                         self::node('Receipts', 'menu.dashboard.accounting.treasury.receipts', ['view treasury']),
@@ -106,6 +108,8 @@ class SidebarMenuPermissionCatalog
                         self::node('Reconciliation', 'menu.dashboard.accounting.treasury.reconciliation', ['manage treasury reconciliation']),
                         self::node('Approvals', 'menu.dashboard.accounting.treasury.approvals', ['approve treasury payments']),
                         self::node('Reservations', 'menu.dashboard.accounting.treasury.reservations', ['view treasury']),
+                        self::node('Reports', 'menu.dashboard.accounting.treasury.reports', ['view treasury reports']),
+                        self::node('Audit Trail', 'menu.dashboard.accounting.treasury.audit_trail', ['view treasury reports']),
                         self::node('Settings', 'menu.dashboard.accounting.treasury.settings', ['manage treasury accounts']),
                     ]),
                 ]),

@@ -133,11 +133,14 @@ use App\Http\Controllers\CostCentreReportController;
 use App\Http\Controllers\GlDimensionController;
 use App\Http\Controllers\TreasuryAccountController;
 use App\Http\Controllers\TreasuryAdvanceController;
+use App\Http\Controllers\TreasuryAuditTrailController;
 use App\Http\Controllers\TreasuryCashFlowAlertController;
 use App\Http\Controllers\TreasuryCashFlowController;
 use App\Http\Controllers\TreasuryCashSessionController;
 use App\Http\Controllers\TreasuryRecurringOccurrenceController;
 use App\Http\Controllers\TreasuryRecurringRuleController;
+use App\Http\Controllers\TreasuryDashboardController;
+use App\Http\Controllers\TreasuryReportController;
 use App\Http\Controllers\TreasuryDimensionController;
 use App\Http\Controllers\TreasuryOpeningBalanceController;
 use App\Http\Controllers\TreasuryPaymentBatchController;
@@ -2738,6 +2741,14 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('treasury-recurring-occurrences/{occurrence}/confirm', [TreasuryRecurringOccurrenceController::class, 'confirm'])->name('treasury-recurring-occurrences.confirm')->middleware(['auth', 'XSS']);
     Route::post('treasury-recurring-occurrences/{occurrence}/paid', [TreasuryRecurringOccurrenceController::class, 'markPaid'])->name('treasury-recurring-occurrences.paid')->middleware(['auth', 'XSS']);
     Route::post('treasury-recurring-occurrences/{occurrence}/skip', [TreasuryRecurringOccurrenceController::class, 'skip'])->name('treasury-recurring-occurrences.skip')->middleware(['auth', 'XSS']);
+
+    // Treasury Phase 9 — dashboard, reports, audit trail, queued exports.
+    Route::get('treasury-dashboard', [TreasuryDashboardController::class, 'index'])->name('treasury-dashboard.index')->middleware(['auth', 'XSS']);
+    Route::get('treasury-reports', [TreasuryReportController::class, 'index'])->name('treasury-reports.index')->middleware(['auth', 'XSS']);
+    Route::get('treasury-reports/{report}', [TreasuryReportController::class, 'show'])->name('treasury-reports.show')->middleware(['auth', 'XSS']);
+    Route::post('treasury-reports/{report}/export', [TreasuryReportController::class, 'requestExport'])->name('treasury-reports.export-request')->middleware(['auth', 'XSS']);
+    Route::get('treasury-reports/exports/{export}/download', [TreasuryReportController::class, 'download'])->name('treasury-reports.export-download')->middleware(['auth', 'XSS', 'signed']);
+    Route::get('treasury-audit-trail', [TreasuryAuditTrailController::class, 'index'])->name('treasury-audit-trail.index')->middleware(['auth', 'XSS']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
