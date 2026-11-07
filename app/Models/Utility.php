@@ -587,6 +587,19 @@ namespace App\Models;
                 'default_allocation_basis' => 'percentage',
                 // Plan decision D2: parents are summary-only.
                 'cost_centre_parents_summary_only' => '1',
+
+                // Treasury (Phase 0) — defaults mirror
+                // TreasurySettings::DEFAULTS (same keys, same values).
+                'treasury_base_currency' => 'MZN',
+                'treasury_negative_balance_policy' => 'block',
+                'treasury_reservation_policy' => 'off',
+                'treasury_reference_prefix' => '',
+                'treasury_retention_months' => '60',
+                'treasury_notification_channels' => 'email',
+                'treasury_approval_default' => 'manager',
+                'treasury_forecast_horizons' => '7,15,30,90',
+                'treasury_statement_date_tolerance_days' => '3',
+                'treasury_statement_auto_match' => '0',
             ];
 
             foreach ($data as $row) {
