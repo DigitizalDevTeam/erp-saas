@@ -301,12 +301,17 @@
                                             </li>
                                         @endif
                                         @if (menu_can_node('menu.dashboard.accounting.cost_centres'))
-                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['cost-centres.index', 'cost-centres.create', 'cost-centres.edit', 'cost-centres.settings']) ? 'active dash-trigger' : '' }}">
+                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['cost-centres.index', 'cost-centres.create', 'cost-centres.edit', 'cost-centres.settings', 'treasury-dimensions.index', 'treasury-dimensions.bill-payment.edit', 'treasury-dimensions.receipt.edit']) ? 'active dash-trigger' : '' }}">
                                                 <a class="dash-link" href="#">{{ __('Cost Centres') }}<span class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                                                 <ul class="dash-submenu">
                                                     @if (menu_can('menu.dashboard.accounting.cost_centres.list'))
                                                         <li class="dash-item {{ in_array(Request::route()->getName(), ['cost-centres.index', 'cost-centres.create', 'cost-centres.edit']) ? ' active' : '' }}">
                                                             <a class="dash-link" href="{{ route('cost-centres.index') }}">{{ __('Cost Centre List') }}</a>
+                                                        </li>
+                                                    @endif
+                                                    @if (menu_can('menu.dashboard.accounting.cost_centres.treasury_dimensions'))
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['treasury-dimensions.index', 'treasury-dimensions.bill-payment.edit', 'treasury-dimensions.receipt.edit']) ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('treasury-dimensions.index') }}">{{ __('Treasury Dimensions') }}</a>
                                                         </li>
                                                     @endif
                                                     @if (menu_can('menu.dashboard.accounting.cost_centres.settings'))

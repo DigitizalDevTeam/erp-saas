@@ -3163,6 +3163,12 @@ class UsersTableSeeder extends Seeder
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
             [
+                'name' => 'manage treasury dimensions',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
                 'name' => 'manage contract type',
                 'guard_name' => 'web',
                 'created_at' => date('Y-m-d H:i:s'),
@@ -3954,6 +3960,7 @@ class UsersTableSeeder extends Seeder
             'deactivate cost centres',
             'manage cost centre allocations',
             'approve cost centre allocations',
+            'manage treasury dimensions',
             'manage contract type',
             'create contract type',
             'edit contract type',
