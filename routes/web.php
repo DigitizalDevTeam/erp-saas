@@ -131,7 +131,10 @@ use App\Http\Controllers\CostCentreController;
 use App\Http\Controllers\CostCentreDashboardController;
 use App\Http\Controllers\CostCentreReportController;
 use App\Http\Controllers\GlDimensionController;
+use App\Http\Controllers\TreasuryAccountController;
 use App\Http\Controllers\TreasuryDimensionController;
+use App\Http\Controllers\TreasuryOpeningBalanceController;
+use App\Http\Controllers\TreasurySettingsController;
 use App\Http\Controllers\KitchenReportController;
 use App\Http\Controllers\KitchenCostControlController;
 use App\Http\Controllers\KitchenLossController;
@@ -2600,6 +2603,21 @@ Route::group(['middleware' => ['verified']], function () {
     // Cost Centres — Phase 6: Dashboard + audit trail (plan §10/§13).
     Route::get('cost-centre-dashboard', [CostCentreDashboardController::class, 'index'])->name('cost-centre-dashboard.index')->middleware(['auth', 'XSS']);
     Route::get('cost-centre-audit-trail', [CostCentreAuditTrailController::class, 'index'])->name('cost-centre-audit-trail.index')->middleware(['auth', 'XSS']);
+
+    // Treasury — Phase 0: accounts foundation (plan §5/§10).
+    // 'settings' and 'import' are registered before the resource-style
+    // routes so they are not swallowed by {account} / {balance}.
+    Route::get('treasury/settings', [TreasurySettingsController::class, 'settings'])->name('treasury.settings')->middleware(['auth', 'XSS']);
+    Route::post('treasury/settings', [TreasurySettingsController::class, 'saveSettings'])->name('treasury.settings.save')->middleware(['auth', 'XSS']);
+    Route::get('treasury-accounts/{account}/statement', [TreasuryAccountController::class, 'statement'])->name('treasury-accounts.statement')->middleware(['auth', 'XSS']);
+    Route::post('treasury-accounts/{account}/deactivate', [TreasuryAccountController::class, 'deactivate'])->name('treasury-accounts.deactivate')->middleware(['auth', 'XSS']);
+    Route::post('treasury-accounts/{account}/reactivate', [TreasuryAccountController::class, 'reactivate'])->name('treasury-accounts.reactivate')->middleware(['auth', 'XSS']);
+    Route::resource('treasury-accounts', TreasuryAccountController::class)->parameters(['treasury-accounts' => 'account'])->names('treasury-accounts')->except(['show', 'destroy'])->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('treasury-opening-balances/import', [TreasuryOpeningBalanceController::class, 'importForm'])->name('treasury-opening-balances.import')->middleware(['auth', 'XSS']);
+    Route::post('treasury-opening-balances/import', [TreasuryOpeningBalanceController::class, 'importStore'])->name('treasury-opening-balances.import.store')->middleware(['auth', 'XSS']);
+    Route::post('treasury-opening-balances/{balance}/approve', [TreasuryOpeningBalanceController::class, 'approve'])->name('treasury-opening-balances.approve')->middleware(['auth', 'XSS']);
+    Route::post('treasury-opening-balances/{balance}/reverse', [TreasuryOpeningBalanceController::class, 'reverse'])->name('treasury-opening-balances.reverse')->middleware(['auth', 'XSS']);
+    Route::resource('treasury-opening-balances', TreasuryOpeningBalanceController::class)->parameters(['treasury-opening-balances' => 'balance'])->names('treasury-opening-balances')->except(['show'])->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');

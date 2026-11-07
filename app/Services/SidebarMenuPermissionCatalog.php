@@ -83,6 +83,13 @@ class SidebarMenuPermissionCatalog
                         self::node('Audit Trail', 'menu.dashboard.accounting.cost_centres.audit_trail', ['view cost centre reports']),
                         self::node('Settings', 'menu.dashboard.accounting.cost_centres.settings', ['edit cost centres']),
                     ]),
+                    self::node('Treasury', 'menu.dashboard.accounting.treasury', [
+                        'view treasury', 'manage treasury accounts', 'reverse treasury operations',
+                    ], [
+                        self::node('Accounts', 'menu.dashboard.accounting.treasury.accounts', ['view treasury']),
+                        self::node('Opening Balances', 'menu.dashboard.accounting.treasury.opening_balances', ['view treasury']),
+                        self::node('Settings', 'menu.dashboard.accounting.treasury.settings', ['manage treasury accounts']),
+                    ]),
                 ]),
                 self::node('Product system', 'menu.dashboard.product_system', ['stock report'], [
                     self::node('Overview', 'menu.dashboard.product_system.overview', ['stock report']),
