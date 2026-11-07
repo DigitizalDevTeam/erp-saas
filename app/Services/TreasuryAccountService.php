@@ -241,6 +241,31 @@ class TreasuryAccountService
             throw new TreasuryException('Resolve the draft opening balances first (approve or delete them) before deactivating the account.');
         }
 
+        // Phase 2: active reservations and open payment requests must
+        // be resolved first — an approved request holds a reservation
+        // on this account, and a pending request may still need it.
+        if (Schema::hasTable('treasury_fund_reservations')) {
+            $activeReservations = DB::table('treasury_fund_reservations')
+                ->where('financial_account_id', $account->id)
+                ->where('state', 'active')
+                ->count();
+
+            if ($activeReservations > 0) {
+                throw new TreasuryException('Resolve the active fund reservations first (consume or release them) before deactivating the account.');
+            }
+        }
+
+        if (Schema::hasTable('treasury_payment_requests')) {
+            $openRequests = DB::table('treasury_payment_requests')
+                ->where('source_account_id', $account->id)
+                ->whereIn('state', ['under_review', 'awaiting_approval', 'approved', 'processing', 'outcome_unknown'])
+                ->count();
+
+            if ($openRequests > 0) {
+                throw new TreasuryException('Resolve the open payment requests first (approve, reject or cancel them) before deactivating the account.');
+            }
+        }
+
         $before = $account->fresh()->toArray();
         $account->status = TreasuryFinancialAccount::STATUS_INACTIVE;
         $account->save();

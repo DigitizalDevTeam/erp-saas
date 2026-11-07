@@ -134,6 +134,7 @@ use App\Http\Controllers\GlDimensionController;
 use App\Http\Controllers\TreasuryAccountController;
 use App\Http\Controllers\TreasuryDimensionController;
 use App\Http\Controllers\TreasuryOpeningBalanceController;
+use App\Http\Controllers\TreasuryPaymentRequestController;
 use App\Http\Controllers\TreasuryReceiptController;
 use App\Http\Controllers\TreasurySettingsController;
 use App\Http\Controllers\KitchenReportController;
@@ -2631,6 +2632,20 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('treasury-receipts/{receipt}/allocate', [TreasuryReceiptController::class, 'allocate'])->name('treasury-receipts.allocate')->middleware(['auth', 'XSS']);
     Route::post('treasury-receipts/{receipt}/apply-credit', [TreasuryReceiptController::class, 'applyCredit'])->name('treasury-receipts.apply-credit')->middleware(['auth', 'XSS']);
     Route::resource('treasury-receipts', TreasuryReceiptController::class)->parameters(['treasury-receipts' => 'receipt'])->names('treasury-receipts')->middleware(['auth', 'XSS', 'revalidate']);
+
+    // Treasury Phase 2 — payment requests + approvals + reservations.
+    // The resource parameter is named payment_request (not request) so
+    // it never shadows Illuminate\Http\Request in the controller.
+    Route::get('treasury-payment-requests/approvals', [TreasuryPaymentRequestController::class, 'approvals'])->name('treasury-payment-requests.approvals')->middleware(['auth', 'XSS']);
+    Route::get('treasury-payment-requests/reservations', [TreasuryPaymentRequestController::class, 'reservations'])->name('treasury-payment-requests.reservations')->middleware(['auth', 'XSS']);
+    Route::post('treasury-payment-requests/{payment_request}/submit', [TreasuryPaymentRequestController::class, 'submit'])->name('treasury-payment-requests.submit')->middleware(['auth', 'XSS']);
+    Route::post('treasury-payment-requests/{payment_request}/send-for-approval', [TreasuryPaymentRequestController::class, 'sendForApproval'])->name('treasury-payment-requests.send-for-approval')->middleware(['auth', 'XSS']);
+    Route::post('treasury-payment-requests/{payment_request}/reject', [TreasuryPaymentRequestController::class, 'reject'])->name('treasury-payment-requests.reject')->middleware(['auth', 'XSS']);
+    Route::post('treasury-payment-requests/{payment_request}/return-to-draft', [TreasuryPaymentRequestController::class, 'returnToDraft'])->name('treasury-payment-requests.return-to-draft')->middleware(['auth', 'XSS']);
+    Route::post('treasury-payment-requests/{payment_request}/cancel', [TreasuryPaymentRequestController::class, 'cancel'])->name('treasury-payment-requests.cancel')->middleware(['auth', 'XSS']);
+    Route::post('treasury-approval-steps/{step}/decide', [TreasuryPaymentRequestController::class, 'decide'])->name('treasury-approval-steps.decide')->middleware(['auth', 'XSS']);
+    Route::post('treasury-approval-steps/{step}/substitute', [TreasuryPaymentRequestController::class, 'assignSubstitute'])->name('treasury-approval-steps.substitute')->middleware(['auth', 'XSS']);
+    Route::resource('treasury-payment-requests', TreasuryPaymentRequestController::class)->parameters(['treasury-payment-requests' => 'payment_request'])->names('treasury-payment-requests')->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');

@@ -3235,6 +3235,18 @@ class UsersTableSeeder extends Seeder
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
             [
+                'name' => 'create treasury payment requests',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
+                'name' => 'approve treasury payments',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
                 'name' => 'manage contract type',
                 'guard_name' => 'web',
                 'created_at' => date('Y-m-d H:i:s'),
@@ -4038,6 +4050,8 @@ class UsersTableSeeder extends Seeder
             'create treasury receipts',
             'confirm treasury receipts',
             'allocate treasury receipts',
+            'create treasury payment requests',
+            'approve treasury payments',
             'manage contract type',
             'create contract type',
             'edit contract type',
