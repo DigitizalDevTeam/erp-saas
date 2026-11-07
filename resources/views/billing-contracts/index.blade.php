@@ -52,6 +52,15 @@
                         </div>
                     </form>
 
+                    @if ($endingSoonCount > 0)
+                        <p class="mb-3">
+                            <a href="{{ route('billing-contracts.index', ['ending_soon' => 1]) }}" class="btn btn-sm btn-warning">{{ __('Contracts ending soon (30 days)') }}: {{ $endingSoonCount }}</a>
+                            @if (request('ending_soon'))
+                                <a href="{{ route('billing-contracts.index') }}" class="btn btn-sm btn-light">{{ __('Show all') }}</a>
+                            @endif
+                        </p>
+                    @endif
+
                     <div class="table-responsive">
                         <table class="table table-hover">
                             <thead>

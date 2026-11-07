@@ -6,6 +6,8 @@ use App\Exceptions\BillingContractException;
 use App\Models\BillingContract;
 use App\Models\BillingContractOccurrence;
 use App\Models\BillingDeliveryAttempt;
+use App\Models\BillingReminder;
+use App\Models\BillingRenewal;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\ProductService;
@@ -13,8 +15,12 @@ use App\Models\Tax;
 use App\Services\BillingContractService;
 use App\Services\BillingInvoiceService;
 use App\Services\BillingOccurrenceService;
+use App\Services\BillingPaymentService;
+use App\Services\BillingReminderService;
+use App\Services\BillingRenewalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Contract Management Phase 1 — billing contracts (plan §5, §8).
@@ -35,12 +41,24 @@ class BillingContractController extends Controller
     protected BillingContractService $service;
     protected BillingOccurrenceService $occurrences;
     protected BillingInvoiceService $billing;
+    protected BillingPaymentService $payments;
+    protected BillingReminderService $reminders;
+    protected BillingRenewalService $renewals;
 
-    public function __construct(BillingContractService $service, BillingOccurrenceService $occurrences, BillingInvoiceService $billing)
-    {
+    public function __construct(
+        BillingContractService $service,
+        BillingOccurrenceService $occurrences,
+        BillingInvoiceService $billing,
+        ?BillingPaymentService $payments = null,
+        ?BillingReminderService $reminders = null,
+        ?BillingRenewalService $renewals = null
+    ) {
         $this->service = $service;
         $this->occurrences = $occurrences;
         $this->billing = $billing;
+        $this->payments = $payments ?? new BillingPaymentService();
+        $this->reminders = $reminders ?? new BillingReminderService($this->payments, $this->billing);
+        $this->renewals = $renewals ?? new BillingRenewalService($this->service);
     }
 
     public function index(Request $request)
@@ -68,10 +86,17 @@ class BillingContractController extends Controller
             });
         }
 
+        // Phase 3: "Contracts ending soon" — end date within 30 days.
+        $endingSoonCount = $this->renewals->endingSoon($creatorId)->count();
+        if ($request->boolean('ending_soon')) {
+            $endingIds = $this->renewals->endingSoon($creatorId)->pluck('id')->all();
+            $query->whereIn('id', $endingIds);
+        }
+
         $contracts = $query->paginate(25);
         $customers = Customer::where('created_by', $creatorId)->orderBy('name')->get();
 
-        return view('billing-contracts.index', compact('contracts', 'customers'));
+        return view('billing-contracts.index', compact('contracts', 'customers', 'endingSoonCount'));
     }
 
     public function create()
@@ -127,7 +152,13 @@ class BillingContractController extends Controller
             ->orderBy('period_start')
             ->get();
 
-        return view('billing-contracts.show', compact('contract', 'occurrences', 'invoices'));
+        // Phase 3: payment summary, renewal state.
+        $paymentsSummary = $this->payments->summaryForContract($contract);
+        $pendingRenewal = $this->renewals->pendingRenewal($contract);
+        $canRenew = $this->renewals->canRenew($contract);
+        $renewalHistory = $this->renewals->renewalHistory($contract);
+
+        return view('billing-contracts.show', compact('contract', 'occurrences', 'invoices', 'paymentsSummary', 'pendingRenewal', 'canRenew', 'renewalHistory'));
     }
 
     public function edit(int $id)
@@ -249,8 +280,14 @@ class BillingContractController extends Controller
         $attempt = $occurrence->invoice_id
             ? BillingDeliveryAttempt::where('invoice_id', $occurrence->invoice_id)->first()
             : null;
+        // Phase 3: the reminder row for this occurrence's invoice, if any.
+        // The reminders table arrives with the Phase 3 migration;
+        // before it runs there can be no reminder row.
+        $reminder = ($occurrence->invoice_id && Schema::hasTable('billing_reminders'))
+            ? BillingReminder::where('invoice_id', $occurrence->invoice_id)->first()
+            : null;
 
-        return view('billing-contracts.occurrence-show', compact('contract', 'occurrence', 'history', 'attempt'));
+        return view('billing-contracts.occurrence-show', compact('contract', 'occurrence', 'history', 'attempt', 'reminder'));
     }
 
     /** Manual "Generate now" for one contract (all its due occurrences). */
@@ -340,6 +377,179 @@ class BillingContractController extends Controller
             ->with('error', __('Email could not be sent: :e', ['e' => $error]));
     }
 
+    // ---------------------------------------------------------------
+    // Phase 3 — payments (AC12), reminders, renewals
+    // ---------------------------------------------------------------
+
+    /** Contract payments view: each issued invoice, amount, paid, due, state. */
+    public function payments(int $id)
+    {
+        if (! $this->canView()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $contract = $this->contractForCompany((int) Auth::user()->creatorId(), $id);
+        } catch (BillingContractException $e) {
+            return redirect()->route('billing-contracts.index')->with('error', $e->getMessage());
+        }
+
+        $rows = $this->payments->paymentsForContract($contract);
+        $summary = $this->payments->summaryForContract($contract);
+
+        return view('billing-contracts.payments', compact('contract', 'rows', 'summary'));
+    }
+
+    /** Reminders list for one contract + its per-invoice reminder history. */
+    public function reminders(int $id)
+    {
+        if (! $this->canView()) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $contract = $this->contractForCompany((int) Auth::user()->creatorId(), $id);
+        } catch (BillingContractException $e) {
+            return redirect()->route('billing-contracts.index')->with('error', $e->getMessage());
+        }
+
+        $creatorId = (int) Auth::user()->creatorId();
+        $this->reminders->syncReminders($creatorId);
+        $reminders = BillingReminder::where('contract_id', $contract->id)
+            ->where('created_by', $creatorId)
+            ->with(['occurrence', 'invoice'])
+            ->orderByDesc('id')
+            ->paginate(25);
+        $settings = $this->reminders->reminderSettings($creatorId);
+
+        return view('billing-contracts.reminders', compact('contract', 'reminders', 'settings'));
+    }
+
+    /** Manual send of a reminder for one occurrence's invoice (same invoice, same PDF). */
+    public function remindNow(int $contractId, int $occurrenceId)
+    {
+        if (! Auth::user()->can('manage billing contracts')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $creatorId = (int) Auth::user()->creatorId();
+            $contract = $this->contractForCompany($creatorId, $contractId);
+            $occurrence = $contract->occurrences()->find($occurrenceId);
+            if (! $occurrence || ! $occurrence->invoice_id) {
+                return redirect()->back()->with('error', __('No issued invoice for this period.'));
+            }
+
+            $this->reminders->syncReminders($creatorId);
+            $reminder = BillingReminder::where('invoice_id', $occurrence->invoice_id)
+                ->where('created_by', $creatorId)
+                ->first();
+
+            if (! $reminder) {
+                return redirect()->back()->with('error', __('This invoice is not overdue, so no reminder is due.'));
+            }
+
+            $result = $this->reminders->sendReminderNow($reminder, (int) Auth::id());
+        } catch (BillingContractException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        if ($result['status'] === 'sent') {
+            return redirect()->back()->with('success', __('Payment reminder sent.'));
+        }
+        if ($result['status'] === 'stopped') {
+            return redirect()->back()->with('error', __('The reminder was stopped: the invoice is settled or the reminder limit was reached.'));
+        }
+
+        return redirect()->back()->with('error', __('The reminder could not be sent.') . ' ' . ($result['reminder']->last_error ?? ''));
+    }
+
+    /** Renewal draft form: new start/end pre-filled (old end + 1 day, same term). */
+    public function renewForm(int $id)
+    {
+        if (! Auth::user()->can('manage billing contracts')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $contract = $this->contractForCompany((int) Auth::user()->creatorId(), $id);
+            $contract->load(['customer', 'lines']);
+        } catch (BillingContractException $e) {
+            return redirect()->route('billing-contracts.index')->with('error', $e->getMessage());
+        }
+
+        if (! $this->renewals->canRenew($contract)) {
+            return redirect()->route('billing-contracts.show', $contract->id)
+                ->with('error', __('This contract cannot be renewed (it has no end date, is not active or ended, or already has a pending renewal).'));
+        }
+
+        $oldEnd = \Carbon\Carbon::parse($contract->end_date)->startOfDay();
+        $oldStart = \Carbon\Carbon::parse($contract->start_date)->startOfDay();
+        $newStart = $oldEnd->copy()->addDay()->format('Y-m-d');
+        $newEnd = $oldEnd->copy()->addDay()->addDays($oldStart->diffInDays($oldEnd))->format('Y-m-d');
+
+        return view('billing-contracts.renew', compact('contract', 'newStart', 'newEnd'));
+    }
+
+    /** Create the renewal draft (same customer, lines, frequency, terms; new reference). */
+    public function renew(Request $request, int $id)
+    {
+        if (! Auth::user()->can('manage billing contracts')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $contract = $this->contractForCompany((int) Auth::user()->creatorId(), $id);
+
+            $overrides = [];
+            if ($request->filled('title')) {
+                $overrides['title'] = $request->input('title');
+            }
+            if ($request->filled('start_date')) {
+                $overrides['start_date'] = $request->input('start_date');
+            }
+            // An explicitly cleared end date means open-ended.
+            if ($request->has('end_date')) {
+                $overrides['end_date'] = $request->input('end_date') ?: null;
+            }
+
+            $new = $this->renewals->renew($contract, (int) Auth::id(), $overrides);
+        } catch (BillingContractException $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('billing-contracts.show', $new->id)
+            ->with('success', __('Renewal draft created (:ref). It needs the same approval as a new contract.', ['ref' => $new->reference]));
+    }
+
+    /** Abandon a pending renewal: the old contract simply ends. */
+    public function abandonRenewal(int $contractId, int $renewalId)
+    {
+        if (! Auth::user()->can('manage billing contracts')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $creatorId = (int) Auth::user()->creatorId();
+            $contract = $this->contractForCompany($creatorId, $contractId);
+            $renewal = BillingRenewal::where('id', $renewalId)
+                ->where('contract_id', $contract->id)
+                ->where('created_by', $creatorId)
+                ->first();
+
+            if (! $renewal) {
+                return redirect()->back()->with('error', __('Renewal not found for this contract.'));
+            }
+
+            $this->renewals->abandon($renewal, (int) Auth::id());
+        } catch (BillingContractException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('billing-contracts.show', $contract->id)
+            ->with('success', __('Renewal abandoned.'));
+    }
+
     /**
      * Preview of the first 3 occurrences for unsaved form data.
      * Returns JSON; the create/edit form calls it with the
@@ -383,7 +593,21 @@ class BillingContractController extends Controller
 
     public function activate(int $id)
     {
-        return $this->lifecycle($id, 'manage billing contracts', fn (BillingContract $c) => $this->service->activate($c, (int) Auth::id()), __('Billing contract activated.'));
+        if (! Auth::user()->can('manage billing contracts')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $contract = $this->contractForCompany((int) Auth::user()->creatorId(), $id);
+            $contract = $this->service->activate($contract, (int) Auth::id());
+            // Phase 3: a renewal draft that just became active
+            // completes its renewal event.
+            $this->renewals->syncRenewalStatus($contract);
+        } catch (BillingContractException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('billing-contracts.show', $contract->id)->with('success', __('Billing contract activated.'));
     }
 
     public function suspend(Request $request, int $id)

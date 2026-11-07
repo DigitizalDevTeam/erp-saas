@@ -89,7 +89,7 @@ class BillingContract extends Model
         'rejected_reason', 'suspended_reason', 'suspended_at',
         'ended_at', 'cancelled_at', 'renewal_notice_days', 'auto_renew',
         'delivery_auto_email', 'delivery_to', 'delivery_cc', 'notes',
-        'current_revision_id',
+        'current_revision_id', 'renewed_from_id',
     ];
 
     protected $casts = [
@@ -134,6 +134,18 @@ class BillingContract extends Model
     public function currentRevision()
     {
         return $this->belongsTo(BillingContractRevision::class, 'current_revision_id');
+    }
+
+    /** The contract this one was renewed from, if any (Phase 3). */
+    public function renewedFrom()
+    {
+        return $this->belongsTo(BillingContract::class, 'renewed_from_id');
+    }
+
+    /** Renewal events where this contract is the old one (Phase 3). */
+    public function renewals()
+    {
+        return $this->hasMany(BillingRenewal::class, 'contract_id');
     }
 
     public function isEditable(): bool
