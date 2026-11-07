@@ -40,6 +40,19 @@ class TreasurySettings
     public const KEY_WITHHOLDING_ACCOUNT_CODE = 'treasury_withholding_account_code';
     public const KEY_DISCOUNT_ACCOUNT_CODE = 'treasury_discount_account_code';
     public const KEY_CUSTOMER_CREDIT_ACCOUNT_CODE = 'treasury_customer_credit_account_code';
+    // Phase 2 — approval rules (JSON list of levels) + reservation
+    // threshold (base-currency amount at/above which approval reserves
+    // funds). D4/D5 (plan §12): no client example was given, so the
+    // default is one approval level for every request and a second,
+    // independent level at/above 100,000 base — configurable per
+    // company through the same settings screen.
+    public const KEY_APPROVAL_RULES = 'treasury_approval_rules';
+    public const KEY_RESERVATION_THRESHOLD = 'treasury_reservation_threshold_base';
+
+    public const DEFAULT_APPROVAL_RULES = [
+        ['level' => 1, 'min_amount_base' => '0', 'permission' => 'approve treasury payments', 'required_votes' => 1],
+        ['level' => 2, 'min_amount_base' => '100000', 'permission' => 'approve treasury payments', 'required_votes' => 1],
+    ];
 
     public const NEGATIVE_BALANCE_POLICIES = ['block', 'allow', 'approval'];
     public const RESERVATION_POLICIES = ['off', 'on'];
@@ -61,7 +74,63 @@ class TreasurySettings
         self::KEY_WITHHOLDING_ACCOUNT_CODE => '',
         self::KEY_DISCOUNT_ACCOUNT_CODE => '',
         self::KEY_CUSTOMER_CREDIT_ACCOUNT_CODE => '',
+        self::KEY_APPROVAL_RULES => '',
+        self::KEY_RESERVATION_THRESHOLD => '0',
     ];
+
+    /**
+     * Approval rules for a company, normalised to a list of levels
+     * [{level, min_amount_base, permission, required_votes}]. An
+     * invalid or empty stored value falls back to the default rules.
+     */
+    public static function approvalRules(int $creatorId): array
+    {
+        $raw = trim((string) (self::get($creatorId, self::KEY_APPROVAL_RULES) ?? ''));
+
+        $rules = [];
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $rule) {
+                    if (! is_array($rule)) {
+                        continue;
+                    }
+                    $level = (int) ($rule['level'] ?? 0);
+                    $permission = trim((string) ($rule['permission'] ?? ''));
+                    $votes = (int) ($rule['required_votes'] ?? 1);
+                    $min = isset($rule['min_amount_base']) && is_numeric($rule['min_amount_base'])
+                        ? number_format((float) $rule['min_amount_base'], 4, '.', '')
+                        : '0.0000';
+                    if ($level > 0 && $permission !== '' && $votes > 0) {
+                        $rules[] = [
+                            'level' => $level,
+                            'min_amount_base' => $min,
+                            'permission' => $permission,
+                            'required_votes' => $votes,
+                        ];
+                    }
+                }
+            }
+        }
+
+        if ($rules === []) {
+            $rules = self::DEFAULT_APPROVAL_RULES;
+        }
+
+        usort($rules, fn ($a, $b) => $a['level'] <=> $b['level']);
+
+        return array_values($rules);
+    }
+
+    /** Reservation threshold in base currency (D4). */
+    public static function reservationThreshold(int $creatorId): string
+    {
+        $raw = trim((string) (self::get($creatorId, self::KEY_RESERVATION_THRESHOLD) ?? ''));
+
+        return is_numeric($raw) && (float) $raw >= 0
+            ? number_format((float) $raw, 4, '.', '')
+            : '0.0000';
+    }
 
     public static function forCompany(int $creatorId): array
     {
@@ -151,6 +220,22 @@ class TreasurySettings
         ] as $key) {
             $values[$key] = substr(trim((string) ($input[$key] ?? '')), 0, 20);
         }
+
+        // Phase 2 approval rules: a JSON list of levels. Invalid JSON
+        // or a level list with no usable level keeps the default.
+        $rulesRaw = trim((string) ($input[self::KEY_APPROVAL_RULES] ?? ''));
+        if ($rulesRaw !== '') {
+            $decoded = json_decode($rulesRaw, true);
+            $usable = is_array($decoded) && array_values(array_filter($decoded, fn ($r) => is_array($r) && (int) ($r['level'] ?? 0) > 0 && trim((string) ($r['permission'] ?? '')) !== '')) !== [];
+            $values[self::KEY_APPROVAL_RULES] = $usable ? $rulesRaw : '';
+        } else {
+            $values[self::KEY_APPROVAL_RULES] = '';
+        }
+
+        $threshold = trim((string) ($input[self::KEY_RESERVATION_THRESHOLD] ?? ''));
+        $values[self::KEY_RESERVATION_THRESHOLD] = is_numeric($threshold) && (float) $threshold >= 0
+            ? number_format((float) $threshold, 4, '.', '')
+            : self::DEFAULTS[self::KEY_RESERVATION_THRESHOLD];
 
         foreach ($values as $name => $value) {
             DB::table('settings')->updateOrInsert(
