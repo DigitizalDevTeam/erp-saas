@@ -600,6 +600,10 @@ namespace App\Models;
                 'treasury_forecast_horizons' => '7,15,30,90',
                 'treasury_statement_date_tolerance_days' => '3',
                 'treasury_statement_auto_match' => '0',
+                'treasury_fee_account_code' => '',
+                'treasury_withholding_account_code' => '',
+                'treasury_discount_account_code' => '',
+                'treasury_customer_credit_account_code' => '',
             ];
 
             foreach ($data as $row) {
