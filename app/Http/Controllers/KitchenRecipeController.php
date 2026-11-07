@@ -325,7 +325,11 @@ class KitchenRecipeController extends Controller
             // scoped per company AND version (migration 230000).
             'code' => ['required', 'string', 'max:50', Rule::unique('kitchen_recipes', 'code')->where('created_by', $creatorId)->where('version', $version)->ignore($ignoreId)],
             'name' => ['required', 'string', 'max:255'],
-            'product_id' => ['required', 'integer', Rule::exists('product_services', 'id')->where('created_by', $creatorId)->whereIn('type', ['product', 'ingredient', 'kit'])],
+            // One recipe per dish per version (same unique key as the code
+            // rule). Without this the DB unique key was the only guard, so
+            // a second recipe for the same dish crashed with a 500
+            // (SQLSTATE 1062) instead of a friendly validation error.
+            'product_id' => ['required', 'integer', Rule::exists('product_services', 'id')->where('created_by', $creatorId)->whereIn('type', ['product', 'ingredient', 'kit']), Rule::unique('kitchen_recipes', 'product_id')->where('created_by', $creatorId)->where('version', $version)->ignore($ignoreId)],
             'category_id' => ['nullable', 'integer'],
             'expected_yield_quantity' => ['nullable', 'numeric', 'min:0'],
             'expected_yield_unit_id' => ['nullable', 'integer'],
@@ -340,6 +344,8 @@ class KitchenRecipeController extends Controller
             'cost_centre_id' => ['nullable', 'integer'],
             'branch_id' => ['nullable', 'integer'],
             'photo' => ['nullable', 'image', 'max:5120'],
+        ], [
+            'product_id.unique' => __('A recipe already exists for this dish. Edit the existing recipe instead of creating a new one.'),
         ]);
 
         // The column is NOT NULL with a DB default of 0, but an explicit
