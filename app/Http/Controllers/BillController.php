@@ -1156,6 +1156,9 @@ class BillController extends Controller
 
             // Cost Centres — Phase 3: the payment is gone, so its
             // dimensions follow it (superseded, never orphaned).
+            // $allowClosedPeriod = true: the payment itself was just
+            // deleted, so its dimensions must follow even in a closed
+            // period — otherwise they would be orphaned rows.
             try {
                 if (\Illuminate\Support\Facades\Schema::hasTable('treasury_line_dimensions')) {
                     app(\App\Services\TreasuryDimensionService::class)->removeForPayment(
@@ -1163,7 +1166,8 @@ class BillController extends Controller
                         (int) $payment_id,
                         (int) \Auth::user()->creatorId(),
                         (int) \Auth::id(),
-                        __('Bill payment deleted.')
+                        __('Bill payment deleted.'),
+                        true
                     );
                 }
             } catch (\Throwable $e) {

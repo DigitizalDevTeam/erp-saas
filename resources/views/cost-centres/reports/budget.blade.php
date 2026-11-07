@@ -13,6 +13,12 @@
         <a href="{{ route('cost-centre-reports.budget', array_merge(request()->query(), ['export' => 'csv'])) }}" class="btn btn-sm btn-secondary">
             <i class="ti ti-download"></i> {{ __('Export CSV') }}
         </a>
+        <a href="{{ route('cost-centre-reports.budget', array_merge(request()->query(), ['export' => 'xlsx'])) }}" class="btn btn-sm btn-secondary">
+            <i class="ti ti-download"></i> {{ __('Export XLSX') }}
+        </a>
+        <a href="{{ route('cost-centre-reports.budget', array_merge(request()->query(), ['export' => 'pdf'])) }}" class="btn btn-sm btn-secondary">
+            <i class="ti ti-download"></i> {{ __('Export PDF') }}
+        </a>
     </div>
 @endsection
 

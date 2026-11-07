@@ -275,6 +275,15 @@ class DimensionPostingService
         $lineType = $this->normalisedLineType($lineType, $lineId, $creatorId);
         $lineId = $this->normalisedLineId($lineType, $lineId, $creatorId);
 
+        // Closed-period protection (Phase 6 hardening): clearing a tag
+        // is a write into the line's period, so it is blocked the same
+        // way attachToLine is. lineInfo() also re-asserts the line
+        // belongs to this company. Before this check, a closed-period
+        // journal edit could strip dimensions while attachToLine
+        // refused to re-tag them.
+        $info = $this->lineInfo($lineType, $lineId, $creatorId);
+        $this->allocations->assertPeriodOpen($creatorId, $info['date']);
+
         $before = $this->summaryForLine($lineType, $lineId, $creatorId);
         if ($before['rows'] === []) {
             return;
@@ -334,6 +343,15 @@ class DimensionPostingService
                 'rows' => 0,
                 'warnings' => [__('The bill line has no posted transaction line yet, so there is nothing to sync.')],
             ];
+        }
+
+        // Closed-period protection (Phase 6 hardening): syncing writes
+        // dimension rows dated to the transaction line, so a line in a
+        // closed fiscal year refuses to sync — the same way a manual
+        // tag on that line is refused. The allocation stays posted and
+        // the sync can run after an authorised reopen.
+        if ($tl->date) {
+            $this->allocations->assertPeriodOpen($creatorId, Carbon::parse($tl->date));
         }
 
         $warnings = [];
