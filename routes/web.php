@@ -125,6 +125,8 @@ use App\Http\Controllers\PosAuditLogController;
 use App\Http\Controllers\PosProductionController;
 use App\Http\Controllers\KitchenRecipeController;
 use App\Http\Controllers\KitchenProductionOrderController;
+use App\Http\Controllers\KitchenProductionPlanController;
+use App\Http\Controllers\KitchenRequisitionController;
 use App\Http\Controllers\KitchenStockController;
 use App\Http\Controllers\PosTableController;
 use App\Http\Controllers\ProductServiceCategoryController;
@@ -2484,6 +2486,24 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('kitchen-production-orders', KitchenProductionOrderController::class)->parameters(['kitchen-production-orders' => 'order'])->names('kitchen.production-orders')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('kitchen-stock', [KitchenStockController::class, 'index'])->name('kitchen.stock.index')->middleware(['auth', 'XSS']);
     Route::get('kitchen-stock/{batch}', [KitchenStockController::class, 'show'])->name('kitchen.stock.show')->middleware(['auth', 'XSS']);
+
+    // Kitchen Production — Phase 3: Production Plans (plan §3, §5–§6).
+    Route::post('kitchen-production-plans/{plan}/submit', [KitchenProductionPlanController::class, 'submit'])->name('kitchen.production-plans.submit')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-production-plans/{plan}/approve', [KitchenProductionPlanController::class, 'approve'])->name('kitchen.production-plans.approve')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-production-plans/{plan}/reject', [KitchenProductionPlanController::class, 'reject'])->name('kitchen.production-plans.reject')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-production-plans/{plan}/refresh-occupancy', [KitchenProductionPlanController::class, 'refreshOccupancy'])->name('kitchen.production-plans.refresh-occupancy')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-production-plans/{plan}/create-orders', [KitchenProductionPlanController::class, 'createOrders'])->name('kitchen.production-plans.create-orders')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-production-plans/{plan}/complete', [KitchenProductionPlanController::class, 'complete'])->name('kitchen.production-plans.complete')->middleware(['auth', 'XSS']);
+    Route::resource('kitchen-production-plans', KitchenProductionPlanController::class)->parameters(['kitchen-production-plans' => 'plan'])->names('kitchen.production-plans')->middleware(['auth', 'XSS', 'revalidate']);
+
+    // Kitchen Production — Phase 3: Requisitions (plan §3, §5–§6).
+    Route::post('kitchen-requisitions/{requisition}/approve', [KitchenRequisitionController::class, 'approve'])->name('kitchen.requisitions.approve')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-requisitions/{requisition}/reject', [KitchenRequisitionController::class, 'reject'])->name('kitchen.requisitions.reject')->middleware(['auth', 'XSS']);
+    Route::get('kitchen-requisitions/{requisition}/issue', [KitchenRequisitionController::class, 'issueForm'])->name('kitchen.requisitions.issue')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-requisitions/{requisition}/issue', [KitchenRequisitionController::class, 'issue'])->name('kitchen.requisitions.issue.store')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-production-plans/{plan}/requisition', [KitchenRequisitionController::class, 'fromPlan'])->name('kitchen.requisitions.from-plan')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-production-orders/{order}/requisition', [KitchenRequisitionController::class, 'fromOrder'])->name('kitchen.requisitions.from-order')->middleware(['auth', 'XSS']);
+    Route::resource('kitchen-requisitions', KitchenRequisitionController::class)->parameters(['kitchen-requisitions' => 'requisition'])->names('kitchen.requisitions')->middleware(['auth', 'XSS', 'revalidate']);
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
     Route::get('pos/retail/{cid?}', [PosController::class, 'index'])->name('pos.index')->defaults('cid', null)->middleware(['auth', 'XSS', 'revalidate']);

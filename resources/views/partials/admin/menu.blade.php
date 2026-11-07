@@ -1629,6 +1629,16 @@
                                         <a class="dash-link" href="{{ route('kitchen.stock.index') }}">{{ __('Kitchen Stock') }}</a>
                                     </li>
                                     @endif
+                                    @if (menu_can('menu.kitchen_production.production_plans'))
+                                    <li class="dash-item {{ in_array(Request::route()->getName(), ['kitchen.production-plans.index', 'kitchen.production-plans.create', 'kitchen.production-plans.show', 'kitchen.production-plans.edit']) ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('kitchen.production-plans.index') }}">{{ __('Production Plans') }}</a>
+                                    </li>
+                                    @endif
+                                    @if (menu_can('menu.kitchen_production.requisitions'))
+                                    <li class="dash-item {{ in_array(Request::route()->getName(), ['kitchen.requisitions.index', 'kitchen.requisitions.create', 'kitchen.requisitions.show', 'kitchen.requisitions.edit', 'kitchen.requisitions.issue']) ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('kitchen.requisitions.index') }}">{{ __('Requisitions') }}</a>
+                                    </li>
+                                    @endif
                                 </ul>
                             </li>
                             @endif

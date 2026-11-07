@@ -124,6 +124,7 @@ class KitchenProductionOrderServiceTest extends TestCase
             $table->increments('id');
             $table->string('order_number', 30)->nullable();
             $table->integer('kitchen_recipe_id');
+            $table->integer('kitchen_production_plan_id')->nullable();
             $table->integer('recipe_version')->default(1);
             $table->date('production_date')->nullable();
             $table->string('section', 30)->nullable();

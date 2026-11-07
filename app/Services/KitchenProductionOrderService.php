@@ -153,6 +153,9 @@ class KitchenProductionOrderService
         return DB::transaction(function () use ($data, $user, $creatorId, $recipe, $planned) {
             $order = KitchenProductionOrder::create([
                 'kitchen_recipe_id' => (int) $recipe->id,
+                // Phase 3: the plan this order was generated from (null
+                // for orders created directly from the Orders screen).
+                'kitchen_production_plan_id' => ! empty($data['kitchen_production_plan_id']) ? (int) $data['kitchen_production_plan_id'] : null,
                 'recipe_version' => (int) $recipe->version,
                 'production_date' => $data['production_date'],
                 'section' => $data['section'] ?? null,

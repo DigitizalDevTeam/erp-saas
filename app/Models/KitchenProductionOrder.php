@@ -33,6 +33,7 @@ class KitchenProductionOrder extends Model
     protected $fillable = [
         'order_number',
         'kitchen_recipe_id',
+        'kitchen_production_plan_id',
         'recipe_version',
         'production_date',
         'section',
@@ -86,6 +87,12 @@ class KitchenProductionOrder extends Model
     public function recipe()
     {
         return $this->belongsTo(KitchenRecipe::class, 'kitchen_recipe_id', 'id');
+    }
+
+    /** The plan this order was generated from (Phase 3; null for direct orders). */
+    public function plan()
+    {
+        return $this->belongsTo(KitchenProductionPlan::class, 'kitchen_production_plan_id', 'id');
     }
 
     public function lines()
