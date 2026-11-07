@@ -70,10 +70,12 @@ class SidebarMenuPermissionCatalog
                     ]),
                     self::node('Cost Centres', 'menu.dashboard.accounting.cost_centres', [
                         'view cost centres', 'create cost centres', 'edit cost centres', 'deactivate cost centres',
-                        'manage treasury dimensions',
+                        'manage treasury dimensions', 'manage gl dimensions', 'view cost centre reports',
                     ], [
                         self::node('Cost Centre List', 'menu.dashboard.accounting.cost_centres.list', ['view cost centres']),
                         self::node('Treasury Dimensions', 'menu.dashboard.accounting.cost_centres.treasury_dimensions', ['manage treasury dimensions']),
+                        self::node('GL Dimensions', 'menu.dashboard.accounting.cost_centres.gl_dimensions', ['manage gl dimensions']),
+                        self::node('Reports', 'menu.dashboard.accounting.cost_centres.reports', ['view cost centre reports']),
                         self::node('Settings', 'menu.dashboard.accounting.cost_centres.settings', ['edit cost centres']),
                     ]),
                 ]),
