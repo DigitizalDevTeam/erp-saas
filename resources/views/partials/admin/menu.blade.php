@@ -1639,6 +1639,11 @@
                                         <a class="dash-link" href="{{ route('kitchen.requisitions.index') }}">{{ __('Requisitions') }}</a>
                                     </li>
                                     @endif
+                                    @if (menu_can('menu.kitchen_production.losses'))
+                                    <li class="dash-item {{ in_array(Request::route()->getName(), ['kitchen.losses.index', 'kitchen.losses.create', 'kitchen.losses.show', 'kitchen.losses.edit']) ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('kitchen.losses.index') }}">{{ __('Losses') }}</a>
+                                    </li>
+                                    @endif
                                 </ul>
                             </li>
                             @endif

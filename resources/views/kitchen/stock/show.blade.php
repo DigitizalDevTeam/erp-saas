@@ -62,5 +62,44 @@
                 </div>
             @endif
         </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5>{{ __('Reconciliation') }}</h5>
+                    <p class="mb-1"><strong>{{ __('Produced') }}:</strong> {{ number_format($reconciliation['produced'], 2) }} {{ $batch->unit ? $batch->unit->name : '' }}</p>
+                    <p class="mb-1"><strong>{{ __('Sold') }}:</strong> {{ number_format($reconciliation['sold'], 2) }} {{ $batch->unit ? $batch->unit->name : '' }}</p>
+                    <p class="mb-1"><strong>{{ __('Lost') }}:</strong> {{ number_format($reconciliation['lost'], 2) }} {{ $batch->unit ? $batch->unit->name : '' }}</p>
+                    <p class="mb-1"><strong>{{ __('Remaining') }}:</strong> {{ number_format($reconciliation['remaining'], 2) }} {{ $batch->unit ? $batch->unit->name : '' }}</p>
+                    <p class="mb-0">
+                        @if ($reconciliation['balanced'])
+                            <span class="badge bg-success">{{ __('Balanced') }}</span>
+                        @else
+                            <span class="badge bg-danger">{{ __('Out of balance — difference :diff', ['diff' => $reconciliation['difference']]) }}</span>
+                        @endif
+                    </p>
+                    <p class="text-muted small mb-0">{{ __('Produced − sold − lost = remaining.') }}</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h5>{{ __('Losses on This Batch') }}</h5>
+                    @forelse ($losses as $loss)
+                        <p class="mb-1">
+                            <a href="{{ route('kitchen.losses.show', $loss->id) }}">{{ $loss->loss_number }}</a>
+                            — {{ ucfirst(str_replace('_', ' ', $loss->category)) }},
+                            {{ number_format((float) $loss->quantity, 2) }} {{ $batch->unit ? $batch->unit->name : '' }},
+                            {{ ucfirst($loss->status) }}
+                        </p>
+                    @empty
+                        <p class="mb-0 text-muted">{{ __('No losses recorded on this batch.') }}</p>
+                    @endforelse
+                    @can('manage kitchen losses')
+                        <a href="{{ route('kitchen.losses.create', ['batch_id' => $batch->id]) }}" class="btn btn-sm btn-primary mt-2">{{ __('Record Loss') }}</a>
+                    @endcan
+                </div>
+            </div>
+        </div>
     </div>
 @endsection
