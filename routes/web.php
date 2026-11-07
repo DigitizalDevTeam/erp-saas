@@ -125,6 +125,7 @@ use App\Http\Controllers\PosAuditLogController;
 use App\Http\Controllers\PosProductionController;
 use App\Http\Controllers\KitchenRecipeController;
 use App\Http\Controllers\CostCentreAllocationController;
+use App\Http\Controllers\CostCentreBudgetController;
 use App\Http\Controllers\CostCentreController;
 use App\Http\Controllers\CostCentreReportController;
 use App\Http\Controllers\GlDimensionController;
@@ -2581,6 +2582,18 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('cost-centre-reports/cash', [CostCentreReportController::class, 'cash'])->name('cost-centre-reports.cash')->middleware(['auth', 'XSS']);
     Route::get('cost-centre-reports/reconciliation', [CostCentreReportController::class, 'reconciliation'])->name('cost-centre-reports.reconciliation')->middleware(['auth', 'XSS']);
     Route::get('cost-centre-reports/unassigned', [CostCentreReportController::class, 'unassigned'])->name('cost-centre-reports.unassigned')->middleware(['auth', 'XSS']);
+
+    // Cost Centres — Phase 5: Budgets + approvals (plan §9). The
+    // approvals/delegations routes are registered before the resource
+    // so they are not swallowed by {cost_centre_budget}.
+    Route::get('cost-centre-budget-approvals', [CostCentreBudgetController::class, 'approvals'])->name('cost-centre-budget-approvals.index')->middleware(['auth', 'XSS']);
+    Route::post('cost-centre-budget-approvals/{approval}/decide', [CostCentreBudgetController::class, 'decide'])->name('cost-centre-budget-approvals.decide')->middleware(['auth', 'XSS']);
+    Route::post('cost-centre-budget-delegations', [CostCentreBudgetController::class, 'storeDelegation'])->name('cost-centre-budget-delegations.store')->middleware(['auth', 'XSS']);
+    Route::delete('cost-centre-budget-delegations/{delegation}', [CostCentreBudgetController::class, 'destroyDelegation'])->name('cost-centre-budget-delegations.destroy')->middleware(['auth', 'XSS']);
+    Route::post('cost-centre-budgets/{budget}/approve', [CostCentreBudgetController::class, 'approve'])->name('cost-centre-budgets.approve')->middleware(['auth', 'XSS']);
+    Route::post('cost-centre-budgets/{budget}/reopen', [CostCentreBudgetController::class, 'reopen'])->name('cost-centre-budgets.reopen')->middleware(['auth', 'XSS']);
+    Route::resource('cost-centre-budgets', CostCentreBudgetController::class)->parameters(['cost-centre-budgets' => 'budget'])->names('cost-centre-budgets')->except(['show', 'destroy'])->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('cost-centre-reports/budget', [CostCentreReportController::class, 'budget'])->name('cost-centre-reports.budget')->middleware(['auth', 'XSS']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');

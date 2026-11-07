@@ -179,6 +179,11 @@ class CostCentreController extends Controller
 
         return view('cost-centres.settings', [
             'settings' => CostCentreSettings::forCompany($creatorId),
+            // Phase 5 (D3): candidates for the finance controller role
+            // — the company user and its staff.
+            'users' => User::where(function ($q) use ($creatorId) {
+                $q->where('id', $creatorId)->orWhere('created_by', $creatorId);
+            })->orderBy('name')->get(['id', 'name', 'email']),
         ]);
     }
 
@@ -192,6 +197,10 @@ class CostCentreController extends Controller
 
         $request->validate([
             'budget_policy' => ['nullable', 'string', Rule::in(CostCentreSettings::BUDGET_POLICIES)],
+            'budget_approval_threshold' => ['nullable', 'numeric', 'min:0'],
+            'budget_finance_controller_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(function ($q) use ($creatorId) {
+                $q->where('id', $creatorId)->orWhere('created_by', $creatorId);
+            })],
             'dimension_on_cash_transactions' => ['nullable', 'string', Rule::in(CostCentreSettings::DIMENSION_ON_CASH_VALUES)],
             'period_lock_policy' => ['nullable', 'string', Rule::in(CostCentreSettings::PERIOD_LOCK_POLICIES)],
             'default_allocation_basis' => ['nullable', 'string', Rule::in(CostCentreSettings::ALLOCATION_BASES)],
