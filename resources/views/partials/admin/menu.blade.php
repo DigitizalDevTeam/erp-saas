@@ -1107,7 +1107,7 @@
                                         {{ Request::route()->getName() == 'print-setting' ||
                                         Request::segment(1) == 'customer' || Request::segment(1) == 'vender' ||
                                         Request::segment(1) == 'proposal' || Request::segment(1) == 'bank-account' ||
-                                        Request::segment(1) == 'bank-transfer' || Request::segment(1) == 'bank-reconciliation' || Request::segment(1) == 'invoice' ||
+                                        Request::segment(1) == 'bank-transfer' || Request::segment(1) == 'bank-reconciliation' || Request::segment(1) == 'invoice' || Request::segment(1) == 'billing-contracts' ||
                                         Request::segment(1) == 'revenue' || Request::segment(1) == 'credit-note' ||
                                         Request::segment(1) == 'taxes' || Request::segment(1) == 'product-category' ||
                                         Request::segment(1) == 'product-unit' || Request::segment(1) == 'payment-method' ||
@@ -1163,7 +1163,7 @@
                                 @endif
                                 @if (menu_can_node('menu.accounting_system.sales'))
                                     <li
-                                        class="dash-item dash-hasmenu {{ Request::segment(1) == 'customer' || Request::segment(1) == 'proposal' || Request::segment(1) == 'invoice' || Request::segment(1) == 'quotation' || Request::segment(1) == 'proforma' || Request::segment(1) == 'revenue' || Request::segment(1) == 'credit-note' ? 'active dash-trigger' : '' }}">
+                                        class="dash-item dash-hasmenu {{ Request::segment(1) == 'customer' || Request::segment(1) == 'proposal' || Request::segment(1) == 'invoice' || Request::segment(1) == 'billing-contracts' || Request::segment(1) == 'quotation' || Request::segment(1) == 'proforma' || Request::segment(1) == 'revenue' || Request::segment(1) == 'credit-note' ? 'active dash-trigger' : '' }}">
                                         <a class="dash-link" href="#">{{ __('Sales') }}<span
                                                 class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                                         <ul class="dash-submenu">
@@ -1186,6 +1186,13 @@
                                                     class="dash-item {{ Request::route()->getName() == 'invoice.index' || Request::route()->getName() == 'invoice.create' || Request::route()->getName() == 'invoice.edit' || Request::route()->getName() == 'invoice.show' ? ' active' : '' }}">
                                                     <a class="dash-link"
                                                         href="{{ route('invoice.index') }}">{{ __('Invoice') }}</a>
+                                                </li>
+                                            @endif
+                                            @if (menu_can('menu.accounting_system.sales.billing_contracts'))
+                                                <li
+                                                    class="dash-item {{ str_starts_with(Request::route()->getName() ?? '', 'billing-contracts') ? ' active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('billing-contracts.index') }}">{{ __('Billing Contracts') }}</a>
                                                 </li>
                                             @endif
                                             @if (menu_can('menu.accounting_system.sales.quotation'))
