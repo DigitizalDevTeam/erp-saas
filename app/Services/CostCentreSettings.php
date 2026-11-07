@@ -23,6 +23,8 @@ class CostCentreSettings
     public const KEY_REQUIRE_FOR_EXPENSES = 'require_cost_centre_for_expenses';
     public const KEY_ALLOW_SPLITS = 'allow_splits';
     public const KEY_BUDGET_POLICY = 'budget_policy';
+    public const KEY_BUDGET_APPROVAL_THRESHOLD = 'budget_approval_threshold';
+    public const KEY_BUDGET_FINANCE_CONTROLLER = 'budget_finance_controller_user_id';
     public const KEY_DIMENSION_ON_CASH = 'dimension_on_cash_transactions';
     public const KEY_PERIOD_LOCK_POLICY = 'period_lock_policy';
     public const KEY_ROUNDING_ACCOUNT = 'rounding_account';
@@ -38,6 +40,14 @@ class CostCentreSettings
         self::KEY_REQUIRE_FOR_EXPENSES => '0',
         self::KEY_ALLOW_SPLITS => '1',
         self::KEY_BUDGET_POLICY => 'off',
+        // Phase 5 (D3): over-budget amounts at or below this threshold
+        // need only the cost centre manager; above it the finance
+        // controller must also approve. Default 0 — every over-budget
+        // amount needs both steps until the company sets a threshold.
+        self::KEY_BUDGET_APPROVAL_THRESHOLD => '0',
+        // Phase 5 (D3): the finance controller user id; empty means
+        // the company user itself.
+        self::KEY_BUDGET_FINANCE_CONTROLLER => '',
         self::KEY_DIMENSION_ON_CASH => 'optional',
         self::KEY_PERIOD_LOCK_POLICY => 'block',
         self::KEY_ROUNDING_ACCOUNT => '',
@@ -89,6 +99,18 @@ class CostCentreSettings
         $budgetPolicy = (string) ($input[self::KEY_BUDGET_POLICY] ?? '');
         $values[self::KEY_BUDGET_POLICY] = in_array($budgetPolicy, self::BUDGET_POLICIES, true)
             ? $budgetPolicy : self::DEFAULTS[self::KEY_BUDGET_POLICY];
+
+        // Approval threshold (D3): a non-negative amount, 2 decimals.
+        $threshold = $input[self::KEY_BUDGET_APPROVAL_THRESHOLD] ?? '';
+        $values[self::KEY_BUDGET_APPROVAL_THRESHOLD] = is_numeric($threshold) && (float) $threshold >= 0
+            ? number_format((float) $threshold, 2, '.', '')
+            : self::DEFAULTS[self::KEY_BUDGET_APPROVAL_THRESHOLD];
+
+        // Finance controller user id: digits only, empty means the
+        // company user. The service re-validates that the user belongs
+        // to the company at decision time.
+        $controller = trim((string) ($input[self::KEY_BUDGET_FINANCE_CONTROLLER] ?? ''));
+        $values[self::KEY_BUDGET_FINANCE_CONTROLLER] = ctype_digit($controller) ? $controller : '';
 
         $dimensionOnCash = (string) ($input[self::KEY_DIMENSION_ON_CASH] ?? '');
         $values[self::KEY_DIMENSION_ON_CASH] = in_array($dimensionOnCash, self::DIMENSION_ON_CASH_VALUES, true)

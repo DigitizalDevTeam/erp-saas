@@ -175,6 +175,59 @@ class CostCentreReportController extends Controller
         return view('cost-centres.reports.unassigned', $report);
     }
 
+    /**
+     * Budget vs actual (Cost Centre Phase 5, plan §9). Monthly budget
+     * vs actual per centre, with variance. Actuals are the Phase 4
+     * dimensioned GL actuals (accrual basis); committed is the active
+     * commitments only; available is approved − committed − actual.
+     * Rows with no budget at all are listed as 'no_budget' — spending
+     * without a budget must be visible, not hidden.
+     */
+    public function budget(Request $request)
+    {
+        if (! Auth::user()->can('view cost centre reports')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
+        $creatorId = Auth::user()->creatorId();
+        $fiscalYear = (int) ($request->input('fiscal_year') ?: date('Y'));
+        $period = $request->filled('period') ? (int) $request->input('period') : null;
+        $centreId = $request->filled('cost_centre_id') ? (int) $request->input('cost_centre_id') : null;
+
+        $budgets = new \App\Services\BudgetControlService();
+        $report = $budgets->budgetVsActual($creatorId, $fiscalYear, $period, $centreId);
+        // from/to only feed the CSV header filename.
+        $report['from'] = $period !== null ? sprintf('%04d-%02d-01', $fiscalYear, $period) : sprintf('%04d-01-01', $fiscalYear);
+        $report['to'] = $period !== null ? sprintf('%04d-%02d-01', $fiscalYear, $period) : sprintf('%04d-12-31', $fiscalYear);
+
+        if ($request->input('export') === 'csv') {
+            return $this->requireExportPermission($request, $report, 'budget-vs-actual', [
+                [__('Cost Centre'), __('Month'), __('Scope'), __('Approved'), __('Committed'), __('Actual'), __('Available'), __('Variance'), __('Variance %'), __('Status')],
+            ], function () use ($report) {
+                foreach ($report['rows'] as $row) {
+                    yield [
+                        ($row['cost_centre_code'] ?? '').' '.($row['cost_centre_name'] ?? ''),
+                        $row['fiscal_year'].'-'.str_pad((string) $row['period'], 2, '0', STR_PAD_LEFT),
+                        $row['scope_key'],
+                        $row['approved'],
+                        $row['committed'],
+                        $row['actual'],
+                        $row['available'],
+                        $row['variance'],
+                        $row['variance_percent'] ?? '',
+                        $row['status'],
+                    ];
+                }
+            });
+        }
+
+        return view('cost-centres.reports.budget', array_merge($report, [
+            'centres' => $this->centres($creatorId),
+            'selectedCentreId' => $centreId,
+            'selectedPeriod' => $period,
+        ]));
+    }
+
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------

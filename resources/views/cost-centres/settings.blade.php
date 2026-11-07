@@ -50,6 +50,23 @@
                         </div>
 
                         <div class="form-group">
+                            <label class="form-label" for="budget_approval_threshold">{{ __('Approval threshold (over-budget amount)') }}</label>
+                            <input type="number" step="0.01" min="0" name="budget_approval_threshold" id="budget_approval_threshold" class="form-control" value="{{ old('budget_approval_threshold', $settings['budget_approval_threshold'] ?? '0') }}">
+                            <small class="text-muted">{{ __('Over-budget amounts at or below this need only the cost centre manager; above it the finance controller must also approve. 0 means every over-budget amount needs both steps.') }}</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="budget_finance_controller_user_id">{{ __('Finance controller') }}</label>
+                            <select name="budget_finance_controller_user_id" id="budget_finance_controller_user_id" class="form-control">
+                                <option value="">{{ __('Company user (default)') }}</option>
+                                @foreach ($users as $user)
+                                    <option value="{{ $user->id }}" {{ (string) ($settings['budget_finance_controller_user_id'] ?? '') === (string) $user->id ? 'selected' : '' }}>{{ $user->name }} ({{ $user->email }})</option>
+                                @endforeach
+                            </select>
+                            <small class="text-muted">{{ __('Second approval step for over-budget requests. Leave empty for the company user.') }}</small>
+                        </div>
+
+                        <div class="form-group">
                             <label class="form-label" for="dimension_on_cash_transactions">{{ __('Cost centre on cash transactions') }}</label>
                             <select name="dimension_on_cash_transactions" id="dimension_on_cash_transactions" class="form-control">
                                 <option value="optional" {{ ($settings['dimension_on_cash_transactions'] ?? 'optional') === 'optional' ? 'selected' : '' }}>{{ __('Optional') }}</option>

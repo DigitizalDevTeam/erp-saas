@@ -579,6 +579,8 @@ namespace App\Models;
                 'require_cost_centre_for_expenses' => '0',
                 'allow_splits' => '1',
                 'budget_policy' => 'off',
+                'budget_approval_threshold' => '0',
+                'budget_finance_controller_user_id' => '',
                 'dimension_on_cash_transactions' => 'optional',
                 'period_lock_policy' => 'block',
                 'rounding_account' => '',
