@@ -14,6 +14,9 @@
             <a href="{{ route('billing-contracts.create') }}" class="btn btn-sm btn-primary">
                 <i class="ti ti-plus"></i> {{ __('New Contract') }}
             </a>
+            <a href="{{ route('billing-contracts.due-queue') }}" class="btn btn-sm btn-secondary">
+                {{ __('Due occurrences') }}
+            </a>
         @endcan
     </div>
 @endsection

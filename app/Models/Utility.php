@@ -5887,7 +5887,10 @@ namespace App\Models;
                 $transactionLines->credit = 0;
                 $transactionLines->debit = $amount;
             }
-            $transactionLines->created_by = Auth::user()->creatorId();
+            // Background jobs (the recurring engine) have no Auth
+            // user; they pass created_by explicitly. Web callers
+            // keep the old behaviour.
+            $transactionLines->created_by = $data['created_by'] ?? Auth::user()->creatorId();
             $transactionLines->save();
         }
 

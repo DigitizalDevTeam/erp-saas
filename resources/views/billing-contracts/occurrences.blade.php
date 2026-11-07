@@ -41,7 +41,7 @@
                             <tbody>
                                 @forelse ($occurrences as $occurrence)
                                     <tr>
-                                        <td>{{ $occurrence->period_key }}</td>
+                                        <td><a href="{{ route('billing-contracts.occurrence-show', [$contract->id, $occurrence->id]) }}">{{ $occurrence->period_key }}</a></td>
                                         <td>{{ $occurrence->period_start->format('Y-m-d') }} → {{ $occurrence->coverageEndInclusive() }}</td>
                                         <td>{{ $occurrence->billing_date->format('Y-m-d') }}</td>
                                         <td>{{ $occurrence->due_date->format('Y-m-d') }}</td>

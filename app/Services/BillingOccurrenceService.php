@@ -203,6 +203,40 @@ class BillingOccurrenceService
     }
 
     /**
+     * Coverage of one period against the contract term.
+     *
+     * Phase 2: the invoice service needs the same numbers to scale
+     * each contract line for a prorated period, so this is the one
+     * place the overlap is computed. occurrenceForPeriod() uses it
+     * for the occurrence amount; BillingInvoiceService uses it for
+     * the per-line amounts. Both must agree, or the invoice total
+     * would not match the occurrence amount.
+     *
+     * @return array{full_days: int, covered_days: int, partial: bool, ratio: string}
+     *         ratio = covered / full as a 6-decimal string ('1.000000' when whole).
+     */
+    public function periodCoverage(BillingContract $contract, Carbon $periodStart, Carbon $periodEnd): array
+    {
+        $start = Carbon::parse($contract->start_date)->startOfDay();
+        $end = $contract->end_date ? Carbon::parse($contract->end_date)->startOfDay()->addDay() : null;
+
+        $fullDays = (int) $periodStart->diffInDays($periodEnd);
+        $coverStart = $periodStart->greaterThan($start) ? $periodStart->copy() : $start->copy();
+        $coverEnd = $end !== null && $periodEnd->greaterThan($end) ? $end->copy() : $periodEnd->copy();
+        $coveredDays = $coverStart->lessThan($coverEnd) ? (int) $coverStart->diffInDays($coverEnd) : 0;
+        $partial = $coveredDays < $fullDays;
+
+        return [
+            'full_days' => $fullDays,
+            'covered_days' => $coveredDays,
+            'partial' => $partial,
+            'ratio' => ($fullDays > 0 && $coveredDays > 0)
+                ? bcdiv((string) $coveredDays, (string) $fullDays, 6)
+                : '0.000000',
+        ];
+    }
+
+    /**
      * Occurrence data for one period, or null when the contract's
      * partial-period rule says to skip it. The amount already
      * reflects the rule (full / prorated).
@@ -214,20 +248,15 @@ class BillingOccurrenceService
         $start = Carbon::parse($contract->start_date)->startOfDay();
         $end = $contract->end_date ? Carbon::parse($contract->end_date)->startOfDay()->addDay() : null;
 
-        $fullDays = (int) $periodStart->diffInDays($periodEnd);
-        if ($fullDays <= 0) {
+        $coverage = $this->periodCoverage($contract, $periodStart, $periodEnd);
+        $fullDays = $coverage['full_days'];
+        $coveredDays = $coverage['covered_days'];
+        $partial = $coverage['partial'];
+
+        if ($fullDays <= 0 || $coveredDays <= 0) {
             return null;
         }
 
-        $coverStart = $periodStart->greaterThan($start) ? $periodStart->copy() : $start->copy();
-        $coverEnd = $end !== null && $periodEnd->greaterThan($end) ? $end->copy() : $periodEnd->copy();
-        $coveredDays = $coverStart->lessThan($coverEnd) ? (int) $coverStart->diffInDays($coverEnd) : 0;
-
-        if ($coveredDays <= 0) {
-            return null;
-        }
-
-        $partial = $coveredDays < $fullDays;
         $total = $this->contractPeriodTotal($contract);
 
         if ($partial && $contract->partial_period_rule === BillingContract::PARTIAL_SKIP) {
@@ -235,6 +264,8 @@ class BillingOccurrenceService
         }
 
         if ($partial && $contract->partial_period_rule === BillingContract::PARTIAL_PRORATE) {
+            // Same formula as Phase 1 (do NOT pre-round the ratio:
+            // total x covered / full at 6dp, then round to 4dp).
             $amount = $this->bcRound4(bcdiv(bcmul($total, (string) $coveredDays, 6), (string) $fullDays, 6));
         } else {
             $amount = $total;

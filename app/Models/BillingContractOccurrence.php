@@ -54,6 +54,18 @@ class BillingContractOccurrence extends Model
         return $this->belongsTo(BillingContract::class, 'contract_id');
     }
 
+    /** The invoice issued for this occurrence (Phase 2). */
+    public function invoice()
+    {
+        return $this->belongsTo(Invoice::class, 'invoice_id');
+    }
+
+    /** Delivery attempts for the invoice issued for this occurrence (Phase 2). */
+    public function deliveryAttempts()
+    {
+        return $this->hasMany(BillingDeliveryAttempt::class, 'occurrence_id');
+    }
+
     /** Inclusive final day of the coverage period (for display). */
     public function coverageEndInclusive(): string
     {

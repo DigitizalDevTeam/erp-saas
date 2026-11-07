@@ -36,6 +36,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use App\Support\LoggedMail;
+use App\Mail\CustomerInvoiceSend;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Models\CustomerBillingAddress;
@@ -240,154 +241,52 @@ class InvoiceController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
 
-            $products = $request->items;
-            foreach ($products as $p) {
-                try {
-                    InvoiceSaleDeductionService::validateTrackedIdentifiersForLine(
-                        (int) $p['item'],
-                        (float) $p['quantity'],
-                        (int) \Auth::user()->creatorId(),
-                        $p['identifiers'] ?? null
-                    );
-                } catch (\Throwable $e) {
-                    return redirect()->back()->with('error', $e->getMessage())->withInput();
-                }
+            // Creation goes through the ONE shared path
+            // (InvoiceCreationService) — the recurring engine uses
+            // the same service, so a manual and a recurring invoice
+            // are built by the same code.
+            $items = [];
+            foreach ((array) $request->items as $p) {
+                $items[] = [
+                    'item' => $p['item'],
+                    'product_variant_id' => $p['product_variant_id'] ?? null,
+                    'quantity' => \App\Support\MoneyAmount::parse($p['quantity'] ?? 0),
+                    'tax' => $p['tax'] ?? null,
+                    'discount' => \App\Support\MoneyAmount::parse($p['discount'] ?? 0),
+                    'price' => \App\Support\MoneyAmount::parse($p['price'] ?? 0),
+                    'description' => $p['description'] ?? null,
+                    'identifiers' => $p['identifiers'] ?? null,
+                    'measurement_json' => $p['measurement_json'] ?? null,
+                    'selected_options_json' => $p['selected_options_json'] ?? null,
+                ];
             }
 
             try {
-                $invoice = DB::transaction(function () use ($request, $products) {
-                    $invoice = new Invoice();
-                    $invoice->invoice_id = $this->invoiceNumber();
-                    $invoice->customer_id = $request->customer_id;
-                    $invoice->status = 0;
-                    $invoice->issue_date = $request->issue_date;
-                    $invoice->due_date = $request->due_date;
-                    $invoice->category_id = $request->category_id;
-                    $invoice->ref_number = $request->ref_number;
-                    $invoice->client_po_number = $request->input('client_po_number');
-                    $invoice->client_po_date = $request->input('client_po_date') ?: null;
-                    $invoice->client_po_details = $request->input('client_po_details');
-                    $invoice->quotation_reference = $request->input('quotation_reference');
-                    $invoice->billing_address_id = $request->billing_address ?? null;
-                    $invoice->shipping_address_id = $request->shipping_address ?? null;
-                    $invoice->created_by = \Auth::user()->creatorId();
-                    $creatorId = (int) \Auth::user()->creatorId();
-                    $invoice->quotation_id = null;
-                    $invoice->proforma_id = null;
-                    if ($request->filled('source_proforma_id')) {
-                        $pf = Proforma::where('id', (int) $request->input('source_proforma_id'))->where('created_by', $creatorId)->first();
-                        if ($pf) {
-                            $invoice->proforma_id = $pf->id;
-                            if ($pf->quotation_id) {
-                                $invoice->quotation_id = $pf->quotation_id;
-                            }
-                        }
-                    }
-                    if ($request->filled('source_quotation_id') && empty($invoice->quotation_id)) {
-                        $q = Quotation::where('id', (int) $request->input('source_quotation_id'))->where('created_by', $creatorId)->first();
-                        if ($q) {
-                            $invoice->quotation_id = $q->id;
-                        }
-                    }
-                    if ($request->filled('source_purchase_id')) {
-                        $purchase = Purchase::where('id', (int) $request->input('source_purchase_id'))
-                            ->where('created_by', $creatorId)
-                            ->first();
-                        if ($purchase) {
-                            $invoice->purchase_id = $purchase->id;
-                            if (empty($invoice->proforma_id) && ! empty($purchase->proforma_id)) {
-                                $invoice->proforma_id = $purchase->proforma_id;
-                            }
-                            if (empty($invoice->quotation_id) && ! empty($purchase->quotation_id)) {
-                                $invoice->quotation_id = $purchase->quotation_id;
-                            }
-                        }
-                    }
-                    if (empty($invoice->quotation_reference) && ! empty($invoice->quotation_id)) {
-                        $q = Quotation::find($invoice->quotation_id);
-                        if ($q) {
-                            $invoice->quotation_reference = \Auth::user()->quotationNumberFormat($q->quotation_id);
-                        }
-                    }
-                    $invoice->save();
-                    CustomField::saveData($invoice, $request->input('customField'));
-
-                    StockReport::where('type', '=', 'invoice')->where('type_id', '=', $invoice->id)->delete();
-
-                    $settings = Utility::settings();
-                    $timing = $settings['stock_deduction_timing'] ?? 'invoice';
-
-                    for ($i = 0; $i < count($products); $i++) {
-                        $invoiceProduct = new InvoiceProduct();
-                        $invoiceProduct->invoice_id = $invoice->id;
-                        $invoiceProduct->product_id = $products[$i]['item'];
-                        $invoiceProduct->product_variant_id = ! empty($products[$i]['product_variant_id'])
-                            ? (int) $products[$i]['product_variant_id']
-                            : null;
-                        $invoiceProduct->quantity = \App\Support\MoneyAmount::parse($products[$i]['quantity'] ?? 0);
-                        $invoiceProduct->tax = $products[$i]['tax'];
-                        $invoiceProduct->discount = \App\Support\MoneyAmount::parse($products[$i]['discount'] ?? 0);
-                        $invoiceProduct->price = \App\Support\MoneyAmount::parse($products[$i]['price'] ?? 0);
-                        $invoiceProduct->description = $products[$i]['description'];
-                        $invoiceProduct->identifiers = $products[$i]['identifiers'] ?? null;
-                        $invoiceProduct->measurement_json = $products[$i]['measurement_json'] ?? null;
-                        $invoiceProduct->selected_options_json = ! empty($products[$i]['selected_options_json'])
-                            ? (is_string($products[$i]['selected_options_json'])
-                                ? $products[$i]['selected_options_json']
-                                : json_encode($products[$i]['selected_options_json']))
-                            : null;
-                        $invoiceProduct->save();
-
-                        if ($timing === 'invoice') {
-                            InvoiceSaleDeductionService::deductLine(
-                                (int) $invoiceProduct->product_id,
-                                (float) $invoiceProduct->quantity,
-                                (int) \Auth::user()->creatorId(),
-                                (int) $invoice->id,
-                                (int) $invoiceProduct->id,
-                                (int) $invoice->customer_id,
-                                \Auth::user()->invoiceNumberFormat($invoice->invoice_id),
-                                $invoiceProduct->identifiers,
-                                $invoiceProduct->selected_options_json
-                            );
-                        }
-                    }
-
-                    if ($timing === 'invoice' && empty($invoice->stock_deducted_at)) {
-                        $invoice->stock_deducted_at = now();
-                        $invoice->stock_deducted_via = 'invoice';
-                        $invoice->save();
-                    }
-
-                    if ($request->filled('source_purchase_id') && ! empty($invoice->purchase_id)) {
-                        Purchase::where('id', (int) $invoice->purchase_id)
-                            ->where('created_by', $creatorId)
-                            ->update([
-                                'converted_invoice_id' => $invoice->id,
-                                'is_invoice_converted' => 1,
-                            ]);
-                    }
-                    if (! empty($invoice->proforma_id)) {
-                        Proforma::where('id', (int) $invoice->proforma_id)
-                            ->where('created_by', $creatorId)
-                            ->update([
-                                'converted_invoice_id' => $invoice->id,
-                                'is_invoice_converted' => 1,
-                            ]);
-                    }
-                    if (! empty($invoice->quotation_id)) {
-                        Quotation::where('id', (int) $invoice->quotation_id)
-                            ->where('created_by', $creatorId)
-                            ->update([
-                                'converted_invoice_id' => $invoice->id,
-                            ]);
-                    }
-
-                    return $invoice->fresh();
-                });
+                $invoice = app(\App\Services\InvoiceCreationService::class)->createInvoice(
+                    (int) \Auth::user()->creatorId(),
+                    [
+                        'customer_id' => $request->customer_id,
+                        'issue_date' => $request->issue_date,
+                        'due_date' => $request->due_date,
+                        'category_id' => $request->category_id,
+                        'ref_number' => $request->ref_number,
+                        'client_po_number' => $request->input('client_po_number'),
+                        'client_po_date' => $request->input('client_po_date') ?: null,
+                        'client_po_details' => $request->input('client_po_details'),
+                        'quotation_reference' => $request->input('quotation_reference'),
+                        'billing_address_id' => $request->billing_address ?? null,
+                        'shipping_address_id' => $request->shipping_address ?? null,
+                        'customField' => $request->input('customField'),
+                        'source_proforma_id' => $request->input('source_proforma_id'),
+                        'source_quotation_id' => $request->input('source_quotation_id'),
+                        'source_purchase_id' => $request->input('source_purchase_id'),
+                        'items' => $items,
+                    ]
+                );
             } catch (\Throwable $e) {
                 return redirect()->back()->with('error', $e->getMessage())->withInput();
             }
+
 
             $setting = Utility::settings(\Auth::user()->creatorId());
             $customer = Customer::find($request->customer_id);
@@ -899,53 +798,13 @@ class InvoiceController extends Controller
         }
         $invoice->save();
 
-        $alreadyPosted = TransactionLines::where('reference_id', $invoice->id)
-            ->whereIn('reference', ['Invoice', 'Invoice Receivable'])
-            ->exists();
-
-        if (! $alreadyPosted) {
-            $invoice_products = InvoiceProduct::where('invoice_id', $invoice->id)->get();
-            foreach ($invoice_products as $invoice_product) {
-                $product = ProductService::find($invoice_product->product_id);
-                if (! $product) {
-                    continue;
-                }
-                $optionsAmount = \App\Services\ProductOptionService::calculateOptionsAmount(
-                    \App\Services\ProductOptionService::normalizeSelectedOptions($invoice_product->selected_options_json ?? null)
-                );
-                $taxableBase = ($invoice_product->price * $invoice_product->quantity) - ($invoice_product->discount) + $optionsAmount;
-                $totalTaxPrice = 0;
-                if ($invoice_product->tax != null) {
-                    $taxes = \App\Models\Utility::tax($invoice_product->tax);
-                    foreach ($taxes as $tax) {
-                        $taxPrice = ($taxableBase) * ($tax->rate / 100);
-                        $totalTaxPrice += $taxPrice;
-                    }
-                }
-
-                $itemAmount = $taxableBase + $totalTaxPrice;
-
-                $data = [
-                    'account_id' => $product->sale_chartaccount_id,
-                    'transaction_type' => 'Credit',
-                    'transaction_amount' => $itemAmount,
-                    'reference' => 'Invoice',
-                    'reference_id' => $invoice->id,
-                    'reference_sub_id' => $product->id,
-                    'date' => $invoice->issue_date,
-                ];
-                Utility::addTransactionLines($data, 'create');
-            }
-
-            app(DocumentLedgerService::class)->balanceDocumentLines(
-                (int) \Auth::user()->creatorId(),
-                (int) $invoice->id,
-                ['Invoice'],
-                'receivable',
-                'Invoice Receivable',
-                (string) $invoice->issue_date
-            );
-        }
+        // Ledger posting goes through the ONE shared path
+        // (InvoiceCreationService) — the recurring engine posts
+        // its invoices with the same method.
+        app(\App\Services\InvoiceCreationService::class)->postInvoiceToLedger(
+            $invoice,
+            (int) \Auth::user()->creatorId()
+        );
 
         $setings = Utility::settings();
         if (($setings['customer_invoice_sent'] ?? 0) == 1) {
