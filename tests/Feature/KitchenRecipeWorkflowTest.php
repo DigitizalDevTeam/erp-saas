@@ -404,6 +404,40 @@ class KitchenRecipeWorkflowTest extends TestCase
             ->assertSee('Cost Preview');
     }
 
+    public function test_second_recipe_for_same_dish_fails_validation_not_500(): void
+    {
+        // Regression: one recipe per dish per version is enforced by a DB
+        // unique key, but there was no validation rule for it, so creating
+        // a second recipe for the same dish crashed with a 500 (SQLSTATE
+        // 1062) instead of a friendly error.
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('kitchen.recipes.store'), $this->recipePayload('KR-2026-0012'))
+            ->assertRedirect();
+
+        $this->assertSame(1, KitchenRecipe::where('product_id', 10)->count());
+
+        $duplicate = $this->recipePayload('KR-2026-0013');
+        $duplicate['name'] = 'Coconut Rice Grams';
+
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('kitchen.recipes.store'), $duplicate)
+            ->assertSessionHasErrors('product_id');
+
+        $this->assertSame(1, KitchenRecipe::where('product_id', 10)->count());
+
+        // Editing the existing recipe (same dish) must still work — the
+        // uniqueness rule ignores the recipe being edited.
+        $recipe = KitchenRecipe::where('code', 'KR-2026-0012')->firstOrFail();
+        $edit = $this->recipePayload('KR-2026-0012');
+        $edit['name'] = 'Coconut Rice Renamed';
+
+        $this->actingAs(User::findOrFail(1))
+            ->put(route('kitchen.recipes.update', $recipe->id), $edit)
+            ->assertRedirect();
+
+        $this->assertSame('Coconut Rice Renamed', $recipe->fresh()->name);
+    }
+
     public function test_ingredient_type_dish_is_hidden_from_pos(): void
     {
         DB::table('product_services')->insert([
