@@ -19,6 +19,9 @@
                         <a href="{{ route('gl-dimensions.reverse') }}" class="btn btn-outline-primary">{{ __('Reverse journal dimensions') }}</a>
                         <a href="{{ route('cost-centre-reports.expense') }}" class="btn btn-outline-secondary">{{ __('Expense by centre') }}</a>
                         <a href="{{ route('cost-centre-reports.reconciliation') }}" class="btn btn-outline-secondary">{{ __('Reconciliation') }}</a>
+                        <a href="{{ route('gl-dimensions.index', ['export' => 'csv']) }}" class="btn btn-outline-secondary">{{ __('Export CSV') }}</a>
+                        <a href="{{ route('gl-dimensions.index', ['export' => 'xlsx']) }}" class="btn btn-outline-secondary">{{ __('Export XLSX') }}</a>
+                        <a href="{{ route('gl-dimensions.index', ['export' => 'pdf']) }}" class="btn btn-outline-secondary">{{ __('Export PDF') }}</a>
                     </div>
 
                     <div class="table-responsive">

@@ -938,6 +938,10 @@ class BudgetControlService
 
         $budgets = CostCentreBudget::forCompany($creatorId)
             ->approved()
+            // Eager-load the centre (Phase 6): varianceRow() reads
+            // $budget->centre, and without this every budget row cost
+            // one extra query — the dashboard would inherit the N+1.
+            ->with('centre')
             ->where('fiscal_year', $fiscalYear)
             ->when($period !== null, fn ($q) => $q->where('period', $period))
             ->when($centreId !== null, fn ($q) => $q->where('cost_centre_id', $centreId))

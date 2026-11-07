@@ -3,16 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\CostCentreException;
+use App\Exports\CostCentreReportExport;
 use App\Models\Bill;
 use App\Models\CostCentre;
 use App\Models\JournalEntry;
 use App\Models\JournalItem;
 use App\Models\JournalLineDimension;
 use App\Services\AllocationEngine;
+use App\Services\CostCentreExportService;
 use App\Services\CostCentreService;
 use App\Services\DimensionPostingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class GlDimensionController extends Controller
 {
@@ -34,8 +37,46 @@ class GlDimensionController extends Controller
         }
 
         $creatorId = Auth::user()->creatorId();
-        $journals = JournalEntry::where('created_by', $creatorId)
-            ->orderByDesc('id')->paginate(25);
+        $journalsQuery = JournalEntry::where('created_by', $creatorId)
+            ->orderByDesc('id');
+
+        // Phase 6 exports: the same coverage the screen shows, as CSV /
+        // XLSX / PDF. Gated by the export permission, like the reports.
+        // Rows are built lazily (only when ?export= is present) and in
+        // bulk — one query per table, never one per journal.
+        $export = (new CostCentreExportService())->responseFor(
+            $request, 'gl-dimensions', __('GL Dimensions'),
+            __('Tagging never changes a journal amount.'),
+            [__('Journal'), __('Date'), __('Reference'), __('Lines'), __('Tagged')],
+            function () use ($journalsQuery, $creatorId) {
+                $allJournals = $journalsQuery->get();
+                $journalIds = $allJournals->pluck('id')->all();
+                $itemsByJournal = JournalItem::whereIn('journal', $journalIds)->orderBy('id')->get()->groupBy('journal');
+                $dimensionedSet = array_flip(JournalLineDimension::forCompany($creatorId)
+                    ->where('line_type', JournalLineDimension::LINE_JOURNAL_ITEM)
+                    ->whereIn('journal_id', $journalIds)
+                    ->active()->distinct()->pluck('line_id')->all());
+
+                $rows = [];
+                foreach ($allJournals as $journal) {
+                    $items = $itemsByJournal->get((int) $journal->id, collect());
+                    $tagged = 0;
+                    foreach ($items as $item) {
+                        if (isset($dimensionedSet[(int) $item->id])) {
+                            $tagged++;
+                        }
+                    }
+                    $rows[] = ['#'.($journal->journal_id ?? $journal->id), (string) ($journal->date ?? ''), (string) ($journal->reference ?? ''), $items->count(), $tagged];
+                }
+
+                return $rows;
+            }
+        );
+        if ($export !== null) {
+            return $export;
+        }
+
+        $journals = $journalsQuery->paginate(25);
 
         $journalIds = $journals->pluck('id')->all();
         $itemsByJournal = JournalItem::whereIn('journal', $journalIds)
@@ -115,32 +156,39 @@ class GlDimensionController extends Controller
                 throw new CostCentreException(__('No lines were submitted.'));
             }
 
-            foreach (array_values($payload) as $entry) {
-                if (! is_array($entry)) {
-                    continue;
-                }
-                $lineId = (int) ($entry['line_id'] ?? 0);
-                if ($lineId <= 0) {
-                    continue;
-                }
-                $basis = (string) ($entry['basis'] ?? 'percentage');
-                $lines = $this->normaliseInputLines($entry['lines'] ?? []);
-                $projectId = ! empty($entry['project_id']) ? (int) $entry['project_id'] : null;
+            // One transaction for the whole edit (Phase 6 hardening):
+            // without it, a failure halfway through (e.g. a closed
+            // period on line 2) would leave line 1 already re-tagged
+            // and line 2 untouched — a half-tagged journal. The
+            // service calls nest into this transaction.
+            DB::transaction(function () use ($payload, $creatorId) {
+                foreach (array_values($payload) as $entry) {
+                    if (! is_array($entry)) {
+                        continue;
+                    }
+                    $lineId = (int) ($entry['line_id'] ?? 0);
+                    if ($lineId <= 0) {
+                        continue;
+                    }
+                    $basis = (string) ($entry['basis'] ?? 'percentage');
+                    $lines = $this->normaliseInputLines($entry['lines'] ?? []);
+                    $projectId = ! empty($entry['project_id']) ? (int) $entry['project_id'] : null;
 
-                if ($lines === []) {
-                    // Empty split for this line: clear its tag.
-                    $this->service->removeForLine(
-                        JournalLineDimension::LINE_JOURNAL_ITEM, $lineId, $creatorId, Auth::id(),
-                        __('Tag cleared from the journal edit form.')
+                    if ($lines === []) {
+                        // Empty split for this line: clear its tag.
+                        $this->service->removeForLine(
+                            JournalLineDimension::LINE_JOURNAL_ITEM, $lineId, $creatorId, Auth::id(),
+                            __('Tag cleared from the journal edit form.')
+                        );
+                        continue;
+                    }
+
+                    $this->service->attachToLine(
+                        JournalLineDimension::LINE_JOURNAL_ITEM, $lineId,
+                        $lines, $basis, $creatorId, Auth::id(), $projectId
                     );
-                    continue;
                 }
-
-                $this->service->attachToLine(
-                    JournalLineDimension::LINE_JOURNAL_ITEM, $lineId,
-                    $lines, $basis, $creatorId, Auth::id(), $projectId
-                );
-            }
+            });
         } catch (CostCentreException $e) {
             if ($request->wantsJson()) {
                 return response()->json(['ok' => false, 'errors' => [$e->getMessage()]], 422);

@@ -125,8 +125,10 @@ use App\Http\Controllers\PosAuditLogController;
 use App\Http\Controllers\PosProductionController;
 use App\Http\Controllers\KitchenRecipeController;
 use App\Http\Controllers\CostCentreAllocationController;
+use App\Http\Controllers\CostCentreAuditTrailController;
 use App\Http\Controllers\CostCentreBudgetController;
 use App\Http\Controllers\CostCentreController;
+use App\Http\Controllers\CostCentreDashboardController;
 use App\Http\Controllers\CostCentreReportController;
 use App\Http\Controllers\GlDimensionController;
 use App\Http\Controllers\TreasuryDimensionController;
@@ -2594,6 +2596,10 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('cost-centre-budgets/{budget}/reopen', [CostCentreBudgetController::class, 'reopen'])->name('cost-centre-budgets.reopen')->middleware(['auth', 'XSS']);
     Route::resource('cost-centre-budgets', CostCentreBudgetController::class)->parameters(['cost-centre-budgets' => 'budget'])->names('cost-centre-budgets')->except(['show', 'destroy'])->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('cost-centre-reports/budget', [CostCentreReportController::class, 'budget'])->name('cost-centre-reports.budget')->middleware(['auth', 'XSS']);
+
+    // Cost Centres — Phase 6: Dashboard + audit trail (plan §10/§13).
+    Route::get('cost-centre-dashboard', [CostCentreDashboardController::class, 'index'])->name('cost-centre-dashboard.index')->middleware(['auth', 'XSS']);
+    Route::get('cost-centre-audit-trail', [CostCentreAuditTrailController::class, 'index'])->name('cost-centre-audit-trail.index')->middleware(['auth', 'XSS']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');

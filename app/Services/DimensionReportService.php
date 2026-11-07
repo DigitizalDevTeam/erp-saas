@@ -192,12 +192,16 @@ class DimensionReportService
         ?Carbon $to = null
     ): array {
         $lines = $this->eligibleLines($creatorId, $from, $to, 'expense');
+        // One bulk lookup for "a posted allocation exists for this
+        // line" — the old code ran one query per unassigned line here
+        // (Phase 6 hardening).
+        $allocatedLineKeys = $this->postedAllocationLineKeys($creatorId);
         $sectionA = [];
         foreach ($lines as $line) {
             if (bccomp($line['dimensioned'], '0', 2) !== 0) {
                 continue;
             }
-            $line['reason'] = $this->unassignedReason($line, $creatorId);
+            $line['reason'] = $this->unassignedReason($line, $allocatedLineKeys);
             $sectionA[] = $line;
         }
 
@@ -456,7 +460,7 @@ class DimensionReportService
     }
 
     /** Why does this line have no dimensions? */
-    protected function unassignedReason(array $line, int $creatorId): string
+    protected function unassignedReason(array $line, array $allocatedLineKeys): string
     {
         if ($line['line_type'] !== 'transaction_line') {
             return __('No dimensions');
@@ -466,17 +470,31 @@ class DimensionReportService
             return __('No dimensions');
         }
 
-        $sourceLineType = $reference === 'Bill' ? CostCentreAllocation::LINE_BILL_PRODUCT : CostCentreAllocation::LINE_BILL_ACCOUNT;
-        $sourceType = CostCentreAllocation::forCompany($creatorId)
-            ->posted()
-            ->where('source_id', (int) $line['tl_reference_id'])
-            ->where('source_line_type', $sourceLineType)
-            ->where('source_line_id', (int) $line['tl_reference_sub_id'])
-            ->exists();
+        $key = $reference.'|'.(int) $line['tl_reference_id'].'|'.(int) $line['tl_reference_sub_id'];
 
-        return $sourceType
+        return isset($allocatedLineKeys[$key])
             ? __('Allocation exists — sync to ledger')
             : __('No dimensions');
+    }
+
+    /** Posted bill allocations, keyed by "reference|bill id|line id" —
+     *  one query for the whole unassigned report. */
+    protected function postedAllocationLineKeys(int $creatorId): array
+    {
+        $keys = [];
+        $rows = CostCentreAllocation::forCompany($creatorId)
+            ->posted()
+            ->whereIn('source_line_type', [
+                CostCentreAllocation::LINE_BILL_PRODUCT,
+                CostCentreAllocation::LINE_BILL_ACCOUNT,
+            ])
+            ->get(['source_id', 'source_line_type', 'source_line_id']);
+        foreach ($rows as $row) {
+            $reference = $row->source_line_type === CostCentreAllocation::LINE_BILL_PRODUCT ? 'Bill' : 'Bill Account';
+            $keys[$reference.'|'.(int) $row->source_id.'|'.(int) $row->source_line_id] = true;
+        }
+
+        return $keys;
     }
 
     /** Active dimension rows whose centre is invalid for the line date. */
@@ -487,6 +505,10 @@ class DimensionReportService
             ->with('costCentre')
             ->orderBy('id')
             ->get();
+
+        // Line dates, bulk-loaded once per line type — the old code ran
+        // one query per dimension row here (Phase 6 hardening).
+        $dates = $this->lineDatesForRows($rows);
 
         $invalid = [];
         foreach ($rows as $row) {
@@ -500,7 +522,7 @@ class DimensionReportService
                 $reason = __('Cost centre is deactivated');
             } else {
                 // Effective dates are judged against the line date.
-                $lineDate = $this->lineDateForRow($row);
+                $lineDate = $dates[$row->line_type.'|'.(int) $row->line_id] ?? null;
                 if ($lineDate && ! $centre->isEffectiveOn($lineDate)) {
                     $reason = __('Cost centre was not effective on the line date');
                 }
@@ -510,7 +532,7 @@ class DimensionReportService
                 continue;
             }
             // Date filter applies to the line date when it is known.
-            $lineDate = $this->lineDateForRow($row);
+            $lineDate = $dates[$row->line_type.'|'.(int) $row->line_id] ?? null;
             if ($lineDate && $from && $lineDate->lt($from->startOfDay())) {
                 continue;
             }
@@ -533,21 +555,45 @@ class DimensionReportService
         return $invalid;
     }
 
-    protected function lineDateForRow(JournalLineDimension $row): ?Carbon
+    /** Line dates for a set of dimension rows, keyed by
+     *  "line_type|line_id" — two queries at most, never one per row. */
+    protected function lineDatesForRows($rows): array
     {
-        if ($row->line_type === JournalLineDimension::LINE_JOURNAL_ITEM) {
-            $item = DB::table('journal_items')->where('id', $row->line_id)->first();
-            if (! $item) {
-                return null;
+        $dates = [];
+        $tlIds = [];
+        $jiIds = [];
+        foreach ($rows as $row) {
+            if ($row->line_type === JournalLineDimension::LINE_JOURNAL_ITEM) {
+                $jiIds[] = (int) $row->line_id;
+            } else {
+                $tlIds[] = (int) $row->line_id;
             }
-            $journal = DB::table('journal_entries')->where('id', $item->journal)->first();
-
-            return $journal && $journal->date ? Carbon::parse($journal->date) : null;
         }
 
-        $line = DB::table('transaction_lines')->where('id', $row->line_id)->first();
+        if ($tlIds !== []) {
+            foreach (DB::table('transaction_lines')->whereIn('id', array_unique($tlIds))->get(['id', 'date']) as $line) {
+                if ($line->date) {
+                    $dates['transaction_line|'.(int) $line->id] = Carbon::parse($line->date);
+                }
+            }
+        }
 
-        return $line && $line->date ? Carbon::parse($line->date) : null;
+        if ($jiIds !== []) {
+            $items = DB::table('journal_items')->whereIn('id', array_unique($jiIds))->get(['id', 'journal']);
+            $journalIds = [];
+            foreach ($items as $item) {
+                $journalIds[(int) $item->journal] = true;
+            }
+            $journalDates = DB::table('journal_entries')->whereIn('id', array_keys($journalIds))->pluck('date', 'id');
+            foreach ($items as $item) {
+                $date = $journalDates[(int) $item->journal] ?? null;
+                if ($date) {
+                    $dates['journal_item|'.(int) $item->id] = Carbon::parse($date);
+                }
+            }
+        }
+
+        return $dates;
     }
 
     /** Posted Phase 1 allocations whose centre is now inactive. */

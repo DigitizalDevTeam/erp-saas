@@ -41,6 +41,8 @@
                         <div class="col-md-3 d-flex align-items-end gap-2">
                             <button type="submit" class="btn btn-primary">{{ __('Run check') }}</button>
                             <a href="{{ route('cost-centre-reports.reconciliation', array_merge(request()->query(), ['export' => 'csv'])) }}" class="btn btn-outline-secondary">{{ __('Export CSV') }}</a>
+                            <a href="{{ route('cost-centre-reports.reconciliation', array_merge(request()->query(), ['export' => 'xlsx'])) }}" class="btn btn-outline-secondary">{{ __('Export XLSX') }}</a>
+                            <a href="{{ route('cost-centre-reports.reconciliation', array_merge(request()->query(), ['export' => 'pdf'])) }}" class="btn btn-outline-secondary">{{ __('Export PDF') }}</a>
                         </div>
                     </form>
 

@@ -3,16 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\CostCentre;
+use App\Services\CostCentreExportService;
 use App\Services\DimensionReportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CostCentreReportController extends Controller
 {
     public function __construct(
         protected DimensionReportService $reports = new DimensionReportService(),
+        protected CostCentreExportService $exports = new CostCentreExportService(),
     ) {}
 
     /**
@@ -33,20 +34,21 @@ class CostCentreReportController extends Controller
 
         $report = $this->reports->expenseByCentre($creatorId, $from, $to, $centreId, $projectId);
 
-        if ($request->input('export') === 'csv') {
-            return $this->requireExportPermission($request, $report, 'expense-by-centre', [
-                [__('Cost Centre'), __('Project'), __('Lines'), __('Total'), __('Total incl. children')],
-            ], function () use ($report) {
-                foreach ($report['rows'] as $row) {
-                    yield [
-                        $row['cost_centre_code'],
-                        $row['project_id'] ?? '',
-                        $row['rows'],
-                        $row['total'],
-                        $row['total_including_children'],
-                    ];
-                }
-            });
+        if ($export = $this->exportResponse($request, $report, 'expense-by-centre', __('Expense by Cost Centre'), [__('Cost Centre'), __('Project'), __('Lines'), __('Total'), __('Total incl. children')], function () use ($report) {
+            $rows = [];
+            foreach ($report['rows'] as $row) {
+                $rows[] = [
+                    $row['cost_centre_code'],
+                    $row['project_id'] ?? '',
+                    $row['rows'],
+                    $row['total'],
+                    $row['total_including_children'],
+                ];
+            }
+
+            return $rows;
+        })) {
+            return $export;
         }
 
         return view('cost-centres.reports.expense', array_merge($report, [
@@ -75,20 +77,21 @@ class CostCentreReportController extends Controller
 
         $report = $this->reports->cashOutflowByCentre($creatorId, $from, $to, $centreId, $projectId);
 
-        if ($request->input('export') === 'csv') {
-            return $this->requireExportPermission($request, $report, 'cash-outflow-by-centre', [
-                [__('Cost Centre'), __('Project'), __('Lines'), __('Total'), __('Total incl. children')],
-            ], function () use ($report) {
-                foreach ($report['rows'] as $row) {
-                    yield [
-                        $row['cost_centre_code'],
-                        $row['project_id'] ?? '',
-                        $row['rows'],
-                        $row['total'],
-                        $row['total_including_children'],
-                    ];
-                }
-            });
+        if ($export = $this->exportResponse($request, $report, 'cash-outflow-by-centre', __('Cash Outflow by Cost Centre'), [__('Cost Centre'), __('Project'), __('Lines'), __('Total'), __('Total incl. children')], function () use ($report) {
+            $rows = [];
+            foreach ($report['rows'] as $row) {
+                $rows[] = [
+                    $row['cost_centre_code'],
+                    $row['project_id'] ?? '',
+                    $row['rows'],
+                    $row['total'],
+                    $row['total_including_children'],
+                ];
+            }
+
+            return $rows;
+        })) {
+            return $export;
         }
 
         return view('cost-centres.reports.cash', array_merge($report, [
@@ -119,21 +122,22 @@ class CostCentreReportController extends Controller
 
         $report = $this->reports->reconciliation($creatorId, $from, $to, $scope);
 
-        if ($request->input('export') === 'csv') {
-            return $this->requireExportPermission($request, $report, 'reconciliation', [
-                [__('Line'), __('Account'), __('Date'), __('GL amount'), __('Dimensioned'), __('Difference')],
-            ], function () use ($report) {
-                foreach (array_merge($report['mismatches'], $report['unassigned']) as $line) {
-                    yield [
-                        $line['line_type'].' #'.$line['line_id'],
-                        $line['account_code'],
-                        $line['date'],
-                        $line['net'],
-                        $line['dimensioned'],
-                        bcsub((string) $line['net'], (string) $line['dimensioned'], 2),
-                    ];
-                }
-            });
+        if ($export = $this->exportResponse($request, $report, 'reconciliation', __('Reconciliation'), [__('Line'), __('Account'), __('Date'), __('GL amount'), __('Dimensioned'), __('Difference')], function () use ($report) {
+            $rows = [];
+            foreach (array_merge($report['mismatches'], $report['unassigned']) as $line) {
+                $rows[] = [
+                    $line['line_type'].' #'.$line['line_id'],
+                    $line['account_code'],
+                    $line['date'],
+                    $line['net'],
+                    $line['dimensioned'],
+                    bcsub((string) $line['net'], (string) $line['dimensioned'], 2),
+                ];
+            }
+
+            return $rows;
+        })) {
+            return $export;
         }
 
         return view('cost-centres.reports.reconciliation', array_merge($report, ['scope' => $scope]));
@@ -156,20 +160,21 @@ class CostCentreReportController extends Controller
 
         $report = $this->reports->unassigned($creatorId, $from, $to);
 
-        if ($request->input('export') === 'csv') {
-            return $this->requireExportPermission($request, $report, 'unassigned', [
-                [__('Section'), __('Line'), __('Account'), __('Date'), __('Amount'), __('Reason')],
-            ], function () use ($report) {
-                foreach ($report['missing_dimensions'] as $line) {
-                    yield [__('Missing dimensions'), $line['line_type'].' #'.$line['line_id'], $line['account_code'], $line['date'], $line['net'], $line['reason']];
-                }
-                foreach ($report['invalid_dimensions'] as $row) {
-                    yield [__('Invalid dimension'), $row['line_type'].' #'.$row['line_id'], '', '', $row['allocated_amount'], $row['reason']];
-                }
-                foreach ($report['invalid_allocations'] as $row) {
-                    yield [__('Invalid allocation'), 'allocation #'.$row['allocation_id'], '', '', $row['allocated_amount'], $row['reason']];
-                }
-            });
+        if ($export = $this->exportResponse($request, $report, 'unassigned', __('Unassigned / Invalid Allocations'), [__('Section'), __('Line'), __('Account'), __('Date'), __('Amount'), __('Reason')], function () use ($report) {
+            $rows = [];
+            foreach ($report['missing_dimensions'] as $line) {
+                $rows[] = [__('Missing dimensions'), $line['line_type'].' #'.$line['line_id'], $line['account_code'], $line['date'], $line['net'], $line['reason']];
+            }
+            foreach ($report['invalid_dimensions'] as $row) {
+                $rows[] = [__('Invalid dimension'), $row['line_type'].' #'.$row['line_id'], '', '', $row['allocated_amount'], $row['reason']];
+            }
+            foreach ($report['invalid_allocations'] as $row) {
+                $rows[] = [__('Invalid allocation'), 'allocation #'.$row['allocation_id'], '', '', $row['allocated_amount'], $row['reason']];
+            }
+
+            return $rows;
+        })) {
+            return $export;
         }
 
         return view('cost-centres.reports.unassigned', $report);
@@ -200,25 +205,26 @@ class CostCentreReportController extends Controller
         $report['from'] = $period !== null ? sprintf('%04d-%02d-01', $fiscalYear, $period) : sprintf('%04d-01-01', $fiscalYear);
         $report['to'] = $period !== null ? sprintf('%04d-%02d-01', $fiscalYear, $period) : sprintf('%04d-12-31', $fiscalYear);
 
-        if ($request->input('export') === 'csv') {
-            return $this->requireExportPermission($request, $report, 'budget-vs-actual', [
-                [__('Cost Centre'), __('Month'), __('Scope'), __('Approved'), __('Committed'), __('Actual'), __('Available'), __('Variance'), __('Variance %'), __('Status')],
-            ], function () use ($report) {
-                foreach ($report['rows'] as $row) {
-                    yield [
-                        ($row['cost_centre_code'] ?? '').' '.($row['cost_centre_name'] ?? ''),
-                        $row['fiscal_year'].'-'.str_pad((string) $row['period'], 2, '0', STR_PAD_LEFT),
-                        $row['scope_key'],
-                        $row['approved'],
-                        $row['committed'],
-                        $row['actual'],
-                        $row['available'],
-                        $row['variance'],
-                        $row['variance_percent'] ?? '',
-                        $row['status'],
-                    ];
-                }
-            });
+        if ($export = $this->exportResponse($request, $report, 'budget-vs-actual', __('Budget vs Actual'), [__('Cost Centre'), __('Month'), __('Scope'), __('Approved'), __('Committed'), __('Actual'), __('Available'), __('Variance'), __('Variance %'), __('Status')], function () use ($report) {
+            $rows = [];
+            foreach ($report['rows'] as $row) {
+                $rows[] = [
+                    ($row['cost_centre_code'] ?? '').' '.($row['cost_centre_name'] ?? ''),
+                    $row['fiscal_year'].'-'.str_pad((string) $row['period'], 2, '0', STR_PAD_LEFT),
+                    $row['scope_key'],
+                    $row['approved'],
+                    $row['committed'],
+                    $row['actual'],
+                    $row['available'],
+                    $row['variance'],
+                    $row['variance_percent'] ?? '',
+                    $row['status'],
+                ];
+            }
+
+            return $rows;
+        })) {
+            return $export;
         }
 
         return view('cost-centres.reports.budget', array_merge($report, [
@@ -246,31 +252,24 @@ class CostCentreReportController extends Controller
         return CostCentre::forCompany($creatorId)->orderBy('code')->get();
     }
 
-    protected function requireExportPermission(Request $request, array $report, string $filename, array $header, callable $rows)
+    /**
+     * CSV / XLSX / PDF export for a report (Phase 6). The first CSV row
+     * keeps the Phase 4 shape (title, period, currency) and the second
+     * row the basis label, so existing exports do not change; XLSX and
+     * PDF carry the same headings and rows as the screen. The export
+     * permission is enforced inside the service.
+     */
+    protected function exportResponse(Request $request, array $report, string $filename, string $title, array $headings, callable $rows)
     {
-        if (! Auth::user()->can('export cost centre reports')) {
-            return redirect()->back()->with('error', __('Permission Denied.'));
-        }
-
-        $currency = $report['currency_code'] ?? '';
-        $basis = $report['basis_label'] ?? ($report['scope'] ?? '');
-
-        return new StreamedResponse(function () use ($header, $rows, $report, $currency, $basis) {
-            $out = fopen('php://output', 'w');
-            fputcsv($out, [__('Cost Centre Report'), $report['from'] ?? '', '—', $report['to'] ?? '', $currency]);
-            if ($basis !== '') {
-                fputcsv($out, [$basis]);
-            }
-            foreach ($header as $line) {
-                fputcsv($out, $line);
-            }
-            foreach ($rows() as $line) {
-                fputcsv($out, $line);
-            }
-            fclose($out);
-        }, 200, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="'.$filename.'-'.($report['from'] ?? date('Y-m-d')).'.csv"',
-        ]);
+        return $this->exports->responseFor(
+            $request,
+            $filename,
+            $title,
+            (string) ($report['basis_label'] ?? ($report['scope'] ?? '')),
+            $headings,
+            $rows,
+            $report['from'] ?? null,
+            [__('Cost Centre Report'), $report['from'] ?? '', '—', $report['to'] ?? '', $report['currency_code'] ?? '']
+        );
     }
 }

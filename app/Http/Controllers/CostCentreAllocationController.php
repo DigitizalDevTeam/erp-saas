@@ -20,19 +20,59 @@ class CostCentreAllocationController extends Controller
     ) {}
 
     /** List of allocations for the company (posted, reversed, drafts). */
-    public function index()
+    public function index(Request $request)
     {
         if (! Auth::user()->can('manage cost centre allocations')) {
             return redirect()->back()->with('error', __('Permission Denied.'));
         }
 
         $creatorId = Auth::user()->creatorId();
-        $allocations = CostCentreAllocation::forCompany($creatorId)
-            ->with(['lines.costCentre'])
-            ->orderByDesc('id')
-            ->paginate(25);
+        // Phase 6: the dashboard links here per centre, so the ledger
+        // filters to that centre's splits.
+        $centreId = $request->filled('cost_centre_id') ? (int) $request->input('cost_centre_id') : null;
 
-        return view('cost-centres.allocations.index', compact('allocations'));
+        $query = CostCentreAllocation::forCompany($creatorId)
+            ->when($centreId !== null, fn ($q) => $q->whereHas('lines', fn ($l) => $l->where('cost_centre_id', $centreId)))
+            ->with(['lines.costCentre'])
+            ->orderByDesc('id');
+
+        // Phase 6 exports: the same ledger, as CSV / XLSX / PDF.
+        $export = (new \App\Services\CostCentreExportService())->responseFor(
+            $request, 'cost-centre-allocations', __('Cost Centre Allocations'),
+            __('Posted splits are never edited — reverse one with a reason, then post a new allocation.'),
+            [__('ID'), __('Source'), __('Line'), __('Basis'), __('Source amount'), __('Split'), __('Status')],
+            function () use ($query) {
+                $rows = [];
+                foreach ($query->get() as $allocation) {
+                    $split = [];
+                    foreach ($allocation->lines as $line) {
+                        $split[] = ($line->costCentre ? $line->costCentre->code : '#'.$line->cost_centre_id).': '.(string) $line->allocated_amount;
+                    }
+                    $rows[] = [
+                        $allocation->id,
+                        ucfirst($allocation->source_type).' #'.$allocation->source_id,
+                        $allocation->source_line_type.' #'.$allocation->source_line_id,
+                        $allocation->basis === 'fixed_amount' ? __('Fixed amount') : __('Percentage'),
+                        (string) $allocation->source_amount,
+                        implode('; ', $split),
+                        ucfirst($allocation->status),
+                    ];
+                }
+
+                return $rows;
+            }
+        );
+        if ($export !== null) {
+            return $export;
+        }
+
+        $allocations = $query->paginate(25)->withQueryString();
+
+        return view('cost-centres.allocations.index', [
+            'allocations' => $allocations,
+            'centres' => CostCentre::forCompany($creatorId)->orderBy('code')->get(),
+            'selectedCentreId' => $centreId,
+        ]);
     }
 
     /**

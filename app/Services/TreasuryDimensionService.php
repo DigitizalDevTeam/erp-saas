@@ -528,13 +528,27 @@ class TreasuryDimensionService
     // ------------------------------------------------------------------
 
     /** Supersede every active dimension row on a payment (it was deleted). */
-    public function removeForPayment(string $paymentType, int $paymentId, int $creatorId, int $userId, string $reason): void
+    /**
+     * Supersede every active dimension row on a payment. A closed
+     * period blocks the removal (Phase 6 hardening) — the one exception
+     * is a payment DELETE: the payment itself is gone, so its
+     * dimensions must follow it or they would be orphaned. That caller
+     * (BillController's destroy hook) passes $allowClosedPeriod = true.
+     */
+    public function removeForPayment(string $paymentType, int $paymentId, int $creatorId, int $userId, string $reason, bool $allowClosedPeriod = false): void
     {
         $this->assertPaymentType($paymentType);
 
         $before = $this->summaryForPayment($paymentType, $paymentId, $creatorId);
         if ($before['rows'] === []) {
             return;
+        }
+
+        if (! $allowClosedPeriod) {
+            $date = $this->paymentDate($paymentType, $paymentId, $creatorId);
+            if ($date !== null) {
+                $this->allocations->assertPeriodOpen($creatorId, $date);
+            }
         }
 
         DB::transaction(function () use ($paymentType, $paymentId, $creatorId, $userId, $before, $reason) {
@@ -552,6 +566,27 @@ class TreasuryDimensionService
     // ------------------------------------------------------------------
     // Resolution + guards
     // ------------------------------------------------------------------
+
+    /** The payment's date, for the closed-period check. Resolving the
+     *  payment also asserts it belongs to this company. Treasury
+     *  payments (future module) have no dated row yet, so they return
+     *  null and skip the check. */
+    protected function paymentDate(string $paymentType, int $paymentId, int $creatorId): ?Carbon
+    {
+        if ($paymentType === TreasuryLineDimension::TYPE_BILL_PAYMENT) {
+            $payment = $this->resolveBillPayment($paymentId, $creatorId);
+
+            return $payment->date ? Carbon::parse($payment->date) : null;
+        }
+
+        if ($paymentType === TreasuryLineDimension::TYPE_RECEIPT) {
+            $receipt = $this->resolveReceipt($paymentId, $creatorId);
+
+            return $receipt->date ? Carbon::parse($receipt->date) : null;
+        }
+
+        return null;
+    }
 
     protected function assertPaymentType(string $paymentType): void
     {
