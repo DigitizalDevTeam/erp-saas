@@ -51,7 +51,17 @@ class KitchenProductionOrderService
     public function __construct(
         protected KitchenUnitConversionService $conversions,
         protected KitchenRecipeCostService $costs,
+        // Optional so existing callers (and tests) that construct this
+        // service with two arguments keep working; resolved from the
+        // container on first use when not given.
+        protected ?KitchenCostControlService $costControl = null,
     ) {
+    }
+
+    /** Lazy container resolution for the optional cost-control service. */
+    protected function costControl(): KitchenCostControlService
+    {
+        return $this->costControl ??= app(KitchenCostControlService::class);
     }
 
     /**
@@ -150,7 +160,11 @@ class KitchenProductionOrderService
 
         $planned = $this->planLines($recipe, (float) $data['planned_quantity'], isset($data['planned_unit_id']) ? (int) $data['planned_unit_id'] : null);
 
-        return DB::transaction(function () use ($data, $user, $creatorId, $recipe, $planned) {
+        // Phase 6: snapshot the planned food cost % / band at creation
+        // — the "plan" side of the expected-vs-actual comparison.
+        $plannedFoodCost = $this->costControl()->plannedFoodCost($recipe, $planned);
+
+        return DB::transaction(function () use ($data, $user, $creatorId, $recipe, $planned, $plannedFoodCost) {
             $order = KitchenProductionOrder::create([
                 'kitchen_recipe_id' => (int) $recipe->id,
                 // Phase 3: the plan this order was generated from (null
@@ -167,6 +181,8 @@ class KitchenProductionOrderService
                 'responsible_user_id' => ! empty($data['responsible_user_id']) ? (int) $data['responsible_user_id'] : null,
                 'notes' => $data['notes'] ?? null,
                 'planned_cost' => $planned['planned_cost'],
+                'planned_food_cost_percent' => $plannedFoodCost['percent'],
+                'planned_food_cost_band' => $plannedFoodCost['band'],
                 'cost_centre_id' => ! empty($data['cost_centre_id']) ? (int) $data['cost_centre_id'] : null,
                 // The creating user is the "submitter": they cannot
                 // approve their own order (same rule as recipes).
@@ -234,6 +250,9 @@ class KitchenProductionOrderService
             if ($replan) {
                 $planned = $this->planLines($recipe, $plannedQuantity, $plannedUnitId);
                 $order->planned_cost = $planned['planned_cost'];
+                $plannedFoodCost = $this->costControl()->plannedFoodCost($recipe, $planned);
+                $order->planned_food_cost_percent = $plannedFoodCost['percent'];
+                $order->planned_food_cost_band = $plannedFoodCost['band'];
                 $order->save();
                 $this->syncPlannedLines($order, $planned['lines'], $creatorId);
             } else {
@@ -445,6 +464,14 @@ class KitchenProductionOrderService
             $order->completed_by = (int) $user->id;
             $order->completed_at = now();
             $order->save();
+
+            // Cost control (Phase 6): snapshot the actual cost and
+            // fire alerts when the band is bad / very bad or worse
+            // than planned. The service no-ops when its tables do not
+            // exist yet (a Phase 0–5 schema).
+            $completed = $order->fresh();
+            $this->costControl()->recordOrderSnapshot($completed);
+            $this->costControl()->checkOrder($completed);
 
             return $order->fresh();
         });

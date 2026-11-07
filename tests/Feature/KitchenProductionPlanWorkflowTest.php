@@ -139,6 +139,8 @@ class KitchenProductionPlanWorkflowTest extends TestCase
             $table->decimal('cost_per_portion', 15, 2)->nullable();
             $table->decimal('food_cost_percent', 5, 2)->nullable();
             $table->string('food_cost_band', 20)->nullable();
+            $table->decimal('planned_food_cost_percent', 5, 2)->nullable();
+            $table->string('planned_food_cost_band', 20)->nullable();
             $table->date('batch_expiry_date')->nullable();
             $table->integer('submitted_by')->nullable();
             $table->integer('approved_by')->nullable();
