@@ -43,6 +43,12 @@ class Expense extends Model
         'payment_account_id',
         'chart_account_id',
         'created_by',
+        // Treasury Phase 5 — petty cash: the fund this expense belongs
+        // to, the cost centre on the line, and the amount of it
+        // already handed back unspent.
+        'treasury_petty_cash_fund_id',
+        'cost_centre_id',
+        'treasury_petty_cash_returned_amount',
     ];
 
     protected $casts = [
@@ -54,6 +60,18 @@ class Expense extends Model
     public function expenseCategory()
     {
         return $this->belongsTo(ExpenseCategory::class, 'expense_category_id');
+    }
+
+    /** Alias used by the Treasury petty-cash screens. */
+    public function category()
+    {
+        return $this->belongsTo(ExpenseCategory::class, 'expense_category_id');
+    }
+
+    /** Treasury Phase 5 — the cost centre on the petty-cash line. */
+    public function costCentre()
+    {
+        return $this->belongsTo(CostCentre::class, 'cost_centre_id');
     }
 
     public function branch()

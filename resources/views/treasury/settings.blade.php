@@ -157,6 +157,24 @@
                             </div>
                         </div>
 
+                        <h6 class="mt-3">{{ __('Cash Variance Accounts (Phase 5)') }}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" for="treasury_cash_variance_shortage_account_code">{{ __('Cash Shortage — Variance Account Code') }}</label>
+                                    <input type="text" name="treasury_cash_variance_shortage_account_code" id="treasury_cash_variance_shortage_account_code" class="form-control" value="{{ old('treasury_cash_variance_shortage_account_code', $settings['treasury_cash_variance_shortage_account_code'] ?? '') }}" maxlength="20">
+                                    <small class="text-muted">{{ __('Leave empty to use the first chart account starting with 684 (cash shortage at till close).') }}</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" for="treasury_cash_variance_surplus_account_code">{{ __('Cash Surplus — Variance Account Code') }}</label>
+                                    <input type="text" name="treasury_cash_variance_surplus_account_code" id="treasury_cash_variance_surplus_account_code" class="form-control" value="{{ old('treasury_cash_variance_surplus_account_code', $settings['treasury_cash_variance_surplus_account_code'] ?? '') }}" maxlength="20">
+                                    <small class="text-muted">{{ __('Leave empty to use the first chart account starting with 764 (cash surplus at till close).') }}</small>
+                                </div>
+                            </div>
+                        </div>
+
                         <button type="submit" class="btn btn-primary">{{ __('Save') }}</button>
                         <a href="{{ route('treasury-accounts.index') }}" class="btn btn-secondary">{{ __('Cancel') }}</a>
                     </form>
