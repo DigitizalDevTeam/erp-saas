@@ -8,6 +8,7 @@ use App\Models\ProductKitItem;
 use App\Models\ProductRecipe;
 use App\Models\ProductService;
 use App\Models\Utility;
+use App\Services\KitchenPosSaleService;
 
 /**
  * Returns stock for a restaurant POS line that was already deducted at
@@ -56,12 +57,18 @@ class PosLineStockRestoreService
             }
             self::restoreOptionRecipes($selectedOpts, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId);
             // Parent BOM was deducted after the options; return it as well.
-            self::restoreParentBom($product, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId);
+            self::restoreParentBom($product, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $selectedOpts, $line);
         } elseif (($product->type ?? null) === 'kit') {
             self::restoreKitComponents((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId);
         } else {
-            self::restoreRecipeOrProduct($product, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $line->product_variant_id ? (int) $line->product_variant_id : null);
+            self::restoreRecipeOrProduct($product, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $line->product_variant_id ? (int) $line->product_variant_id : null, $line, $selectedOpts);
         }
+
+        // Kitchen Production Phase 2: the prepared batches this line
+        // consumed go back too (the ladder above only returned the
+        // warehouse stock). Idempotent — a batch already restored is
+        // never added back twice.
+        app(KitchenPosSaleService::class)->restoreBatchesOnly($line, $creatorId);
 
         $line->stock_restored_at = now();
         $line->save();
@@ -117,7 +124,7 @@ class PosLineStockRestoreService
         }
     }
 
-    protected static function restoreParentBom(ProductService $product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId): void
+    protected static function restoreParentBom(ProductService $product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, array $selectedOptions = [], ?PosProduct $line = null): void
     {
         if (($product->type ?? null) === 'kit') {
             self::restoreKitComponents((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId);
@@ -125,12 +132,34 @@ class PosLineStockRestoreService
             return;
         }
 
+        // Kitchen Production Phase 2: a prepared product sold from its
+        // batches never deducted its raw ingredients — return the
+        // prepared product's own stock instead (see restoreRecipeOrProduct).
+        if ($line !== null) {
+            $kitchen = app(KitchenPosSaleService::class);
+            if ($kitchen->isPreparedProduct((int) $product->id, $creatorId)) {
+                $consumed = $kitchen->consumedQuantityForProduct($line, (int) $product->id, $creatorId);
+                if ($consumed > 0) {
+                    self::addBack((int) $product->id, $consumed, $warehouseId, $creatorId, $posNoFormatted, $posId, false, $line->product_variant_id ? (int) $line->product_variant_id : null);
+
+                    return;
+                }
+            }
+        }
+
         // The parent BOM deduction only ran when recipes exist, and
         // PosRecipeDeductionService then deducts ingredients only.
         // No-affect ingredients were never deducted, so they are never
         // added back either (or a void would create stock from nothing).
+        // Kitchen Production Phase 2: a recipe line swapped by an option
+        // was never deducted either (the alternative came through the
+        // option), so its main ingredient is not returned.
+        $swapped = app(KitchenPosSaleService::class)->swappedRecipeLineIds((int) $product->id, $selectedOptions, $lineQty, $creatorId);
         $recipes = ProductRecipe::where('product_id', (int) $product->id)->where('created_by', $creatorId)->with('ingredientProduct')->get();
         foreach ($recipes as $recipe) {
+            if (isset($swapped[(int) $recipe->id])) {
+                continue;
+            }
             $ingredient = $recipe->ingredientProduct;
             if (! $ingredient || ($ingredient->type ?? '') !== 'ingredient') {
                 continue;
@@ -156,11 +185,35 @@ class PosLineStockRestoreService
         }
     }
 
-    protected static function restoreRecipeOrProduct(ProductService $product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, ?int $variantId): void
+    protected static function restoreRecipeOrProduct(ProductService $product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, ?int $variantId, ?PosProduct $line = null, array $selectedOptions = []): void
     {
+        // Kitchen Production Phase 2: a prepared product sold from its
+        // batches never deducted its raw ingredients — returning those
+        // would create stock from nothing. Return the prepared product's
+        // own stock instead, by exactly what the line consumed from its
+        // batches (the batch record itself is restored by restoreLine's
+        // trailing restoreBatchesOnly call). When the line has no batch
+        // consumptions, the deduction must have used the legacy raw
+        // path, so the raw restore below is still the right one.
+        if ($line !== null) {
+            $kitchen = app(KitchenPosSaleService::class);
+            if ($kitchen->isPreparedProduct((int) $product->id, $creatorId)) {
+                $consumed = $kitchen->consumedQuantityForProduct($line, (int) $product->id, $creatorId);
+                if ($consumed > 0) {
+                    self::addBack((int) $product->id, $consumed, $warehouseId, $creatorId, $posNoFormatted, $posId, false, $variantId);
+
+                    return;
+                }
+            }
+        }
+
+        $swapped = app(KitchenPosSaleService::class)->swappedRecipeLineIds((int) $product->id, $selectedOptions, $lineQty, $creatorId);
         $recipes = ProductRecipe::where('product_id', (int) $product->id)->where('created_by', $creatorId)->with('ingredientProduct')->get();
         if ($recipes->isNotEmpty()) {
             foreach ($recipes as $recipe) {
+                if (isset($swapped[(int) $recipe->id])) {
+                    continue;
+                }
                 $ingredient = $recipe->ingredientProduct;
                 if (! $ingredient || ($ingredient->type ?? '') !== 'ingredient') {
                     continue;

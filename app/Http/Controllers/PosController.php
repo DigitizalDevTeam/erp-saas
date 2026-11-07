@@ -24,6 +24,7 @@ use App\Services\InvoiceSaleDeductionService;
 use App\Services\PosKitDeductionService;
 use App\Services\PosLineStockDeductionService;
 use App\Services\PosLineStockRestoreService;
+use App\Services\KitchenPosSaleService;
 use App\Services\ProductOptionService;
 use App\Services\PosFefoDeductionService;
 use App\Services\PosRecipeDeductionService;
@@ -560,7 +561,7 @@ class PosController extends Controller
      *
      * @param  \App\Models\ProductService  $product
      */
-    protected function deductParentBomAfterOptions($product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, ?string $identifiersNote = null, ?int $variantId = null, bool $allowNegative = false): void
+    protected function deductParentBomAfterOptions($product, float $lineQty, int $warehouseId, int $creatorId, string $posNoFormatted, int $posId, ?string $identifiersNote = null, ?int $variantId = null, bool $allowNegative = false, array $selectedOptions = [], ?PosProduct $line = null): void
     {
         if (($product->type ?? null) === 'kit') {
             PosKitDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, 'pos', $allowNegative);
@@ -569,7 +570,10 @@ class PosController extends Controller
         }
 
         if (ProductRecipe::where('product_id', (int) $product->id)->where('created_by', $creatorId)->exists()) {
-            PosRecipeDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId, $allowNegative);
+            // Kitchen Production Phase 2: the parent's own BOM is
+            // deducted with the selected options (ingredient swap) and
+            // the saved line (batch consumption record).
+            PosRecipeDeductionService::deductForSale((int) $product->id, $lineQty, $warehouseId, $creatorId, $posNoFormatted, $posId, $identifiersNote, $variantId, $allowNegative, $selectedOptions, $line);
         }
     }
 
@@ -2159,6 +2163,10 @@ class PosController extends Controller
             $positems->save();
             $idNote = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
             $deductByVariant = ($product->variants_enabled ?? false) && $product_variant_id;
+            // Kitchen Production Phase 2: the selected options and the
+            // saved line travel with the deduction (ingredient swap and
+            // the batch consumption record).
+            $storeSelectedOpts = ProductOptionService::normalizeSelectedOptions($value['selected_options'] ?? $value['selected_options_json'] ?? null);
             if (ProductOptionService::tryDeductPosLine($product, $value, $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id, $allowNegative)) {
                 // options only
             } elseif (($product->type ?? null) === 'kit') {
@@ -2182,7 +2190,9 @@ class PosController extends Controller
                     (int) $pos->id,
                     $idNote,
                     $product_variant_id,
-                    $allowNegative
+                    $allowNegative,
+                    $storeSelectedOpts,
+                    $positems
                 );
             } elseif (! $allowNegative && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $lineWarehouseId, (int) $user_id))) {
                 // Auto FEFO when batch tracking enabled or lots exist
@@ -2205,7 +2215,9 @@ class PosController extends Controller
                     (int) $pos->id,
                     $idNote,
                     $product_variant_id,
-                    $allowNegative
+                    $allowNegative,
+                    $storeSelectedOpts,
+                    $positems
                 );
             }
             if ($allowNegative) {
@@ -2770,10 +2782,14 @@ class PosController extends Controller
                         $positems->save();
                         $idNote2 = InvoiceSaleDeductionService::formatIdentifiersNote($value['identifiers'] ?? null);
                         $deductByVariant2 = ($product->variants_enabled ?? false) && $product_variant_id;
+                        // Kitchen Production Phase 2: the selected options and the
+                        // saved line travel with the deduction (ingredient swap
+                        // and the batch consumption record).
+                        $storeSelectedOpts2 = ProductOptionService::normalizeSelectedOptions($value['selected_options'] ?? $value['selected_options_json'] ?? null);
                         if (ProductOptionService::tryDeductPosLine($product, $value, $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id, $allowNegative)) {
                             // Options deducted; the parent's own BOM (recipe ingredients / kit
                             // components) is still consumed per unit sold — deduct it as well.
-                            $this->deductParentBomAfterOptions($product, (float) $value['quantity'], $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id, $idNote2, $product_variant_id, $allowNegative);
+                            $this->deductParentBomAfterOptions($product, (float) $value['quantity'], $lineWarehouseId, $user_id, \Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null), (int) $pos->id, $idNote2, $product_variant_id, $allowNegative, $storeSelectedOpts2, $positems);
                         } elseif (($product->type ?? null) === 'kit') {
                             PosKitDeductionService::deductForSale(
                                 (int) $product_id,
@@ -2795,7 +2811,9 @@ class PosController extends Controller
                                 (int) $pos->id,
                                 $idNote2,
                                 $product_variant_id,
-                                $allowNegative
+                                $allowNegative,
+                                $storeSelectedOpts2,
+                                $positems
                             );
                         } elseif (! $allowNegative && (($product->batch_tracking ?? false) || PosFefoDeductionService::hasLots((int) $product_id, (int) $lineWarehouseId, (int) $user_id))) {
                             PosFefoDeductionService::deductForSale(
@@ -2817,7 +2835,9 @@ class PosController extends Controller
                                 (int) $pos->id,
                                 $idNote2,
                                 $product_variant_id,
-                                $allowNegative
+                                $allowNegative,
+                                $storeSelectedOpts2,
+                                $positems
                             );
                         }
                         if ($allowNegative) {
@@ -3866,6 +3886,26 @@ class PosController extends Controller
         $productsById = $itemProductIds
             ? ProductService::whereIn('id', $itemProductIds)->where('created_by', $creatorId)->with('category')->get()->keyBy('id')
             : collect();
+
+        // Kitchen Production Phase 2: a dish that needs a prepared batch
+        // must have the batch available BEFORE anything is sent — refuse
+        // the whole send with the dish and the batch named, instead of
+        // deducting raw ingredients or partially sending the order.
+        $batchShortages = app(KitchenPosSaleService::class)->checkShortages(
+            is_array($request->items) ? $request->items : [],
+            (int) $warehouse->id,
+            $creatorId
+        );
+        if ($batchShortages !== []) {
+            $first = $batchShortages[0];
+            return response()->json(['error' => __('Not enough prepared :prepared for :dish: need :need, have :have in the kitchen batches.', [
+                'prepared' => $first['prepared_product_name'],
+                'dish' => $first['dish_name'],
+                'need' => $first['needed'],
+                'have' => $first['available'],
+            ])], 422);
+        }
+
         foreach ($request->items as $item) {
             $product = $productsById->get($item['id']);
             if (!$product) {
@@ -4104,7 +4144,7 @@ class PosController extends Controller
         if (!PosAuditLogService::requireManagerPassword($request)) {
             return response()->json(['error' => __('Manager password required to cancel order.')], 403);
         }
-        $request->validate(['pos_id' => 'required|exists:pos,id']);
+        $request->validate(['pos_id' => 'required|exists:pos,id', 'loss_destination' => 'nullable|string|max:50']);
         $pos = Pos::where('id', $request->pos_id)->where('created_by', Auth::user()->creatorId())->first();
         if (!$pos) {
             return response()->json(['error' => __('Order not found.')], 404);
@@ -4114,11 +4154,23 @@ class PosController extends Controller
         }
         $pos->cancelled_at = now();
         $pos->save();
-        // Lines sent to production already moved their stock; return it.
+        // Lines sent to production already moved their stock. Kitchen
+        // Production Phase 2: a line still pending goes back to stock;
+        // a line already in preparation is recorded as a kitchen loss
+        // with its destination instead (decided per line, before the
+        // bulk status change below).
         $stockRestored = false;
         $cancelPosNo = Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null);
         foreach (PosProduct::where('pos_id', $pos->id)->get() as $cancelLine) {
-            if (PosLineStockRestoreService::restoreLine($pos, $cancelLine, (int) Auth::user()->creatorId(), $cancelPosNo)) {
+            $outcome = app(KitchenPosSaleService::class)->cancelLine(
+                $pos,
+                $cancelLine,
+                (int) Auth::user()->creatorId(),
+                $cancelPosNo,
+                $request->input('loss_destination'),
+                Auth::user()
+            );
+            if ($outcome === 'restored' || $outcome === 'returned') {
                 $stockRestored = true;
             }
         }
@@ -4160,7 +4212,7 @@ class PosController extends Controller
             return response()->json(['error' => __('Only Manager can void items.')], 403);
         }
 
-        $request->validate(['reason' => 'required|string|max:500']);
+        $request->validate(['reason' => 'required|string|max:500', 'loss_destination' => 'nullable|string|max:50']);
         $posProduct = PosProduct::where('id', $line)->whereHas('pos', function ($q) use ($actor) {
             $q->where('created_by', $actor->creatorId());
         })->with('pos')->first();
@@ -4177,18 +4229,24 @@ class PosController extends Controller
         if ($posProduct->voided_at) {
             return response()->json(['error' => __('This line is already voided.')], 422);
         }
+        // Kitchen Production Phase 2: decide before/after preparation
+        // BEFORE the status is changed to cancelled (the decision reads
+        // the current status). Before preparation the stock goes back;
+        // after preparation the prepared food is recorded as a kitchen
+        // loss with its destination instead.
+        $cancelOutcome = app(KitchenPosSaleService::class)->cancelLine(
+            $pos,
+            $posProduct,
+            (int) $actor->creatorId(),
+            Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
+            $request->input('loss_destination'),
+            $actor
+        );
         $posProduct->status = PosProduct::STATUS_CANCELLED;
         $posProduct->voided_at = now();
         $posProduct->void_reason = $request->reason;
         $posProduct->voided_by = $actor->id;
         $posProduct->save();
-        // The line's stock was deducted when it was sent to production; return it.
-        PosLineStockRestoreService::restoreLine(
-            $pos,
-            $posProduct,
-            (int) $actor->creatorId(),
-            Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null)
-        );
         PosAuditLogService::log(
             PosAuditLog::ACTION_VOID_LINE,
             'pos_product',
@@ -4227,6 +4285,7 @@ class PosController extends Controller
         $request->validate([
             'line_ids' => 'required|array|min:1',
             'line_ids.*' => 'integer',
+            'loss_destination' => 'nullable|string|max:50',
         ]);
 
         $lineIds = array_values(array_unique(array_map('intval', $request->input('line_ids', []))));
@@ -4260,12 +4319,16 @@ class PosController extends Controller
             $posProduct->removed_from_cart_at = now();
             $posProduct->removed_from_cart_by = $actor->id;
             $posProduct->save();
-            // The line's stock was deducted when it was sent to production; return it.
-            PosLineStockRestoreService::restoreLine(
+            // Kitchen Production Phase 2: before preparation the stock
+            // goes back; after preparation the prepared food is recorded
+            // as a kitchen loss with its destination instead.
+            app(KitchenPosSaleService::class)->cancelLine(
                 $pos,
                 $posProduct,
                 (int) $actor->creatorId(),
-                Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null)
+                Auth::user()->posNumberFormat($pos->pos_id, $pos->document_type ?? null),
+                $request->input('loss_destination'),
+                $actor
             );
 
             $productName = $posProduct->product ? $posProduct->product->name : (__('Product') . ' #' . $posProduct->product_id);
