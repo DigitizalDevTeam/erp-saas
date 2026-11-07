@@ -47,6 +47,14 @@ class TreasurySettings
     // neither resolves, a transfer that needs the line is refused.
     public const KEY_EXCHANGE_LOSS_ACCOUNT_CODE = 'treasury_exchange_loss_account_code';
     public const KEY_EXCHANGE_GAIN_ACCOUNT_CODE = 'treasury_exchange_gain_account_code';
+    // Phase 5 — cash variance accounts (register close). Empty
+    // means "use the documented default prefix" (shortage 684
+    // "Perdas em inventários", surplus 764 "Ganhos em inventários"
+    // on the Hoya chart — the resolver takes the shortest matching
+    // code, so the parent account posts); when neither resolves, a
+    // close that needs the line is refused.
+    public const KEY_CASH_VARIANCE_SHORTAGE_ACCOUNT_CODE = 'treasury_cash_variance_shortage_account_code';
+    public const KEY_CASH_VARIANCE_SURPLUS_ACCOUNT_CODE = 'treasury_cash_variance_surplus_account_code';
     // Phase 2 — approval rules (JSON list of levels) + reservation
     // threshold (base-currency amount at/above which approval reserves
     // funds). D4/D5 (plan §12): no client example was given, so the
@@ -83,6 +91,8 @@ class TreasurySettings
         self::KEY_CUSTOMER_CREDIT_ACCOUNT_CODE => '',
         self::KEY_EXCHANGE_LOSS_ACCOUNT_CODE => '',
         self::KEY_EXCHANGE_GAIN_ACCOUNT_CODE => '',
+        self::KEY_CASH_VARIANCE_SHORTAGE_ACCOUNT_CODE => '',
+        self::KEY_CASH_VARIANCE_SURPLUS_ACCOUNT_CODE => '',
         self::KEY_APPROVAL_RULES => '',
         self::KEY_RESERVATION_THRESHOLD => '0',
     ];
@@ -228,6 +238,8 @@ class TreasurySettings
             self::KEY_CUSTOMER_CREDIT_ACCOUNT_CODE,
             self::KEY_EXCHANGE_LOSS_ACCOUNT_CODE,
             self::KEY_EXCHANGE_GAIN_ACCOUNT_CODE,
+            self::KEY_CASH_VARIANCE_SHORTAGE_ACCOUNT_CODE,
+            self::KEY_CASH_VARIANCE_SURPLUS_ACCOUNT_CODE,
         ] as $key) {
             $values[$key] = substr(trim((string) ($input[$key] ?? '')), 0, 20);
         }
