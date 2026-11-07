@@ -296,6 +296,10 @@ class TreasuryReconciliationController extends Controller
                 $decoded['next_cursor'] ?? null
             );
         } catch (TreasuryException $e) {
+            // Phase 8: record the failure on the sync cursor so the
+            // cash-flow alerts surface it until a later import clears it.
+            $this->service->recordSyncFailure($creatorId, $bank->id, $data['source_key'], $e->getMessage());
+
             return redirect()->back()->with('error', $e->getMessage())->withInput();
         }
 

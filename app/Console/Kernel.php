@@ -20,6 +20,8 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command('stock:alerts')->dailyAt('08:00');
+        $schedule->command('treasury:recurring-generate')->dailyAt('07:30');
+        $schedule->command('treasury:forecast-refresh')->dailyAt('07:45');
     }
 
     /**

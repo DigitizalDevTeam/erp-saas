@@ -3289,6 +3289,18 @@ class UsersTableSeeder extends Seeder
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
             [
+                'name' => 'manage treasury cash flow',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
+                'name' => 'manage treasury recurring',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
                 'name' => 'manage contract type',
                 'guard_name' => 'web',
                 'created_at' => date('Y-m-d H:i:s'),
@@ -4101,6 +4113,8 @@ class UsersTableSeeder extends Seeder
             'manage treasury advances',
             'manage treasury reconciliation',
             'approve treasury reconciliation',
+            'manage treasury cash flow',
+            'manage treasury recurring',
             'manage contract type',
             'create contract type',
             'edit contract type',

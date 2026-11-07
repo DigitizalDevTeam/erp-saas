@@ -75,6 +75,12 @@ class TreasurySettings
     // company through the same settings screen.
     public const KEY_APPROVAL_RULES = 'treasury_approval_rules';
     public const KEY_RESERVATION_THRESHOLD = 'treasury_reservation_threshold_base';
+    // Phase 8 — cash-flow alert threshold in base currency. When
+    // the forecast closing balance falls below this amount, the
+    // first day it does so is flagged on the cash-flow screen and
+    // an insufficient-funds alert is raised. Default 0: any
+    // negative forecast closing raises the alert.
+    public const KEY_CASHFLOW_THRESHOLD = 'treasury_cashflow_threshold_base';
 
     public const DEFAULT_APPROVAL_RULES = [
         ['level' => 1, 'min_amount_base' => '0', 'permission' => 'approve treasury payments', 'required_votes' => 1],
@@ -110,6 +116,7 @@ class TreasurySettings
         self::KEY_ADVANCE_BLOCK_ON_OUTSTANDING => '0',
         self::KEY_APPROVAL_RULES => '',
         self::KEY_RESERVATION_THRESHOLD => '0',
+        self::KEY_CASHFLOW_THRESHOLD => '0',
     ];
 
     /**
@@ -160,6 +167,16 @@ class TreasurySettings
     public static function reservationThreshold(int $creatorId): string
     {
         $raw = trim((string) (self::get($creatorId, self::KEY_RESERVATION_THRESHOLD) ?? ''));
+
+        return is_numeric($raw) && (float) $raw >= 0
+            ? number_format((float) $raw, 4, '.', '')
+            : '0.0000';
+    }
+
+    /** Cash-flow alert threshold in base currency (Phase 8). */
+    public static function cashflowThreshold(int $creatorId): string
+    {
+        $raw = trim((string) (self::get($creatorId, self::KEY_CASHFLOW_THRESHOLD) ?? ''));
 
         return is_numeric($raw) && (float) $raw >= 0
             ? number_format((float) $raw, 4, '.', '')
@@ -278,6 +295,11 @@ class TreasurySettings
         $values[self::KEY_RESERVATION_THRESHOLD] = is_numeric($threshold) && (float) $threshold >= 0
             ? number_format((float) $threshold, 4, '.', '')
             : self::DEFAULTS[self::KEY_RESERVATION_THRESHOLD];
+
+        $cashflowThreshold = trim((string) ($input[self::KEY_CASHFLOW_THRESHOLD] ?? ''));
+        $values[self::KEY_CASHFLOW_THRESHOLD] = is_numeric($cashflowThreshold) && (float) $cashflowThreshold >= 0
+            ? number_format((float) $cashflowThreshold, 4, '.', '')
+            : self::DEFAULTS[self::KEY_CASHFLOW_THRESHOLD];
 
         foreach ($values as $name => $value) {
             DB::table('settings')->updateOrInsert(

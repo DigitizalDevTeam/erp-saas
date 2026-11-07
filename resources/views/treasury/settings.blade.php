@@ -78,6 +78,16 @@
                             </div>
                         </div>
 
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" for="treasury_cashflow_threshold_base">{{ __('Cash-Flow Alert Threshold (base currency)') }}</label>
+                                    <input type="number" min="0" step="0.01" name="treasury_cashflow_threshold_base" id="treasury_cashflow_threshold_base" class="form-control" value="{{ old('treasury_cashflow_threshold_base', $settings['treasury_cashflow_threshold_base'] ?? '0') }}">
+                                    <small class="text-muted">{{ __('When the forecast closing balance falls below this amount, the cash-flow screen flags the first day and raises an insufficient-funds alert. Default 0: any negative forecast closing raises the alert.') }}</small>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="form-group">
                             <label class="form-label" for="treasury_notification_channels">{{ __('Notification Channels') }}</label>
                             <select name="treasury_notification_channels" id="treasury_notification_channels" class="form-control">

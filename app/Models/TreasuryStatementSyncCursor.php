@@ -21,11 +21,17 @@ class TreasuryStatementSyncCursor extends Model
         'source_key',
         'cursor_value',
         'last_synced_at',
+        // Phase 8 — a failed API sync records its error here; the
+        // next successful import clears it. The alert service raises
+        // a sync_failure alert while a recent failure stands.
+        'last_error',
+        'last_error_at',
         'created_by',
     ];
 
     protected $casts = [
         'last_synced_at' => 'datetime',
+        'last_error_at' => 'datetime',
     ];
 
     public function bankAccount(): BelongsTo
