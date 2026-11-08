@@ -314,6 +314,37 @@ class FixedAssetTransferService
         });
     }
 
+    /**
+     * Phase 6 — cancel an in-flight transfer because the asset is
+     * being disposed. Unlike cancelTransfer(), this NEVER touches
+     * the asset status: the disposal owns the asset's status from
+     * here (it flips to disposed in the same transaction), and a
+     * status restore would write a bogus "disposal_pending →
+     * available" change into the timeline. It also covers a
+     * handed-over transfer, which cancelTransfer() refuses — a
+     * handed-over transfer can never be received once the asset
+     * is disposed, so leaving it open would strand it forever.
+     */
+    public function cancelTransferForDisposal(FixedAssetTransfer $transfer, int $creatorId, int $userId): FixedAssetTransfer
+    {
+        $this->assets->assertSameCompany($transfer, $creatorId);
+
+        if (! in_array($transfer->status, [
+            FixedAssetTransfer::STATUS_REQUESTED,
+            FixedAssetTransfer::STATUS_APPROVED,
+            FixedAssetTransfer::STATUS_HANDED_OVER,
+        ], true)) {
+            throw new FixedAssetException('Only a requested, approved or handed-over transfer can be cancelled for disposal.');
+        }
+
+        return DB::transaction(function () use ($transfer, $creatorId, $userId) {
+            $transfer->update(['status' => FixedAssetTransfer::STATUS_CANCELLED]);
+            $this->assets->logAudit($creatorId, $transfer->asset_id, 'fixed_asset_transfer', $transfer->id, 'cancelled', $userId, null, $transfer->fresh()->toArray(), 'Cancelled — asset disposed');
+
+            return $transfer->fresh();
+        });
+    }
+
     // ------------------------------------------------------------------
     // Lookups
     // ------------------------------------------------------------------

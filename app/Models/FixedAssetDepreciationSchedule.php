@@ -24,9 +24,20 @@ class FixedAssetDepreciationSchedule extends Model
     public const STATUS_PLANNED = 'planned';
     public const STATUS_POSTED = 'posted';
 
+    /**
+     * Phase 6 — a row cancelled at disposal execution. The asset
+     * is gone, so its remaining months must never post: the Phase 3
+     * engine only computes PLANNED rows, so a cancelled row is
+     * invisible to every future run. The row is kept (not deleted)
+     * so the schedule still shows what was planned and what was
+     * cut short by the disposal.
+     */
+    public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUSES = [
         self::STATUS_PLANNED,
         self::STATUS_POSTED,
+        self::STATUS_CANCELLED,
     ];
 
     protected $fillable = [

@@ -787,6 +787,15 @@ class FixedAssetDepreciationService
     {
         $this->assets->assertSameCompany($asset, $creatorId);
 
+        // Phase 6: execution cancels the remaining planned rows, so
+        // the empty-rows check below can no longer refuse a disposed
+        // asset by itself — refuse explicitly, loudly. A disposed or
+        // written-off asset can never be caught up again; silently
+        // returning null would hide a missed depreciation.
+        if ($asset->isDisposed()) {
+            throw new FixedAssetException('Asset '.$asset->code.' is '.$asset->status.'. Depreciation catch-up is not possible on a disposed or written-off asset.');
+        }
+
         $rows = FixedAssetDepreciationSchedule::where('created_by', $creatorId)
             ->where('asset_id', $asset->id)
             ->where('status', FixedAssetDepreciationSchedule::STATUS_PLANNED)

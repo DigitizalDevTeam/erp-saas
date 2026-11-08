@@ -26,6 +26,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('treasury:forecast-refresh')->dailyAt('07:45');
         $schedule->command('treasury:prune-report-exports')->dailyAt('03:00');
         $schedule->command('billing:prune-report-exports')->dailyAt('03:15');
+        $schedule->command('fixed-assets:prune-report-exports')->dailyAt('03:30');
     }
 
     /**
