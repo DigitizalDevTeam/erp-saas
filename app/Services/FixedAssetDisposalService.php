@@ -8,7 +8,10 @@ use App\Models\FixedAsset;
 use App\Models\FixedAssetAccountingEntry;
 use App\Models\FixedAssetApproval;
 use App\Models\FixedAssetAssignment;
+use App\Models\FixedAssetDepreciationSchedule;
 use App\Models\FixedAssetDisposal;
+use App\Models\FixedAssetMaintenanceRequest;
+use App\Models\FixedAssetTransfer;
 use App\Services\Accounting\ChartAccountResolver;
 use App\Services\Accounting\JournalEntryPoster;
 use App\Services\FixedAssetSettings;
@@ -64,7 +67,16 @@ class FixedAssetDisposalService
         protected FixedAssetAssignmentService $assignments,
         protected JournalEntryPoster $poster,
         protected ChartAccountResolver $resolver,
+        protected ?FixedAssetMaintenanceService $maintenance = null,
+        protected ?FixedAssetTransferService $transfers = null,
     ) {
+        // Phase 6 — the maintenance / transfer services are only
+        // needed to close open workflows at disposal execution.
+        // They are nullable so existing constructions (notably the
+        // Phase 5 tests) keep working; when absent they are
+        // resolved from the container at execution time.
+        $this->maintenance ??= app(FixedAssetMaintenanceService::class);
+        $this->transfers ??= app(FixedAssetTransferService::class);
     }
 
     // ------------------------------------------------------------------
@@ -310,6 +322,51 @@ class FixedAssetDisposalService
                 $fresh = $asset->fresh();
             }
 
+            // 4b. Phase 6 — close open maintenance requests and
+            // in-flight transfers. A disposal requested while a
+            // maintenance request was still pending, or a transfer
+            // was still requested / approved / handed over, used to
+            // leave those workflows open forever on a disposed
+            // asset (Phase 5 rough edge). They are closed here,
+            // inside the same transaction, before the journal and
+            // the status flip — so the asset can never end up
+            // disposed with live work attached to it.
+            //
+            // Maintenance is cancelled through the normal service
+            // (its status restore is a no-op while the asset is
+            // disposal_pending, and restores the pre-maintenance
+            // status if the request had already moved the asset to
+            // under_maintenance). Transfers go through the
+            // disposal-aware cancellation, which never touches the
+            // asset status — the disposal owns it from here — and
+            // which also covers a handed-over transfer that can
+            // never be received once the asset is gone.
+            $openMaintenance = FixedAssetMaintenanceRequest::where('created_by', $creatorId)
+                ->where('asset_id', $asset->id)
+                ->whereIn('status', [
+                    FixedAssetMaintenanceRequest::STATUS_REQUESTED,
+                    FixedAssetMaintenanceRequest::STATUS_APPROVED,
+                    FixedAssetMaintenanceRequest::STATUS_IN_PROGRESS,
+                ])
+                ->get();
+            foreach ($openMaintenance as $request) {
+                $this->maintenance->cancelMaintenance($request, $creatorId, $userId);
+            }
+
+            $openTransfers = FixedAssetTransfer::where('created_by', $creatorId)
+                ->where('asset_id', $asset->id)
+                ->whereIn('status', [
+                    FixedAssetTransfer::STATUS_REQUESTED,
+                    FixedAssetTransfer::STATUS_APPROVED,
+                    FixedAssetTransfer::STATUS_HANDED_OVER,
+                ])
+                ->get();
+            foreach ($openTransfers as $transfer) {
+                $this->transfers->cancelTransferForDisposal($transfer, $creatorId, $userId);
+            }
+
+            $fresh = $fresh->fresh();
+
             // 5. The disposal journal (poster only).
             $journal = null;
             $lines = [];
@@ -387,6 +444,20 @@ class FixedAssetDisposalService
             ]);
 
             $fresh->update(['current_book_value' => '0.0000']);
+
+            // Phase 6 — cancel the remaining planned schedule
+            // rows. The catch-up (step 1) posted every period up
+            // to the disposal date, so what is left is future
+            // months that must never post: the Phase 3 engine only
+            // computes PLANNED rows, so a cancelled row is
+            // invisible to every future run. The rows are kept, not
+            // deleted, so the schedule still shows what was planned
+            // and what the disposal cut short.
+            FixedAssetDepreciationSchedule::where('created_by', $creatorId)
+                ->where('asset_id', $fresh->id)
+                ->where('status', FixedAssetDepreciationSchedule::STATUS_PLANNED)
+                ->update(['status' => FixedAssetDepreciationSchedule::STATUS_CANCELLED]);
+
             $this->assets->recordStatusChange($fresh->fresh(), $fresh->status, $newStatus, $userId, 'Disposed ('.$disposal->method.')');
             $this->assets->logAudit($creatorId, $fresh->id, 'fixed_asset_disposal', $disposal->id, 'executed', $userId, null, $disposal->fresh()->toArray());
 

@@ -135,6 +135,7 @@ use App\Http\Controllers\BillingContractController;
 use App\Http\Controllers\BillingReportController;
 use App\Http\Controllers\FixedAssetAcquisitionController;
 use App\Http\Controllers\FixedAssetAssignmentController;
+use App\Http\Controllers\FixedAssetAuditTrailController;
 use App\Http\Controllers\FixedAssetCategoryController;
 use App\Http\Controllers\FixedAssetController;
 use App\Http\Controllers\FixedAssetDepreciationController;
@@ -142,6 +143,7 @@ use App\Http\Controllers\FixedAssetDisposalController;
 use App\Http\Controllers\FixedAssetImportController;
 use App\Http\Controllers\FixedAssetLocationController;
 use App\Http\Controllers\FixedAssetMaintenanceController;
+use App\Http\Controllers\FixedAssetReportController;
 use App\Http\Controllers\FixedAssetSettingsController;
 use App\Http\Controllers\FixedAssetTransferController;
 use App\Http\Controllers\FixedAssetVerificationController;
@@ -2890,6 +2892,15 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('fixed-asset-disposals/{disposal}/execute', [FixedAssetDisposalController::class, 'executeForm'])->name('fixed-asset-disposals.execute-form')->middleware(['auth', 'XSS']);
     Route::post('fixed-asset-disposals/{disposal}/execute', [FixedAssetDisposalController::class, 'execute'])->name('fixed-asset-disposals.execute')->middleware(['auth', 'XSS']);
     Route::post('fixed-asset-disposals/{disposal}/cancel', [FixedAssetDisposalController::class, 'cancel'])->name('fixed-asset-disposals.cancel')->middleware(['auth', 'XSS']);
+    // Phase 6: dashboard + reports + audit trail. The exports
+    // download route sits BEFORE the {report} show route, so the
+    // literal "exports" segment is never swallowed as a report key.
+    Route::get('fixed-asset-reports/dashboard', [FixedAssetReportController::class, 'dashboard'])->name('fixed-asset-reports.dashboard')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('fixed-asset-reports', [FixedAssetReportController::class, 'index'])->name('fixed-asset-reports.index')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('fixed-asset-reports/exports/{export}/download', [FixedAssetReportController::class, 'download'])->name('fixed-asset-reports.export-download')->middleware(['auth', 'XSS', 'signed']);
+    Route::get('fixed-asset-reports/{report}', [FixedAssetReportController::class, 'show'])->name('fixed-asset-reports.show')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('fixed-asset-reports/{report}/export', [FixedAssetReportController::class, 'requestExport'])->name('fixed-asset-reports.export-request')->middleware(['auth', 'XSS']);
+    Route::get('fixed-asset-audit-trail', [FixedAssetAuditTrailController::class, 'index'])->name('fixed-asset-audit-trail.index')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('fixed-assets/{asset}/label', [FixedAssetController::class, 'label'])->name('fixed-assets.label')->middleware(['auth', 'XSS']);
     Route::resource('fixed-assets', FixedAssetController::class)->parameters(['fixed-assets' => 'asset'])->names('fixed-assets')->only(['index', 'show', 'create', 'store', 'edit', 'update'])->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('fixed-asset-categories/{category}/deactivate', [FixedAssetCategoryController::class, 'deactivate'])->name('fixed-asset-categories.deactivate')->middleware(['auth', 'XSS']);

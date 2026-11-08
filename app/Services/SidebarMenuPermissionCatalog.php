@@ -118,6 +118,8 @@ class SidebarMenuPermissionCatalog
                         'post fixed asset depreciation', 'manage fixed asset categories', 'manage fixed asset settings',
                         'view fixed asset audit trail',
                     ], [
+                        self::node('Dashboard', 'menu.dashboard.accounting.fixed_assets.dashboard', ['manage fixed assets']),
+                        self::node('Reports', 'menu.dashboard.accounting.fixed_assets.reports', ['manage fixed assets']),
                         self::node('Asset Register', 'menu.dashboard.accounting.fixed_assets.register', ['manage fixed assets']),
                         self::node('New Asset', 'menu.dashboard.accounting.fixed_assets.new_asset', ['create fixed assets']),
                         self::node('Acquisitions', 'menu.dashboard.accounting.fixed_assets.acquisitions', ['manage fixed assets']),
