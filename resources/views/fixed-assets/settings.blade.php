@@ -66,6 +66,13 @@
                                     <small class="text-muted">{{ __('Acquisitions at or above this base amount need a second, independent approval level. Approval levels differ per company.') }}</small>
                                 </div>
                             </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="form-label" for="fixed_asset_maintenance_expense_code">{{ __('Maintenance Expense Account Code') }}</label>
+                                    <input type="text" name="fixed_asset_maintenance_expense_code" id="fixed_asset_maintenance_expense_code" class="form-control" value="{{ old('fixed_asset_maintenance_expense_code', $settings['fixed_asset_maintenance_expense_code']) }}" maxlength="50">
+                                    <small class="text-muted">{{ __('Chart account debited for maintenance costs (default 6226, Conservation and repair). Empty means 6226.') }}</small>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="mt-3">

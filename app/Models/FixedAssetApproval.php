@@ -18,6 +18,7 @@ class FixedAssetApproval extends Model
     public const TYPE_ASSIGNMENT = 'assignment';
     public const TYPE_TRANSFER = 'transfer';
     public const TYPE_DEPRECIATION = 'depreciation';
+    public const TYPE_MAINTENANCE = 'maintenance';
     public const TYPE_DISPOSAL = 'disposal';
     public const TYPE_REVALUATION = 'revaluation';
     public const TYPE_IMPAIRMENT = 'impairment';
@@ -28,6 +29,7 @@ class FixedAssetApproval extends Model
         self::TYPE_ASSIGNMENT,
         self::TYPE_TRANSFER,
         self::TYPE_DEPRECIATION,
+        self::TYPE_MAINTENANCE,
         self::TYPE_DISPOSAL,
         self::TYPE_REVALUATION,
         self::TYPE_IMPAIRMENT,

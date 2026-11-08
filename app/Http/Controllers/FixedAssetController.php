@@ -135,17 +135,30 @@ class FixedAssetController extends Controller
         if (Schema::hasTable('fixed_asset_transfers')) {
             $transfers = \App\Models\FixedAssetTransfer::where('created_by', $creatorId)->where('asset_id', $asset->id)->with(['toLocation', 'toCustodian', 'toCostCentre'])->orderByDesc('id')->get();
         }
-        $timeline = $this->buildTimeline($asset, $assignments, $transfers);
+        // Phase 4 tables are guarded the same way (Contract P3
+        // precedent): between a code pull and the migrate that
+        // creates them, the register must still render.
+        $maintenance = collect();
+        $verificationItems = collect();
+        if (Schema::hasTable('fixed_asset_maintenance_requests')) {
+            $maintenance = \App\Models\FixedAssetMaintenanceRequest::where('created_by', $creatorId)->where('asset_id', $asset->id)->with(['costs'])->orderByDesc('id')->get();
+        }
+        if (Schema::hasTable('fixed_asset_verification_items')) {
+            $verificationItems = \App\Models\FixedAssetVerificationItem::where('created_by', $creatorId)->where('asset_id', $asset->id)->with(['verification'])->orderByDesc('id')->get();
+        }
+        $timeline = $this->buildTimeline($asset, $assignments, $transfers, $maintenance, $verificationItems);
 
-        return view('fixed-assets.show', compact('asset', 'acquisition', 'capitalization', 'schedule', 'accountingEntries', 'depreciationEntries', 'accountingJournalTotals', 'assignments', 'transfers', 'timeline'));
+        return view('fixed-assets.show', compact('asset', 'acquisition', 'capitalization', 'schedule', 'accountingEntries', 'depreciationEntries', 'accountingJournalTotals', 'assignments', 'transfers', 'maintenance', 'verificationItems', 'timeline'));
     }
 
     /**
      * One merged history timeline (Phase 2): assignments +
-     * transfers + status changes, newest first. Each entry is
-     * ['at' => Carbon|null, 'title' => string, 'detail' => string].
+     * transfers + status changes, newest first. Phase 4 adds
+     * maintenance requests (+ costs) and verification checks.
+     * Each entry is ['at' => Carbon|null, 'title' => string,
+     * 'detail' => string].
      */
-    protected function buildTimeline(FixedAsset $asset, $assignments, $transfers): array
+    protected function buildTimeline(FixedAsset $asset, $assignments, $transfers, $maintenance = [], $verificationItems = []): array
     {
         $entries = [];
 
@@ -202,6 +215,62 @@ class FixedAssetController extends Controller
             }
             if ($transfer->status === \App\Models\FixedAssetTransfer::STATUS_CANCELLED && $transfer->updated_at) {
                 $entries[] = ['at' => $transfer->updated_at, 'title' => __('Transfer cancelled'), 'detail' => $transfer->reason ?? '—'];
+            }
+        }
+
+        foreach ($maintenance as $request) {
+            $steps = [
+                'requested_at' => __('Maintenance requested'),
+                'approved_at' => __('Maintenance approved'),
+                'started_at' => __('Maintenance started'),
+                'completed_at' => __('Maintenance completed'),
+                'verified_at' => __('Maintenance verified'),
+            ];
+            foreach ($steps as $field => $title) {
+                if ($request->$field) {
+                    $detail = ucfirst($request->type).' · '.ucfirst($request->priority);
+                    if ($field === 'completed_at' && $request->completion_notes) {
+                        $detail .= ' ('.$request->completion_notes.')';
+                    }
+                    $entries[] = ['at' => $request->$field, 'title' => $title, 'detail' => $detail];
+                }
+            }
+            if ($request->status === \App\Models\FixedAssetMaintenanceRequest::STATUS_REJECTED && $request->updated_at) {
+                $entries[] = ['at' => $request->updated_at, 'title' => __('Maintenance rejected'), 'detail' => $request->rejection_reason ?? '—'];
+            }
+            if ($request->status === \App\Models\FixedAssetMaintenanceRequest::STATUS_CANCELLED && $request->updated_at) {
+                $entries[] = ['at' => $request->updated_at, 'title' => __('Maintenance cancelled'), 'detail' => '—'];
+            }
+            foreach ($request->costs as $cost) {
+                $entries[] = [
+                    'at' => $cost->recorded_at,
+                    'title' => __('Maintenance cost'),
+                    'detail' => ucfirst($cost->cost_type).' · '.number_format((float) $cost->amount, 2).($cost->vendor ? ' · '.$cost->vendor : ''),
+                ];
+            }
+        }
+
+        // Verification: one entry per campaign start/close, one
+        // per checked item. Campaigns are derived from the items
+        // so a campaign with no items for this asset adds nothing.
+        $seenCampaigns = [];
+        foreach ($verificationItems as $item) {
+            $campaign = $item->verification;
+            if ($campaign && ! isset($seenCampaigns[$campaign->id])) {
+                $seenCampaigns[$campaign->id] = true;
+                if ($campaign->started_at) {
+                    $entries[] = ['at' => $campaign->started_at, 'title' => __('Physical verification started'), 'detail' => $campaign->name];
+                }
+                if ($campaign->closed_at) {
+                    $entries[] = ['at' => $campaign->closed_at, 'title' => __('Physical verification closed'), 'detail' => $campaign->name];
+                }
+            }
+            if ($item->checked_at) {
+                $entries[] = [
+                    'at' => $item->checked_at,
+                    'title' => __('Verification: ').ucfirst(str_replace('_', ' ', $item->result)),
+                    'detail' => ($campaign ? $campaign->name : '—').($item->note ? ' ('.$item->note.')' : ''),
+                ];
             }
         }
 

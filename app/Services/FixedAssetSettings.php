@@ -19,6 +19,11 @@ use Illuminate\Support\Facades\DB;
  * D7 (plan §12b): the asset clearing account code is named by
  * the accountant; empty means "not configured" and Phase 1
  * refuses a capitalization that needs it.
+ * Phase 4: the maintenance expense account code (SNC 6226
+ * "Conservation and repair" by default) is named the same way;
+ * a maintenance cost posts Dr that account / Cr accounts
+ * payable 421. The code is configurable per company because
+ * the chart differs per company.
  * D8 (plan §12b): label size is configurable (small / standard /
  * large); the printer itself is still to be confirmed.
  *
@@ -31,6 +36,7 @@ class FixedAssetSettings
     public const KEY_BASE_CURRENCY = 'fixed_asset_base_currency';
     public const KEY_REFERENCE_PREFIX = 'fixed_asset_reference_prefix';
     public const KEY_CLEARING_ACCOUNT_CODE = 'fixed_asset_clearing_account_code';
+    public const KEY_MAINTENANCE_EXPENSE_CODE = 'fixed_asset_maintenance_expense_code';
     public const KEY_LABEL_SIZE = 'fixed_asset_label_size';
     public const KEY_APPROVAL_THRESHOLD = 'fixed_asset_approval_threshold_base';
 
@@ -47,6 +53,10 @@ class FixedAssetSettings
         self::KEY_BASE_CURRENCY => 'MZN',
         self::KEY_REFERENCE_PREFIX => '',
         self::KEY_CLEARING_ACCOUNT_CODE => '',
+        // Phase 4: SNC 6226 "Conservation and repair" — the
+        // maintenance expense account. The resolver falls back
+        // to the class 62 prefix when no exact 6226 exists.
+        self::KEY_MAINTENANCE_EXPENSE_CODE => '6226',
         self::KEY_LABEL_SIZE => 'standard',
         // D5: at/above this base amount a second, independent
         // approval level is required. Default 100,000 — every
@@ -88,6 +98,14 @@ class FixedAssetSettings
         $size = (string) self::get($creatorId, self::KEY_LABEL_SIZE);
 
         return in_array($size, self::LABEL_SIZES, true) ? $size : 'standard';
+    }
+
+    /** Maintenance expense account code (default SNC 6226). */
+    public static function maintenanceExpenseCode(int $creatorId): string
+    {
+        $code = trim((string) self::get($creatorId, self::KEY_MAINTENANCE_EXPENSE_CODE));
+
+        return $code !== '' ? $code : '6226';
     }
 
     public static function labelDimensions(int $creatorId): array
@@ -143,6 +161,13 @@ class FixedAssetSettings
 
         // Clearing account: a GL account code (free text, optional).
         $values[self::KEY_CLEARING_ACCOUNT_CODE] = substr(trim((string) ($input[self::KEY_CLEARING_ACCOUNT_CODE] ?? '')), 0, 50);
+
+        // Maintenance expense account: a GL account code (free
+        // text). Empty falls back to the default 6226.
+        $maintenanceCode = trim((string) ($input[self::KEY_MAINTENANCE_EXPENSE_CODE] ?? ''));
+        $values[self::KEY_MAINTENANCE_EXPENSE_CODE] = $maintenanceCode !== ''
+            ? substr($maintenanceCode, 0, 50)
+            : self::DEFAULTS[self::KEY_MAINTENANCE_EXPENSE_CODE];
 
         $labelSize = (string) ($input[self::KEY_LABEL_SIZE] ?? '');
         $values[self::KEY_LABEL_SIZE] = in_array($labelSize, self::LABEL_SIZES, true)
