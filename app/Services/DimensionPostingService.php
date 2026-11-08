@@ -200,8 +200,14 @@ class DimensionPostingService
         string $basis,
         int $creatorId,
         int $userId,
-        ?int $projectId = null
+        ?int $projectId = null,
+        ?string $source = null
     ): array {
+        $source = $source ?? JournalLineDimension::SOURCE_MANUAL;
+        if (! in_array($source, JournalLineDimension::SOURCES, true)) {
+            throw new CostCentreException(__('Unknown dimension source.'));
+        }
+
         $info = $this->lineInfo($lineType, $lineId, $creatorId);
         // Normalised line (a 'Journal' mirror resolves to its item).
         $lineType = $this->normalisedLineType($lineType, $lineId, $creatorId);
@@ -233,7 +239,7 @@ class DimensionPostingService
         $currency = $this->baseCurrency($creatorId);
         $sign = $info['sign'];
 
-        return DB::transaction(function () use ($lineType, $lineId, $computed, $creatorId, $userId, $projectId, $currency, $sign, $info) {
+        return DB::transaction(function () use ($lineType, $lineId, $computed, $creatorId, $userId, $projectId, $currency, $sign, $info, $source) {
             $before = $this->summaryForLine($lineType, $lineId, $creatorId);
 
             JournalLineDimension::forCompany($creatorId)
@@ -256,7 +262,7 @@ class DimensionPostingService
                         : $row['allocated_amount'],
                     'percentage' => $row['percentage'],
                     'currency_code' => $currency,
-                    'source' => JournalLineDimension::SOURCE_MANUAL,
+                    'source' => $source,
                     'status' => JournalLineDimension::STATUS_ACTIVE,
                 ]);
             }

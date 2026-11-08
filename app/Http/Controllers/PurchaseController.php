@@ -181,7 +181,14 @@ class PurchaseController extends Controller
             $product_services = ProductService::where('created_by', \Auth::user()->creatorId())->where('type','!=', 'service')->get()->pluck('name', 'id');
             $product_services->prepend('--', '');
 
-            return view('purchase.create', compact('venders', 'purchase_number', 'product_services', 'category', 'customFields','vendorId','warehouse'));
+            // Cost Centre Phase 7: cost centre + project for the PO
+            // budget commitment.
+            $costCentres = \App\Models\CostCentre::forCompany(\Auth::user()->creatorId())->active()->orderBy('code')->get()->pluck('name', 'id');
+            $costCentres->prepend(__('Select Cost Centre'), '');
+            $projects = \App\Models\Project::where('created_by', \Auth::user()->creatorId())->orderBy('project_name')->get()->pluck('project_name', 'id');
+            $projects->prepend(__('Select Project'), '');
+
+            return view('purchase.create', compact('venders', 'purchase_number', 'product_services', 'category', 'customFields','vendorId','warehouse', 'costCentres', 'projects'));
         }
         else
         {
@@ -230,6 +237,12 @@ class PurchaseController extends Controller
             }
             $purchase->category_id    = $request->category_id;
             $purchase->created_by     = \Auth::user()->creatorId();
+            // Cost Centre Phase 7: the PO's centre/project. Guarded so
+            // a pull without the migration still behaves as before.
+            if (\Illuminate\Support\Facades\Schema::hasColumn('purchases', 'cost_centre_id')) {
+                $purchase->cost_centre_id = $request->filled('cost_centre_id') ? (int) $request->cost_centre_id : null;
+                $purchase->project_id = $request->filled('project_id') ? (int) $request->project_id : null;
+            }
             if ($request->filled('purchase_quotation_id')) {
                 $purchase->purchase_quotation_id = (int) $request->purchase_quotation_id;
             }
@@ -396,6 +409,29 @@ class PurchaseController extends Controller
                 }
             }
 
+            // Cost Centre Phase 7: reserve the budget commitment at PO
+            // stage. A block policy refuses the order: nothing is
+            // reserved and the just-created purchase is discarded.
+            // Delivery-driven orders add no stock at create, so
+            // deleting the purchase + its items (and any lots /
+            // identifiers, defensive) is complete.
+            try {
+                (new \App\Services\PurchaseCommitmentService())->reserveForPurchase($purchase, (int) \Auth::id());
+            } catch (\App\Exceptions\CostCentreException $e) {
+                \App\Models\PurchaseProduct::where('purchase_id', $purchase->id)->delete();
+                // Lots / identifiers only exist when the tracking tables
+                // exist (a minimal install has neither).
+                if (\Illuminate\Support\Facades\Schema::hasTable('product_expiry_lots')) {
+                    \App\Models\ProductExpiryLot::where('purchase_id', $purchase->id)->delete();
+                }
+                if (\Illuminate\Support\Facades\Schema::hasTable('product_identifiers')) {
+                    \App\Models\ProductIdentifier::where('purchase_id', $purchase->id)->delete();
+                }
+                $purchase->delete();
+
+                return redirect()->back()->with('error', $e->getMessage())->withInput();
+            }
+
             if ($request->filled('purchase_quotation_id')) {
                 PurchaseQuotation::where('id', (int) $request->purchase_quotation_id)
                     ->where('created_by', (int) \Auth::user()->creatorId())
@@ -513,6 +549,12 @@ class PurchaseController extends Controller
 
             $purchase->converted_bill_id = $bill->id;
             $purchase->save();
+
+            // Cost Centre Phase 7: convert the PO commitment to this
+            // bill — exactly once (only active commitments convert).
+            // The actual then rises through the dimensioned bill
+            // lines, never double-counted.
+            (new \App\Services\PurchaseCommitmentService())->convertForPurchase($purchase, $bill, (int) \Auth::id());
 
             return $bill;
         });
@@ -777,7 +819,14 @@ class PurchaseController extends Controller
             $venders          = Vender::where('created_by', \Auth::user()->creatorId())->get()->pluck('name', 'id');
             $product_services = ProductService::where('created_by', \Auth::user()->creatorId())->where('type','!=', 'service')->get()->pluck('name', 'id');
 
-            return view('purchase.edit', compact('venders', 'product_services', 'purchase', 'warehouse','purchase_number', 'category'));
+            // Cost Centre Phase 7: cost centre + project for the PO
+            // budget commitment.
+            $costCentres = \App\Models\CostCentre::forCompany(\Auth::user()->creatorId())->active()->orderBy('code')->get()->pluck('name', 'id');
+            $costCentres->prepend(__('Select Cost Centre'), '');
+            $projects = \App\Models\Project::where('created_by', \Auth::user()->creatorId())->orderBy('project_name')->get()->pluck('project_name', 'id');
+            $projects->prepend(__('Select Project'), '');
+
+            return view('purchase.edit', compact('venders', 'product_services', 'purchase', 'warehouse','purchase_number', 'category', 'costCentres', 'projects'));
         }
         else
         {
@@ -810,6 +859,11 @@ class PurchaseController extends Controller
                 $purchase->vender_id      = $request->vender_id;
                 $purchase->purchase_date      = $request->purchase_date;
                 $purchase->category_id    = $request->category_id;
+                // Cost Centre Phase 7: the PO's centre/project.
+                if (\Illuminate\Support\Facades\Schema::hasColumn('purchases', 'cost_centre_id')) {
+                    $purchase->cost_centre_id = $request->filled('cost_centre_id') ? (int) $request->cost_centre_id : null;
+                    $purchase->project_id = $request->filled('project_id') ? (int) $request->project_id : null;
+                }
                 $purchase->save();
                 $isDeliveryDriven = $purchase->isDeliveryDriven();
                 $deliveryByLine = [];
@@ -920,6 +974,16 @@ class PurchaseController extends Controller
 
                 }
 
+                // Cost Centre Phase 7: re-sync the PO commitment after
+                // the edit. Check-first: a block leaves the old
+                // commitments untouched and the edited lines stand,
+                // but the user is told the budget refused it.
+                try {
+                    (new \App\Services\PurchaseCommitmentService())->syncForPurchase($purchase->fresh() ?? $purchase, (int) \Auth::id());
+                } catch (\App\Exceptions\CostCentreException $e) {
+                    return redirect()->route('purchase.index')->with('error', $e->getMessage());
+                }
+
                 return redirect()->route('purchase.index')->with('success', __('Purchase successfully updated.'));
             }
             else
@@ -957,6 +1021,9 @@ class PurchaseController extends Controller
                     foreach ($purchase->payments as $paymentRow) {
                         PurchasePayment::find($paymentRow->id)?->delete();
                     }
+                    // Cost Centre Phase 7: a deleted PO releases its
+                    // live commitments (converted ones untouched).
+                    (new \App\Services\PurchaseCommitmentService())->cancelForPurchase($purchase, (int) \Auth::id());
                     PurchaseProduct::where('purchase_id', $purchase->id)->delete();
                     $purchase->delete();
 
@@ -1038,6 +1105,9 @@ class PurchaseController extends Controller
 
                 }
 
+                // Cost Centre Phase 7: a deleted PO releases its live
+                // commitments (converted ones untouched).
+                (new \App\Services\PurchaseCommitmentService())->cancelForPurchase($purchase, (int) \Auth::id());
                 $purchase->delete();
                 PurchaseProduct::where('purchase_id', '=', $purchase->id)->delete();
 

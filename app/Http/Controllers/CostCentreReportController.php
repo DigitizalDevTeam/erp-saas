@@ -378,6 +378,98 @@ class CostCentreReportController extends Controller
         ]));
     }
 
+    /**
+     * Cost by project × centre (Cost Centre Phase 7). Same accrual
+     * expense totals as the expense report, grouped by the
+     * (centre, project) pair — a dimensioned transaction appears
+     * under its own project and centre, and rows with no project
+     * appear as Unassigned, never dropped.
+     */
+    public function projectCentre(Request $request)
+    {
+        if (! Auth::user()->can('view cost centre reports')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
+        $creatorId = Auth::user()->creatorId();
+        [$from, $to] = $this->period($request);
+        $centreId = $request->filled('cost_centre_id') ? (int) $request->input('cost_centre_id') : null;
+        $projectId = $request->filled('project_id') ? (int) $request->input('project_id') : null;
+
+        $report = $this->reports->costByProjectAndCentre($creatorId, $from, $to, $centreId, $projectId);
+
+        if ($export = $this->exportResponse($request, $report, 'cost-by-project-and-centre', __('Cost by Project and Centre'), [__('Cost Centre'), __('Project'), __('Lines'), __('Total')], function () use ($report) {
+            $rows = [];
+            foreach ($report['rows'] as $row) {
+                $rows[] = [
+                    $row['cost_centre_code'] ?? '',
+                    $row['project_name'] ?? '',
+                    $row['rows'],
+                    $row['total'],
+                ];
+            }
+
+            return $rows;
+        })) {
+            return $export;
+        }
+
+        return view('cost-centres.reports.project-centre', array_merge($report, [
+            'centres' => $this->centres($creatorId),
+            'projects' => $this->projects($creatorId),
+            'selectedCentreId' => $centreId,
+            'selectedProjectId' => $projectId,
+        ]));
+    }
+
+    /**
+     * Profitability by centre and project (Cost Centre Phase 7).
+     * Revenue is dimensioned sales income; undimensioned revenue
+     * rides on one Unassigned row so the revenue total always equals
+     * sales income in the GL. Costs are dimensioned expenses plus
+     * attributed production cost. Margin = revenue − cost −
+     * production. The reconciliation block is shown on screen like
+     * the Phase 4/6 reports.
+     */
+    public function profitability(Request $request)
+    {
+        if (! Auth::user()->can('view cost centre reports')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
+        $creatorId = Auth::user()->creatorId();
+        [$from, $to] = $this->period($request);
+        $centreId = $request->filled('cost_centre_id') ? (int) $request->input('cost_centre_id') : null;
+        $projectId = $request->filled('project_id') ? (int) $request->input('project_id') : null;
+
+        $report = $this->reports->profitability($creatorId, $from, $to, $centreId, $projectId);
+
+        if ($export = $this->exportResponse($request, $report, 'profitability-by-centre-and-project', __('Profitability by Centre and Project'), [__('Cost Centre'), __('Project'), __('Revenue'), __('Cost'), __('Production'), __('Margin')], function () use ($report) {
+            $rows = [];
+            foreach ($report['rows'] as $row) {
+                $rows[] = [
+                    $row['cost_centre_code'] ?? __('Unassigned'),
+                    $row['project_name'] ?? __('Unassigned'),
+                    $row['revenue'],
+                    $row['cost'],
+                    $row['production'],
+                    $row['margin'],
+                ];
+            }
+
+            return $rows;
+        })) {
+            return $export;
+        }
+
+        return view('cost-centres.reports.profitability', array_merge($report, [
+            'centres' => $this->centres($creatorId),
+            'projects' => $this->projects($creatorId),
+            'selectedCentreId' => $centreId,
+            'selectedProjectId' => $projectId,
+        ]));
+    }
+
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
@@ -394,6 +486,11 @@ class CostCentreReportController extends Controller
     protected function centres(int $creatorId)
     {
         return CostCentre::forCompany($creatorId)->orderBy('code')->get();
+    }
+
+    protected function projects(int $creatorId)
+    {
+        return \App\Models\Project::where('created_by', $creatorId)->orderBy('project_name')->get();
     }
 
     /**

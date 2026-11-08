@@ -27,8 +27,20 @@ class Purchase extends Model
         'purchase_number',
         'discount_apply',
         'category_id',
+        'cost_centre_id',
+        'project_id',
         'created_by',
     ];
+
+    public function costCentre()
+    {
+        return $this->belongsTo(CostCentre::class, 'cost_centre_id');
+    }
+
+    public function project()
+    {
+        return $this->belongsTo(Project::class, 'project_id');
+    }
     public static $statues = [
         'Draft',
         'Sent',

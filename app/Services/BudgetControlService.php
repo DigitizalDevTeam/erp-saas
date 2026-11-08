@@ -540,6 +540,24 @@ class BudgetControlService
         }
 
         return DB::transaction(function () use ($creatorId, $centreId, $amount, $sourceType, $sourceId, $requesterId, $date, $fiscalYear, $period, $glAccountId, $projectId, $scopeKey, $reason, $check) {
+            // Phase 7 (PO-edit sync): a cancelled commitment for the
+            // same source+centre+scope still occupies the unique index,
+            // so a re-reserve after a cancel would violate it. The
+            // cancelled row is dead — its history lives in the audit
+            // events — so clear it (and unlink its rejected approval)
+            // before creating the fresh commitment.
+            $dead = CostCentreCommitment::forCompany($creatorId)
+                ->where('source_type', $sourceType)
+                ->where('source_id', $sourceId)
+                ->where('cost_centre_id', $centreId)
+                ->where('scope_key', $scopeKey)
+                ->where('status', CostCentreCommitment::STATUS_CANCELLED)
+                ->get();
+            foreach ($dead as $row) {
+                CostCentreBudgetApproval::where('commitment_id', $row->id)->update(['commitment_id' => null]);
+                $row->delete();
+            }
+
             $commitment = CostCentreCommitment::create([
                 'company_id' => $creatorId,
                 'created_by' => $creatorId,

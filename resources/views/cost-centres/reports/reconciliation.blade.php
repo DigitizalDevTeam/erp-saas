@@ -22,6 +22,8 @@
                         <li class="nav-item"><a class="nav-link" href="{{ route('cost-centre-reports.unassigned') }}">{{ __('Unassigned / invalid') }}</a></li>
                         <li class="nav-item"><a class="nav-link" href="{{ route('cost-centre-reports.depreciation') }}">{{ __('Depreciation by asset') }}</a></li>
                         <li class="nav-item"><a class="nav-link" href="{{ route('cost-centre-reports.maintenance') }}">{{ __('Maintenance by asset') }}</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ route('cost-centre-reports.project-centre') }}">{{ __('Cost by project & centre') }}</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ route('cost-centre-reports.profitability') }}">{{ __('Profitability') }}</a></li>
                     </ul>
 
                     <form method="GET" action="{{ route('cost-centre-reports.reconciliation') }}" class="row g-2 mb-3">

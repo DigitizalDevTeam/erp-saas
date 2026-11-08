@@ -6,6 +6,7 @@ use App\Models\CostCentre;
 use App\Models\CostCentreAllocation;
 use App\Models\FixedAsset;
 use App\Models\JournalLineDimension;
+use App\Models\Project;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -68,6 +69,257 @@ class DimensionReportService
             'rows' => $rows,
             'total' => $this->sumTotals($rows, 'total'),
         ];
+    }
+
+    // ------------------------------------------------------------------
+    // Phase 7 — Cost by project and centre
+    // ------------------------------------------------------------------
+
+    /**
+     * Cost by project × centre (Phase 7, plan §4/§9). Same accrual
+     * expense totals as expenseByCentre, but grouped by the
+     * (centre, project) pair instead of collapsed to the centre, so a
+     * dimensioned transaction appears under its own project and
+     * centre. Rows with no project appear as Unassigned project —
+     * never dropped.
+     */
+    public function costByProjectAndCentre(
+        int $creatorId,
+        ?Carbon $from = null,
+        ?Carbon $to = null,
+        ?int $centreId = null,
+        ?int $projectId = null
+    ): array {
+        $grouped = $this->dimensionTotalsByCentre($creatorId, $from, $to, 'expense', $centreId, $projectId);
+        $rows = $this->nameCentreProjectRows($grouped, $creatorId);
+
+        return [
+            'basis' => 'accrual',
+            'basis_label' => __('Accrual basis — expense recognised at the bill or journal date, not at payment.'),
+            'currency_code' => $this->posting->baseCurrency($creatorId),
+            'from' => $from?->toDateString(),
+            'to' => $to?->toDateString(),
+            'rows' => $rows,
+            'total' => $this->sumTotals($rows, 'total'),
+            'reconciliation' => $this->reconciliation($creatorId, $from, $to, 'expense'),
+        ];
+    }
+
+    // ------------------------------------------------------------------
+    // Phase 7 — Profitability by centre and project
+    // ------------------------------------------------------------------
+
+    /**
+     * Profitability by (centre, project) (Phase 7, plan §4/§9).
+     *
+     * Revenue is dimensioned sales income (class-7 lines tagged with
+     * a centre/project, e.g. via the GL dimension tagging screen);
+     * undimensioned revenue is never silently dropped — it rides on
+     * one Unassigned row, so revenue_total always equals sales
+     * income in the GL for the period. Costs are dimensioned
+     * expenses; production cost is the Phase 7 kitchen attribution.
+     * Undimensioned expense is shown only in the reconciliation
+     * block, never folded into the rows, so cost_total always equals
+     * the dimensioned expense total.
+     *
+     * Margin per row (and in total) = revenue − cost − production.
+     */
+    public function profitability(
+        int $creatorId,
+        ?Carbon $from = null,
+        ?Carbon $to = null,
+        ?int $centreId = null,
+        ?int $projectId = null
+    ): array {
+        $expenseGrouped = $this->dimensionTotalsByCentre($creatorId, $from, $to, 'expense', $centreId, $projectId);
+        $incomeGrouped = $this->dimensionTotalsByCentre($creatorId, $from, $to, 'income', $centreId, $projectId);
+
+        // GL totals, company-wide: a GL line carries no centre, so the
+        // reconciliation block is always period-wide even when the
+        // rows are filtered. Income nets are negative (credit
+        // balances) — negate to a positive revenue number.
+        $glIncome = '0.00';
+        foreach ($this->eligibleLines($creatorId, $from, $to, 'income') as $line) {
+            $glIncome = bcadd($glIncome, bcmul($line['net'], '-1', 2), 2);
+        }
+        $glExpense = '0.00';
+        foreach ($this->eligibleLines($creatorId, $from, $to, 'expense') as $line) {
+            $glExpense = bcadd($glExpense, $line['net'], 2);
+        }
+
+        // Dimensioned totals. Income dimension rows are stored
+        // negative (same sign as their credit lines) — negate.
+        $dimensionedIncome = '0.00';
+        foreach ($incomeGrouped as $row) {
+            $dimensionedIncome = bcadd($dimensionedIncome, (string) $row['total'], 2);
+        }
+        $dimensionedIncome = bcmul($dimensionedIncome, '-1', 2);
+        $dimensionedExpense = $this->sumTotals($expenseGrouped, 'total');
+
+        $undimensionedIncome = bcsub($glIncome, $dimensionedIncome, 2);
+        $undimensionedExpense = bcsub($glExpense, $dimensionedExpense, 2);
+
+        $productionFrom = $from ?? Carbon::create(2000, 1, 1);
+        $productionTo = $to ?? Carbon::create(2100, 12, 31);
+        $productionGrouped = (new ProductionDimensionService())
+            ->productionCostsByCentre($creatorId, $productionFrom, $productionTo, $centreId, $projectId);
+        $productionTotal = '0.00';
+        foreach ($productionGrouped as $row) {
+            $productionTotal = bcadd($productionTotal, $row['production_total'], 2);
+        }
+
+        // Merge by (centre, project).
+        $merged = [];
+        $keyFor = fn (?int $centre, ?int $project): string => ($centre ?? '').'|'.($project ?? '');
+        foreach ($expenseGrouped as $row) {
+            $key = $keyFor((int) $row['cost_centre_id'], $row['project_id']);
+            $merged[$key] = $merged[$key] ?? [
+                'cost_centre_id' => (int) $row['cost_centre_id'],
+                'project_id' => $row['project_id'],
+                'revenue' => '0.00',
+                'cost' => '0.00',
+                'production' => '0.00',
+            ];
+            $merged[$key]['cost'] = bcadd($merged[$key]['cost'], (string) $row['total'], 2);
+        }
+        foreach ($incomeGrouped as $row) {
+            $key = $keyFor((int) $row['cost_centre_id'], $row['project_id']);
+            $merged[$key] = $merged[$key] ?? [
+                'cost_centre_id' => (int) $row['cost_centre_id'],
+                'project_id' => $row['project_id'],
+                'revenue' => '0.00',
+                'cost' => '0.00',
+                'production' => '0.00',
+            ];
+            $merged[$key]['revenue'] = bcadd($merged[$key]['revenue'], bcmul((string) $row['total'], '-1', 2), 2);
+        }
+        foreach ($productionGrouped as $row) {
+            $key = $keyFor((int) $row['cost_centre_id'], $row['project_id']);
+            $merged[$key] = $merged[$key] ?? [
+                'cost_centre_id' => (int) $row['cost_centre_id'],
+                'project_id' => $row['project_id'],
+                'revenue' => '0.00',
+                'cost' => '0.00',
+                'production' => '0.00',
+            ];
+            $merged[$key]['production'] = bcadd($merged[$key]['production'], $row['production_total'], 2);
+        }
+
+        $rows = array_values($merged);
+        foreach ($rows as &$row) {
+            $row['margin'] = bcsub(bcsub($row['revenue'], $row['cost'], 2), $row['production'], 2);
+        }
+        unset($row);
+
+        // Undimensioned revenue rides on one Unassigned row (only
+        // when the rows are unfiltered — a filtered view shows the
+        // dimensioned scope only).
+        $unfiltered = $centreId === null && $projectId === null;
+        if ($unfiltered && bccomp($undimensionedIncome, '0', 2) !== 0) {
+            $rows[] = [
+                'cost_centre_id' => null,
+                'project_id' => null,
+                'revenue' => $undimensionedIncome,
+                'cost' => '0.00',
+                'production' => '0.00',
+                'margin' => $undimensionedIncome,
+            ];
+        }
+
+        $rows = $this->nameCentreProjectRows($rows, $creatorId);
+
+        $revenueTotal = $this->sumTotals($rows, 'revenue');
+        $costTotal = $this->sumTotals($rows, 'cost');
+        $productionRowsTotal = $this->sumTotals($rows, 'production');
+        $marginTotal = bcsub(bcsub($revenueTotal, $costTotal, 2), $productionRowsTotal, 2);
+
+        // Reconciliation: row sums must account for the money in
+        // scope. Unfiltered, revenue_total is the GL sales income;
+        // filtered, it is the dimensioned revenue in scope.
+        $revenueMatches = $unfiltered
+            ? bccomp($revenueTotal, $glIncome, 2) === 0
+            : bccomp($revenueTotal, $dimensionedIncome, 2) === 0;
+
+        return [
+            'basis' => 'accrual',
+            'basis_label' => __('Accrual basis — revenue recognised at the invoice date, expense at the bill or journal date. Production cost is the attributed ingredient cost of completed kitchen orders.'),
+            'currency_code' => $this->posting->baseCurrency($creatorId),
+            'from' => $from?->toDateString(),
+            'to' => $to?->toDateString(),
+            'rows' => $rows,
+            'revenue_total' => $revenueTotal,
+            'revenue_dimensioned_total' => $dimensionedIncome,
+            'revenue_undimensioned_total' => $undimensionedIncome,
+            'cost_total' => $costTotal,
+            'cost_dimensioned_total' => $dimensionedExpense,
+            'production_total' => $productionRowsTotal,
+            'margin_total' => $marginTotal,
+            'reconciliation' => [
+                'revenue_gl_total' => $glIncome,
+                'revenue_dimensioned_total' => $dimensionedIncome,
+                'revenue_undimensioned_total' => $undimensionedIncome,
+                'revenue_matches' => $revenueMatches,
+                'cost_gl_total' => $glExpense,
+                'cost_dimensioned_total' => $dimensionedExpense,
+                'cost_undimensioned_total' => $undimensionedExpense,
+                'cost_matches' => bccomp($costTotal, $dimensionedExpense, 2) === 0,
+                'production_total' => $productionRowsTotal,
+                'production_matches' => bccomp($productionRowsTotal, $productionTotal, 2) === 0,
+                'matches' => $revenueMatches
+                    && bccomp($costTotal, $dimensionedExpense, 2) === 0
+                    && bccomp($productionRowsTotal, $productionTotal, 2) === 0,
+            ],
+        ];
+    }
+
+    /**
+     * Attach centre/project code+name to (centre, project) rows and
+     * sort by centre code, then project name (Unassigned project
+     * last). Rows with a null centre are the Unassigned row — they
+     * sort last.
+     */
+    protected function nameCentreProjectRows(array $grouped, int $creatorId): array
+    {
+        $centres = CostCentre::forCompany($creatorId)->get()->keyBy('id');
+        $projects = Project::where('created_by', $creatorId)->get()->keyBy('id');
+
+        $rows = [];
+        foreach ($grouped as $row) {
+            $row = (array) $row;
+            $centre = $row['cost_centre_id'] !== null ? $centres->get((int) $row['cost_centre_id']) : null;
+            $project = $row['project_id'] !== null ? $projects->get((int) $row['project_id']) : null;
+            $row['cost_centre_code'] = $centre?->code ?? ($row['cost_centre_id'] !== null ? '#'.(int) $row['cost_centre_id'] : null);
+            $row['cost_centre_name'] = $centre?->name;
+            $row['project_code'] = $project ? '#'.(int) $project->id : null;
+            $row['project_name'] = $project?->project_name;
+            if (isset($row['total'])) {
+                $row['total'] = $this->round2((string) $row['total']);
+            }
+            $rows[] = $row;
+        }
+
+        usort($rows, function ($a, $b) {
+            if ($a['cost_centre_id'] === null && $b['cost_centre_id'] !== null) {
+                return 1;
+            }
+            if ($a['cost_centre_id'] !== null && $b['cost_centre_id'] === null) {
+                return -1;
+            }
+            $cmp = strcmp((string) ($a['cost_centre_code'] ?? ''), (string) ($b['cost_centre_code'] ?? ''));
+            if ($cmp !== 0) {
+                return $cmp;
+            }
+            if ($a['project_id'] === null && $b['project_id'] !== null) {
+                return 1;
+            }
+            if ($a['project_id'] !== null && $b['project_id'] === null) {
+                return -1;
+            }
+
+            return strcmp((string) ($a['project_name'] ?? ''), (string) ($b['project_name'] ?? ''));
+        });
+
+        return $rows;
     }
 
     // ------------------------------------------------------------------
@@ -625,6 +877,8 @@ class DimensionReportService
         $this->applyDateFilter($ji, 'je.date', $from, $to);
         if ($scope === 'expense') {
             $ji->where('coa.code', 'like', '6%');
+        } elseif ($scope === 'income') {
+            $ji->where('coa.code', 'like', '7%');
         }
         foreach ($ji->orderBy('je.date')->orderBy('ji.id')->get() as $row) {
             $net = bcsub((string) $row->debit, (string) $row->credit, 2);
@@ -641,6 +895,8 @@ class DimensionReportService
         $this->applyDateFilter($tl, 'tl.date', $from, $to);
         if ($scope === 'expense') {
             $tl->where('coa.code', 'like', '6%');
+        } elseif ($scope === 'income') {
+            $tl->where('coa.code', 'like', '7%');
         }
         foreach ($tl->orderBy('tl.date')->orderBy('tl.id')->get() as $row) {
             $net = bcsub((string) $row->debit, (string) $row->credit, 2);
@@ -697,7 +953,7 @@ class DimensionReportService
         ];
     }
 
-    /** Dimension totals grouped by (centre, project) for the expense report. */
+    /** Dimension totals grouped by (centre, project) for the expense / income reports. Scope 'expense' filters class-6 accounts, 'income' class-7, 'all' no account filter. */
     protected function dimensionTotalsByCentre(
         int $creatorId,
         ?Carbon $from,
@@ -720,6 +976,8 @@ class DimensionReportService
         $this->applyDateFilter($ji, 'je.date', $from, $to);
         if ($scope === 'expense') {
             $ji->where('coa.code', 'like', '6%');
+        } elseif ($scope === 'income') {
+            $ji->where('coa.code', 'like', '7%');
         }
         $jiRows = $ji->select('d.cost_centre_id', 'd.project_id', 'ji.account as account_id', 'coa.code as account_code', DB::raw('SUM(d.allocated_amount) as total'), DB::raw('COUNT(*) as rows'))
             ->groupBy('d.cost_centre_id', 'd.project_id', 'ji.account', 'coa.code')
@@ -737,6 +995,8 @@ class DimensionReportService
         $this->applyDateFilter($tl, 'tl.date', $from, $to);
         if ($scope === 'expense') {
             $tl->where('coa.code', 'like', '6%');
+        } elseif ($scope === 'income') {
+            $tl->where('coa.code', 'like', '7%');
         }
         $tlRows = $tl->select('d.cost_centre_id', 'd.project_id', 'tl.account_id as account_id', 'coa.code as account_code', DB::raw('SUM(d.allocated_amount) as total'), DB::raw('COUNT(*) as rows'))
             ->groupBy('d.cost_centre_id', 'd.project_id', 'tl.account_id', 'coa.code')

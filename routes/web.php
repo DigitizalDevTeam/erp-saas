@@ -105,6 +105,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentWallPaymentController;
 use App\Http\Controllers\PaypalController;
 use App\Http\Controllers\PaySlipController;
+use App\Http\Controllers\PayrollDimensionController;
 use App\Http\Controllers\PayslipTypeController;
 use App\Http\Controllers\PaystackPaymentController;
 use App\Http\Controllers\PaytabController;
@@ -1711,6 +1712,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('payslip/logo', [PaySlipController::class, 'logoForm'])->name('payslip.logo')->middleware(['auth', 'XSS']);
     Route::post('payslip/logo', [PaySlipController::class, 'logoStore'])->name('payslip.logo.store')->middleware(['auth', 'XSS']);
     Route::resource('payslip', PaySlipController::class)->middleware(['auth', 'XSS'])->except(['create', 'show']);
+    // Cost Centre Phase 7: payslip cost-centre split.
+    Route::post('payslip/{payslip}/cost-centre-split', [PayrollDimensionController::class, 'store'])->name('payslip.cost-centre-split.store')->middleware(['auth', 'XSS']);
 
     Route::resource('company-policy', CompanyPolicyController::class)->middleware(['auth', 'XSS']);
     Route::resource('indicator', IndicatorController::class)->middleware(['auth', 'XSS']);
@@ -2643,6 +2646,10 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('cost-centre-reports/unassigned', [CostCentreReportController::class, 'unassigned'])->name('cost-centre-reports.unassigned')->middleware(['auth', 'XSS']);
     Route::get('cost-centre-reports/depreciation', [CostCentreReportController::class, 'depreciation'])->name('cost-centre-reports.depreciation')->middleware(['auth', 'XSS']);
     Route::get('cost-centre-reports/maintenance', [CostCentreReportController::class, 'maintenance'])->name('cost-centre-reports.maintenance')->middleware(['auth', 'XSS']);
+
+    // Cost Centres — Phase 7: project × centre cost + profitability.
+    Route::get('cost-centre-reports/project-centre', [CostCentreReportController::class, 'projectCentre'])->name('cost-centre-reports.project-centre')->middleware(['auth', 'XSS']);
+    Route::get('cost-centre-reports/profitability', [CostCentreReportController::class, 'profitability'])->name('cost-centre-reports.profitability')->middleware(['auth', 'XSS']);
 
     // Cost Centres — Phase 5: Budgets + approvals (plan §9). The
     // approvals/delegations routes are registered before the resource
