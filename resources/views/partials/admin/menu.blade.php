@@ -301,12 +301,17 @@
                                             </li>
                                         @endif
                                         @if (menu_can_node('menu.dashboard.accounting.cost_centres'))
-                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['cost-centres.index', 'cost-centres.create', 'cost-centres.edit', 'cost-centres.settings', 'cost-centre-budgets.index', 'cost-centre-budgets.create', 'cost-centre-budgets.edit', 'cost-centre-budget-approvals.index', 'treasury-dimensions.index', 'treasury-dimensions.bill-payment.edit', 'treasury-dimensions.receipt.edit', 'gl-dimensions.index', 'gl-dimensions.journal.edit', 'gl-dimensions.reverse', 'cost-centre-reports.expense', 'cost-centre-reports.cash', 'cost-centre-reports.reconciliation', 'cost-centre-reports.unassigned', 'cost-centre-reports.budget']) ? 'active dash-trigger' : '' }}">
+                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['cost-centres.index', 'cost-centres.create', 'cost-centres.edit', 'cost-centres.settings', 'cost-centre-budgets.index', 'cost-centre-budgets.create', 'cost-centre-budgets.edit', 'cost-centre-budget-approvals.index', 'treasury-dimensions.index', 'treasury-dimensions.bill-payment.edit', 'treasury-dimensions.receipt.edit', 'gl-dimensions.index', 'gl-dimensions.journal.edit', 'gl-dimensions.reverse', 'cost-centre-reports.expense', 'cost-centre-reports.cash', 'cost-centre-reports.reconciliation', 'cost-centre-reports.unassigned', 'cost-centre-reports.budget', 'cost-centre-reports.depreciation', 'cost-centre-reports.maintenance', 'asset-cost-centre-assignments.index', 'asset-cost-centre-assignments.create', 'asset-cost-centre-assignments.show']) ? 'active dash-trigger' : '' }}">
                                                 <a class="dash-link" href="#">{{ __('Cost Centres') }}<span class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                                                 <ul class="dash-submenu">
                                                     @if (menu_can('menu.dashboard.accounting.cost_centres.list'))
                                                         <li class="dash-item {{ in_array(Request::route()->getName(), ['cost-centres.index', 'cost-centres.create', 'cost-centres.edit']) ? ' active' : '' }}">
                                                             <a class="dash-link" href="{{ route('cost-centres.index') }}">{{ __('Cost Centre List') }}</a>
+                                                        </li>
+                                                    @endif
+                                                    @if (menu_can('menu.dashboard.accounting.cost_centres.asset_assignments'))
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['asset-cost-centre-assignments.index', 'asset-cost-centre-assignments.create', 'asset-cost-centre-assignments.show']) ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('asset-cost-centre-assignments.index') }}">{{ __('Asset Assignments') }}</a>
                                                         </li>
                                                     @endif
                                                     @if (menu_can('menu.dashboard.accounting.cost_centres.budgets'))
@@ -330,7 +335,7 @@
                                                         </li>
                                                     @endif
                                                     @if (menu_can('menu.dashboard.accounting.cost_centres.reports'))
-                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['cost-centre-reports.expense', 'cost-centre-reports.cash', 'cost-centre-reports.reconciliation', 'cost-centre-reports.unassigned', 'cost-centre-reports.budget']) ? ' active' : '' }}">
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['cost-centre-reports.expense', 'cost-centre-reports.cash', 'cost-centre-reports.reconciliation', 'cost-centre-reports.unassigned', 'cost-centre-reports.budget', 'cost-centre-reports.depreciation', 'cost-centre-reports.maintenance']) ? ' active' : '' }}">
                                                             <a class="dash-link" href="{{ route('cost-centre-reports.expense') }}">{{ __('Reports') }}</a>
                                                         </li>
                                                     @endif

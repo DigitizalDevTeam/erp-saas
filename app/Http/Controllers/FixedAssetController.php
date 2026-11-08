@@ -22,6 +22,7 @@ use App\Models\Purchase;
 use App\Models\PurchaseDeliveryNote;
 use App\Models\PurchaseDeliveryNoteItem;
 use App\Models\PurchaseProduct;
+use App\Services\AssetAssignmentService;
 use App\Services\FixedAssetAcquisitionService;
 use App\Services\FixedAssetService;
 use App\Services\FixedAssetSettings;
@@ -43,6 +44,7 @@ class FixedAssetController extends Controller
     public function __construct(
         protected FixedAssetService $service,
         protected FixedAssetAcquisitionService $acquisitions,
+        protected AssetAssignmentService $costCentreAssignments = new AssetAssignmentService(),
     ) {
     }
 
@@ -151,9 +153,17 @@ class FixedAssetController extends Controller
         if (Schema::hasTable('fixed_asset_disposals')) {
             $disposals = \App\Models\FixedAssetDisposal::where('created_by', $creatorId)->where('asset_id', $asset->id)->orderByDesc('id')->get();
         }
+        // Cost Centre Phase 2: the asset's cost-centre assignment
+        // history + the split in force today, guarded the same way.
+        $costCentreAssignments = collect();
+        $currentCostCentreSplit = [];
+        if (Schema::hasTable('asset_cost_centre_assignments')) {
+            $costCentreAssignments = $this->costCentreAssignments->history($asset, $creatorId);
+            $currentCostCentreSplit = $this->costCentreAssignments->currentSplit($asset, $creatorId);
+        }
         $timeline = $this->buildTimeline($asset, $assignments, $transfers, $maintenance, $verificationItems, $disposals);
 
-        return view('fixed-assets.show', compact('asset', 'acquisition', 'capitalization', 'schedule', 'accountingEntries', 'depreciationEntries', 'accountingJournalTotals', 'assignments', 'transfers', 'maintenance', 'verificationItems', 'timeline'));
+        return view('fixed-assets.show', compact('asset', 'acquisition', 'capitalization', 'schedule', 'accountingEntries', 'depreciationEntries', 'accountingJournalTotals', 'assignments', 'transfers', 'maintenance', 'verificationItems', 'timeline', 'costCentreAssignments', 'currentCostCentreSplit'));
     }
 
     /**

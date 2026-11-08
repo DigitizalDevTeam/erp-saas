@@ -168,6 +168,12 @@ class FixedAsset extends Model
         return $this->belongsTo(CostCentre::class, 'cost_centre_id');
     }
 
+    /** Effective-dated cost-centre split assignments (Cost Centre Phase 2). */
+    public function costCentreAssignments()
+    {
+        return $this->hasMany(AssetCostCentreAssignment::class, 'asset_id');
+    }
+
     public function custodian()
     {
         return $this->belongsTo(Employee::class, 'custodian_id');
