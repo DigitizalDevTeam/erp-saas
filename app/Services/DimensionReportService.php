@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CostCentre;
 use App\Models\CostCentreAllocation;
+use App\Models\FixedAsset;
 use App\Models\JournalLineDimension;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +37,7 @@ class DimensionReportService
 {
     public function __construct(
         protected DimensionPostingService $posting = new DimensionPostingService(),
+        protected ?AssetAssignmentService $assignments = null,
     ) {}
 
     // ------------------------------------------------------------------
@@ -115,6 +117,380 @@ class DimensionReportService
             'to' => $to?->toDateString(),
             'rows' => $rows,
             'total' => $this->sumTotals($rows, 'total'),
+        ];
+    }
+
+    // ------------------------------------------------------------------
+    // Phase 2 — Depreciation by asset and centre
+    // ------------------------------------------------------------------
+
+    /**
+     * Depreciation by asset and centre (plan §9/§13, Phase 2).
+     *
+     * Reads the SAME journal_line_dimensions rows the depreciation
+     * engine wrote (via DimensionPostingService), so the report can
+     * never disagree with the posted dimensions. The report is
+     * month-aligned: from/to are normalised to the first/last day
+     * of their months, because a depreciation run posts one month
+     * at a time (journal date = period end).
+     *
+     * Reconciliation: `dimension_total` is the sum of the engine's
+     * dimension rows for the period and `posted_total` is the sum
+     * of the posted depreciation entries for the same period; both
+     * ignore the cost-centre filter (a posted entry carries only
+     * its period-end centre) and both respect the asset filters.
+     * `matches` is true when the two agree — the engine's
+     * dimensions reconcile to the money it posted.
+     */
+    public function depreciationByAssetAndCentre(
+        int $creatorId,
+        ?Carbon $from = null,
+        ?Carbon $to = null,
+        ?int $centreId = null,
+        ?int $assetId = null,
+        ?string $search = null,
+        ?int $categoryId = null,
+        ?int $locationId = null,
+        ?string $status = null
+    ): array {
+        if (! Schema::hasTable('journal_line_dimensions') || ! Schema::hasTable('fixed_asset_depreciation_entries')) {
+            return $this->emptyAssetReport($creatorId, $from, $to, 'depreciation');
+        }
+
+        $from = $from?->copy()->startOfMonth();
+        $to = $to?->copy()->endOfMonth();
+
+        $query = DB::table('journal_line_dimensions as d')
+            ->join('journal_items as ji', 'ji.id', '=', 'd.line_id')
+            ->join('journal_entries as je', 'je.id', '=', 'ji.journal')
+            ->join('fixed_assets as fa', 'fa.id', '=', 'd.asset_id')
+            ->leftJoin('cost_centres as cc', 'cc.id', '=', 'd.cost_centre_id')
+            ->where('d.created_by', $creatorId)
+            ->where('d.status', JournalLineDimension::STATUS_ACTIVE)
+            ->where('d.line_type', JournalLineDimension::LINE_JOURNAL_ITEM)
+            ->whereNotNull('d.asset_id');
+        $this->applyDateFilter($query, 'je.date', $from, $to);
+        $this->applyAssetFilters($query, 'fa', $assetId, $search, $categoryId, $locationId, $status);
+        if ($centreId !== null) {
+            $query->where('d.cost_centre_id', $centreId);
+        }
+
+        $grouped = $query
+            ->select(
+                'd.asset_id',
+                'fa.code as asset_code',
+                'fa.name as asset_name',
+                'fa.status as asset_status',
+                'd.cost_centre_id',
+                'cc.code as cost_centre_code',
+                'cc.name as cost_centre_name',
+                DB::raw('SUM(d.allocated_amount) as total'),
+                DB::raw('COUNT(*) as rows')
+            )
+            ->groupBy('d.asset_id', 'fa.code', 'fa.name', 'fa.status', 'd.cost_centre_id', 'cc.code', 'cc.name')
+            ->orderBy('fa.code')
+            ->orderBy('d.cost_centre_id')
+            ->get();
+
+        $rows = $grouped->map(fn ($row) => [
+            'asset_id' => (int) $row->asset_id,
+            'asset_code' => $row->asset_code,
+            'asset_name' => $row->asset_name,
+            'asset_status' => $row->asset_status,
+            'cost_centre_id' => $row->cost_centre_id ? (int) $row->cost_centre_id : null,
+            'cost_centre_code' => $row->cost_centre_code,
+            'cost_centre_name' => $row->cost_centre_name,
+            'total' => $this->round2((string) $row->total),
+            'rows' => (int) $row->rows,
+        ])->all();
+
+        // Engine reconciliation for the same period (asset filters
+        // apply; the centre filter does not — see docblock).
+        $dimensionTotal = $this->depreciationDimensionTotal($creatorId, $from, $to, $assetId, $search, $categoryId, $locationId, $status);
+        $postedTotal = $this->depreciationPostedTotal($creatorId, $from, $to, $assetId, $search, $categoryId, $locationId, $status);
+
+        return [
+            'basis' => 'depreciation',
+            'basis_label' => __('Depreciation expense by asset and cost centre, from the dimension rows the depreciation engine posted. Month-aligned: a run posts one month at a time.'),
+            'currency_code' => $this->posting->baseCurrency($creatorId),
+            'from' => $from?->toDateString(),
+            'to' => $to?->toDateString(),
+            'rows' => $rows,
+            'total' => $this->sumTotals($rows, 'total'),
+            'dimension_total' => $dimensionTotal,
+            'posted_total' => $postedTotal,
+            'matches' => bccomp($dimensionTotal, $postedTotal, 2) === 0,
+        ];
+    }
+
+    /** Sum of the engine's active dimension rows for the period (asset filters apply). */
+    protected function depreciationDimensionTotal(
+        int $creatorId,
+        ?Carbon $from,
+        ?Carbon $to,
+        ?int $assetId,
+        ?string $search,
+        ?int $categoryId,
+        ?int $locationId,
+        ?string $status
+    ): string {
+        $query = DB::table('journal_line_dimensions as d')
+            ->join('journal_items as ji', 'ji.id', '=', 'd.line_id')
+            ->join('journal_entries as je', 'je.id', '=', 'ji.journal')
+            ->join('fixed_assets as fa', 'fa.id', '=', 'd.asset_id')
+            ->where('d.created_by', $creatorId)
+            ->where('d.status', JournalLineDimension::STATUS_ACTIVE)
+            ->where('d.line_type', JournalLineDimension::LINE_JOURNAL_ITEM)
+            ->whereNotNull('d.asset_id');
+        $this->applyDateFilter($query, 'je.date', $from, $to);
+        $this->applyAssetFilters($query, 'fa', $assetId, $search, $categoryId, $locationId, $status);
+
+        return $this->round2((string) ($query->sum('d.allocated_amount') ?? '0'));
+    }
+
+    /** Sum of posted depreciation entries for the period (asset filters apply). */
+    protected function depreciationPostedTotal(
+        int $creatorId,
+        ?Carbon $from,
+        ?Carbon $to,
+        ?int $assetId,
+        ?string $search,
+        ?int $categoryId,
+        ?int $locationId,
+        ?string $status
+    ): string {
+        $query = DB::table('fixed_asset_depreciation_entries as e')
+            ->join('fixed_assets as fa', 'fa.id', '=', 'e.asset_id')
+            ->where('e.created_by', $creatorId)
+            ->where('e.status', 'posted');
+        if ($from) {
+            $query->whereDate('e.period', '>=', $from->copy()->startOfMonth()->toDateString());
+        }
+        if ($to) {
+            $query->whereDate('e.period', '<=', $to->copy()->startOfMonth()->toDateString());
+        }
+        $this->applyAssetFilters($query, 'fa', $assetId, $search, $categoryId, $locationId, $status);
+
+        return $this->round2((string) ($query->sum('e.posted_amount') ?? '0'));
+    }
+
+    // ------------------------------------------------------------------
+    // Phase 2 — Maintenance by asset and centre
+    // ------------------------------------------------------------------
+
+    /**
+     * Maintenance by asset and centre (plan §9/§13, Phase 2).
+     *
+     * Reads the Phase 4 maintenance costs (each cost posted Dr
+     * maintenance expense 6226 / Cr AP 421 at recording time) and
+     * attributes each cost to the centre(s) in force on the cost
+     * date — the split assignment for that date when one exists,
+     * else the asset's own cost centre. The maintenance posting
+     * path itself is untouched (no dimensions were written at
+     * posting time); the attribution is a report-time read of the
+     * same assignment history the depreciation engine uses, so
+     * the two reports agree on which centre owned the asset when.
+     *
+     * Costs with no centre at all land on an "Unassigned"
+     * pseudo-row so the report total always reconciles:
+     * `journal_total` is the sum of the Dr class-62 lines of the
+     * same costs' journals, and `matches` is true when the two
+     * agree. Month-aligned like the depreciation report.
+     */
+    public function maintenanceByAssetAndCentre(
+        int $creatorId,
+        ?Carbon $from = null,
+        ?Carbon $to = null,
+        ?int $centreId = null,
+        ?int $assetId = null,
+        ?string $search = null,
+        ?int $categoryId = null,
+        ?int $locationId = null,
+        ?string $status = null
+    ): array {
+        if (! Schema::hasTable('fixed_asset_maintenance_costs') || ! Schema::hasTable('fixed_assets')) {
+            return $this->emptyAssetReport($creatorId, $from, $to, 'maintenance');
+        }
+
+        $from = $from?->copy()->startOfMonth();
+        $to = $to?->copy()->endOfMonth();
+
+        $query = DB::table('fixed_asset_maintenance_costs as c')
+            ->join('fixed_assets as fa', 'fa.id', '=', 'c.asset_id')
+            ->where('c.created_by', $creatorId);
+        $this->applyDateFilter($query, 'c.recorded_at', $from, $to);
+        $this->applyAssetFilters($query, 'fa', $assetId, $search, $categoryId, $locationId, $status);
+        if ($assetId !== null) {
+            $query->where('c.asset_id', $assetId);
+        }
+
+        $costs = $query
+            ->select('c.id', 'c.asset_id', 'c.amount', 'c.recorded_at', 'c.journal_id', 'fa.code as asset_code', 'fa.name as asset_name', 'fa.status as asset_status')
+            ->orderBy('fa.code')
+            ->orderBy('c.recorded_at')
+            ->get();
+
+        $assignments = $this->assignments ?? new AssetAssignmentService();
+        $centres = CostCentre::where('created_by', $creatorId)->get()->keyBy('id');
+        $grouped = [];
+        $journalIds = [];
+        foreach ($costs as $cost) {
+            $asset = FixedAsset::find((int) $cost->asset_id);
+            $allocation = $asset
+                ? $assignments->allocationForDate($asset, Carbon::parse($cost->recorded_at), $creatorId)
+                : [];
+            $amount = $this->round2((string) $cost->amount);
+            if ($cost->journal_id) {
+                $journalIds[] = (int) $cost->journal_id;
+            }
+
+            if ($allocation === []) {
+                $this->addAssetReportRow($grouped, (int) $cost->asset_id, $cost->asset_code, $cost->asset_name, $cost->asset_status, null, null, null, $amount);
+                continue;
+            }
+
+            // Split the cost by the allocation, 2dp, residual on
+            // the last centre (Phase 1 pattern).
+            $allocated = '0';
+            $lastIndex = count($allocation) - 1;
+            foreach ($allocation as $index => $split) {
+                $splitCentreId = (int) $split['cost_centre_id'];
+                $share = $index === $lastIndex
+                    ? bcsub($amount, $allocated, 2)
+                    : bcdiv(bcmul($amount, (string) $split['percentage'], 10), '100', 2);
+                $allocated = bcadd($allocated, $share, 2);
+                $centre = $centres->get($splitCentreId);
+                $this->addAssetReportRow($grouped, (int) $cost->asset_id, $cost->asset_code, $cost->asset_name, $cost->asset_status, $splitCentreId, $centre?->code, $centre?->name, $share);
+            }
+        }
+
+        $rows = array_values($grouped);
+        usort($rows, static fn ($a, $b) => [$a['asset_code'], (string) $a['cost_centre_code']] <=> [$b['asset_code'], (string) $b['cost_centre_code']]);
+        // The reconciliation compares the UNFILTERED report total
+        // with the journal total: a maintenance journal carries no
+        // centre, so a centre filter can never apply to it.
+        $reportTotal = $this->sumTotals($rows, 'total');
+        if ($centreId !== null) {
+            $rows = array_values(array_filter($rows, static fn ($row) => $row['cost_centre_id'] === $centreId));
+        }
+
+        // Journal reconciliation: the Dr class-62 lines of the
+        // same costs' journals (asset filters apply; centre does
+        // not — a maintenance journal carries no centre).
+        $journalTotal = $this->maintenanceJournalTotal($creatorId, $from, $to, $assetId, $search, $categoryId, $locationId, $status);
+
+        return [
+            'basis' => 'maintenance',
+            'basis_label' => __('Maintenance cost by asset and cost centre, attributed to the centre in force on the cost date. Month-aligned like the depreciation report.'),
+            'currency_code' => $this->posting->baseCurrency($creatorId),
+            'from' => $from?->toDateString(),
+            'to' => $to?->toDateString(),
+            'rows' => $rows,
+            'total' => $this->sumTotals($rows, 'total'),
+            'report_total' => $reportTotal,
+            'journal_total' => $journalTotal,
+            'matches' => bccomp($reportTotal, $journalTotal, 2) === 0,
+        ];
+    }
+
+    /** Sum of the Dr class-62 lines of the maintenance journals for the period. */
+    protected function maintenanceJournalTotal(
+        int $creatorId,
+        ?Carbon $from,
+        ?Carbon $to,
+        ?int $assetId,
+        ?string $search,
+        ?int $categoryId,
+        ?int $locationId,
+        ?string $status
+    ): string {
+        if (! Schema::hasTable('fixed_asset_maintenance_costs')) {
+            return '0.00';
+        }
+
+        $costs = DB::table('fixed_asset_maintenance_costs as c')
+            ->join('fixed_assets as fa', 'fa.id', '=', 'c.asset_id')
+            ->where('c.created_by', $creatorId)
+            ->whereNotNull('c.journal_id');
+        $this->applyDateFilter($costs, 'c.recorded_at', $from, $to);
+        $this->applyAssetFilters($costs, 'fa', $assetId, $search, $categoryId, $locationId, $status);
+        if ($assetId !== null) {
+            $costs->where('c.asset_id', $assetId);
+        }
+        $journalIds = $costs->pluck('c.journal_id')->unique()->all();
+        if ($journalIds === []) {
+            return '0.00';
+        }
+
+        $total = DB::table('journal_items as ji')
+            ->join('chart_of_accounts as coa', 'coa.id', '=', 'ji.account')
+            ->whereIn('ji.journal', $journalIds)
+            ->where('coa.code', 'like', '62%')
+            ->where('ji.debit', '>', 0)
+            ->sum('ji.debit');
+
+        return $this->round2((string) ($total ?? '0'));
+    }
+
+    /** Shared asset filters for the Phase 2 reports (alias 'fa' = fixed_assets). */
+    protected function applyAssetFilters($query, string $alias, ?int $assetId, ?string $search, ?int $categoryId, ?int $locationId, ?string $status): void
+    {
+        if ($assetId !== null) {
+            $query->where($alias.'.id', $assetId);
+        }
+        if ($categoryId !== null) {
+            $query->where($alias.'.category_id', $categoryId);
+        }
+        if ($locationId !== null) {
+            $query->where($alias.'.location_id', $locationId);
+        }
+        if ($status !== null && $status !== '') {
+            $query->where($alias.'.status', $status);
+        }
+        if ($search !== null && $search !== '') {
+            $term = '%'.str_replace(['%', '_'], ['\%', '\_'], $search).'%';
+            $query->where(function ($q) use ($alias, $term) {
+                $q->where($alias.'.code', 'like', $term)
+                    ->orWhere($alias.'.name', 'like', $term);
+            });
+        }
+    }
+
+    protected function addAssetReportRow(array &$grouped, int $assetId, ?string $assetCode, ?string $assetName, ?string $assetStatus, ?int $centreId, ?string $centreCode, ?string $centreName, string $amount): void
+    {
+        $key = $assetId.'|'.($centreId ?? 'none');
+        if (! isset($grouped[$key])) {
+            $grouped[$key] = [
+                'asset_id' => $assetId,
+                'asset_code' => $assetCode,
+                'asset_name' => $assetName,
+                'asset_status' => $assetStatus,
+                'cost_centre_id' => $centreId,
+                'cost_centre_code' => $centreCode,
+                'cost_centre_name' => $centreName,
+                'total' => '0.00',
+                'rows' => 0,
+            ];
+        }
+        $grouped[$key]['total'] = bcadd($grouped[$key]['total'], $amount, 2);
+        $grouped[$key]['rows']++;
+    }
+
+    protected function emptyAssetReport(int $creatorId, ?Carbon $from, ?Carbon $to, string $basis): array
+    {
+        return [
+            'basis' => $basis,
+            'basis_label' => __('No fixed asset data is available yet.'),
+            'currency_code' => $this->posting->baseCurrency($creatorId),
+            'from' => $from?->toDateString(),
+            'to' => $to?->toDateString(),
+            'rows' => [],
+            'total' => '0.00',
+            'report_total' => '0.00',
+            'dimension_total' => '0.00',
+            'posted_total' => '0.00',
+            'journal_total' => '0.00',
+            'matches' => true,
         ];
     }
 

@@ -67,6 +67,61 @@
                 </div>
             </div>
 
+            {{-- Cost Centre Phase 2: Cost Centre Allocation tab — the
+                 split in force today + the assignment history. The
+                 depreciation engine splits the period by the
+                 assignment in force for that period. --}}
+            <div class="card">
+                <div class="card-header">
+                    <h5>{{ __('Cost Centre Allocation') }}</h5>
+                    @can('manage asset cost centre assignments')
+                        <a href="{{ route('asset-cost-centre-assignments.create', ['asset_id' => $asset->id]) }}" class="btn btn-sm btn-primary float-end">{{ __('New Assignment') }}</a>
+                    @endcan
+                </div>
+                <div class="card-body">
+                    <h6>{{ __('Split in force today') }}</h6>
+                    @if (empty($currentCostCentreSplit))
+                        <p class="text-muted">{{ __('No split assignment covers today — depreciation falls back to the asset\'s own cost centre') }} ({{ $asset->costCentre ? $asset->costCentre->code : '—' }}).</p>
+                    @else
+                        <ul>
+                            @foreach ($currentCostCentreSplit as $split)
+                                @php $splitCentre = \App\Models\CostCentre::find($split['cost_centre_id']); @endphp
+                                <li><strong>{{ $splitCentre?->code }}</strong> — {{ $splitCentre?->name }}: {{ number_format((float) $split['percentage'], 2) }}%</li>
+                            @endforeach
+                        </ul>
+                    @endif
+
+                    <h6>{{ __('Assignment history') }}</h6>
+                    @if ($costCentreAssignments->isEmpty())
+                        <p class="text-muted">{{ __('No cost-centre assignments for this asset yet.') }}</p>
+                    @else
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>{{ __('Cost centre') }}</th>
+                                        <th class="text-end">{{ __('Share') }}</th>
+                                        <th>{{ __('Valid from') }}</th>
+                                        <th>{{ __('Valid to') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($costCentreAssignments as $assignmentRow)
+                                        <tr>
+                                            <td>{{ $assignmentRow->costCentre?->code }} — {{ $assignmentRow->costCentre?->name }}</td>
+                                            <td class="text-end">{{ number_format((float) $assignmentRow->percentage, 2) }}%</td>
+                                            <td>{{ $assignmentRow->valid_from?->format('Y-m-d') }}</td>
+                                            <td>{{ $assignmentRow->valid_to?->format('Y-m-d') ?? __('Open') }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                    <a href="{{ route('asset-cost-centre-assignments.show', $asset->id) }}">{{ __('Full assignment history') }}</a>
+                </div>
+            </div>
+
             @if ($acquisition)
                 <div class="card">
                     <div class="card-header">

@@ -72,6 +72,7 @@ class FixedAssetDepreciationService
         protected JournalEntryPoster $poster,
         protected ChartAccountResolver $resolver,
         protected DimensionPostingService $dimensions = new DimensionPostingService(),
+        protected ?AssetAssignmentService $assignments = null,
     ) {
     }
 
@@ -235,13 +236,19 @@ class FixedAssetDepreciationService
     /**
      * Day-weighted cost-centre split for one asset in one period.
      *
-     * The centre effective at the period start is the first
-     * in-period event's "from" centre (or the asset's current
-     * centre when nothing changed in the period). An assignment
-     * acceptance or a transfer receipt inside the period starts a
-     * new segment on its date — the event date belongs to the new
-     * centre. Percentages are 6dp and sum to exactly 100 (the
-     * last segment absorbs the rounding).
+     * Cost Centre Phase 2 (plan §7, D4): when percentage split
+     * assignments exist for the asset in this period, the expense
+     * debit is split by THOSE assignments — day-split where an
+     * assignment starts or ends mid-period. Days with no split
+     * assignment fall back to the asset's own centre as it stands
+     * on that day (assignment acceptances / transfer receipts).
+     * When no split rows exist at all, the asset's single
+     * cost_centre_id is used exactly as before.
+     *
+     * The LAST element is the period-end centre (the largest
+     * share of the final sub-range, tie-break smallest centre
+     * id): it absorbs the 6dp rounding residual so the split sums
+     * to exactly 100.000000%, and periodEndCentre() takes it.
      *
      * Returns [] when the asset has no cost centre at all (the
      * journal still posts — dimensions are analytical, never the
@@ -250,6 +257,158 @@ class FixedAssetDepreciationService
      * @return array<int, array{cost_centre_id: int, percentage: string}>
      */
     public function costCentreSplitForPeriod(FixedAsset $asset, Carbon $periodStart, Carbon $periodEnd, int $creatorId): array
+    {
+        $assignmentService = $this->assignments ?? new AssetAssignmentService();
+        $segments = $assignmentService->effectiveAssignments((int) $asset->id, $creatorId, $periodStart, $periodEnd);
+
+        if ($segments !== []) {
+            return $this->splitAssignmentSplit($asset, $segments, $periodStart, $periodEnd, $creatorId);
+        }
+
+        return $this->singleCentreSplitForPeriod($asset, $periodStart, $periodEnd, $creatorId);
+    }
+
+    /**
+     * Split a period by percentage assignments (Phase 2). The
+     * timeline is cut at every split-segment boundary; each
+     * sub-range is weighted by its days x percentage, and gap
+     * days are weighted by the single-centre split for that
+     * sub-range (the Phase 3 oracle, unchanged). A gap with no
+     * centre at all returns [] for the whole period, matching
+     * the single-centre behaviour.
+     *
+     * @param  array<int, array{from: Carbon, to: Carbon, days: int, splits: array<int, array{cost_centre_id: int, percentage: string}>}>  $segments
+     */
+    protected function splitAssignmentSplit(FixedAsset $asset, array $segments, Carbon $periodStart, Carbon $periodEnd, int $creatorId): array
+    {
+        // Carbon 3 diffInDays() returns a FLOAT — normalise every
+        // boundary to midnight first (Phase 3 lesson).
+        $periodStart = $periodStart->copy()->startOfDay();
+        $periodEnd = $periodEnd->copy()->startOfDay();
+        $totalDays = (int) $periodStart->diffInDays($periodEnd) + 1;
+
+        $boundaries = [
+            $periodStart->format('Y-m-d'),
+            $periodEnd->copy()->addDay()->format('Y-m-d'),
+        ];
+        foreach ($segments as $segment) {
+            $boundaries[] = $segment['from']->format('Y-m-d');
+            $boundaries[] = $segment['to']->copy()->addDay()->format('Y-m-d');
+        }
+        $boundaries = array_values(array_unique($boundaries));
+        sort($boundaries);
+
+        // Weight per centre: days x percentage (6dp, bcmath).
+        $weights = [];
+        $finalSplits = null;
+        for ($i = 0; $i < count($boundaries) - 1; $i++) {
+            $start = Carbon::parse($boundaries[$i])->startOfDay();
+            $end = Carbon::parse($boundaries[$i + 1])->startOfDay()->subDay();
+            if ($end->lt($start)) {
+                continue;
+            }
+            $days = (int) $start->diffInDays($end) + 1;
+
+            $splits = null;
+            foreach ($segments as $segment) {
+                if ($start->gte($segment['from']) && $start->lte($segment['to'])) {
+                    $splits = $segment['splits'];
+                    break;
+                }
+            }
+            if ($splits === null) {
+                $splits = $this->singleCentreSplitForPeriod($asset, $start, $end, $creatorId);
+                if ($splits === []) {
+                    return [];
+                }
+            }
+            $finalSplits = $splits;
+
+            foreach ($splits as $split) {
+                $centreId = (int) $split['cost_centre_id'];
+                $weight = bcmul((string) $split['percentage'], (string) $days, 6);
+                $weights[$centreId] = isset($weights[$centreId])
+                    ? bcadd($weights[$centreId], $weight, 6)
+                    : $weight;
+            }
+        }
+
+        if ($weights === []) {
+            return [];
+        }
+
+        // Period-end centre: the largest share of the final
+        // sub-range (tie-break smallest centre id). It goes last
+        // and absorbs the rounding residual.
+        $periodEndCentreId = $this->largestShareCentre($finalSplits);
+
+        $orderedIds = array_keys($weights);
+        usort($orderedIds, static function ($a, $b) use ($periodEndCentreId) {
+            if ($a === $periodEndCentreId) {
+                return 1;
+            }
+            if ($b === $periodEndCentreId) {
+                return -1;
+            }
+
+            return $a <=> $b;
+        });
+
+        $result = [];
+        $sum = '0';
+        foreach ($orderedIds as $index => $centreId) {
+            $isLast = $index === count($orderedIds) - 1;
+            $percentage = $isLast
+                ? bcsub('100.000000', $sum, 6)
+                : bcdiv($weights[$centreId], (string) $totalDays, 6);
+            $sum = bcadd($sum, $percentage, 6);
+            $result[] = [
+                'cost_centre_id' => $centreId,
+                'percentage' => $percentage,
+            ];
+        }
+
+        $codes = CostCentre::where('created_by', $creatorId)
+            ->whereIn('id', array_column($result, 'cost_centre_id'))
+            ->pluck('code', 'id');
+        foreach ($result as $index => $line) {
+            $result[$index]['cost_centre_code'] = $codes[$line['cost_centre_id']] ?? null;
+        }
+
+        return $result;
+    }
+
+    /** Largest share of a split; ties go to the smallest centre id. */
+    protected function largestShareCentre(?array $splits): ?int
+    {
+        if ($splits === null || $splits === []) {
+            return null;
+        }
+        $best = null;
+        foreach ($splits as $split) {
+            $centreId = (int) $split['cost_centre_id'];
+            if ($best === null
+                || bccomp((string) $split['percentage'], (string) $best['percentage'], 6) > 0
+                || (bccomp((string) $split['percentage'], (string) $best['percentage'], 6) === 0 && $centreId < $best['cost_centre_id'])
+            ) {
+                $best = ['cost_centre_id' => $centreId, 'percentage' => (string) $split['percentage']];
+            }
+        }
+
+        return $best['cost_centre_id'];
+    }
+
+    /**
+     * The Phase 3 single-centre split, unchanged: the centre
+     * effective at the period start is the first in-period
+     * event's "from" centre (or the asset's current centre when
+     * nothing changed in the period). An assignment acceptance or
+     * a transfer receipt inside the period starts a new segment
+     * on its date — the event date belongs to the new centre.
+     * Percentages are 6dp and sum to exactly 100 (the last
+     * segment absorbs the rounding).
+     */
+    protected function singleCentreSplitForPeriod(FixedAsset $asset, Carbon $periodStart, Carbon $periodEnd, int $creatorId): array
     {
         $events = [];
 

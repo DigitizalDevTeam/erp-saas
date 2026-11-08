@@ -3,11 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\CostCentre;
+use App\Models\FixedAsset;
+use App\Models\FixedAssetCategory;
+use App\Models\FixedAssetLocation;
 use App\Services\CostCentreExportService;
 use App\Services\DimensionReportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class CostCentreReportController extends Controller
 {
@@ -99,6 +103,146 @@ class CostCentreReportController extends Controller
             'selectedCentreId' => $centreId,
             'selectedProjectId' => $projectId,
         ]));
+    }
+
+    /**
+     * Depreciation by asset and centre (Cost Centre Phase 2, plan
+     * §9/§13). Reads the same dimension rows the depreciation
+     * engine posted, so the report can never disagree with them.
+     * Month-aligned (a run posts one month at a time).
+     */
+    public function depreciation(Request $request)
+    {
+        if (! Auth::user()->can('view cost centre reports')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
+        $creatorId = Auth::user()->creatorId();
+        [$from, $to] = $this->period($request);
+        $centreId = $request->filled('cost_centre_id') ? (int) $request->input('cost_centre_id') : null;
+        $filters = $this->assetFilters($request);
+
+        $report = $this->reports->depreciationByAssetAndCentre(
+            $creatorId, $from, $to, $centreId,
+            $filters['asset_id'], $filters['search'], $filters['category_id'], $filters['location_id'], $filters['status']
+        );
+
+        if ($export = $this->exportResponse($request, $report, 'depreciation-by-asset-and-centre', __('Depreciation by Asset and Cost Centre'), [__('Asset'), __('Asset Name'), __('Status'), __('Cost Centre'), __('Lines'), __('Total')], function () use ($report) {
+            $rows = [];
+            foreach ($report['rows'] as $row) {
+                $rows[] = [
+                    $row['asset_code'],
+                    $row['asset_name'],
+                    $row['asset_status'],
+                    $row['cost_centre_code'] ?? __('Unassigned'),
+                    $row['rows'],
+                    $row['total'],
+                ];
+            }
+
+            return $rows;
+        })) {
+            return $export;
+        }
+
+        return view('cost-centres.reports.depreciation', array_merge($report, [
+            'centres' => $this->centres($creatorId),
+            'selectedCentreId' => $centreId,
+        ], $filters, [
+            'assets' => $this->assets($creatorId),
+            'categories' => $this->assetCategories($creatorId),
+            'locations' => $this->assetLocations($creatorId),
+        ]));
+    }
+
+    /**
+     * Maintenance by asset and centre (Cost Centre Phase 2, plan
+     * §9/§13). Maintenance costs are attributed to the centre in
+     * force on the cost date (split assignment when one exists,
+     * else the asset's own centre). Month-aligned like the
+     * depreciation report.
+     */
+    public function maintenance(Request $request)
+    {
+        if (! Auth::user()->can('view cost centre reports')) {
+            return redirect()->back()->with('error', __('Permission Denied.'));
+        }
+
+        $creatorId = Auth::user()->creatorId();
+        [$from, $to] = $this->period($request);
+        $centreId = $request->filled('cost_centre_id') ? (int) $request->input('cost_centre_id') : null;
+        $filters = $this->assetFilters($request);
+
+        $report = $this->reports->maintenanceByAssetAndCentre(
+            $creatorId, $from, $to, $centreId,
+            $filters['asset_id'], $filters['search'], $filters['category_id'], $filters['location_id'], $filters['status']
+        );
+
+        if ($export = $this->exportResponse($request, $report, 'maintenance-by-asset-and-centre', __('Maintenance by Asset and Cost Centre'), [__('Asset'), __('Asset Name'), __('Status'), __('Cost Centre'), __('Lines'), __('Total')], function () use ($report) {
+            $rows = [];
+            foreach ($report['rows'] as $row) {
+                $rows[] = [
+                    $row['asset_code'],
+                    $row['asset_name'],
+                    $row['asset_status'],
+                    $row['cost_centre_code'] ?? __('Unassigned'),
+                    $row['rows'],
+                    $row['total'],
+                ];
+            }
+
+            return $rows;
+        })) {
+            return $export;
+        }
+
+        return view('cost-centres.reports.maintenance', array_merge($report, [
+            'centres' => $this->centres($creatorId),
+            'selectedCentreId' => $centreId,
+        ], $filters, [
+            'assets' => $this->assets($creatorId),
+            'categories' => $this->assetCategories($creatorId),
+            'locations' => $this->assetLocations($creatorId),
+        ]));
+    }
+
+    /** Asset filters shared by the Phase 2 reports (from the request). */
+    protected function assetFilters(Request $request): array
+    {
+        return [
+            'asset_id' => $request->filled('asset_id') ? (int) $request->input('asset_id') : null,
+            'search' => $request->filled('search') ? (string) $request->input('search') : null,
+            'category_id' => $request->filled('category_id') ? (int) $request->input('category_id') : null,
+            'location_id' => $request->filled('location_id') ? (int) $request->input('location_id') : null,
+            'status' => $request->filled('status') ? (string) $request->input('status') : null,
+        ];
+    }
+
+    protected function assets(int $creatorId)
+    {
+        if (! Schema::hasTable('fixed_assets')) {
+            return collect();
+        }
+
+        return FixedAsset::forCompany($creatorId)->orderBy('code')->get(['id', 'code as asset_code', 'name']);
+    }
+
+    protected function assetCategories(int $creatorId)
+    {
+        if (! Schema::hasTable('fixed_asset_categories')) {
+            return collect();
+        }
+
+        return FixedAssetCategory::forCompany($creatorId)->orderBy('name')->get(['id', 'name']);
+    }
+
+    protected function assetLocations(int $creatorId)
+    {
+        if (! Schema::hasTable('fixed_asset_locations')) {
+            return collect();
+        }
+
+        return FixedAssetLocation::forCompany($creatorId)->orderBy('name')->get(['id', 'name']);
     }
 
     /**

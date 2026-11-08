@@ -7,6 +7,7 @@ use App\Http\Controllers\AllowanceOptionController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AppraisalController;
 use App\Http\Controllers\AssetController;
+use App\Http\Controllers\AssetCostCentreAssignmentController;
 use App\Http\Controllers\AttendanceEmployeeController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\PriceLevelController;
@@ -2605,6 +2606,14 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('cost-centre-allocation-templates', [CostCentreAllocationController::class, 'storeTemplate'])->name('cost-centre-allocation-templates.store')->middleware(['auth', 'XSS']);
     Route::delete('cost-centre-allocation-templates/{template}', [CostCentreAllocationController::class, 'destroyTemplate'])->name('cost-centre-allocation-templates.destroy')->middleware(['auth', 'XSS']);
 
+    // Cost Centres — Phase 2: Fixed Assets integration (plan §5/§6/§10).
+    // 'create' is registered before {asset} so it is not swallowed.
+    Route::get('asset-cost-centre-assignments/create', [AssetCostCentreAssignmentController::class, 'create'])->name('asset-cost-centre-assignments.create')->middleware(['auth', 'XSS']);
+    Route::get('asset-cost-centre-assignments', [AssetCostCentreAssignmentController::class, 'index'])->name('asset-cost-centre-assignments.index')->middleware(['auth', 'XSS']);
+    Route::post('asset-cost-centre-assignments', [AssetCostCentreAssignmentController::class, 'store'])->name('asset-cost-centre-assignments.store')->middleware(['auth', 'XSS']);
+    Route::get('asset-cost-centre-assignments/{asset}', [AssetCostCentreAssignmentController::class, 'show'])->name('asset-cost-centre-assignments.show')->middleware(['auth', 'XSS']);
+    Route::post('asset-cost-centre-assignments/{asset}/end', [AssetCostCentreAssignmentController::class, 'end'])->name('asset-cost-centre-assignments.end')->middleware(['auth', 'XSS']);
+
     // Cost Centres — Phase 3: Treasury integration (plan §7). The
     // validate/centres routes are registered before the {payment}
     // routes so they are not swallowed by a parameter.
@@ -2632,6 +2641,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('cost-centre-reports/cash', [CostCentreReportController::class, 'cash'])->name('cost-centre-reports.cash')->middleware(['auth', 'XSS']);
     Route::get('cost-centre-reports/reconciliation', [CostCentreReportController::class, 'reconciliation'])->name('cost-centre-reports.reconciliation')->middleware(['auth', 'XSS']);
     Route::get('cost-centre-reports/unassigned', [CostCentreReportController::class, 'unassigned'])->name('cost-centre-reports.unassigned')->middleware(['auth', 'XSS']);
+    Route::get('cost-centre-reports/depreciation', [CostCentreReportController::class, 'depreciation'])->name('cost-centre-reports.depreciation')->middleware(['auth', 'XSS']);
+    Route::get('cost-centre-reports/maintenance', [CostCentreReportController::class, 'maintenance'])->name('cost-centre-reports.maintenance')->middleware(['auth', 'XSS']);
 
     // Cost Centres — Phase 5: Budgets + approvals (plan §9). The
     // approvals/delegations routes are registered before the resource

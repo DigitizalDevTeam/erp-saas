@@ -70,11 +70,13 @@ class SidebarMenuPermissionCatalog
                     ]),
                     self::node('Cost Centres', 'menu.dashboard.accounting.cost_centres', [
                         'view cost centres', 'create cost centres', 'edit cost centres', 'deactivate cost centres',
+                        'manage asset cost centre assignments',
                         'manage treasury dimensions', 'manage gl dimensions', 'view cost centre reports',
                         'manage cost centre budgets', 'approve cost centre budgets',
                     ], [
                         self::node('Dashboard', 'menu.dashboard.accounting.cost_centres.dashboard', ['view cost centre reports']),
                         self::node('Cost Centre List', 'menu.dashboard.accounting.cost_centres.list', ['view cost centres']),
+                        self::node('Asset Assignments', 'menu.dashboard.accounting.cost_centres.asset_assignments', ['view cost centres', 'manage asset cost centre assignments']),
                         self::node('Budgets', 'menu.dashboard.accounting.cost_centres.budgets', ['manage cost centre budgets']),
                         self::node('Budget Approvals', 'menu.dashboard.accounting.cost_centres.budget_approvals', ['approve cost centre budgets']),
                         self::node('Treasury Dimensions', 'menu.dashboard.accounting.cost_centres.treasury_dimensions', ['manage treasury dimensions']),
