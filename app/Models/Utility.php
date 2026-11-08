@@ -614,6 +614,14 @@ namespace App\Models;
                 'treasury_approval_rules' => '',
                 'treasury_reservation_threshold_base' => '0',
                 'treasury_cashflow_threshold_base' => '0',
+
+                // Fixed Assets (Phase 0) — defaults mirror
+                // FixedAssetSettings::DEFAULTS (same keys, same values).
+                'fixed_asset_base_currency' => 'MZN',
+                'fixed_asset_reference_prefix' => '',
+                'fixed_asset_clearing_account_code' => '',
+                'fixed_asset_label_size' => 'standard',
+                'fixed_asset_approval_threshold_base' => '100000',
             ];
 
             foreach ($data as $row) {

@@ -112,6 +112,18 @@ class SidebarMenuPermissionCatalog
                         self::node('Audit Trail', 'menu.dashboard.accounting.treasury.audit_trail', ['view treasury reports']),
                         self::node('Settings', 'menu.dashboard.accounting.treasury.settings', ['manage treasury accounts']),
                     ]),
+                    self::node('Fixed Assets', 'menu.dashboard.accounting.fixed_assets', [
+                        'manage fixed assets', 'create fixed assets', 'edit fixed assets', 'delete fixed assets',
+                        'approve fixed asset acquisitions', 'approve fixed asset transfers', 'approve fixed asset disposals',
+                        'post fixed asset depreciation', 'manage fixed asset categories', 'manage fixed asset settings',
+                        'view fixed asset audit trail',
+                    ], [
+                        self::node('Asset Register', 'menu.dashboard.accounting.fixed_assets.register', ['manage fixed assets']),
+                        self::node('Categories', 'menu.dashboard.accounting.fixed_assets.categories', ['manage fixed asset categories']),
+                        self::node('Locations', 'menu.dashboard.accounting.fixed_assets.locations', ['manage fixed assets']),
+                        self::node('Settings', 'menu.dashboard.accounting.fixed_assets.settings', ['manage fixed asset settings']),
+                        self::node('Audit Trail', 'menu.dashboard.accounting.fixed_assets.audit_trail', ['view fixed asset audit trail']),
+                    ]),
                 ]),
                 self::node('Product system', 'menu.dashboard.product_system', ['stock report'], [
                     self::node('Overview', 'menu.dashboard.product_system.overview', ['stock report']),

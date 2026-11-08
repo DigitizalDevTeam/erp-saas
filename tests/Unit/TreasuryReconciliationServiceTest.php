@@ -12,6 +12,7 @@ use App\Models\TreasuryFinancialAccount;
 use App\Models\TreasuryMissingMovement;
 use App\Models\TreasuryOperation;
 use App\Services\TreasuryReconciliationService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -40,6 +41,15 @@ class TreasuryReconciliationServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Fixed Assets Phase 0 note: this class hard-codes statement
+        // dates of 2026-11-05 and the auto-match rule compares them
+        // with the entry's confirmed_at (= now()) inside a 3-day
+        // tolerance. Without a frozen clock the residual auto-match
+        // test starts failing once "today" drifts past 2026-11-08
+        // (it failed on clean main 59f712f on 2026-11-08). Freeze
+        // "today" to 2026-11-07, the date Phase 7 verified on.
+        Carbon::setTestNow(Carbon::parse('2026-11-07 09:00:00'));
 
         $this->createTables();
 
@@ -85,6 +95,8 @@ class TreasuryReconciliationServiceTest extends TestCase
 
     protected function tearDown(): void
     {
+        Carbon::setTestNow();
+
         foreach (['treasury_statement_sync_cursors', 'treasury_missing_movements', 'bank_reconciliation_matches', 'bank_statement_lines', 'bank_reconciliation_sessions', 'treasury_entries', 'treasury_operations', 'treasury_opening_balances', 'treasury_financial_accounts', 'dimension_audit_events', 'journal_items', 'journal_entries', 'transaction_lines', 'transactions', 'bank_accounts', 'chart_of_accounts', 'settings', 'users', 'permissions', 'model_has_permissions', 'role_has_permissions', 'model_has_roles'] as $table) {
             Schema::dropIfExists($table);
         }

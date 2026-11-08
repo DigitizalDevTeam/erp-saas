@@ -133,6 +133,10 @@ use App\Http\Controllers\CostCentreReportController;
 use App\Http\Controllers\GlDimensionController;
 use App\Http\Controllers\BillingContractController;
 use App\Http\Controllers\BillingReportController;
+use App\Http\Controllers\FixedAssetCategoryController;
+use App\Http\Controllers\FixedAssetController;
+use App\Http\Controllers\FixedAssetLocationController;
+use App\Http\Controllers\FixedAssetSettingsController;
 use App\Http\Controllers\TreasuryAccountController;
 use App\Http\Controllers\TreasuryAdvanceController;
 use App\Http\Controllers\TreasuryAuditTrailController;
@@ -2790,6 +2794,18 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('billing-reports/{report}', [BillingReportController::class, 'show'])->name('billing-reports.show')->middleware(['auth', 'XSS']);
     Route::post('billing-reports/{report}/export', [BillingReportController::class, 'requestExport'])->name('billing-reports.export-request')->middleware(['auth', 'XSS']);
     Route::get('billing-reports/exports/{export}/download', [BillingReportController::class, 'download'])->name('billing-reports.export-download')->middleware(['auth', 'XSS', 'signed']);
+
+    // Fixed Assets Phase 0 — foundation. 'settings' and 'label'
+    // are registered before the resource so they are never
+    // captured as an asset id.
+    Route::get('fixed-assets/settings', [FixedAssetSettingsController::class, 'settings'])->name('fixed-assets.settings')->middleware(['auth', 'XSS']);
+    Route::post('fixed-assets/settings', [FixedAssetSettingsController::class, 'saveSettings'])->name('fixed-assets.settings.save')->middleware(['auth', 'XSS']);
+    Route::get('fixed-assets/{asset}/label', [FixedAssetController::class, 'label'])->name('fixed-assets.label')->middleware(['auth', 'XSS']);
+    Route::resource('fixed-assets', FixedAssetController::class)->parameters(['fixed-assets' => 'asset'])->names('fixed-assets')->only(['index', 'show'])->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('fixed-asset-categories/{category}/deactivate', [FixedAssetCategoryController::class, 'deactivate'])->name('fixed-asset-categories.deactivate')->middleware(['auth', 'XSS']);
+    Route::resource('fixed-asset-categories', FixedAssetCategoryController::class)->parameters(['fixed-asset-categories' => 'category'])->names('fixed-asset-categories')->except(['show', 'destroy'])->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('fixed-asset-locations/{location}/deactivate', [FixedAssetLocationController::class, 'deactivate'])->name('fixed-asset-locations.deactivate')->middleware(['auth', 'XSS']);
+    Route::resource('fixed-asset-locations', FixedAssetLocationController::class)->parameters(['fixed-asset-locations' => 'location'])->names('fixed-asset-locations')->except(['show', 'destroy'])->middleware(['auth', 'XSS', 'revalidate']);
 
     Route::resource('pos-printer', PosPrinterController::class)->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('{cid?}/pos', [PosController::class, 'index'])->name('poses.index');
