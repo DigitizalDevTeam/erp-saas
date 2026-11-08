@@ -7,6 +7,7 @@ use App\Models\{ActivityLog,CustomerShippingAddress,CustomerBillingAddress};
 use App\Models\Customer;
 use App\Models\CustomField;
 use App\Models\Invoice;
+use App\Models\Pos;
 use App\Models\InvoiceProduct;
 use App\Models\Milestone;
 use App\Models\Products;
@@ -932,7 +933,18 @@ class ProposalController extends Controller
 
     function invoiceNumber()
     {
-        $latest = Invoice::where('created_by', '=', \Auth::user()->creatorId())->latest()->first();
+        // Sales series only — internal-consumption invoices are
+        // numbered in their own #INT series (see
+        // PosToInvoiceService) and must not make sales numbers
+        // skip or collide. Ordered by invoice_id, not by
+        // created_at: latest() is created_at-based.
+        $latest = Invoice::where('created_by', '=', \Auth::user()->creatorId())
+            ->where(function ($q) {
+                $q->whereNull('document_type')
+                    ->orWhere('document_type', '<>', Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION);
+            })
+            ->orderByDesc('invoice_id')
+            ->first();
         if(!$latest)
         {
             return 1;

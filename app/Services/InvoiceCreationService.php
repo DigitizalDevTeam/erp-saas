@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CustomField;
 use App\Models\Invoice;
 use App\Models\InvoiceProduct;
+use App\Models\Pos;
 use App\Models\ProductService;
 use App\Models\Proforma;
 use App\Models\Purchase;
@@ -47,7 +48,17 @@ class InvoiceCreationService
      */
     public function nextInvoiceNumber(int $creatorId): int
     {
+        // Sales series only: internal-consumption invoices live
+        // in their own #INT series (document_type
+        // internal_consumption) and must not make sales numbers
+        // skip or collide. Old internal invoices (document_type
+        // NULL) still count for sales — they were issued in the
+        // sales series and stay there.
         $latest = Invoice::where('created_by', $creatorId)
+            ->where(function ($q) {
+                $q->whereNull('document_type')
+                    ->orWhere('document_type', '<>', Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION);
+            })
             ->lockForUpdate()
             ->orderByDesc('invoice_id')
             ->first();

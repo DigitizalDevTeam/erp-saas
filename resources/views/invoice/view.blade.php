@@ -5,7 +5,7 @@
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
     <li class="breadcrumb-item"><a href="{{ route('invoice.index') }}">{{ __('Invoice') }}</a></li>
-    <li class="breadcrumb-item">{{ AUth::user()->invoiceNumberFormat($invoice->invoice_id) }}</li>
+    <li class="breadcrumb-item">{{ $invoice->displayNumber() }}</li>
 @endsection
 @php
     $settings = Utility::settings();
@@ -457,7 +457,7 @@
                                 </div>
                                 <div class="col-xs-12 col-sm-12 col-nd-6 col-lg-6 col-12 text-end">
                                     <h4 class="invoice-number">
-                                        {{ AUth::user()->invoiceNumberFormat($invoice->invoice_id) }}</h4>
+                                        {{ $invoice->displayNumber() }}</h4>
                                 </div>
                                 <div class="col-12">
                                     <hr>
