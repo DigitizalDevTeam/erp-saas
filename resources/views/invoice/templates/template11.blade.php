@@ -313,7 +313,7 @@
                         <div class="value">{{Utility::priceFormat($settings,$invoice->getDue())}}</div>
                     </div>
                     <table class="invoice-side">
-                        <tr><td class="k">{{__('Number')}}:</td><td class="v">{{Utility::invoiceNumberFormat($settings,$invoice->invoice_id)}}</td></tr>
+                        <tr><td class="k">{{__('Number')}}:</td><td class="v">{{$invoice->displayNumber()}}</td></tr>
                         <tr><td class="k">{{__('Date')}}:</td><td class="v">{{Utility::dateFormat($settings,$invoice->issue_date)}}</td></tr>
                         <tr><td class="k">{{__('Sales Rep')}}:</td><td class="v">{{ auth()->user()->name ?? 'User' }}</td></tr>
                         <tr><td class="k">{{__('Due Date')}}:</td><td class="v">{{Utility::dateFormat($settings,$invoice->due_date)}}</td></tr>
@@ -433,7 +433,7 @@
                             <td class="invoice-title">
                                 <div class="invoice-title-box">
                                     <span class="title">{{ __('Invoice') ?: 'Invoice' }}</span>
-                                    <span class="inv-no">{{ __('No.') ?: 'No.' }} {{ Utility::invoiceNumberFormat($settings,$invoice->invoice_id) }}</span>
+                                    <span class="inv-no">{{ __('No.') ?: 'No.' }} {{ $invoice->displayNumber() }}</span>
                                 </div>
                             </td>
                         </tr>

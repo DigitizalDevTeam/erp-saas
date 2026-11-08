@@ -12,7 +12,7 @@
         var paperFormat = @json(strtoupper((string) ((isset($paperSize) ? $paperSize : ($settings['invoice_layout_size'] ?? 'a4')) === 'a5' ? 'a5' : 'a4')));
         var opt = {
             margin: [0, 0, 0, 0],
-            filename: '{{Utility::customerInvoiceNumberFormat($invoice->invoice_id)}}',
+            filename: '{{$invoice->displayNumber()}}',
             image: {type: 'jpeg', quality: 1},
             html2canvas: {scale: 4, dpi: 72, letterRendering: true},
             jsPDF: {unit: 'in', format: paperFormat}

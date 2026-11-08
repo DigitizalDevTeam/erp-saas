@@ -2,7 +2,7 @@
 @if($isMoz)
     <div class="dl-doc-badge">
         <h4>{{ $payload['title'] ?? __('Invoice') }}</h4>
-        <div class="dl-doc-num">#{{ $payload['number'] ?? '—' }}</div>
+        <div class="dl-doc-num">{{ str_starts_with((string) ($payload['number'] ?? ''), '#') ? $payload['number'] : '#' . ($payload['number'] ?? '—') }}</div>
         @if(!empty($payload['date']))
             <div style="font-size:11px;margin-top:6px;opacity:.95;">{{ \Auth::check() ? \Auth::user()->dateFormat($payload['date']) : $payload['date'] }}</div>
         @endif

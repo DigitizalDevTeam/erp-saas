@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\BankAccount;
 use App\Models\ChartOfAccount;
+use App\Models\DocumentLayout;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
 use App\Models\Pos;
@@ -15,7 +16,9 @@ use App\Models\Transaction;
 use App\Models\TransactionLines;
 use App\Models\User;
 use App\Models\Utility;
+use App\Services\DocumentLayoutRenderer;
 use App\Services\InvoiceCreationService;
+use App\Services\MozambiqueStandardRenderer;
 use App\Services\PosToInvoiceService;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -65,7 +68,7 @@ class InternalConsumptionInvoiceSeriesTest extends TestCase
         Utility::$rates = null;
         Utility::$data = null;
 
-        foreach (['custom_field_values', 'custom_fields', 'invoice_bank_transfers', 'proformas', 'quotations', 'road_manifests', 'delivery_notes', 'pos_shifts', 'pos_tables', 'customer_shipping_addresses', 'customer_billing_addresses', 'product_service_units', 'transactions', 'bank_accounts', 'pos_payments', 'pos_products', 'pos', 'credit_notes', 'invoice_payments', 'transaction_lines', 'invoice_products', 'invoices', 'product_services', 'product_service_categories', 'chart_of_accounts', 'taxes', 'customers', 'users', 'roles', 'permissions', 'model_has_permissions', 'model_has_roles', 'role_has_permissions', 'plans', 'languages', 'ch_messages', 'email_templates', 'settings', 'branches', 'branch_user'] as $table) {
+        foreach (['custom_field_values', 'custom_fields', 'invoice_bank_transfers', 'proformas', 'quotations', 'road_manifests', 'delivery_notes', 'pos_shifts', 'pos_tables', 'customer_shipping_addresses', 'customer_billing_addresses', 'product_service_units', 'transactions', 'bank_accounts', 'pos_payments', 'pos_products', 'pos', 'credit_notes', 'invoice_payments', 'transaction_lines', 'invoice_products', 'invoices', 'product_services', 'product_service_categories', 'chart_of_accounts', 'taxes', 'customers', 'users', 'roles', 'permissions', 'model_has_permissions', 'model_has_roles', 'role_has_permissions', 'plans', 'languages', 'ch_messages', 'email_templates', 'settings', 'branches', 'branch_user', 'document_layouts', 'purchases', 'company_payment_settings'] as $table) {
             Schema::dropIfExists($table);
         }
 
@@ -766,5 +769,180 @@ class InternalConsumptionInvoiceSeriesTest extends TestCase
             $table->text('value')->nullable();
             $table->timestamps();
         });
+        // Minimal tables the invoice print path touches: the print
+        // controller runs DocumentLayoutRenderer::tryRender first
+        // (queries document_layouts), eager-loads sourcePurchase
+        // (purchases), and the customer invoice page reads
+        // company_payment_settings. Kept empty — the print flow
+        // falls through to the templates when no layout exists.
+        Schema::create('document_layouts', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->unsignedBigInteger('created_by');
+            $table->string('document_type', 32);
+            $table->string('name');
+            $table->string('base_template', 64)->nullable();
+            $table->string('print_template_key', 64)->nullable();
+            $table->boolean('is_active')->default(false);
+            $table->unsignedInteger('page_width')->default(794);
+            $table->unsignedInteger('page_height')->default(1123);
+            $table->json('elements')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('purchases', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->timestamps();
+        });
+        Schema::create('company_payment_settings', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name')->nullable();
+            $table->text('value')->nullable();
+            $table->integer('created_by')->default(0);
+            $table->timestamps();
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Print templates — #INT number for internal invoices
+    // ------------------------------------------------------------------
+
+    protected function printTemplateNames(): array
+    {
+        return array_merge(
+            ['__template1'],
+            array_map(fn ($i) => 'template' . $i, range(1, 13))
+        );
+    }
+
+    protected function setInvoiceTemplate(string $template): void
+    {
+        // The print controller merges the company's settings rows
+        // fresh from the DB on every request, so switching the row
+        // switches the template the next GET renders.
+        DB::table('settings')->updateOrInsert(
+            ['name' => 'invoice_template', 'created_by' => 1],
+            ['value' => $template, 'created_at' => now(), 'updated_at' => now()]
+        );
+        Utility::$data = null;
+    }
+
+    public function test_print_templates_render_int_number_for_internal_invoice(): void
+    {
+        $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos(
+            $this->makePos(Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION, 1, [[$this->meal, 1, 500]])
+        );
+        $this->assertNotNull($invoice);
+        $this->assertSame('#INT00001', $invoice->displayNumber());
+
+        foreach ($this->printTemplateNames() as $template) {
+            $this->setInvoiceTemplate($template);
+
+            $response = $this->actingAs(User::findOrFail(1))
+                ->get(route('invoice.pdf', Crypt::encrypt($invoice->id)));
+
+            $response->assertOk();
+            $response->assertSee('#INT00001');
+            $response->assertDontSee('#Fatura00001');
+        }
+    }
+
+    public function test_print_templates_keep_sales_number_unchanged(): void
+    {
+        $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos(
+            $this->makePos(Pos::DOCUMENT_TYPE_CASH_SALE, 1, [[$this->meal, 1, 500]])
+        );
+        $this->assertNotNull($invoice);
+        $this->assertSame('#Fatura00001', $invoice->displayNumber());
+
+        foreach ($this->printTemplateNames() as $template) {
+            $this->setInvoiceTemplate($template);
+
+            $response = $this->actingAs(User::findOrFail(1))
+                ->get(route('invoice.pdf', Crypt::encrypt($invoice->id)));
+
+            $response->assertOk();
+            // The exact string the old invoiceNumberFormat call
+            // produced — the sales number spot is byte-identical.
+            $response->assertSee('#Fatura00001');
+            $response->assertDontSee('#INT');
+        }
+    }
+
+    public function test_mozambique_renderer_returns_int_number_for_internal_invoice(): void
+    {
+        $internal = app(PosToInvoiceService::class)->createInvoiceFromPos(
+            $this->makePos(Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION, 1, [[$this->meal, 1, 500]])
+        );
+        $sales = app(PosToInvoiceService::class)->createInvoiceFromPos(
+            $this->makePos(Pos::DOCUMENT_TYPE_CASH_SALE, 2, [[$this->meal, 1, 500]])
+        );
+
+        $internalPayload = MozambiqueStandardRenderer::build('invoice', $internal, ['settings' => Utility::settingsById(1)]);
+        $salesPayload = MozambiqueStandardRenderer::build('invoice', $sales, ['settings' => Utility::settingsById(1)]);
+
+        // Templates 12/13 print this docNumber ("No. <docNumber>").
+        $this->assertSame('#INT00001', $internalPayload['docNumber']);
+        $this->assertSame('#Fatura00001', $salesPayload['docNumber']);
+    }
+
+    public function test_custom_layout_payload_number(): void
+    {
+        $internal = app(PosToInvoiceService::class)->createInvoiceFromPos(
+            $this->makePos(Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION, 1, [[$this->meal, 1, 500]])
+        );
+        $sales = app(PosToInvoiceService::class)->createInvoiceFromPos(
+            $this->makePos(Pos::DOCUMENT_TYPE_CASH_SALE, 2, [[$this->meal, 1, 500]])
+        );
+
+        $internalPayload = DocumentLayoutRenderer::buildPayload('invoice', $internal);
+        $salesPayload = DocumentLayoutRenderer::buildPayload('invoice', $sales);
+
+        $this->assertSame('#INT00001', $internalPayload['number']);
+        // Sales keeps the raw id the layout blocks always rendered.
+        $this->assertSame(1, (int) $salesPayload['number']);
+    }
+
+    public function test_custom_layout_renders_int_number_for_internal_invoice(): void
+    {
+        DocumentLayout::create([
+            'created_by' => 1, 'document_type' => 'invoice', 'name' => 'Test layout',
+            'base_template' => 'template11', 'print_template_key' => 'template11',
+            'is_active' => true, 'page_width' => 794, 'page_height' => 1123,
+            'elements' => [['key' => 'document_meta', 'x' => 0, 'y' => 0, 'w' => 200, 'h' => 60, 'visible' => true]],
+        ]);
+
+        $invoice = app(PosToInvoiceService::class)->createInvoiceFromPos(
+            $this->makePos(Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION, 1, [[$this->meal, 1, 500]])
+        );
+        $this->assertNotNull($invoice);
+
+        $response = $this->actingAs(User::findOrFail(1))
+            ->get(route('invoice.pdf', Crypt::encrypt($invoice->id)));
+
+        $response->assertOk();
+        $response->assertSee('#INT00001');
+        // The badge block prepends '#': it must not double it.
+        $response->assertDontSee('##INT00001');
+    }
+
+    public function test_customer_invoice_page_renders_int_number(): void
+    {
+        $internal = app(PosToInvoiceService::class)->createInvoiceFromPos(
+            $this->makePos(Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION, 1, [[$this->meal, 1, 500]])
+        );
+        $sales = app(PosToInvoiceService::class)->createInvoiceFromPos(
+            $this->makePos(Pos::DOCUMENT_TYPE_CASH_SALE, 2, [[$this->meal, 1, 500]])
+        );
+
+        $internalResponse = $this->actingAs(User::findOrFail(1))
+            ->get(route('invoice.link.copy', Crypt::encrypt($internal->id)));
+        $internalResponse->assertOk();
+        $internalResponse->assertSee('#INT00001');
+        $internalResponse->assertDontSee('#Fatura00001');
+
+        $salesResponse = $this->actingAs(User::findOrFail(1))
+            ->get(route('invoice.link.copy', Crypt::encrypt($sales->id)));
+        $salesResponse->assertOk();
+        $salesResponse->assertSee('#Fatura00001');
+        $salesResponse->assertDontSee('#INT');
     }
 }

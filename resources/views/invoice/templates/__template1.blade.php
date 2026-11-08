@@ -9,7 +9,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>
-            {{ \App\Models\Utility::invoiceNumberFormat($settings , $invoice->invoice_id) }}
+            {{ $invoice->displayNumber() }}
             |
             
         </title>
@@ -74,7 +74,7 @@
                                     <tbody>
                                     <tr>
                                         <td>{{__('Number')}}:</td>
-                                        <td class="text-right">{{Utility::invoiceNumberFormat($settings,$invoice->invoice_id)}}</td>
+                                        <td class="text-right">{{$invoice->displayNumber()}}</td>
                                     </tr>
                                     <tr>
                                         <td>{{__('Issue Date')}}:</td>

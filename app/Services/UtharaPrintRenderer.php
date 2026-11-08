@@ -100,9 +100,14 @@ class UtharaPrintRenderer
             case 'invoice':
                 /** @var Invoice $document */
                 $party = $party ?? $document->customer;
-                $number = method_exists($user, 'invoiceNumberFormat')
-                    ? $user->invoiceNumberFormat($document->invoice_id)
-                    : ($document->invoice_id ?? $document->id);
+                // Internal Consumption invoices print their #INT number
+                // (displayNumber); sales invoices keep the exact
+                // formatted number they always had.
+                $number = ($document instanceof Invoice && $document->isInternal())
+                    ? $document->displayNumber()
+                    : (method_exists($user, 'invoiceNumberFormat')
+                        ? $user->invoiceNumberFormat($document->invoice_id)
+                        : ($document->invoice_id ?? $document->id));
                 $date = $document->issue_date ?? '';
                 $dueDate = $document->due_date ?? '';
                 $status = $document->status ?? '';

@@ -8,7 +8,7 @@
             <table class="table modal-table">
                 <tr>
                     <th>{{__('Invoice Number')}}</th>
-                    <td>{{\Auth::user()->invoiceNumberFormat($invoice->invoice_id)}}</td>
+                    <td>{{ $invoice->displayNumber() }}</td>
 
                 </tr>
                 <tr >
