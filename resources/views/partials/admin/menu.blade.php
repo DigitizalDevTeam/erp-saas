@@ -440,7 +440,7 @@
                                             </li>
                                         @endif
                                         @if (menu_can_node('menu.dashboard.accounting.fixed_assets'))
-                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['fixed-assets.index', 'fixed-assets.show', 'fixed-assets.label', 'fixed-assets.create', 'fixed-assets.edit', 'fixed-asset-acquisitions.index', 'fixed-asset-acquisitions.show', 'fixed-asset-assignments.index', 'fixed-asset-assignments.show', 'fixed-asset-assignments.create', 'fixed-asset-transfers.index', 'fixed-asset-transfers.show', 'fixed-asset-transfers.create', 'fixed-assets.import', 'fixed-asset-categories.index', 'fixed-asset-categories.create', 'fixed-asset-categories.edit', 'fixed-asset-locations.index', 'fixed-asset-locations.create', 'fixed-asset-locations.edit', 'fixed-assets.settings']) ? 'active dash-trigger' : '' }}">
+                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['fixed-assets.index', 'fixed-assets.show', 'fixed-assets.label', 'fixed-assets.create', 'fixed-assets.edit', 'fixed-asset-acquisitions.index', 'fixed-asset-acquisitions.show', 'fixed-asset-assignments.index', 'fixed-asset-assignments.show', 'fixed-asset-assignments.create', 'fixed-asset-transfers.index', 'fixed-asset-transfers.show', 'fixed-asset-transfers.create', 'fixed-asset-depreciation.index', 'fixed-asset-depreciation.show', 'fixed-asset-depreciation.create', 'fixed-asset-depreciation.report', 'fixed-assets.import', 'fixed-asset-categories.index', 'fixed-asset-categories.create', 'fixed-asset-categories.edit', 'fixed-asset-locations.index', 'fixed-asset-locations.create', 'fixed-asset-locations.edit', 'fixed-assets.settings']) ? 'active dash-trigger' : '' }}">
                                                 <a class="dash-link" href="#">{{ __('Fixed Assets') }}<span class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                                                 <ul class="dash-submenu">
                                                     @if (menu_can('menu.dashboard.accounting.fixed_assets.register'))
@@ -466,6 +466,11 @@
                                                     @if (menu_can('menu.dashboard.accounting.fixed_assets.transfers'))
                                                         <li class="dash-item {{ in_array(Request::route()->getName(), ['fixed-asset-transfers.index', 'fixed-asset-transfers.show', 'fixed-asset-transfers.create']) ? ' active' : '' }}">
                                                             <a class="dash-link" href="{{ route('fixed-asset-transfers.index') }}">{{ __('Transfers') }}</a>
+                                                        </li>
+                                                    @endif
+                                                    @if (menu_can('menu.dashboard.accounting.fixed_assets.depreciation'))
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['fixed-asset-depreciation.index', 'fixed-asset-depreciation.show', 'fixed-asset-depreciation.create', 'fixed-asset-depreciation.report']) ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('fixed-asset-depreciation.index') }}">{{ __('Depreciation') }}</a>
                                                         </li>
                                                     @endif
                                                     @if (menu_can('menu.dashboard.accounting.fixed_assets.import'))
