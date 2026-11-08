@@ -200,6 +200,7 @@
                         @can('manage fixed assets')
                             <a href="{{ route('fixed-asset-assignments.index', ['search' => $asset->code]) }}" class="btn btn-sm btn-outline-primary">{{ __('Assignments') }}</a>
                             <a href="{{ route('fixed-asset-transfers.index', ['search' => $asset->code]) }}" class="btn btn-sm btn-outline-primary">{{ __('Transfers') }}</a>
+                            <a href="{{ route('fixed-asset-disposals.index', ['search' => $asset->code]) }}" class="btn btn-sm btn-outline-primary">{{ __('Disposals') }}</a>
                         @endcan
                     </div>
                 </div>
