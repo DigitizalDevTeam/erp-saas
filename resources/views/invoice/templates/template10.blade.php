@@ -242,7 +242,7 @@
                             <tbody>
                                 <tr>
                                     <td><b>{{__('Number:')}}</b> </td>
-                                    <td class="text-right">{{Utility::invoiceNumberFormat($settings,$invoice->invoice_id)}}</td>
+                                    <td class="text-right">{{$invoice->displayNumber()}}</td>
                                 </tr>
                                 <tr>
                                     <td><b>{{__('Issue Date:')}}</b></td>

@@ -213,7 +213,7 @@
                                 <tbody>
                                     <tr>
                                         <td>{{__('Number')}}:</td>
-                                        <td class="text-right">{{Utility::invoiceNumberFormat($settings,$invoice->invoice_id)}}</td>
+                                        <td class="text-right">{{$invoice->displayNumber()}}</td>
                                     </tr>
                                     <tr>
                                         <td>{{__('Issue Date')}}:</td>
@@ -473,7 +473,7 @@
     </div>
 
     @@include('partials.print.processed_by_computer')
-if(!isset($preview))
+    @if(!isset($preview))
         @include('invoice.script');
     @endif
 </body>

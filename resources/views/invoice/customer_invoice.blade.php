@@ -174,7 +174,7 @@
                                     </div>
                                     <div class="col-xs-12 col-sm-12 col-nd-6 col-lg-6 col-12 text-end">
                                         <h3 class="invoice-number float-right">
-                                            {{ $user->invoiceNumberFormat($invoice->invoice_id) }}</h3>
+                                            {{ $invoice->displayNumber() }}</h3>
                                     </div>
                                     <div class="col-12">
                                         <hr>

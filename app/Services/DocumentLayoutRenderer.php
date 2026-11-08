@@ -117,7 +117,12 @@ class DocumentLayoutRenderer
                 /** @var Invoice $document */
                 $party = $party ?? $document->customer;
                 $partyLabel = __('Bill To');
-                $number = $document->invoice_id ?? $document->id;
+                // Internal Consumption invoices print their #INT number
+                // (displayNumber); sales invoices keep the raw id the
+                // layout blocks have always rendered.
+                $number = ($document instanceof Invoice && $document->isInternal())
+                    ? $document->displayNumber()
+                    : ($document->invoice_id ?? $document->id);
                 $date = $document->issue_date ?? '';
                 $dueDate = $document->due_date ?? '';
                 $status = $document->status ?? '';
