@@ -178,6 +178,26 @@
                     @endforelse
                 </div>
             </div>
+
+            <div class="card">
+                <div class="card-header"><h5>{{ __('History Timeline') }}</h5></div>
+                <div class="card-body">
+                    @forelse ($timeline as $entry)
+                        <p class="mb-1">
+                            <strong>{{ $entry['at'] ? $entry['at']->format('Y-m-d H:i') : '' }}</strong>
+                            — {{ $entry['title'] }} <span class="text-muted">{{ $entry['detail'] }}</span>
+                        </p>
+                    @empty
+                        <p class="text-muted">{{ __('No history recorded yet.') }}</p>
+                    @endforelse
+                    <div class="mt-3">
+                        @can('manage fixed assets')
+                            <a href="{{ route('fixed-asset-assignments.index', ['search' => $asset->code]) }}" class="btn btn-sm btn-outline-primary">{{ __('Assignments') }}</a>
+                            <a href="{{ route('fixed-asset-transfers.index', ['search' => $asset->code]) }}" class="btn btn-sm btn-outline-primary">{{ __('Transfers') }}</a>
+                        @endcan
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="col-md-4">

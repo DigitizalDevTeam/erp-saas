@@ -196,6 +196,16 @@ class FixedAsset extends Model
         return $this->hasMany(FixedAssetApproval::class, 'asset_id')->orderBy('created_at');
     }
 
+    public function assignments()
+    {
+        return $this->hasMany(FixedAssetAssignment::class, 'asset_id')->orderByDesc('created_at');
+    }
+
+    public function transfers()
+    {
+        return $this->hasMany(FixedAssetTransfer::class, 'asset_id')->orderByDesc('created_at');
+    }
+
     public function statusHistory()
     {
         return $this->hasMany(FixedAssetStatusHistory::class, 'asset_id')->orderByDesc('changed_at');
