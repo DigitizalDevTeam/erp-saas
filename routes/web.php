@@ -133,8 +133,10 @@ use App\Http\Controllers\CostCentreReportController;
 use App\Http\Controllers\GlDimensionController;
 use App\Http\Controllers\BillingContractController;
 use App\Http\Controllers\BillingReportController;
+use App\Http\Controllers\FixedAssetAcquisitionController;
 use App\Http\Controllers\FixedAssetCategoryController;
 use App\Http\Controllers\FixedAssetController;
+use App\Http\Controllers\FixedAssetImportController;
 use App\Http\Controllers\FixedAssetLocationController;
 use App\Http\Controllers\FixedAssetSettingsController;
 use App\Http\Controllers\TreasuryAccountController;
@@ -2800,8 +2802,23 @@ Route::group(['middleware' => ['verified']], function () {
     // captured as an asset id.
     Route::get('fixed-assets/settings', [FixedAssetSettingsController::class, 'settings'])->name('fixed-assets.settings')->middleware(['auth', 'XSS']);
     Route::post('fixed-assets/settings', [FixedAssetSettingsController::class, 'saveSettings'])->name('fixed-assets.settings.save')->middleware(['auth', 'XSS']);
+    // Phase 1: import + acquisitions routes BEFORE the fixed-assets
+    // resource — otherwise GET fixed-assets/import would be
+    // swallowed by the resource's fixed-assets/{asset} show route.
+    Route::get('fixed-assets/import', [FixedAssetImportController::class, 'form'])->name('fixed-assets.import')->middleware(['auth', 'XSS']);
+    Route::get('fixed-assets/import/template', [FixedAssetImportController::class, 'template'])->name('fixed-assets.import.template')->middleware(['auth', 'XSS']);
+    Route::post('fixed-assets/import', [FixedAssetImportController::class, 'store'])->name('fixed-assets.import.store')->middleware(['auth', 'XSS']);
+    Route::get('fixed-asset-acquisitions', [FixedAssetAcquisitionController::class, 'index'])->name('fixed-asset-acquisitions.index')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('fixed-asset-acquisitions/{acquisition}', [FixedAssetAcquisitionController::class, 'show'])->name('fixed-asset-acquisitions.show')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('fixed-asset-acquisitions/{acquisition}/submit-review', [FixedAssetAcquisitionController::class, 'submitForReview'])->name('fixed-asset-acquisitions.submit-review')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-acquisitions/{acquisition}/return', [FixedAssetAcquisitionController::class, 'returnForCorrection'])->name('fixed-asset-acquisitions.return')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-acquisitions/{acquisition}/submit-approval', [FixedAssetAcquisitionController::class, 'submitForApproval'])->name('fixed-asset-acquisitions.submit-approval')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-acquisitions/{acquisition}/decide', [FixedAssetAcquisitionController::class, 'decide'])->name('fixed-asset-acquisitions.decide')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-acquisitions/{acquisition}/reject', [FixedAssetAcquisitionController::class, 'reject'])->name('fixed-asset-acquisitions.reject')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-acquisitions/{acquisition}/cancel', [FixedAssetAcquisitionController::class, 'cancel'])->name('fixed-asset-acquisitions.cancel')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-acquisitions/{acquisition}/capitalize', [FixedAssetAcquisitionController::class, 'capitalize'])->name('fixed-asset-acquisitions.capitalize')->middleware(['auth', 'XSS']);
     Route::get('fixed-assets/{asset}/label', [FixedAssetController::class, 'label'])->name('fixed-assets.label')->middleware(['auth', 'XSS']);
-    Route::resource('fixed-assets', FixedAssetController::class)->parameters(['fixed-assets' => 'asset'])->names('fixed-assets')->only(['index', 'show'])->middleware(['auth', 'XSS', 'revalidate']);
+    Route::resource('fixed-assets', FixedAssetController::class)->parameters(['fixed-assets' => 'asset'])->names('fixed-assets')->only(['index', 'show', 'create', 'store', 'edit', 'update'])->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('fixed-asset-categories/{category}/deactivate', [FixedAssetCategoryController::class, 'deactivate'])->name('fixed-asset-categories.deactivate')->middleware(['auth', 'XSS']);
     Route::resource('fixed-asset-categories', FixedAssetCategoryController::class)->parameters(['fixed-asset-categories' => 'category'])->names('fixed-asset-categories')->except(['show', 'destroy'])->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('fixed-asset-locations/{location}/deactivate', [FixedAssetLocationController::class, 'deactivate'])->name('fixed-asset-locations.deactivate')->middleware(['auth', 'XSS']);

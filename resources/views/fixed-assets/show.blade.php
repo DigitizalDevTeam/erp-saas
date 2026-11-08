@@ -10,6 +10,13 @@
 
 @section('action-btn')
     <div class="float-end">
+        @if ($asset->status === \App\Models\FixedAsset::STATUS_DRAFT)
+            @can('edit fixed assets')
+                <a href="{{ route('fixed-assets.edit', $asset->id) }}" class="btn btn-sm btn-primary">
+                    <i class="ti ti-pencil"></i> {{ __('Edit') }}
+                </a>
+            @endcan
+        @endif
         <a href="{{ route('fixed-assets.label', $asset->id) }}" class="btn btn-sm btn-secondary" target="_blank">
             <i class="ti ti-printer"></i> {{ __('Print Label') }}
         </a>
@@ -59,6 +66,103 @@
                     </dl>
                 </div>
             </div>
+
+            @if ($acquisition)
+                <div class="card">
+                    <div class="card-header">
+                        <h5>{{ __('Acquisition & Capitalization') }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-sm-4">{{ __('Source') }}</dt>
+                            <dd class="col-sm-8">{{ ucfirst(str_replace('_', ' ', $acquisition->source_type)) }}@if ($acquisition->source_reference) — {{ $acquisition->source_reference }}@endif</dd>
+                            <dt class="col-sm-4">{{ __('Status') }}</dt>
+                            <dd class="col-sm-8">{{ ucfirst(str_replace('_', ' ', $acquisition->status)) }}</dd>
+                            <dt class="col-sm-4">{{ __('Total Cost (base)') }}</dt>
+                            <dd class="col-sm-8">{{ number_format((float) $acquisition->total_cost_base, 2) }}</dd>
+                            <dt class="col-sm-4">{{ __('Capitalization') }}</dt>
+                            <dd class="col-sm-8">
+                                @if ($capitalization)
+                                    {{ __('Capitalized on :date', ['date' => $capitalization->capitalization_date ? $capitalization->capitalization_date->format('Y-m-d') : '—']) }}
+                                    @if ($capitalization->journal_id)
+                                        — <a href="{{ route('journal-entry.show', $capitalization->journal_id) }}">{{ __('Journal #:id', ['id' => $capitalization->journal_id]) }}</a>
+                                    @endif
+                                @else
+                                    {{ __('Not capitalized yet.') }}
+                                @endif
+                            </dd>
+                        </dl>
+
+                        <div class="mt-2">
+                            <a href="{{ route('fixed-asset-acquisitions.show', $acquisition->id) }}" class="btn btn-sm btn-primary">{{ __('Open Acquisition Workflow') }}</a>
+                            @if ($acquisition->status === \App\Models\FixedAssetAcquisition::STATUS_APPROVED)
+                                <form method="POST" action="{{ route('fixed-asset-acquisitions.capitalize', $acquisition->id) }}" class="d-inline">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm btn-success">{{ __('Capitalize Asset') }}</button>
+                                </form>
+                            @endif
+                        </div>
+
+                        @if ($schedule->isNotEmpty())
+                            <h6 class="mt-4">{{ __('Depreciation Schedule') }}</h6>
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ __('Period') }}</th>
+                                            <th>{{ __('Depreciation') }}</th>
+                                            <th>{{ __('Closing Book Value') }}</th>
+                                            <th>{{ __('Status') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($schedule as $row)
+                                            <tr>
+                                                <td>{{ $row->period }}</td>
+                                                <td>{{ number_format((float) $row->depreciation_amount, 2) }}</td>
+                                                <td>{{ number_format((float) $row->closing_book_value, 2) }}</td>
+                                                <td>{{ ucfirst($row->status) }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+
+                        @if ($accountingEntries->isNotEmpty())
+                            <h6 class="mt-4">{{ __('Accounting Entries') }}</h6>
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ __('Type') }}</th>
+                                            <th>{{ __('Date') }}</th>
+                                            <th>{{ __('Amount') }}</th>
+                                            <th>{{ __('Journal') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($accountingEntries as $entry)
+                                            <tr>
+                                                <td>{{ ucfirst($entry->entry_type) }}</td>
+                                                <td>{{ $entry->entry_date ? $entry->entry_date->format('Y-m-d') : '—' }}</td>
+                                                <td>{{ number_format((float) $entry->amount, 2) }}</td>
+                                                <td>
+                                                    @if ($entry->journal_id)
+                                                        <a href="{{ route('journal-entry.show', $entry->journal_id) }}">{{ __('Journal #:id', ['id' => $entry->journal_id]) }}</a>
+                                                    @else
+                                                        —
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            @endif
 
             <div class="card">
                 <div class="card-header"><h5>{{ __('Status History') }}</h5></div>

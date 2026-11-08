@@ -119,6 +119,9 @@ class SidebarMenuPermissionCatalog
                         'view fixed asset audit trail',
                     ], [
                         self::node('Asset Register', 'menu.dashboard.accounting.fixed_assets.register', ['manage fixed assets']),
+                        self::node('New Asset', 'menu.dashboard.accounting.fixed_assets.new_asset', ['create fixed assets']),
+                        self::node('Acquisitions', 'menu.dashboard.accounting.fixed_assets.acquisitions', ['manage fixed assets']),
+                        self::node('Import Assets', 'menu.dashboard.accounting.fixed_assets.import', ['create fixed assets']),
                         self::node('Categories', 'menu.dashboard.accounting.fixed_assets.categories', ['manage fixed asset categories']),
                         self::node('Locations', 'menu.dashboard.accounting.fixed_assets.locations', ['manage fixed assets']),
                         self::node('Settings', 'menu.dashboard.accounting.fixed_assets.settings', ['manage fixed asset settings']),

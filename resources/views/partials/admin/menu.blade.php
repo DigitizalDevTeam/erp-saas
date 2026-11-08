@@ -440,12 +440,27 @@
                                             </li>
                                         @endif
                                         @if (menu_can_node('menu.dashboard.accounting.fixed_assets'))
-                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['fixed-assets.index', 'fixed-assets.show', 'fixed-assets.label', 'fixed-asset-categories.index', 'fixed-asset-categories.create', 'fixed-asset-categories.edit', 'fixed-asset-locations.index', 'fixed-asset-locations.create', 'fixed-asset-locations.edit', 'fixed-assets.settings']) ? 'active dash-trigger' : '' }}">
+                                            <li class="dash-item dash-hasmenu {{ in_array(Request::route()->getName(), ['fixed-assets.index', 'fixed-assets.show', 'fixed-assets.label', 'fixed-assets.create', 'fixed-assets.edit', 'fixed-asset-acquisitions.index', 'fixed-asset-acquisitions.show', 'fixed-assets.import', 'fixed-asset-categories.index', 'fixed-asset-categories.create', 'fixed-asset-categories.edit', 'fixed-asset-locations.index', 'fixed-asset-locations.create', 'fixed-asset-locations.edit', 'fixed-assets.settings']) ? 'active dash-trigger' : '' }}">
                                                 <a class="dash-link" href="#">{{ __('Fixed Assets') }}<span class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
                                                 <ul class="dash-submenu">
                                                     @if (menu_can('menu.dashboard.accounting.fixed_assets.register'))
                                                         <li class="dash-item {{ in_array(Request::route()->getName(), ['fixed-assets.index', 'fixed-assets.show', 'fixed-assets.label']) ? ' active' : '' }}">
                                                             <a class="dash-link" href="{{ route('fixed-assets.index') }}">{{ __('Asset Register') }}</a>
+                                                        </li>
+                                                    @endif
+                                                    @if (menu_can('menu.dashboard.accounting.fixed_assets.new_asset'))
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['fixed-assets.create', 'fixed-assets.edit']) ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('fixed-assets.create') }}">{{ __('New Asset') }}</a>
+                                                        </li>
+                                                    @endif
+                                                    @if (menu_can('menu.dashboard.accounting.fixed_assets.acquisitions'))
+                                                        <li class="dash-item {{ in_array(Request::route()->getName(), ['fixed-asset-acquisitions.index', 'fixed-asset-acquisitions.show']) ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('fixed-asset-acquisitions.index') }}">{{ __('Acquisitions') }}</a>
+                                                        </li>
+                                                    @endif
+                                                    @if (menu_can('menu.dashboard.accounting.fixed_assets.import'))
+                                                        <li class="dash-item {{ Request::route()->getName() == 'fixed-assets.import' ? ' active' : '' }}">
+                                                            <a class="dash-link" href="{{ route('fixed-assets.import') }}">{{ __('Import Assets') }}</a>
                                                         </li>
                                                     @endif
                                                     @if (menu_can('menu.dashboard.accounting.fixed_assets.categories'))

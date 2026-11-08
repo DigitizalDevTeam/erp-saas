@@ -9,6 +9,19 @@
     <li class="breadcrumb-item">{{ __('Asset Register') }}</li>
 @endsection
 
+@section('action-btn')
+    <div class="float-end">
+        @can('create fixed assets')
+            <a href="{{ route('fixed-assets.create') }}" class="btn btn-sm btn-primary">
+                <i class="ti ti-plus"></i> {{ __('New Asset') }}
+            </a>
+            <a href="{{ route('fixed-assets.import') }}" class="btn btn-sm btn-secondary">
+                <i class="ti ti-upload"></i> {{ __('Import Assets') }}
+            </a>
+        @endcan
+    </div>
+@endsection
+
 @section('content')
     <div class="row">
         <div class="col-md-12">
@@ -73,12 +86,15 @@
                                         <td>{{ ucfirst(str_replace('_', ' ', $asset->status)) }}</td>
                                         <td>
                                             <a href="{{ route('fixed-assets.show', $asset->id) }}" class="btn btn-sm btn-primary">{{ __('View') }}</a>
+                                            @if ($asset->status === \App\Models\FixedAsset::STATUS_DRAFT)
+                                                <a href="{{ route('fixed-assets.edit', $asset->id) }}" class="btn btn-sm btn-secondary">{{ __('Edit') }}</a>
+                                            @endif
                                             <a href="{{ route('fixed-assets.label', $asset->id) }}" class="btn btn-sm btn-secondary" target="_blank">{{ __('Label') }}</a>
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="8" class="text-center">{{ __('No assets found. Asset registration opens in Phase 1.') }}</td>
+                                        <td colspan="8" class="text-center">{{ __('No assets found.') }}</td>
                                     </tr>
                                 @endforelse
                             </tbody>
