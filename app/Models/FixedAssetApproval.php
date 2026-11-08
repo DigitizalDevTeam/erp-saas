@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Model;
 class FixedAssetApproval extends Model
 {
     public const TYPE_ACQUISITION = 'acquisition';
+    public const TYPE_ASSIGNMENT = 'assignment';
     public const TYPE_TRANSFER = 'transfer';
     public const TYPE_DISPOSAL = 'disposal';
     public const TYPE_REVALUATION = 'revaluation';
@@ -23,6 +24,7 @@ class FixedAssetApproval extends Model
 
     public const TRANSACTION_TYPES = [
         self::TYPE_ACQUISITION,
+        self::TYPE_ASSIGNMENT,
         self::TYPE_TRANSFER,
         self::TYPE_DISPOSAL,
         self::TYPE_REVALUATION,

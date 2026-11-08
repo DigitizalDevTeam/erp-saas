@@ -109,8 +109,95 @@ class FixedAssetController extends Controller
         if (Schema::hasTable('fixed_asset_accounting_entries')) {
             $accountingEntries = FixedAssetAccountingEntry::where('created_by', $creatorId)->where('asset_id', $asset->id)->orderByDesc('id')->get();
         }
+        // Phase 2 tables are guarded the same way (Contract P3
+        // precedent): between a code pull and the migrate that
+        // creates them, the register must still render.
+        $assignments = collect();
+        $transfers = collect();
+        if (Schema::hasTable('fixed_asset_assignments')) {
+            $assignments = \App\Models\FixedAssetAssignment::where('created_by', $creatorId)->where('asset_id', $asset->id)->with(['custodian', 'location', 'costCentre'])->orderByDesc('id')->get();
+        }
+        if (Schema::hasTable('fixed_asset_transfers')) {
+            $transfers = \App\Models\FixedAssetTransfer::where('created_by', $creatorId)->where('asset_id', $asset->id)->with(['toLocation', 'toCustodian', 'toCostCentre'])->orderByDesc('id')->get();
+        }
+        $timeline = $this->buildTimeline($asset, $assignments, $transfers);
 
-        return view('fixed-assets.show', compact('asset', 'acquisition', 'capitalization', 'schedule', 'accountingEntries'));
+        return view('fixed-assets.show', compact('asset', 'acquisition', 'capitalization', 'schedule', 'accountingEntries', 'assignments', 'transfers', 'timeline'));
+    }
+
+    /**
+     * One merged history timeline (Phase 2): assignments +
+     * transfers + status changes, newest first. Each entry is
+     * ['at' => Carbon|null, 'title' => string, 'detail' => string].
+     */
+    protected function buildTimeline(FixedAsset $asset, $assignments, $transfers): array
+    {
+        $entries = [];
+
+        foreach ($asset->statusHistory as $history) {
+            $entries[] = [
+                'at' => $history->changed_at,
+                'title' => __('Status change'),
+                'detail' => ($history->from_status ? ucfirst(str_replace('_', ' ', $history->from_status)).' → ' : '').ucfirst(str_replace('_', ' ', $history->to_status)).($history->reason ? ' ('.$history->reason.')' : ''),
+            ];
+        }
+
+        foreach ($assignments as $assignment) {
+            $custodian = $assignment->custodian ? $assignment->custodian->name : '—';
+            $place = $assignment->location ? $assignment->location->code : null;
+            $steps = [
+                'requested_at' => __('Assignment requested'),
+                'approved_at' => __('Assignment approved'),
+                'handed_over_at' => __('Assignment handed over'),
+                'accepted_at' => __('Assignment accepted'),
+                'refused_at' => __('Assignment refused'),
+                'returned_at' => __('Assignment returned'),
+            ];
+            foreach ($steps as $field => $title) {
+                if ($assignment->$field) {
+                    $detail = $custodian.($place ? ' · '.$place : '');
+                    if ($field === 'refused_at' && $assignment->refusal_reason) {
+                        $detail .= ' ('.$assignment->refusal_reason.')';
+                    }
+                    if ($field === 'returned_at' && $assignment->return_reason) {
+                        $detail .= ' ('.$assignment->return_reason.')';
+                    }
+                    $entries[] = ['at' => $assignment->$field, 'title' => $title, 'detail' => $detail];
+                }
+            }
+        }
+
+        foreach ($transfers as $transfer) {
+            $to = $transfer->toLocation ? $transfer->toLocation->code : null;
+            $who = $transfer->toCustodian ? $transfer->toCustodian->name : null;
+            $steps = [
+                'requested_at' => __('Transfer requested'),
+                'approved_at' => __('Transfer approved'),
+                'handed_over_at' => __('Transfer handed over'),
+                'received_at' => __('Transfer received'),
+            ];
+            foreach ($steps as $field => $title) {
+                if ($transfer->$field) {
+                    $detail = trim(($to ? $to : '').($who ? ' · '.$who : ''), ' ·');
+                    $entries[] = ['at' => $transfer->$field, 'title' => $title, 'detail' => $detail ?: '—'];
+                }
+            }
+            if ($transfer->status === \App\Models\FixedAssetTransfer::STATUS_REJECTED && $transfer->updated_at) {
+                $entries[] = ['at' => $transfer->updated_at, 'title' => __('Transfer rejected'), 'detail' => $transfer->reason ?? '—'];
+            }
+            if ($transfer->status === \App\Models\FixedAssetTransfer::STATUS_CANCELLED && $transfer->updated_at) {
+                $entries[] = ['at' => $transfer->updated_at, 'title' => __('Transfer cancelled'), 'detail' => $transfer->reason ?? '—'];
+            }
+        }
+
+        usort($entries, function ($a, $b) {
+            $atA = $a['at'] ? $a['at']->timestamp : 0;
+            $atB = $b['at'] ? $b['at']->timestamp : 0;
+
+            return $atB <=> $atA;
+        });
+
+        return $entries;
     }
 
     public function create()
