@@ -37,11 +37,13 @@ class JournalLineDimension extends Model
     public const SOURCE_MANUAL = 'manual';
     public const SOURCE_INHERITED = 'inherited';
     public const SOURCE_REVERSAL = 'reversal';
+    public const SOURCE_PAYROLL = 'payroll';
 
     public const SOURCES = [
         self::SOURCE_MANUAL,
         self::SOURCE_INHERITED,
         self::SOURCE_REVERSAL,
+        self::SOURCE_PAYROLL,
     ];
 
     public const STATUS_ACTIVE = 'active';

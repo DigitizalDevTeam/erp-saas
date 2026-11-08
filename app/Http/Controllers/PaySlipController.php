@@ -215,7 +215,27 @@ class PaySlipController extends Controller
     {
         $payslip = PaySlip::find($paySlip);
 
-        return view('payslip.show', compact('payslip'));
+        // Cost Centre Phase 7: the payslip's centre split, for the
+        // split card on the show view.
+        $splitData = [
+            'splits' => collect(),
+            'splitGrossTotal' => '0.00',
+            'splitCentres' => collect(),
+            'splitProjects' => collect(),
+            'canManageSplit' => false,
+        ];
+        if ($payslip) {
+            $dimensions = app(\App\Services\PayrollDimensionService::class);
+            $splitData = [
+                'splits' => $dimensions->splitsForPayslip($payslip),
+                'splitGrossTotal' => $dimensions->grossExpenseTotal($payslip),
+                'splitCentres' => \App\Models\CostCentre::forCompany(\Auth::user()->creatorId())->active()->orderBy('code')->get(),
+                'splitProjects' => \App\Models\Project::where('created_by', \Auth::user()->creatorId())->orderBy('project_name')->get(),
+                'canManageSplit' => \Auth::user()->can('manage cost centre allocations'),
+            ];
+        }
+
+        return view('payslip.show', array_merge(compact('payslip'), $splitData));
     }
 
 
@@ -315,8 +335,25 @@ class PaySlipController extends Controller
             }
         }
 
+        // Cost Centre Phase 7: tag a stored centre split onto the
+        // posted payroll journal (dimensions beside the money only).
+        // A tagging failure must never block the payment — the split
+        // stays stored and can be re-applied from the payslip.
+        $dimensionError = null;
+        try {
+            app(\App\Services\PayrollDimensionService::class)->applyForPayslip($employeePayslip->refresh(), (int) \Auth::id());
+        } catch (\App\Exceptions\CostCentreException $e) {
+            $dimensionError = $e->getMessage();
+        }
+
         $employeePayslip->status = 1;
         $employeePayslip->save();
+
+        if ($dimensionError !== null) {
+            return redirect()->route('payslip.index')
+                ->with('success', __('Payslip Payment successfully.'))
+                ->with('error', $dimensionError);
+        }
 
         return redirect()->route('payslip.index')->with('success', __('Payslip Payment successfully.'));
 
@@ -335,6 +372,7 @@ class PaySlipController extends Controller
         $unpaidEmployees = PaySlip::where('salary_month', $date)->where('created_by', \Auth::user()->creatorId())->where('status', '=', 0)->get();
 
         $service = app(PayrollAccountingService::class);
+        $dimensionError = null;
         foreach ($unpaidEmployees as $payslip) {
             $emp = Employee::find($payslip->employee_id);
             if (! $emp) {
@@ -347,8 +385,24 @@ class PaySlipController extends Controller
                     return redirect()->route('payslip.index')->with('error', $e->getMessage());
                 }
             }
+            // Cost Centre Phase 7: tag a stored centre split onto the
+            // posted payroll journal. A tagging failure never blocks
+            // the payment — the split stays stored and re-appliable.
+            if ($dimensionError === null) {
+                try {
+                    app(\App\Services\PayrollDimensionService::class)->applyForPayslip($payslip->refresh(), (int) \Auth::id());
+                } catch (\App\Exceptions\CostCentreException $e) {
+                    $dimensionError = $e->getMessage();
+                }
+            }
             $payslip->status = 1;
             $payslip->save();
+        }
+
+        if ($dimensionError !== null) {
+            return redirect()->route('payslip.index')
+                ->with('success', __('Payslip Bulk Payment successfully.'))
+                ->with('error', $dimensionError);
         }
 
         return redirect()->route('payslip.index')->with('success', __('Payslip Bulk Payment successfully.'));

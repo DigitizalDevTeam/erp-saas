@@ -320,3 +320,89 @@
         </div>
     </div>
 </div>
+
+{{-- Cost Centre Phase 7: payslip cost-centre split. The gross salary
+     expense is split across centres by percentage (summing 100%) and
+     tagged onto the posted payroll journal. --}}
+@if(isset($splits))
+<div class="row mt-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5>{{ __('Cost Centre Split') }}</h5>
+                <p class="text-muted">{{ __('Split the gross salary expense (:amount) across cost centres. Percentages must sum to 100%.', ['amount' => \Auth::user()->priceFormat($splitGrossTotal)]) }}</p>
+                @if($splits->isNotEmpty())
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>{{ __('Cost Centre') }}</th>
+                                <th>{{ __('Project') }}</th>
+                                <th class="text-end">{{ __('Percentage') }}</th>
+                                <th class="text-end">{{ __('Amount') }}</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach($splits as $split)
+                                <tr>
+                                    <td>{{ $split->costCentre?->code }} — {{ $split->costCentre?->name }}</td>
+                                    <td>{{ $split->project?->project_name ?? __('Unassigned') }}</td>
+                                    <td class="text-end">{{ $split->percentage }}%</td>
+                                    <td class="text-end">{{ \Auth::user()->priceFormat($split->amount) }}</td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+                @if($canManageSplit)
+                    <form method="POST" action="{{ route('payslip.cost-centre-split.store', $payslip->id) }}">
+                        @csrf
+                        @foreach($splits as $split)
+                            <div class="row mb-2">
+                                <div class="col-md-6">
+                                    <select name="cost_centre_id[]" class="form-control">
+                                        @foreach($splitCentres as $centre)
+                                            <option value="{{ $centre->id }}" {{ (int) $split->cost_centre_id === (int) $centre->id ? 'selected' : '' }}>{{ $centre->code }} — {{ $centre->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <input type="number" name="percentage[]" class="form-control" step="0.000001" min="0" max="100" value="{{ $split->percentage }}" placeholder="{{ __('Percentage') }}">
+                                </div>
+                            </div>
+                        @endforeach
+                        @for($i = 0; $i < 2; $i++)
+                            <div class="row mb-2">
+                                <div class="col-md-6">
+                                    <select name="cost_centre_id[]" class="form-control">
+                                        <option value="">{{ __('Select Cost Centre') }}</option>
+                                        @foreach($splitCentres as $centre)
+                                            <option value="{{ $centre->id }}">{{ $centre->code }} — {{ $centre->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <input type="number" name="percentage[]" class="form-control" step="0.000001" min="0" max="100" placeholder="{{ __('Percentage') }}">
+                                </div>
+                            </div>
+                        @endfor
+                        <div class="row mb-2">
+                            <div class="col-md-6">
+                                <label class="form-label">{{ __('Project') }}</label>
+                                <select name="project_id" class="form-control">
+                                    <option value="">{{ __('No project') }}</option>
+                                    @foreach($splitProjects as $project)
+                                        <option value="{{ $project->id }}" {{ (int) ($splits->first()?->project_id ?? 0) === (int) $project->id ? 'selected' : '' }}>{{ $project->project_name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">{{ __('Save split') }}</button>
+                    </form>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+@endif

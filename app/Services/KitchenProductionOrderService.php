@@ -64,6 +64,12 @@ class KitchenProductionOrderService
         return $this->costControl ??= app(KitchenCostControlService::class);
     }
 
+    /** Lazy container resolution for the Phase 7 production attribution service. */
+    protected function productionDimensions(): ProductionDimensionService
+    {
+        return app(ProductionDimensionService::class);
+    }
+
     /**
      * Scale a recipe to a planned quantity and build the planned lines.
      *
@@ -472,6 +478,12 @@ class KitchenProductionOrderService
             $completed = $order->fresh();
             $this->costControl()->recordOrderSnapshot($completed);
             $this->costControl()->checkOrder($completed);
+
+            // Cost Centre Phase 7: attribute the consumed-ingredient
+            // cost to the order's cost centre. No-ops when the order
+            // has no centre or the attribution table does not exist
+            // yet; stock and journals are untouched.
+            $this->productionDimensions()->attributeCompletion($completed, (int) $user->id);
 
             return $order->fresh();
         });

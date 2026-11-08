@@ -571,6 +571,20 @@
                                 </div>
 
                             </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ Form::label('cost_centre_id', __('Cost Centre'),['class'=>'form-label']) }}
+                                        {{ Form::select('cost_centre_id', $costCentres ?? ['' => __('Select Cost Centre')], $purchase->cost_centre_id, array('class' => 'form-control select')) }}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ Form::label('project_id', __('Project'),['class'=>'form-label']) }}
+                                        {{ Form::select('project_id', $projects ?? ['' => __('Select Project')], $purchase->project_id, array('class' => 'form-control select')) }}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                     </div>
