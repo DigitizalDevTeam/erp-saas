@@ -109,6 +109,21 @@ class FixedAssetController extends Controller
         if (Schema::hasTable('fixed_asset_accounting_entries')) {
             $accountingEntries = FixedAssetAccountingEntry::where('created_by', $creatorId)->where('asset_id', $asset->id)->orderByDesc('id')->get();
         }
+        // Phase 3: per-period depreciation entries (planned vs
+        // posted amounts) + journal totals for the accounting
+        // entries table. Both guarded the same way.
+        $depreciationEntries = collect();
+        if (Schema::hasTable('fixed_asset_depreciation_entries')) {
+            $depreciationEntries = \App\Models\FixedAssetDepreciationEntry::where('created_by', $creatorId)->where('asset_id', $asset->id)->get()->keyBy('schedule_id');
+        }
+        $accountingJournalTotals = [];
+        foreach ($accountingEntries as $entry) {
+            $journal = $entry->journal_id ? \App\Models\JournalEntry::find($entry->journal_id) : null;
+            $accountingJournalTotals[$entry->id] = [
+                'date' => $journal?->date ? \Carbon\Carbon::parse($journal->date)->format('Y-m-d') : ($entry->created_at ? $entry->created_at->format('Y-m-d') : '—'),
+                'amount' => $entry->journal_id ? (string) \App\Models\JournalItem::where('journal', $entry->journal_id)->sum('debit') : '0',
+            ];
+        }
         // Phase 2 tables are guarded the same way (Contract P3
         // precedent): between a code pull and the migrate that
         // creates them, the register must still render.
@@ -122,7 +137,7 @@ class FixedAssetController extends Controller
         }
         $timeline = $this->buildTimeline($asset, $assignments, $transfers);
 
-        return view('fixed-assets.show', compact('asset', 'acquisition', 'capitalization', 'schedule', 'accountingEntries', 'assignments', 'transfers', 'timeline'));
+        return view('fixed-assets.show', compact('asset', 'acquisition', 'capitalization', 'schedule', 'accountingEntries', 'depreciationEntries', 'accountingJournalTotals', 'assignments', 'transfers', 'timeline'));
     }
 
     /**

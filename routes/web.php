@@ -137,6 +137,7 @@ use App\Http\Controllers\FixedAssetAcquisitionController;
 use App\Http\Controllers\FixedAssetAssignmentController;
 use App\Http\Controllers\FixedAssetCategoryController;
 use App\Http\Controllers\FixedAssetController;
+use App\Http\Controllers\FixedAssetDepreciationController;
 use App\Http\Controllers\FixedAssetImportController;
 use App\Http\Controllers\FixedAssetLocationController;
 use App\Http\Controllers\FixedAssetSettingsController;
@@ -2839,6 +2840,21 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('fixed-asset-transfers/{transfer}/receive', [FixedAssetTransferController::class, 'receive'])->name('fixed-asset-transfers.receive')->middleware(['auth', 'XSS']);
     Route::post('fixed-asset-transfers/{transfer}/reject', [FixedAssetTransferController::class, 'reject'])->name('fixed-asset-transfers.reject')->middleware(['auth', 'XSS']);
     Route::post('fixed-asset-transfers/{transfer}/cancel', [FixedAssetTransferController::class, 'cancel'])->name('fixed-asset-transfers.cancel')->middleware(['auth', 'XSS']);
+    // Phase 3: depreciation routes BEFORE the fixed-assets
+    // resource — otherwise GET fixed-asset-depreciation/create
+    // would be swallowed by the resource's fixed-assets/{asset}
+    // show route (same pattern as the import routes above).
+    Route::get('fixed-asset-depreciation', [FixedAssetDepreciationController::class, 'index'])->name('fixed-asset-depreciation.index')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('fixed-asset-depreciation/create', [FixedAssetDepreciationController::class, 'create'])->name('fixed-asset-depreciation.create')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-depreciation/preview', [FixedAssetDepreciationController::class, 'preview'])->name('fixed-asset-depreciation.preview')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-depreciation', [FixedAssetDepreciationController::class, 'store'])->name('fixed-asset-depreciation.store')->middleware(['auth', 'XSS']);
+    Route::get('fixed-asset-depreciation/report', [FixedAssetDepreciationController::class, 'report'])->name('fixed-asset-depreciation.report')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('fixed-asset-depreciation/{run}', [FixedAssetDepreciationController::class, 'show'])->name('fixed-asset-depreciation.show')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('fixed-asset-depreciation/{run}/submit-review', [FixedAssetDepreciationController::class, 'submitReview'])->name('fixed-asset-depreciation.submit-review')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-depreciation/{run}/submit-approval', [FixedAssetDepreciationController::class, 'submitApproval'])->name('fixed-asset-depreciation.submit-approval')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-depreciation/{run}/decide', [FixedAssetDepreciationController::class, 'decide'])->name('fixed-asset-depreciation.decide')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-depreciation/{run}/post', [FixedAssetDepreciationController::class, 'post'])->name('fixed-asset-depreciation.post')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-depreciation/{run}/cancel', [FixedAssetDepreciationController::class, 'cancel'])->name('fixed-asset-depreciation.cancel')->middleware(['auth', 'XSS']);
     Route::get('fixed-assets/{asset}/label', [FixedAssetController::class, 'label'])->name('fixed-assets.label')->middleware(['auth', 'XSS']);
     Route::resource('fixed-assets', FixedAssetController::class)->parameters(['fixed-assets' => 'asset'])->names('fixed-assets')->only(['index', 'show', 'create', 'store', 'edit', 'update'])->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('fixed-asset-categories/{category}/deactivate', [FixedAssetCategoryController::class, 'deactivate'])->name('fixed-asset-categories.deactivate')->middleware(['auth', 'XSS']);

@@ -110,7 +110,10 @@
                                     <thead>
                                         <tr>
                                             <th>{{ __('Period') }}</th>
-                                            <th>{{ __('Depreciation') }}</th>
+                                            <th>{{ __('Opening Book Value') }}</th>
+                                            <th>{{ __('Planned Depreciation') }}</th>
+                                            <th>{{ __('Posted') }}</th>
+                                            <th>{{ __('Accumulated') }}</th>
                                             <th>{{ __('Closing Book Value') }}</th>
                                             <th>{{ __('Status') }}</th>
                                         </tr>
@@ -119,7 +122,10 @@
                                         @foreach ($schedule as $row)
                                             <tr>
                                                 <td>{{ $row->period }}</td>
-                                                <td>{{ number_format((float) $row->depreciation_amount, 2) }}</td>
+                                                <td>{{ number_format((float) $row->opening_book_value, 2) }}</td>
+                                                <td>{{ number_format((float) $row->period_depreciation, 4) }}</td>
+                                                <td>{{ isset($depreciationEntries[$row->id]) && $depreciationEntries[$row->id]->posted_amount !== null ? number_format((float) $depreciationEntries[$row->id]->posted_amount, 2) : '—' }}</td>
+                                                <td>{{ number_format((float) $row->accumulated_depreciation, 2) }}</td>
                                                 <td>{{ number_format((float) $row->closing_book_value, 2) }}</td>
                                                 <td>{{ ucfirst($row->status) }}</td>
                                             </tr>
@@ -144,9 +150,9 @@
                                     <tbody>
                                         @foreach ($accountingEntries as $entry)
                                             <tr>
-                                                <td>{{ ucfirst($entry->entry_type) }}</td>
-                                                <td>{{ $entry->entry_date ? $entry->entry_date->format('Y-m-d') : '—' }}</td>
-                                                <td>{{ number_format((float) $entry->amount, 2) }}</td>
+                                                <td>{{ ucfirst(str_replace('_', ' ', $entry->transaction_type)) }}</td>
+                                                <td>{{ $accountingJournalTotals[$entry->id]['date'] ?? '—' }}</td>
+                                                <td>{{ number_format((float) ($accountingJournalTotals[$entry->id]['amount'] ?? 0), 2) }}</td>
                                                 <td>
                                                     @if ($entry->journal_id)
                                                         <a href="{{ route('journal-entry.show', $entry->journal_id) }}">{{ __('Journal #:id', ['id' => $entry->journal_id]) }}</a>
