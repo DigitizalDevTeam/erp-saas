@@ -17,6 +17,7 @@ class FixedAssetAccountingEntry extends Model
 {
     public const TYPE_CAPITALIZATION = 'capitalization';
     public const TYPE_DEPRECIATION = 'depreciation';
+    public const TYPE_MAINTENANCE = 'maintenance';
     public const TYPE_DISPOSAL = 'disposal';
     public const TYPE_REVALUATION = 'revaluation';
     public const TYPE_IMPAIRMENT = 'impairment';

@@ -620,6 +620,7 @@ namespace App\Models;
                 'fixed_asset_base_currency' => 'MZN',
                 'fixed_asset_reference_prefix' => '',
                 'fixed_asset_clearing_account_code' => '',
+                'fixed_asset_maintenance_expense_code' => '6226',
                 'fixed_asset_label_size' => 'standard',
                 'fixed_asset_approval_threshold_base' => '100000',
             ];

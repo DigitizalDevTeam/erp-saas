@@ -8,11 +8,13 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 /**
- * Fixed Assets Settings — Phase 0 (plan §12b D2/D5/D7/D8).
+ * Fixed Assets Settings — Phase 0 (plan §12b D2/D5/D7/D8),
+ * Phase 4 (maintenance expense account code).
  *
  * Base currency, reference prefix, asset clearing account
- * code, label size and the approval threshold. Stored in the
- * existing `settings` table per created_by — no new table.
+ * code, maintenance expense account code, label size and the
+ * approval threshold. Stored in the existing `settings` table
+ * per created_by — no new table.
  */
 class FixedAssetSettingsController extends Controller
 {
@@ -38,6 +40,7 @@ class FixedAssetSettingsController extends Controller
             FixedAssetSettings::KEY_BASE_CURRENCY => ['nullable', 'string', 'size:3'],
             FixedAssetSettings::KEY_REFERENCE_PREFIX => ['nullable', 'string', 'max:10'],
             FixedAssetSettings::KEY_CLEARING_ACCOUNT_CODE => ['nullable', 'string', 'max:50'],
+            FixedAssetSettings::KEY_MAINTENANCE_EXPENSE_CODE => ['nullable', 'string', 'max:50'],
             FixedAssetSettings::KEY_LABEL_SIZE => ['nullable', Rule::in(FixedAssetSettings::LABEL_SIZES)],
             FixedAssetSettings::KEY_APPROVAL_THRESHOLD => ['nullable', 'numeric', 'min:0'],
         ]);

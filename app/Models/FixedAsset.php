@@ -34,6 +34,7 @@ class FixedAsset extends Model
     public const STATUS_ASSIGNED = 'assigned';
     public const STATUS_IN_TRANSFER = 'in_transfer';
     public const STATUS_UNDER_MAINTENANCE = 'under_maintenance';
+    public const STATUS_UNDER_VERIFICATION = 'under_verification';
     public const STATUS_OUT_OF_SERVICE = 'out_of_service';
     public const STATUS_DAMAGED = 'damaged';
     public const STATUS_LOST = 'lost';
@@ -56,6 +57,7 @@ class FixedAsset extends Model
         self::STATUS_ASSIGNED,
         self::STATUS_IN_TRANSFER,
         self::STATUS_UNDER_MAINTENANCE,
+        self::STATUS_UNDER_VERIFICATION,
         self::STATUS_OUT_OF_SERVICE,
         self::STATUS_DAMAGED,
         self::STATUS_LOST,
@@ -204,6 +206,16 @@ class FixedAsset extends Model
     public function transfers()
     {
         return $this->hasMany(FixedAssetTransfer::class, 'asset_id')->orderByDesc('created_at');
+    }
+
+    public function maintenanceRequests()
+    {
+        return $this->hasMany(FixedAssetMaintenanceRequest::class, 'asset_id')->orderByDesc('created_at');
+    }
+
+    public function verificationItems()
+    {
+        return $this->hasMany(FixedAssetVerificationItem::class, 'asset_id')->orderByDesc('created_at');
     }
 
     public function statusHistory()

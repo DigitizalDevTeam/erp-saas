@@ -140,8 +140,10 @@ use App\Http\Controllers\FixedAssetController;
 use App\Http\Controllers\FixedAssetDepreciationController;
 use App\Http\Controllers\FixedAssetImportController;
 use App\Http\Controllers\FixedAssetLocationController;
+use App\Http\Controllers\FixedAssetMaintenanceController;
 use App\Http\Controllers\FixedAssetSettingsController;
 use App\Http\Controllers\FixedAssetTransferController;
+use App\Http\Controllers\FixedAssetVerificationController;
 use App\Http\Controllers\TreasuryAccountController;
 use App\Http\Controllers\TreasuryAdvanceController;
 use App\Http\Controllers\TreasuryAuditTrailController;
@@ -2855,6 +2857,26 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('fixed-asset-depreciation/{run}/decide', [FixedAssetDepreciationController::class, 'decide'])->name('fixed-asset-depreciation.decide')->middleware(['auth', 'XSS']);
     Route::post('fixed-asset-depreciation/{run}/post', [FixedAssetDepreciationController::class, 'post'])->name('fixed-asset-depreciation.post')->middleware(['auth', 'XSS']);
     Route::post('fixed-asset-depreciation/{run}/cancel', [FixedAssetDepreciationController::class, 'cancel'])->name('fixed-asset-depreciation.cancel')->middleware(['auth', 'XSS']);
+    // Phase 4: maintenance + physical verification routes BEFORE
+    // the fixed-assets resource.
+    Route::get('fixed-asset-maintenance', [FixedAssetMaintenanceController::class, 'index'])->name('fixed-asset-maintenance.index')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('fixed-asset-maintenance/create', [FixedAssetMaintenanceController::class, 'create'])->name('fixed-asset-maintenance.create')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-maintenance', [FixedAssetMaintenanceController::class, 'store'])->name('fixed-asset-maintenance.store')->middleware(['auth', 'XSS']);
+    Route::get('fixed-asset-maintenance/{maintenance}', [FixedAssetMaintenanceController::class, 'show'])->name('fixed-asset-maintenance.show')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('fixed-asset-maintenance/{maintenance}/decide', [FixedAssetMaintenanceController::class, 'decide'])->name('fixed-asset-maintenance.decide')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-maintenance/{maintenance}/start', [FixedAssetMaintenanceController::class, 'start'])->name('fixed-asset-maintenance.start')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-maintenance/{maintenance}/complete', [FixedAssetMaintenanceController::class, 'complete'])->name('fixed-asset-maintenance.complete')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-maintenance/{maintenance}/verify', [FixedAssetMaintenanceController::class, 'verify'])->name('fixed-asset-maintenance.verify')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-maintenance/{maintenance}/cancel', [FixedAssetMaintenanceController::class, 'cancel'])->name('fixed-asset-maintenance.cancel')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-maintenance/{maintenance}/costs', [FixedAssetMaintenanceController::class, 'recordCost'])->name('fixed-asset-maintenance.costs')->middleware(['auth', 'XSS']);
+    Route::get('fixed-asset-verifications', [FixedAssetVerificationController::class, 'index'])->name('fixed-asset-verifications.index')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('fixed-asset-verifications/create', [FixedAssetVerificationController::class, 'create'])->name('fixed-asset-verifications.create')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-verifications', [FixedAssetVerificationController::class, 'store'])->name('fixed-asset-verifications.store')->middleware(['auth', 'XSS']);
+    Route::get('fixed-asset-verifications/{verification}', [FixedAssetVerificationController::class, 'show'])->name('fixed-asset-verifications.show')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('fixed-asset-verifications/{verification}/start', [FixedAssetVerificationController::class, 'start'])->name('fixed-asset-verifications.start')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-verifications/{verification}/items/{item}/check', [FixedAssetVerificationController::class, 'check'])->name('fixed-asset-verifications.check')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-verifications/{verification}/close', [FixedAssetVerificationController::class, 'close'])->name('fixed-asset-verifications.close')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-verifications/{verification}/cancel', [FixedAssetVerificationController::class, 'cancel'])->name('fixed-asset-verifications.cancel')->middleware(['auth', 'XSS']);
     Route::get('fixed-assets/{asset}/label', [FixedAssetController::class, 'label'])->name('fixed-assets.label')->middleware(['auth', 'XSS']);
     Route::resource('fixed-assets', FixedAssetController::class)->parameters(['fixed-assets' => 'asset'])->names('fixed-assets')->only(['index', 'show', 'create', 'store', 'edit', 'update'])->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('fixed-asset-categories/{category}/deactivate', [FixedAssetCategoryController::class, 'deactivate'])->name('fixed-asset-categories.deactivate')->middleware(['auth', 'XSS']);
