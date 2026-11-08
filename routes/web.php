@@ -138,6 +138,7 @@ use App\Http\Controllers\FixedAssetAssignmentController;
 use App\Http\Controllers\FixedAssetCategoryController;
 use App\Http\Controllers\FixedAssetController;
 use App\Http\Controllers\FixedAssetDepreciationController;
+use App\Http\Controllers\FixedAssetDisposalController;
 use App\Http\Controllers\FixedAssetImportController;
 use App\Http\Controllers\FixedAssetLocationController;
 use App\Http\Controllers\FixedAssetMaintenanceController;
@@ -2877,6 +2878,18 @@ Route::group(['middleware' => ['verified']], function () {
     Route::post('fixed-asset-verifications/{verification}/items/{item}/check', [FixedAssetVerificationController::class, 'check'])->name('fixed-asset-verifications.check')->middleware(['auth', 'XSS']);
     Route::post('fixed-asset-verifications/{verification}/close', [FixedAssetVerificationController::class, 'close'])->name('fixed-asset-verifications.close')->middleware(['auth', 'XSS']);
     Route::post('fixed-asset-verifications/{verification}/cancel', [FixedAssetVerificationController::class, 'cancel'])->name('fixed-asset-verifications.cancel')->middleware(['auth', 'XSS']);
+    // Phase 5: disposals — request → approval → execution. These
+    // sit BEFORE the fixed-assets resource, like the other
+    // fixed-asset-* routes, so the resource's show route cannot
+    // swallow them.
+    Route::get('fixed-asset-disposals', [FixedAssetDisposalController::class, 'index'])->name('fixed-asset-disposals.index')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::get('fixed-asset-disposals/create', [FixedAssetDisposalController::class, 'create'])->name('fixed-asset-disposals.create')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-disposals', [FixedAssetDisposalController::class, 'store'])->name('fixed-asset-disposals.store')->middleware(['auth', 'XSS']);
+    Route::get('fixed-asset-disposals/{disposal}', [FixedAssetDisposalController::class, 'show'])->name('fixed-asset-disposals.show')->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('fixed-asset-disposals/{disposal}/decide', [FixedAssetDisposalController::class, 'decide'])->name('fixed-asset-disposals.decide')->middleware(['auth', 'XSS']);
+    Route::get('fixed-asset-disposals/{disposal}/execute', [FixedAssetDisposalController::class, 'executeForm'])->name('fixed-asset-disposals.execute-form')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-disposals/{disposal}/execute', [FixedAssetDisposalController::class, 'execute'])->name('fixed-asset-disposals.execute')->middleware(['auth', 'XSS']);
+    Route::post('fixed-asset-disposals/{disposal}/cancel', [FixedAssetDisposalController::class, 'cancel'])->name('fixed-asset-disposals.cancel')->middleware(['auth', 'XSS']);
     Route::get('fixed-assets/{asset}/label', [FixedAssetController::class, 'label'])->name('fixed-assets.label')->middleware(['auth', 'XSS']);
     Route::resource('fixed-assets', FixedAssetController::class)->parameters(['fixed-assets' => 'asset'])->names('fixed-assets')->only(['index', 'show', 'create', 'store', 'edit', 'update'])->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('fixed-asset-categories/{category}/deactivate', [FixedAssetCategoryController::class, 'deactivate'])->name('fixed-asset-categories.deactivate')->middleware(['auth', 'XSS']);

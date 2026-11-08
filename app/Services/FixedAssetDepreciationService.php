@@ -759,6 +759,206 @@ class FixedAssetDepreciationService
         });
     }
 
+    // ------------------------------------------------------------------
+    // Disposal catch-up (Phase 5) — post every unposted period up
+    // to the disposal date, under the disposal's own approval
+    // ------------------------------------------------------------------
+
+    /**
+     * Post all unposted schedule periods up to $upToDate for one
+     * asset (Phase 5 disposal catch-up, plan §7/§16).
+     *
+     * A disposal must never leave unposted depreciation behind,
+     * so the execution drives this before it posts the disposal
+     * journal. The catch-up is authorised by the APPROVED
+     * disposal itself — it does not go through the monthly run
+     * approval chain (the disposal approver is recorded on the
+     * run row as the approver, the executor as the poster).
+     *
+     * One catch-up run row + one journal (Dr 631 per period /
+     * Cr 328), one POSTED entry per period, same final-row
+     * remainder rule as postRun (periods are computed one at a
+     * time, in order, so the final period closes exactly on the
+     * residual). Returns null when nothing is unposted.
+     *
+     * @return array{run_id: int, journal_id: int, total: string, periods: array<int, string>, book_value: string}|null
+     */
+    public function postCatchUpForAsset(FixedAsset $asset, Carbon $upToDate, int $creatorId, int $userId, int $approverId): ?array
+    {
+        $this->assets->assertSameCompany($asset, $creatorId);
+
+        $rows = FixedAssetDepreciationSchedule::where('created_by', $creatorId)
+            ->where('asset_id', $asset->id)
+            ->where('status', FixedAssetDepreciationSchedule::STATUS_PLANNED)
+            ->whereDate('period', '<=', $upToDate->copy()->startOfMonth()->format('Y-m-d'))
+            ->orderBy('period')
+            ->get();
+        if ($rows->isEmpty()) {
+            return null;
+        }
+
+        // A closed fiscal year blocks posting for that year's
+        // periods — same FY-CLOSE rule as postRun, named per year.
+        foreach ($rows->pluck('period')->map(fn ($p) => (int) Carbon::parse($p)->format('Y'))->unique()->all() as $year) {
+            if ($this->acquisitions->isFiscalYearClosed($creatorId, $year)) {
+                throw new FixedAssetException('Fiscal year '.$year.' is already closed. Depreciation catch-up is blocked for closed periods.');
+            }
+        }
+
+        return DB::transaction(function () use ($asset, $upToDate, $creatorId, $userId, $approverId, $rows) {
+            $lastPeriod = Carbon::parse($rows->last()->period)->startOfMonth();
+
+            $run = FixedAssetDepreciationRun::create([
+                'created_by' => $creatorId,
+                'period' => $lastPeriod->format('Y-m-d'),
+                'status' => FixedAssetDepreciationRun::STATUS_POSTED,
+                'total_amount' => '0.0000',
+                'asset_count' => 1,
+                'requested_by' => $userId,
+                'reviewed_by' => $approverId,
+                'approved_by' => $approverId,
+                'posted_by' => $userId,
+                'reviewed_at' => now(),
+                'approved_at' => now(),
+                'posted_at' => now(),
+                'notes' => 'Depreciation catch-up on disposal of '.$asset->code,
+            ]);
+
+            $collected = [];
+            foreach ($rows as $row) {
+                $period = Carbon::parse($row->period)->startOfMonth();
+                $lines = $this->computeLines($creatorId, $period);
+                $line = null;
+                foreach ($lines as $candidate) {
+                    if ((int) $candidate['asset']->id === (int) $asset->id) {
+                        $line = $candidate;
+                        break;
+                    }
+                }
+                if ($line === null) {
+                    // A zero-amount planned row (zero-cost asset)
+                    // posts nothing — skip it, it stays planned
+                    // and can never post once the asset is gone.
+                    if (bccomp((string) $row->period_depreciation, '0', 4) <= 0) {
+                        continue;
+                    }
+                    throw new FixedAssetException('No depreciation due for asset '.$asset->code.' in '.$period->format('Y-m').' any more. Cancel the disposal and check the depreciation schedule.');
+                }
+
+                $entry = FixedAssetDepreciationEntry::create([
+                    'created_by' => $creatorId,
+                    'run_id' => $run->id,
+                    'asset_id' => $asset->id,
+                    'schedule_id' => $row->id,
+                    'period' => $period->format('Y-m-d'),
+                    'planned_amount' => $line['planned'],
+                    'posted_amount' => $line['amount'],
+                    'cost_centre_id' => $this->periodEndCentre($line['split']),
+                    'status' => FixedAssetDepreciationEntry::STATUS_POSTED,
+                    'journal_id' => null,
+                ]);
+                $row->update(['status' => FixedAssetDepreciationSchedule::STATUS_POSTED]);
+
+                $collected[] = ['entry' => $entry, 'line' => $line, 'period' => $period];
+            }
+
+            if ($collected === []) {
+                // Nothing actually due (all planned rows were
+                // zero-amount): drop the empty run and report no
+                // catch-up instead of posting an empty journal.
+                $run->delete();
+
+                return null;
+            }
+
+            $journalLines = [];
+            $credits = [];
+            $total = '0';
+            foreach ($collected as $item) {
+                $amount = $item['line']['amount'];
+                $total = bcadd($total, $amount, 2);
+                $journalLines[] = [
+                    'account' => $item['line']['expense_account_id'],
+                    'debit' => (float) $amount,
+                    'description' => 'Depreciation '.$asset->code.' '.$item['period']->format('Y-m'),
+                ];
+                $account = $item['line']['accum_account_id'];
+                $credits[$account] = bcadd($credits[$account] ?? '0', $amount, 2);
+            }
+            foreach ($credits as $account => $amount) {
+                $journalLines[] = [
+                    'account' => (int) $account,
+                    'credit' => (float) $amount,
+                    'description' => 'Accumulated depreciation to disposal '.$upToDate->format('Y-m-d'),
+                ];
+            }
+
+            $journal = $this->poster->post(
+                $creatorId,
+                $upToDate->format('Y-m-d'),
+                'FA-DEP-CATCHUP-'.$asset->code,
+                'Depreciation catch-up to disposal date for '.$asset->code,
+                $journalLines
+            );
+
+            $items = JournalItem::where('journal', $journal->id)->orderBy('id')->get();
+            $debitItems = $items->filter(fn ($item) => bccomp((string) $item->debit, '0', 2) > 0)->values();
+            if ($debitItems->count() !== count($collected)) {
+                throw new FixedAssetException('Depreciation catch-up journal lines do not match the caught-up periods.');
+            }
+
+            foreach ($collected as $index => $item) {
+                $split = $item['line']['split'];
+                if ($split !== []) {
+                    $this->tagDimensions($debitItems[$index], $split, $creatorId, $userId, (int) $asset->id);
+                }
+                $item['entry']->update(['journal_id' => $journal->id]);
+                FixedAssetAccountingEntry::create([
+                    'created_by' => $creatorId,
+                    'asset_id' => $asset->id,
+                    'transaction_type' => FixedAssetAccountingEntry::TYPE_DEPRECIATION,
+                    'transaction_id' => $item['entry']->id,
+                    'journal_id' => $journal->id,
+                ]);
+                $this->assets->logAudit($creatorId, (int) $asset->id, 'fixed_asset_depreciation', (int) $item['entry']->id, 'posted', $userId, null, $item['entry']->fresh()->toArray());
+            }
+
+            // Book value after the catch-up; snap to the residual
+            // only when no schedule row is left unposted (same
+            // rule as postRun).
+            $fresh = $asset->fresh();
+            $residualBase = bcmul((string) ($fresh->residual_value ?? '0'), (string) ($fresh->exchange_rate ?? '1'), 4);
+            $newBook = bcsub((string) $fresh->current_book_value, $total, 4);
+            $scheduleComplete = ! FixedAssetDepreciationSchedule::where('created_by', $creatorId)
+                ->where('asset_id', $asset->id)
+                ->where('status', '!=', FixedAssetDepreciationSchedule::STATUS_POSTED)
+                ->exists();
+            if ($scheduleComplete) {
+                $newBook = $residualBase;
+            }
+            $newStatus = $fresh->status;
+            if ($scheduleComplete && bccomp((string) $fresh->amount_base, '0', 4) > 0 && bccomp($newBook, $residualBase, 4) <= 0) {
+                $newStatus = FixedAsset::STATUS_FULLY_DEPRECIATED;
+            }
+            $oldStatus = $fresh->status;
+            $fresh->update(['current_book_value' => $newBook, 'status' => $newStatus]);
+            if ($newStatus !== $oldStatus) {
+                $this->assets->recordStatusChange($fresh->fresh(), $oldStatus, $newStatus, $userId, 'Fully depreciated (catch-up to disposal)');
+            }
+
+            $run->update(['journal_id' => $journal->id, 'total_amount' => $total]);
+            $this->assets->logAudit($creatorId, null, 'fixed_asset_depreciation_run', $run->id, 'posted', $userId, null, $run->fresh()->toArray());
+
+            return [
+                'run_id' => $run->id,
+                'journal_id' => $journal->id,
+                'total' => $total,
+                'periods' => array_map(fn ($item) => $item['period']->format('Y-m'), $collected),
+                'book_value' => $newBook,
+            ];
+        });
+    }
+
     /**
      * Tag one posted expense line with its cost-centre split and
      * stamp the asset on the dimension rows (the

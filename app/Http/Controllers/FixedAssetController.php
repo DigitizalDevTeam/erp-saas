@@ -146,7 +146,12 @@ class FixedAssetController extends Controller
         if (Schema::hasTable('fixed_asset_verification_items')) {
             $verificationItems = \App\Models\FixedAssetVerificationItem::where('created_by', $creatorId)->where('asset_id', $asset->id)->with(['verification'])->orderByDesc('id')->get();
         }
-        $timeline = $this->buildTimeline($asset, $assignments, $transfers, $maintenance, $verificationItems);
+        // Phase 5 table, guarded the same way.
+        $disposals = collect();
+        if (Schema::hasTable('fixed_asset_disposals')) {
+            $disposals = \App\Models\FixedAssetDisposal::where('created_by', $creatorId)->where('asset_id', $asset->id)->orderByDesc('id')->get();
+        }
+        $timeline = $this->buildTimeline($asset, $assignments, $transfers, $maintenance, $verificationItems, $disposals);
 
         return view('fixed-assets.show', compact('asset', 'acquisition', 'capitalization', 'schedule', 'accountingEntries', 'depreciationEntries', 'accountingJournalTotals', 'assignments', 'transfers', 'maintenance', 'verificationItems', 'timeline'));
     }
@@ -155,10 +160,10 @@ class FixedAssetController extends Controller
      * One merged history timeline (Phase 2): assignments +
      * transfers + status changes, newest first. Phase 4 adds
      * maintenance requests (+ costs) and verification checks.
-     * Each entry is ['at' => Carbon|null, 'title' => string,
-     * 'detail' => string].
+     * Phase 5 adds disposals. Each entry is
+     * ['at' => Carbon|null, 'title' => string, 'detail' => string].
      */
-    protected function buildTimeline(FixedAsset $asset, $assignments, $transfers, $maintenance = [], $verificationItems = []): array
+    protected function buildTimeline(FixedAsset $asset, $assignments, $transfers, $maintenance = [], $verificationItems = [], $disposals = []): array
     {
         $entries = [];
 
@@ -271,6 +276,34 @@ class FixedAssetController extends Controller
                     'title' => __('Verification: ').ucfirst(str_replace('_', ' ', $item->result)),
                     'detail' => ($campaign ? $campaign->name : '—').($item->note ? ' ('.$item->note.')' : ''),
                 ];
+            }
+        }
+
+        // Disposal (Phase 5): one entry per step, with the money
+        // on the execution line.
+        foreach ($disposals as $disposal) {
+            $steps = [
+                'requested_at' => __('Disposal requested'),
+                'approved_at' => __('Disposal approved'),
+                'executed_at' => __('Disposal executed'),
+            ];
+            foreach ($steps as $field => $title) {
+                if ($disposal->$field) {
+                    $detail = ucfirst(str_replace('_', ' ', $disposal->method)).($disposal->reason ? ' · '.$disposal->reason : '');
+                    if ($field === 'executed_at') {
+                        $detail .= ' · '.number_format((float) ($disposal->actual_proceeds ?? 0), 2);
+                        if ($disposal->gain_loss_amount !== null) {
+                            $detail .= ' · '.($disposal->gain_loss_amount >= 0 ? __('Gain') : __('Loss')).' '.number_format((float) abs($disposal->gain_loss_amount), 2);
+                        }
+                    }
+                    $entries[] = ['at' => $disposal->$field, 'title' => $title, 'detail' => $detail];
+                }
+            }
+            if ($disposal->status === \App\Models\FixedAssetDisposal::STATUS_REJECTED && $disposal->updated_at) {
+                $entries[] = ['at' => $disposal->updated_at, 'title' => __('Disposal rejected'), 'detail' => ucfirst(str_replace('_', ' ', $disposal->method))];
+            }
+            if ($disposal->status === \App\Models\FixedAssetDisposal::STATUS_CANCELLED && $disposal->updated_at) {
+                $entries[] = ['at' => $disposal->updated_at, 'title' => __('Disposal cancelled'), 'detail' => ucfirst(str_replace('_', ' ', $disposal->method))];
             }
         }
 
