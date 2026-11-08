@@ -118,7 +118,7 @@
                             @foreach ($invoices as $invoice)
                                 <tr>
                                     <td class="Id">
-                                        <a href="{{ route('invoice.show', \Crypt::encrypt($invoice->id)) }}" class="btn btn-outline-primary">{{ AUth::user()->invoiceNumberFormat($invoice->invoice_id) }}</a>
+                                        <a href="{{ route('invoice.show', \Crypt::encrypt($invoice->id)) }}" class="btn btn-outline-primary">{{ $invoice->displayNumber() }}</a>
                                     </td>
                                     <td>{{ Auth::user()->dateFormat($invoice->issue_date) }}</td>
                                     <td>
@@ -202,7 +202,7 @@
                                                             <div class="action-btn ">
                                                                     <a href="#" class="mx-3 btn btn-sm align-items-center bg-danger document-void-trigger"
                                                                        data-action="{{ route('invoice.destroy', $invoice->id) }}"
-                                                                       data-document-label="{{ __('Invoice') }}: {{ \Auth::user()->invoiceNumberFormat($invoice->invoice_id) }}"
+                                                                       data-document-label="{{ __('Invoice') }}: {{ $invoice->displayNumber() }}"
                                                                        data-note-type="credit_note"
                                                                        data-bs-toggle="tooltip" title="{{ __('Void / Cancel') }}"
                                                                        data-original-title="{{ __('Void / Cancel') }}">

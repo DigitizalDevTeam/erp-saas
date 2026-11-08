@@ -1285,10 +1285,10 @@ namespace App\Models;
             return $settings["contract_prefix"] . sprintf("%05d", $number);
         }
 
-        public static function invoiceNumberFormat($settings, $number)
+        public static function invoiceNumberFormat($settings, $number, $prefix = null)
         {
 
-            return $settings["invoice_prefix"] . sprintf("%05d", $number);
+            return ($prefix ?? $settings["invoice_prefix"]) . sprintf("%05d", $number);
         }
 
         public static function proposalNumberFormat($settings, $number)

@@ -10,6 +10,8 @@ use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Models\CustomField;
 use App\Models\Invoice;
+use App\Models\Pos;
+use App\Services\PosToInvoiceService;
 use App\Models\InvoiceBankTransfer;
 use App\Models\Proforma;
 use App\Models\Purchase;
@@ -538,7 +540,19 @@ class InvoiceController extends Controller
 
     public function invoiceNumber()
     {
-        $latest = Invoice::where('created_by', '=', \Auth::user()->creatorId())->latest()->first();
+        // Sales series only — internal-consumption invoices are
+        // numbered in their own #INT series (see
+        // PosToInvoiceService) and must not make sales numbers
+        // skip or collide. Ordered by invoice_id, not by
+        // created_at: latest() is created_at-based and the two
+        // series share the invoice_id space.
+        $latest = Invoice::where('created_by', '=', \Auth::user()->creatorId())
+            ->where(function ($q) {
+                $q->whereNull('document_type')
+                    ->orWhere('document_type', '<>', Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION);
+            })
+            ->orderByDesc('invoice_id')
+            ->first();
         if (!$latest) {
             return 1;
         }
@@ -1128,16 +1142,24 @@ class InvoiceController extends Controller
         if (\Auth::user()->can('duplicate invoice')) {
             $invoice = Invoice::where('id', $invoice_id)->first();
             $duplicateInvoice = new Invoice();
-            $duplicateInvoice->invoice_id = $this->invoiceNumber();
+            // An internal invoice duplicates as internal, with the
+            // next #INT number and ref — never into the sales series.
+            $isInternal = $invoice->isInternal();
+            $duplicateInvoice->invoice_id = $isInternal
+                ? app(PosToInvoiceService::class)->nextInvoiceNumber((int) $invoice['created_by'], true)
+                : $this->invoiceNumber();
+            $duplicateInvoice->document_type = $isInternal ? Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION : null;
             $duplicateInvoice->customer_id = $invoice['customer_id'];
             $duplicateInvoice->issue_date = date('Y-m-d');
             $duplicateInvoice->due_date = $invoice['due_date'];
             $duplicateInvoice->send_date = null;
             $duplicateInvoice->category_id = $invoice['category_id'];
-            $duplicateInvoice->ref_number = $invoice['ref_number'];
+            $duplicateInvoice->created_by = $invoice['created_by'];
+            $duplicateInvoice->ref_number = $isInternal
+                ? $duplicateInvoice->displayNumber()
+                : $invoice['ref_number'];
             $duplicateInvoice->status = 0;
             $duplicateInvoice->shipping_display = $invoice['shipping_display'];
-            $duplicateInvoice->created_by = $invoice['created_by'];
             $duplicateInvoice->save();
 
             if ($duplicateInvoice) {

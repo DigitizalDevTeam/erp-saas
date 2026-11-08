@@ -9,6 +9,7 @@ class Invoice extends Model
     protected $fillable = [
         'invoice_id',
         'pos_id',
+        'document_type',
         'quotation_id',
         'proforma_id',
         'purchase_id',
@@ -38,6 +39,39 @@ class Invoice extends Model
     public const STATUS_PAID = 4;
     public const STATUS_CANCELLED = 5;
     public const STATUS_PENDING_AUTHORIZATION = 6;
+
+    /**
+     * Internal Consumption invoice (option B): created from an
+     * internal-consumption POS order, numbered in the separate
+     * #INT series and posted to expense account 611 — never a sale.
+     * Old internal invoices (created before the series existed)
+     * keep document_type NULL and stay in the sales series.
+     */
+    public function isInternal(): bool
+    {
+        return ($this->document_type ?? '') === Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION;
+    }
+
+    /**
+     * Display number: #INT + 5 digits for internal invoices (the
+     * prefix comes from the pos_internal_prefix setting, default
+     * #INT — shared with POS numbering), otherwise the normal
+     * invoice prefix. The two series share the invoice_id space
+     * (invoice_id is NOT unique), so the prefix is what makes a
+     * number unambiguous.
+     */
+    public function displayNumber(): string
+    {
+        $settings = Utility::settingsById($this->created_by);
+
+        if ($this->isInternal()) {
+            $prefix = $settings['pos_internal_prefix'] ?? '#INT';
+
+            return ($prefix !== '' ? $prefix : '#INT') . sprintf('%05d', (int) $this->invoice_id);
+        }
+
+        return Utility::invoiceNumberFormat($settings, (int) $this->invoice_id);
+    }
 
     protected $casts = [
         'voided_at' => 'datetime',
@@ -174,6 +208,12 @@ class Invoice extends Model
 
     public function getDue()
     {
+        // Internal Consumption invoices are settled by the
+        // consumption itself: no payment is ever owed on them.
+        if ($this->isInternal()) {
+            return 0;
+        }
+
         $due = 0;
         foreach($this->payments as $payment)
         {
