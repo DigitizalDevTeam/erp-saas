@@ -168,6 +168,8 @@ use App\Http\Controllers\TreasuryPettyCashController;
 use App\Http\Controllers\TreasuryReceiptController;
 use App\Http\Controllers\TreasurySettingsController;
 use App\Http\Controllers\TreasuryTransferController;
+use App\Http\Controllers\KitchenBuffetController;
+use App\Http\Controllers\KitchenDailySpecialController;
 use App\Http\Controllers\KitchenReportController;
 use App\Http\Controllers\KitchenCostControlController;
 use App\Http\Controllers\KitchenLossController;
@@ -2587,6 +2589,25 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('kitchen-reports/dashboard', [KitchenReportController::class, 'dashboard'])->name('kitchen.reports.dashboard')->middleware(['auth', 'XSS']);
     Route::get('kitchen-reports/{report}', [KitchenReportController::class, 'show'])->name('kitchen.reports.show')->middleware(['auth', 'XSS']);
     Route::get('kitchen-reports/{report}/export/{format}', [KitchenReportController::class, 'export'])->name('kitchen.reports.export')->middleware(['auth', 'XSS']);
+
+    // Kitchen Production — Phase 4: Buffet events + Daily Specials (plan §9 row 4).
+    // 'plan' is registered before the resource so it is not swallowed by {kitchen_daily_special}.
+    Route::get('kitchen-buffet-events', [KitchenBuffetController::class, 'index'])->name('kitchen-buffet-events.index')->middleware(['auth', 'XSS']);
+    Route::get('kitchen-buffet-events/create', [KitchenBuffetController::class, 'create'])->name('kitchen-buffet-events.create')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-buffet-events', [KitchenBuffetController::class, 'store'])->name('kitchen-buffet-events.store')->middleware(['auth', 'XSS']);
+    Route::get('kitchen-buffet-events/{kitchenBuffetEvent}', [KitchenBuffetController::class, 'show'])->name('kitchen-buffet-events.show')->middleware(['auth', 'XSS']);
+    Route::get('kitchen-buffet-events/{kitchenBuffetEvent}/edit', [KitchenBuffetController::class, 'edit'])->name('kitchen-buffet-events.edit')->middleware(['auth', 'XSS']);
+    Route::put('kitchen-buffet-events/{kitchenBuffetEvent}', [KitchenBuffetController::class, 'update'])->name('kitchen-buffet-events.update')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-buffet-events/{kitchenBuffetEvent}/prepare', [KitchenBuffetController::class, 'prepare'])->name('kitchen-buffet-events.prepare')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-buffet-events/{kitchenBuffetEvent}/close', [KitchenBuffetController::class, 'close'])->name('kitchen-buffet-events.close')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-buffet-events/{kitchenBuffetEvent}/cancel', [KitchenBuffetController::class, 'cancel'])->name('kitchen-buffet-events.cancel')->middleware(['auth', 'XSS']);
+    Route::delete('kitchen-buffet-events/{kitchenBuffetEvent}', [KitchenBuffetController::class, 'destroy'])->name('kitchen-buffet-events.destroy')->middleware(['auth', 'XSS']);
+    Route::get('kitchen-daily-specials/plan', [KitchenDailySpecialController::class, 'plan'])->name('kitchen-daily-specials.plan')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-daily-specials/plan', [KitchenDailySpecialController::class, 'storePlan'])->name('kitchen-daily-specials.store-plan')->middleware(['auth', 'XSS']);
+    Route::get('kitchen-daily-specials', [KitchenDailySpecialController::class, 'index'])->name('kitchen-daily-specials.index')->middleware(['auth', 'XSS']);
+    Route::get('kitchen-daily-specials/create', [KitchenDailySpecialController::class, 'create'])->name('kitchen-daily-specials.create')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-daily-specials', [KitchenDailySpecialController::class, 'store'])->name('kitchen-daily-specials.store')->middleware(['auth', 'XSS']);
+    Route::post('kitchen-daily-specials/{kitchenDailySpecial}/cancel', [KitchenDailySpecialController::class, 'cancel'])->name('kitchen-daily-specials.cancel')->middleware(['auth', 'XSS']);
 
     // Cost Centres — Phase 0: master data only (list/tree, form, settings).
     // 'settings' is registered before the resource so it is not swallowed by {cost_centre}.

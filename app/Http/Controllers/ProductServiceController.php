@@ -52,7 +52,27 @@ class ProductServiceController extends Controller
     private const POS_PRODUCT_CARD_COL_CLASS = 'col-xl-3 col-lg-3 col-md-3 col-sm-4 col-6';
 
     /** Bump when POS product card HTML shape changes (invalidates Laravel + client caches). */
-    private const POS_PRODUCT_HTML_CACHE_VER = 'pv16';
+    private const POS_PRODUCT_HTML_CACHE_VER = 'pv17';
+
+    /**
+     * POS product-grid cache version for one company: the static
+     * shape version plus a per-company counter that the kitchen
+     * daily-specials service bumps whenever a special is created or
+     * cancelled (Phase 4), so a new special appears on the POS grid
+     * at once instead of waiting out the 10-minute cache.
+     */
+    public static function posProductsCacheVersion(int $creatorId): string
+    {
+        $dynamic = (int) Cache::get('pos_products_cache_version_'.$creatorId, 0);
+
+        return self::POS_PRODUCT_HTML_CACHE_VER.'_'.$dynamic;
+    }
+
+    /** Bump the per-company POS product-grid cache version (see posProductsCacheVersion()). */
+    public static function bumpPosProductsCache(int $creatorId): void
+    {
+        Cache::increment('pos_products_cache_version_'.$creatorId);
+    }
 
     /** Type tag shown on POS product grid cards (type is chosen on product create). */
     /** Shared product-type tag labels/classes (POS cards, option rows, create/edit pages). */
@@ -1771,7 +1791,7 @@ class ProductServiceController extends Controller
 
             $cacheKey = null;
             if ($isPos) {
-                $cacheKey = 'pos_products_html_' . Auth::user()->creatorId() . '_' . $lastsegment . '_' . ($request->war_id ?? '0') . '_' . ($request->cat_id ?? '0') . '_' . ($request->search ?? '') . '_' . ($request->type ?? 'name') . '_' . $page . '_' . self::POS_PRODUCT_HTML_CACHE_VER;
+                $cacheKey = 'pos_products_html_' . Auth::user()->creatorId() . '_' . $lastsegment . '_' . ($request->war_id ?? '0') . '_' . ($request->cat_id ?? '0') . '_' . ($request->search ?? '') . '_' . ($request->type ?? 'name') . '_' . $page . '_' . self::posProductsCacheVersion(Auth::user()->creatorId());
                 $cachedHtml = Cache::get($cacheKey);
                 if ($cachedHtml !== null) {
                     return response($cachedHtml)->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
@@ -2099,7 +2119,10 @@ class ProductServiceController extends Controller
                     'error' => __('Ingredient products cannot be sold on POS.'),
                 ], 422);
             }
-            if ($isPosSession && $product && ! ($product->show_on_pos ?? true)) {
+            // A hidden product cannot be added on the POS — except
+            // today's daily special (Phase 4): its product row is
+            // hidden by design and is sellable only on its date.
+            if ($isPosSession && $product && ! ($product->show_on_pos ?? true) && ! app(KitchenDailySpecialService::class)->isSellableToday((int) $product->id, (int) Auth::user()->creatorId())) {
                 return response()->json([
                     'code' => 422,
                     'status' => 'Error',
