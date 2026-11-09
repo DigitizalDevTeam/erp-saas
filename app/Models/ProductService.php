@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ProductService extends Model
 {
@@ -277,11 +278,31 @@ class ProductService extends Model
         return implode(',', $taxes);
     }
 
-    /** Products that may appear on POS (excludes ingredient-only stock items). */
+    /**
+     * Products the POS may sell: normal menu dishes (show_on_pos)
+     * plus today's active daily special (Phase 4). A special product
+     * is hidden from the POS (show_on_pos = 0) and only reaches the
+     * grid on its own date, through an active
+     * kitchen_daily_specials row of the SAME company — tomorrow it
+     * is invisible again. The table guard keeps old installs (before
+     * the Phase 4 migration) working.
+     */
     public function scopeSellableOnPos($query)
     {
         return $query->whereIn('product_services.type', ['product', 'kit'])
-            ->where('product_services.show_on_pos', 1);
+            ->where(function ($q) {
+                $q->where('product_services.show_on_pos', 1);
+                if (Schema::hasTable('kitchen_daily_specials')) {
+                    $q->orWhereExists(function ($sub) {
+                        $sub->select(DB::raw(1))
+                            ->from('kitchen_daily_specials')
+                            ->whereColumn('kitchen_daily_specials.product_id', 'product_services.id')
+                            ->whereColumn('kitchen_daily_specials.created_by', 'product_services.created_by')
+                            ->where('kitchen_daily_specials.status', 'active')
+                            ->whereDate('kitchen_daily_specials.special_date', date('Y-m-d'));
+                    });
+                }
+            });
     }
 
     public function isIngredient(): bool

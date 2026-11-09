@@ -96,6 +96,8 @@ class KitchenLoss extends Model
         'pos_id',
         'pos_product_id',
         'kitchen_production_batch_id',
+        'kitchen_buffet_event_id',
+        'kitchen_buffet_event_line_id',
         'warehouse_loss_id',
         'stock_already_deducted',
         'created_by',

@@ -1887,6 +1887,16 @@
                                         <a class="dash-link" href="{{ route('kitchen.requisitions.index') }}">{{ __('Requisitions') }}</a>
                                     </li>
                                     @endif
+                                    @if (menu_can('menu.kitchen_production.buffet_events'))
+                                    <li class="dash-item {{ in_array(Request::route()->getName(), ['kitchen-buffet-events.index', 'kitchen-buffet-events.create', 'kitchen-buffet-events.show', 'kitchen-buffet-events.edit']) ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('kitchen-buffet-events.index') }}">{{ __('Buffet Events') }}</a>
+                                    </li>
+                                    @endif
+                                    @if (menu_can('menu.kitchen_production.daily_specials'))
+                                    <li class="dash-item {{ in_array(Request::route()->getName(), ['kitchen-daily-specials.index', 'kitchen-daily-specials.create', 'kitchen-daily-specials.plan']) ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('kitchen-daily-specials.index') }}">{{ __('Daily Specials') }}</a>
+                                    </li>
+                                    @endif
                                     @if (menu_can('menu.kitchen_production.losses'))
                                     <li class="dash-item {{ in_array(Request::route()->getName(), ['kitchen.losses.index', 'kitchen.losses.create', 'kitchen.losses.show', 'kitchen.losses.edit']) ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('kitchen.losses.index') }}">{{ __('Losses') }}</a>

@@ -433,6 +433,13 @@ class KitchenLossService
             throw new InvalidArgumentException(__('Only an approved loss can be posted.'));
         }
 
+        // A buffet leftover is a record of food kept for the next day,
+        // not a write-off (Phase 4): its stock stays on hand, so
+        // posting it would deduct the same food twice.
+        if ($loss->category === KitchenLoss::CATEGORY_BUFFET_LEFTOVER) {
+            throw new InvalidArgumentException(__('A buffet leftover is never posted — it records food kept for reuse.'));
+        }
+
         $creatorId = (int) $loss->created_by;
 
         return DB::transaction(function () use ($loss, $user, $creatorId) {
