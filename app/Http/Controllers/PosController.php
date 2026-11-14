@@ -1452,6 +1452,10 @@ class PosController extends Controller
             return [
                 'id' => $area->id,
                 'name' => $area->name,
+                // The area's saved floor design (pos_areas.layout JSON) if
+                // one exists; the POS page renders it instead of the table
+                // button grid for this area. Null = no design yet.
+                'layout' => $area->layout ?: null,
                 'tables' => $tables->where('area_id', $area->id)->values()->map(
                     fn ($t) => $this->mapRestaurantLayoutTable($request, $t, $shiftId, $branchIdInt, $cartTotalsByTable, $sentToProductionByTable)
                 )->toArray(),

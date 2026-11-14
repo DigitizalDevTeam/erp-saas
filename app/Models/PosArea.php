@@ -11,6 +11,11 @@ class PosArea extends Model
         'name',
         'sort_order',
         'created_by',
+        'layout',
+    ];
+
+    protected $casts = [
+        'layout' => 'array',
     ];
 
     public function branch()
