@@ -62,7 +62,7 @@
     <header class="top">
         <div class="top-main">
             <section class="identity">
-                <img class="logo" src="{{ $headerLogo }}" alt="Logo" onerror="this.style.display='none'">
+                <img class="logo" src="{{ $headerLogo }}" alt="{{ __('Logo') }}" onerror="this.style.display='none'">
                 <div class="company">
                     <strong>{{ $companyName }}</strong><br>
                     {{ $companyAddressLine }}<br>
@@ -247,7 +247,7 @@
             <div></div>
         @endif
         <div class="powered">
-            <strong>ERP SaaS UTHARA</strong>
+            <strong>{{ __('ERP SaaS UTHARA') }}</strong>
             www.uthara.co.mz<br>
             @if($companyPhone !== ''){{ __('Phone') }}: {{ $companyPhone }}<br>@endif
             @if($companyEmail !== ''){{ $companyEmail }}@endif

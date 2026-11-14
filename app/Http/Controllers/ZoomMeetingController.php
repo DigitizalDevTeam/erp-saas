@@ -179,7 +179,7 @@ class ZoomMeetingController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'permission Denied');
+            return redirect()->back()->with('error', __('permission Denied'));
         }
 
     }

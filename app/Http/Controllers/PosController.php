@@ -3214,7 +3214,7 @@ class PosController extends Controller
 
             return view('pos.setting_page', compact('settings'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
 
     }
@@ -3243,7 +3243,7 @@ class PosController extends Controller
                 'insert into settings (`value`, `name`,`created_by`) values (?, ?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`) ', $arr
             );
         }
-        return redirect()->back()->with('success', 'Barcode setting successfully updated.');
+        return redirect()->back()->with('success', __('Barcode setting successfully updated.'));
 
     }
 
@@ -5006,7 +5006,7 @@ class PosController extends Controller
                 'barcodeFormat' => Auth::user()->barcodeFormat() == '' ? 'css' : Auth::user()->barcodeFormat(),
             ];
         } else {
-            return redirect()->back()->with('error', 'Product is required.');
+            return redirect()->back()->with('error', __('Product is required.'));
 
         }
 

@@ -368,7 +368,7 @@
                     <th>{{__('Rate')}}</th>
                     <th>{{__('Discount')}}</th>
                     <th>{{__('Tax')}} (%)</th>
-                    <th>{{__('Price')}} <small>after tax & discount</small></th>
+                    <th>{{__('Price')}} <small>{{ __('after tax & discount') }}</small></th>
                 </tr>
                 </thead>
                 <tbody>

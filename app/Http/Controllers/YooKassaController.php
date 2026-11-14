@@ -133,13 +133,13 @@ class YooKassaController extends Controller
                     if ($payment['confirmation']['confirmation_url'] != null) {
                         return redirect($payment['confirmation']['confirmation_url']);
                     } else {
-                        return redirect()->route('plan.index')->with('error', 'Something went wrong, Please try again');
+                        return redirect()->route('plan.index')->with('error', __('Something went wrong, Please try again'));
                     }
 
                     // return redirect()->route('plans.index')->with('success', __('Plan Successfully Activated'));
 
                 } else {
-                    return redirect()->back()->with('error', 'Please Enter  Valid Shop Id Key');
+                    return redirect()->back()->with('error', __('Please Enter  Valid Shop Id Key'));
                 }
             } catch (\Throwable $th) {
                 return redirect()->back()->with('error', $th);
@@ -231,7 +231,7 @@ class YooKassaController extends Controller
                     return redirect()->route('plans.index')->with('error', __($e));
                 }
             } else {
-                return redirect()->back()->with('error', 'Please Enter  Valid Shop Id Key');
+                return redirect()->back()->with('error', __('Please Enter  Valid Shop Id Key'));
             }
         }
     }
@@ -281,13 +281,13 @@ class YooKassaController extends Controller
                     if ($payment['confirmation']['confirmation_url'] != null) {
                         return redirect($payment['confirmation']['confirmation_url']);
                     } else {
-                        return redirect()->route('invoice.index')->with('error', 'Something went wrong, Please try again');
+                        return redirect()->route('invoice.index')->with('error', __('Something went wrong, Please try again'));
                     }
                 } else {
-                    return redirect()->back()->with('error', 'Please Enter  Valid Shop Id Key');
+                    return redirect()->back()->with('error', __('Please Enter  Valid Shop Id Key'));
                 }
             } else {
-                return redirect()->back()->with('error', 'Invoice not found.');
+                return redirect()->back()->with('error', __('Invoice not found.'));
             }
         } catch (\Throwable $e) {
 

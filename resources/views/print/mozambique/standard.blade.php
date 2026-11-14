@@ -87,7 +87,7 @@
         <div class="top-main">
             <section class="identity">
                 @if(!empty($companyLogo))
-                    <img class="logo" src="{{ $companyLogo }}" alt="Logo" onerror="this.style.display='none';var f=this.nextElementSibling;if(f)f.style.display='block'">
+                    <img class="logo" src="{{ $companyLogo }}" alt="{{ __('Logo') }}" onerror="this.style.display='none';var f=this.nextElementSibling;if(f)f.style.display='block'">
                     <div class="brand-fallback" style="display:none">{{ $companyBrand }}</div>
                 @else
                     <div class="brand-fallback">{{ $companyBrand }}</div>
@@ -238,11 +238,11 @@
             @if(!empty($validationUrl)){{ $validationUrl }}<br>@endif
             {{ __('Code') }}: <b>{{ $validationCode }}</b>
             @if(!empty($documentHash))
-                <div style="font-family:monospace;font-size:6.5pt;margin-top:1mm;">Hash: {{ $documentHash }}</div>
+                <div style="font-family:monospace;font-size:6.5pt;margin-top:1mm;">{{ __('Hash:') }} {{ $documentHash }}</div>
             @endif
         </div>
         <div class="powered">
-            <strong>ERP SaaS UTHARA</strong>
+            <strong>{{ __('ERP SaaS UTHARA') }}</strong>
             {{ $companyWebsite }}<br>
             @if($companyEmail !== ''){{ $companyEmail }}<br>@endif
         </div>

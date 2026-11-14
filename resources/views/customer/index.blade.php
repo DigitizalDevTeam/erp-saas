@@ -78,7 +78,7 @@ $profile=\App\Models\Utility::get_file('uploads/avatar/');
                                     <td class="Action">
                                         <span>
                                         @if($customer['is_active']==0)
-                                                <i class="ti ti-lock" title="Inactive"></i>
+                                                <i class="ti ti-lock" title="{{ __('Inactive') }}"></i>
                                             @else
                                                 @can('show customer')
                                                 <div class="action-btn me-2">

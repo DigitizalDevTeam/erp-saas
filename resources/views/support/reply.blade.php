@@ -100,7 +100,7 @@
 
                                </div>
                                 {{ Form::open(array('route' => array('support.reply.answer',$support->id), 'class'=>'needs-validation', 'novalidate')) }}
-                                <textarea class="form-control form-control-light mb-2 grammer_textarea" name="description" placeholder="Your comment" id="example-textarea" rows="3" required=""></textarea>
+                                <textarea class="form-control form-control-light mb-2 grammer_textarea" name="description" placeholder="{{ __('Your comment') }}" id="example-textarea" rows="3" required=""></textarea>
                                 <div class="text-end">
                                     <div class="col-12">
                                         <button type="submit" class="btn btn-primary w-100"> <i class="ti ti-circle-plus me-1 mb-0"></i> {{__('Send')}}</button>

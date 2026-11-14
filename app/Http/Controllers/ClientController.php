@@ -352,7 +352,7 @@ class ClientController extends Controller
                          ])->save();
 
         return redirect()->route('clients.index')->with(
-            'success', 'Client Password successfully updated.'
+            'success', __('Client Password successfully updated.')
         );
 
 

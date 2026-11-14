@@ -143,7 +143,7 @@ class MessagesController extends Controller
         }
         else
         {
-            return abort(404, "Sorry, File does not exist in our server or may have been deleted!");
+            return abort(404, __('Sorry, File does not exist in our server or may have been deleted!'));
         }
     }
 

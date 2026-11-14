@@ -7,7 +7,7 @@ return [
      * Shared translations.
      *
      */
-    'title' => '',
+    'title' => 'Installer',
     'next' => 'Next Step',
     'back' => 'Previous',
     'finish' => 'Install',
@@ -22,7 +22,7 @@ return [
      */
     'welcome' => [
         'templateTitle' => 'Welcome',
-        'title'   => '',
+        'title'   => 'Installer',
         'message' => 'Easy Installation and Setup Wizard.',
         'next'    => 'Check Requirements',
     ],

@@ -138,7 +138,7 @@
                         <p class="text-muted">{{ __('Scan this QR code in Google Authenticator and verify using a 6-digit code.') }}</p>
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <img src="{{ $twoFactorQrUrl }}" alt="2FA QR" class="img-fluid border rounded p-2">
+                                <img src="{{ $twoFactorQrUrl }}" alt="{{ __('2FA QR') }}" class="img-fluid border rounded p-2">
                             </div>
                             <div class="col-md-8 mb-3">
                                 <label class="form-label">{{ __('Manual setup key') }}</label>

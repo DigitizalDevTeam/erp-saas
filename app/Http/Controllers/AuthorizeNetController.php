@@ -184,7 +184,7 @@ class AuthorizeNetController extends Controller
                     \Log::error($e->getMessage());
                 }
             } else {
-                return redirect()->back()->with('error', 'Invoice not found.');
+                return redirect()->back()->with('error', __('Invoice not found.'));
             }
         } catch (\Throwable $e) {
 

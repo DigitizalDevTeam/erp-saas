@@ -38,7 +38,7 @@
           },
           onClose: function(){
             /* You may add your own implementation here */
-            alert('you closed the popup without finishing the payment');
+            alert(@json(__('you closed the popup without finishing the payment')));
           }
         })
 

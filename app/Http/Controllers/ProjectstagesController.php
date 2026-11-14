@@ -19,7 +19,7 @@ class ProjectstagesController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -31,7 +31,7 @@ class ProjectstagesController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -83,7 +83,7 @@ class ProjectstagesController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -152,7 +152,7 @@ class ProjectstagesController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 

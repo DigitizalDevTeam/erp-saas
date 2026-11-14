@@ -7,15 +7,15 @@
 @endsection
 @section('content')
 <div class="row"><div class="col-12"><div class="card"><div class="card-body">
-    <p class="text-muted">Total discounts: <strong>{{ Auth::user()->priceFormat($totalDiscount) }}</strong></p>
+    <p class="text-muted">{{ __('Total discounts:') }} <strong>{{ Auth::user()->priceFormat($totalDiscount) }}</strong></p>
     <form method="get" class="row g-3 mb-4">
-        <div class="col-auto"><label class="form-label">Start date</label><input type="date" name="start_date" class="form-control" value="{{ $start }}"></div>
-        <div class="col-auto"><label class="form-label">End date</label><input type="date" name="end_date" class="form-control" value="{{ $end }}"></div>
-        <div class="col-auto d-flex align-items-end"><button type="submit" class="btn btn-primary">Apply</button></div>
+        <div class="col-auto"><label class="form-label">{{ __('Start date') }}</label><input type="date" name="start_date" class="form-control" value="{{ $start }}"></div>
+        <div class="col-auto"><label class="form-label">{{ __('End date') }}</label><input type="date" name="end_date" class="form-control" value="{{ $end }}"></div>
+        <div class="col-auto d-flex align-items-end"><button type="submit" class="btn btn-primary">{{ __('Apply') }}</button></div>
     </form>
-    <table class="table table-sm"><thead><tr><th>POS #</th><th>Date</th><th class="text-end">Discount</th></tr></thead>
+    <table class="table table-sm"><thead><tr><th>{{ __('POS #') }}</th><th>Date</th><th class="text-end">{{ __('Discount') }}</th></tr></thead>
     <tbody>
-        @forelse($rows as $pos)@php $disc = $pos->posPayments->sum('discount'); @endphp<tr><td>{{ $pos->pos_id ?? $pos->id }}</td><td>{{ $pos->pos_date }}</td><td class="text-end">{{ Auth::user()->priceFormat($disc) }}</td></tr>@empty<tr><td colspan="3" class="text-center text-muted">No discounts.</td></tr>@endforelse
+        @forelse($rows as $pos)@php $disc = $pos->posPayments->sum('discount'); @endphp<tr><td>{{ $pos->pos_id ?? $pos->id }}</td><td>{{ $pos->pos_date }}</td><td class="text-end">{{ Auth::user()->priceFormat($disc) }}</td></tr>@empty<tr><td colspan="3" class="text-center text-muted">{{ __('No discounts.') }}</td></tr>@endforelse
     </tbody></table>
 </div></div></div></div>
 @endsection

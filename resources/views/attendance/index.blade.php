@@ -48,7 +48,7 @@
             @if (session('status'))
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
                     {!! session('status') !!}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{{ __('Close') }}"></button>
                 </div>
             @endif
             <div class=" mt-2 " id="multiCollapseExample1">

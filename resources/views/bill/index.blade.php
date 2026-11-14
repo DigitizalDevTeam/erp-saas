@@ -149,7 +149,7 @@
                                                 @can('edit bill')
                                                     @if((int) $bill->status !== 5)
                                                         <div class="action-btn me-2">
-                                                            <a href="{{ route('bill.edit',\Crypt::encrypt($bill->id)) }}" class="mx-3 btn btn-sm align-items-center bg-info" data-bs-toggle="tooltip" title="Edit" data-original-title="{{__('Edit')}}">
+                                                            <a href="{{ route('bill.edit',\Crypt::encrypt($bill->id)) }}" class="mx-3 btn btn-sm align-items-center bg-info" data-bs-toggle="tooltip" title="{{ __('Edit') }}" data-original-title="{{__('Edit')}}">
                                                                 <i class="ti ti-pencil text-white"></i>
                                                             </a>
                                                         </div>

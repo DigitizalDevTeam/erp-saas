@@ -67,7 +67,7 @@
             del.addEventListener("click", function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                if (confirm("Are you sure ?")) {
+                if (confirm(@json(__('Are you sure ?')))) {
                     var btn = $(this);
                     $.ajax({
                         url: btn.attr('href'),
@@ -511,7 +511,7 @@
                     </ul>
                 @else
                     <div class="text-center">
-                        No Tasks Available.!
+                        {{ __('No Tasks Available.!') }}
                     </div>
                     @endif
                 </div>

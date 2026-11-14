@@ -148,54 +148,53 @@
             <div class="modal-content">
                 <div class="modal-body">
                     <button type="button" class="btn-close float-end" data-bs-dismiss="modal"
-                        aria-label="Close"></button>
+                        aria-label="{{ __('Close') }}"></button>
                     <h6 class="mt-2">
-                        <i data-feather="monitor" class="me-2"></i>Desktop settings
+                        <i data-feather="monitor" class="me-2"></i>{{ __('Desktop settings') }}
                     </h6>
                     <hr />
                     <div class="form-check form-switch">
                         <input type="checkbox" class="form-check-input" id="pcsetting1" checked />
-                        <label class="form-check-label f-w-600 pl-1" for="pcsetting1">Allow desktop notification</label>
+                        <label class="form-check-label f-w-600 pl-1" for="pcsetting1">{{ __('Allow desktop notification') }}</label>
                     </div>
                     <p class="text-muted ms-5">
-                        you get lettest content at a time when data will updated
+                        {{ __('you get lettest content at a time when data will updated') }}
                     </p>
                     <div class="form-check form-switch">
                         <input type="checkbox" class="form-check-input" id="pcsetting2" />
-                        <label class="form-check-label f-w-600 pl-1" for="pcsetting2">Store Cookie</label>
+                        <label class="form-check-label f-w-600 pl-1" for="pcsetting2">{{ __('Store Cookie') }}</label>
                     </div>
                     <h6 class="mb-0 mt-5">
-                        <i data-feather="save" class="me-2"></i>Application settings
+                        <i data-feather="save" class="me-2"></i>{{ __('Application settings') }}
                     </h6>
                     <hr />
                     <div class="form-check form-switch">
                         <input type="checkbox" class="form-check-input" id="pcsetting3" />
-                        <label class="form-check-label f-w-600 pl-1" for="pcsetting3">Backup Storage</label>
+                        <label class="form-check-label f-w-600 pl-1" for="pcsetting3">{{ __('Backup Storage') }}</label>
                     </div>
                     <p class="text-muted mb-4 ms-5">
-                        Automaticaly take backup as par schedule
+                        {{ __('Automaticaly take backup as par schedule') }}
                     </p>
                     <div class="form-check form-switch">
                         <input type="checkbox" class="form-check-input" id="pcsetting4" />
-                        <label class="form-check-label f-w-600 pl-1" for="pcsetting4">Allow guest to print
-                            file</label>
+                        <label class="form-check-label f-w-600 pl-1" for="pcsetting4">{{ __('Allow guest to print file') }}</label>
                     </div>
                     <h6 class="mb-0 mt-5">
-                        <i data-feather="cpu" class="me-2"></i>System settings
+                        <i data-feather="cpu" class="me-2"></i>{{ __('System settings') }}
                     </h6>
                     <hr />
                     <div class="form-check form-switch">
                         <input type="checkbox" class="form-check-input" id="pcsetting5" checked />
-                        <label class="form-check-label f-w-600 pl-1" for="pcsetting5">View other user chat</label>
+                        <label class="form-check-label f-w-600 pl-1" for="pcsetting5">{{ __('View other user chat') }}</label>
                     </div>
-                    <p class="text-muted ms-5">Allow to show public user message</p>
+                    <p class="text-muted ms-5">{{ __('Allow to show public user message') }}</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light-danger btn-sm" data-bs-dismiss="modal">
-                        Close
+                        {{ __('Close') }}
                     </button>
                     <button type="button" class="btn btn-light-primary btn-sm">
-                        Save changes
+                        {{ __('Save changes') }}
                     </button>
                 </div>
             </div>
@@ -248,7 +247,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="exampleModalLabel"></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <div class="body">
                 </div>
@@ -262,7 +261,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="commonModalLabel"></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <div class="modal-body">
                 </div>
@@ -275,7 +274,7 @@
             <div class="d-flex">
                 <div class="toast-body"></div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
-                    aria-label="Close"></button>
+                    aria-label="{{ __('Close') }}"></button>
             </div>
         </div>
     </div>

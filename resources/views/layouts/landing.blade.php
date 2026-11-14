@@ -101,36 +101,36 @@
             data-bs-target="#navbarTogglerDemo01"
             aria-controls="navbarTogglerDemo01"
             aria-expanded="false"
-            aria-label="Toggle navigation"
+            aria-label="{{ __('Toggle navigation') }}"
         >
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarTogglerDemo01">
             <ul class="navbar-nav align-items-center ms-auto mb-2 mb-lg-0">
                 <li class="nav-item">
-                    <a class="nav-link active" href="#home">Home</a>
+                    <a class="nav-link active" href="#home">{{ __('Home') }}</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="#features">Features</a>
+                    <a class="nav-link" href="#features">{{ __('Features') }}</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="#layouts">Layouts</a>
+                    <a class="nav-link" href="#layouts">{{ __('Layouts') }}</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="#testimonial">Testimonial</a>
+                    <a class="nav-link" href="#testimonial">{{ __('Testimonial') }}</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="#pricing">Pricing</a>
+                    <a class="nav-link" href="#pricing">{{ __('Pricing') }}</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="#faq">Faq</a>
+                    <a class="nav-link" href="#faq">{{ __('Faq') }}</a>
                 </li>
                 <li class="nav-item">
                     <a class="btn btn-light ms-2 me-1" href="{{ route('login') }}">{{__('Login')}}</a>
                 </li>
                 @if($settings['enable_signup'] == 'on')
                     <li class="nav-item">
-                        <a class="btn btn-light ms-2 me-1" href="{{ route('register') }}">Register</a>
+                        <a class="btn btn-light ms-2 me-1" href="{{ route('register') }}">{{ __('Register') }}</a>
                     </li>
                 @endif
             </ul>
@@ -156,22 +156,21 @@
                     {{__('All In One Business ERP With Project, Account, HRM, CRM')}}
                 </h2>
                 <p class="mb-sm-4 wow animate__fadeInLeft" data-wow-delay="0.6s">
-                    Use these awesome forms to login or create new account in your
-                    project for free.
+                    {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                 </p>
                 <div class="my-4 wow animate__fadeInLeft" data-wow-delay="0.8s">
                     <a href="{{ route('login') }}" class="btn btn-light me-2"
-                    ><i class="far fa-eye me-2"></i>Live Demo</a
+                    ><i class="far fa-eye me-2"></i>{{ __('Live Demo') }}</a
                     >
                     <a href="https://codecanyon.net/item/erpgo-saas-all-in-one-business-erp-with-project-account-hrm-crm/33263426" class="btn btn-outline-light" target="_blank"
-                    ><i class="fas fa-shopping-cart me-2"></i>Buy now</a
+                    ><i class="fas fa-shopping-cart me-2"></i>{{ __('Buy now') }}</a
                     >
                 </div>
             </div>
             <div class="col-sm-5">
                 <img
                     src="{{asset('assets/images/front/header-mokeup.svg')}}"
-                    alt="Datta Able Admin Template"
+                    alt="{{ __('Datta Able Admin Template') }}"
                     class="img-fluid header-img wow animate__fadeInRight"
                     data-wow-delay="0.2s"
                 />
@@ -185,7 +184,7 @@
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-xl-6 col-md-9 title">
-                <h2><span>Happy clients use Dashboard</span> </h2>
+                <h2><span>{{ __('Happy clients use Dashboard') }}</span> </h2>
             </div>
         </div>
         <div class="row align-items-center justify-content-center mobile-screen dashboard_images">
@@ -282,19 +281,18 @@
                     {{__(' All In One Business ERP With Project, Account, HRM, CRM')}}
                 </h2>
                 <p class="mb-sm-4 wow animate__fadeInLeft" data-wow-delay="0.6s">
-                    Use these awesome forms to login or create new account in your
-                    project for free.
+                    {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                 </p>
                 <div class="my-4 wow animate__fadeInLeft" data-wow-delay="0.8s">
                     <a href="#" class="btn btn-primary" target="_blank"
-                    ><i class="fas fa-shopping-cart me-2"></i>Buy now</a
+                    ><i class="fas fa-shopping-cart me-2"></i>{{ __('Buy now') }}</a
                     >
                 </div>
             </div>
             <div class="col-sm-6">
                 <img
                     src="{{asset('landing/images/dashboard.png')}}"
-                    alt="Datta Able Admin Template"
+                    alt="{{ __('Datta Able Admin Template') }}"
                     class="img-fluid header-img wow animate__fadeInRight"
                     data-wow-delay="0.2s"
                 />
@@ -304,7 +302,7 @@
             <div class="col-sm-6">
                 <img
                     src="{{asset('assets/images/front/img-crm-dash-2.svg')}}"
-                    alt="Datta Able Admin Template"
+                    alt="{{ __('Datta Able Admin Template') }}"
                     class="img-fluid header-img wow animate__fadeInLeft"
                     data-wow-delay="0.2s"
                 />
@@ -320,12 +318,11 @@
                     {{__('All In One Business ERP With Project, Account, HRM, CRM')}}
                 </h2>
                 <p class="mb-sm-4 wow animate__fadeInRight" data-wow-delay="0.6s">
-                    Use these awesome forms to login or create new account in your
-                    project for free.
+                    {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                 </p>
                 <div class="my-4 wow animate__fadeInRight" data-wow-delay="0.8s">
                     <a href="#" class="btn btn-primary" target="_blank"
-                    ><i class="fas fa-shopping-cart me-2"></i>Buy now</a
+                    ><i class="fas fa-shopping-cart me-2"></i>{{ __('Buy now') }}</a
                     >
                 </div>
             </div>
@@ -339,12 +336,10 @@
         <div class="row justify-content-center">
             <div class="col-xl-6 col-md-9 title">
                 <h2>
-                    <span class="d-block mb-3">Features</span> All in one place CRM
-                    system
+                    <span class="d-block mb-3">{{ __('Features') }}</span> {{ __('All in one place CRM system') }}
                 </h2>
                 <p class="m-0">
-                    Use these awesome forms to login or create new account in your
-                    project for free.
+                    {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                 </p>
             </div>
         </div>
@@ -364,10 +359,9 @@
                             <i class="ti ti-report-money"></i>
                         </div>
                         <h6 class="text-muted mt-4">ABOUT</h6>
-                        <h4 class="my-3 f-w-600">Feature</h4>
+                        <h4 class="my-3 f-w-600">{{ __('Feature') }}</h4>
                         <p class="mb-0">
-                            Use these awesome forms to login or create new account in your
-                            project for free.
+                            {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                         </p>
                     </div>
                 </div>
@@ -387,10 +381,9 @@
                             <i class="ti ti-user-plus"></i>
                         </div>
                         <h6 class="text-muted mt-4">ABOUT</h6>
-                        <h4 class="my-3 f-w-600">Feature</h4>
+                        <h4 class="my-3 f-w-600">{{ __('Feature') }}</h4>
                         <p class="mb-0">
-                            Use these awesome forms to login or create new account in your
-                            project for free.
+                            {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                         </p>
                     </div>
                 </div>
@@ -410,10 +403,9 @@
                             <i class="ti ti-users"></i>
                         </div>
                         <h6 class="text-muted mt-4">ABOUT</h6>
-                        <h4 class="my-3 f-w-600">Feature</h4>
+                        <h4 class="my-3 f-w-600">{{ __('Feature') }}</h4>
                         <p class="mb-0">
-                            Use these awesome forms to login or create new account in your
-                            project for free.
+                            {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                         </p>
                     </div>
                 </div>
@@ -433,19 +425,18 @@
                             <i class="ti ti-report-money"></i>
                         </div>
                         <h6 class="text-muted mt-4">ABOUT</h6>
-                        <h4 class="my-3 f-w-600">Feature</h4>
+                        <h4 class="my-3 f-w-600">{{ __('Feature') }}</h4>
                         <p class="mb-0">
-                            Use these awesome forms to login or create new account in your
-                            project for free.
+                            {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                         </p>
                     </div>
                 </div>
             </div>
         </div>
         <div class="text-center pt-sm-5 feature-mobile-screen">
-            <button class="btn px-sm-5 btn-primary me-sm-3 ">Buy Now</button>
+            <button class="btn px-sm-5 btn-primary me-sm-3 ">{{ __('Buy Now') }}</button>
             <button class="btn px-sm-5 btn-outline-primary">
-                View documentation
+                {{ __('View documentation') }}
             </button>
         </div>
     </div>
@@ -466,19 +457,18 @@
                     {{__('All In One Business ERP With Project, Account, HRM, CRM')}}
                 </h2>
                 <p class="mb-sm-4 wow animate__fadeInLeft" data-wow-delay="0.6s">
-                    Use these awesome forms to login or create new account in your
-                    project for free.
+                    {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                 </p>
                 <div class="my-4 wow animate__fadeInLeft" data-wow-delay="0.8s">
                     <a href="#" class="btn btn-primary" target="_blank"
-                    ><i class="fas fa-shopping-cart me-2"></i>Buy now</a
+                    ><i class="fas fa-shopping-cart me-2"></i>{{ __('Buy now') }}</a
                     >
                 </div>
             </div>
             <div class="col-sm-6">
                 <img
                     src="{{asset('landing/images/dash-2.svg')}}"
-                    alt="Datta Able Admin Template"
+                    alt="{{ __('Datta Able Admin Template') }}"
                     class="img-fluid header-img wow animate__fadeInRight"
                     data-wow-delay="0.2s"
                 />
@@ -488,7 +478,7 @@
             <div class="col-sm-6">
                 <img
                     src="{{asset('assets/images/front/img-crm-dash-4.svg')}}"
-                    alt="Datta Able Admin Template"
+                    alt="{{ __('Datta Able Admin Template') }}"
                     class="img-fluid header-img wow animate__fadeInLeft"
                     data-wow-delay="0.2s"
                 />
@@ -504,12 +494,11 @@
                     {{__('All In One Business ERP With Project, Account, HRM, CRM')}}
                 </h2>
                 <p class="mb-sm-4 wow animate__fadeInRight" data-wow-delay="0.6s">
-                    Use these awesome forms to login or create new account in your
-                    project for free.
+                    {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                 </p>
                 <div class="my-4 wow animate__fadeInRight" data-wow-delay="0.8s">
                     <a href="#" class="btn btn-primary" target="_blank"
-                    ><i class="fas fa-shopping-cart me-2"></i>Buy now</a
+                    ><i class="fas fa-shopping-cart me-2"></i>{{ __('Buy now') }}</a
                     >
                 </div>
             </div>
@@ -523,12 +512,10 @@
         <div class="row justify-content-center">
             <div class="col-xl-6 col-md-9 title">
                 <h2>
-                    <span class="d-block mb-3">Price</span> All in one place CRM
-                    system
+                    <span class="d-block mb-3">{{ __('Price') }}</span> {{ __('All in one place CRM system') }}
                 </h2>
                 <p class="m-0">
-                    Use these awesome forms to login or create new account in your
-                    project for free.
+                    {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                 </p>
             </div>
         </div>
@@ -549,34 +536,34 @@
                         >$59<small class="text-sm">/month</small></span
                         >
                         <p class="mb-0">
-                            You have Free Unlimited Updates and <br />
-                            Premium Support on each package.
+                            {{ __('You have Free Unlimited Updates and') }} <br />
+                            {{ __('Premium Support on each package.') }}
                         </p>
                         <ul class="list-unstyled my-5">
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                2 team members
+                                {{ __('2 team members') }}
                             </li>
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                20GB Cloud storage
+                                {{ __('20GB Cloud storage') }}
                             </li>
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                Integration help
+                                {{ __('Integration help') }}
                             </li>
                         </ul>
                         <div class="d-grid text-center">
                             <button
                                 class="btn mb-3 btn-primary d-flex justify-content-center align-items-center mx-sm-5"
                             >
-                                Start with Standard plan
+                                {{ __('Start with Standard plan') }}
                                 <i class="ti ti-chevron-right ms-2"></i>
                             </button>
                         </div>
@@ -599,40 +586,40 @@
                         >$59<small class="text-sm">/month</small></span
                         >
                         <p class="mb-0">
-                            You have Free Unlimited Updates and <br />
-                            Premium Support on each package.
+                            {{ __('You have Free Unlimited Updates and') }} <br />
+                            {{ __('Premium Support on each package.') }}
                         </p>
                         <ul class="list-unstyled my-5">
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                2 team members
+                                {{ __('2 team members') }}
                             </li>
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                20GB Cloud storage
+                                {{ __('20GB Cloud storage') }}
                             </li>
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                Integration help
+                                {{ __('Integration help') }}
                             </li>
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                Sketch Files
+                                {{ __('Sketch Files') }}
                             </li>
                         </ul>
                         <div class="d-grid text-center">
                             <button
                                 class="btn mb-3 btn-light d-flex justify-content-center align-items-center mx-sm-5"
                             >
-                                Start with Standard plan
+                                {{ __('Start with Standard plan') }}
                                 <i class="ti ti-chevron-right ms-2"></i>
                             </button>
                         </div>
@@ -655,52 +642,52 @@
                         >$119<small class="text-sm">/month</small></span
                         >
                         <p class="mb-0">
-                            You have Free Unlimited Updates and <br />
-                            Premium Support on each package.
+                            {{ __('You have Free Unlimited Updates and') }} <br />
+                            {{ __('Premium Support on each package.') }}
                         </p>
                         <ul class="list-unstyled my-5">
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                2 team members
+                                {{ __('2 team members') }}
                             </li>
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                20GB Cloud storage
+                                {{ __('20GB Cloud storage') }}
                             </li>
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                Integration help
+                                {{ __('Integration help') }}
                             </li>
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                2 team members
+                                {{ __('2 team members') }}
                             </li>
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                20GB Cloud storage
+                                {{ __('20GB Cloud storage') }}
                             </li>
                             <li>
                     <span class="theme-avtar">
                       <i class="text-primary ti ti-circle-plus"></i
                       ></span>
-                                Integration help
+                                {{ __('Integration help') }}
                             </li>
                         </ul>
                         <div class="d-grid text-center">
                             <button
                                 class="btn mb-3 btn-primary d-flex justify-content-center align-items-center mx-sm-5"
                             >
-                                Start with Standard plan
+                                {{ __('Start with Standard plan') }}
                                 <i class="ti ti-chevron-right ms-2"></i>
                             </button>
                         </div>
@@ -716,10 +703,9 @@
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-xl-6 col-md-9 title">
-                <h2><span>Frequently Asked Questions </span></h2>
+                <h2><span>{{ __('Frequently Asked Questions') }} </span></h2>
                 <p class="m-0">
-                    Use these awesome forms to login or create new account in your
-                    project for free.
+                    {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                 </p>
             </div>
         </div>
@@ -737,8 +723,7 @@
                                 aria-controls="collapseOne"
                             >
                     <span class="d-flex align-items-center">
-                      <i class="ti ti-info-circle text-primary"></i> How do I
-                      order?
+                      <i class="ti ti-info-circle text-primary"></i> {{ __('How do I order?') }}
                     </span>
                             </button>
                         </h2>
@@ -756,8 +741,7 @@
                                 showing and hiding via CSS transitions. You can modify any
                                 of this with custom CSS or overriding our default variables.
                                 It's also worth noting that just about any HTML can go
-                                within the <code>.accordion-body</code>, though the
-                                transition does limit overflow.
+                                within the <code>.accordion-body</code>{{ __(', though the transition does limit overflow.') }}
                             </div>
                         </div>
                     </div>
@@ -772,8 +756,7 @@
                                 aria-controls="collapseTwo"
                             >
                     <span class="d-flex align-items-center">
-                      <i class="ti ti-info-circle text-primary"></i> How do I
-                      order?
+                      <i class="ti ti-info-circle text-primary"></i> {{ __('How do I order?') }}
                     </span>
                             </button>
                         </h2>
@@ -791,8 +774,7 @@
                                 showing and hiding via CSS transitions. You can modify any
                                 of this with custom CSS or overriding our default variables.
                                 It's also worth noting that just about any HTML can go
-                                within the <code>.accordion-body</code>, though the
-                                transition does limit overflow.
+                                within the <code>.accordion-body</code>{{ __(', though the transition does limit overflow.') }}
                             </div>
                         </div>
                     </div>
@@ -807,8 +789,7 @@
                                 aria-controls="collapseThree"
                             >
                     <span class="d-flex align-items-center">
-                      <i class="ti ti-info-circle text-primary"></i> How do I
-                      order?
+                      <i class="ti ti-info-circle text-primary"></i> {{ __('How do I order?') }}
                     </span>
                             </button>
                         </h2>
@@ -826,8 +807,7 @@
                                 showing and hiding via CSS transitions. You can modify any
                                 of this with custom CSS or overriding our default variables.
                                 It's also worth noting that just about any HTML can go
-                                within the <code>.accordion-body</code>, though the
-                                transition does limit overflow.
+                                within the <code>.accordion-body</code>{{ __(', though the transition does limit overflow.') }}
                             </div>
                         </div>
                     </div>
@@ -852,12 +832,11 @@
                     {{__('All In One Business ERP With Project, Account, HRM, CRM')}}
                 </h2>
                 <p class="mb-sm-4 wow animate__fadeInLeft" data-wow-delay="0.6s">
-                    Use these awesome forms to login or create new account in your
-                    project for free.
+                    {{ __('Use these awesome forms to login or create new account in your project for free.') }}
                 </p>
                 <div class="my-4 wow animate__fadeInLeft" data-wow-delay="0.8s">
                     <a href="#" class="btn btn-primary" target="_blank"
-                    ><i class="fas fa-shopping-cart me-2"></i>Buy now</a
+                    ><i class="fas fa-shopping-cart me-2"></i>{{ __('Buy now') }}</a
                     >
                 </div>
             </div>
@@ -868,7 +847,7 @@
                             src="{{asset('landing/images/dashboard.png')}}"
                             class="img-fluid header-img wow animate__fadeInRight"
                             data-wow-delay="0.2s"
-                            alt="Admin"
+                            alt="{{ __('Admin') }}"
                         />
                     </div>
                     <div class="col-3">
@@ -876,7 +855,7 @@
                             src="{{asset('landing/images/dash-3.png')}}"
                             class="img-fluid header-img wow animate__fadeInRight"
                             data-wow-delay="0.4s"
-                            alt="Admin"
+                            alt="{{ __('Admin') }}"
                         />
                     </div>
                     <div class="col-3">
@@ -884,7 +863,7 @@
                             src="{{asset('landing/images/dash-4.png')}}"
                             class="img-fluid header-img wow animate__fadeInRight"
                             data-wow-delay="0.6s"
-                            alt="Admin"
+                            alt="{{ __('Admin') }}"
                         />
                     </div>
                     <div class="col-3">
@@ -892,7 +871,7 @@
                             src="{{asset('landing/images/dash-5.png')}}"
                             class="img-fluid header-img wow animate__fadeInRight"
                             data-wow-delay="0.8s"
-                            alt="Admin"
+                            alt="{{ __('Admin') }}"
                         />
                     </div>
                     <div class="col-3 mt-5">
@@ -900,7 +879,7 @@
                             src="{{asset('landing/images/dash-6.png')}}"
                             class="img-fluid header-img wow animate__fadeInRight"
                             data-wow-delay="0.3s"
-                            alt="Admin"
+                            alt="{{ __('Admin') }}"
                         />
                     </div>
                     <div class="col-3 mt-5">
@@ -908,7 +887,7 @@
                             src="{{asset('landing/images/dash-7.png')}}"
                             class="img-fluid header-img wow animate__fadeInRight"
                             data-wow-delay="0.5s"
-                            alt="Admin"
+                            alt="{{ __('Admin') }}"
                         />
                     </div>
                     <div class="col-3 mt-5">
@@ -916,7 +895,7 @@
                             src="{{asset('landing/images/dash-8.png')}}"
                             class="img-fluid header-img wow animate__fadeInRight"
                             data-wow-delay="0.7s"
-                            alt="Admin"
+                            alt="{{ __('Admin') }}"
                         />
                     </div>
                     <div class="col-3 mt-5">
@@ -924,7 +903,7 @@
                             src="{{asset('landing/images/dash-9.png')}}"
                             class="img-fluid header-img wow animate__fadeInRight"
                             data-wow-delay="0.9s"
-                            alt="Admin"
+                            alt="{{ __('Admin') }}"
                         />
                     </div>
                 </div>
@@ -950,7 +929,7 @@
             </div>
             <div class="col-lg-6 col-sm-12 text-end">
 
-                <p class="text-body">Copyright © 2023 | Design By ERP SaaS</p>
+                <p class="text-body">{{ __('Copyright © 2023 | Design By ERP SaaS') }}</p>
             </div>
         </div>
     </div>

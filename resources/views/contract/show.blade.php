@@ -124,7 +124,7 @@
             del.addEventListener("click", function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                if (confirm("Are you sure ?")) {
+                if (confirm(@json(__('Are you sure ?')))) {
                     var btn = $(this);
                     $.ajax({
                         url: btn.attr('href'),
@@ -485,7 +485,7 @@
                                                 <div class="action-btn ">
                                                     <a href="{{ $attachments . '/' . $file->files }}"
                                                         class=" btn btn-sm d-inline-flex align-items-center bg-warning"
-                                                        download="" data-bs-toggle="tooltip" title="Download">
+                                                        download="" data-bs-toggle="tooltip" title="{{ __('Download') }}">
                                                         <span class="text-white"> <i class="ti ti-download"></i></span>
                                                     </a>
                                                 </div>

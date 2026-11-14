@@ -32,11 +32,11 @@
                                 {!! Form::label('gender', __('Gender'),['class'=>'form-label']) !!}<span class="text-danger pl-1">*</span>
                                 <div class="d-flex radio-check mt-2">
                                     <div class="form-check form-check-inline form-group">
-                                        <input type="radio" id="g_male" value="Male" name="gender" class="form-check-input" {{(!empty($jobOnBoard->applications) && $jobOnBoard->applications->gender=='Male')?'checked':''}}>
+                                        <input type="radio" id="g_male" value="{{ __('Male') }}" name="gender" class="form-check-input" {{(!empty($jobOnBoard->applications) && $jobOnBoard->applications->gender=='Male')?'checked':''}}>
                                         <label class="form-check-label" for="g_male">{{__('Male')}}</label>
                                     </div>
                                     <div class="form-check form-check-inline form-group">
-                                        <input type="radio" id="g_female" value="Female" name="gender" class="form-check-input" {{(!empty($jobOnBoard->applications) && $jobOnBoard->applications->gender=='Female')?'checked':''}}>
+                                        <input type="radio" id="g_female" value="{{ __('Female') }}" name="gender" class="form-check-input" {{(!empty($jobOnBoard->applications) && $jobOnBoard->applications->gender=='Female')?'checked':''}}>
                                         <label class="form-check-label" for="g_female">{{__('Female')}}</label>
                                     </div>
                                 </div>

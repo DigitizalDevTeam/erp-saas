@@ -90,7 +90,7 @@ class BackfillCompanyLocaleDefaults extends Command
             }
 
             if ($shouldUpdateLang) {
-                $this->line("  - users.lang: " . ($company->lang ?: '(empty)') . " => pt");
+                $this->line(__('  - users.lang: ') . ($company->lang ?: '(empty)') . " => pt");
                 if (!$dryRun) {
                     User::where('id', $companyId)->update(['lang' => 'pt']);
                 }

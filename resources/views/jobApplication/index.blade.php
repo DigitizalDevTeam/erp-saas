@@ -307,7 +307,7 @@
                                     </div>
                                 @endforeach
                             </div>
-                            <span class="empty-container" data-placeholder="Empty"></span>
+                            <span class="empty-container" data-placeholder="{{ __('Empty') }}"></span>
                         </div>
                     </div>
                 @endforeach

@@ -19,30 +19,30 @@
     <div class="row">
         @if(in_array('en',$act_lan))
             <div class="form-group col-md-6">
-                {{ Form::label('name', __('Name'), ['class' => 'form-label']) }} <strong>(english)</strong><x-required></x-required>
+                {{ Form::label('name', __('Name'), ['class' => 'form-label']) }} <strong>{{ __('(english)') }}</strong><x-required></x-required>
                 {{ Form::text('name', '', ['class' => 'form-control', 'required' => 'required' , 'placeholder'=>__('Enter Name')]) }}
             </div>
         @endif
         @if(in_array('fr',$act_lan))
         <div class="form-group col-md-6">
-            {{ Form::label('name', __('Name'), ['class' => 'form-label']) }} <strong>(french)</strong><x-required></x-required>
+            {{ Form::label('name', __('Name'), ['class' => 'form-label']) }} <strong>{{ __('(french)') }}</strong><x-required></x-required>
             {{ Form::text('name_fr', '', ['class' => 'form-control', 'required' => 'required', 'placeholder'=>__('Enter Name')]) }}
         </div>
         @endif
         @if(in_array('zh',$act_lan))
         <div class="form-group col-md-6">
-            {{ Form::label('name', __('Name'), ['class' => 'form-label']) }} <strong>(chinese)</strong><x-required></x-required>
+            {{ Form::label('name', __('Name'), ['class' => 'form-label']) }} <strong>{{ __('(chinese)') }}</strong><x-required></x-required>
             {{ Form::text('name_zh', '', ['class' => 'form-control', 'required' => 'required', 'placeholder'=>__('Enter Name')]) }}
         </div>
         @endif
         @if(in_array('es',$act_lan))
         <div class="form-group col-md-6">
-            {{ Form::label('name', __('Name'), ['class' => 'form-label']) }} <strong>(spanish)</strong><x-required></x-required>
+            {{ Form::label('name', __('Name'), ['class' => 'form-label']) }} <strong>{{ __('(spanish)') }}</strong><x-required></x-required>
             {{ Form::text('name_es', '', ['class' => 'form-control', 'required' => 'required',  'placeholder'=>__('Enter Name')]) }}
         </div>
         @endif
         <div class="form-group col-md-6">
-            {{ Form::label('name', __('Name'), ['class' => 'form-label']) }} <strong>(portuguese)</strong><x-required></x-required>
+            {{ Form::label('name', __('Name'), ['class' => 'form-label']) }} <strong>{{ __('(portuguese)') }}</strong><x-required></x-required>
             {{ Form::text('name_pt_br', '', ['class' => 'form-control', 'required' => 'required' , 'placeholder'=>__('Enter Name')]) }}
         </div>
         <div class="form-group col-md-6">

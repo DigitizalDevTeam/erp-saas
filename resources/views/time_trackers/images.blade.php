@@ -1,7 +1,7 @@
 
 <div class="modal-header pb-2 pt-2">
     <h5 class="modal-title" id="exampleModalLongTitle">{{ $tracker->project_task}} <small>( {{$tracker->total}}, {{date('d M',strtotime($tracker->start_time))}} )</small></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}">
 
     </button>
   </div>
@@ -44,7 +44,7 @@
             </div>
             @else
             <div class="no-image">
-                <h5 class="text-muted">Images Not Available .</h5>
+                <h5 class="text-muted">{{ __('Images Not Available .') }}</h5>
             </div>
             @endif
         </div>

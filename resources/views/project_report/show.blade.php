@@ -185,7 +185,7 @@
                     <div class="card">
                         <div class="card-header">
                             <div class="float-end">
-                                <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" title="Refferals"><i class=""></i></a>
+                                <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ __('Refferals') }}"><i class=""></i></a>
                             </div>
                             <h5>{{ __('Task Priority') }}</h5>
                         </div>
@@ -203,7 +203,7 @@
                     <div class="card">
                         <div class="card-header">
                             <div class="float-end">
-                                <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" title="Refferals"><i class=""></i></a>
+                                <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ __('Refferals') }}"><i class=""></i></a>
                             </div>
                             <h5>{{ __('Task Status') }}</h5>
                         </div>
@@ -221,7 +221,7 @@
                     <div class="card">
                         <div class="card-header">
                             <div class="float-end">
-                                  <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" title="Refferals"><i class=""></i></a>
+                                  <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ __('Refferals') }}"><i class=""></i></a>
                               </div>
                             <h5>{{ __('Hours Estimation') }}</h5>
                         </div>

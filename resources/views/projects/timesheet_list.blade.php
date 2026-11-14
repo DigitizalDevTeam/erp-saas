@@ -150,12 +150,12 @@
             }
 
             if (type == 'create') {
-                var title = 'Create Timesheet';
+                var title="{{ __('Create Timesheet') }}";
                 data.p_id = '-1';
                 data.project_id = data.p_id != '-1' ? data.p_id : p_id;
 
             } else if (type == 'edit') {
-                var title = 'Edit Timesheet';
+                var title="{{ __('Edit Timesheet') }}";
             }
 
             $("#commonModal .modal-title").html(title + ` <small>(` + moment(date).format("ddd, Do MMM YYYY") + `)</small>`);

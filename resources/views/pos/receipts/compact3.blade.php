@@ -171,13 +171,13 @@
 </style>
     <div class="receipt-copy-wrapper receipt-copy">
         @if($segundaVia)
-            <div class="segunda-via-watermark" aria-hidden="true">SEGUNDA VIA</div>
+            <div class="segunda-via-watermark" aria-hidden="true">{{ __('SEGUNDA VIA') }}</div>
         @endif
 
         <div class="mz-l3">
             {{-- Header: match UTHARA HTML — each line centered --}}
             <div class="mz-l3-header mz-center" style="text-align:center !important;width:100%;">
-                <img class="mz-receipt-logo logo" src="{{ $headerLogo }}" alt="Logo"
+                <img class="mz-receipt-logo logo" src="{{ $headerLogo }}" alt="{{ __('Logo') }}"
                      style="max-width:96px;max-height:48px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 6px;"
                      onerror="this.style.display='none'; var fb=this.nextElementSibling; if(fb) fb.style.display='block';">
                 <div class="logo-fallback mz-center" style="display:none;text-align:center !important;">{{ $companyName }}</div>

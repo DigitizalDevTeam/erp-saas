@@ -57,7 +57,7 @@ class PermissionController extends Controller
         }
 
         return redirect()->route('permissions.index')->with(
-            'success', 'Permission ' . $permission->name . ' added!'
+            'success', __('Permission ') . $permission->name . ' added!'
         );
 
 
@@ -88,7 +88,7 @@ class PermissionController extends Controller
         $permission->fill($input)->save();
 
         return redirect()->route('permissions.index')->with(
-            'success', 'Permission ' . $permission->name . ' updated!'
+            'success', __('Permission ') . $permission->name . ' updated!'
         );
 
 
@@ -99,7 +99,7 @@ class PermissionController extends Controller
         $permission = Permission::findOrFail($id);
         $permission->delete();
 
-        return redirect()->route('permissions.index')->with( 'success', 'Permission successfully deleted.' );
+        return redirect()->route('permissions.index')->with( 'success', __('Permission successfully deleted.') );
 
     }
 }

@@ -2213,7 +2213,7 @@
                                                                                     id="flutterwave_public_key"
                                                                                     class="form-control"
                                                                                     value="{{ isset($company_payment_setting['flutterwave_public_key']) ? $company_payment_setting['flutterwave_public_key'] : '' }}"
-                                                                                    placeholder="Public Key">
+                                                                                    placeholder="{{ __('Public Key') }}">
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2227,7 +2227,7 @@
                                                                                     id="flutterwave_secret_key"
                                                                                     class="form-control"
                                                                                     value="{{ isset($company_payment_setting['flutterwave_secret_key']) ? $company_payment_setting['flutterwave_secret_key'] : '' }}"
-                                                                                    placeholder="Secret Key">
+                                                                                    placeholder="{{ __('Secret Key') }}">
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2274,7 +2274,7 @@
                                                                                     id="razorpay_public_key"
                                                                                     class="form-control"
                                                                                     value="{{ !isset($company_payment_setting['razorpay_public_key']) || is_null($company_payment_setting['razorpay_public_key']) ? '' : $company_payment_setting['razorpay_public_key'] }}"
-                                                                                    placeholder="Public Key">
+                                                                                    placeholder="{{ __('Public Key') }}">
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2289,7 +2289,7 @@
                                                                                     id="razorpay_secret_key"
                                                                                     class="form-control"
                                                                                     value="{{ !isset($company_payment_setting['razorpay_secret_key']) || is_null($company_payment_setting['razorpay_secret_key']) ? '' : $company_payment_setting['razorpay_secret_key'] }}"
-                                                                                    placeholder="Secret Key">
+                                                                                    placeholder="{{ __('Secret Key') }}">
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2558,7 +2558,7 @@
                                                                                     id="mollie_api_key"
                                                                                     class="form-control"
                                                                                     value="{{ !isset($company_payment_setting['mollie_api_key']) || is_null($company_payment_setting['mollie_api_key']) ? '' : $company_payment_setting['mollie_api_key'] }}"
-                                                                                    placeholder="Mollie Api Key">
+                                                                                    placeholder="{{ __('Mollie Api Key') }}">
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2572,7 +2572,7 @@
                                                                                     id="mollie_profile_id"
                                                                                     class="form-control"
                                                                                     value="{{ !isset($company_payment_setting['mollie_profile_id']) || is_null($company_payment_setting['mollie_profile_id']) ? '' : $company_payment_setting['mollie_profile_id'] }}"
-                                                                                    placeholder="Mollie Profile Id">
+                                                                                    placeholder="{{ __('Mollie Profile Id') }}">
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2586,7 +2586,7 @@
                                                                                     id="mollie_partner_id"
                                                                                     class="form-control"
                                                                                     value="{{ !isset($company_payment_setting['mollie_partner_id']) || is_null($company_payment_setting['mollie_partner_id']) ? '' : $company_payment_setting['mollie_partner_id'] }}"
-                                                                                    placeholder="Mollie Partner Id">
+                                                                                    placeholder="{{ __('Mollie Partner Id') }}">
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2723,7 +2723,7 @@
                                                                                     id="coingate_auth_token"
                                                                                     class="form-control"
                                                                                     value="{{ !isset($company_payment_setting['coingate_auth_token']) || is_null($company_payment_setting['coingate_auth_token']) ? '' : $company_payment_setting['coingate_auth_token'] }}"
-                                                                                    placeholder="CoinGate Auth Token">
+                                                                                    placeholder="{{ __('CoinGate Auth Token') }}">
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2936,7 +2936,7 @@
                                                                                     id="payfast_merchant_id"
                                                                                     class="form-control"
                                                                                     value="{{ !isset($company_payment_setting['payfast_merchant_id']) || is_null($company_payment_setting['payfast_merchant_id']) ? '' : $company_payment_setting['payfast_merchant_id'] }}"
-                                                                                    placeholder="Merchant ID">
+                                                                                    placeholder="{{ __('Merchant ID') }}">
                                                                             </div>
                                                                         </div>
                                                                         <div class="col-md-4">
@@ -2948,7 +2948,7 @@
                                                                                     id="payfast_merchant_key"
                                                                                     class="form-control"
                                                                                     value="{{ !isset($company_payment_setting['payfast_merchant_key']) || is_null($company_payment_setting['payfast_merchant_key']) ? '' : $company_payment_setting['payfast_merchant_key'] }}"
-                                                                                    placeholder="Merchant Key">
+                                                                                    placeholder="{{ __('Merchant Key') }}">
                                                                             </div>
                                                                         </div>
                                                                         <div class="col-md-4">
@@ -2960,7 +2960,7 @@
                                                                                     id="payfast_signature"
                                                                                     class="form-control"
                                                                                     value="{{ !isset($company_payment_setting['payfast_signature']) || is_null($company_payment_setting['payfast_signature']) ? '' : $company_payment_setting['payfast_signature'] }}"
-                                                                                    placeholder="Salt Passphrase">
+                                                                                    placeholder="{{ __('Salt Passphrase') }}">
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2980,7 +2980,7 @@
                                                                     {{ __('Iyzipay') }}
                                                                 </span>
                                                                 <div class="d-flex align-items-center">
-                                                                    <span class="me-2">Enable:</span>
+                                                                    <span class="me-2">{{ __('Enable:') }}</span>
                                                                     <div class="form-check form-switch custom-switch-v1">
                                                                         <input type="hidden" name="is_iyzipay_enabled"
                                                                             value="off">
@@ -4367,7 +4367,7 @@
                                                                             <label for="easebuzz_enviroment_name"
                                                                                 class="col-form-label">{{ __('Easebuzz Enviroment Name') }}</label>
                                                                             <input class="form-control"
-                                                                                placeholder="Enter Easebuzz Salt Key"
+                                                                                placeholder="{{ __('Enter Easebuzz Salt Key') }}"
                                                                                 name="easebuzz_enviroment_name"
                                                                                 type="text"
                                                                                 value="{{ $company_payment_setting['easebuzz_enviroment_name'] ?? '' }}">

@@ -138,7 +138,7 @@ class CashfreeController extends Controller
                     curl_close($curl);
                     return redirect()->to(json_decode($resp)->payment_link);
                 } catch (\Throwable $th) {
-                    return redirect()->back()->with('error', 'Currency Not Supported.Contact To Your Site Admin');
+                    return redirect()->back()->with('error', __('Currency Not Supported.Contact To Your Site Admin'));
                 }
 
 
@@ -242,9 +242,9 @@ class CashfreeController extends Controller
                     return redirect()->route('plans.index')->with('error', __('Your Transaction is fail please try again'));
                 }
             } else {
-                return redirect()->route('plans.index')->with('error', 'Payment Failed.');
+                return redirect()->route('plans.index')->with('error', __('Payment Failed.'));
             }
-            return redirect()->route('plans.index')->with('success', 'Plan activated Successfully.');
+            return redirect()->route('plans.index')->with('success', __('Plan activated Successfully.'));
         } catch (\Exception $e) {
             return redirect()->route('plans.index')->with('error', __($e->getMessage()));
         }
@@ -319,7 +319,7 @@ class CashfreeController extends Controller
                     return redirect()->to(json_decode($resp)->payment_link);
                 } catch (\Throwable $th) {
 
-                    return redirect()->back()->with('error', 'Currency Not Supported.Contact To Your Site Admin');
+                    return redirect()->back()->with('error', __('Currency Not Supported.Contact To Your Site Admin'));
                 }
             }
         } catch (\Throwable $e) {
@@ -461,7 +461,7 @@ class CashfreeController extends Controller
 
             }
         } else {
-            return redirect()->route('invoice.link.copy', \Crypt::encrypt($invoice->id))->with('error', 'Payment Failed.');
+            return redirect()->route('invoice.link.copy', \Crypt::encrypt($invoice->id))->with('error', __('Payment Failed.'));
         }
     }
 

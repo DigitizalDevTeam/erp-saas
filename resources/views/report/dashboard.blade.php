@@ -25,7 +25,7 @@
                         <div class="page-title">
                             <div class="row justify-content-between align-items-center full-calender">
                                 <div class="col d-flex align-items-center">
-                                    <div class="btn-group" role="group" aria-label="Basic example">
+                                    <div class="btn-group" role="group" aria-label="{{ __('Basic example') }}">
                                         <a href="#" class="fullcalendar-btn-prev btn btn-sm btn-neutral">
                                             <i class="ti ti-angle-left"></i>
                                         </a>
@@ -36,7 +36,7 @@
                                     <h5 class="fullcalendar-title h4 d-inline-block font-weight-400 mb-0"></h5>
                                 </div>
                                 <div class="col-lg-6 mt-3 mt-lg-0 text-lg-right">
-                                    <div class="btn-group" role="group" aria-label="Basic example">
+                                    <div class="btn-group" role="group" aria-label="{{ __('Basic example') }}">
                                         <a href="#" class="btn btn-sm btn-neutral" data-calendar-view="month">{{__('Month')}}</a>
                                         <a href="#" class="btn btn-sm btn-neutral" data-calendar-view="basicWeek">{{__('Week')}}</a>
                                         <a href="#" class="btn btn-sm btn-neutral" data-calendar-view="basicDay">{{__('Day')}}</a>
@@ -155,7 +155,7 @@
                         </div>
                         @else
                           <div class="p-2">
-                            No meeting scheduled yet.
+                            {{ __('No meeting scheduled yet.') }}
                           </div>
                         @endif
                     </div>
@@ -263,7 +263,7 @@
                         </table>
                         @else
                           <div class="p-2">
-                            No accouncement present yet.
+                            {{ __('No accouncement present yet.') }}
                           </div>
                         @endif
                     </div>
@@ -277,7 +277,7 @@
                     <div class="card-header ">
                         <div class="row">
                             <div class="col-xl-2 col-lg-3 col-md-2 col-sm-2">
-                                <div class="btn-group" role="group" aria-label="Basic example">
+                                <div class="btn-group" role="group" aria-label="{{ __('Basic example') }}">
                                     <a href="#" class="fullcalendar-btn-prev btn btn-sm btn-neutral">
                                         <i class="ti ti-angle-left"></i>
                                     </a>
@@ -291,7 +291,7 @@
                                 <h5 class="fullcalendar-title h4 d-inline-block font-weight-600 mb-0">{{__('Calendar')}}</h5>
                             </div>
                             <div class="col-xl-5 col-lg-5 col-md-5 col-sm-4 text-lg-right">
-                                <div class="btn-group" role="group" aria-label="Basic example">
+                                <div class="btn-group" role="group" aria-label="{{ __('Basic example') }}">
                                     <a href="#" class="btn btn-sm btn-neutral" data-calendar-view="month">{{__('Month')}}</a>
                                     <a href="#" class="btn btn-sm btn-neutral" data-calendar-view="basicWeek">{{__('Week')}}</a>
                                     <a href="#" class="btn btn-sm btn-neutral" data-calendar-view="basicDay">{{__('Day')}}</a>
@@ -330,7 +330,7 @@
                         </table>
                         @else
                           <div class="p-2">
-                            No meeting scheduled yet.
+                            {{ __('No meeting scheduled yet.') }}
                           </div>
                         @endif
                     </div>

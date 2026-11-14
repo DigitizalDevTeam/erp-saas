@@ -84,7 +84,7 @@
 
                         <div class="form-group col-md-12">
                             {!! Form::label('skill', __('Skill'),['class'=>'form-label']) !!}<x-required></x-required>
-                            <input type="text" class="form-control" value="{{$job->skill}}" data-toggle="tags" name="skill" placeholder="Skill" required/>
+                            <input type="text" class="form-control" value="{{$job->skill}}" data-toggle="tags" name="skill" placeholder="{{ __('Skill') }}" required/>
                         </div>
                     </div>
                 </div>

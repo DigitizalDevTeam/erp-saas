@@ -87,7 +87,7 @@
                                         <a href="#!" class="btn btn-sm btn-primary text-break w-100 cp_link d-flex flex-wrap align-items-center justify-content-center gap-2"
                                             data-link="{{ route('register', ['ref_id' => \Auth::user()->referral_code]) }}"
                                             data-bs-toggle="tooltip" data-bs-placement="top" title=""
-                                            data-bs-original-title="Click to copy business link">
+                                            data-bs-original-title="{{ __('Click to copy business link') }}">
                                             {{ route('register', ['ref' => \Auth::user()->referral_code]) }}
                                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"

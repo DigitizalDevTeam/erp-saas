@@ -58,7 +58,7 @@ class EmailTemplateController extends Controller
      */
     public function store(Request $request)
     {
-//        return redirect()->back()->with('error', 'Permission denied.');
+//        return redirect()->back()->with('error', __('Permission denied.'));
 
         $usr = \Auth::user();
 
@@ -99,7 +99,7 @@ class EmailTemplateController extends Controller
      */
     public function show()
     {
-        return redirect()->back()->with('error', 'Permission denied.');
+        return redirect()->back()->with('error', __('Permission denied.'));
     }
 
     /**
@@ -111,7 +111,7 @@ class EmailTemplateController extends Controller
      */
     public function edit(EmailTemplate $emailTemplate)
     {
-        return redirect()->back()->with('error', 'Permission denied.');
+        return redirect()->back()->with('error', __('Permission denied.'));
     }
 
     /**
@@ -180,7 +180,7 @@ class EmailTemplateController extends Controller
      */
     public function destroy(EmailTemplate $emailTemplate)
     {
-        return redirect()->back()->with('error', 'Permission denied.');
+        return redirect()->back()->with('error', __('Permission denied.'));
     }
 
     // Used For View Email Template Language Wise
@@ -199,7 +199,7 @@ class EmailTemplateController extends Controller
                 $currEmailTempLang = EmailTemplateLang::where('parent_id', '=', $id)->where('lang', $lang)->first();
                 if(empty($currEmailTempLang))
                 {
-                    return redirect()->back()->with('error', 'Data not found.');
+                    return redirect()->back()->with('error', __('Data not found.'));
                 }
 
                 if(!isset($currEmailTempLang) || empty($currEmailTempLang))
@@ -225,7 +225,7 @@ class EmailTemplateController extends Controller
             }
             else
             {
-                return redirect()->back()->with('error', 'Permission denied.');
+                return redirect()->back()->with('error', __('Permission denied.'));
             }
 
 
@@ -277,7 +277,7 @@ class EmailTemplateController extends Controller
                                        ]
             )->with('success', __('Email Template Detail successfully updated.'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 

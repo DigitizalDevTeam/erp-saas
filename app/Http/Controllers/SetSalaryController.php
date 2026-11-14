@@ -219,7 +219,7 @@ class SetSalaryController extends Controller
         $input    = $request->all();
         $employee->fill($input)->save();
 
-        return redirect()->back()->with('success', 'Employee Salary Updated.');
+        return redirect()->back()->with('success', __('Employee Salary Updated.'));
     }
 
     public function employeeSalary()

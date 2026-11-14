@@ -136,7 +136,7 @@ class PaiementProController extends Controller
 
                 return redirect()
                     ->route('plans.index', \Illuminate\Support\Facades\Crypt::encrypt($plan->id))
-                    ->with('error', 'Something went wrong. OR Unknown error occurred');
+                    ->with('error', __('Something went wrong. OR Unknown error occurred'));
             } else {
                 return redirect()
                     ->route('plans.index', \Illuminate\Support\Facades\Crypt::encrypt($plan->id))
@@ -260,7 +260,7 @@ class PaiementProController extends Controller
                 }
 
             } else {
-                return redirect()->back()->with('error', 'Invoice not found.');
+                return redirect()->back()->with('error', __('Invoice not found.'));
             }
         } catch (\Throwable $e) {
 

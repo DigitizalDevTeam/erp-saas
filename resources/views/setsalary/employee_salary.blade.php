@@ -151,7 +151,7 @@
                                         </table>
                                     @else
                                         <div class="mt-2 text-center">
-                                            No Allowance Found!
+                                            {{ __('No Allowance Found!') }}
                                         </div>
                                     @endif
                                 </div>
@@ -244,7 +244,7 @@
                                         </table>
                                     @else
                                         <div class="mt-2 text-center">
-                                            No Commission Found!
+                                            {{ __('No Commission Found!') }}
                                         </div>
                                     @endif
                                 </div>
@@ -337,7 +337,7 @@
                                         </table>
                                     @else
                                         <div class="mt-2 text-center">
-                                            No Loan Data Found!
+                                            {{ __('No Loan Data Found!') }}
                                         </div>
                                     @endif
                                 </div>
@@ -434,7 +434,7 @@
                                         </table>
                                     @else
                                         <div class="mt-2 text-center">
-                                            No Saturation Deduction Found!
+                                            {{ __('No Saturation Deduction Found!') }}
                                         </div>
                                     @endif
                                 </div>
@@ -526,7 +526,7 @@
                                         </table>
                                     @else
                                         <div class="mt-2 text-center">
-                                            No Other Payment Data Found!
+                                            {{ __('No Other Payment Data Found!') }}
                                         </div>
                                     @endif
                                 </div>
@@ -614,7 +614,7 @@
                                         </table>
                                     @else
                                         <div class="mt-2 text-center">
-                                            No Overtime Data Found!
+                                            {{ __('No Overtime Data Found!') }}
                                         </div>
                                     @endif
                                 </div>

@@ -59,7 +59,7 @@
                                         <dt class="col-sm-12"><span class="h6 text-sm mb-0">{{__('Assigned Client')}}</span></dt>
                                         <dd class="col-sm-12"><span class="text-sm">{{ !empty($zoomMeeting->client_name)?$zoomMeeting->client_name:''}}</span></dd>
 
-                                        <dt class="col-sm-12"><span class="h6 text-sm mb-0">Created</span></dt>
+                                        <dt class="col-sm-12"><span class="h6 text-sm mb-0">{{ __('Created') }}</span></dt>
                                         <dd class="col-sm-12"><span class="text-sm">{{\Auth::user()->dateFormat($zoomMeeting->created_at)}}</span></dd>
                                     </div>
                                 </li>

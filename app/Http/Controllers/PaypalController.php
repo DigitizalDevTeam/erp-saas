@@ -134,7 +134,7 @@ class PaypalController extends Controller
                     }
                     return redirect()
                         ->route('invoice.show', \Crypt::encrypt($invoice->id))
-                        ->with('error', 'Something went wrong.');
+                        ->with('error', __('Something went wrong.'));
                 } else {
                     return redirect()
                         ->route('invoice.show', \Crypt::encrypt($invoice->id))
@@ -329,7 +329,7 @@ class PaypalController extends Controller
                     }
                     return redirect()
                         ->route('plans.index')
-                        ->with('error', 'Something went wrong.');
+                        ->with('error', __('Something went wrong.'));
                 } else {
                     return redirect()
                         ->route('plans.index')
@@ -416,7 +416,7 @@ class PaypalController extends Controller
                 }
                 return redirect()
                     ->route('plans.index')
-                    ->with('success', 'Transaction complete.');
+                    ->with('success', __('Transaction complete.'));
             } else {
                 return redirect()
                     ->route('plans.index')

@@ -169,7 +169,7 @@
                                                         <div class="action-btn me-2">
                                                            {!! Form::open(['method' => 'get', 'route' => ['invoice.duplicate', $invoice->id], 'id' => 'duplicate-form-' . $invoice->id]) !!}
                                                             <a href="#" class="mx-3 btn btn-sm align-items-center bs-pass-para bg-primary" data-toggle="tooltip"
-                                                               data-original-title="{{ __('Duplicate') }}" data-bs-toggle="tooltip" title="Duplicate Invoice"
+                                                               data-original-title="{{ __('Duplicate') }}" data-bs-toggle="tooltip" title="{{ __('Duplicate Invoice') }}"
                                                                data-confirm="You want to confirm this action. Press Yes to continue or Cancel to go back"
                                                                data-confirm-yes="document.getElementById('duplicate-form-{{ $invoice->id }}').submit();">
                                                                 <i class="ti ti-copy text-white"></i>
@@ -180,7 +180,7 @@
                                                     @can('show invoice')
                                                             <div class="action-btn me-2">
                                                                     <a href="{{ route('invoice.show', \Crypt::encrypt($invoice->id)) }}"
-                                                                       class="mx-3 btn btn-sm align-items-center bg-warning" data-bs-toggle="tooltip" title="Show "
+                                                                       class="mx-3 btn btn-sm align-items-center bg-warning" data-bs-toggle="tooltip" title="{{ __('Show') }}"
                                                                        data-original-title="{{ __('Detail') }}">
                                                                         <i class="ti ti-eye text-white"></i>
                                                                     </a>
@@ -190,7 +190,7 @@
                                                         @if((int) $invoice->status !== 5)
                                                             <div class="action-btn me-2">
                                                                     <a href="{{ route('invoice.edit', \Crypt::encrypt($invoice->id)) }}"
-                                                                       class="mx-3 btn btn-sm align-items-center  bg-info" data-bs-toggle="tooltip" title="Edit "
+                                                                       class="mx-3 btn btn-sm align-items-center  bg-info" data-bs-toggle="tooltip" title="{{ __('Edit') }}"
                                                                        data-original-title="{{ __('Edit') }}">
                                                                         <i class="ti ti-pencil text-white"></i>
                                                                     </a>

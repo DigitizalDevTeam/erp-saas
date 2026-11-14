@@ -169,7 +169,7 @@
                         <div class="stat-number">{{$pos_data['monthlyPosAmount']}}</div>
                     </div>
                     <div class="card-title">
-                        <a href="{{ route('pos.report') }}">POS Of This Month</a>
+                        <a href="{{ route('pos.report') }}">{{ __('POS Of This Month') }}</a>
                     </div>
                 </div>
             </div>
@@ -184,7 +184,7 @@
                         <div class="stat-number">{{$pos_data['totalPosAmount']}}</div>
                     </div>
                     <div class="card-title">
-                        <a href="{{ route('pos.report') }}">POS Amount</a>
+                        <a href="{{ route('pos.report') }}">{{ __('POS Amount') }}</a>
                     </div>
                 </div>
             </div>
@@ -199,7 +199,7 @@
                         <div class="stat-number">{{$pos_data['monthlyPurchaseAmount']}}</div>
                     </div>
                     <div class="card-title">
-                        <a href="{{ route('purchase.index') }}">Purchase Of This Month</a>
+                        <a href="{{ route('purchase.index') }}">{{ __('Purchase Of This Month') }}</a>
                     </div>
                 </div>
             </div>
@@ -214,7 +214,7 @@
                         <div class="stat-number">{{$pos_data['totalPurchaseAmount']}}</div>
                     </div>
                     <div class="card-title">
-                        <a href="{{ route('purchase.index') }}">Purchase Amount</a>
+                        <a href="{{ route('purchase.index') }}">{{ __('Purchase Amount') }}</a>
                     </div>
                 </div>
             </div>

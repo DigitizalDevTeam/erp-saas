@@ -35,7 +35,7 @@
             <div class="form-group">
                 {{ Form::label('department_id', __('Department'), ['class' => 'form-label']) }}<x-required></x-required>
                 <div class="department_div">
-                    <select class="form-control department_id" name="department_id[]" placeholder="Select Designation" required>
+                    <select class="form-control department_id" name="department_id[]" placeholder="{{ __('Select Designation') }}" required>
                         <option value="">{{ __('Select Designation') }}</option>
                     </select>
                     <div class="text-xs mt-1">
@@ -48,7 +48,7 @@
             <div class="form-group">
                 {{ Form::label('employee_id', __('Employee'), ['class' => 'form-label']) }}<x-required></x-required>
                 <div class="employee_div">
-                    <select class="form-control employee_id" name="employee_id[]" placeholder="Select Employee" required>
+                    <select class="form-control employee_id" name="employee_id[]" placeholder="{{ __('Select Employee') }}" required>
                         <option value="">{{ __('Select Employee') }}</option>
                     </select>
                     <div class="text-xs mt-1">
@@ -104,7 +104,7 @@
         @endif
 </div>
 <div class="modal-footer">
-    <input type="button" value="Cancel" class="btn btn-secondary" data-bs-dismiss="modal">
+    <input type="button" value="{{ __('Cancel') }}" class="btn btn-secondary" data-bs-dismiss="modal">
     <input type="submit" value="{{ __('Create') }}" class="btn  btn-primary">
 </div>
 {{ Form::close() }}

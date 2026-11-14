@@ -73,15 +73,15 @@
         <div class="col-md-12">
             <fieldset id='demo1' class="rating">
                 <input class="stars" type="radio" id="rating-5" name="rating" value="5" >
-                <label class="full" for="rating-5" title="Awesome - 5 stars"></label>
+                <label class="full" for="rating-5" title="{{ __('Awesome - 5 stars') }}"></label>
                 <input class="stars" type="radio" id="rating-4" name="rating" value="4" >
-                <label class="full" for="rating-4" title="Pretty good - 4 stars"></label>
+                <label class="full" for="rating-4" title="{{ __('Pretty good - 4 stars') }}"></label>
                 <input class="stars" type="radio" id="rating-3" name="rating" value="3" >
-                <label class="full" for="rating-3" title="Meh - 3 stars"></label>
+                <label class="full" for="rating-3" title="{{ __('Meh - 3 stars') }}"></label>
                 <input class="stars" type="radio" id="rating-2" name="rating" value="2" >
-                <label class="full" for="rating-2" title="Kinda bad - 2 stars"></label>
+                <label class="full" for="rating-2" title="{{ __('Kinda bad - 2 stars') }}"></label>
                 <input class="stars" type="radio" id="technical-1" name="rating" value="1" >
-                <label class="full" for="technical-1" title="Sucks big time - 1 star"></label>
+                <label class="full" for="technical-1" title="{{ __('Sucks big time - 1 star') }}"></label>
             </fieldset>
         </div>
 

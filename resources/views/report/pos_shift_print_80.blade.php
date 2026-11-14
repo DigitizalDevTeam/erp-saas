@@ -42,7 +42,7 @@
     <div class="c b big">{{ $companyName }}</div>
     @if(!empty($vatNumber))<div class="c">{{ __('VAT NR') }}: {{ $vatNumber }}</div>@endif
     @if(!empty($companyAddress))<div class="c">{{ $companyAddress }}</div>@endif
-    @if(!empty($companyTelephone))<div class="c">Tel: {{ $companyTelephone }}</div>@endif
+    @if(!empty($companyTelephone))<div class="c">{{ __('Tel:') }} {{ $companyTelephone }}</div>@endif
     <div class="solid"></div>
     <div class="c b big">{{ __('POS SHIFT REPORT') }}</div>
     <div class="c">{{ $startDate->format('d/m/Y') }} → {{ $endDate->format('d/m/Y') }}</div>

@@ -12,7 +12,7 @@
         </div>
         <div class="col-lg-4 col-md-4 col-sm-6">
             <div class="form-group">
-                <x-mobile label="{{__('Contact')}}" name="contact" value="{{$customer->contact}}" required placeholder="Enter Contact"></x-mobile>
+                <x-mobile label="{{__('Contact')}}" name="contact" value="{{$customer->contact}}" required placeholder="{{ __('Enter Contact') }}"></x-mobile>
             </div>
         </div>
         <div class="col-lg-4 col-md-4 col-sm-6">

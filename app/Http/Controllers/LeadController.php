@@ -900,21 +900,21 @@ class LeadController extends Controller
 
                 if(!empty($products) && !empty($request->products))
                 {
-                    return redirect()->back()->with('success', __('Products successfully updated!'))->with('status', 'products');
+                    return redirect()->back()->with('success', __('Products successfully updated!'))->with('status', __('products'));
                 }
                 else
                 {
-                    return redirect()->back()->with('error', __('Please Select Valid Product!'))->with('status', 'general');
+                    return redirect()->back()->with('error', __('Please Select Valid Product!'))->with('status', __('general'));
                 }
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'products');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('products'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'products');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('products'));
         }
     }
 
@@ -936,16 +936,16 @@ class LeadController extends Controller
                 $lead->products = implode(',', $products);
                 $lead->save();
 
-                return redirect()->back()->with('success', __('Products successfully deleted!'))->with('status', 'products');
+                return redirect()->back()->with('success', __('Products successfully deleted!'))->with('status', __('products'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'products');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('products'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'products');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('products'));
         }
     }
 
@@ -1024,16 +1024,16 @@ class LeadController extends Controller
                     'updated_by' => $usr->id,
                 ];
 
-                return redirect()->back()->with('success', __('Sources successfully updated!'))->with('status', 'sources');
+                return redirect()->back()->with('success', __('Sources successfully updated!'))->with('status', __('sources'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'sources');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('sources'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'sources');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('sources'));
         }
     }
 
@@ -1055,16 +1055,16 @@ class LeadController extends Controller
                 $lead->sources = implode(',', $sources);
                 $lead->save();
 
-                return redirect()->back()->with('success', __('Sources successfully deleted!'))->with('status', 'sources');
+                return redirect()->back()->with('success', __('Sources successfully deleted!'))->with('status', __('sources'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'sources');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('sources'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'sources');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('sources'));
         }
     }
 
@@ -1101,11 +1101,11 @@ class LeadController extends Controller
                 'updated_by' => $usr->id,
             ];
 
-            return redirect()->back()->with('success', __('Message successfully added!'))->with('status', 'discussion');
+            return redirect()->back()->with('success', __('Message successfully added!'))->with('status', __('discussion'));
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'discussion');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('discussion'));
         }
     }
 
@@ -1220,7 +1220,7 @@ class LeadController extends Controller
 
             if(empty($client))
             {
-                return redirect()->back()->with('error', 'Client is not available now.');
+                return redirect()->back()->with('error', __('Client is not available now.'));
             }
         }
         else
@@ -1554,16 +1554,16 @@ class LeadController extends Controller
                     'updated_by' => $usr->id,
                 ];
 
-                return redirect()->back()->with('success', __('Call successfully created!'))->with('status', 'calls');
+                return redirect()->back()->with('success', __('Call successfully created!'))->with('status', __('calls'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'calls');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('calls'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'calls');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('calls'));
         }
     }
 
@@ -1636,16 +1636,16 @@ class LeadController extends Controller
                     ]
                 );
 
-                return redirect()->back()->with('success', __('Call successfully updated!'))->with('status', 'calls');
+                return redirect()->back()->with('success', __('Call successfully updated!'))->with('status', __('calls'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'calls');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('calls'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'tasks');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('tasks'));
         }
     }
 
@@ -1659,16 +1659,16 @@ class LeadController extends Controller
                 $task = LeadCall::find($call_id);
                 $task->delete();
 
-                return redirect()->back()->with('success', __('Call successfully deleted!'))->with('status', 'calls');
+                return redirect()->back()->with('success', __('Call successfully deleted!'))->with('status', __('calls'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'calls');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('calls'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'calls');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('calls'));
         }
     }
 
@@ -1769,16 +1769,16 @@ class LeadController extends Controller
                     ]
                 );
 
-                return redirect()->back()->with('success', __('Email successfully created!') . ((isset($smtp_error)) ? '<br> <span class="text-danger">' . $smtp_error . '</span>' : ''))->with('status', 'emails');
+                return redirect()->back()->with('success', __('Email successfully created!') . ((isset($smtp_error)) ? '<br> <span class="text-danger">' . $smtp_error . '</span>' : ''))->with('status', __('emails'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'emails');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('emails'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'emails');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('emails'));
         }
     }
 

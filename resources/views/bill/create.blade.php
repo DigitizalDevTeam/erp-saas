@@ -38,7 +38,7 @@
 
                 },
                 hide: function (deleteElement) {
-                    if (confirm('Are you sure you want to delete this element?')) {
+                    if (confirm(@json(__('Are you sure you want to delete this element?')))) {
                         $(this).slideUp(deleteElement);
                         $(this).remove();
 

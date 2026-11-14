@@ -72,7 +72,7 @@ class DebitNoteController extends Controller
             }
             if($request->amount > $billDue->getDue())
             {
-                return redirect()->back()->with('error', 'Maximum ' . \Auth::user()->priceFormat($billDue->getDue()) . ' credit limit of this bill.');
+                return redirect()->back()->with('error', __('Maximum ') . \Auth::user()->priceFormat($billDue->getDue()) . ' credit limit of this bill.');
             }
             $bill               = Bill::where('id', $bill_id)->first();
             $debit              = new DebitNote();
@@ -138,7 +138,7 @@ class DebitNoteController extends Controller
                 $billDue = Bill::where('id', $debit->bill)->first();
                 if($request->amount > $billDue->getDue())
                 {
-                    return redirect()->back()->with('error', 'Maximum ' . \Auth::user()->priceFormat($billDue->getDue()) . ' credit limit of this bill.');
+                    return redirect()->back()->with('error', __('Maximum ') . \Auth::user()->priceFormat($billDue->getDue()) . ' credit limit of this bill.');
                 }
                 Utility::updateUserBalance('vendor', $billDue->vender_id, $debit->amount, 'debit');
                 Utility::updateUserBalance('vendor', $billDue->vender_id, $request->amount, 'credit');
@@ -260,7 +260,7 @@ class DebitNoteController extends Controller
                 $billDue = Bill::where('id', $bill_id)->first();
                 if($request->amount > $billDue->getDue())
                 {
-                    return redirect()->back()->with('error', 'Maximum ' . \Auth::user()->priceFormat($billDue->getDue()) . ' credit limit of this bill.');
+                    return redirect()->back()->with('error', __('Maximum ') . \Auth::user()->priceFormat($billDue->getDue()) . ' credit limit of this bill.');
                 }
                 $vendor_id = $billDue->vender_id;
             }

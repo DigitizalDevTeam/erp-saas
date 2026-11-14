@@ -192,7 +192,7 @@ class CoingatePaymentController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Plan is deleted.');
+            return redirect()->back()->with('error', __('Plan is deleted.'));
         }
 
     }

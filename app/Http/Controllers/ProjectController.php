@@ -935,7 +935,7 @@ class ProjectController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
 
     }
@@ -1036,7 +1036,7 @@ class ProjectController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
 
 
@@ -1510,11 +1510,11 @@ class ProjectController extends Controller
                     }
                 }
             }
-            return redirect()->back()->with('success', 'Project Created Successfully');
+            return redirect()->back()->with('success', __('Project Created Successfully'));
         }
         else
         {
-            return redirect()->back()->with('error', 'permission Denied');
+            return redirect()->back()->with('error', __('permission Denied'));
         }
 
     }

@@ -154,7 +154,7 @@
                                                         <div class="action-btn me-2">
                                                             <a href="{{ route('quotation.edit', \Crypt::encrypt($quotation->id)) }}"
                                                                 class="mx-3 btn btn-sm align-items-center bg-info"
-                                                                data-bs-toggle="tooltip" title="Edit"
+                                                                data-bs-toggle="tooltip" title="{{ __('Edit') }}"
                                                                 data-original-title="{{ __('Edit') }}">
                                                                 <i class="ti ti-pencil text-white"></i>
                                                             </a>

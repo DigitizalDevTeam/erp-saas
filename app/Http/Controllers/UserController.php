@@ -419,7 +419,7 @@ class UserController extends Controller
                 }
 
                 return redirect()->route('users.index')->with(
-                    'success', 'company successfully updated.'
+                    'success', __('company successfully updated.')
                 );
             } else {
                 $user = User::findOrFail($id);
@@ -492,7 +492,7 @@ class UserController extends Controller
                 }
 
                 return redirect()->route('users.index')->with(
-                    'success', 'User successfully updated.'
+                    'success', __('User successfully updated.')
                 );
             }
         } else {
@@ -626,7 +626,7 @@ class UserController extends Controller
         CustomField::saveData($user, $request->customField);
 
         return redirect()->route('profile', $user)->with(
-            'success', 'Profile successfully updated.'
+            'success', __('Profile successfully updated.')
         );
     }
 
@@ -959,9 +959,9 @@ class UserController extends Controller
                 ]
             );
 
-            return redirect()->back()->with('success', 'Plan successfully upgraded.');
+            return redirect()->back()->with('success', __('Plan successfully upgraded.'));
         } else {
-            return redirect()->back()->with('error', 'Plan fail to upgrade.');
+            return redirect()->back()->with('error', __('Plan fail to upgrade.'));
         }
 
     }
@@ -998,13 +998,13 @@ class UserController extends Controller
         if(\Auth::user()->type == 'super admin')
         {
         return redirect()->route('users.index')->with(
-            'success', 'Company Password successfully updated.'
+            'success', __('Company Password successfully updated.')
         );
     }
     else
     {
         return redirect()->route('users.index')->with(
-            'success', 'User Password successfully updated.'
+            'success', __('User Password successfully updated.')
         );
     }
 
@@ -1048,7 +1048,7 @@ class UserController extends Controller
     public function userLogDestroy($id)
     {
         $users = LoginDetail::where('user_id', $id)->delete();
-        return redirect()->back()->with('success', 'User successfully deleted.');
+        return redirect()->back()->with('success', __('User successfully deleted.'));
     }
 
     public function LoginWithCompany(Request $request, User $user, $id)

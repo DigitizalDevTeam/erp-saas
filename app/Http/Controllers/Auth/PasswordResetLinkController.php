@@ -77,7 +77,7 @@ class PasswordResetLinkController extends Controller
         }
         catch(\Exception $e)
         {
-            return redirect()->back()->with('error','E-Mail has been not sent due to SMTP configuration');
+            return redirect()->back()->with('error',__('E-Mail has been not sent due to SMTP configuration'));
         }
     }
 

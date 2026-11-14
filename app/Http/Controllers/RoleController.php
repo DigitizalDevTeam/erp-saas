@@ -27,7 +27,7 @@ class RoleController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
 
     }
@@ -60,7 +60,7 @@ class RoleController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
 
     }
@@ -97,11 +97,11 @@ class RoleController extends Controller
             $permissionIds = collect($request['permissions'])->map(fn ($id) => (int) $id)->unique()->values()->all();
             $role->syncPermissions($permissionIds);
 
-            return redirect()->route('roles.index')->with('success' , 'Role successfully created.', 'Role ' . $role->name . ' added!');
+            return redirect()->route('roles.index')->with('success' , __('Role successfully created.'), 'Role ' . $role->name . ' added!');
         }
         else
         {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -132,7 +132,7 @@ class RoleController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
 
 
@@ -183,11 +183,11 @@ class RoleController extends Controller
 
             $role->syncPermissions(array_values(array_unique(array_merge($submittedIds, $preservedIds))));
 
-            return redirect()->route('roles.index')->with('success' , 'Role successfully updated.', 'Role ' . $role->name . ' updated!');
+            return redirect()->route('roles.index')->with('success' , __('Role successfully updated.'), 'Role ' . $role->name . ' updated!');
         }
         else
         {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
 
     }
@@ -203,7 +203,7 @@ class RoleController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 }

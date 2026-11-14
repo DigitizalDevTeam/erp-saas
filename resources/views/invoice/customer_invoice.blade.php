@@ -639,7 +639,7 @@
                         <div class="modal-header">
                             <h5 class="modal-title" id="paymentModalLabel">{{ __('Add Payment') }}</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"
-                                aria-label="Close"></button>
+                                aria-label="{{ __('Close') }}"></button>
                         </div>
                         <div class="modal-body">
                             <div class="card bg-none card-box">
@@ -1929,8 +1929,7 @@
                                                                     name="channel" class="form-control channel"
                                                                     data-from="paiementpro"
                                                                     placeholder="{{ __('Enter Channel') }}" required>
-                                                                <small class="text-danger">Example : OMCIV2 , MOMO ,
-                                                                    CARD , FLOOZ , PAYPAL</small>
+                                                                <small class="text-danger">{{ __('Example : OMCIV2 , MOMO , CARD , FLOOZ , PAYPAL') }}</small>
                                                             </div>
                                                         </div>
                                                         <label for="amount">{{ __('Amount') }}</label>
@@ -2214,7 +2213,7 @@
             <div class="d-flex">
                 <div class="toast-body"> </div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
-                    aria-label="Close"></button>
+                    aria-label="{{ __('Close') }}"></button>
             </div>
         </div>
     </div>

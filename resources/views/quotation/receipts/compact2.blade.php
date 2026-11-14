@@ -62,7 +62,7 @@
     <div class="top">
         <div class="supplier">
             @if(!empty($img))
-                <img class="logo" src="{{ $img }}" alt="Logo"><br>
+                <img class="logo" src="{{ $img }}" alt="{{ __('Logo') }}"><br>
             @endif
             <div style="font-weight:700;font-size:14px;">{{ $settings['company_name'] ?? '' }}</div>
             @if($companyVat !== '')

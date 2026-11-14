@@ -34,7 +34,7 @@
             {{ Form::text('email', null, array('class' => 'form-control','required'=>'required' , 'placeholder' => __('Enter email'))) }}
         </div>
         <div class="col-6 form-group">
-            <x-mobile label="{{__('Phone')}}" name="phone" value="{{old('phone')}}" required placeholder="Enter Phone"></x-mobile>
+            <x-mobile label="{{__('Phone')}}" name="phone" value="{{old('phone')}}" required placeholder="{{ __('Enter Phone') }}"></x-mobile>
         </div>
     </div>
 </div>

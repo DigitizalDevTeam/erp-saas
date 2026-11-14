@@ -515,7 +515,7 @@ class VenderController extends Controller
         CustomField::saveData($user, $request->customField);
 
         return redirect()->back()->with(
-            'success', 'Profile successfully updated.'
+            'success', __('Profile successfully updated.')
         );
     }
 
@@ -538,7 +538,7 @@ class VenderController extends Controller
         $user->fill($input)->save();
 
         return redirect()->back()->with(
-            'success', 'Profile successfully updated.'
+            'success', __('Profile successfully updated.')
         );
     }
 
@@ -561,7 +561,7 @@ class VenderController extends Controller
         $user->fill($input)->save();
 
         return redirect()->back()->with(
-            'success', 'Profile successfully updated.'
+            'success', __('Profile successfully updated.')
         );
     }
 

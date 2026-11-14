@@ -116,7 +116,7 @@ class BenefitPaymentController extends Controller
                         ],
                     ]);
                 } catch (\Throwable $th) {
-                    return redirect()->back()->with('error','Currency Not Supported.Contact To Your Site Admin');
+                    return redirect()->back()->with('error',__('Currency Not Supported.Contact To Your Site Admin'));
                 }
 
                 $data = $response->getBody();
@@ -271,7 +271,7 @@ class BenefitPaymentController extends Controller
                     ]);
                 } catch (\Throwable $th) {
 
-                    return redirect()->back()->with('error', 'Currency Not Supported.Contact To Your Site Admin');
+                    return redirect()->back()->with('error', __('Currency Not Supported.Contact To Your Site Admin'));
                 }
 
                 $data = $response->getBody();

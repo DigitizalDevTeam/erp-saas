@@ -89,7 +89,7 @@ class CreditNoteController extends Controller
             }
             if($request->amount > $invoiceDue->getDue())
             {
-                return redirect()->back()->with('error', 'Maximum ' . \Auth::user()->priceFormat($invoiceDue->getDue()) . ' credit limit of this invoice.');
+                return redirect()->back()->with('error', __('Maximum ') . \Auth::user()->priceFormat($invoiceDue->getDue()) . ' credit limit of this invoice.');
             }
             $invoice = $invoiceDue;
             $ex_cred = CreditNote::where(['created_by' =>  \Auth::user()->creatorId() , 'is_debit' => 0])->latest()->first();
@@ -178,7 +178,7 @@ class CreditNoteController extends Controller
                 $invoiceDue = Invoice::where('id', $credit->invoice)->first();
                 if(!$isDebit && $request->amount > $invoiceDue->getDue()+$credit->amount)
                 {
-                    return redirect()->back()->with('error', 'Maximum ' . \Auth::user()->priceFormat($invoiceDue->getDue()) . ' credit limit of this invoice.');
+                    return redirect()->back()->with('error', __('Maximum ') . \Auth::user()->priceFormat($invoiceDue->getDue()) . ' credit limit of this invoice.');
                 }
                 // Reverse previous balance effect, then apply new amount.
                 if($isDebit)
@@ -463,7 +463,7 @@ class CreditNoteController extends Controller
                 }
                 if($request->amount > $invoiceDue->getDue())
                 {
-                    return redirect()->back()->with('error', 'Maximum ' . \Auth::user()->priceFormat($invoiceDue->getDue()) . ' credit limit of this invoice.');
+                    return redirect()->back()->with('error', __('Maximum ') . \Auth::user()->priceFormat($invoiceDue->getDue()) . ' credit limit of this invoice.');
                 }
                 $customer_id = $invoiceDue->customer_id;
             }

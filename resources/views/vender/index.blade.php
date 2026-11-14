@@ -78,7 +78,7 @@ $profile = asset(Storage::url('uploads/avatar/'));
                                         <td class="Action">
                                             <span>
                                                     @if ($Vender['is_active'] == 0)
-                                                        <i class="fa fa-lock" title="Inactive"></i>
+                                                        <i class="fa fa-lock" title="{{ __('Inactive') }}"></i>
                                                     @else
                                                         @can('show vender')
                                                             <div class="action-btn me-2">

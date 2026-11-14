@@ -34,7 +34,7 @@
             {{ Form::email('email', null, array('class' => 'form-control','required'=>'required', 'placeholder'=>__('Enter Email'))) }}
         </div>
         <div class="col-6 form-group">
-            <x-mobile label="{{__('Phone')}}" name="phone" value="{{$lead->phone}}" required placeholder="Enter Phone"></x-mobile>
+            <x-mobile label="{{__('Phone')}}" name="phone" value="{{$lead->phone}}" required placeholder="{{ __('Enter Phone') }}"></x-mobile>
         </div>
         <div class="col-6 form-group">
             {{ Form::label('pipeline_id', __('Pipeline'),['class'=>'form-label']) }}<x-required></x-required>

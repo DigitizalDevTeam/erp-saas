@@ -74,7 +74,7 @@
                                             @endforeach
                                         </select>
                                     </td>
-                                    <td><input type="number" name="lines[{{ $i }}][required_quantity]" value="{{ $row['required_quantity'] ?? '' }}" class="form-control" step="0.0001" min="0.0001" required placeholder="e.g. 5"></td>
+                                    <td><input type="number" name="lines[{{ $i }}][required_quantity]" value="{{ $row['required_quantity'] ?? '' }}" class="form-control" step="0.0001" min="0.0001" required placeholder="{{ __('e.g. 5') }}"></td>
                                     <td>
                                         <select name="lines[{{ $i }}][unit_id]" class="form-control">
                                             <option value="">{{ __('Stock unit') }}</option>
@@ -101,7 +101,7 @@
                                     @endforeach
                                 </select>
                             </td>
-                            <td><input type="number" name="lines[__INDEX__][required_quantity]" class="form-control" step="0.0001" min="0.0001" required placeholder="e.g. 5"></td>
+                            <td><input type="number" name="lines[__INDEX__][required_quantity]" class="form-control" step="0.0001" min="0.0001" required placeholder="{{ __('e.g. 5') }}"></td>
                             <td>
                                 <select name="lines[__INDEX__][unit_id]" class="form-control">
                                     <option value="">{{ __('Stock unit') }}</option>
