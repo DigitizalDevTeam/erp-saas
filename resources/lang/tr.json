@@ -8745,5 +8745,9 @@
     "— none —": "- hiçbiri -",
     "m": "m",
     "P": "P",
-    "A": "A"
+    "A": "A",
+    "Maximum :amount credit limit of this bill.": "Bu fatura için maksimum kredi limiti :amount.",
+    "Maximum :amount credit limit of this invoice.": "Bu fatura için maksimum kredi limiti :amount.",
+    "Permission :name added!": ":name izni eklendi!",
+    "Permission :name updated!": ":name izni güncellendi!"
 }

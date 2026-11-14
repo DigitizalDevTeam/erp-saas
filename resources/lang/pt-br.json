@@ -8745,5 +8745,9 @@
     "Σ earn.": "Σ ganhar.",
     "— Choose a template —": "— Escolha um modelo —",
     "— Select —": "— Selecione —",
-    "— none —": "- nenhum -"
+    "— none —": "- nenhum -",
+    "Maximum :amount credit limit of this bill.": "Limite máximo de crédito de :amount para esta fatura.",
+    "Maximum :amount credit limit of this invoice.": "Limite máximo de crédito de :amount para esta fatura.",
+    "Permission :name added!": "Permissão :name adicionada!",
+    "Permission :name updated!": "Permissão :name atualizada!"
 }

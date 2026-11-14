@@ -9690,5 +9690,9 @@
     "Σ earn.": "Σ earn.",
     "— Choose a template —": "— Choose a template —",
     "— Select —": "— Select —",
-    "— none —": "— none —"
+    "— none —": "— none —",
+    "Maximum :amount credit limit of this bill.": "Maximum :amount credit limit of this bill.",
+    "Maximum :amount credit limit of this invoice.": "Maximum :amount credit limit of this invoice.",
+    "Permission :name added!": "Permission :name added!",
+    "Permission :name updated!": "Permission :name updated!"
 }

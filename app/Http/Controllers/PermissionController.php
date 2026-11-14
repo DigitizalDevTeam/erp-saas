@@ -57,7 +57,7 @@ class PermissionController extends Controller
         }
 
         return redirect()->route('permissions.index')->with(
-            'success', __('Permission ') . $permission->name . ' added!'
+            'success', __('Permission :name added!', ['name' => $permission->name])
         );
 
 
@@ -88,7 +88,7 @@ class PermissionController extends Controller
         $permission->fill($input)->save();
 
         return redirect()->route('permissions.index')->with(
-            'success', __('Permission ') . $permission->name . ' updated!'
+            'success', __('Permission :name updated!', ['name' => $permission->name])
         );
 
 

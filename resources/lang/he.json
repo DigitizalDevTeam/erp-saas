@@ -8745,5 +8745,9 @@
     "— none —": "- אף אחד -",
     "m": "m",
     "P": "P",
-    "A": "A"
+    "A": "A",
+    "Maximum :amount credit limit of this bill.": "מגבלת האשראי המקסימלית :amount עבור חשבונית זו.",
+    "Maximum :amount credit limit of this invoice.": "מגבלת האשראי המקסימלית :amount עבור חשבונית זו.",
+    "Permission :name added!": "ההרשאה :name נוספה!",
+    "Permission :name updated!": "ההרשאה :name עודכנה!"
 }

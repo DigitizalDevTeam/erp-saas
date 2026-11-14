@@ -8745,5 +8745,9 @@
     "— none —": "- никто -",
     "m": "m",
     "P": "P",
-    "A": "A"
+    "A": "A",
+    "Maximum :amount credit limit of this bill.": "Максимальный кредитный лимит :amount для этого счёта.",
+    "Maximum :amount credit limit of this invoice.": "Максимальный кредитный лимит :amount для этого счёта.",
+    "Permission :name added!": "Разрешение :name добавлено!",
+    "Permission :name updated!": "Разрешение :name обновлено!"
 }

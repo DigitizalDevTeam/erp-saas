@@ -9604,5 +9604,9 @@
     "— none —": "- 没有任何 -",
     "m": "m",
     "P": "P",
-    "A": "A"
+    "A": "A",
+    "Maximum :amount credit limit of this bill.": "此账单的最高信用额度为 :amount。",
+    "Maximum :amount credit limit of this invoice.": "此发票的最高信用额度为 :amount。",
+    "Permission :name added!": "已添加权限 :name！",
+    "Permission :name updated!": "已更新权限 :name！"
 }

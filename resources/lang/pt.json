@@ -9745,5 +9745,9 @@
     "you get lettest content at a time when data will updated": "você obtém o conteúdo mais recente no momento em que os dados são atualizados",
     "m": "m",
     "P": "P",
-    "A": "A"
+    "A": "A",
+    "Maximum :amount credit limit of this bill.": "Limite máximo de crédito de :amount para esta fatura.",
+    "Maximum :amount credit limit of this invoice.": "Limite máximo de crédito de :amount para esta fatura.",
+    "Permission :name added!": "Permissão :name adicionada!",
+    "Permission :name updated!": "Permissão :name atualizada!"
 }

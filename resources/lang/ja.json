@@ -8745,5 +8745,9 @@
     "— none —": "- なし -",
     "m": "m",
     "P": "P",
-    "A": "A"
+    "A": "A",
+    "Maximum :amount credit limit of this bill.": "この請求書の最大クレジット限度額は :amount です。",
+    "Maximum :amount credit limit of this invoice.": "この請求書の最大クレジット限度額は :amount です。",
+    "Permission :name added!": "権限 :name を追加しました！",
+    "Permission :name updated!": "権限 :name を更新しました！"
 }

@@ -8745,5 +8745,9 @@
     "— none —": "- geen -",
     "m": "m",
     "P": "P",
-    "A": "A"
+    "A": "A",
+    "Maximum :amount credit limit of this bill.": "Maximale kredietlimiet van :amount voor deze factuur.",
+    "Maximum :amount credit limit of this invoice.": "Maximale kredietlimiet van :amount voor deze factuur.",
+    "Permission :name added!": "Toestemming :name toegevoegd!",
+    "Permission :name updated!": "Toestemming :name bijgewerkt!"
 }

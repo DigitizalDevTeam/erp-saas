@@ -8745,5 +8745,9 @@
     "— none —": "- لا أحد -",
     "m": "m",
     "P": "P",
-    "A": "A"
+    "A": "A",
+    "Maximum :amount credit limit of this bill.": "الحد الأقصى للائتمان :amount لهذه الفاتورة.",
+    "Maximum :amount credit limit of this invoice.": "الحد الأقصى للائتمان :amount لهذه الفاتورة.",
+    "Permission :name added!": "تمت إضافة الصلاحية :name!",
+    "Permission :name updated!": "تم تحديث الصلاحية :name!"
 }

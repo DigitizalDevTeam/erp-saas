@@ -8745,5 +8745,9 @@
     "— none —": "– keine –",
     "m": "m",
     "P": "P",
-    "A": "A"
+    "A": "A",
+    "Maximum :amount credit limit of this bill.": "Maximales Kreditlimit von :amount für diese Rechnung.",
+    "Maximum :amount credit limit of this invoice.": "Maximales Kreditlimit von :amount für diese Rechnung.",
+    "Permission :name added!": "Berechtigung :name hinzugefügt!",
+    "Permission :name updated!": "Berechtigung :name aktualisiert!"
 }

@@ -8745,5 +8745,9 @@
     "— none —": "— ingen —",
     "m": "m",
     "P": "P",
-    "A": "A"
+    "A": "A",
+    "Maximum :amount credit limit of this bill.": "Maksimal kreditgrænse på :amount for denne regning.",
+    "Maximum :amount credit limit of this invoice.": "Maksimal kreditgrænse på :amount for denne faktura.",
+    "Permission :name added!": "Tilladelsen :name er tilføjet!",
+    "Permission :name updated!": "Tilladelsen :name er opdateret!"
 }
