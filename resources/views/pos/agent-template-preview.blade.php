@@ -49,7 +49,7 @@
 <div class="wrap">
     <div class="slip paper-{{ $paper }} {{ $template === 'elegant' ? 'mono' : '' }}">
         @if(!empty($logoUrl))
-            <img class="logo" src="{{ $logoUrl }}" alt="Logo" onerror="this.style.display='none'">
+            <img class="logo" src="{{ $logoUrl }}" alt="{{ __('Logo') }}" onerror="this.style.display='none'">
         @endif
         <div class="center company">{{ $company }}</div>
         <div class="center muted">{{ __('NUIT') }}: {{ $nuit }}</div>
@@ -78,7 +78,7 @@
                 </thead>
                 <tbody>
                 <tr>
-                    <td><div class="item-name">Testing product</div><div class="item-tax">{{ __('VAT') }} 16%</div></td>
+                    <td><div class="item-name">{{ __('Testing product') }}</div><div class="item-tax">{{ __('VAT') }} 16%</div></td>
                     <td class="num">172,41</td>
                     <td class="num">2</td>
                     <td class="num">399,99</td>
@@ -106,7 +106,7 @@
             <div class="kv"><span>{{ __('pos.table') }}:</span><span>01</span></div>
             <div class="rule"></div>
             <div class="row4 head"><span>{{ __('Description') }}</span><span>{{ __('Qty') }}</span><span>{{ __('Price') }}</span><span>{{ __('Total') }}</span></div>
-            <div class="row4"><span class="item-name">Testing product</span><span>2</span><span>172,41</span><span>399,99</span></div>
+            <div class="row4"><span class="item-name">{{ __('Testing product') }}</span><span>2</span><span>172,41</span><span>399,99</span></div>
             <div class="item-tax">{{ __('VAT') }} 16%</div>
             <div class="rule"></div>
             <div class="kv"><span>{{ __('Sub Total') }}</span><span>399,99 {{ $currency }}</span></div>
@@ -125,7 +125,7 @@
             <div class="kv"><span>{{ __('Customer') }}:</span><b>{{ __('Walk-in Customer') }}</b></div>
             <div class="kv"><span>{{ __('Currency') }}:</span><span>{{ $currency }}</span></div>
             <div class="rule"></div>
-            <div class="item-name">Testing product</div>
+            <div class="item-name">{{ __('Testing product') }}</div>
             <div class="item-tax">{{ __('VAT') }} 16%</div>
             <div class="amounts">2 &nbsp; 172,41 &nbsp; 399,99</div>
             <div class="rule"></div>

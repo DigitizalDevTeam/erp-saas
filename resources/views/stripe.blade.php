@@ -2100,8 +2100,7 @@
                                                     <input type="text" id="paiementpro_channel" name="channel"
                                                         class="form-control channel" data-from="paiementpro"
                                                         placeholder="{{ __('Enter Channel') }}" required>
-                                                    <small class="text-danger">Example : OMCIV2 , MOMO , CARD , FLOOZ ,
-                                                        PAYPAL</small>
+                                                    <small class="text-danger">{{ __('Example : OMCIV2 , MOMO , CARD , FLOOZ , PAYPAL') }}</small>
                                                 </div>
                                             </div>
                                             <div class="col-md-12 mt-4">

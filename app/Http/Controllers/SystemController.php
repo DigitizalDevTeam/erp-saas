@@ -38,7 +38,7 @@ class SystemController extends Controller
 
             return view('settings.index', compact('settings', 'admin_payment_setting', 'file_size'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -154,9 +154,9 @@ class SystemController extends Controller
                 }
             }
 
-            return redirect()->back()->with('success', 'Brand Setting successfully updated.');
+            return redirect()->back()->with('success', __('Brand Setting successfully updated.'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -196,7 +196,7 @@ class SystemController extends Controller
 
             return redirect()->back()->with('success', __('Setting successfully updated.'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -236,7 +236,7 @@ class SystemController extends Controller
 
             return redirect()->back()->with('success', __('Setting successfully updated.'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
     // public function createDatabaseBackup()
@@ -286,7 +286,7 @@ class SystemController extends Controller
     //     $backup->save();
     //     $downloadLink = route('backup.download', ['file' => $backup->id]);
         
-    //     return back()->with('success', 'Database backup created. <a href="'.$downloadLink.'">Download</a>');
+    //     return back()->with('success', __('Database backup created. <a href="').$downloadLink.'">Download</a>');
     // }
     // public function downloadBackup($file)
     // {
@@ -346,7 +346,7 @@ class SystemController extends Controller
         $backup->file_name = $fileName;
         $backup->save();
         
-        return back()->with('success', 'Database backup created. <a href="'.$downloadLink.'">Download</a>');
+        return back()->with('success', __('Database backup created. <a href="').$downloadLink.'">Download</a>');
     }
     public function downloadBackup($file)
     {
@@ -397,7 +397,7 @@ class SystemController extends Controller
             }
             return redirect()->back()->with('success', __('Setting successfully updated.'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -423,7 +423,7 @@ class SystemController extends Controller
 
             return redirect()->back()->with('success', __('Payment setting successfully updated.'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -460,7 +460,7 @@ class SystemController extends Controller
 
             return redirect()->back()->with('success', __('Setting successfully updated.'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -610,9 +610,9 @@ class SystemController extends Controller
                 }
             }
 
-            return redirect()->back()->with('success', 'Brand Setting successfully updated.');
+            return redirect()->back()->with('success', __('Brand Setting successfully updated.'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -702,7 +702,7 @@ class SystemController extends Controller
                 'comSetting',
             ));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -1320,7 +1320,7 @@ class SystemController extends Controller
 
             return view('settings.print', compact('settings'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -1331,7 +1331,7 @@ class SystemController extends Controller
 
             return view('settings.pos', compact('settings'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -1342,7 +1342,7 @@ class SystemController extends Controller
 
             return view('settings.pos', compact('settings'));
         } else {
-            return redirect()->back()->with('error', 'Permission denied.');
+            return redirect()->back()->with('error', __('Permission denied.'));
         }
     }
 
@@ -2174,7 +2174,7 @@ class SystemController extends Controller
             );
         }
 
-        return redirect()->back()->with('success', 'Storage setting successfully updated.');
+        return redirect()->back()->with('success', __('Storage setting successfully updated.'));
     }
 
     public function offerletterupdate($lang, Request $request)
@@ -2277,7 +2277,7 @@ class SystemController extends Controller
                 );
             }
         }
-        return redirect()->back()->with('success', 'Google Calendar setting successfully updated.');
+        return redirect()->back()->with('success', __('Google Calendar setting successfully updated.'));
     }
 
     public function seoSettings(Request $request)
@@ -2317,7 +2317,7 @@ class SystemController extends Controller
                 ]
             );
         }
-        return redirect()->back()->with('success', 'SEO setting successfully updated.');
+        return redirect()->back()->with('success', __('SEO setting successfully updated.'));
     }
 
     public function webhook()
@@ -2480,7 +2480,7 @@ class SystemController extends Controller
                 );
             }
         }
-        return redirect()->back()->with('success', 'Cookie setting successfully saved.');
+        return redirect()->back()->with('success', __('Cookie setting successfully saved.'));
     }
 
     public function CookieConsent(Request $request)
@@ -2541,7 +2541,7 @@ class SystemController extends Controller
     {
         Artisan::call('cache:clear');
         Artisan::call('optimize:clear');
-        return redirect()->back()->with('success', 'Cache clear Successfully');
+        return redirect()->back()->with('success', __('Cache clear Successfully'));
     }
 
     //system-setting footer note

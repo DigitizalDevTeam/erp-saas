@@ -606,10 +606,10 @@
                                     @endforeach
                                 @endif
                                 @if($customer && $customer->payment_type)
-                                    <small class="text-capitalize mt-3"><b>Payment Type:</b> {{ $customer->payment_type }}</small>
+                                    <small class="text-capitalize mt-3"><b>{{ __('Payment Type:') }}</b> {{ $customer->payment_type }}</small>
                                 @endif
                                 @if($customer && $customer->credit_terms)
-                                    <small class="text-capitalize mt-3"><b>Credit Terms:</b> {{ $customer->credit_terms }}</small>
+                                    <small class="text-capitalize mt-3"><b>{{ __('Credit Terms:') }}</b> {{ $customer->credit_terms }}</small>
                                 @endif
                             </div>
                             <div class="row mt-4">

@@ -91,7 +91,7 @@
         });
 
         $(document).on("click", ".delete-comment", function () {
-            if (confirm('Are You Sure ?')) {
+            if (confirm(@json(__('Are You Sure ?')))) {
                 var btn = $(this);
                 $.ajax({
                     url: $(this).attr('data-url'),
@@ -166,7 +166,7 @@
         });
 
         $(document).on("click", ".delete-comment-file", function () {
-            if (confirm('Are You Sure ?')) {
+            if (confirm(@json(__('Are You Sure ?')))) {
                 var btn = $(this);
                 $.ajax({
                     url: $(this).attr('data-url'),

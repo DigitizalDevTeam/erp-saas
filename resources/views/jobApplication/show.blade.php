@@ -155,7 +155,7 @@
                 <div class="card-body ">
                     <h5 class="h4">
                         <div class="d-flex align-items-center" data-toggle="tooltip" data-placement="right"
-                            data-title="2 hrs ago" data-original-title="" title="">
+                            data-title="{{ __('2 hrs ago') }}" data-original-title="" title="">
                             <div>
                                 @php
                                     $logo = \App\Models\Utility::get_file('uploads/avatar/');
@@ -257,23 +257,23 @@
                     <div class='rating-stars text-right'>
                         <ul id='stars mb-0'>
                             <li class='star {{ in_array($jobApplication->rating, [1, 2, 3, 4, 5]) == true ? 'selected' : '' }}'
-                                data-bs-toggle="tooltip" data-bs-title="Poor" data-value='1'>
+                                data-bs-toggle="tooltip" data-bs-title="{{ __('Poor') }}" data-value='1'>
                                 <i class='fas fa-star fa-fw'></i>
                             </li>
                             <li class='star {{ in_array($jobApplication->rating, [2, 3, 4, 5]) == true ? 'selected' : '' }}'
-                                data-bs-toggle="tooltip" data-bs-title='Fair' data-value='2'>
+                                data-bs-toggle="tooltip" data-bs-title="{{ __('Fair') }}" data-value='2'>
                                 <i class='fas fa-star fa-fw'></i>
                             </li>
                             <li class='star {{ in_array($jobApplication->rating, [3, 4, 5]) == true ? 'selected' : '' }}'
-                                data-bs-toggle="tooltip" data-bs-title='Good' data-value='3'>
+                                data-bs-toggle="tooltip" data-bs-title="{{ __('Good') }}" data-value='3'>
                                 <i class='fas fa-star fa-fw'></i>
                             </li>
                             <li class='star {{ in_array($jobApplication->rating, [4, 5]) == true ? 'selected' : '' }}'
-                                data-bs-toggle="tooltip" data-bs-title='Excellent' data-value='4'>
+                                data-bs-toggle="tooltip" data-bs-title="{{ __('Excellent') }}" data-value='4'>
                                 <i class='fas fa-star fa-fw'></i>
                             </li>
                             <li class='star {{ in_array($jobApplication->rating, [5]) == true ? 'selected' : '' }}'
-                                data-bs-toggle="tooltip" data-bs-title='WOW!!!' data-value='5'>
+                                data-bs-toggle="tooltip" data-bs-title="{{ __('WOW!!!') }}" data-value='5'>
                                 <i class='fas fa-star fa-fw'></i>
                             </li>
                         </ul>

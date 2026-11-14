@@ -11,7 +11,7 @@
         </div>
         <div class="col-lg-4 col-md-4 col-sm-6">
             <div class="form-group">
-                <x-mobile label="{{__('Contact')}}" name="contact" value="{{old('contact')}}" required placeholder="Enter Contact"></x-mobile>
+                <x-mobile label="{{__('Contact')}}" name="contact" value="{{old('contact')}}" required placeholder="{{ __('Enter Contact') }}"></x-mobile>
             </div>
         </div>
         <div class="col-lg-4 col-md-4 col-sm-6">
@@ -202,19 +202,19 @@
         <div class="col-md-4">
              <div class="form-group">
                 <label class="form-label">{{__('Contact Person Role')}}</label>
-                <input type="text" name="contacts[0][role]" class="form-control" placeholder="e.g. Finance Director">
+                <input type="text" name="contacts[0][role]" class="form-control" placeholder="{{ __('e.g. Finance Director') }}">
             </div>
         </div>
         <div class="col-md-4">
              <div class="form-group">
                 <label class="form-label">{{__('Contact Person Name')}}</label>
-                <input type="text" name="contacts[0][name]" class="form-control" placeholder="Name">
+                <input type="text" name="contacts[0][name]" class="form-control" placeholder="{{ __('Name') }}">
             </div>
         </div>
         <div class="col-md-4">
             <div class="form-group">
                 <label class="form-label">{{__('Contact Person Phone')}}</label>
-                <input type="text" name="contacts[0][phone]" class="form-control" placeholder="Phone">
+                <input type="text" name="contacts[0][phone]" class="form-control" placeholder="{{ __('Phone') }}">
             </div>
         </div>
     </div>
@@ -227,19 +227,19 @@
     <div class="row">
         <div class="col-md-6">
             <label class="form-label">{{__('Bank Name')}}</label>
-            <input type="text" name="bank_account[bank_name]" class="form-control" placeholder="Bank Name">
+            <input type="text" name="bank_account[bank_name]" class="form-control" placeholder="{{ __('Bank Name') }}">
         </div>
         <div class="col-md-6">
             <label class="form-label">{{__('Account Number')}}</label>
-            <input type="text" name="bank_account[account_number]" class="form-control" placeholder="Account Number">
+            <input type="text" name="bank_account[account_number]" class="form-control" placeholder="{{ __('Account Number') }}">
         </div>
         <div class="col-md-6 mt-3">
             <label class="form-label">{{__('Account Holder Name')}}</label>
-            <input type="text" name="bank_account[account_holder]" class="form-control" placeholder="Account Holder">
+            <input type="text" name="bank_account[account_holder]" class="form-control" placeholder="{{ __('Account Holder') }}">
         </div>
         <div class="col-md-6 mt-3">
             <label class="form-label">{{__('IFSC / SWIFT Code')}}</label>
-            <input type="text" name="bank_account[ifsc]" class="form-control" placeholder="IFSC / SWIFT">
+            <input type="text" name="bank_account[ifsc]" class="form-control" placeholder="{{ __('IFSC / SWIFT') }}">
         </div>
     </div>
     
@@ -248,7 +248,7 @@
     <h5 class="sub-title">{{__('Additional Emails for Notifications')}}</h5>
     <div class="row">
         <div class="col-md-12">
-            <input type="email" name="additional_emails[]" class="form-control" placeholder="Enter additional email" multiple>
+            <input type="email" name="additional_emails[]" class="form-control" placeholder="{{ __('Enter additional email') }}" multiple>
             <small class="form-text text-muted">{{__('You can add multiple emails separated by commas')}}</small>
         </div>
     </div>
@@ -259,11 +259,11 @@
     <div class="row">
         <div class="col-md-6">
             <label class="form-label">{{__('KYC Document Type')}}</label>
-            <input type="text" name="kyc[document_type]" class="form-control" placeholder="e.g. Passport, ID Card">
+            <input type="text" name="kyc[document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}">
         </div>
         <div class="col-md-6">
             <label class="form-label">{{__('KYC Document Number')}}</label>
-            <input type="text" name="kyc[document_number]" class="form-control" placeholder="Document Number">
+            <input type="text" name="kyc[document_number]" class="form-control" placeholder="{{ __('Document Number') }}">
         </div>
         <div class="col-md-12 mt-3">
             <label class="form-label">{{__('KYC Document Upload')}}</label>
@@ -330,17 +330,17 @@
         let html = `<div class="row mt-3">
             <div class="col-md-4">
             <div class="form-group">
-                <input type="text" name="contacts[${contactIndex}][role]" class="form-control" placeholder="e.g. Finance Director">
+                <input type="text" name="contacts[${contactIndex}][role]" class="form-control" placeholder="{{ __('e.g. Finance Director') }}">
             </div>
             </div>
             <div class="col-md-4">
             <div class="form-group">
-                <input type="text" name="contacts[${contactIndex}][name]" class="form-control" placeholder="Name">
+                <input type="text" name="contacts[${contactIndex}][name]" class="form-control" placeholder="{{ __('Name') }}">
             </div>
             </div>
             <div class="col-md-4">
             <div class="form-group">
-                <input type="text" name="contacts[${contactIndex}][phone]" class="form-control" placeholder="Phone">
+                <input type="text" name="contacts[${contactIndex}][phone]" class="form-control" placeholder="{{ __('Phone') }}">
             </div>
             </div>
         </div>`;

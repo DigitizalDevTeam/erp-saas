@@ -50,8 +50,8 @@ class FixJournalRoundingImbalances extends Command
                 0,
                 15
             );
-            $this->line('Balance Sheet difference (current): '.$bs['totals']['difference']['current']);
-            $this->line('Balance Sheet difference (previous): '.$bs['totals']['difference']['previous']);
+            $this->line(__('Balance Sheet difference (current): ').$bs['totals']['difference']['current']);
+            $this->line(__('Balance Sheet difference (previous): ').$bs['totals']['difference']['previous']);
         }
 
         return self::SUCCESS;

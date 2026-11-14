@@ -173,7 +173,7 @@
 
                     $('.department_id').empty();
                     var emp_selct = ` <select class="form-control  department_id" name="department_id[]" id="choices-multiple"
-                                            placeholder="Select Department" multiple >
+                                            placeholder="{{ __('Select Department') }}" multiple >
                                             </select>`;
                     $('.department_div').html(emp_selct);
 
@@ -206,7 +206,7 @@
 
                     $('.employee_id').empty();
                     var emp_selct = ` <select class="form-control  employee_id" name="employee_id[]" id="choices-multiple1"
-                                            placeholder="Select Employee" multiple >
+                                            placeholder="{{ __('Select Employee') }}" multiple >
                                             </select>`;
                     $('.employee_div').html(emp_selct);
 

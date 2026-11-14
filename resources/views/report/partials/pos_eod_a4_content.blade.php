@@ -14,7 +14,7 @@
     </div>
 
     <div class="eod-a4-title">{{ __('End of Day (EOD) Report') }}</div>
-    <div class="eod-a4-subtitle">EOD · {{ $reportDate->format('d/m/Y') }}</div>
+    <div class="eod-a4-subtitle">{{ __('EOD ·') }} {{ $reportDate->format('d/m/Y') }}</div>
 
     <hr>
 

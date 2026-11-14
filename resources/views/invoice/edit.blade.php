@@ -40,7 +40,7 @@
 
 
 
-                    if (confirm('Are you sure you want to delete this element?')) {
+                    if (confirm(@json(__('Are you sure you want to delete this element?')))) {
                         var el = $(this);
                         var id = $(el.find('.id')).val();
                         var amount = $(el.find('.amount')).html();
@@ -150,11 +150,11 @@
             var billing_id = $("#billing_address").val();
             var shipping_id = $("#shipping_address").val();
             if(billing_id == "" || billing_id == null || billing_id == undefined){
-                alert("Billing field is requried.")
+                alert(@json(__('Billing field is requried.')))
                 return;
             }
             if(shipping_id == "" || shipping_id == null || shipping_id == undefined){
-                alert("Shipping field is requried.")
+                alert(@json(__('Shipping field is requried.')))
                 return;
             }
             
@@ -783,7 +783,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">{{ __('Enter Dimensions') }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-2">

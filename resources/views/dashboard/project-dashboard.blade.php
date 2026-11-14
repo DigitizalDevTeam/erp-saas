@@ -189,8 +189,8 @@
                 <div class="stat-number">{{ $home_data['total_project']['total'] }}</div>
             </div>
             <div class="card-title d-flex justify-content-between align-items-center">
-                <a href="{{ route('projects.index') }}">Total Projects</a>
-                <small>{{ $home_data['total_project']['percentage'] }}% Completed</small>
+                <a href="{{ route('projects.index') }}">{{ __('Total Projects') }}</a>
+                <small>{{ $home_data['total_project']['percentage'] }}{{ __('% Completed') }}</small>
             </div>
         </div>
     </div>
@@ -205,8 +205,8 @@
                 <div class="stat-number">{{ $home_data['total_task']['total'] }}</div>
             </div>
             <div class="card-title d-flex justify-content-between align-items-center">
-                <a href="{{ route('taskBoard.view', 'list') }}">Total Tasks</a>
-                <small>{{ $home_data['total_task']['percentage'] }}% Completed</small>
+                <a href="{{ route('taskBoard.view', 'list') }}">{{ __('Total Tasks') }}</a>
+                <small>{{ $home_data['total_task']['percentage'] }}{{ __('% Completed') }}</small>
             </div>
         </div>
     </div>
@@ -221,8 +221,8 @@
                 <div class="stat-number">{{ $home_data['total_expense']['total'] }}</div>
             </div>
             <div class="card-title d-flex justify-content-between align-items-center">
-                <span>Total Expense</span>
-                <small>{{ $home_data['total_expense']['percentage'] }}% Completed</small>
+                <span>{{ __('Total Expense') }}</span>
+                <small>{{ $home_data['total_expense']['percentage'] }}{{ __('% Completed') }}</small>
             </div>
         </div>
     </div>

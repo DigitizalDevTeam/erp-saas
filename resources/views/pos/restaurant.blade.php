@@ -516,7 +516,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="posOpenTableModalLabel">{{ __('pos.open_table') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="pos-open-table-id" value="">
@@ -552,7 +552,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="posTableManagementModalLabel">{{ __('pos.manage_tables') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
             </div>
             <div class="modal-body" id="pos-table-management-body">
                 <p class="text-muted small">{{ __('pos.select_branch_first') }}</p>
@@ -567,7 +567,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="posMoveTableModalLabel">{{ __('pos.move_table') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
             </div>
             <div class="modal-body">
                 <p class="text-muted small mb-2">{{ __('pos.move_table_hint') }}</p>
@@ -589,7 +589,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="posJoinTableModalLabel">{{ __('pos.join_table') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
             </div>
             <div class="modal-body">
                 <p class="text-muted small mb-2">{{ __('pos.join_table_hint') }}</p>
@@ -610,7 +610,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="posTransferItemsModalLabel">{{ __('pos.transfer_items') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
             </div>
             <div class="modal-body">
                 <p class="text-muted small mb-2">{{ __('pos.transfer_items_hint') }}</p>
@@ -638,7 +638,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="posSplitBillModalLabel">{{ __('pos.split_bill') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
             </div>
             <div class="modal-body">
                 <ul class="nav nav-tabs mb-3" id="pos-split-tabs" role="tablist">
@@ -694,7 +694,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="posVoidLineModalLabel">{{ __('pos.void') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
             </div>
             <div class="modal-body">
                 <p class="mb-2" id="pos-void-line-name"></p>
@@ -723,7 +723,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="posPrepTimeModalLabel">{{ __('Preparation time') }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
             </div>
             <div class="modal-body">
                 <label class="form-label" for="pos-prep-minutes-input">{{ __('Minutes until ready') }}</label>

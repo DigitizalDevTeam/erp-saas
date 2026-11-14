@@ -324,7 +324,7 @@
                                     <div class="stat-number">{{ \Auth::user()->countCustomers() }}</div>
                                 </div>
                                 <div class="card-title">
-                                    <a href="{{ route('customer.index') }}">Total Customers</a>
+                                    <a href="{{ route('customer.index') }}">{{ __('Total Customers') }}</a>
                                 </div>
                             </div>
                         </div>
@@ -339,7 +339,7 @@
                                     <div class="stat-number">{{ \Auth::user()->countVenders() }}</div>
                                 </div>
                                 <div class="card-title">
-                                    <a href="{{ route('vender.index') }}">Total Vendors</a>
+                                    <a href="{{ route('vender.index') }}">{{ __('Total Vendors') }}</a>
                                 </div>
                             </div>
                         </div>
@@ -354,7 +354,7 @@
                                     <div class="stat-number">{{ \Auth::user()->countInvoices() }}</div>
                                 </div>
                                 <div class="card-title">
-                                    <a href="{{ route('invoice.index') }}">Total Invoices</a>
+                                    <a href="{{ route('invoice.index') }}">{{ __('Total Invoices') }}</a>
                                 </div>
                             </div>
                         </div>
@@ -369,7 +369,7 @@
                                     <div class="stat-number">{{ \Auth::user()->countBills() }}</div>
                                 </div>
                                 <div class="card-title">
-                                    <a href="{{ route('bill.index') }}">Total Bills</a>
+                                    <a href="{{ route('bill.index') }}">{{ __('Total Bills') }}</a>
                                 </div>
                             </div>
                         </div>

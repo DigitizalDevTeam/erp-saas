@@ -677,7 +677,7 @@ class CustomerController extends Controller
         CustomField::saveData($user, $request->customField);
 
         return redirect()->back()->with(
-            'success', 'Profile successfully updated.'
+            'success', __('Profile successfully updated.')
         );
     }
 
@@ -700,7 +700,7 @@ class CustomerController extends Controller
         $user->fill($input)->save();
 
         return redirect()->back()->with(
-            'success', 'Profile successfully updated.'
+            'success', __('Profile successfully updated.')
         );
     }
 
@@ -723,7 +723,7 @@ class CustomerController extends Controller
         $user->fill($input)->save();
 
         return redirect()->back()->with(
-            'success', 'Profile successfully updated.'
+            'success', __('Profile successfully updated.')
         );
     }
 

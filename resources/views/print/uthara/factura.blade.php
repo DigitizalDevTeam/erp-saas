@@ -91,7 +91,7 @@
         <div class="top-main">
             <section class="identity">
                 @if(!empty($companyLogo))
-                    <img class="logo" src="{{ $companyLogo }}" alt="Logo" onerror="this.style.display='none';var f=this.nextElementSibling;if(f)f.style.display='block'">
+                    <img class="logo" src="{{ $companyLogo }}" alt="{{ __('Logo') }}" onerror="this.style.display='none';var f=this.nextElementSibling;if(f)f.style.display='block'">
                     <div class="brand-fallback" style="display:none">{{ $companyBrand }}</div>
                 @else
                     <div class="brand-fallback">{{ $companyBrand }}</div>
@@ -241,7 +241,7 @@
             @endif
         </div>
         <div class="powered">
-            <strong>ERP SaaS UTHARA</strong>
+            <strong>{{ __('ERP SaaS UTHARA') }}</strong>
             {{ $companyWebsite }}<br>
             @if($companyEmail !== ''){{ $companyEmail }}<br>@endif
         </div>

@@ -20,7 +20,7 @@
     <!-- vendor css -->
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}" id="main-style-link">
 
-    <title>{{env('APP_NAME')}} - POS Barcode</title>
+    <title>{{env('APP_NAME')}} {{ __('- POS Barcode') }}</title>
     @if (isset($settings['SITE_RTL'] ) && $settings['SITE_RTL'] == 'on')
         <link rel="stylesheet" href="{{ asset('assets/css/style-rtl.css')}}" id="main-style-link">
     @endif

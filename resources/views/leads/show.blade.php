@@ -67,7 +67,7 @@
             del.addEventListener("click", function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                if (confirm("Are you sure ?")) {
+                if (confirm(@json(__('Are you sure ?')))) {
                     var btn = $(this);
                     $.ajax({
                         url: btn.attr('href'),
@@ -428,7 +428,7 @@
                                                                     <div>
                                                                         <img @if ($user->avatar) src="{{ asset('/storage/uploads/avatar/' . $user->avatar) }}" @else src="{{ asset('/storage/uploads/avatar/avatar.png') }}" @endif
                                                                             class=" rounded border-2 border border-primary wid-40 me-3"
-                                                                            alt="avatar image">
+                                                                            alt="{{ __('avatar image') }}">
                                                                     </div>
                                                                     <p class="mb-0">{{ $user->name }}</p>
                                                                 </div>

@@ -57,7 +57,7 @@
 <div class="wrap">
     <div class="center">
         @if(!empty($img))
-            <img class="logo" src="{{ $img }}" alt="Logo">
+            <img class="logo" src="{{ $img }}" alt="{{ __('Logo') }}">
         @endif
         <div style="font-weight:700;font-size:15px;">{{ $settings['company_name'] ?? '' }}</div>
         @if($companyVat !== '')

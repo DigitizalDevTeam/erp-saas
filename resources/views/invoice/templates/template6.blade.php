@@ -8,7 +8,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>New York - invoice</title>
+    <title>{{ __('New York - invoice') }}</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap"
         rel="stylesheet">
@@ -374,7 +374,7 @@
                 <th>{{__('Rate')}}</th>
                 <th>{{__('Discount')}}</th>
                 <th>{{__('Tax')}} (%)</th>
-                <th>{{__('Price')}} <small>after tax & discount</small></th>
+                <th>{{__('Price')}} <small>{{ __('after tax & discount') }}</small></th>
             </tr>
             </thead >
             <tbody style="border-bottom:1px solid {{ $color }};" >

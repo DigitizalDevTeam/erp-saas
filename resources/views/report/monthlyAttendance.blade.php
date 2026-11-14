@@ -130,7 +130,7 @@
                                         <div class="btn-box">
                                             {{ Form::label('branch', __('Branch'),['class'=>'form-label']) }}
 
-                                            <select class="form-control select" name="branch_id" id="branch_id"  placeholder="Select Branch" required>
+                                            <select class="form-control select" name="branch_id" id="branch_id"  placeholder="{{ __('Select Branch') }}" required>
                                                 <option value="">{{__('Select Branch')}}</option>
                                                 <option value="0">{{__('All Branch')}}</option>
                                                 @foreach($branch as $branch)
@@ -142,14 +142,14 @@
                                     <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                                         <div class="btn-box" id="department_div">
                                             {{ Form::label('department', __('Department'),['class'=>'form-label']) }}
-                                            <select class="form-control select" name="department_id[]" id="department_id" required="required" placeholder="Select Department" >
+                                            <select class="form-control select" name="department_id[]" id="department_id" required="required" placeholder="{{ __('Select Department') }}" >
                                             </select>
                                         </div>
                                     </div>
                                     <div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
                                         <div class="btn-box" id="employee_div">
                                             {{ Form::label('employee', __('Employee'),['class'=>'form-label']) }}
-                                            <select class="form-control select" name="employee_id[]" id="employee_id" placeholder="Select Employee" >
+                                            <select class="form-control select" name="employee_id[]" id="employee_id" placeholder="{{ __('Select Employee') }}" >
                                             </select>
                                         </div>
                                     </div>

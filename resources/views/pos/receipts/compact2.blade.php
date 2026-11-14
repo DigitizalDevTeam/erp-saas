@@ -5,13 +5,13 @@
 <div class="pt-0 pb-3 {{ $standalone ? 'bg-white rounded p-3' : 'modal-body' }} pos-module position-relative pos-print-layout-{{ $printLayout }}" id="printarea" {{ $standalone ? 'style="box-shadow:0 1px 3px rgba(0,0,0,.1);"' : '' }}>
     <div class="receipt-copy-wrapper receipt-copy">
         @if($segundaVia)
-            <div class="segunda-via-watermark" aria-hidden="true">SEGUNDA VIA</div>
+            <div class="segunda-via-watermark" aria-hidden="true">{{ __('SEGUNDA VIA') }}</div>
         @endif
 
         <div class="pos-mz-header">
             <div class="pos-compact-supplier" style="flex:1;">
                 <div class="logo-box" style="margin:0 0 4px;">
-                    <img src="{{ $headerLogo }}" alt="Logo" onerror="this.style.display='none'">
+                    <img src="{{ $headerLogo }}" alt="{{ __('Logo') }}" onerror="this.style.display='none'">
                 </div>
                 <div style="font-weight:700;color:#111;">{{ $settings['company_name'] ?? '' }}</div>
                 @if($companyVat !== '')

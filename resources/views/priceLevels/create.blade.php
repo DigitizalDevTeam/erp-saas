@@ -27,7 +27,7 @@
         <div class="form-group col-md-12 mt-3">
             {{ Form::label('value', __('Value'), ['class' => 'form-label']) }}<x-required />
             {{ Form::number('value', '', ['class' => 'form-control', 'required' => 'required', 'step' => '0.01', 'placeholder' => __('Enter Value'), 'id' => 'price-level-value']) }}
-            <small id="value-help" class="form-text text-muted">Enter the amount or percentage based on selected type.</small>
+            <small id="value-help" class="form-text text-muted">{{ __('Enter the amount or percentage based on selected type.') }}</small>
             @error('value')
             <small class="invalid-value" role="alert">
                 <strong class="text-danger">{{ $message }}</strong>

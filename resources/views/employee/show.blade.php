@@ -190,7 +190,7 @@
                             @endforeach
                         @else
                             <div class="text-center">
-                                No Document Type Added.!
+                                {{ __('No Document Type Added.!') }}
                             </div>
                         @endif
 

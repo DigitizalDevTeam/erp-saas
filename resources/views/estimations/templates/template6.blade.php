@@ -517,7 +517,7 @@
                                 <div data-v-4b3dcb8a="" class="break-50"></div>
                                 <div data-v-4b3dcb8a="" class="row">
                                     <div data-v-4b3dcb8a="" class="col-2">
-                                        <small data-v-4b3dcb8a="">From:</small>
+                                        <small data-v-4b3dcb8a="">{{ __('From:') }}</small>
                                         <strong data-v-4b3dcb8a="" class="sub-title">@if($settings['company_name']){{$settings['company_name']}}@endif</strong>
                                         <pre data-v-4b3dcb8a="">@if($settings['company_address']){{$settings['company_address']}}@endif</pre>
                                         <p data-v-4b3dcb8a="">@if($settings['company_city']) {{$settings['company_city']}}, @endif @if($settings['company_state']){{$settings['company_state']}}@endif @if($settings['company_zipcode']) - {{$settings['company_zipcode']}}@endif</p>

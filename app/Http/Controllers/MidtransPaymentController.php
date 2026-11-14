@@ -211,7 +211,7 @@ class MidtransPaymentController extends Controller
 
                 return view('midtras.payment', compact('data'));
             } else {
-                return redirect()->back()->with('error', 'Invoice not found.');
+                return redirect()->back()->with('error', __('Invoice not found.'));
             }
         } catch (\Throwable $e) {
             return redirect()->back()->with('error', __($e));

@@ -78,7 +78,7 @@
                                             @endforeach
                                         </select>
                                     </td>
-                                    <td><input type="number" name="lines[{{ $i }}][planned_quantity]" value="{{ $row['planned_quantity'] ?? '' }}" class="form-control" step="0.0001" min="0.0001" required placeholder="e.g. 20"></td>
+                                    <td><input type="number" name="lines[{{ $i }}][planned_quantity]" value="{{ $row['planned_quantity'] ?? '' }}" class="form-control" step="0.0001" min="0.0001" required placeholder="{{ __('e.g. 20') }}"></td>
                                     <td>
                                         <select name="lines[{{ $i }}][planned_unit_id]" class="form-control">
                                             <option value="">{{ __('Portions (default)') }}</option>
@@ -112,7 +112,7 @@
                                     @endforeach
                                 </select>
                             </td>
-                            <td><input type="number" name="lines[__INDEX__][planned_quantity]" class="form-control" step="0.0001" min="0.0001" required placeholder="e.g. 20"></td>
+                            <td><input type="number" name="lines[__INDEX__][planned_quantity]" class="form-control" step="0.0001" min="0.0001" required placeholder="{{ __('e.g. 20') }}"></td>
                             <td>
                                 <select name="lines[__INDEX__][planned_unit_id]" class="form-control">
                                     <option value="">{{ __('Portions (default)') }}</option>

@@ -91,7 +91,7 @@
                                     </div>
                                     <div class="col-md-4 mb-3">
                                         <label class="form-label">{{ __('Rate Source') }} <span class="text-danger">*</span></label>
-                                        <input type="text" name="rate_source" class="form-control" value="{{ old('rate_source', $transfer->rate_source ?? '') }}" maxlength="20" placeholder="bank / central bank / manual">
+                                        <input type="text" name="rate_source" class="form-control" value="{{ old('rate_source', $transfer->rate_source ?? '') }}" maxlength="20" placeholder="{{ __('bank / central bank / manual') }}">
                                     </div>
                                     <div class="col-md-4 mb-3">
                                         <label class="form-label">{{ __('Rate Date') }}</label>

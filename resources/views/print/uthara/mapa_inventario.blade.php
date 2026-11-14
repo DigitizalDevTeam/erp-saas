@@ -44,7 +44,7 @@
 
     <header class="head">
         <div>
-            <div class="brand">UTHARA<small>ERP SaaS</small></div>
+            <div class="brand">UTHARA<small>{{ __('ERP SaaS') }}</small></div>
             <h1>{{ __('Inventory Map') }}</h1>
             <p>{{ __('Consolidated stock by warehouse, product and location.') }}</p>
         </div>

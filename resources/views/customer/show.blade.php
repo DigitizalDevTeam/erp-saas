@@ -75,7 +75,7 @@
                     <p class="card-text mb-1">{{$customer['email']}}</p>
                     <p class="card-text mb-0">{{$customer['contact']}}</p>
                     @if($customer->price_level_id)
-                    <p class="card-text mb-0"><b>Price Level:</b> {{$customer['priceLevel']['name'] .' - '. $customer['priceLevel']['type'] .' - '. $customer['priceLevel']['value']}}</p>
+                    <p class="card-text mb-0"><b>{{ __('Price Level:') }}</b> {{$customer['priceLevel']['name'] .' - '. $customer['priceLevel']['type'] .' - '. $customer['priceLevel']['value']}}</p>
                     @endif
                 </div>
             </div>

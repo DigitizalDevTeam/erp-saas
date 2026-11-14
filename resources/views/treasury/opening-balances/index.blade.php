@@ -87,7 +87,7 @@
                                                     @if ($balance->isApproved())
                                                         <form method="POST" action="{{ route('treasury-opening-balances.reverse', $balance->id) }}" class="d-inline" onsubmit="return confirm('{{ __('Reverse this approved opening balance? The original is kept; a reversal row nets it to zero.') }}')">
                                                             @csrf
-                                                            <input type="hidden" name="reversal_reason" value="Reversed from the opening balances list">
+                                                            <input type="hidden" name="reversal_reason" value="{{ __('Reversed from the opening balances list') }}">
                                                             <button type="submit" class="btn btn-sm btn-warning">{{ __('Reverse') }}</button>
                                                         </form>
                                                     @endif

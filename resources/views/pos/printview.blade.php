@@ -112,7 +112,7 @@
 <div class="pt-0 pb-3 {{ $standalone ? 'bg-white rounded p-3' : 'modal-body' }} pos-module position-relative pos-print-layout-{{ $printLayout }}" id="printarea" {{ $standalone ? 'style="box-shadow:0 1px 3px rgba(0,0,0,.1);"' : '' }}>
     <div class="receipt-copy-wrapper receipt-copy position-relative">
         @if($segundaVia)
-            <div class="segunda-via-watermark" aria-hidden="true">SEGUNDA VIA</div>
+            <div class="segunda-via-watermark" aria-hidden="true">{{ __('SEGUNDA VIA') }}</div>
         @endif
         @include($standardPartial)
     </div>

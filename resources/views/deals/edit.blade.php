@@ -19,7 +19,7 @@
             {{ Form::text('name', null, array('class' => 'form-control','required'=>'required', 'placeholder'=>__('Enter Deal Name'))) }}
         </div>
         <div class="col-6">
-            <x-mobile label="{{__('Phone')}}" name="phone" value="{{$deal->phone}}" required placeholder="Enter Phone"></x-mobile>
+            <x-mobile label="{{__('Phone')}}" name="phone" value="{{$deal->phone}}" required placeholder="{{ __('Enter Phone') }}"></x-mobile>
         </div>
         <div class="col-6 form-group">
             {{ Form::label('price', __('Price'),['class'=>'form-label']) }}

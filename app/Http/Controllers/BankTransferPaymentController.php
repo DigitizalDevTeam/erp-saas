@@ -130,7 +130,7 @@ class BankTransferPaymentController extends Controller
     public function orderDestroy($id)
     {
         $order = Order::where('id', $id)->delete();
-        return redirect()->back()->with('success', 'Order successfully deleted.');
+        return redirect()->back()->with('success', __('Order successfully deleted.'));
     }
     public function action($id)
     {

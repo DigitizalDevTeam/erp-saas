@@ -28,7 +28,7 @@
         <div class="form-group">
             {{ Form::label('task_id', __('Task'),['class' => 'form-label']) }}
             <select class="form-control select" name="task_id" id="task_id">
-                <option value="0">Choose Task</option>
+                <option value="0">{{ __('Choose Task') }}</option>
                 @foreach($project->tasks as $task)
                     <option value="{{ $task->id }}">{{ $task->name }}</option>
                 @endforeach

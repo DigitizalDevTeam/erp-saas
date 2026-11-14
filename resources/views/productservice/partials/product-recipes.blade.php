@@ -103,7 +103,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">{{ __('Alternatives for') }} <span id="recipe-alt-ingredient-name"></span></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
             </div>
             <div class="modal-body">
                 <p class="text-muted small mb-2">{{ __('Pick alternative ingredients in order. At cooking time the cook picks one manually when the main ingredient is missing.') }}</p>

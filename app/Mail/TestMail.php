@@ -28,6 +28,6 @@ class TestMail extends Mailable
      */
     public function build()
     {
-        return $this->view('email.test_mail')->subject('Mail send for testing purpose.');
+        return $this->view('email.test_mail')->subject(__('Mail send for testing purpose.'));
     }
 }

@@ -29,7 +29,7 @@
                                     {!! Form::text('name', old('name'), ['class' => 'form-control', 'required' => 'required' ,'placeholder'=>__('Enter employee name')]) !!}
                                 </div>
                                 <div class="col-md-6">
-                                    <x-mobile label="{{__('Phone')}}" name="phone" value="{{old('phone')}}" required placeholder="Enter employee phone"></x-mobile>
+                                    <x-mobile label="{{__('Phone')}}" name="phone" value="{{old('phone')}}" required placeholder="{{ __('Enter employee phone') }}"></x-mobile>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
@@ -42,12 +42,12 @@
                                         {!! Form::label('gender', __('Gender'), ['class' => 'form-label' , 'required' => 'required' ]) !!}<x-required></x-required>
                                         <div class="d-flex radio-check">
                                             <div class="form-check form-check-inline form-group">
-                                                <input type="radio" id="g_male" value="Male" name="gender"
+                                                <input type="radio" id="g_male" value="{{ __('Male') }}" name="gender"
                                                     class="form-check-input" checked>
                                                 <label class="form-check-label" for="g_male">{{ __('Male') }}</label>
                                             </div>
                                             <div class="form-check form-check-inline form-group">
-                                                <input type="radio" id="g_female" value="Female" name="gender"
+                                                <input type="radio" id="g_female" value="{{ __('Female') }}" name="gender"
                                                     class="form-check-input" >
                                                 <label class="form-check-label" for="g_female">{{ __('Female') }}</label>
                                             </div>

@@ -187,7 +187,7 @@
                             <div class="col-md-2">
                                 <div class="btn-box">
                                     {{ Form::label('branch', __('Branch'),['class'=>'form-label']) }}
-                                    <select class="form-control select" name="branch_id" id="branch_id"  placeholder="Select Branch" required>
+                                    <select class="form-control select" name="branch_id" id="branch_id"  placeholder="{{ __('Select Branch') }}" required>
                                         <option value="">{{__('Select Branch')}}</option>
                                         @foreach($branch as $branch)
                                             <option value="{{ $branch->id }}">{{ $branch->name }}</option>

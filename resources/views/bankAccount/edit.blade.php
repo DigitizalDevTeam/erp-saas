@@ -34,7 +34,7 @@
             {{ Form::number('opening_balance',null, array('class' => 'form-control','step'=>'0.01', 'placeholder'=>__('Enter Opening Balance'))) }}
         </div>
         <div class="col-md-6">
-            <x-mobile label="{{__('Contact Number')}}" name="contact_number" value="{{old('contact_number')}}" placeholder="Enter Contact Number"></x-mobile>
+            <x-mobile label="{{__('Contact Number')}}" name="contact_number" value="{{old('contact_number')}}" placeholder="{{ __('Enter Contact Number') }}"></x-mobile>
         </div>
         <div class="form-group  col-md-12 mb-0">
             {{ Form::label('bank_address', __('Bank Address'),['class'=>'form-label']) }}

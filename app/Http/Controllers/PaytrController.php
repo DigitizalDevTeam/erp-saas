@@ -180,7 +180,7 @@ class PaytrController extends Controller
                 if ($result['status'] == 'success') {
                     $token = $result['token'];
                 } else {
-                    return redirect()->back()->with('error', 'Currency Not Supported.Contact To Your Site Admin');
+                    return redirect()->back()->with('error', __('Currency Not Supported.Contact To Your Site Admin'));
                 }
 
                 return view('plan.paytr_payment', compact('token'));
@@ -374,7 +374,7 @@ class PaytrController extends Controller
                 if ($result['status'] == 'success') {
                     $token = $result['token'];
                 } else {
-                    return redirect()->back()->with('error', 'Currency Not Supported.Contact To Your Site Admin');
+                    return redirect()->back()->with('error', __('Currency Not Supported.Contact To Your Site Admin'));
 
                 }
 

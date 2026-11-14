@@ -148,15 +148,15 @@
                 <p class="small text-muted mb-2" id="product_measures_create_help"></p>
                 <div class="row g-2">
                     <div class="col-md-3 measure-field measure-l">
-                        <label class="form-label">{{ __('Length') }} (cm)</label>
+                        <label class="form-label">{{ __('Length') }} {{ __('(cm)') }}</label>
                         <input type="number" step="0.000001" min="0" class="form-control" id="unit_length_create" name="unit_length" placeholder="0">
                     </div>
                     <div class="col-md-3 measure-field measure-w">
-                        <label class="form-label">{{ __('Width') }} (cm)</label>
+                        <label class="form-label">{{ __('Width') }} {{ __('(cm)') }}</label>
                         <input type="number" step="0.000001" min="0" class="form-control" id="unit_width_create" name="unit_width" placeholder="0">
                     </div>
                     <div class="col-md-3 measure-field measure-h">
-                        <label class="form-label">{{ __('Height') }} (cm)</label>
+                        <label class="form-label">{{ __('Height') }} {{ __('(cm)') }}</label>
                         <input type="number" step="0.000001" min="0" class="form-control" id="unit_height_create" name="unit_height" placeholder="0">
                     </div>
                     <div class="col-md-3 measure-field measure-vol-div">

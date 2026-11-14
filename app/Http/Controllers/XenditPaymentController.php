@@ -221,7 +221,7 @@ class XenditPaymentController extends Controller
                 Session::put('invoicepay', $Xenditinvoice);
                 return redirect($Xenditinvoice['invoice_url']);
             } else {
-                return redirect()->back()->with('error', 'Invoice not found.');
+                return redirect()->back()->with('error', __('Invoice not found.'));
             }
         } catch (\Throwable $e) {
             return redirect()->back()->with('error', __($e));

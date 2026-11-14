@@ -94,7 +94,7 @@
                         <div class="form-group col-md-12">
                             {!! Form::label('skill', __('Skill'), ['class' => 'form-label']) !!}<x-required></x-required>
                             <input type="text" class="form-control" value="" data-toggle="tags" name="skill"
-                                placeholder="Skill" required />
+                                placeholder="{{ __('Skill') }}" required />
                         </div>
                     </div>
                 </div>
@@ -178,7 +178,7 @@
                     <div class="form-group">
                         {!! Form::label('description', __('Job Description'), ['class' => 'form-label mb-4']) !!}
                         <textarea class="form-control summernote-simple-2" name="description" id="exampleFormControlTextarea1"
-                            rows="8" placeholder="EnterJob Description"></textarea>
+                            rows="8" placeholder="{{ __('EnterJob Description') }}"></textarea>
                     </div>
                 </div>
             </div>

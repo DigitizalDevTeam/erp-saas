@@ -63,7 +63,7 @@
                             <div class="row justify-content-between">
                                 <div class="col-xl-3 mt-4">
                                     <div class="btn-group btn-group-toggle" data-toggle="buttons"
-                                        aria-label="Basic radio toggle button group">
+                                        aria-label="{{ __('Basic radio toggle button group') }}">
                                         <label class="btn btn-primary month-label">
                                             <a href="{{ route('trial.balance', ['collapse']) }}"
                                                 class="text-white" id="collapse"> {{ __('Collapse') }} </a>

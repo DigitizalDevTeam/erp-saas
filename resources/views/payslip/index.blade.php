@@ -370,7 +370,7 @@
                     var year = $(".year_date").val();
                     var datePicker = year + '-' + month;
 
-                    var title = 'Bulk Payment';
+                    var title="{{ __('Bulk Payment') }}";
                     var size = 'md';
                     var url = 'payslip/bulk_pay_create/' + datePicker;
 
@@ -397,7 +397,7 @@
                 });
 
             $(document).on("click", ".payslip_delete", function() {
-                var confirmation = confirm("are you sure you want to delete this payslip?");
+                var confirmation = confirm(@json(__('are you sure you want to delete this payslip?')));
                 var url = $(this).data('url');
 
 

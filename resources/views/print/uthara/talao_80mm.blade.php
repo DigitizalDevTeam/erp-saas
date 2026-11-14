@@ -88,7 +88,7 @@
 <div class="mz-talao-uthara receipt-body">
     <div class="center">
         @if(!empty($headerLogo))
-            <img class="logo mz-receipt-logo" src="{{ $headerLogo }}" alt="Logo" onerror="this.style.display='none'">
+            <img class="logo mz-receipt-logo" src="{{ $headerLogo }}" alt="{{ __('Logo') }}" onerror="this.style.display='none'">
         @else
             <div class="logo-fallback">{{ $brand }}</div>
         @endif

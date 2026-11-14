@@ -829,21 +829,21 @@ class DealController extends Controller
 
                 if(!empty($clients) && !empty($request->clients))
                 {
-                    return redirect()->back()->with('success', __('Clients successfully updated!'))->with('status', 'clients');
+                    return redirect()->back()->with('success', __('Clients successfully updated!'))->with('status', __('clients'));
                 }
                 else
                 {
-                    return redirect()->back()->with('error', __('Please Select Valid Clients!'))->with('status', 'clients');
+                    return redirect()->back()->with('error', __('Please Select Valid Clients!'))->with('status', __('clients'));
                 }
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'clients');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('clients'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'clients');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('clients'));
         }
     }
 
@@ -856,16 +856,16 @@ class DealController extends Controller
             {
                 ClientDeal::where('deal_id', '=', $deal->id)->where('client_id', '=', $client_id)->delete();
 
-                return redirect()->back()->with('success', __('Client successfully deleted!'))->with('status', 'clients');
+                return redirect()->back()->with('success', __('Client successfully deleted!'))->with('status', __('clients'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'clients');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('clients'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'clients');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('clients'));
         }
     }
 
@@ -929,21 +929,21 @@ class DealController extends Controller
 
                 if(!empty($products) && !empty($request->products))
                 {
-                    return redirect()->back()->with('success', __('Products successfully updated!'))->with('status', 'products');
+                    return redirect()->back()->with('success', __('Products successfully updated!'))->with('status', __('products'));
                 }
                 else
                 {
-                    return redirect()->back()->with('error', __('Please Select Valid Product!'))->with('status', 'general');
+                    return redirect()->back()->with('error', __('Please Select Valid Product!'))->with('status', __('general'));
                 }
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'products');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('products'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'products');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('products'));
         }
     }
 
@@ -965,16 +965,16 @@ class DealController extends Controller
                 $deal->products = implode(',', $products);
                 $deal->save();
 
-                return redirect()->back()->with('success', __('Products successfully deleted!'))->with('status', 'products');
+                return redirect()->back()->with('success', __('Products successfully deleted!'))->with('status', __('products'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'products');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('products'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'products');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('products'));
         }
     }
 
@@ -1288,16 +1288,16 @@ class DealController extends Controller
                 // Send Email
                 Utility::sendEmailTemplate('Create Task', $usrs, $tArr);
 
-                return redirect()->back()->with('success', __('Task successfully created!'))->with('status', 'tasks');
+                return redirect()->back()->with('success', __('Task successfully created!'))->with('status', __('tasks'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'tasks');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('tasks'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'tasks');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('tasks'));
         }
     }
 
@@ -1404,16 +1404,16 @@ class DealController extends Controller
                     ]
                 );
 
-                return redirect()->back()->with('success', __('Task successfully updated!'))->with('status', 'tasks');
+                return redirect()->back()->with('success', __('Task successfully updated!'))->with('status', __('tasks'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'tasks');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('tasks'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'tasks');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('tasks'));
         }
     }
 
@@ -1494,16 +1494,16 @@ class DealController extends Controller
                 $task = DealTask::find($task_id);
                 $task->delete();
 
-                return redirect()->back()->with('success', __('Task successfully deleted!'))->with('status', 'tasks');
+                return redirect()->back()->with('success', __('Task successfully deleted!'))->with('status', __('tasks'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'tasks');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('tasks'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'tasks');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('tasks'));
         }
     }
 
@@ -1572,16 +1572,16 @@ class DealController extends Controller
                     'updated_by' => $usr->id,
                 ];
 
-                return redirect()->back()->with('success', __('Sources successfully updated!'))->with('status', 'sources');
+                return redirect()->back()->with('success', __('Sources successfully updated!'))->with('status', __('sources'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'sources');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('sources'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'sources');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('sources'));
         }
     }
 
@@ -1603,16 +1603,16 @@ class DealController extends Controller
                 $deal->sources = implode(',', $sources);
                 $deal->save();
 
-                return redirect()->back()->with('success', __('Sources successfully deleted!'))->with('status', 'sources');
+                return redirect()->back()->with('success', __('Sources successfully deleted!'))->with('status', __('sources'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'sources');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('sources'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'sources');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('sources'));
         }
     }
 
@@ -1637,7 +1637,7 @@ class DealController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'clients');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('clients'));
         }
     }
 
@@ -1662,7 +1662,7 @@ class DealController extends Controller
                     }
                     $permissions->save();
 
-                    return redirect()->back()->with('success', __('Permissions successfully updated!'))->with('status', 'clients');
+                    return redirect()->back()->with('success', __('Permissions successfully updated!'))->with('status', __('clients'));
                 }
                 elseif(!empty($request->permissions) && count($request->permissions) > 0)
                 {
@@ -1674,21 +1674,21 @@ class DealController extends Controller
                         ]
                     );
 
-                    return redirect()->back()->with('success', __('Permissions successfully updated!'))->with('status', 'clients');
+                    return redirect()->back()->with('success', __('Permissions successfully updated!'))->with('status', __('clients'));
                 }
                 else
                 {
-                    return redirect()->back()->with('error', __('Invalid Permission.'))->with('status', 'clients');
+                    return redirect()->back()->with('error', __('Invalid Permission.'))->with('status', __('clients'));
                 }
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'clients');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('clients'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'clients');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('clients'));
         }
     }
 
@@ -1747,11 +1747,11 @@ class DealController extends Controller
                 'updated_by' => $usr->id,
             ];
 
-            return redirect()->back()->with('success', __('Message successfully added!'))->with('status', 'discussion');
+            return redirect()->back()->with('success', __('Message successfully added!'))->with('status', __('discussion'));
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'discussion');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('discussion'));
         }
     }
 
@@ -1848,16 +1848,16 @@ class DealController extends Controller
                     'updated_by' => $usr->id,
                 ];
 
-                return redirect()->back()->with('success', __('Call successfully created!'))->with('status', 'calls');
+                return redirect()->back()->with('success', __('Call successfully created!'))->with('status', __('calls'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'calls');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('calls'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'calls');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('calls'));
         }
     }
 
@@ -1929,16 +1929,16 @@ class DealController extends Controller
                     ]
                 );
 
-                return redirect()->back()->with('success', __('Call successfully updated!'))->with('status', 'calls');
+                return redirect()->back()->with('success', __('Call successfully updated!'))->with('status', __('calls'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'calls');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('calls'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'tasks');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('tasks'));
         }
     }
 
@@ -1952,16 +1952,16 @@ class DealController extends Controller
                 $task = DealCall::find($call_id);
                 $task->delete();
 
-                return redirect()->back()->with('success', __('Call successfully deleted!'))->with('status', 'calls');
+                return redirect()->back()->with('success', __('Call successfully deleted!'))->with('status', __('calls'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'calls');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('calls'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'calls');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('calls'));
         }
     }
 
@@ -2061,16 +2061,16 @@ class DealController extends Controller
                     ]
                 );
 
-                return redirect()->back()->with('success', __('Email successfully created!') . ((isset($smtp_error)) ? '<br> <span class="text-danger">' . $smtp_error . '</span>' : ''))->with('status', 'emails');
+                return redirect()->back()->with('success', __('Email successfully created!') . ((isset($smtp_error)) ? '<br> <span class="text-danger">' . $smtp_error . '</span>' : ''))->with('status', __('emails'));
             }
             else
             {
-                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'emails');
+                return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('emails'));
             }
         }
         else
         {
-            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', 'emails');
+            return redirect()->back()->with('error', __('Permission Denied.'))->with('status', __('emails'));
         }
     }
 

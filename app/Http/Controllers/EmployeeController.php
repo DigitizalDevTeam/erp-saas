@@ -451,16 +451,16 @@ class EmployeeController extends Controller
             }
             if($request->salary)
             {
-                return redirect()->route('setsalary.index')->with('success', 'Employee successfully updated.');
+                return redirect()->route('setsalary.index')->with('success', __('Employee successfully updated.'));
             }
 
             if(\Auth::user()->type != 'employee')
             {
-                return redirect()->route('employee.index')->with('success', 'Employee successfully updated.');
+                return redirect()->route('employee.index')->with('success', __('Employee successfully updated.'));
             }
             else
             {
-                return redirect()->route('employee.show', \Illuminate\Support\Facades\Crypt::encrypt($employee->id))->with('success', 'Employee successfully updated.');
+                return redirect()->route('employee.show', \Illuminate\Support\Facades\Crypt::encrypt($employee->id))->with('success', __('Employee successfully updated.'));
             }
 
         }
@@ -496,7 +496,7 @@ class EmployeeController extends Controller
                 }
             }
 
-            return redirect()->route('employee.index')->with('success', 'Employee successfully deleted.');
+            return redirect()->route('employee.index')->with('success', __('Employee successfully deleted.'));
         }
         else
         {

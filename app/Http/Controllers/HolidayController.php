@@ -116,7 +116,7 @@ class HolidayController extends Controller
 
                 if($status == true)
                 {
-                    return redirect()->route('holiday.index')->with('success', 'Holiday successfully created.');
+                    return redirect()->route('holiday.index')->with('success', __('Holiday successfully created.'));
                 }
                 else
                 {
@@ -124,7 +124,7 @@ class HolidayController extends Controller
                 }
             }
 
-            return redirect()->route('holiday.index')->with('success', 'Holiday successfully created.');
+            return redirect()->route('holiday.index')->with('success', __('Holiday successfully created.'));
         }
         else
         {
@@ -175,7 +175,7 @@ class HolidayController extends Controller
             $holiday->occasion = $request->occasion;
             $holiday->save();
 
-            return redirect()->route('holiday.index')->with('success', 'Holiday successfully updated.');
+            return redirect()->route('holiday.index')->with('success', __('Holiday successfully updated.'));
         }
         else
         {
@@ -191,7 +191,7 @@ class HolidayController extends Controller
         {
             $holiday->delete();
 
-            return redirect()->route('holiday.index')->with('success', 'Holiday successfully deleted.');
+            return redirect()->route('holiday.index')->with('success', __('Holiday successfully deleted.'));
         }
         else
         {

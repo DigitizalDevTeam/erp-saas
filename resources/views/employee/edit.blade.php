@@ -46,13 +46,13 @@
                                 {!! Form::label('gender', __('Gender'), ['class' => 'form-label']) !!}<x-required></x-required>
                                 <div class="d-flex radio-check">
                                     <div class="form-check form-check-inline form-group">
-                                        <input type="radio" id="g_male" value="Male" name="gender"
+                                        <input type="radio" id="g_male" value="{{ __('Male') }}" name="gender"
                                             class="form-check-input" {{ $employee->gender == 'Male' ? 'checked' : '' }}
                                             required>
                                         <label class="form-check-label" for="g_male">{{ __('Male') }}</label>
                                     </div>
                                     <div class="form-check form-check-inline form-group">
-                                        <input type="radio" id="g_female" value="Female" name="gender"
+                                        <input type="radio" id="g_female" value="{{ __('Female') }}" name="gender"
                                             class="form-check-input" {{ $employee->gender == 'Female' ? 'checked' : '' }}
                                             required>
                                         <label class="form-check-label" for="g_female">{{ __('Female') }}</label>

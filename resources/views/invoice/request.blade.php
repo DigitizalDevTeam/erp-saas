@@ -42,7 +42,7 @@
                             <div class="col-12">
                                 <div class="form-group mb-3">
                                     <label class="d-block mb-1">{{ __('Owner Name') }} <sup aria-hidden="true" class="text-danger">*</sup></label>
-                                    <input class="form-control" type="text" placeholder="Name" value="{{ $user->name }}" disabled  placeholder="{{ __('Enter Owner Name') }}">
+                                    <input class="form-control" type="text" placeholder="{{ __('Name') }}" value="{{ $user->name }}" disabled  placeholder="{{ __('Enter Owner Name') }}">
                                 </div>
                             </div>
                             <div class="col-12">
@@ -51,21 +51,21 @@
                                     <div class="input-group">
                                         <span class="input-group-prepend"><span
                                                 class="input-group-text">{{ $currency ? $currency : 'USD' }}</span></span>
-                                                <input class="form-control" type="number" placeholder="Amount" value="{{ $get_amount }}" disabled  placeholder="{{ __('Enter Amount') }}">
+                                                <input class="form-control" type="number" placeholder="{{ __('Amount') }}" value="{{ $get_amount }}" disabled  placeholder="{{ __('Enter Amount') }}">
                                     </div>
                                 </div>
                             </div>
                             <div class="col-12">
                                 <div class="form-group mb-3">
                                     <label class="d-block mb-1">{{ __('Card Number') }}<sup aria-hidden="true" class="text-danger">*</sup></label>
-                                    <input class="form-control" pattern="\d{16}"  type="text" placeholder="Enter Card Number" name="cardNumber" required>
+                                    <input class="form-control" pattern="\d{16}"  type="text" placeholder="{{ __('Enter Card Number') }}" name="cardNumber" required>
                                     <small class="form-text text-muted">{{ __('Please enter a 16-digit card number.') }}</small>
                                 </div>
                             </div>
                             <div class="col-sm-4">
                                 <div class="form-group ">
                                     <label class="d-block mb-1">{{ __('CVV') }}<sup aria-hidden="true" class="text-danger"> *</sup></label>
-                                    <input class="form-control" type="text" placeholder="Enter CVV" name="cvv" maxlength="3" size="3" required>
+                                    <input class="form-control" type="text" placeholder="{{ __('Enter CVV') }}" name="cvv" maxlength="3" size="3" required>
                                 </div>
                             </div>
                             <div class="col-sm-4 form-group" >
@@ -103,7 +103,7 @@
                     if (!validateCardNumber(cardNumberInput.value)) {
                         // Prevent the form submission if validation fails
                         event.preventDefault();
-                        alert('Please enter a valid 16-digit card number.');
+                        alert(@json(__('Please enter a valid 16-digit card number.')));
                     }
                 });
 

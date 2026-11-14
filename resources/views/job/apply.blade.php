@@ -147,11 +147,11 @@ else {
                                     {!! Form::label('gender', __('Gender'),['class'=>'form-label']) !!}
                                     <div class="d-flex radio-check">
                                         <div class="custom-control custom-radio custom-control-inline">
-                                            <input type="radio" id="g_male" value="Male" name="gender" class="custom-control-input" >
+                                            <input type="radio" id="g_male" value="{{ __('Male') }}" name="gender" class="custom-control-input" >
                                             <label class="custom-control-label" for="g_male">{{__('Male')}}</label>
                                         </div>
                                         <div class="custom-control custom-radio custom-control-inline">
-                                            <input type="radio" id="g_female" value="Female" name="gender" class="custom-control-input">
+                                            <input type="radio" id="g_female" value="{{ __('Female') }}" name="gender" class="custom-control-input">
                                             <label class="custom-control-label" for="g_female">{{__('Female')}}</label>
                                         </div>
                                     </div>
@@ -221,7 +221,7 @@ else {
     <div id="liveToast" class="toast text-white  fade" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
             <div class="toast-body"> </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="{{ __('Close') }}"></button>
         </div>
     </div>
 </div>

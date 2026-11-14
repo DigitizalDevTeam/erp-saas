@@ -155,7 +155,7 @@ class MolliePaymentController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Plan is deleted.');
+            return redirect()->back()->with('error', __('Plan is deleted.'));
         }
 
     }
@@ -300,7 +300,7 @@ class MolliePaymentController extends Controller
         }
         else
         {
-            return redirect()->back()->with('error', 'Invoice is deleted.');
+            return redirect()->back()->with('error', __('Invoice is deleted.'));
         }
 
     }

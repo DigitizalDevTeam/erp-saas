@@ -48,6 +48,6 @@ class EmailVerificationNotificationController extends Controller
             return redirect()->back()->with('error', __($th->getMessage()));
         }
 
-        return back()->with('status', 'verification-link-sent');
+        return back()->with('status', __('verification-link-sent'));
     }
 }

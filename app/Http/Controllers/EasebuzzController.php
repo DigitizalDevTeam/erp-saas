@@ -218,7 +218,7 @@ class EasebuzzController extends Controller
                     return redirect()->back()->with('error', __('Something went wrong.'));
                 }
             } else {
-                return redirect()->back()->with('error', 'Invoice not found.');
+                return redirect()->back()->with('error', __('Invoice not found.'));
             }
         } catch (\Throwable $e) {
 

@@ -30,7 +30,7 @@
                     },
                     hide: function (deleteElement) {
 
-                        if (confirm('Are you sure you want to delete this element?')) {
+                        if (confirm(@json(__('Are you sure you want to delete this element?')))) {
                             var el = $(this);
                             var id = $(el.find('.id')).val();
 
@@ -114,11 +114,11 @@
             var billing_id = $("#billing_address").val();
             var shipping_id = $("#shipping_address").val();
             if(billing_id == "" || billing_id == null || billing_id == undefined){
-                alert("Billing field is requried.")
+                alert(@json(__('Billing field is requried.')))
                 return;
             }
             if(shipping_id == "" || shipping_id == null || shipping_id == undefined){
-                alert("Shipping field is requried.")
+                alert(@json(__('Shipping field is requried.')))
                 return;
             }
             

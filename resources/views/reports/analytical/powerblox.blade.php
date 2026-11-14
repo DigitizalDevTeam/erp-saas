@@ -23,7 +23,7 @@
 
                     <div class="alert alert-info">
                         <div class="fw-bold">{{ __('Workbook') }}</div>
-                        <div><code>docs/PowerBlox_Reporte_ 2022.xlsm</code></div>
+                        <div><code>{{ __('docs/PowerBlox_Reporte_ 2022.xlsm') }}</code></div>
                     </div>
 
                     <div class="row g-3">

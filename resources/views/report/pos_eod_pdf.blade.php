@@ -177,7 +177,7 @@
                 <tr>
                     <th>{{ __('Employee') }}</th>
                     <th class="text-end">{{ __('AMOUNT') }}</th>
-                    <th class="text-end">N.O</th>
+                    <th class="text-end">{{ __('N.O') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -216,7 +216,7 @@
                 <thead>
                     <tr>
                         <th>{{ __('SECTION') }}</th>
-                        <th class="text-end">N. ART</th>
+                        <th class="text-end">{{ __('N. ART') }}</th>
                         <th class="text-end">{{ __('AMOUNT') }}</th>
                         <th class="text-end">%</th>
                     </tr>

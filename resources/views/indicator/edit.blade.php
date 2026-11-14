@@ -47,15 +47,15 @@
             <div class="col-6">
                 <fieldset id='demo1' class="rating">
                     <input class="stars" type="radio" id="technical-5-{{$types->id}}" name="rating[{{$types->id}}]" value="5" {{ (isset($ratings[$types->id]) && $ratings[$types->id] == 5)? 'checked':''}}>
-                    <label class="full" for="technical-5-{{$types->id}}" title="Awesome - 5 stars"></label>
+                    <label class="full" for="technical-5-{{$types->id}}" title="{{ __('Awesome - 5 stars') }}"></label>
                     <input class="stars" type="radio" id="technical-4-{{$types->id}}" name="rating[{{$types->id}}]" value="4" {{ (isset($ratings[$types->id]) && $ratings[$types->id] == 4)? 'checked':''}}>
-                    <label class="full" for="technical-4-{{$types->id}}" title="Pretty good - 4 stars"></label>
+                    <label class="full" for="technical-4-{{$types->id}}" title="{{ __('Pretty good - 4 stars') }}"></label>
                     <input class="stars" type="radio" id="technical-3-{{$types->id}}" name="rating[{{$types->id}}]" value="3" {{ (isset($ratings[$types->id]) && $ratings[$types->id] == 3)? 'checked':''}}>
-                    <label class="full" for="technical-3-{{$types->id}}" title="Meh - 3 stars"></label>
+                    <label class="full" for="technical-3-{{$types->id}}" title="{{ __('Meh - 3 stars') }}"></label>
                     <input class="stars" type="radio" id="technical-2-{{$types->id}}" name="rating[{{$types->id}}]" value="2" {{ (isset($ratings[$types->id]) && $ratings[$types->id] == 2)? 'checked':''}}>
-                    <label class="full" for="technical-2-{{$types->id}}" title="Kinda bad - 2 stars"></label>
+                    <label class="full" for="technical-2-{{$types->id}}" title="{{ __('Kinda bad - 2 stars') }}"></label>
                     <input class="stars" type="radio" id="technical-1-{{$types->id}}" name="rating[{{$types->id}}]" value="1" {{ (isset($ratings[$types->id]) && $ratings[$types->id] == 1)? 'checked':''}}>
-                    <label class="full" for="technical-1-{{$types->id}}" title="Sucks big time - 1 star"></label>
+                    <label class="full" for="technical-1-{{$types->id}}" title="{{ __('Sucks big time - 1 star') }}"></label>
                 </fieldset>
             </div>
         @endforeach

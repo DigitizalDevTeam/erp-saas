@@ -122,9 +122,9 @@
                             </tr>
                             <tr>
                                 @foreach($monthList as $month)
-                                    <th scope="col" class="br-1px">Budget</th>
-                                    <th scope="col" class="br-1px">Actual</th>
-                                    <th scope="col" class="br-1px">Over Budget</th>
+                                    <th scope="col" class="br-1px">{{ __('Budget') }}</th>
+                                    <th scope="col" class="br-1px">{{ __('Actual') }}</th>
+                                    <th scope="col" class="br-1px">{{ __('Over Budget') }}</th>
                                 @endforeach
                             </tr>
                             </thead>
@@ -300,9 +300,9 @@
                             </tr>
                             <tr>
                                 @foreach($quarterly_monthlist as $month)
-                                    <th scope="col" class="br-1px">Budget</th>
-                                    <th scope="col" class="br-1px">Actual</th>
-                                    <th scope="col" class="br-1px">Over Budget</th>
+                                    <th scope="col" class="br-1px">{{ __('Budget') }}</th>
+                                    <th scope="col" class="br-1px">{{ __('Actual') }}</th>
+                                    <th scope="col" class="br-1px">{{ __('Over Budget') }}</th>
                                 @endforeach
                             </tr>
                             </thead>
@@ -486,9 +486,9 @@
                             </tr>
                             <tr>
                                 @foreach($half_yearly_monthlist as $month)
-                                    <th scope="col" class="br-1px">Budget</th>
-                                    <th scope="col" class="br-1px">Actual</th>
-                                    <th scope="col" class="br-1px">Over Budget</th>
+                                    <th scope="col" class="br-1px">{{ __('Budget') }}</th>
+                                    <th scope="col" class="br-1px">{{ __('Actual') }}</th>
+                                    <th scope="col" class="br-1px">{{ __('Over Budget') }}</th>
                                 @endforeach
                             </tr>
                             </thead>
@@ -664,9 +664,9 @@
                             </tr>
                             <tr>
                                 @foreach($yearly_monthlist as $month)
-                                    <th scope="col" class="br-1px">Budget</th>
-                                    <th scope="col" class="br-1px">Actual</th>
-                                    <th scope="col" class="br-1px">Over Budget</th>
+                                    <th scope="col" class="br-1px">{{ __('Budget') }}</th>
+                                    <th scope="col" class="br-1px">{{ __('Actual') }}</th>
+                                    <th scope="col" class="br-1px">{{ __('Over Budget') }}</th>
                                 @endforeach
                             </tr>
                             </thead>

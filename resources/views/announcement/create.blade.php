@@ -23,7 +23,7 @@
         <div class="col-md-6">
             <div class="form-group">
                 {{Form::label('branch_id',__('Branch'),['class'=>'form-label'])}}<x-required></x-required>
-                <select class="form-control select" name="branch_id" id="branch_id" placeholder="Select Branch" required>
+                <select class="form-control select" name="branch_id" id="branch_id" placeholder="{{ __('Select Branch') }}" required>
                     <option value="">{{__('Select Branch')}}</option>
                     <option value="0">{{__('All Branch')}}</option>
                     @foreach($branch as $branch)
@@ -39,7 +39,7 @@
         <div class="col-md-6">
             <div class="form-group">
                 {{Form::label('department_id',__('Department'),['class'=>'form-label'])}}<x-required></x-required>
-                <select class="form-control select" name="department_id[]" id="department_id" placeholder="Select Department" required>
+                <select class="form-control select" name="department_id[]" id="department_id" placeholder="{{ __('Select Department') }}" required>
                     <option value="">{{__('Select Department')}}</option>
 
                 </select>
@@ -51,7 +51,7 @@
         <div class="col-md-6">
             <div class="form-group">
                 {{Form::label('employee_id',__('Employee'),['class'=>'form-label'])}}<x-required></x-required>
-                <select class="form-control select" name="employee_id[]" id="employee_id" placeholder="Select Employee" required>
+                <select class="form-control select" name="employee_id[]" id="employee_id" placeholder="{{ __('Select Employee') }}" required>
                     <option value="">{{__('Select Employee')}}</option>
 
                 </select>

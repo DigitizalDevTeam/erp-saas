@@ -31,10 +31,10 @@
     <div class="c b big">{{ $companyName }}</div>
     @if(!empty($vatNumber))<div class="c">{{ __('VAT NR') }}: {{ $vatNumber }}</div>@endif
     @if(!empty($companyAddress))<div class="c">{{ $companyAddress }}</div>@endif
-    @if(!empty($companyTelephone))<div class="c">Tel: {{ $companyTelephone }}</div>@endif
+    @if(!empty($companyTelephone))<div class="c">{{ __('Tel:') }} {{ $companyTelephone }}</div>@endif
     <div class="solid"></div>
     <div class="c b big">{{ __('END OF DAY REPORT') }}</div>
-    <div class="c">EOD · {{ $reportDate->format('d/m/Y') }}</div>
+    <div class="c">{{ __('EOD ·') }} {{ $reportDate->format('d/m/Y') }}</div>
     <div class="line"></div>
     <div class="row"><span>{{ __('Date') }}:</span><span>{{ $reportDate->format('d/m/Y') }} ({{ $reportDate->format('l') }})</span></div>
     <div class="row"><span>{{ __('Printed') }}:</span><span>{{ date('d/m/Y H:i:s') }}</span></div>

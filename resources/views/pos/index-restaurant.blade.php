@@ -481,7 +481,7 @@
                                                 data-subtotal="{{ $details['subtotal'] }}" data-discount="{{ $details['discount'] ?? 0 }}"
                                                 data-netprice="{{ $details['netPrice'] ?? $details['subtotal'] }}">
                                                 <td class="cart-images">
-                                                    <img alt="Image placeholder"
+                                                    <img alt="{{ __('Image placeholder') }}"
                                                         src="{{ asset(Storage::url('uploads/pro_image/' . $image_url)) }}"
                                                         class="card-image avatar rounded-circle-sale shadow hover-shadow-lg">
                                                 </td>
@@ -618,7 +618,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="posNewCustomerModalLabel">{{ __('Add New Customer') }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <form id="pos-new-customer-form">
                     <div class="modal-body">
@@ -659,7 +659,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="posPayBalanceModalLabel">{{ __('Pay balance') }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <form id="pos-pay-balance-form">
                     <div class="modal-body">
@@ -711,7 +711,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="exampleModalLabel"></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <div class="body">
                 </div>
@@ -725,7 +725,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="posEodWarningModalLabel">{{ __('pos.day_closed') }} / {{ __('EOD Report') }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <div class="modal-body">
                     <p class="mb-0 text-warning"><i class="ti ti-alert-triangle me-2"></i>{{ __('pos.eod_close_all_shifts_warning') }}</p>
@@ -748,7 +748,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="payReceiptsModalLabel">{{ __('pos.pay_receipts') }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row g-2 mb-3">
@@ -794,7 +794,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="posOpenShiftModalLabel">{{ __('pos.open_shift') }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
                 </div>
                 <form id="pos-open-shift-form">
                     <div class="modal-body">
@@ -852,7 +852,7 @@
             <div class="d-flex">
                 <div class="toast-body"> </div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
-                    aria-label="Close"></button>
+                    aria-label="{{ __('Close') }}"></button>
             </div>
         </div>
     </div>
