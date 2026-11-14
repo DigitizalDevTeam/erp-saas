@@ -1815,6 +1815,12 @@
                                     </li>
                                     @endif
 
+                                    @if (menu_can('menu.pos_system.restaurant.tables'))
+                                    <li class="dash-item {{ Request::route()->getName() == 'pos.restaurant.layout.designer' ? 'active' : '' }}">
+                                        <a class="dash-link" href="{{ route('pos.restaurant.layout.designer') }}">{{ __('Layout') }}</a>
+                                    </li>
+                                    @endif
+
                                     @if (menu_can('menu.pos_system.restaurant.printers'))
                                     <li class="dash-item {{ Request::route()->getName() == 'pos-printer.index' ? 'active' : '' }}">
                                         <a class="dash-link" href="{{ route('pos-printer.index') }}">{{ __('Kitchen/Bar Printers') }}</a>

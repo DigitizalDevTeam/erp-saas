@@ -1,0 +1,830 @@
+@extends('layouts.admin')
+@section('page-title')
+    {{ __('Layout') }}
+@endsection
+@section('breadcrumb')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ __('Dashboard') }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('pos.report') }}">{{ __('POS') }}</a></li>
+    <li class="breadcrumb-item">{{ __('Layout') }}</li>
+@endsection
+
+@section('content')
+@php
+    $posLayoutPalette = [
+        ['title' => __('Tables'), 'items' => [
+            ['type' => 'table-round-2', 'label' => __('Round 2'), 'mini' => 'mini-round'],
+            ['type' => 'table-round-4', 'label' => __('Round 4'), 'mini' => 'mini-round'],
+            ['type' => 'table-round-6', 'label' => __('Round 6'), 'mini' => 'mini-round'],
+            ['type' => 'table-square-2', 'label' => __('Square 2'), 'mini' => 'mini-square'],
+            ['type' => 'table-square-4', 'label' => __('Square 4'), 'mini' => 'mini-square'],
+            ['type' => 'table-rect-4', 'label' => __('Rectangle 4'), 'mini' => 'mini-rect'],
+            ['type' => 'table-rect-6', 'label' => __('Rectangle 6'), 'mini' => 'mini-rect'],
+            ['type' => 'table-banquet', 'label' => __('Banquet 8-12'), 'mini' => 'mini-banquet'],
+        ]],
+        ['title' => __('Structure'), 'items' => [
+            ['type' => 'wall-h', 'label' => __('Wall (Horizontal)'), 'mini' => 'mini-wall-h'],
+            ['type' => 'wall-v', 'label' => __('Wall (Vertical)'), 'mini' => 'mini-wall-v'],
+            ['type' => 'door', 'label' => __('Door'), 'mini' => 'mini-door'],
+            ['type' => 'window', 'label' => __('Window'), 'mini' => 'mini-window'],
+        ]],
+        ['title' => __('Counters'), 'items' => [
+            ['type' => 'bar', 'label' => __('Bar Counter'), 'mini' => 'mini-bar'],
+            ['type' => 'reception', 'label' => __('Reception'), 'mini' => 'mini-reception'],
+        ]],
+        ['title' => __('Decor'), 'items' => [
+            ['type' => 'plant', 'label' => __('Plant'), 'mini' => 'mini-plant'],
+            ['type' => 'waiter', 'label' => __('Waiter Station'), 'mini' => 'mini-waiter'],
+        ]],
+    ];
+@endphp
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex flex-wrap align-items-center gap-2">
+                <div class="btn-group" role="group" aria-label="{{ __('Zoom') }}">
+                    <button type="button" class="btn btn-sm btn-light" id="posLayoutZoomOut" title="{{ __('Zoom Out') }}">&minus;</button>
+                    <button type="button" class="btn btn-sm btn-light" id="posLayoutZoomLabel" disabled>100%</button>
+                    <button type="button" class="btn btn-sm btn-light" id="posLayoutZoomIn" title="{{ __('Zoom In') }}">+</button>
+                    <button type="button" class="btn btn-sm btn-light" id="posLayoutZoomFit">{{ __('Fit') }}</button>
+                </div>
+                <button type="button" class="btn btn-sm btn-light active" id="posLayoutGridToggle" aria-pressed="true">{{ __('Grid') }}</button>
+                <span class="flex-grow-1"></span>
+                <span id="posLayoutSaved" class="text-success small" style="display:none">{{ __('Saved') }}</span>
+                <button type="button" class="btn btn-sm btn-light-danger" id="posLayoutClear">{{ __('Clear All') }}</button>
+                <button type="button" class="btn btn-sm btn-light-warning" id="posLayoutResetDemo">{{ __('Reset Demo') }}</button>
+                <button type="button" class="btn btn-sm btn-primary" id="posLayoutSave">{{ __('Save') }}</button>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-3 align-items-start">
+                    <div class="card mb-0" id="posLayoutPalette" style="flex:0 0 208px;max-width:100%">
+                        <div class="card-header py-2">
+                            <h6 class="mb-0">{{ __('Elements') }}</h6>
+                        </div>
+                        <div class="card-body p-2">
+                            @foreach ($posLayoutPalette as $group)
+                                <div class="text-muted small fw-bold mt-2 mb-1">{{ $group['title'] }}</div>
+                                @foreach ($group['items'] as $item)
+                                    <button type="button" class="pos-layout-palette-btn" data-type="{{ $item['type'] }}">
+                                        <span class="pos-layout-mini {{ $item['mini'] }}"></span>
+                                        <span class="pos-layout-palette-label">{{ $item['label'] }}</span>
+                                    </button>
+                                @endforeach
+                            @endforeach
+                            <div class="text-muted small mt-2">{{ __('Click or drag an element onto the canvas.') }}</div>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1" style="min-width:280px">
+                        <div id="posLayoutWrap" class="pos-layout-wrap">
+                            <div id="posLayoutCanvas" class="pos-layout-canvas"></div>
+                        </div>
+                        <div class="text-muted small mt-2">{{ __('Drag elements to move them. Click an element to edit it. Drag the blue handle to rotate, or stretch a wall by its edge.') }}</div>
+                    </div>
+                    <div class="card mb-0" id="posLayoutProps" style="flex:0 0 248px;max-width:100%">
+                        <div class="card-header py-2">
+                            <h6 class="mb-0">{{ __('Properties') }}</h6>
+                        </div>
+                        <div class="card-body p-3">
+                            <div id="posLayoutPropsEmpty" class="text-muted small">{{ __('Click an element on the canvas to edit it.') }}</div>
+                            <div id="posLayoutPropsForm" style="display:none">
+                                <div class="mb-2">
+                                    <label class="form-label">{{ __('Type') }}</label>
+                                    <input id="posLayoutPropType" class="form-control form-control-sm" readonly>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">{{ __('Label') }}</label>
+                                    <input id="posLayoutPropLabel" class="form-control form-control-sm">
+                                </div>
+                                <div class="mb-2" id="posLayoutPropCapacityWrap">
+                                    <label class="form-label">{{ __('Capacity') }}</label>
+                                    <input id="posLayoutPropCapacity" class="form-control form-control-sm">
+                                </div>
+                                <div class="mb-2" id="posLayoutPropStatusWrap">
+                                    <label class="form-label">{{ __('Status') }}</label>
+                                    <select id="posLayoutPropStatus" class="form-select form-select-sm">
+                                        <option value="available">{{ __('Available') }}</option>
+                                        <option value="occupied">{{ __('Occupied') }}</option>
+                                        <option value="reserved">{{ __('Reserved') }}</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">{{ __('Rotation') }}: <span id="posLayoutPropRot">0&deg;</span></label>
+                                    <div class="btn-group w-100" role="group" aria-label="{{ __('Rotation') }}">
+                                        <button type="button" class="btn btn-sm btn-light" data-rot="-15">&minus;15&deg;</button>
+                                        <button type="button" class="btn btn-sm btn-light" data-rot="15">+15&deg;</button>
+                                        <button type="button" class="btn btn-sm btn-light" data-rot="45">+45&deg;</button>
+                                        <button type="button" class="btn btn-sm btn-light" data-rot="90">+90&deg;</button>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="button" id="posLayoutPropDuplicate" class="btn btn-sm btn-outline-primary flex-grow-1">{{ __('Duplicate') }}</button>
+                                    <button type="button" id="posLayoutPropDelete" class="btn btn-sm btn-outline-danger flex-grow-1">{{ __('Delete') }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection
+
+@push('css-page')
+<style>
+.pos-layout-wrap { overflow: auto; background: #e9edf3; border: 1px solid #dee2e6; border-radius: 8px; height: 640px; }
+.pos-layout-canvas { position: relative; width: 1200px; height: 800px; margin: 12px; background-color: #f4f6fb;
+    background-image: linear-gradient(#e2e8f2 1px, transparent 1px), linear-gradient(90deg, #e2e8f2 1px, transparent 1px), linear-gradient(#c9d4e8 1px, transparent 1px), linear-gradient(90deg, #c9d4e8 1px, transparent 1px);
+    background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px;
+    transform-origin: 0 0; box-shadow: 0 0 0 1px #d3dae6; }
+.pos-layout-canvas.no-grid { background-image: none; }
+.pos-layout-el { position: absolute; cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none; }
+.pos-layout-el:active { cursor: grabbing; }
+.pos-layout-el.selected { outline: 2px dashed #0d6efd; outline-offset: 4px; z-index: 5; }
+.pos-layout-table-body { position: absolute; inset: 0; background: #aab8d4; border: 2px solid #22355e; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #22355e; overflow: hidden; }
+.pos-layout-el.shape-round .pos-layout-table-body { border-radius: 50%; }
+.pos-layout-table-num { font-weight: 700; font-size: 14px; line-height: 1.15; }
+.pos-layout-table-cap { font-size: 11px; line-height: 1.15; }
+.pos-layout-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 3px; border: 1px solid rgba(0,0,0,.25); }
+.pos-layout-dot-available { background: #22c55e; }
+.pos-layout-dot-occupied { background: #ef4444; }
+.pos-layout-dot-reserved { background: #f59e0b; }
+.pos-layout-chair { position: absolute; width: 14px; height: 9px; background: #8fa1c2; border: 1px solid #22355e; border-radius: 2px; }
+.pos-layout-wall-el { background: #22355e; border-radius: 2px; }
+.pos-layout-door-el { background: #ffffff; border: 2px dashed #22355e; border-radius: 2px; }
+.pos-layout-window-el { background: #bcd6f5; border: 1px solid #22355e; border-radius: 2px; }
+.pos-layout-bar-el { background: #e8edf5; border: 2px solid #22355e; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #22355e; font-weight: 700; font-size: 13px; letter-spacing: 1px; }
+.pos-layout-reception-el { background: #e8edf5; border: 2px solid #22355e; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 4px; color: #22355e; font-weight: 600; font-size: 12px; }
+.pos-layout-stool { position: absolute; bottom: -7px; width: 10px; height: 10px; border-radius: 50%; background: #ffffff; border: 2px solid #22355e; }
+.pos-layout-plant-el { background: radial-gradient(circle at 35% 35%, #4caf7d, #1e6b41); border-radius: 50%; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 22px; border: 1px solid #14532d; }
+.pos-layout-waiter-el { background: #22355e; border-radius: 6px; color: #ffffff; display: flex; align-items: center; justify-content: center; }
+.pos-layout-rotate-handle { position: absolute; top: -30px; left: 50%; margin-left: -13px; width: 26px; height: 26px; border-radius: 50%; background: #0d6efd; color: #ffffff; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; font-size: 15px; cursor: grab; box-shadow: 0 1px 4px rgba(0,0,0,.3); z-index: 6; touch-action: none; }
+.pos-layout-resize-handle { position: absolute; width: 14px; height: 14px; background: #0d6efd; border: 2px solid #ffffff; border-radius: 3px; z-index: 6; touch-action: none; }
+.pos-layout-resize-handle.pos-layout-resize-e { right: -8px; top: 50%; margin-top: -7px; cursor: ew-resize; }
+.pos-layout-resize-handle.pos-layout-resize-s { bottom: -8px; left: 50%; margin-left: -7px; cursor: ns-resize; }
+.pos-layout-palette-btn { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 5px 8px; margin-bottom: 2px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 6px; color: #212529; font-size: 13px; cursor: grab; touch-action: none; }
+.pos-layout-palette-btn:hover { border-color: #0d6efd; background: #f0f5ff; }
+.pos-layout-mini { width: 28px; height: 28px; flex: 0 0 28px; display: flex; align-items: center; justify-content: center; }
+.mini-round { width: 22px; height: 22px; border-radius: 50%; background: #aab8d4; border: 2px solid #22355e; }
+.mini-square { width: 20px; height: 20px; background: #aab8d4; border: 2px solid #22355e; }
+.mini-rect { width: 26px; height: 16px; background: #aab8d4; border: 2px solid #22355e; }
+.mini-banquet { width: 28px; height: 13px; background: #aab8d4; border: 2px solid #22355e; }
+.mini-wall-h { width: 26px; height: 6px; background: #22355e; border-radius: 2px; }
+.mini-wall-v { width: 6px; height: 26px; background: #22355e; border-radius: 2px; }
+.mini-door { width: 26px; height: 8px; background: #ffffff; border: 2px dashed #22355e; border-radius: 2px; }
+.mini-window { width: 26px; height: 8px; background: #bcd6f5; border: 1px solid #22355e; border-radius: 2px; }
+.mini-bar { width: 26px; height: 12px; background: #e8edf5; border: 2px solid #22355e; border-radius: 3px; }
+.mini-reception { width: 22px; height: 16px; background: #e8edf5; border: 2px solid #22355e; border-radius: 3px; }
+.mini-plant { width: 20px; height: 20px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #4caf7d, #1e6b41); }
+.mini-waiter { width: 18px; height: 22px; background: #22355e; border-radius: 4px; color: #ffffff; font-size: 12px; }
+</style>
+@endpush
+
+@push('script-page')
+<script>
+(function () {
+    'use strict';
+
+    var STORAGE_KEY = 'erp-pos-restaurant-layout-v1';
+    var CANVAS_W = 1200;
+    var CANVAS_H = 800;
+
+    var I18N = {
+        table: @json(__('Table')),
+        confirmClear: @json(__('Clear all elements from the canvas?')),
+        confirmReset: @json(__('Reset the layout to the demo?'))
+    };
+
+    var PERSON_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6z"/></svg>';
+
+    var TYPES = {
+        'table-round-2': { kind: 'table', shape: 'round', w: 72, h: 72, capacity: '2', chairs: 2 },
+        'table-round-4': { kind: 'table', shape: 'round', w: 92, h: 92, capacity: '2-4', chairs: 4 },
+        'table-round-6': { kind: 'table', shape: 'round', w: 112, h: 112, capacity: '4-6', chairs: 6 },
+        'table-square-2': { kind: 'table', shape: 'square', w: 66, h: 66, capacity: '2', chairs: 2 },
+        'table-square-4': { kind: 'table', shape: 'square', w: 86, h: 86, capacity: '2-4', chairs: 4 },
+        'table-rect-4': { kind: 'table', shape: 'rect', w: 112, h: 72, capacity: '2-4', chairs: 4 },
+        'table-rect-6': { kind: 'table', shape: 'rect', w: 142, h: 82, capacity: '4-6', chairs: 6 },
+        'table-banquet': { kind: 'table', shape: 'rect', w: 220, h: 82, capacity: '6-12', chairs: 6 },
+        'wall-h': { kind: 'wall', w: 200, h: 10, resizable: 'w' },
+        'wall-v': { kind: 'wall', w: 10, h: 200, resizable: 'h' },
+        'door': { kind: 'door', w: 90, h: 14 },
+        'window': { kind: 'window', w: 110, h: 10 },
+        'bar': { kind: 'bar', w: 200, h: 56 },
+        'reception': { kind: 'reception', w: 150, h: 54 },
+        'plant': { kind: 'plant', w: 46, h: 46 },
+        'waiter': { kind: 'waiter', w: 56, h: 64 }
+    };
+
+    var canvas = document.getElementById('posLayoutCanvas');
+    var wrap = document.getElementById('posLayoutWrap');
+    var palette = document.getElementById('posLayoutPalette');
+    if (!canvas || !wrap || !palette) { return; }
+
+    var state = { elements: [], selectedId: null, zoom: 1 };
+    var uidSeq = 0;
+    var savedTimer = null;
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function normDeg(deg) { var d = deg % 360; return d < 0 ? d + 360 : d; }
+    function nextId() { uidSeq += 1; return 'el-' + Date.now().toString(36) + '-' + uidSeq; }
+    function byId(id) { for (var i = 0; i < state.elements.length; i++) { if (state.elements[i].id === id) { return state.elements[i]; } } return null; }
+    function selected() { return state.selectedId ? byId(state.selectedId) : null; }
+    function nodeFor(id) { return canvas.querySelector('[data-id="' + id + '"]'); }
+
+    function paletteLabel(type) {
+        var btn = palette.querySelector('[data-type="' + type + '"] .pos-layout-palette-label');
+        return btn ? btn.textContent.trim() : type;
+    }
+
+    function nextTableNumber() {
+        var max = 0;
+        state.elements.forEach(function (el) {
+            if (el.kind === 'table') {
+                var n = parseInt(el.label, 10);
+                if (!isNaN(n) && n > max) { max = n; }
+            }
+        });
+        return max + 1;
+    }
+
+    function makeElement(type, x, y, rot, label, capacity, status, w, h) {
+        var cfg = TYPES[type];
+        if (!cfg) { return null; }
+        var isTable = cfg.kind === 'table';
+        return {
+            id: nextId(), type: type, kind: cfg.kind, shape: cfg.shape || null,
+            x: clamp(Math.round(x / 5) * 5, 0, CANVAS_W - (w || cfg.w)),
+            y: clamp(Math.round(y / 5) * 5, 0, CANVAS_H - (h || cfg.h)),
+            w: w || cfg.w, h: h || cfg.h, rot: rot || 0,
+            label: (label !== null && label !== undefined) ? String(label) : (isTable ? String(nextTableNumber()) : paletteLabel(type)),
+            typeLabel: isTable ? I18N.table : paletteLabel(type),
+            capacity: capacity || cfg.capacity || '',
+            status: status || 'available'
+        };
+    }
+
+    function chairPositions(el, count) {
+        var pts = [];
+        var rx = el.w / 2 + 9;
+        var ry = el.h / 2 + 9;
+        for (var i = 0; i < count; i++) {
+            var a = (i / count) * Math.PI * 2 - Math.PI / 2;
+            pts.push({
+                x: el.w / 2 + Math.cos(a) * rx,
+                y: el.h / 2 + Math.sin(a) * ry,
+                deg: Math.round(a * 180 / Math.PI) + 90
+            });
+        }
+        return pts;
+    }
+
+    function renderNode(el) {
+        var node = document.createElement('div');
+        node.className = 'pos-layout-el kind-' + el.kind + (el.shape ? ' shape-' + el.shape : '');
+        node.dataset.id = el.id;
+        node.style.left = el.x + 'px';
+        node.style.top = el.y + 'px';
+        node.style.width = el.w + 'px';
+        node.style.height = el.h + 'px';
+        node.style.transform = 'rotate(' + el.rot + 'deg)';
+
+        if (el.kind === 'table') {
+            var cfg = TYPES[el.type] || {};
+            chairPositions(el, cfg.chairs || 4).forEach(function (c) {
+                var chair = document.createElement('span');
+                chair.className = 'pos-layout-chair';
+                chair.style.left = (c.x - 7) + 'px';
+                chair.style.top = (c.y - 4.5) + 'px';
+                chair.style.transform = 'rotate(' + c.deg + 'deg)';
+                node.appendChild(chair);
+            });
+            var body = document.createElement('div');
+            body.className = 'pos-layout-table-body';
+            var num = document.createElement('div');
+            num.className = 'pos-layout-table-num';
+            num.textContent = el.label;
+            var cap = document.createElement('div');
+            cap.className = 'pos-layout-table-cap';
+            cap.textContent = el.capacity;
+            var dot = document.createElement('span');
+            dot.className = 'pos-layout-dot pos-layout-dot-' + el.status;
+            body.appendChild(num);
+            body.appendChild(cap);
+            body.appendChild(dot);
+            node.appendChild(body);
+        } else if (el.kind === 'wall') {
+            node.classList.add('pos-layout-wall-el');
+        } else if (el.kind === 'door') {
+            node.classList.add('pos-layout-door-el');
+        } else if (el.kind === 'window') {
+            node.classList.add('pos-layout-window-el');
+        } else if (el.kind === 'bar') {
+            node.classList.add('pos-layout-bar-el');
+            node.textContent = el.label;
+            [20, 50, 80].forEach(function (pct) {
+                var stool = document.createElement('span');
+                stool.className = 'pos-layout-stool';
+                stool.style.left = pct + '%';
+                stool.style.marginLeft = '-5px';
+                node.appendChild(stool);
+            });
+        } else if (el.kind === 'reception') {
+            node.classList.add('pos-layout-reception-el');
+            node.innerHTML = '';
+            var icon = document.createElement('span');
+            icon.innerHTML = PERSON_SVG;
+            icon.style.display = 'flex';
+            node.appendChild(icon);
+            var txt = document.createElement('span');
+            txt.textContent = el.label;
+            node.appendChild(txt);
+        } else if (el.kind === 'plant') {
+            node.classList.add('pos-layout-plant-el');
+            node.textContent = '\u273f';
+        } else if (el.kind === 'waiter') {
+            node.classList.add('pos-layout-waiter-el');
+            node.innerHTML = PERSON_SVG.replace('width="18" height="18"', 'width="26" height="26"');
+        }
+
+        if (state.selectedId === el.id) {
+            node.classList.add('selected');
+            var rot = document.createElement('span');
+            rot.className = 'pos-layout-rotate-handle';
+            rot.textContent = '\u21bb';
+            rot.title = 'Rotate';
+            node.appendChild(rot);
+            var cfg2 = TYPES[el.type] || {};
+            if (cfg2.resizable === 'w') {
+                var rh = document.createElement('span');
+                rh.className = 'pos-layout-resize-handle pos-layout-resize-e';
+                node.appendChild(rh);
+            } else if (cfg2.resizable === 'h') {
+                var rh2 = document.createElement('span');
+                rh2.className = 'pos-layout-resize-handle pos-layout-resize-s';
+                node.appendChild(rh2);
+            }
+        }
+        return node;
+    }
+
+    function renderAll() {
+        canvas.innerHTML = '';
+        state.elements.forEach(function (el) {
+            canvas.appendChild(renderNode(el));
+        });
+    }
+
+    function markSelection() {
+        canvas.querySelectorAll('.pos-layout-el').forEach(function (node) {
+            var isSel = node.dataset.id === state.selectedId;
+            node.classList.toggle('selected', isSel);
+            node.querySelectorAll('.pos-layout-rotate-handle, .pos-layout-resize-handle').forEach(function (h) { h.remove(); });
+            if (isSel) {
+                var el = byId(node.dataset.id);
+                if (!el) { return; }
+                var rot = document.createElement('span');
+                rot.className = 'pos-layout-rotate-handle';
+                rot.textContent = '\u21bb';
+                node.appendChild(rot);
+                var cfg = TYPES[el.type] || {};
+                if (cfg.resizable === 'w') {
+                    var rh = document.createElement('span');
+                    rh.className = 'pos-layout-resize-handle pos-layout-resize-e';
+                    node.appendChild(rh);
+                } else if (cfg.resizable === 'h') {
+                    var rh2 = document.createElement('span');
+                    rh2.className = 'pos-layout-resize-handle pos-layout-resize-s';
+                    node.appendChild(rh2);
+                }
+            }
+        });
+        refreshProps();
+    }
+
+    function select(id) {
+        state.selectedId = id;
+        markSelection();
+    }
+
+    var propEmpty = document.getElementById('posLayoutPropsEmpty');
+    var propForm = document.getElementById('posLayoutPropsForm');
+    var propType = document.getElementById('posLayoutPropType');
+    var propLabel = document.getElementById('posLayoutPropLabel');
+    var propCapacity = document.getElementById('posLayoutPropCapacity');
+    var propStatus = document.getElementById('posLayoutPropStatus');
+    var propRot = document.getElementById('posLayoutPropRot');
+    var propCapacityWrap = document.getElementById('posLayoutPropCapacityWrap');
+    var propStatusWrap = document.getElementById('posLayoutPropStatusWrap');
+
+    function refreshProps() {
+        var el = selected();
+        if (!el) {
+            propEmpty.style.display = '';
+            propForm.style.display = 'none';
+            return;
+        }
+        propEmpty.style.display = 'none';
+        propForm.style.display = '';
+        propType.value = el.typeLabel;
+        propLabel.value = el.label;
+        var isTable = el.kind === 'table';
+        propCapacityWrap.style.display = isTable ? '' : 'none';
+        propStatusWrap.style.display = isTable ? '' : 'none';
+        propCapacity.value = el.capacity;
+        propStatus.value = el.status;
+        propRot.textContent = normDeg(el.rot) + '\u00b0';
+    }
+
+    function updateNodeText(el) {
+        var node = nodeFor(el.id);
+        if (!node) { return; }
+        var num = node.querySelector('.pos-layout-table-num');
+        if (num) { num.textContent = el.label; }
+        var cap = node.querySelector('.pos-layout-table-cap');
+        if (cap) { cap.textContent = el.capacity; }
+        var dot = node.querySelector('.pos-layout-dot');
+        if (dot) { dot.className = 'pos-layout-dot pos-layout-dot-' + el.status; }
+        if (el.kind === 'bar') {
+            node.childNodes.forEach(function (child) {
+                if (child.nodeType === 3) { child.textContent = el.label; }
+            });
+        } else if (el.kind === 'reception') {
+            var spans = node.querySelectorAll('span');
+            var last = spans[spans.length - 1];
+            if (last) { last.textContent = el.label; }
+        }
+    }
+
+    propLabel.addEventListener('input', function () {
+        var el = selected();
+        if (!el) { return; }
+        el.label = propLabel.value;
+        updateNodeText(el);
+    });
+    propLabel.addEventListener('change', saveToStorage);
+    propCapacity.addEventListener('input', function () {
+        var el = selected();
+        if (!el) { return; }
+        el.capacity = propCapacity.value;
+        updateNodeText(el);
+    });
+    propCapacity.addEventListener('change', saveToStorage);
+    propStatus.addEventListener('change', function () {
+        var el = selected();
+        if (!el) { return; }
+        el.status = propStatus.value;
+        updateNodeText(el);
+        saveToStorage();
+    });
+    document.querySelectorAll('[data-rot]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var el = selected();
+            if (!el) { return; }
+            el.rot = normDeg(el.rot + parseInt(btn.dataset.rot, 10));
+            var node = nodeFor(el.id);
+            if (node) { node.style.transform = 'rotate(' + el.rot + 'deg)'; }
+            propRot.textContent = normDeg(el.rot) + '\u00b0';
+            saveToStorage();
+        });
+    });
+    document.getElementById('posLayoutPropDuplicate').addEventListener('click', function () {
+        var el = selected();
+        if (!el) { return; }
+        var copy = JSON.parse(JSON.stringify(el));
+        copy.id = nextId();
+        copy.x = clamp(el.x + 24, 0, CANVAS_W - copy.w);
+        copy.y = clamp(el.y + 24, 0, CANVAS_H - copy.h);
+        if (copy.kind === 'table') { copy.label = String(nextTableNumber()); }
+        state.elements.push(copy);
+        canvas.appendChild(renderNode(copy));
+        select(copy.id);
+        saveToStorage();
+    });
+    document.getElementById('posLayoutPropDelete').addEventListener('click', function () {
+        deleteSelected();
+    });
+
+    function deleteSelected() {
+        var el = selected();
+        if (!el) { return; }
+        state.elements = state.elements.filter(function (e) { return e.id !== el.id; });
+        var node = nodeFor(el.id);
+        if (node) { node.remove(); }
+        state.selectedId = null;
+        markSelection();
+        saveToStorage();
+    }
+
+    function addElement(type, cx, cy) {
+        var cfg = TYPES[type];
+        if (!cfg) { return null; }
+        var el;
+        if (cx === null || cx === undefined || cy === null || cy === undefined) {
+            el = makeElement(type, (CANVAS_W - cfg.w) / 2, (CANVAS_H - cfg.h) / 2, 0);
+            for (var i = 0; i < 10; i++) {
+                var clash = state.elements.some(function (e) { return e.x === el.x && e.y === el.y; });
+                if (!clash) { break; }
+                el.x = clamp(el.x + 20, 0, CANVAS_W - el.w);
+                el.y = clamp(el.y + 20, 0, CANVAS_H - el.h);
+            }
+        } else {
+            el = makeElement(type, cx - cfg.w / 2, cy - cfg.h / 2, 0);
+        }
+        if (!el) { return null; }
+        state.elements.push(el);
+        canvas.appendChild(renderNode(el));
+        return el;
+    }
+
+    function canvasPoint(clientX, clientY) {
+        var rect = canvas.getBoundingClientRect();
+        var x = (clientX - rect.left) / state.zoom;
+        var y = (clientY - rect.top) / state.zoom;
+        if (x < 0 || y < 0 || x > CANVAS_W || y > CANVAS_H) { return null; }
+        return { x: x, y: y };
+    }
+
+    palette.querySelectorAll('.pos-layout-palette-btn').forEach(function (btn) {
+        btn.addEventListener('pointerdown', function (e) {
+            e.preventDefault();
+            var type = btn.dataset.type;
+            var created = null;
+            function onMove(ev) {
+                if (!created) {
+                    var pos = canvasPoint(ev.clientX, ev.clientY);
+                    if (!pos) { return; }
+                    created = addElement(type, pos.x, pos.y);
+                    if (created) { select(created.id); }
+                } else {
+                    var p2 = canvasPoint(ev.clientX, ev.clientY);
+                    if (p2) {
+                        created.x = clamp(Math.round((p2.x - created.w / 2) / 5) * 5, 0, CANVAS_W - created.w);
+                        created.y = clamp(Math.round((p2.y - created.h / 2) / 5) * 5, 0, CANVAS_H - created.h);
+                        var node = nodeFor(created.id);
+                        if (node) { node.style.left = created.x + 'px'; node.style.top = created.y + 'px'; }
+                    }
+                }
+            }
+            function onUp() {
+                document.removeEventListener('pointermove', onMove);
+                document.removeEventListener('pointerup', onUp);
+                if (!created) {
+                    created = addElement(type, null, null);
+                    if (created) { select(created.id); }
+                }
+                if (created) { saveToStorage(); }
+            }
+            document.addEventListener('pointermove', onMove);
+            document.addEventListener('pointerup', onUp);
+        });
+    });
+
+    canvas.addEventListener('pointerdown', function (e) {
+        var rotHandle = e.target.closest ? e.target.closest('.pos-layout-rotate-handle') : null;
+        if (rotHandle) { startRotate(e, rotHandle); return; }
+        var resHandle = e.target.closest ? e.target.closest('.pos-layout-resize-handle') : null;
+        if (resHandle) { startResize(e, resHandle); return; }
+        var elNode = e.target.closest ? e.target.closest('.pos-layout-el') : null;
+        if (elNode) { startMove(e, elNode); return; }
+        select(null);
+    });
+
+    function startMove(e, node) {
+        e.preventDefault();
+        var id = node.dataset.id;
+        select(id);
+        var el = byId(id);
+        if (!el) { return; }
+        var startX = e.clientX;
+        var startY = e.clientY;
+        var ox = el.x;
+        var oy = el.y;
+        var moved = false;
+        try { node.setPointerCapture(e.pointerId); } catch (err) {}
+        function onMove(ev) {
+            var dx = (ev.clientX - startX) / state.zoom;
+            var dy = (ev.clientY - startY) / state.zoom;
+            if (Math.abs(dx) + Math.abs(dy) > 2) { moved = true; }
+            el.x = clamp(Math.round((ox + dx) / 5) * 5, 0, CANVAS_W - el.w);
+            el.y = clamp(Math.round((oy + dy) / 5) * 5, 0, CANVAS_H - el.h);
+            node.style.left = el.x + 'px';
+            node.style.top = el.y + 'px';
+        }
+        function onUp() {
+            node.removeEventListener('pointermove', onMove);
+            node.removeEventListener('pointerup', onUp);
+            if (moved) { saveToStorage(); }
+        }
+        node.addEventListener('pointermove', onMove);
+        node.addEventListener('pointerup', onUp);
+    }
+
+    function startRotate(e, handle) {
+        e.preventDefault();
+        e.stopPropagation();
+        var node = handle.closest('.pos-layout-el');
+        if (!node) { return; }
+        var el = byId(node.dataset.id);
+        if (!el) { return; }
+        var rect = node.getBoundingClientRect();
+        var cx = rect.left + rect.width / 2;
+        var cy = rect.top + rect.height / 2;
+        try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+        function onMove(ev) {
+            var ang = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI + 90;
+            el.rot = normDeg(Math.round(ang / 5) * 5);
+            node.style.transform = 'rotate(' + el.rot + 'deg)';
+            propRot.textContent = normDeg(el.rot) + '\u00b0';
+        }
+        function onUp() {
+            handle.removeEventListener('pointermove', onMove);
+            handle.removeEventListener('pointerup', onUp);
+            saveToStorage();
+        }
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', onUp);
+    }
+
+    function startResize(e, handle) {
+        e.preventDefault();
+        e.stopPropagation();
+        var node = handle.closest('.pos-layout-el');
+        if (!node) { return; }
+        var el = byId(node.dataset.id);
+        if (!el) { return; }
+        var startX = e.clientX;
+        var startY = e.clientY;
+        var startW = el.w;
+        var startH = el.h;
+        var horizontal = handle.classList.contains('pos-layout-resize-e');
+        try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+        function onMove(ev) {
+            var dx = (ev.clientX - startX) / state.zoom;
+            var dy = (ev.clientY - startY) / state.zoom;
+            if (horizontal) {
+                el.w = clamp(Math.round((startW + dx) / 10) * 10, 40, CANVAS_W - el.x);
+                node.style.width = el.w + 'px';
+            } else {
+                el.h = clamp(Math.round((startH + dy) / 10) * 10, 40, CANVAS_H - el.y);
+                node.style.height = el.h + 'px';
+            }
+        }
+        function onUp() {
+            handle.removeEventListener('pointermove', onMove);
+            handle.removeEventListener('pointerup', onUp);
+            saveToStorage();
+        }
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', onUp);
+    }
+
+    document.addEventListener('keydown', function (e) {
+        var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+        if (tag === 'input' || tag === 'select' || tag === 'textarea') { return; }
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (state.selectedId) { e.preventDefault(); deleteSelected(); }
+        } else if (e.key === 'Escape') {
+            select(null);
+        }
+    });
+
+    var zoomLabel = document.getElementById('posLayoutZoomLabel');
+    function applyZoom() {
+        canvas.style.transform = 'scale(' + state.zoom + ')';
+        zoomLabel.textContent = Math.round(state.zoom * 100) + '%';
+    }
+    function fitZoom() {
+        state.zoom = clamp((wrap.clientWidth - 24) / (CANVAS_W + 24), 0.3, 1);
+        applyZoom();
+    }
+    document.getElementById('posLayoutZoomIn').addEventListener('click', function () {
+        state.zoom = clamp(Math.round((state.zoom + 0.1) * 10) / 10, 0.3, 1.6);
+        applyZoom();
+    });
+    document.getElementById('posLayoutZoomOut').addEventListener('click', function () {
+        state.zoom = clamp(Math.round((state.zoom - 0.1) * 10) / 10, 0.3, 1.6);
+        applyZoom();
+    });
+    document.getElementById('posLayoutZoomFit').addEventListener('click', fitZoom);
+
+    var gridBtn = document.getElementById('posLayoutGridToggle');
+    gridBtn.addEventListener('click', function () {
+        var off = canvas.classList.toggle('no-grid');
+        gridBtn.classList.toggle('active', !off);
+        gridBtn.setAttribute('aria-pressed', String(!off));
+    });
+
+    document.getElementById('posLayoutClear').addEventListener('click', function () {
+        if (!state.elements.length) { return; }
+        if (!window.confirm(I18N.confirmClear)) { return; }
+        state.elements = [];
+        state.selectedId = null;
+        renderAll();
+        markSelection();
+        saveToStorage();
+    });
+    document.getElementById('posLayoutResetDemo').addEventListener('click', function () {
+        if (!window.confirm(I18N.confirmReset)) { return; }
+        loadDemo();
+    });
+    document.getElementById('posLayoutSave').addEventListener('click', function () {
+        saveToStorage();
+        showSaved();
+    });
+
+    function showSaved() {
+        var ind = document.getElementById('posLayoutSaved');
+        ind.style.display = '';
+        if (savedTimer) { clearTimeout(savedTimer); }
+        savedTimer = setTimeout(function () { ind.style.display = 'none'; }, 1500);
+    }
+
+    function saveToStorage() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, elements: state.elements }));
+        } catch (err) {}
+    }
+
+    function loadFromStorage() {
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) { return null; }
+            var data = JSON.parse(raw);
+            if (!data || !Array.isArray(data.elements)) { return null; }
+            var els = [];
+            data.elements.forEach(function (e) {
+                if (!e || !TYPES[e.type]) { return; }
+                els.push({
+                    id: typeof e.id === 'string' ? e.id : nextId(),
+                    type: e.type, kind: TYPES[e.type].kind, shape: TYPES[e.type].shape || null,
+                    x: clamp(Number(e.x) || 0, 0, CANVAS_W - (Number(e.w) || TYPES[e.type].w)),
+                    y: clamp(Number(e.y) || 0, 0, CANVAS_H - (Number(e.h) || TYPES[e.type].h)),
+                    w: Number(e.w) || TYPES[e.type].w,
+                    h: Number(e.h) || TYPES[e.type].h,
+                    rot: normDeg(Number(e.rot) || 0),
+                    label: String(e.label !== undefined && e.label !== null ? e.label : ''),
+                    typeLabel: String(e.typeLabel || ''),
+                    capacity: String(e.capacity || ''),
+                    status: ['available', 'occupied', 'reserved'].indexOf(e.status) >= 0 ? e.status : 'available'
+                });
+            });
+            return els;
+        } catch (err) {
+            return null;
+        }
+    }
+
+    function demoElements() {
+        // [type, x, y, rot, label, capacity, status, w, h]
+        var defs = [
+            ['wall-h', 40, 30, 0, '', '', '', 480, 10],
+            ['wall-h', 680, 30, 0, '', '', '', 480, 10],
+            ['door', 520, 26, 0, '', '', '', 160, 14],
+            ['wall-h', 40, 750, 0, '', '', '', 1120, 10],
+            ['wall-v', 40, 30, 0, '', '', '', 10, 720],
+            ['wall-v', 1150, 30, 0, '', '', '', 10, 720],
+            ['window', 300, 746, 0, '', '', '', 110, 10],
+            ['window', 760, 746, 0, '', '', '', 110, 10],
+            ['table-round-4', 170, 100, 0, '1', '2-4', 'available'],
+            ['table-square-2', 320, 100, 0, '2', '1-2', 'available'],
+            ['table-round-2', 470, 100, 0, '3', '2-3', 'available'],
+            ['table-rect-4', 620, 95, 0, '4', '2-4', 'available'],
+            ['table-square-4', 820, 95, 0, '5', '2-4', 'reserved'],
+            ['table-round-6', 220, 300, 0, '6', '3-5', 'available'],
+            ['table-rect-6', 470, 300, 0, '7', '4-6', 'available'],
+            ['table-round-4', 760, 300, 0, '8', '2-4', 'occupied'],
+            ['table-banquet', 280, 520, 0, '9', '6-8', 'available'],
+            ['table-banquet', 610, 520, 0, '10', '6-12', 'available'],
+            ['bar', 1000, 170, 90, '', '', ''],
+            ['reception', 880, 210, 0, '', '', ''],
+            ['plant', 120, 650, 0, '', '', ''],
+            ['plant', 1090, 650, 0, '', '', ''],
+            ['plant', 600, 690, 0, '', '', ''],
+            ['waiter', 90, 430, 0, '', '', '']
+        ];
+        return defs.map(function (d) {
+            var el = makeElement(d[0], d[1], d[2], d[3], d[4] === '' ? null : d[4], d[5] || null, d[6] || null, d[7] || null, d[8] || null);
+            return el;
+        }).filter(function (el) { return el !== null; });
+    }
+
+    function loadDemo() {
+        state.elements = demoElements();
+        state.selectedId = null;
+        renderAll();
+        markSelection();
+        saveToStorage();
+    }
+
+    var stored = loadFromStorage();
+    if (stored && stored.length) {
+        state.elements = stored;
+        renderAll();
+        markSelection();
+    } else {
+        loadDemo();
+    }
+    if (wrap.clientWidth < CANVAS_W + 24) { fitZoom(); } else { applyZoom(); }
+})();
+</script>
+@endpush

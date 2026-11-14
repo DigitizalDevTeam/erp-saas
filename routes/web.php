@@ -177,6 +177,7 @@ use App\Http\Controllers\KitchenProductionOrderController;
 use App\Http\Controllers\KitchenProductionPlanController;
 use App\Http\Controllers\KitchenRequisitionController;
 use App\Http\Controllers\KitchenStockController;
+use App\Http\Controllers\PosRestaurantLayoutController;
 use App\Http\Controllers\PosTableController;
 use App\Http\Controllers\ProductServiceCategoryController;
 use App\Http\Controllers\ProductServiceController;
@@ -2497,6 +2498,12 @@ Route::group(['middleware' => ['verified']], function () {
     Route::patch('pos-table/{id}/status', [PosTableController::class, 'updateStatus'])->name('pos-table.update-status')->middleware(['auth', 'XSS']);
     Route::post('pos-table/{id}/close', [PosTableController::class, 'closeTable'])->name('pos-table.close')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant-layout', [PosController::class, 'getRestaurantLayout'])->name('pos.restaurant.layout')->middleware(['auth', 'XSS']);
+    // Interactive floor designer (UI only: the layout lives in the
+    // browser's localStorage, nothing is stored on the server). NOTE: the
+    // pos.restaurant.layout name/URL above is the live POS table-data API
+    // used by pos/index-restaurant.blade.php, so the designer page uses a
+    // different URL and route name on purpose.
+    Route::get('pos/restaurant/layout-designer', [PosRestaurantLayoutController::class, 'show'])->name('pos.restaurant.layout.designer')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant/order', [PosController::class, 'getRestaurantOrder'])->name('pos.restaurant.order')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant/delivery-takeaway-orders', [PosController::class, 'getRestaurantDeliveryTakeawayOrders'])->name('pos.restaurant.delivery-takeaway-orders')->middleware(['auth', 'XSS']);
     Route::post('pos/send-to-production', [PosController::class, 'sendToProduction'])->name('pos.send.to.production')->middleware(['auth', 'XSS']);
