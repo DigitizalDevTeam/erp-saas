@@ -127,6 +127,28 @@ class PosRestaurantLayoutTest extends TestCase
             $table->timestamps();
         });
 
+        // v2: the designer page is per-area, so show() loads the
+        // company's POS areas (the floor lives on pos_areas.layout).
+        Schema::create('pos_areas', function ($table) {
+            $table->bigIncrements('id');
+            $table->unsignedBigInteger('branch_id');
+            $table->string('name');
+            $table->unsignedTinyInteger('sort_order')->default(0);
+            $table->unsignedBigInteger('created_by')->default(0);
+            $table->json('layout')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('pos_tables', function ($table) {
+            $table->bigIncrements('id');
+            $table->unsignedBigInteger('area_id');
+            $table->unsignedBigInteger('branch_id');
+            $table->string('name');
+            $table->unsignedTinyInteger('capacity')->default(4);
+            $table->string('status', 20)->default('available');
+            $table->unsignedBigInteger('created_by')->default(0);
+            $table->timestamps();
+        });
+
         app(PermissionRegistrar::class)->forgetCachedPermissions();
         Permission::create(['name' => 'manage pos', 'guard_name' => 'web']);
 
@@ -152,7 +174,7 @@ class PosRestaurantLayoutTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (['email_templates', 'ch_messages', 'languages', 'plans', 'branch_user', 'branches', 'role_has_permissions', 'model_has_roles', 'model_has_permissions', 'permissions', 'roles', 'settings', 'users'] as $table) {
+        foreach (['pos_tables', 'pos_areas', 'email_templates', 'ch_messages', 'languages', 'plans', 'branch_user', 'branches', 'role_has_permissions', 'model_has_roles', 'model_has_permissions', 'permissions', 'roles', 'settings', 'users'] as $table) {
             Schema::dropIfExists($table);
         }
 

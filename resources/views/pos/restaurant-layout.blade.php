@@ -41,6 +41,16 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex flex-wrap align-items-center gap-2">
+                <label class="form-label mb-0 fw-bold" for="posLayoutAreaSelect">{{ __('Area') }}</label>
+                <select id="posLayoutAreaSelect" class="form-select form-select-sm" style="width:auto;min-width:220px">
+                    @forelse ($areas as $area)
+                        <option value="{{ $area->id }}" {{ $area->id == $initialAreaId ? 'selected' : '' }}>{{ $area->name }}{{ $area->branch ? ' — ' . $area->branch->name : '' }}</option>
+                    @empty
+                        <option value="" disabled selected>{{ __('No areas yet') }}</option>
+                    @endforelse
+                </select>
+                <span id="posLayoutAreaName" class="text-muted small"></span>
+                <span class="flex-grow-1"></span>
                 <div class="btn-group" role="group" aria-label="{{ __('Zoom') }}">
                     <button type="button" class="btn btn-sm btn-light" id="posLayoutZoomOut" title="{{ __('Zoom Out') }}">&minus;</button>
                     <button type="button" class="btn btn-sm btn-light" id="posLayoutZoomLabel" disabled>100%</button>
@@ -48,19 +58,21 @@
                     <button type="button" class="btn btn-sm btn-light" id="posLayoutZoomFit">{{ __('Fit') }}</button>
                 </div>
                 <button type="button" class="btn btn-sm btn-light active" id="posLayoutGridToggle" aria-pressed="true">{{ __('Grid') }}</button>
-                <span class="flex-grow-1"></span>
-                <span id="posLayoutSaved" class="text-success small" style="display:none">{{ __('Saved') }}</span>
+                <span id="posLayoutSaved" class="small" style="display:none"></span>
                 <button type="button" class="btn btn-sm btn-light-danger" id="posLayoutClear">{{ __('Clear All') }}</button>
-                <button type="button" class="btn btn-sm btn-light-warning" id="posLayoutResetDemo">{{ __('Reset Demo') }}</button>
+                <button type="button" class="btn btn-sm btn-light-warning" id="posLayoutLoadDemo">{{ __('Load demo') }}</button>
                 <button type="button" class="btn btn-sm btn-primary" id="posLayoutSave">{{ __('Save') }}</button>
             </div>
             <div class="card-body">
+                <div id="posLayoutNoAreas" class="alert alert-info" style="display:none">{{ __('No areas yet. Create one on the POS Areas page.') }} <a href="{{ route('pos-area.index') }}">{{ __('POS Areas') }}</a></div>
                 <div class="d-flex flex-wrap gap-3 align-items-start">
                     <div class="card mb-0" id="posLayoutPalette" style="flex:0 0 208px;max-width:100%">
                         <div class="card-header py-2">
                             <h6 class="mb-0">{{ __('Elements') }}</h6>
                         </div>
                         <div class="card-body p-2">
+                            <div class="text-muted small fw-bold mt-2 mb-1">{{ __('Tables in this area') }}</div>
+                            <div id="posLayoutAreaTables"></div>
                             @foreach ($posLayoutPalette as $group)
                                 <div class="text-muted small fw-bold mt-2 mb-1">{{ $group['title'] }}</div>
                                 @foreach ($group['items'] as $item)
@@ -70,7 +82,7 @@
                                     </button>
                                 @endforeach
                             @endforeach
-                            <div class="text-muted small mt-2">{{ __('Click or drag an element onto the canvas.') }}</div>
+                            <div class="text-muted small mt-2">{{ __('Click or drag an element onto the canvas. Drag empty floor to pan, scroll to zoom.') }}</div>
                         </div>
                     </div>
                     <div class="flex-grow-1" style="min-width:280px">
@@ -90,17 +102,27 @@
                                     <label class="form-label">{{ __('Type') }}</label>
                                     <input id="posLayoutPropType" class="form-control form-control-sm" readonly>
                                 </div>
+                                <div class="mb-2" id="posLayoutPropShapeWrap" style="display:none">
+                                    <label class="form-label">{{ __('Shape') }}</label>
+                                    <select id="posLayoutPropShape" class="form-select form-select-sm">
+                                        <option value="round">{{ __('Round') }}</option>
+                                        <option value="square">{{ __('Square') }}</option>
+                                        <option value="rect">{{ __('Rectangle') }}</option>
+                                        <option value="banquet">{{ __('Banquet') }}</option>
+                                    </select>
+                                </div>
                                 <div class="mb-2">
                                     <label class="form-label">{{ __('Label') }}</label>
                                     <input id="posLayoutPropLabel" class="form-control form-control-sm">
                                 </div>
+                                <div class="mb-2 text-muted small" id="posLayoutPropTableHint" style="display:none">{{ __('Edit the name and seats on the POS Tables page.') }}</div>
                                 <div class="mb-2" id="posLayoutPropCapacityWrap">
                                     <label class="form-label">{{ __('Capacity') }}</label>
-                                    <input id="posLayoutPropCapacity" class="form-control form-control-sm">
+                                    <input id="posLayoutPropCapacity" class="form-control form-control-sm" readonly>
                                 </div>
                                 <div class="mb-2" id="posLayoutPropStatusWrap">
                                     <label class="form-label">{{ __('Status') }}</label>
-                                    <select id="posLayoutPropStatus" class="form-select form-select-sm">
+                                    <select id="posLayoutPropStatus" class="form-select form-select-sm" disabled>
                                         <option value="available">{{ __('Available') }}</option>
                                         <option value="occupied">{{ __('Occupied') }}</option>
                                         <option value="reserved">{{ __('Reserved') }}</option>
@@ -131,12 +153,11 @@
 
 @push('css-page')
 <style>
-.pos-layout-wrap { overflow: auto; background: #e9edf3; border: 1px solid #dee2e6; border-radius: 8px; height: 640px; }
-.pos-layout-canvas { position: relative; width: 1200px; height: 800px; margin: 12px; background-color: #f4f6fb;
+.pos-layout-wrap { overflow: hidden; position: relative; background: #e9edf3; border: 1px solid #dee2e6; border-radius: 8px; height: 640px;
     background-image: linear-gradient(#e2e8f2 1px, transparent 1px), linear-gradient(90deg, #e2e8f2 1px, transparent 1px), linear-gradient(#c9d4e8 1px, transparent 1px), linear-gradient(90deg, #c9d4e8 1px, transparent 1px);
-    background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px;
-    transform-origin: 0 0; box-shadow: 0 0 0 1px #d3dae6; }
-.pos-layout-canvas.no-grid { background-image: none; }
+    background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px; }
+.pos-layout-wrap.no-grid { background-image: none; }
+.pos-layout-canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .pos-layout-el { position: absolute; cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none; }
 .pos-layout-el:active { cursor: grabbing; }
 .pos-layout-el.selected { outline: 2px dashed #0d6efd; outline-offset: 4px; z-index: 5; }
@@ -163,6 +184,9 @@
 .pos-layout-resize-handle.pos-layout-resize-s { bottom: -8px; left: 50%; margin-left: -7px; cursor: ns-resize; }
 .pos-layout-palette-btn { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 5px 8px; margin-bottom: 2px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 6px; color: #212529; font-size: 13px; cursor: grab; touch-action: none; }
 .pos-layout-palette-btn:hover { border-color: #0d6efd; background: #f0f5ff; }
+.pos-layout-palette-btn:disabled { opacity: .55; cursor: default; }
+.pos-layout-area-table-btn { justify-content: space-between; }
+.pos-layout-onfloor { font-size: 11px; color: #198754; font-weight: 700; }
 .pos-layout-mini { width: 28px; height: 28px; flex: 0 0 28px; display: flex; align-items: center; justify-content: center; }
 .mini-round { width: 22px; height: 22px; border-radius: 50%; background: #aab8d4; border: 2px solid #22355e; }
 .mini-square { width: 20px; height: 20px; background: #aab8d4; border: 2px solid #22355e; }
@@ -184,27 +208,40 @@
 (function () {
     'use strict';
 
-    var STORAGE_KEY = 'erp-pos-restaurant-layout-v1';
-    var CANVAS_W = 1200;
-    var CANVAS_H = 800;
+    var AREAS = @json($areas->map(fn ($a) => ['id' => (int) $a->id, 'name' => $a->name, 'branch_name' => $a->branch ? $a->branch->name : null])->values()->all());
+    var INITIAL_AREA_ID = @json($initialAreaId);
+    var AREA_URL_TEMPLATE = @json(route('pos.restaurant.layout.designer.area', ['area' => '__AREA_ID__']));
+    var CREATE_TABLE_URL = @json(route('pos.restaurant.layout.designer.tables.store'));
+    var CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
 
     var I18N = {
         table: @json(__('Table')),
+        floorDesign: @json(__('Floor design')),
         confirmClear: @json(__('Clear all elements from the canvas?')),
-        confirmReset: @json(__('Reset the layout to the demo?'))
+        confirmDiscard: @json(__('Discard unsaved changes and switch area?')),
+        confirmDemo: @json(__('Load the demo floor? Missing tables are created as real POS tables.')),
+        confirmRemoveTable: @json(__('Remove this table from the floor? The table stays in POS Tables.')),
+        removeFromFloor: @json(__('Remove from floor')),
+        deleteLabel: @json(__('Delete')),
+        onFloor: @json(__('On floor')),
+        unsaved: @json(__('Unsaved changes')),
+        saved: @json(__('Saved')),
+        saveFailed: @json(__('Could not save the layout.')),
+        loadFailed: @json(__('Could not load the layout.')),
+        createFailed: @json(__('Could not create the table.'))
     };
 
     var PERSON_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6z"/></svg>';
 
     var TYPES = {
-        'table-round-2': { kind: 'table', shape: 'round', w: 72, h: 72, capacity: '2', chairs: 2 },
-        'table-round-4': { kind: 'table', shape: 'round', w: 92, h: 92, capacity: '2-4', chairs: 4 },
-        'table-round-6': { kind: 'table', shape: 'round', w: 112, h: 112, capacity: '4-6', chairs: 6 },
-        'table-square-2': { kind: 'table', shape: 'square', w: 66, h: 66, capacity: '2', chairs: 2 },
-        'table-square-4': { kind: 'table', shape: 'square', w: 86, h: 86, capacity: '2-4', chairs: 4 },
-        'table-rect-4': { kind: 'table', shape: 'rect', w: 112, h: 72, capacity: '2-4', chairs: 4 },
-        'table-rect-6': { kind: 'table', shape: 'rect', w: 142, h: 82, capacity: '4-6', chairs: 6 },
-        'table-banquet': { kind: 'table', shape: 'rect', w: 220, h: 82, capacity: '6-12', chairs: 6 },
+        'table-round-2': { kind: 'table', shape: 'round', w: 72, h: 72, seats: 2, chairs: 2 },
+        'table-round-4': { kind: 'table', shape: 'round', w: 92, h: 92, seats: 4, chairs: 4 },
+        'table-round-6': { kind: 'table', shape: 'round', w: 112, h: 112, seats: 6, chairs: 6 },
+        'table-square-2': { kind: 'table', shape: 'square', w: 66, h: 66, seats: 2, chairs: 2 },
+        'table-square-4': { kind: 'table', shape: 'square', w: 86, h: 86, seats: 4, chairs: 4 },
+        'table-rect-4': { kind: 'table', shape: 'rect', w: 112, h: 72, seats: 4, chairs: 4 },
+        'table-rect-6': { kind: 'table', shape: 'rect', w: 142, h: 82, seats: 6, chairs: 6 },
+        'table-banquet': { kind: 'table', shape: 'rect', w: 220, h: 82, seats: 12, chairs: 6 },
         'wall-h': { kind: 'wall', w: 200, h: 10, resizable: 'w' },
         'wall-v': { kind: 'wall', w: 10, h: 200, resizable: 'h' },
         'door': { kind: 'door', w: 90, h: 14 },
@@ -218,48 +255,72 @@
     var canvas = document.getElementById('posLayoutCanvas');
     var wrap = document.getElementById('posLayoutWrap');
     var palette = document.getElementById('posLayoutPalette');
+    var areaSelect = document.getElementById('posLayoutAreaSelect');
+    var areaNameEl = document.getElementById('posLayoutAreaName');
+    var areaTablesEl = document.getElementById('posLayoutAreaTables');
+    var noAreasEl = document.getElementById('posLayoutNoAreas');
     if (!canvas || !wrap || !palette) { return; }
 
-    var state = { elements: [], selectedId: null, zoom: 1 };
+    // state.elements entries:
+    // {id, type, kind, shape, table_id|null, x, y, w, h, rot, label, pending}
+    // Table elements show the REAL table's name/seats/live status (looked
+    // up in state.tables); only decorations carry their own label.
+    var state = { areaId: 0, areaName: '', hasSavedLayout: false, tables: [], elements: [], selectedId: null, zoom: 1, panX: 0, panY: 0, dirty: false, pendingCreates: [] };
     var uidSeq = 0;
+    var autosaveTimer = null;
     var savedTimer = null;
 
     function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
     function normDeg(deg) { var d = deg % 360; return d < 0 ? d + 360 : d; }
+    function snap(v) { return Math.round(v / 5) * 5; }
+    function num(v, fallback) { var n = Number(v); return isNaN(n) ? (fallback || 0) : n; }
     function nextId() { uidSeq += 1; return 'el-' + Date.now().toString(36) + '-' + uidSeq; }
     function byId(id) { for (var i = 0; i < state.elements.length; i++) { if (state.elements[i].id === id) { return state.elements[i]; } } return null; }
     function selected() { return state.selectedId ? byId(state.selectedId) : null; }
     function nodeFor(id) { return canvas.querySelector('[data-id="' + id + '"]'); }
+    function tableById(id) { for (var i = 0; i < state.tables.length; i++) { if (state.tables[i].id === id) { return state.tables[i]; } } return null; }
+    function isPlaced(tableId) { return state.elements.some(function (e) { return e.kind === 'table' && e.table_id === tableId; }); }
 
     function paletteLabel(type) {
         var btn = palette.querySelector('[data-type="' + type + '"] .pos-layout-palette-label');
         return btn ? btn.textContent.trim() : type;
     }
 
-    function nextTableNumber() {
-        var max = 0;
-        state.elements.forEach(function (el) {
-            if (el.kind === 'table') {
-                var n = parseInt(el.label, 10);
-                if (!isNaN(n) && n > max) { max = n; }
-            }
-        });
-        return max + 1;
+    function shapeForType(type) {
+        if (type.indexOf('round') >= 0) { return 'round'; }
+        if (type.indexOf('square') >= 0) { return 'square'; }
+        if (type.indexOf('banquet') >= 0) { return 'banquet'; }
+        return 'rect';
     }
 
-    function makeElement(type, x, y, rot, label, capacity, status, w, h) {
+    function typeForShape(shape, seats) {
+        if (shape === 'banquet') { return 'table-banquet'; }
+        if (shape === 'round') { return seats <= 2 ? 'table-round-2' : (seats <= 4 ? 'table-round-4' : 'table-round-6'); }
+        if (shape === 'square') { return seats <= 2 ? 'table-square-2' : 'table-square-4'; }
+        return seats <= 4 ? 'table-rect-4' : 'table-rect-6';
+    }
+
+    function autoTypeForSeats(seats) {
+        return seats > 6 ? 'table-banquet' : typeForShape('round', seats);
+    }
+
+    function makeDecoration(type, x, y, rot, w, h, label) {
         var cfg = TYPES[type];
         if (!cfg) { return null; }
-        var isTable = cfg.kind === 'table';
         return {
-            id: nextId(), type: type, kind: cfg.kind, shape: cfg.shape || null,
-            x: clamp(Math.round(x / 5) * 5, 0, CANVAS_W - (w || cfg.w)),
-            y: clamp(Math.round(y / 5) * 5, 0, CANVAS_H - (h || cfg.h)),
-            w: w || cfg.w, h: h || cfg.h, rot: rot || 0,
-            label: (label !== null && label !== undefined) ? String(label) : (isTable ? String(nextTableNumber()) : paletteLabel(type)),
-            typeLabel: isTable ? I18N.table : paletteLabel(type),
-            capacity: capacity || cfg.capacity || '',
-            status: status || 'available'
+            id: nextId(), type: type, kind: cfg.kind, shape: cfg.shape || null, table_id: null,
+            x: snap(x), y: snap(y), w: w || cfg.w, h: h || cfg.h, rot: rot || 0,
+            label: label !== undefined && label !== null ? String(label) : paletteLabel(type), pending: false
+        };
+    }
+
+    function makeTableElement(type, table, x, y, rot) {
+        var cfg = TYPES[type];
+        if (!cfg) { return null; }
+        return {
+            id: nextId(), type: type, kind: 'table', shape: cfg.shape, table_id: table ? table.id : null,
+            x: snap(x), y: snap(y), w: cfg.w, h: cfg.h, rot: rot || 0,
+            label: '', pending: !table
         };
     }
 
@@ -289,6 +350,7 @@
         node.style.transform = 'rotate(' + el.rot + 'deg)';
 
         if (el.kind === 'table') {
+            var table = tableById(el.table_id);
             var cfg = TYPES[el.type] || {};
             chairPositions(el, cfg.chairs || 4).forEach(function (c) {
                 var chair = document.createElement('span');
@@ -302,12 +364,12 @@
             body.className = 'pos-layout-table-body';
             var num = document.createElement('div');
             num.className = 'pos-layout-table-num';
-            num.textContent = el.label;
+            num.textContent = table ? table.name : '\u2026';
             var cap = document.createElement('div');
             cap.className = 'pos-layout-table-cap';
-            cap.textContent = el.capacity;
+            cap.textContent = table ? String(table.capacity) : '';
             var dot = document.createElement('span');
-            dot.className = 'pos-layout-dot pos-layout-dot-' + el.status;
+            dot.className = 'pos-layout-dot pos-layout-dot-' + (table ? table.status : 'available');
             body.appendChild(num);
             body.appendChild(cap);
             body.appendChild(dot);
@@ -409,12 +471,16 @@
     var propEmpty = document.getElementById('posLayoutPropsEmpty');
     var propForm = document.getElementById('posLayoutPropsForm');
     var propType = document.getElementById('posLayoutPropType');
+    var propShapeWrap = document.getElementById('posLayoutPropShapeWrap');
+    var propShape = document.getElementById('posLayoutPropShape');
     var propLabel = document.getElementById('posLayoutPropLabel');
+    var propTableHint = document.getElementById('posLayoutPropTableHint');
     var propCapacity = document.getElementById('posLayoutPropCapacity');
     var propStatus = document.getElementById('posLayoutPropStatus');
     var propRot = document.getElementById('posLayoutPropRot');
     var propCapacityWrap = document.getElementById('posLayoutPropCapacityWrap');
     var propStatusWrap = document.getElementById('posLayoutPropStatusWrap');
+    var propDeleteBtn = document.getElementById('posLayoutPropDelete');
 
     function refreshProps() {
         var el = selected();
@@ -425,26 +491,34 @@
         }
         propEmpty.style.display = 'none';
         propForm.style.display = '';
-        propType.value = el.typeLabel;
-        propLabel.value = el.label;
         var isTable = el.kind === 'table';
+        var table = isTable ? tableById(el.table_id) : null;
+        propType.value = isTable ? I18N.table : paletteLabel(el.type);
+        propShapeWrap.style.display = isTable ? '' : 'none';
+        if (isTable) { propShape.value = shapeForType(el.type); }
+        propLabel.value = isTable ? (table ? table.name : '\u2026') : el.label;
+        propLabel.readOnly = isTable;
+        propTableHint.style.display = isTable ? '' : 'none';
         propCapacityWrap.style.display = isTable ? '' : 'none';
         propStatusWrap.style.display = isTable ? '' : 'none';
-        propCapacity.value = el.capacity;
-        propStatus.value = el.status;
+        propCapacity.value = isTable ? (table ? String(table.capacity) : '') : '';
+        propStatus.value = isTable ? (table ? table.status : 'available') : 'available';
         propRot.textContent = normDeg(el.rot) + '\u00b0';
+        propDeleteBtn.textContent = isTable ? I18N.removeFromFloor : I18N.deleteLabel;
     }
 
     function updateNodeText(el) {
         var node = nodeFor(el.id);
         if (!node) { return; }
-        var num = node.querySelector('.pos-layout-table-num');
-        if (num) { num.textContent = el.label; }
-        var cap = node.querySelector('.pos-layout-table-cap');
-        if (cap) { cap.textContent = el.capacity; }
-        var dot = node.querySelector('.pos-layout-dot');
-        if (dot) { dot.className = 'pos-layout-dot pos-layout-dot-' + el.status; }
-        if (el.kind === 'bar') {
+        if (el.kind === 'table') {
+            var table = tableById(el.table_id);
+            var num = node.querySelector('.pos-layout-table-num');
+            if (num) { num.textContent = table ? table.name : '\u2026'; }
+            var cap = node.querySelector('.pos-layout-table-cap');
+            if (cap) { cap.textContent = table ? String(table.capacity) : ''; }
+            var dot = node.querySelector('.pos-layout-dot');
+            if (dot) { dot.className = 'pos-layout-dot pos-layout-dot-' + (table ? table.status : 'available'); }
+        } else if (el.kind === 'bar') {
             node.childNodes.forEach(function (child) {
                 if (child.nodeType === 3) { child.textContent = el.label; }
             });
@@ -457,24 +531,34 @@
 
     propLabel.addEventListener('input', function () {
         var el = selected();
-        if (!el) { return; }
+        if (!el || el.kind === 'table') { return; }
         el.label = propLabel.value;
         updateNodeText(el);
     });
-    propLabel.addEventListener('change', saveToStorage);
-    propCapacity.addEventListener('input', function () {
+    propLabel.addEventListener('change', function () {
         var el = selected();
-        if (!el) { return; }
-        el.capacity = propCapacity.value;
-        updateNodeText(el);
+        if (!el || el.kind === 'table') { return; }
+        markDirty();
     });
-    propCapacity.addEventListener('change', saveToStorage);
-    propStatus.addEventListener('change', function () {
+    propShape.addEventListener('change', function () {
         var el = selected();
-        if (!el) { return; }
-        el.status = propStatus.value;
-        updateNodeText(el);
-        saveToStorage();
+        if (!el || el.kind !== 'table') { return; }
+        var table = tableById(el.table_id);
+        var seats = table ? table.capacity : 4;
+        var type = typeForShape(propShape.value, seats);
+        var cfg = TYPES[type];
+        if (!cfg) { return; }
+        el.type = type;
+        el.shape = cfg.shape;
+        el.w = cfg.w;
+        el.h = cfg.h;
+        var node = nodeFor(el.id);
+        if (node) {
+            var fresh = renderNode(el);
+            node.replaceWith(fresh);
+        }
+        markSelection();
+        markDirty();
     });
     document.querySelectorAll('[data-rot]').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -484,51 +568,134 @@
             var node = nodeFor(el.id);
             if (node) { node.style.transform = 'rotate(' + el.rot + 'deg)'; }
             propRot.textContent = normDeg(el.rot) + '\u00b0';
-            saveToStorage();
+            markDirty();
         });
     });
     document.getElementById('posLayoutPropDuplicate').addEventListener('click', function () {
         var el = selected();
         if (!el) { return; }
+        if (el.kind === 'table') {
+            var table = tableById(el.table_id);
+            createRealTable(table ? table.capacity : 4).then(function (created) {
+                if (!created) { return; }
+                var copy = makeTableElement(el.type, created, el.x + 24, el.y + 24, el.rot);
+                state.elements.push(copy);
+                canvas.appendChild(renderNode(copy));
+                select(copy.id);
+                refreshAreaTables();
+                markDirty();
+            });
+            return;
+        }
         var copy = JSON.parse(JSON.stringify(el));
         copy.id = nextId();
-        copy.x = clamp(el.x + 24, 0, CANVAS_W - copy.w);
-        copy.y = clamp(el.y + 24, 0, CANVAS_H - copy.h);
-        if (copy.kind === 'table') { copy.label = String(nextTableNumber()); }
+        copy.x = snap(el.x + 24);
+        copy.y = snap(el.y + 24);
         state.elements.push(copy);
         canvas.appendChild(renderNode(copy));
         select(copy.id);
-        saveToStorage();
+        markDirty();
     });
-    document.getElementById('posLayoutPropDelete').addEventListener('click', function () {
+    propDeleteBtn.addEventListener('click', function () {
         deleteSelected();
     });
 
     function deleteSelected() {
         var el = selected();
         if (!el) { return; }
+        if (el.kind === 'table' && !window.confirm(I18N.confirmRemoveTable)) { return; }
         state.elements = state.elements.filter(function (e) { return e.id !== el.id; });
         var node = nodeFor(el.id);
         if (node) { node.remove(); }
         state.selectedId = null;
         markSelection();
-        saveToStorage();
+        refreshAreaTables();
+        markDirty();
     }
 
-    function addElement(type, cx, cy) {
+    // ---- infinite canvas: pan + zoom (scroll to zoom, drag floor to pan) ----
+    var zoomLabel = document.getElementById('posLayoutZoomLabel');
+    function applyView() {
+        canvas.style.transform = 'translate(' + state.panX + 'px,' + state.panY + 'px) scale(' + state.zoom + ')';
+        zoomLabel.textContent = Math.round(state.zoom * 100) + '%';
+        var minor = 20 * state.zoom;
+        var major = 100 * state.zoom;
+        wrap.style.backgroundSize = minor + 'px ' + minor + 'px,' + minor + 'px ' + minor + 'px,' + major + 'px ' + major + 'px,' + major + 'px ' + major + 'px';
+        wrap.style.backgroundPosition = state.panX + 'px ' + state.panY + 'px,' + state.panX + 'px ' + state.panY + 'px,' + state.panX + 'px ' + state.panY + 'px,' + state.panX + 'px ' + state.panY + 'px';
+    }
+    function worldPoint(clientX, clientY) {
+        var rect = wrap.getBoundingClientRect();
+        return { x: (clientX - rect.left - state.panX) / state.zoom, y: (clientY - rect.top - state.panY) / state.zoom };
+    }
+    function viewCenter() {
+        return { x: (wrap.clientWidth / 2 - state.panX) / state.zoom, y: (wrap.clientHeight / 2 - state.panY) / state.zoom };
+    }
+    function fitZoom() {
+        if (!state.elements.length) {
+            state.zoom = 1;
+            state.panX = 24;
+            state.panY = 24;
+            applyView();
+            return;
+        }
+        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        state.elements.forEach(function (el) {
+            minX = Math.min(minX, el.x);
+            minY = Math.min(minY, el.y);
+            maxX = Math.max(maxX, el.x + el.w);
+            maxY = Math.max(maxY, el.y + el.h);
+        });
+        var bw = Math.max(maxX - minX, 50);
+        var bh = Math.max(maxY - minY, 50);
+        state.zoom = clamp(Math.min((wrap.clientWidth - 48) / bw, (wrap.clientHeight - 48) / bh), 0.2, 1.6);
+        state.panX = (wrap.clientWidth - bw * state.zoom) / 2 - minX * state.zoom;
+        state.panY = (wrap.clientHeight - bh * state.zoom) / 2 - minY * state.zoom;
+        applyView();
+    }
+    wrap.addEventListener('wheel', function (e) {
+        e.preventDefault();
+        var rect = wrap.getBoundingClientRect();
+        var mx = e.clientX - rect.left;
+        var my = e.clientY - rect.top;
+        var factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+        var nz = clamp(state.zoom * factor, 0.2, 2.5);
+        state.panX = mx - (mx - state.panX) * (nz / state.zoom);
+        state.panY = my - (my - state.panY) * (nz / state.zoom);
+        state.zoom = nz;
+        applyView();
+    }, { passive: false });
+    document.getElementById('posLayoutZoomIn').addEventListener('click', function () {
+        zoomAroundCenter(clamp(state.zoom * 1.2, 0.2, 2.5));
+    });
+    document.getElementById('posLayoutZoomOut').addEventListener('click', function () {
+        zoomAroundCenter(clamp(state.zoom / 1.2, 0.2, 2.5));
+    });
+    function zoomAroundCenter(nz) {
+        var mx = wrap.clientWidth / 2;
+        var my = wrap.clientHeight / 2;
+        state.panX = mx - (mx - state.panX) * (nz / state.zoom);
+        state.panY = my - (my - state.panY) * (nz / state.zoom);
+        state.zoom = nz;
+        applyView();
+    }
+    document.getElementById('posLayoutZoomFit').addEventListener('click', fitZoom);
+    var gridBtn = document.getElementById('posLayoutGridToggle');
+    gridBtn.addEventListener('click', function () {
+        var off = wrap.classList.toggle('no-grid');
+        gridBtn.classList.toggle('active', !off);
+        gridBtn.setAttribute('aria-pressed', String(!off));
+    });
+
+    // ---- adding elements: palette drag/click + area tables list ----
+    function addDecoration(type, cx, cy) {
         var cfg = TYPES[type];
         if (!cfg) { return null; }
         var el;
         if (cx === null || cx === undefined || cy === null || cy === undefined) {
-            el = makeElement(type, (CANVAS_W - cfg.w) / 2, (CANVAS_H - cfg.h) / 2, 0);
-            for (var i = 0; i < 10; i++) {
-                var clash = state.elements.some(function (e) { return e.x === el.x && e.y === el.y; });
-                if (!clash) { break; }
-                el.x = clamp(el.x + 20, 0, CANVAS_W - el.w);
-                el.y = clamp(el.y + 20, 0, CANVAS_H - el.h);
-            }
+            var c = viewCenter();
+            el = makeDecoration(type, c.x - cfg.w / 2, c.y - cfg.h / 2, 0);
         } else {
-            el = makeElement(type, cx - cfg.w / 2, cy - cfg.h / 2, 0);
+            el = makeDecoration(type, cx - cfg.w / 2, cy - cfg.h / 2, 0);
         }
         if (!el) { return null; }
         state.elements.push(el);
@@ -536,58 +703,214 @@
         return el;
     }
 
-    function canvasPoint(clientX, clientY) {
-        var rect = canvas.getBoundingClientRect();
-        var x = (clientX - rect.left) / state.zoom;
-        var y = (clientY - rect.top) / state.zoom;
-        if (x < 0 || y < 0 || x > CANVAS_W || y > CANVAS_H) { return null; }
-        return { x: x, y: y };
+    function placeExistingTable(table, cx, cy) {
+        var type = autoTypeForSeats(table.capacity);
+        var cfg = TYPES[type];
+        var el;
+        if (cx === null || cx === undefined || cy === null || cy === undefined) {
+            var c = viewCenter();
+            el = makeTableElement(type, table, c.x - cfg.w / 2, c.y - cfg.h / 2, 0);
+        } else {
+            el = makeTableElement(type, table, cx - cfg.w / 2, cy - cfg.h / 2, 0);
+        }
+        if (!el) { return null; }
+        state.elements.push(el);
+        canvas.appendChild(renderNode(el));
+        refreshAreaTables();
+        return el;
+    }
+
+    function createRealTable(seats) {
+        var p = fetch(CREATE_TABLE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ area_id: state.areaId, capacity: seats })
+        }).then(function (r) {
+            if (!r.ok) { throw new Error('create'); }
+            return r.json();
+        }).then(function (data) {
+            state.tables.push({ id: data.id, name: data.name, capacity: data.capacity, status: data.status });
+            return data;
+        }).catch(function () {
+            window.alert(I18N.createFailed);
+            return null;
+        });
+        state.pendingCreates.push(p);
+        p.finally(function () {
+            state.pendingCreates = state.pendingCreates.filter(function (q) { return q !== p; });
+        });
+        return p;
+    }
+
+    function addNewTable(type, cx, cy) {
+        var cfg = TYPES[type];
+        if (!cfg) { return; }
+        var el = makeTableElement(type, null, cx !== null && cx !== undefined ? cx - cfg.w / 2 : 0, cy !== null && cy !== undefined ? cy - cfg.h / 2 : 0, 0);
+        if (cx === null || cx === undefined || cy === null || cy === undefined) {
+            var c = viewCenter();
+            el.x = snap(c.x - cfg.w / 2);
+            el.y = snap(c.y - cfg.h / 2);
+        }
+        state.elements.push(el);
+        canvas.appendChild(renderNode(el));
+        select(el.id);
+        createRealTable(cfg.seats).then(function (created) {
+            if (!created) {
+                state.elements = state.elements.filter(function (e) { return e.id !== el.id; });
+                var node = nodeFor(el.id);
+                if (node) { node.remove(); }
+                if (state.selectedId === el.id) { select(null); }
+                return;
+            }
+            el.table_id = created.id;
+            el.pending = false;
+            updateNodeText(el);
+            refreshAreaTables();
+            markDirty();
+        });
+        return el;
     }
 
     palette.querySelectorAll('.pos-layout-palette-btn').forEach(function (btn) {
         btn.addEventListener('pointerdown', function (e) {
             e.preventDefault();
             var type = btn.dataset.type;
+            var cfg = TYPES[type];
+            if (!cfg) { return; }
             var created = null;
             function onMove(ev) {
                 if (!created) {
-                    var pos = canvasPoint(ev.clientX, ev.clientY);
-                    if (!pos) { return; }
-                    created = addElement(type, pos.x, pos.y);
+                    var pos = worldPoint(ev.clientX, ev.clientY);
+                    var rect = wrap.getBoundingClientRect();
+                    if (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) { return; }
+                    created = cfg.kind === 'table' ? addNewTable(type, pos.x, pos.y) : addDecoration(type, pos.x, pos.y);
                     if (created) { select(created.id); }
-                } else {
-                    var p2 = canvasPoint(ev.clientX, ev.clientY);
-                    if (p2) {
-                        created.x = clamp(Math.round((p2.x - created.w / 2) / 5) * 5, 0, CANVAS_W - created.w);
-                        created.y = clamp(Math.round((p2.y - created.h / 2) / 5) * 5, 0, CANVAS_H - created.h);
-                        var node = nodeFor(created.id);
-                        if (node) { node.style.left = created.x + 'px'; node.style.top = created.y + 'px'; }
-                    }
+                } else if (created.kind !== 'table' || !created.pending) {
+                    var p2 = worldPoint(ev.clientX, ev.clientY);
+                    created.x = snap(p2.x - created.w / 2);
+                    created.y = snap(p2.y - created.h / 2);
+                    var node = nodeFor(created.id);
+                    if (node) { node.style.left = created.x + 'px'; node.style.top = created.y + 'px'; }
                 }
             }
             function onUp() {
                 document.removeEventListener('pointermove', onMove);
                 document.removeEventListener('pointerup', onUp);
                 if (!created) {
-                    created = addElement(type, null, null);
+                    created = cfg.kind === 'table' ? addNewTable(type, null, null) : addDecoration(type, null, null);
                     if (created) { select(created.id); }
                 }
-                if (created) { saveToStorage(); }
+                if (created && created.kind !== 'table') { markDirty(); }
             }
             document.addEventListener('pointermove', onMove);
             document.addEventListener('pointerup', onUp);
         });
     });
 
-    canvas.addEventListener('pointerdown', function (e) {
+    function refreshAreaTables() {
+        if (!areaTablesEl) { return; }
+        areaTablesEl.innerHTML = '';
+        if (!state.tables.length) {
+            var empty = document.createElement('div');
+            empty.className = 'text-muted small';
+            empty.textContent = @json(__('No tables in this area yet.'));
+            areaTablesEl.appendChild(empty);
+            return;
+        }
+        var allPlaced = true;
+        state.tables.forEach(function (t) {
+            var placed = isPlaced(t.id);
+            if (!placed) { allPlaced = false; }
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'pos-layout-palette-btn pos-layout-area-table-btn';
+            btn.disabled = placed;
+            btn.dataset.tableId = t.id;
+            var name = document.createElement('span');
+            name.className = 'pos-layout-palette-label';
+            name.textContent = t.name + ' (' + t.capacity + ')';
+            btn.appendChild(name);
+            if (placed) {
+                var badge = document.createElement('span');
+                badge.className = 'pos-layout-onfloor';
+                badge.textContent = I18N.onFloor;
+                btn.appendChild(badge);
+            }
+            btn.addEventListener('pointerdown', function (e) {
+                if (placed) { return; }
+                e.preventDefault();
+                var created = null;
+                function onMove(ev) {
+                    if (!created) {
+                        var rect = wrap.getBoundingClientRect();
+                        if (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) { return; }
+                        var pos = worldPoint(ev.clientX, ev.clientY);
+                        created = placeExistingTable(t, pos.x, pos.y);
+                        if (created) { select(created.id); }
+                    } else {
+                        var p2 = worldPoint(ev.clientX, ev.clientY);
+                        created.x = snap(p2.x - created.w / 2);
+                        created.y = snap(p2.y - created.h / 2);
+                        var node = nodeFor(created.id);
+                        if (node) { node.style.left = created.x + 'px'; node.style.top = created.y + 'px'; }
+                    }
+                }
+                function onUp() {
+                    document.removeEventListener('pointermove', onMove);
+                    document.removeEventListener('pointerup', onUp);
+                    if (!created) {
+                        created = placeExistingTable(t, null, null);
+                        if (created) { select(created.id); }
+                    }
+                    if (created) { markDirty(); }
+                }
+                document.addEventListener('pointermove', onMove);
+                document.addEventListener('pointerup', onUp);
+            });
+            areaTablesEl.appendChild(btn);
+        });
+        if (allPlaced) {
+            var done = document.createElement('div');
+            done.className = 'text-muted small';
+            done.textContent = @json(__('All tables are on the floor.'));
+            areaTablesEl.appendChild(done);
+        }
+    }
+
+    // ---- canvas interaction: move / rotate / resize / pan ----
+    wrap.addEventListener('pointerdown', function (e) {
         var rotHandle = e.target.closest ? e.target.closest('.pos-layout-rotate-handle') : null;
         if (rotHandle) { startRotate(e, rotHandle); return; }
         var resHandle = e.target.closest ? e.target.closest('.pos-layout-resize-handle') : null;
         if (resHandle) { startResize(e, resHandle); return; }
         var elNode = e.target.closest ? e.target.closest('.pos-layout-el') : null;
         if (elNode) { startMove(e, elNode); return; }
-        select(null);
+        startPan(e);
     });
+
+    function startPan(e) {
+        e.preventDefault();
+        var startX = e.clientX;
+        var startY = e.clientY;
+        var ox = state.panX;
+        var oy = state.panY;
+        var moved = false;
+        function onMove(ev) {
+            var dx = ev.clientX - startX;
+            var dy = ev.clientY - startY;
+            if (Math.abs(dx) + Math.abs(dy) > 2) { moved = true; }
+            state.panX = ox + dx;
+            state.panY = oy + dy;
+            applyView();
+        }
+        function onUp() {
+            document.removeEventListener('pointermove', onMove);
+            document.removeEventListener('pointerup', onUp);
+            if (!moved) { select(null); }
+        }
+        document.addEventListener('pointermove', onMove);
+        document.addEventListener('pointerup', onUp);
+    }
 
     function startMove(e, node) {
         e.preventDefault();
@@ -605,15 +928,15 @@
             var dx = (ev.clientX - startX) / state.zoom;
             var dy = (ev.clientY - startY) / state.zoom;
             if (Math.abs(dx) + Math.abs(dy) > 2) { moved = true; }
-            el.x = clamp(Math.round((ox + dx) / 5) * 5, 0, CANVAS_W - el.w);
-            el.y = clamp(Math.round((oy + dy) / 5) * 5, 0, CANVAS_H - el.h);
+            el.x = snap(ox + dx);
+            el.y = snap(oy + dy);
             node.style.left = el.x + 'px';
             node.style.top = el.y + 'px';
         }
         function onUp() {
             node.removeEventListener('pointermove', onMove);
             node.removeEventListener('pointerup', onUp);
-            if (moved) { saveToStorage(); }
+            if (moved) { markDirty(); }
         }
         node.addEventListener('pointermove', onMove);
         node.addEventListener('pointerup', onUp);
@@ -639,7 +962,7 @@
         function onUp() {
             handle.removeEventListener('pointermove', onMove);
             handle.removeEventListener('pointerup', onUp);
-            saveToStorage();
+            markDirty();
         }
         handle.addEventListener('pointermove', onMove);
         handle.addEventListener('pointerup', onUp);
@@ -662,17 +985,17 @@
             var dx = (ev.clientX - startX) / state.zoom;
             var dy = (ev.clientY - startY) / state.zoom;
             if (horizontal) {
-                el.w = clamp(Math.round((startW + dx) / 10) * 10, 40, CANVAS_W - el.x);
+                el.w = clamp(Math.round((startW + dx) / 10) * 10, 40, 5000);
                 node.style.width = el.w + 'px';
             } else {
-                el.h = clamp(Math.round((startH + dy) / 10) * 10, 40, CANVAS_H - el.y);
+                el.h = clamp(Math.round((startH + dy) / 10) * 10, 40, 5000);
                 node.style.height = el.h + 'px';
             }
         }
         function onUp() {
             handle.removeEventListener('pointermove', onMove);
             handle.removeEventListener('pointerup', onUp);
-            saveToStorage();
+            markDirty();
         }
         handle.addEventListener('pointermove', onMove);
         handle.addEventListener('pointerup', onUp);
@@ -688,32 +1011,66 @@
         }
     });
 
-    var zoomLabel = document.getElementById('posLayoutZoomLabel');
-    function applyZoom() {
-        canvas.style.transform = 'scale(' + state.zoom + ')';
-        zoomLabel.textContent = Math.round(state.zoom * 100) + '%';
+    // ---- save / dirty state (server is the source of truth) ----
+    var savedInd = document.getElementById('posLayoutSaved');
+    function refreshSavedIndicator() {
+        if (state.dirty) {
+            savedInd.style.display = '';
+            savedInd.textContent = I18N.unsaved;
+            savedInd.className = 'small text-warning';
+        } else {
+            savedInd.style.display = '';
+            savedInd.textContent = I18N.saved;
+            savedInd.className = 'small text-success';
+        }
     }
-    function fitZoom() {
-        state.zoom = clamp((wrap.clientWidth - 24) / (CANVAS_W + 24), 0.3, 1);
-        applyZoom();
+    function showSaved() {
+        refreshSavedIndicator();
+        if (savedTimer) { clearTimeout(savedTimer); }
+        savedTimer = setTimeout(function () { if (!state.dirty) { savedInd.style.display = 'none'; } }, 1500);
     }
-    document.getElementById('posLayoutZoomIn').addEventListener('click', function () {
-        state.zoom = clamp(Math.round((state.zoom + 0.1) * 10) / 10, 0.3, 1.6);
-        applyZoom();
+    function markDirty() {
+        if (!state.areaId) { return; }
+        state.dirty = true;
+        refreshSavedIndicator();
+        if (autosaveTimer) { clearTimeout(autosaveTimer); }
+        autosaveTimer = setTimeout(function () { saveToServer(false); }, 1200);
+    }
+    function serialize() {
+        return { version: 1, elements: state.elements.filter(function (el) { return !el.pending; }).map(function (el) {
+            var o = { type: el.type, x: Math.round(el.x), y: Math.round(el.y), w: el.w, h: el.h, rot: Math.round(el.rot) };
+            if (el.kind === 'table') { o.table_id = el.table_id; }
+            else { o.label = el.label; }
+            return o;
+        }) };
+    }
+    function saveToServer(showIndicator) {
+        if (!state.areaId) { return Promise.resolve(false); }
+        return Promise.all(state.pendingCreates.slice()).then(function () {
+            return fetch(areaUrl(state.areaId), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ layout: serialize() })
+            });
+        }).then(function (r) {
+            if (!r.ok) { throw new Error('save'); }
+            return r.json();
+        }).then(function () {
+            state.dirty = false;
+            state.hasSavedLayout = true;
+            refreshSavedIndicator();
+            refreshDemoButton();
+            if (showIndicator) { showSaved(); }
+            return true;
+        }).catch(function () {
+            window.alert(I18N.saveFailed);
+            refreshSavedIndicator();
+            return false;
+        });
+    }
+    document.getElementById('posLayoutSave').addEventListener('click', function () {
+        saveToServer(true);
     });
-    document.getElementById('posLayoutZoomOut').addEventListener('click', function () {
-        state.zoom = clamp(Math.round((state.zoom - 0.1) * 10) / 10, 0.3, 1.6);
-        applyZoom();
-    });
-    document.getElementById('posLayoutZoomFit').addEventListener('click', fitZoom);
-
-    var gridBtn = document.getElementById('posLayoutGridToggle');
-    gridBtn.addEventListener('click', function () {
-        var off = canvas.classList.toggle('no-grid');
-        gridBtn.classList.toggle('active', !off);
-        gridBtn.setAttribute('aria-pressed', String(!off));
-    });
-
     document.getElementById('posLayoutClear').addEventListener('click', function () {
         if (!state.elements.length) { return; }
         if (!window.confirm(I18N.confirmClear)) { return; }
@@ -721,110 +1078,162 @@
         state.selectedId = null;
         renderAll();
         markSelection();
-        saveToStorage();
+        refreshAreaTables();
+        markDirty();
     });
-    document.getElementById('posLayoutResetDemo').addEventListener('click', function () {
-        if (!window.confirm(I18N.confirmReset)) { return; }
+
+    // ---- demo floor (only for an area with no saved layout) ----
+    var demoBtn = document.getElementById('posLayoutLoadDemo');
+    function refreshDemoButton() {
+        demoBtn.style.display = state.hasSavedLayout ? 'none' : '';
+    }
+    demoBtn.addEventListener('click', function () {
+        if (!window.confirm(I18N.confirmDemo)) { return; }
         loadDemo();
     });
-    document.getElementById('posLayoutSave').addEventListener('click', function () {
-        saveToStorage();
-        showSaved();
-    });
-
-    function showSaved() {
-        var ind = document.getElementById('posLayoutSaved');
-        ind.style.display = '';
-        if (savedTimer) { clearTimeout(savedTimer); }
-        savedTimer = setTimeout(function () { ind.style.display = 'none'; }, 1500);
-    }
-
-    function saveToStorage() {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, elements: state.elements }));
-        } catch (err) {}
-    }
-
-    function loadFromStorage() {
-        try {
-            var raw = localStorage.getItem(STORAGE_KEY);
-            if (!raw) { return null; }
-            var data = JSON.parse(raw);
-            if (!data || !Array.isArray(data.elements)) { return null; }
-            var els = [];
-            data.elements.forEach(function (e) {
-                if (!e || !TYPES[e.type]) { return; }
-                els.push({
-                    id: typeof e.id === 'string' ? e.id : nextId(),
-                    type: e.type, kind: TYPES[e.type].kind, shape: TYPES[e.type].shape || null,
-                    x: clamp(Number(e.x) || 0, 0, CANVAS_W - (Number(e.w) || TYPES[e.type].w)),
-                    y: clamp(Number(e.y) || 0, 0, CANVAS_H - (Number(e.h) || TYPES[e.type].h)),
-                    w: Number(e.w) || TYPES[e.type].w,
-                    h: Number(e.h) || TYPES[e.type].h,
-                    rot: normDeg(Number(e.rot) || 0),
-                    label: String(e.label !== undefined && e.label !== null ? e.label : ''),
-                    typeLabel: String(e.typeLabel || ''),
-                    capacity: String(e.capacity || ''),
-                    status: ['available', 'occupied', 'reserved'].indexOf(e.status) >= 0 ? e.status : 'available'
-                });
-            });
-            return els;
-        } catch (err) {
-            return null;
-        }
-    }
-
-    function demoElements() {
-        // [type, x, y, rot, label, capacity, status, w, h]
-        var defs = [
-            ['wall-h', 40, 30, 0, '', '', '', 480, 10],
-            ['wall-h', 680, 30, 0, '', '', '', 480, 10],
-            ['door', 520, 26, 0, '', '', '', 160, 14],
-            ['wall-h', 40, 750, 0, '', '', '', 1120, 10],
-            ['wall-v', 40, 30, 0, '', '', '', 10, 720],
-            ['wall-v', 1150, 30, 0, '', '', '', 10, 720],
-            ['window', 300, 746, 0, '', '', '', 110, 10],
-            ['window', 760, 746, 0, '', '', '', 110, 10],
-            ['table-round-4', 170, 100, 0, '1', '2-4', 'available'],
-            ['table-square-2', 320, 100, 0, '2', '1-2', 'available'],
-            ['table-round-2', 470, 100, 0, '3', '2-3', 'available'],
-            ['table-rect-4', 620, 95, 0, '4', '2-4', 'available'],
-            ['table-square-4', 820, 95, 0, '5', '2-4', 'reserved'],
-            ['table-round-6', 220, 300, 0, '6', '3-5', 'available'],
-            ['table-rect-6', 470, 300, 0, '7', '4-6', 'available'],
-            ['table-round-4', 760, 300, 0, '8', '2-4', 'occupied'],
-            ['table-banquet', 280, 520, 0, '9', '6-8', 'available'],
-            ['table-banquet', 610, 520, 0, '10', '6-12', 'available'],
-            ['bar', 1000, 170, 90, '', '', ''],
-            ['reception', 880, 210, 0, '', '', ''],
-            ['plant', 120, 650, 0, '', '', ''],
-            ['plant', 1090, 650, 0, '', '', ''],
-            ['plant', 600, 690, 0, '', '', ''],
-            ['waiter', 90, 430, 0, '', '', '']
+    function demoDefs() {
+        // [type, x, y, rot, seats, w, h]
+        return [
+            ['wall-h', 40, 30, 0, 0, 480, 10],
+            ['wall-h', 680, 30, 0, 0, 480, 10],
+            ['door', 520, 26, 0, 0, 160, 14],
+            ['wall-h', 40, 750, 0, 0, 1120, 10],
+            ['wall-v', 40, 30, 0, 0, 10, 720],
+            ['wall-v', 1150, 30, 0, 0, 10, 720],
+            ['window', 300, 746, 0, 0, 110, 10],
+            ['window', 760, 746, 0, 0, 110, 10],
+            ['table-round-4', 170, 100, 0, 4],
+            ['table-square-2', 320, 100, 0, 2],
+            ['table-round-2', 470, 100, 0, 2],
+            ['table-rect-4', 620, 95, 0, 4],
+            ['table-square-4', 820, 95, 0, 4],
+            ['table-round-6', 220, 300, 0, 6],
+            ['table-rect-6', 470, 300, 0, 6],
+            ['table-round-4', 760, 300, 0, 4],
+            ['table-banquet', 280, 520, 0, 12],
+            ['table-banquet', 610, 520, 0, 12],
+            ['bar', 1000, 170, 90, 0],
+            ['reception', 880, 210, 0, 0],
+            ['plant', 120, 650, 0, 0],
+            ['plant', 1090, 650, 0, 0],
+            ['plant', 600, 690, 0, 0],
+            ['waiter', 90, 430, 0, 0]
         ];
-        return defs.map(function (d) {
-            var el = makeElement(d[0], d[1], d[2], d[3], d[4] === '' ? null : d[4], d[5] || null, d[6] || null, d[7] || null, d[8] || null);
-            return el;
-        }).filter(function (el) { return el !== null; });
     }
-
     function loadDemo() {
-        state.elements = demoElements();
-        state.selectedId = null;
-        renderAll();
-        markSelection();
-        saveToStorage();
+        var defs = demoDefs();
+        var tableDefs = defs.filter(function (d) { return TYPES[d[0]].kind === 'table'; });
+        var existing = state.tables.slice().sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+        var chain = Promise.resolve();
+        for (var i = existing.length; i < tableDefs.length; i++) {
+            (function (seats) {
+                chain = chain.then(function () { return createRealTable(seats); });
+            })(tableDefs[i][4]);
+        }
+        chain.then(function () {
+            state.tables.sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+            var els = [];
+            var ti = 0;
+            defs.forEach(function (d) {
+                var cfg = TYPES[d[0]];
+                if (cfg.kind === 'table') {
+                    var table = state.tables[ti];
+                    ti += 1;
+                    if (!table) { return; }
+                    els.push(makeTableElement(d[0], table, d[1], d[2], d[3]));
+                } else {
+                    els.push(makeDecoration(d[0], d[1], d[2], d[3], d[5] || null, d[6] || null));
+                }
+            });
+            state.elements = els.filter(function (el) { return el !== null; });
+            state.selectedId = null;
+            renderAll();
+            markSelection();
+            refreshAreaTables();
+            markDirty();
+            fitZoom();
+        });
     }
 
-    var stored = loadFromStorage();
-    if (stored && stored.length) {
-        state.elements = stored;
-        renderAll();
-        markSelection();
-    } else {
-        loadDemo();
+    // ---- area loading / switching ----
+    function areaUrl(areaId) {
+        return AREA_URL_TEMPLATE.replace('__AREA_ID__', String(areaId));
     }
-    if (wrap.clientWidth < CANVAS_W + 24) { fitZoom(); } else { applyZoom(); }
+    function updateAreaHeader() {
+        var area = null;
+        AREAS.forEach(function (a) { if (a.id === state.areaId) { area = a; } });
+        areaNameEl.textContent = area ? (I18N.floorDesign + ' \u2014 ' + area.name + (area.branch_name ? ' (' + area.branch_name + ')' : '')) : '';
+    }
+    function buildElements(layout) {
+        if (!layout || !Array.isArray(layout.elements)) { return []; }
+        var els = [];
+        layout.elements.forEach(function (e) {
+            var cfg = TYPES[e.type];
+            if (!cfg) { return; }
+            if (cfg.kind === 'table') {
+                var table = tableById(e.table_id);
+                if (!table) { return; }
+                els.push(makeTableElement(e.type, table, num(e.x), num(e.y), num(e.rot)));
+            } else {
+                els.push(makeDecoration(e.type, num(e.x), num(e.y), num(e.rot), num(e.w, cfg.w), num(e.h, cfg.h), e.label));
+            }
+        });
+        return els.filter(function (el) { return el !== null; });
+    }
+    function loadArea(areaId) {
+        if (!areaId) {
+            state.areaId = 0;
+            state.elements = [];
+            state.tables = [];
+            renderAll();
+            refreshAreaTables();
+            updateAreaHeader();
+            return Promise.resolve();
+        }
+        return fetch(areaUrl(areaId), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { if (!r.ok) { throw new Error('load'); } return r.json(); })
+            .then(function (data) {
+                state.areaId = data.area.id;
+                state.areaName = data.area.name;
+                state.tables = data.tables || [];
+                state.hasSavedLayout = !!(data.layout && Array.isArray(data.layout.elements));
+                state.elements = buildElements(data.layout);
+                state.selectedId = null;
+                state.dirty = false;
+                renderAll();
+                markSelection();
+                refreshAreaTables();
+                updateAreaHeader();
+                refreshSavedIndicator();
+                refreshDemoButton();
+                fitZoom();
+            })
+            .catch(function () {
+                window.alert(I18N.loadFailed);
+            });
+    }
+    areaSelect.addEventListener('change', function () {
+        var nextId = parseInt(areaSelect.value, 10) || 0;
+        if (nextId === state.areaId) { return; }
+        if (state.dirty && !window.confirm(I18N.confirmDiscard)) {
+            areaSelect.value = String(state.areaId);
+            return;
+        }
+        if (autosaveTimer) { clearTimeout(autosaveTimer); }
+        loadArea(nextId);
+    });
+
+    // ---- boot ----
+    if (!AREAS.length) {
+        noAreasEl.style.display = '';
+        areaSelect.disabled = true;
+        applyView();
+        refreshSavedIndicator();
+        savedInd.style.display = 'none';
+        refreshDemoButton();
+    } else {
+        loadArea(INITIAL_AREA_ID || AREAS[0].id);
+    }
 })();
 </script>
 @endpush

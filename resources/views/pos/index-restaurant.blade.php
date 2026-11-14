@@ -28,6 +28,26 @@
         .pos-top-bar > div {
             flex-shrink: 0;
         }
+        /* Restaurant floor plan (saved area layout): tables positioned as
+           designed, coloured by live status; clicking one works exactly
+           like the table buttons (pos-table-btn). Areas without a saved
+           layout keep the button grid. */
+        .pos-floor { position: relative; height: 460px; overflow: hidden; background: #f4f6fb; border: 1px solid #dee2e6; border-radius: 8px; }
+        .pos-floor-table { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; overflow: hidden; }
+        .pos-floor-table.pos-floor-round { border-radius: 50%; }
+        .pos-floor-cap { font-size: 11px; line-height: 1.15; }
+        .pos-floor-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 2px; border: 1px solid rgba(0,0,0,.25); }
+        .pos-floor-dot-available { background: #22c55e; }
+        .pos-floor-dot-occupied { background: #ef4444; }
+        .pos-floor-dot-reserved { background: #f59e0b; }
+        .pos-floor-decor { position: absolute; }
+        .pos-floor-wall { background: #22355e; border-radius: 2px; }
+        .pos-floor-door { background: #ffffff; border: 2px dashed #22355e; border-radius: 2px; }
+        .pos-floor-window { background: #bcd6f5; border: 1px solid #22355e; border-radius: 2px; }
+        .pos-floor-bar { background: #e8edf5; border: 2px solid #22355e; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #22355e; font-weight: 700; font-size: 12px; letter-spacing: 1px; }
+        .pos-floor-reception { background: #e8edf5; border: 2px solid #22355e; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 3px; color: #22355e; font-weight: 600; font-size: 11px; }
+        .pos-floor-plant { background: radial-gradient(circle at 35% 35%, #4caf7d, #1e6b41); border-radius: 50%; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+        .pos-floor-waiter { background: #22355e; border-radius: 6px; }
         .pos-top-bar .pos-brand { font-weight: 700; font-size: 1.25rem; letter-spacing: 0.02em; white-space: nowrap; }
         .pos-restaurant-controls-row {
             flex-wrap: nowrap;
@@ -1648,8 +1668,23 @@
             function posEscapeHtml(str) {
                 return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             }
-            function renderRestaurantTableButton(t) {
+            // Shared by the button grid and the floor plan: the status class
+            // + data attributes the .pos-table-btn click handler reads (id,
+            // name, status, waiter, customer). Both renderings must keep
+            // these identical or table selection breaks.
+            function restaurantTableBtnAttrs(t) {
                 var statusClass = t.status === 'occupied' ? 'btn-warning' : (t.status === 'reserved' ? 'btn-secondary' : 'btn-outline-primary');
+                // Waiter only on in-use tables after order was sent to production (API already nulls when hidden).
+                var showWaiter = t.status !== 'available' && !!t.has_sent_to_production && t.waiter_name && String(t.waiter_name).trim();
+                var waiterIdAttr = showWaiter ? (t.waiter_user_id || '') : '';
+                var waiterNameAttr = showWaiter ? posEscapeHtml(t.waiter_name || '') : '';
+                return {
+                    statusClass: statusClass,
+                    attrs: 'data-id="' + t.id + '" data-name="' + posEscapeHtml(t.name || '') + '" data-status="' + (t.status || '') + '" data-waiter-id="' + waiterIdAttr + '" data-waiter-name="' + waiterNameAttr + '" data-customer-name="' + posEscapeHtml(t.customer_name || '') + '"'
+                };
+            }
+            function renderRestaurantTableButton(t) {
+                var btn = restaurantTableBtnAttrs(t);
                 var name = posEscapeHtml(t.name || ('Table ' + t.id));
                 var customer = (t.customer_name && String(t.customer_name).trim()) ? posEscapeHtml(t.customer_name) : '—';
                 // Waiter only on in-use tables after order was sent to production (API already nulls when hidden).
@@ -1657,9 +1692,7 @@
                 var waiter = showWaiter ? posEscapeHtml(t.waiter_name) : '—';
                 var guestsVal = (t.current_guests != null && t.current_guests !== '') ? String(t.current_guests) : '—';
                 var amount = (t.cart_total_formatted && String(t.cart_total_formatted).trim()) ? posEscapeHtml(t.cart_total_formatted) : '—';
-                var waiterIdAttr = showWaiter ? (t.waiter_user_id || '') : '';
-                var waiterNameAttr = showWaiter ? posEscapeHtml(t.waiter_name || '') : '';
-                return '<button type="button" class="btn ' + statusClass + ' btn-sm pos-table-btn pos-table-card" data-id="' + t.id + '" data-name="' + posEscapeHtml(t.name || '') + '" data-status="' + (t.status || '') + '" data-waiter-id="' + waiterIdAttr + '" data-waiter-name="' + waiterNameAttr + '" data-customer-name="' + posEscapeHtml(t.customer_name || '') + '">' +
+                return '<button type="button" class="btn ' + btn.statusClass + ' btn-sm pos-table-btn pos-table-card" ' + btn.attrs + '>' +
                     '<span class="pos-table-card__name">' + name + '</span>' +
                     '<span class="pos-table-card__row"><span class="pos-table-card__label">{{ __("pos.guest_name") }}</span><span class="pos-table-card__value">' + customer + '</span></span>' +
                     '<span class="pos-table-card__row"><span class="pos-table-card__label">{{ __("pos.waiter_user") }}</span><span class="pos-table-card__value">' + waiter + '</span></span>' +
@@ -1667,16 +1700,89 @@
                     '<span class="pos-table-card__row"><span class="pos-table-card__label">{{ __("pos.table_guests") }}</span><span class="pos-table-card__value">' + guestsVal + '</span></span>' +
                     '</button>';
             }
+            // Floor plan for one area (saved area layout): tables positioned
+            // as designed + decorations, scaled to fit. Returns '' when the
+            // area has no saved layout or no placed table, so the caller
+            // falls back to the button grid.
+            function renderRestaurantFloor(area) {
+                var layout = area.layout && Array.isArray(area.layout.elements) ? area.layout.elements : [];
+                var byId = {};
+                (area.tables || []).forEach(function (t) { byId[t.id] = t; });
+                var placed = layout.filter(function (e) { return e.type && e.type.indexOf('table-') === 0 && byId[e.table_id]; });
+                if (!placed.length) { return ''; }
+                var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                layout.forEach(function (e) {
+                    if (typeof e.x !== 'number' || typeof e.y !== 'number') { return; }
+                    minX = Math.min(minX, e.x);
+                    minY = Math.min(minY, e.y);
+                    maxX = Math.max(maxX, e.x + (e.w || 0));
+                    maxY = Math.max(maxY, e.y + (e.h || 0));
+                });
+                if (!isFinite(minX)) { return ''; }
+                var availW = $('#pos-table-grid').width() || 800;
+                var floorH = 460;
+                var scale = Math.min(availW / Math.max(maxX - minX + 40, 50), floorH / Math.max(maxY - minY + 40, 50), 1.2);
+                var offX = (availW - (maxX - minX) * scale) / 2 - minX * scale;
+                var offY = (floorH - (maxY - minY) * scale) / 2 - minY * scale;
+                var html = '<div class="pos-floor mb-2">';
+                layout.forEach(function (e) {
+                    if (typeof e.x !== 'number' || typeof e.y !== 'number') { return; }
+                    var left = Math.round(e.x * scale + offX);
+                    var top = Math.round(e.y * scale + offY);
+                    var w = Math.max(Math.round((e.w || 0) * scale), 8);
+                    var h = Math.max(Math.round((e.h || 0) * scale), 8);
+                    var rot = e.rot ? ('transform:rotate(' + e.rot + 'deg);') : '';
+                    if (e.type && e.type.indexOf('table-') === 0) {
+                        var t = byId[e.table_id];
+                        if (!t) { return; }
+                        var btn = restaurantTableBtnAttrs(t);
+                        var dotClass = t.status === 'occupied' ? 'pos-floor-dot-occupied' : (t.status === 'reserved' ? 'pos-floor-dot-reserved' : 'pos-floor-dot-available');
+                        var round = e.type.indexOf('round') >= 0 ? ' pos-floor-round' : '';
+                        html += '<button type="button" class="btn ' + btn.statusClass + ' btn-sm pos-table-btn pos-table-card pos-floor-table' + round + '" style="left:' + left + 'px;top:' + top + 'px;width:' + w + 'px;height:' + h + 'px;' + rot + '" ' + btn.attrs + '>' +
+                            '<span class="pos-table-card__name">' + posEscapeHtml(t.name || '') + '</span>' +
+                            '<span class="pos-floor-cap">' + (t.capacity != null ? posEscapeHtml(String(t.capacity)) : '') + '</span>' +
+                            '<span class="pos-floor-dot ' + dotClass + '"></span></button>';
+                        return;
+                    }
+                    var decorClass = { 'wall-h': 'pos-floor-wall', 'wall-v': 'pos-floor-wall', 'door': 'pos-floor-door', 'window': 'pos-floor-window', 'bar': 'pos-floor-bar', 'reception': 'pos-floor-reception', 'plant': 'pos-floor-plant', 'waiter': 'pos-floor-waiter' }[e.type];
+                    if (!decorClass) { return; }
+                    var inner = '';
+                    if (e.type === 'bar') { inner = 'BAR'; }
+                    else if (e.type === 'reception') { inner = posEscapeHtml(e.label || 'Reception'); }
+                    else if (e.type === 'plant') { inner = '\u273f'; }
+                    html += '<div class="pos-floor-decor ' + decorClass + '" style="left:' + left + 'px;top:' + top + 'px;width:' + w + 'px;height:' + h + 'px;' + rot + '">' + inner + '</div>';
+                });
+                html += '</div>';
+                // Tables of this area that are NOT on the floor yet stay
+                // usable as buttons below it — otherwise a new table would
+                // be invisible on the POS until someone places it.
+                var unplaced = (area.tables || []).filter(function (t) {
+                    return !placed.some(function (e) { return e.table_id === t.id; });
+                });
+                if (unplaced.length) {
+                    html += '<div class="d-flex flex-wrap gap-2 pos-table-grid-inner">';
+                    unplaced.forEach(function (t) { html += renderRestaurantTableButton(t); });
+                    html += '</div>';
+                }
+                return html;
+            }
             function loadRestaurantTables(branchId) {
                 var shiftId = $('#pos_shift_id_hidden').val() || '';
                 $.get(posRestaurantLayoutUrl, { branch_id: branchId, shift_id: shiftId }, function (res) {
                     var html = '';
                     (res.areas || []).forEach(function (area) {
-                        html += '<div class="mb-2"><small class="text-muted d-block mb-1">' + area.name + '</small><div class="d-flex flex-wrap gap-2 pos-table-grid-inner">';
-                        (area.tables || []).forEach(function (t) {
-                            html += renderRestaurantTableButton(t);
-                        });
-                        html += '</div></div>';
+                        html += '<div class="mb-2"><small class="text-muted d-block mb-1">' + area.name + '</small>';
+                        var floor = renderRestaurantFloor(area);
+                        if (floor) {
+                            html += floor;
+                        } else {
+                            html += '<div class="d-flex flex-wrap gap-2 pos-table-grid-inner">';
+                            (area.tables || []).forEach(function (t) {
+                                html += renderRestaurantTableButton(t);
+                            });
+                            html += '</div>';
+                        }
+                        html += '</div>';
                     });
                     $('#pos-table-grid').html(html || '<p class="text-muted small mb-0">{{ __("pos.no_data_found") }}</p>');
                 });
