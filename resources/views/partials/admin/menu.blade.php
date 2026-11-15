@@ -242,6 +242,31 @@
                                                                     <a class="dash-link" href="{{ route('reports.debit.note') }}">{{ __('Debit Note Report') }}</a>
                                                                 </li>
                                                             @endif
+                                                            @if (menu_can('menu.dashboard.accounting.reports.management.management_pl'))
+                                                                <li class="dash-item {{ Request::route()->getName() == 'management-reports.pl' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('management-reports.pl') }}">{{ __('P&L (Management)') }}</a>
+                                                                </li>
+                                                            @endif
+                                                            @if (menu_can('menu.dashboard.accounting.reports.management.management_pl_percent'))
+                                                                <li class="dash-item {{ Request::route()->getName() == 'management-reports.pl-percent' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('management-reports.pl-percent') }}">{{ __('%P&L (Management)') }}</a>
+                                                                </li>
+                                                            @endif
+                                                            @if (menu_can('menu.dashboard.accounting.reports.management.management_costs'))
+                                                                <li class="dash-item {{ Request::route()->getName() == 'management-reports.costs' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('management-reports.costs') }}">{{ __('Costs by Category') }}</a>
+                                                                </li>
+                                                            @endif
+                                                            @if (menu_can('menu.dashboard.accounting.reports.management.management_documents'))
+                                                                <li class="dash-item {{ Request::route()->getName() == 'management-documents.index' || Request::route()->getName() == 'management-documents.create' || Request::route()->getName() == 'management-documents.edit' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('management-documents.index') }}">{{ __('Management Documents') }}</a>
+                                                                </li>
+                                                            @endif
+                                                            @if (menu_can('menu.dashboard.accounting.reports.management.management_rules'))
+                                                                <li class="dash-item {{ Request::route()->getName() == 'management-rules.index' || Request::route()->getName() == 'management-rules.edit' || Request::route()->getName() == 'management-cost-centres.edit' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('management-rules.index') }}">{{ __('Management Rules') }}</a>
+                                                                </li>
+                                                            @endif
                                                         </ul>
                                                     </li>
                                                     @endif

@@ -95,6 +95,10 @@ use App\Http\Controllers\LoanController;
 use App\Http\Controllers\LoanOptionController;
 use App\Http\Controllers\LowStockNotificationController;
 use App\Http\Controllers\MeetingController;
+use App\Http\Controllers\ManagementCostCentreController;
+use App\Http\Controllers\ManagementDocumentController;
+use App\Http\Controllers\ManagementReportController;
+use App\Http\Controllers\ManagementRuleController;
 use App\Http\Controllers\MercadoPaymentController;
 use App\Http\Controllers\MolliePaymentController;
 use App\Http\Controllers\NotificationTemplatesController;
@@ -1344,6 +1348,18 @@ Route::group(['middleware' => ['verified']], function () {
             // Credit and Debit Note Reports
             Route::get('reports/credit-note', [CreditDebitNoteReportsController::class, 'creditNoteReport'])->name('reports.credit.note');
             Route::get('reports/debit-note', [CreditDebitNoteReportsController::class, 'debitNoteReport'])->name('reports.debit.note');
+
+            // Management Reports (client's management P&L from the Excel
+            // file — costs from Management Documents, sales automatic
+            // from invoices; the classic P&L is a different report).
+            Route::get('management-reports/pl', [ManagementReportController::class, 'managementPl'])->name('management-reports.pl');
+            Route::get('management-reports/pl-percent', [ManagementReportController::class, 'managementPlPercent'])->name('management-reports.pl-percent');
+            Route::get('management-reports/costs', [ManagementReportController::class, 'managementCosts'])->name('management-reports.costs');
+            Route::resource('management-documents', ManagementDocumentController::class)->except(['show']);
+            Route::resource('management-rules', ManagementRuleController::class)->except(['show']);
+            Route::post('management-rules/supplier-defaults', [ManagementRuleController::class, 'storeSupplierDefault'])->name('management-rules.supplier-defaults.store');
+            Route::delete('management-rules/supplier-defaults/{supplierDefault}', [ManagementRuleController::class, 'destroySupplierDefault'])->name('management-rules.supplier-defaults.destroy');
+            Route::resource('management-cost-centres', ManagementCostCentreController::class)->except(['show', 'index', 'create']);
 
             // Government/statutory format (editable Blade template)
             Route::get('monthly-reports/trial-balance/{view?}', [MonthlyReportController::class, 'trialBalance'])

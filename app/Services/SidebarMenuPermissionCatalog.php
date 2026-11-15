@@ -58,6 +58,11 @@ class SidebarMenuPermissionCatalog
                             self::node('Tax Summary', 'menu.dashboard.accounting.reports.management.tax_summary', ['tax report']),
                             self::node('Credit Note Report', 'menu.dashboard.accounting.reports.management.credit_note', ['manage report']),
                             self::node('Debit Note Report', 'menu.dashboard.accounting.reports.management.debit_note', ['manage report']),
+                            self::node('P&L (Management)', 'menu.dashboard.accounting.reports.management.management_pl', ['manage report']),
+                            self::node('%P&L (Management)', 'menu.dashboard.accounting.reports.management.management_pl_percent', ['manage report']),
+                            self::node('Costs by Category', 'menu.dashboard.accounting.reports.management.management_costs', ['manage report']),
+                            self::node('Management Documents', 'menu.dashboard.accounting.reports.management.management_documents', ['manage report']),
+                            self::node('Management Rules', 'menu.dashboard.accounting.reports.management.management_rules', ['manage report']),
                         ]),
                         self::node('Analytical Reports', 'menu.dashboard.accounting.reports.analytical', ['manage report'], [
                             self::node('PowerBlox - Management Pack', 'menu.dashboard.accounting.reports.analytical.powerblox', ['manage report']),
