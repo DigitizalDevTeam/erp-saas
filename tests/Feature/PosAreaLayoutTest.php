@@ -479,6 +479,16 @@ class PosAreaLayoutTest extends TestCase
         $this->assertStringContainsString('renderRestaurantFloor', $blade);
         $this->assertStringContainsString('pos-floor', $blade);
         $this->assertStringContainsString('area.layout', $blade);
+        // Regression: the floor rendered as a ~55px strip because the area
+        // wrapper is a flex item of #pos-table-grid (d-flex) and
+        // shrink-to-fit around the small area label — the floor (all
+        // children absolutely positioned) contributed no width. The wrapper
+        // must be full-width and the floor itself 100% wide.
+        $this->assertStringContainsString('<div class="mb-2 w-100">', $blade);
+        $this->assertStringContainsString('.pos-floor { position: relative; width: 100%;', $blade);
+        // The table panel starts hidden, so the grid width reads 0 on first
+        // load — the scale must fall back to the visible panel column.
+        $this->assertStringContainsString("$('#pos-restaurant-table-grid-wrap').parent().width()", $blade);
         // The button-grid fallback is still there for areas without a layout.
         $this->assertStringContainsString('renderRestaurantTableButton', $blade);
     }

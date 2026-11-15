@@ -215,4 +215,17 @@ class PosRestaurantLayoutTest extends TestCase
         $this->get(route('pos.restaurant.layout.designer'))
             ->assertRedirect(route('login'));
     }
+
+    public function test_designer_remembers_last_area_on_reload(): void
+    {
+        // A reload reopened the first area (Bar) even when the user was
+        // designing Restaurant. The last area is remembered in localStorage
+        // (UI state only — the layout itself stays server-side) and
+        // restored at boot, falling back when it no longer exists.
+        $blade = file_get_contents(resource_path('views/pos/restaurant-layout.blade.php'));
+
+        $this->assertStringContainsString('erp-pos-layout-last-area', $blade);
+        $this->assertStringContainsString('localStorage', $blade);
+        $this->assertStringContainsString('bootAreaId', $blade);
+    }
 }

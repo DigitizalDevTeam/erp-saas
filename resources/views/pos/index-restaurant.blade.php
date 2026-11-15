@@ -32,7 +32,7 @@
            designed, coloured by live status; clicking one works exactly
            like the table buttons (pos-table-btn). Areas without a saved
            layout keep the button grid. */
-        .pos-floor { position: relative; height: 460px; overflow: hidden; background: #f4f6fb; border: 1px solid #dee2e6; border-radius: 8px; }
+        .pos-floor { position: relative; width: 100%; height: 460px; overflow: hidden; background: #f4f6fb; border: 1px solid #dee2e6; border-radius: 8px; }
         .pos-floor-table { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; overflow: hidden; }
         .pos-floor-table.pos-floor-round { border-radius: 50%; }
         .pos-floor-cap { font-size: 11px; line-height: 1.15; }
@@ -1719,7 +1719,10 @@
                     maxY = Math.max(maxY, e.y + (e.h || 0));
                 });
                 if (!isFinite(minX)) { return ''; }
-                var availW = $('#pos-table-grid').width() || 800;
+                // The table panel starts hidden (d-none) until the user
+                // opens it, so on first load the grid width reads 0 — fall
+                // back to the visible panel column width, not a blind guess.
+                var availW = $('#pos-table-grid').width() || $('#pos-restaurant-table-grid-wrap').parent().width() || 800;
                 var floorH = 460;
                 var scale = Math.min(availW / Math.max(maxX - minX + 40, 50), floorH / Math.max(maxY - minY + 40, 50), 1.2);
                 var offX = (availW - (maxX - minX) * scale) / 2 - minX * scale;
@@ -1771,7 +1774,12 @@
                 $.get(posRestaurantLayoutUrl, { branch_id: branchId, shift_id: shiftId }, function (res) {
                     var html = '';
                     (res.areas || []).forEach(function (area) {
-                        html += '<div class="mb-2"><small class="text-muted d-block mb-1">' + area.name + '</small>';
+                        // The area wrapper is a flex item of #pos-table-grid
+                        // (d-flex). Without w-100 it shrink-to-fits its only
+                        // in-flow content — the small area label — and the
+                        // floor (all children absolutely positioned) collapsed
+                        // to ~55px wide with the tables clipped to slivers.
+                        html += '<div class="mb-2 w-100"><small class="text-muted d-block mb-1">' + area.name + '</small>';
                         var floor = renderRestaurantFloor(area);
                         if (floor) {
                             html += floor;
