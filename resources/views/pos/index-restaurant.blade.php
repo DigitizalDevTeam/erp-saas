@@ -32,8 +32,16 @@
            designed, coloured by live status; clicking one works exactly
            like the table buttons (pos-table-btn). Areas without a saved
            layout keep the button grid. */
-        .pos-floor { position: relative; width: 100%; height: 460px; overflow: hidden; background: #f4f6fb; border: 1px solid #dee2e6; border-radius: 8px; }
+        .pos-floor { position: relative; width: 100%; height: 460px; overflow: hidden; background: #f4f6fb; border: 1px solid #dee2e6; border-radius: 8px; touch-action: none; user-select: none; cursor: grab; }
+        .pos-floor.grabbing { cursor: grabbing; }
+        .pos-floor-canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
         .pos-floor-table { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; overflow: hidden; }
+        /* The floor buttons reuse the grid-card class (status colours, name
+           style), but the card's min-width: 9rem (144px) clamps the inline
+           scaled width up — every table rendered 144px wide at any scale, so
+           a big floor came out as flat overlapping ovals. The floor's own
+           size is the inline width/height; the card size must not win. */
+        .pos-floor .pos-floor-table { min-width: 0; max-width: none; padding: 2px !important; align-items: center; text-align: center; }
         .pos-floor-table.pos-floor-round { border-radius: 50%; }
         .pos-floor-cap { font-size: 11px; line-height: 1.15; }
         .pos-floor-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 2px; border: 1px solid rgba(0,0,0,.25); }
@@ -1701,7 +1709,8 @@
                     '</button>';
             }
             // Floor plan for one area (saved area layout): tables positioned
-            // as designed + decorations, scaled to fit. Returns '' when the
+            // as designed + decorations, in a canvas viewport the user can
+            // zoom and pan (like the designer canvas). Returns '' when the
             // area has no saved layout or no placed table, so the caller
             // falls back to the button grid.
             function renderRestaurantFloor(area) {
@@ -1719,21 +1728,48 @@
                     maxY = Math.max(maxY, e.y + (e.h || 0));
                 });
                 if (!isFinite(minX)) { return ''; }
+                // Canvas floor (like the designer canvas): the floor is drawn
+                // at its natural size inside the viewport and the whole canvas
+                // is moved/scaled with one transform, so the user can zoom in
+                // on a big floor and drag the empty floor to pan around. First
+                // paint uses the fit scale (same formula as before);
+                // posFloorInit() re-fits with the real viewport width right
+                // after the grid is inserted, and keeps the user's zoom/pan
+                // across table-status refreshes.
                 // The table panel starts hidden (d-none) until the user
                 // opens it, so on first load the grid width reads 0 — fall
                 // back to the visible panel column width, not a blind guess.
                 var availW = $('#pos-table-grid').width() || $('#pos-restaurant-table-grid-wrap').parent().width() || 800;
                 var floorH = 460;
-                var scale = Math.min(availW / Math.max(maxX - minX + 40, 50), floorH / Math.max(maxY - minY + 40, 50), 1.2);
-                var offX = (availW - (maxX - minX) * scale) / 2 - minX * scale;
-                var offY = (floorH - (maxY - minY) * scale) / 2 - minY * scale;
-                var html = '<div class="pos-floor mb-2">';
+                var spanW = maxX - minX;
+                var spanH = maxY - minY;
+                var st = posFloorState[area.id];
+                if (!st) {
+                    var z0 = Math.min(availW / Math.max(spanW + 40, 50), floorH / Math.max(spanH + 40, 50), 1.2);
+                    z0 = Math.max(0.15, Math.min(z0, 2.5));
+                    st = posFloorState[area.id] = {
+                        zoom: z0,
+                        panX: (availW - spanW * z0) / 2 - minX * z0,
+                        panY: (floorH - spanH * z0) / 2 - minY * z0,
+                        minX: minX, minY: minY, spanW: spanW, spanH: spanH,
+                        fitW: availW, touched: false
+                    };
+                }
+                var html = '<div class="d-flex align-items-center gap-1 mb-1">' +
+                    '<div class="btn-group" role="group" aria-label="{{ __('Zoom') }}">' +
+                    '<button type="button" class="btn btn-sm btn-light" data-pos-floor-zoom="out" data-pos-floor-area="' + area.id + '" title="{{ __('Zoom Out') }}">&minus;</button>' +
+                    '<button type="button" class="btn btn-sm btn-light pos-floor-zoom-label" data-pos-floor-area="' + area.id + '" disabled>' + Math.round(st.zoom * 100) + '%</button>' +
+                    '<button type="button" class="btn btn-sm btn-light" data-pos-floor-zoom="in" data-pos-floor-area="' + area.id + '" title="{{ __('Zoom In') }}">+</button>' +
+                    '<button type="button" class="btn btn-sm btn-light" data-pos-floor-zoom="fit" data-pos-floor-area="' + area.id + '">{{ __('Fit') }}</button>' +
+                    '</div></div>' +
+                    '<div class="pos-floor mb-2" data-pos-floor-area="' + area.id + '" data-min-x="' + minX + '" data-min-y="' + minY + '" data-span-w="' + spanW + '" data-span-h="' + spanH + '">' +
+                    '<div class="pos-floor-canvas" style="transform: translate(' + st.panX + 'px,' + st.panY + 'px) scale(' + st.zoom + ');">';
                 layout.forEach(function (e) {
                     if (typeof e.x !== 'number' || typeof e.y !== 'number') { return; }
-                    var left = Math.round(e.x * scale + offX);
-                    var top = Math.round(e.y * scale + offY);
-                    var w = Math.max(Math.round((e.w || 0) * scale), 8);
-                    var h = Math.max(Math.round((e.h || 0) * scale), 8);
+                    var left = Math.round(e.x);
+                    var top = Math.round(e.y);
+                    var w = Math.max(Math.round(e.w || 0), 8);
+                    var h = Math.max(Math.round(e.h || 0), 8);
                     var rot = e.rot ? ('transform:rotate(' + e.rot + 'deg);') : '';
                     if (e.type && e.type.indexOf('table-') === 0) {
                         var t = byId[e.table_id];
@@ -1755,7 +1791,7 @@
                     else if (e.type === 'plant') { inner = '\u273f'; }
                     html += '<div class="pos-floor-decor ' + decorClass + '" style="left:' + left + 'px;top:' + top + 'px;width:' + w + 'px;height:' + h + 'px;' + rot + '">' + inner + '</div>';
                 });
-                html += '</div>';
+                html += '</div></div>';
                 // Tables of this area that are NOT on the floor yet stay
                 // usable as buttons below it — otherwise a new table would
                 // be invisible on the POS until someone places it.
@@ -1793,8 +1829,137 @@
                         html += '</div>';
                     });
                     $('#pos-table-grid').html(html || '<p class="text-muted small mb-0">{{ __("pos.no_data_found") }}</p>');
+                    posFloorInit();
                 });
             }
+            // ---- POS floor canvas state + controls (like the designer
+            // canvas): one transform per area, kept while the page is open,
+            // so a table-status refresh does not reset the user's zoom/pan.
+            var posFloorState = {};
+            function posFloorEl(areaId) { return document.querySelector('.pos-floor[data-pos-floor-area="' + areaId + '"]'); }
+            function posFloorApply(areaId) {
+                var st = posFloorState[areaId];
+                if (!st) { return; }
+                var floor = posFloorEl(areaId);
+                if (!floor) { return; }
+                var canvas = floor.querySelector('.pos-floor-canvas');
+                if (canvas) { canvas.style.transform = 'translate(' + st.panX + 'px,' + st.panY + 'px) scale(' + st.zoom + ')'; }
+                var label = document.querySelector('.pos-floor-zoom-label[data-pos-floor-area="' + areaId + '"]');
+                if (label) { label.textContent = Math.round(st.zoom * 100) + '%'; }
+            }
+            function posFloorFit(areaId) {
+                var floor = posFloorEl(areaId);
+                if (!floor) { return; }
+                var st = posFloorState[areaId];
+                if (!st) { return; }
+                var w = floor.clientWidth || 800;
+                var h = 460;
+                var z = Math.min((w - 40) / Math.max(st.spanW + 40, 50), h / Math.max(st.spanH + 40, 50), 1.2);
+                z = Math.max(0.15, Math.min(z, 2.5));
+                st.zoom = z;
+                st.panX = (w - st.spanW * z) / 2 - st.minX * z;
+                st.panY = (h - st.spanH * z) / 2 - st.minY * z;
+                st.fitW = w;
+                posFloorApply(areaId);
+            }
+            function posFloorZoomAt(areaId, mx, my, nz) {
+                var st = posFloorState[areaId];
+                if (!st) { return; }
+                nz = Math.max(0.15, Math.min(nz, 2.5));
+                st.panX = mx - (mx - st.panX) * (nz / st.zoom);
+                st.panY = my - (my - st.panY) * (nz / st.zoom);
+                st.zoom = nz;
+                st.touched = true;
+                posFloorApply(areaId);
+            }
+            // After the grid is (re)built: fit floors never seen before with
+            // the real viewport width, re-apply the kept zoom/pan to the
+            // rest, and re-fit an untouched floor whose viewport width has
+            // changed a lot since it was fitted (e.g. it was fitted while
+            // the table panel was hidden).
+            function posFloorInit() {
+                document.querySelectorAll('.pos-floor[data-pos-floor-area]').forEach(function (floor) {
+                    var areaId = floor.getAttribute('data-pos-floor-area');
+                    var st = posFloorState[areaId];
+                    if (!st) {
+                        st = posFloorState[areaId] = {
+                            zoom: 1, panX: 0, panY: 0,
+                            minX: parseFloat(floor.getAttribute('data-min-x')) || 0,
+                            minY: parseFloat(floor.getAttribute('data-min-y')) || 0,
+                            spanW: parseFloat(floor.getAttribute('data-span-w')) || 50,
+                            spanH: parseFloat(floor.getAttribute('data-span-h')) || 50,
+                            fitW: 0, touched: false
+                        };
+                        posFloorFit(areaId);
+                    } else if (!st.touched && floor.clientWidth && Math.abs(floor.clientWidth - st.fitW) > 50) {
+                        posFloorFit(areaId);
+                    } else {
+                        posFloorApply(areaId);
+                    }
+                });
+            }
+            (function bindPosFloorCanvas() {
+                var grid = document.getElementById('pos-table-grid');
+                if (!grid) {
+                    document.addEventListener('DOMContentLoaded', bindPosFloorCanvas);
+                    return;
+                }
+                if (window.__posFloorCanvasBound) { return; }
+                window.__posFloorCanvasBound = true;
+                // Mouse wheel over a floor zooms around the cursor.
+                grid.addEventListener('wheel', function (e) {
+                    var floor = e.target.closest ? e.target.closest('.pos-floor') : null;
+                    if (!floor) { return; }
+                    e.preventDefault();
+                    var areaId = floor.getAttribute('data-pos-floor-area');
+                    var st = posFloorState[areaId];
+                    if (!st) { return; }
+                    var rect = floor.getBoundingClientRect();
+                    posFloorZoomAt(areaId, e.clientX - rect.left, e.clientY - rect.top, st.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
+                }, { passive: false });
+                // Dragging the empty floor pans it; a table keeps its normal
+                // click, so dragging never opens a table by accident.
+                grid.addEventListener('pointerdown', function (e) {
+                    var floor = e.target.closest ? e.target.closest('.pos-floor') : null;
+                    if (!floor) { return; }
+                    if (e.target.closest && e.target.closest('.pos-table-btn')) { return; }
+                    var areaId = floor.getAttribute('data-pos-floor-area');
+                    var st = posFloorState[areaId];
+                    if (!st) { return; }
+                    e.preventDefault();
+                    floor.classList.add('grabbing');
+                    var startX = e.clientX, startY = e.clientY, ox = st.panX, oy = st.panY, moved = false;
+                    function onMove(ev) {
+                        var dx = ev.clientX - startX, dy = ev.clientY - startY;
+                        if (Math.abs(dx) + Math.abs(dy) > 2) { moved = true; }
+                        st.panX = ox + dx;
+                        st.panY = oy + dy;
+                        posFloorApply(areaId);
+                    }
+                    function onUp() {
+                        document.removeEventListener('pointermove', onMove);
+                        document.removeEventListener('pointerup', onUp);
+                        floor.classList.remove('grabbing');
+                        if (moved) { st.touched = true; }
+                    }
+                    document.addEventListener('pointermove', onMove);
+                    document.addEventListener('pointerup', onUp);
+                });
+                // Zoom buttons above each floor.
+                grid.addEventListener('click', function (e) {
+                    var btn = e.target.closest ? e.target.closest('[data-pos-floor-zoom]') : null;
+                    if (!btn) { return; }
+                    var areaId = btn.getAttribute('data-pos-floor-area');
+                    var floor = posFloorEl(areaId);
+                    if (!floor) { return; }
+                    var st = posFloorState[areaId];
+                    if (!st) { return; }
+                    var mode = btn.getAttribute('data-pos-floor-zoom');
+                    if (mode === 'fit') { posFloorFit(areaId); st.touched = false; return; }
+                    var rect = floor.getBoundingClientRect();
+                    posFloorZoomAt(areaId, rect.width / 2, rect.height / 2, st.zoom * (mode === 'in' ? 1.25 : 1 / 1.25));
+                });
+            })();
             function loadRestaurantDeliveryTakeawayCustomers(branchId, shiftId, orderType) {
                 if (!branchId || !shiftId || (orderType !== 'delivery' && orderType !== 'takeaway')) {
                     $('#pos-customer-grid').html('<p class="text-muted small mb-0">{{ __("pos.select_branch_first") }}</p>');

@@ -491,5 +491,18 @@ class PosAreaLayoutTest extends TestCase
         $this->assertStringContainsString("$('#pos-restaurant-table-grid-wrap').parent().width()", $blade);
         // The button-grid fallback is still there for areas without a layout.
         $this->assertStringContainsString('renderRestaurantTableButton', $blade);
+        // Canvas floor (like the designer canvas): the floor is drawn at
+        // natural size inside a viewport; the user zooms (wheel or the
+        // + / - buttons) and drags the empty floor to pan. Table buttons
+        // keep working exactly as before.
+        $this->assertStringContainsString('pos-floor-canvas', $blade);
+        $this->assertStringContainsString('data-pos-floor-zoom', $blade);
+        $this->assertStringContainsString('posFloorFit', $blade);
+        $this->assertStringContainsString('posFloorInit', $blade);
+        // Regression: the grid-card class min-width: 9rem (144px) clamped
+        // the inline scaled width up, so a big floor rendered as flat
+        // overlapping ovals (measured 144 x 29 on Hoya's 41-table floor).
+        // The floor's own size is the inline width/height.
+        $this->assertStringContainsString('.pos-floor .pos-floor-table { min-width: 0', $blade);
     }
 }
