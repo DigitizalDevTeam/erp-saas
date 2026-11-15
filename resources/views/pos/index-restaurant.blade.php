@@ -49,7 +49,7 @@
            modal z-index 1055 > 1050). */
         .pos-floor-modal { position: fixed; inset: 0; z-index: 1050; background: #ffffff; display: flex; flex-direction: column; overflow: hidden; }
         .pos-floor-modal-body { flex: 1 1 auto; overflow: auto; min-height: 0; }
-        .pos-floor-modal .pos-floor { height: calc(100vh - 115px); }
+        .pos-floor-modal .pos-floor { height: calc(100vh - 70px); }
         body.pos-floor-modal-open { overflow: hidden; }
         .pos-floor-table.pos-floor-round { border-radius: 50%; }
         .pos-floor-cap { font-size: 15px; line-height: 1.15; }
@@ -1780,14 +1780,9 @@
                         fitW: availW, fitH: floorH, touched: false
                     };
                 }
-                var html = '<div class="d-flex align-items-center gap-1 mb-1">' +
-                    '<div class="btn-group" role="group" aria-label="{{ __('Zoom') }}">' +
-                    '<button type="button" class="btn btn-sm btn-light" data-pos-floor-zoom="out" data-pos-floor-area="' + area.id + '" title="{{ __('Zoom Out') }}">&minus;</button>' +
-                    '<button type="button" class="btn btn-sm btn-light pos-floor-zoom-label" data-pos-floor-area="' + area.id + '" disabled>' + Math.round(st.zoom * 100) + '%</button>' +
-                    '<button type="button" class="btn btn-sm btn-light" data-pos-floor-zoom="in" data-pos-floor-area="' + area.id + '" title="{{ __('Zoom In') }}">+</button>' +
-                    '<button type="button" class="btn btn-sm btn-light" data-pos-floor-zoom="fit" data-pos-floor-area="' + area.id + '">{{ __('Fit') }}</button>' +
-                    '</div></div>' +
-                    '<div class="pos-floor mb-2" data-pos-floor-area="' + area.id + '" data-min-x="' + minX + '" data-min-y="' + minY + '" data-span-w="' + spanW + '" data-span-h="' + spanH + '">' +
+                // The zoom controls live in the popup header (one row for
+                // everything), not above the floor — see restaurant.blade.php.
+                var html = '<div class="pos-floor mb-2" data-pos-floor-area="' + area.id + '" data-min-x="' + minX + '" data-min-y="' + minY + '" data-span-w="' + spanW + '" data-span-h="' + spanH + '">' +
                     '<div class="pos-floor-canvas" style="transform: translate(' + st.panX + 'px,' + st.panY + 'px) scale(' + st.zoom + ');">';
                 layout.forEach(function (e) {
                     if (typeof e.x !== 'number' || typeof e.y !== 'number') { return; }
@@ -1861,11 +1856,11 @@
                     var html = '';
                     (res.areas || []).forEach(function (area) {
                         // The area wrapper is a flex item of #pos-table-grid
-                        // (d-flex). Without w-100 it shrink-to-fits its only
-                        // in-flow content — the small area label — and the
-                        // floor (all children absolutely positioned) collapsed
-                        // to ~55px wide with the tables clipped to slivers.
-                        html += '<div class="mb-2 w-100" data-pos-floor-area-wrap="' + area.id + '"><small class="text-muted d-block mb-1">' + area.name + '</small>';
+                        // (d-flex) — w-100 keeps it full width, since the
+                        // floor's children are all absolutely positioned.
+                        // No area-name label here: the popup header's Area
+                        // dropdown already shows which area this is.
+                        html += '<div class="mb-2 w-100" data-pos-floor-area-wrap="' + area.id + '">';
                         var floor = renderRestaurantFloor(area);
                         if (floor) {
                             html += floor;
@@ -1906,6 +1901,12 @@
                 if (canvas) { canvas.style.transform = 'translate(' + st.panX + 'px,' + st.panY + 'px) scale(' + st.zoom + ')'; }
                 var label = document.querySelector('.pos-floor-zoom-label[data-pos-floor-area="' + areaId + '"]');
                 if (label) { label.textContent = Math.round(st.zoom * 100) + '%'; }
+                // The popup header holds the one zoom control now: keep its
+                // label on the area the popup is showing.
+                if (String(areaId) === String(posFloorModalAreaId)) {
+                    var headerLabel = document.getElementById('pos-floor-modal-zoom-label');
+                    if (headerLabel) { headerLabel.textContent = Math.round(st.zoom * 100) + '%'; }
+                }
             }
             function posFloorFit(areaId) {
                 var floor = posFloorEl(areaId);
@@ -2003,6 +2004,8 @@
                 document.querySelectorAll('#pos-table-grid [data-pos-floor-area-wrap]').forEach(function (w) {
                     w.classList.toggle('d-none', String(w.getAttribute('data-pos-floor-area-wrap')) !== String(posFloorModalAreaId));
                 });
+                // Refresh the header zoom label for the area just shown.
+                if (posFloorModalAreaId) { posFloorApply(posFloorModalAreaId); }
             }
             (function bindPosFloorCanvas() {
                 var grid = document.getElementById('pos-table-grid');
@@ -2057,11 +2060,16 @@
                     document.addEventListener('pointermove', onMove);
                     document.addEventListener('pointerup', onUp);
                 });
-                // Zoom buttons above each floor.
-                grid.addEventListener('click', function (e) {
+                // Zoom buttons live in the popup header (one row for
+                // everything) — listen on the modal wrap, which holds both
+                // the header and the grid. Header buttons carry no area, so
+                // they zoom the area the popup is showing.
+                var modalWrap = document.getElementById('pos-restaurant-table-grid-wrap');
+                (modalWrap || grid).addEventListener('click', function (e) {
                     var btn = e.target.closest ? e.target.closest('[data-pos-floor-zoom]') : null;
                     if (!btn) { return; }
-                    var areaId = btn.getAttribute('data-pos-floor-area');
+                    var areaId = btn.getAttribute('data-pos-floor-area') || posFloorModalAreaId;
+                    if (!areaId) { return; }
                     var floor = posFloorEl(areaId);
                     if (!floor) { return; }
                     var st = posFloorState[areaId];
