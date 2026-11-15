@@ -347,6 +347,7 @@
             @if(!$userOpenShift)
                 <div class="disabled_div" id="pos-restaurant-no-opening-balance">
                     <h3>{{ __('pos.add_opening_balance_to_enable') }}</h3>
+                    <p class="mb-0 mt-2 small fw-semibold">{{ __('pos.no_shift_blocks_orders') }}</p>
                 </div>
             @endif
             <div class="disabled_div d-none" id="pos-restaurant-no-shift">
@@ -644,6 +645,7 @@
             @if(!$userOpenShift)
                 <div class="disabled_div" id="pos-restaurant-panel-no-opening-balance">
                     <h3>{{ __('pos.add_opening_balance_to_enable') }}</h3>
+                    <p class="mb-0 mt-2 small fw-semibold">{{ __('pos.no_shift_blocks_orders') }}</p>
                 </div>
             @endif
             <div class="disabled_div d-none" id="pos-restaurant-panel-no-shift">
@@ -3977,7 +3979,7 @@
                             allTableIds.push(t.id);
                             var statusClass = t.status === 'occupied' ? 'warning' : (t.status === 'reserved' ? 'secondary' : 'success');
                             var statusLabel = t.status === 'occupied' ? '{{ __("pos.occupied") }}' : (t.status === 'reserved' ? '{{ __("pos.reserved") }}' : '{{ __("pos.available") }}');
-                            html += '<div class="list-group-item d-flex justify-content-between align-items-center pos-manage-table-row" role="button" tabindex="0" style="cursor:pointer;" data-table-id="' + t.id + '" data-table-name="' + posEscapeHtml(t.name || '') + '" data-table-status="' + (t.status || '') + '" data-waiter-id="' + (t.waiter_user_id || '') + '" data-waiter-name="' + posEscapeHtml(t.waiter_name || '') + '" data-customer-name="' + posEscapeHtml(t.customer_name || '') + '">';
+                            html += '<div class="list-group-item justify-content-between align-items-center pos-manage-table-row" role="button" tabindex="0" style="cursor:pointer;display:flex;" data-table-id="' + t.id + '" data-table-name="' + posEscapeHtml(t.name || '') + '" data-table-status="' + (t.status || '') + '" data-waiter-id="' + (t.waiter_user_id || '') + '" data-waiter-name="' + posEscapeHtml(t.waiter_name || '') + '" data-customer-name="' + posEscapeHtml(t.customer_name || '') + '">';
                             html += '<span><strong>' + posEscapeHtml(t.name || ('Table ' + t.id)) + '</strong> <span class="text-muted small">' + posEscapeHtml(area.name || '') + ' · ' + (t.capacity != null ? t.capacity : '') + ' {{ __("pos.seats") }}</span> <span class="badge bg-' + statusClass + ' ms-2">' + statusLabel + '</span></span>';
                             if (t.status === 'occupied' || t.status === 'reserved') {
                                 html += '<button type="button" class="btn btn-sm btn-outline-success pos-table-set-available" data-id="' + t.id + '">{{ __("pos.set_available") }}</button>';
@@ -4098,8 +4100,26 @@
             $(document).on('click', '.pos-manage-table-row', function (e) {
                 if ($(e.target).closest('.pos-table-set-available').length) { return; }
                 var $row = $(this);
+                var rowId = $row.data('table-id');
+                var rowName = $row.data('table-name');
+                var rowStatus = $row.data('table-status');
                 $('#posTableManagementModal').modal('hide');
-                selectRestaurantTable($row.data('table-id'), $row.data('table-name'), $row.data('table-status'), {
+                if (rowStatus === 'available') {
+                    // Same as tapping the table on the floor: ask for
+                    // waiter / guests first (and the confirm enforces the
+                    // open-shift rule) instead of selecting it silently.
+                    $('#pos-open-table-id').val(rowId);
+                    $('#pos-open-table-name').val(rowName || ('Table ' + rowId));
+                    $('#pos-open-table-guests').val('');
+                    $('#pos-open-table-customer-name').val('');
+                    if ($('#pos-open-table-waiter').length) {
+                        $('#pos-open-table-waiter').val(posDefaultWaiterUserId || $('#pos-open-table-waiter option:first').val());
+                    }
+                    $('#posOpenTableModal').modal('show');
+                    $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
+                    return;
+                }
+                selectRestaurantTable(rowId, rowName, rowStatus, {
                     waiter_user_id: $row.data('waiter-id') || '',
                     waiter_name: $row.data('waiter-name') || '',
                     customer_name: $row.data('customer-name') || ''

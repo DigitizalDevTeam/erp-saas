@@ -672,13 +672,28 @@ class PosAreaLayoutTest extends TestCase
         // UX gaps: the warehouse hint says "Loading..." while the
         // warehouses-by-branch request is in flight.
         $this->assertStringContainsString("pos-restaurant-warehouse-hint').text('{{ __(\"Loading...\") }}')", $blade);
-        // UX gaps: the no-shift overlays say what is blocked.
+        // UX gaps: the no-shift overlays say what is blocked, and so do
+        // the visible no-opening-balance banners (the overlays only show
+        // for staff who cannot open a shift; owners see the banner).
         $this->assertStringContainsString('no_shift_blocks_orders', $blade);
+        $this->assertStringContainsString('pos-restaurant-no-opening-balance', $blade);
         // UX gaps: Manage Tables rows open their table, have a search
         // box, show area + seats, and explain empty waiter dropdowns.
         $this->assertStringContainsString('pos-manage-table-row', $blade);
         $this->assertStringContainsString('pos-manage-tables-search', $blade);
         $this->assertStringContainsString('no_waiter_shifts_open', $blade);
+        // Follow-up fix: the row must NOT use Bootstrap d-flex — its
+        // !important display beats jQuery .toggle(), so the search could
+        // never hide a row. Inline display:flex keeps the layout and
+        // lets .toggle() work.
+        $this->assertStringNotContainsString('list-group-item d-flex justify-content-between align-items-center pos-manage-table-row', $blade);
+        $this->assertStringContainsString("style=\"cursor:pointer;display:flex;\"", $blade);
+        // Follow-up fix: tapping an available row opens the same
+        // waiter/guests dialog as tapping the table on the floor (the
+        // dialog also enforces the open-shift rule); occupied rows
+        // select the table directly.
+        $this->assertStringContainsString("if (rowStatus === 'available')", $blade);
+        $this->assertStringContainsString("$('#posOpenTableModal').modal('show')", $blade);
     }
 
     public function test_restaurant_blade_has_fullscreen_floor_popup(): void
