@@ -944,7 +944,7 @@
 }
 .pos-table-card__name {
     font-weight: 600;
-    font-size: 0.82rem;
+    font-size: 1.15rem;
     margin-bottom: 0.2rem;
     display: block;
 }
@@ -952,7 +952,7 @@
     display: flex;
     justify-content: space-between;
     gap: 0.35rem;
-    font-size: 0.68rem;
+    font-size: 0.8rem;
     margin-top: 0.12rem;
 }
 .pos-table-card__label {
