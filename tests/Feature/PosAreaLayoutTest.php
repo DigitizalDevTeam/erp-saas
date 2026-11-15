@@ -511,6 +511,15 @@ class PosAreaLayoutTest extends TestCase
         $this->assertStringContainsString('posFloorModalBuildAreaSelect', $blade);
         $this->assertStringContainsString('posFloorModalApplyArea', $blade);
         $this->assertStringContainsString('pos-floor-modal-area', $blade);
+        // Popup polish: opening the popup refreshes the tables for the
+        // current branch (first load can pre-select the branch without a
+        // change event firing, leaving "Select branch first" behind);
+        // the default area prefers one named Restaurant (the API orders
+        // by sort_order then name, so "Bar" can sort first); wheel zoom
+        // is throttled so one trackpad gesture cannot jump to the 15% floor.
+        $this->assertStringContainsString('loadRestaurantTables(openBranchId)', $blade);
+        $this->assertStringContainsString('/restaurant/i', $blade);
+        $this->assertStringContainsString('posFloorWheelLast', $blade);
     }
 
     public function test_restaurant_blade_has_fullscreen_floor_popup(): void
