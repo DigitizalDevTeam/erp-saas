@@ -8809,5 +8809,7 @@
     "Shape": "Forma",
     "Square": "Quadrato",
     "Tables in this area": "Tavoli in questa area",
-    "Unsaved changes": "Modifiche non salvate"
+    "Unsaved changes": "Modifiche non salvate",
+    "Auto layout": "Layout automatico",
+    "Replace the current floor with an auto layout of all tables in this area?": "Sostituire il pavimento attuale con un layout automatico di tutti i tavoli di questa area?"
 }

@@ -8809,5 +8809,7 @@
     "Shape": "צורה",
     "Square": "מרובע",
     "Tables in this area": "שולחנות באזור זה",
-    "Unsaved changes": "שינויים שלא נשמרו"
+    "Unsaved changes": "שינויים שלא נשמרו",
+    "Auto layout": "פריסה אוטומטית",
+    "Replace the current floor with an auto layout of all tables in this area?": "להחליף את הרצפה הנוכחית בפריסה אוטומטית של כל השולחנות באזור זה?"
 }

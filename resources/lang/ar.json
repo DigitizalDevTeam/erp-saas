@@ -8809,5 +8809,7 @@
     "Shape": "الشكل",
     "Square": "مربع",
     "Tables in this area": "الطاولات في هذه المنطقة",
-    "Unsaved changes": "تغييرات غير محفوظة"
+    "Unsaved changes": "تغييرات غير محفوظة",
+    "Auto layout": "تخطيط تلقائي",
+    "Replace the current floor with an auto layout of all tables in this area?": "استبدال الأرضية الحالية بتخطيط تلقائي لجميع الطاولات في هذه المنطقة؟"
 }

@@ -8809,5 +8809,7 @@
     "Shape": "Vorm",
     "Square": "Vierkant",
     "Tables in this area": "Tafels in dit gebied",
-    "Unsaved changes": "Niet-opgeslagen wijzigingen"
+    "Unsaved changes": "Niet-opgeslagen wijzigingen",
+    "Auto layout": "Automatische indeling",
+    "Replace the current floor with an auto layout of all tables in this area?": "De huidige vloer vervangen door een automatische indeling van alle tafels in dit gebied?"
 }

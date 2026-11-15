@@ -8809,5 +8809,7 @@
     "Shape": "Kształt",
     "Square": "Kwadratowy",
     "Tables in this area": "Stoły w tym obszarze",
-    "Unsaved changes": "Niezapisane zmiany"
+    "Unsaved changes": "Niezapisane zmiany",
+    "Auto layout": "Układ automatyczny",
+    "Replace the current floor with an auto layout of all tables in this area?": "Zastąpić obecną podłogę automatycznym układem wszystkich stolików w tym obszarze?"
 }

@@ -59,6 +59,7 @@
                 </div>
                 <button type="button" class="btn btn-sm btn-light active" id="posLayoutGridToggle" aria-pressed="true">{{ __('Grid') }}</button>
                 <span id="posLayoutSaved" class="small" style="display:none"></span>
+                <button type="button" class="btn btn-sm btn-light-success" id="posLayoutAuto">{{ __('Auto layout') }}</button>
                 <button type="button" class="btn btn-sm btn-light-danger" id="posLayoutClear">{{ __('Clear All') }}</button>
                 <button type="button" class="btn btn-sm btn-light-warning" id="posLayoutLoadDemo">{{ __('Load demo') }}</button>
                 <button type="button" class="btn btn-sm btn-primary" id="posLayoutSave">{{ __('Save') }}</button>
@@ -220,6 +221,8 @@
         confirmClear: @json(__('Clear all elements from the canvas?')),
         confirmDiscard: @json(__('Discard unsaved changes and switch area?')),
         confirmDemo: @json(__('Load the demo floor? Missing tables are created as real POS tables.')),
+        confirmAutoLayout: @json(__('Replace the current floor with an auto layout of all tables in this area?')),
+        noTables: @json(__('No tables in this area yet.')),
         confirmRemoveTable: @json(__('Remove this table from the floor? The table stays in POS Tables.')),
         removeFromFloor: @json(__('Remove from floor')),
         deleteLabel: @json(__('Delete')),
@@ -1081,6 +1084,66 @@
         refreshAreaTables();
         markDirty();
     });
+
+    // ---- auto layout: one simple square floor for every table in the area ----
+    document.getElementById('posLayoutAuto').addEventListener('click', function () {
+        if (!state.areaId) { return; }
+        if (!state.tables.length) { window.alert(I18N.noTables); return; }
+        if (state.hasSavedLayout && !window.confirm(I18N.confirmAutoLayout)) { return; }
+        buildAutoLayout();
+    });
+    function buildAutoLayout() {
+        // The same square template for every area: all of the area's real
+        // tables in a neat grid (columns = ceil(sqrt(n))), one door
+        // centred at the bottom edge, a plant at each top corner, and a
+        // waiter station by the door. Tables keep their real id, name and
+        // capacity; the type follows the capacity (2 round-2, 4 round-4,
+        // 6 round-6, 8+ banquet) via autoTypeForSeats.
+        var tables = state.tables.slice().sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+        var n = tables.length;
+        var maxW = 0, maxH = 0;
+        tables.forEach(function (t) {
+            var cfg = TYPES[autoTypeForSeats(t.capacity)];
+            if (cfg) { maxW = Math.max(maxW, cfg.w); maxH = Math.max(maxH, cfg.h); }
+        });
+        // ~200px between table centres; widened only when the biggest
+        // table (a banquet is 220 wide) would otherwise overlap its
+        // neighbours.
+        var step = Math.max(200, maxW + 40, maxH + 40);
+        var cols = Math.ceil(Math.sqrt(n));
+        var rows = Math.ceil(n / cols);
+        var gridW = cols * step;
+        var gridH = rows * step;
+        var x0 = -gridW / 2;
+        var y0 = -gridH / 2;
+        var els = [];
+        tables.forEach(function (t, i) {
+            var type = autoTypeForSeats(t.capacity);
+            var cfg = TYPES[type];
+            var cx = x0 + (i % cols) * step + step / 2;
+            var cy = y0 + Math.floor(i / cols) * step + step / 2;
+            els.push(makeTableElement(type, t, cx - cfg.w / 2, cy - cfg.h / 2, 0));
+        });
+        // Gate: one door centred at the bottom edge of the grid.
+        els.push(makeDecoration('door', -45, gridH / 2 + 36, 0));
+        // Plants at the two top corners of the grid.
+        els.push(makeDecoration('plant', x0 - 70, y0 - 70, 0));
+        els.push(makeDecoration('plant', x0 + gridW + 24, y0 - 70, 0));
+        // Waiter station by the door, on its right.
+        els.push(makeDecoration('waiter', 90, gridH / 2 + 36, 0));
+        state.elements = els.filter(function (el) { return el !== null; });
+        state.selectedId = null;
+        renderAll();
+        markSelection();
+        refreshAreaTables();
+        fitZoom();
+        // Save through the existing server path (same as the Save
+        // button), so the new floor lands on the server without extra
+        // clicks and the Saved indicator shows it saved.
+        state.dirty = true;
+        refreshSavedIndicator();
+        saveToServer(true);
+    }
 
     // ---- demo floor (only for an area with no saved layout) ----
     var demoBtn = document.getElementById('posLayoutLoadDemo');

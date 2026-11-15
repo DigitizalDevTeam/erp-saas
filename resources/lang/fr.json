@@ -9668,5 +9668,7 @@
     "Shape": "Forme",
     "Square": "Carrée",
     "Tables in this area": "Tables dans cette zone",
-    "Unsaved changes": "Modifications non enregistrées"
+    "Unsaved changes": "Modifications non enregistrées",
+    "Auto layout": "Disposition automatique",
+    "Replace the current floor with an auto layout of all tables in this area?": "Remplacer le sol actuel par une disposition automatique de toutes les tables de cette zone ?"
 }
