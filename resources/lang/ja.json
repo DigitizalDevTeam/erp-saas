@@ -8809,5 +8809,7 @@
     "Shape": "形状",
     "Square": "正方形",
     "Tables in this area": "このエリアのテーブル",
-    "Unsaved changes": "保存されていない変更"
+    "Unsaved changes": "保存されていない変更",
+    "Auto layout": "自動レイアウト",
+    "Replace the current floor with an auto layout of all tables in this area?": "現在のフロアをこのエリアの全テーブルの自動レイアウトに置き換えますか？"
 }

@@ -9753,5 +9753,7 @@
     "Shape": "Shape",
     "Square": "Square",
     "Tables in this area": "Tables in this area",
-    "Unsaved changes": "Unsaved changes"
+    "Unsaved changes": "Unsaved changes",
+    "Auto layout": "Auto layout",
+    "Replace the current floor with an auto layout of all tables in this area?": "Replace the current floor with an auto layout of all tables in this area?"
 }

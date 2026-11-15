@@ -8809,5 +8809,7 @@
     "Shape": "Форма",
     "Square": "Квадратный",
     "Tables in this area": "Столы в этой зоне",
-    "Unsaved changes": "Несохранённые изменения"
+    "Unsaved changes": "Несохранённые изменения",
+    "Auto layout": "Авто-раскладка",
+    "Replace the current floor with an auto layout of all tables in this area?": "Заменить текущий план автоматической раскладкой всех столов в этой зоне?"
 }

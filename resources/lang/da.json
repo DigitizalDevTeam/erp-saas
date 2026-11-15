@@ -8809,5 +8809,7 @@
     "Shape": "Form",
     "Square": "Firkantet",
     "Tables in this area": "Borde i dette område",
-    "Unsaved changes": "Ikke-gemte ændringer"
+    "Unsaved changes": "Ikke-gemte ændringer",
+    "Auto layout": "Automatisk layout",
+    "Replace the current floor with an auto layout of all tables in this area?": "Erstat det nuværende gulv med et automatisk layout af alle borde i dette område?"
 }

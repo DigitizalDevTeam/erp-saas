@@ -9668,5 +9668,7 @@
     "Shape": "形状",
     "Square": "正方形",
     "Tables in this area": "此区域的餐桌",
-    "Unsaved changes": "未保存的更改"
+    "Unsaved changes": "未保存的更改",
+    "Auto layout": "自动布局",
+    "Replace the current floor with an auto layout of all tables in this area?": "将当前楼层替换为此区域所有餐桌的自动布局吗？"
 }

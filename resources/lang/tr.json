@@ -8809,5 +8809,7 @@
     "Shape": "Şekil",
     "Square": "Kare",
     "Tables in this area": "Bu alandaki masalar",
-    "Unsaved changes": "Kaydedilmemiş değişiklikler"
+    "Unsaved changes": "Kaydedilmemiş değişiklikler",
+    "Auto layout": "Otomatik yerleşim",
+    "Replace the current floor with an auto layout of all tables in this area?": "Mevcut zemini bu alandaki tüm masaların otomatik yerleşimiyle değiştirmek istiyor musunuz?"
 }

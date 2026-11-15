@@ -228,4 +228,26 @@ class PosRestaurantLayoutTest extends TestCase
         $this->assertStringContainsString('localStorage', $blade);
         $this->assertStringContainsString('bootAreaId', $blade);
     }
+
+    public function test_designer_has_auto_layout_button(): void
+    {
+        // Auto layout: one button builds the same simple square floor for
+        // every real table in the area (grid + door + plants + waiter
+        // station) and saves it through the existing server save path.
+        $response = $this->actingAs(User::findOrFail(1))
+            ->get(route('pos.restaurant.layout.designer'));
+
+        $response->assertOk();
+        $response->assertSee('posLayoutAuto', false);
+        $response->assertSee('Auto layout', false);
+
+        $blade = file_get_contents(resource_path('views/pos/restaurant-layout.blade.php'));
+        $this->assertStringContainsString('buildAutoLayout', $blade);
+        $this->assertStringContainsString('confirmAutoLayout', $blade);
+        $this->assertStringContainsString('saveToServer(true)', $blade);
+        $this->assertStringContainsString("makeDecoration('door'", $blade);
+        $this->assertStringContainsString("makeDecoration('plant'", $blade);
+        $this->assertStringContainsString("makeDecoration('waiter'", $blade);
+        $this->assertStringContainsString('autoTypeForSeats', $blade);
+    }
 }
