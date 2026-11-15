@@ -335,8 +335,8 @@
                 .pos-floor-legend__item { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; color: #6c757d; white-space: nowrap; }
                 .pos-table-legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(0,0,0,.25); }
                 .pos-table-legend-dot--available { background: #22c55e; }
-                .pos-table-legend-dot--occupied { background: #ef4444; }
-                .pos-table-legend-dot--reserved { background: #f59e0b; }
+                .pos-table-legend-dot--occupied { background: #ffc107; }
+                .pos-table-legend-dot--reserved { background: #6c757d; }
                 </style>
                 <div class="pos-floor-modal-header d-flex align-items-center gap-2 px-3 py-2 border-bottom bg-white">
                     <strong class="text-dark">{{ $tp('pos.select_table', 'Select Table') }}</strong>

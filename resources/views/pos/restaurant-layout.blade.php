@@ -194,8 +194,8 @@
 .pos-layout-table-cap { font-size: 11px; line-height: 1.15; }
 .pos-layout-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 3px; border: 1px solid rgba(0,0,0,.25); }
 .pos-layout-dot-available { background: #22c55e; }
-.pos-layout-dot-occupied { background: #ef4444; }
-.pos-layout-dot-reserved { background: #f59e0b; }
+.pos-layout-dot-occupied { background: #ffc107; }
+.pos-layout-dot-reserved { background: #6c757d; }
 .pos-layout-chair { position: absolute; width: 14px; height: 9px; background: #8fa1c2; border: 1px solid #22355e; border-radius: 2px; }
 .pos-layout-wall-el { background: #22355e; border-radius: 2px; }
 .pos-layout-door-el { background: #ffffff; border: 2px dashed #22355e; border-radius: 2px; }

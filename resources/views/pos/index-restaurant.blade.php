@@ -56,8 +56,8 @@
         .pos-floor-meta { font-size: 10px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
         .pos-floor-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 2px; border: 1px solid rgba(0,0,0,.25); }
         .pos-floor-dot-available { background: #22c55e; }
-        .pos-floor-dot-occupied { background: #ef4444; }
-        .pos-floor-dot-reserved { background: #f59e0b; }
+        .pos-floor-dot-occupied { background: #ffc107; }
+        .pos-floor-dot-reserved { background: #6c757d; }
         .pos-floor-decor { position: absolute; }
         .pos-floor-wall { background: #22355e; border-radius: 2px; }
         .pos-floor-door { background: #ffffff; border: 2px dashed #22355e; border-radius: 2px; }
