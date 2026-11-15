@@ -2507,6 +2507,8 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('pos/restaurant/layout-designer/area/{area}', [PosRestaurantLayoutController::class, 'areaData'])->name('pos.restaurant.layout.designer.area')->middleware(['auth', 'XSS']);
     Route::post('pos/restaurant/layout-designer/area/{area}', [PosRestaurantLayoutController::class, 'saveArea'])->name('pos.restaurant.layout.designer.area.save')->middleware(['auth', 'XSS']);
     Route::post('pos/restaurant/layout-designer/tables', [PosRestaurantLayoutController::class, 'storeTable'])->name('pos.restaurant.layout.designer.tables.store')->middleware(['auth', 'XSS']);
+    Route::patch('pos/restaurant/layout-designer/tables/{table}', [PosRestaurantLayoutController::class, 'updateTable'])->name('pos.restaurant.layout.designer.tables.update')->middleware(['auth', 'XSS']);
+    Route::post('pos/restaurant/layout-designer/areas', [PosRestaurantLayoutController::class, 'storeArea'])->name('pos.restaurant.layout.designer.areas.store')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant/order', [PosController::class, 'getRestaurantOrder'])->name('pos.restaurant.order')->middleware(['auth', 'XSS']);
     Route::get('pos/restaurant/delivery-takeaway-orders', [PosController::class, 'getRestaurantDeliveryTakeawayOrders'])->name('pos.restaurant.delivery-takeaway-orders')->middleware(['auth', 'XSS']);
     Route::post('pos/send-to-production', [PosController::class, 'sendToProduction'])->name('pos.send.to.production')->middleware(['auth', 'XSS']);

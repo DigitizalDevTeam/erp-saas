@@ -9670,5 +9670,21 @@
     "Tables in this area": "Tables dans cette zone",
     "Unsaved changes": "Modifications non enregistrées",
     "Auto layout": "Disposition automatique",
-    "Replace the current floor with an auto layout of all tables in this area?": "Remplacer le sol actuel par une disposition automatique de toutes les tables de cette zone ?"
+    "Replace the current floor with an auto layout of all tables in this area?": "Remplacer le sol actuel par une disposition automatique de toutes les tables de cette zone ?",
+    "Undo": "Défaire",
+    "Redo": "Refaire",
+    "View on POS": "Voir sur le POS",
+    "Search tables...": "Rechercher des tables...",
+    "New table": "Nouvelle table",
+    "New area": "Nouvelle zone",
+    "Saving...": "Enregistrement...",
+    "Click to retry saving": "Cliquez pour réessayer d'enregistrer",
+    "Show on floor": "Afficher sur le plan",
+    "Table name": "Nom de la table",
+    "Seats": "Sièges",
+    "Could not create the area.": "Impossible de créer la zone.",
+    "Could not update the table.": "Impossible de mettre à jour la table.",
+    "Edit layout": "Modifier la mise en page",
+    "No tables match.": "Aucune table ne correspond.",
+    "Branch not found.": "Succursale introuvable."
 }

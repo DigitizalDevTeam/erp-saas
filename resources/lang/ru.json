@@ -8811,5 +8811,21 @@
     "Tables in this area": "Столы в этой зоне",
     "Unsaved changes": "Несохранённые изменения",
     "Auto layout": "Авто-раскладка",
-    "Replace the current floor with an auto layout of all tables in this area?": "Заменить текущий план автоматической раскладкой всех столов в этой зоне?"
+    "Replace the current floor with an auto layout of all tables in this area?": "Заменить текущий план автоматической раскладкой всех столов в этой зоне?",
+    "Undo": "Отменить",
+    "Redo": "Повторить",
+    "View on POS": "Посмотреть на POS-терминале",
+    "Search tables...": "Поиск столов...",
+    "New table": "Новый стол",
+    "New area": "Новая зона",
+    "Saving...": "Сохранение...",
+    "Click to retry saving": "Нажмите, чтобы повторить попытку сохранения",
+    "Show on floor": "Показать на плане",
+    "Table name": "Название стола",
+    "Seats": "Мест",
+    "Could not create the area.": "Не удалось создать область.",
+    "Could not update the table.": "Не удалось обновить стол.",
+    "Edit layout": "Изменить макет",
+    "No tables match.": "Нет подходящих столов.",
+    "Branch not found.": "Филиал не найден."
 }

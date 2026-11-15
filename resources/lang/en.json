@@ -9755,5 +9755,21 @@
     "Tables in this area": "Tables in this area",
     "Unsaved changes": "Unsaved changes",
     "Auto layout": "Auto layout",
-    "Replace the current floor with an auto layout of all tables in this area?": "Replace the current floor with an auto layout of all tables in this area?"
+    "Replace the current floor with an auto layout of all tables in this area?": "Replace the current floor with an auto layout of all tables in this area?",
+    "Undo": "Undo",
+    "Redo": "Redo",
+    "View on POS": "View on POS",
+    "Search tables...": "Search tables...",
+    "New table": "New table",
+    "New area": "New area",
+    "Saving...": "Saving...",
+    "Click to retry saving": "Click to retry saving",
+    "Show on floor": "Show on floor",
+    "Table name": "Table name",
+    "Seats": "Seats",
+    "Could not create the area.": "Could not create the area.",
+    "Could not update the table.": "Could not update the table.",
+    "Edit layout": "Edit layout",
+    "No tables match.": "No tables match.",
+    "Branch not found.": "Branch not found."
 }

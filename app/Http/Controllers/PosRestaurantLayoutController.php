@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\PosArea;
 use App\Models\PosTable;
 use Illuminate\Http\Request;
@@ -25,6 +26,11 @@ class PosRestaurantLayoutController extends Controller
         // the gate (hidden without the permission); the API endpoints
         // below are the ones that enforce it.
         $areas = $this->areasForUser();
+        $branches = Branch::where('created_by', Auth::user()->creatorId())
+            ->where('is_active', true)
+            ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
+            ->orderBy('name')
+            ->get(['id', 'name']);
         $initialAreaId = (int) $request->query('area', 0);
         if ($initialAreaId && ! $areas->contains('id', $initialAreaId)) {
             $initialAreaId = 0;
@@ -35,6 +41,10 @@ class PosRestaurantLayoutController extends Controller
 
         return view('pos.restaurant-layout', [
             'areas' => $areas,
+            // Plain arrays for the JS (Blade's @json cannot compile the
+            // nested map/ternary inline — it truncates the expression).
+            'areasJson' => $areas->map(fn ($a) => ['id' => (int) $a->id, 'name' => $a->name, 'branch_id' => (int) $a->branch_id, 'branch_name' => $a->branch ? $a->branch->name : null])->values()->all(),
+            'branches' => $branches->map(fn ($b) => ['id' => (int) $b->id, 'name' => $b->name])->values()->all(),
             'initialAreaId' => $initialAreaId,
         ]);
     }
@@ -115,8 +125,9 @@ class PosRestaurantLayoutController extends Controller
 
     /**
      * POST a new real POS table from the designer. The table is created in
-     * the area (branch taken from the area, name auto-numbered, status
-     * available) and the designer places it on the floor.
+     * the area (branch taken from the area, name auto-numbered unless a
+     * name is given, status available) and the designer places it on the
+     * floor.
      */
     public function storeTable(Request $request)
     {
@@ -127,6 +138,7 @@ class PosRestaurantLayoutController extends Controller
         $request->validate([
             'area_id' => ['required', 'integer', 'exists:pos_areas,id'],
             'capacity' => ['required', 'integer', 'min:1', 'max:99'],
+            'name' => ['nullable', 'string', 'max:100'],
         ]);
 
         $area = $this->ownedArea((int) $request->area_id);
@@ -137,7 +149,7 @@ class PosRestaurantLayoutController extends Controller
         $table = new PosTable();
         $table->area_id = $area->id;
         $table->branch_id = $area->branch_id;
-        $table->name = $this->nextTableName($area);
+        $table->name = $request->filled('name') ? trim((string) $request->name) : $this->nextTableName($area);
         $table->capacity = (int) $request->capacity;
         $table->status = PosTable::STATUS_AVAILABLE;
         $table->created_by = Auth::user()->creatorId();
@@ -148,6 +160,74 @@ class PosRestaurantLayoutController extends Controller
             'name' => $table->name,
             'capacity' => (int) $table->capacity,
             'status' => $table->status,
+        ], 201);
+    }
+
+    /**
+     * PATCH a real POS table's name / seats from the designer properties
+     * panel. Same canManagePos gate as the layout API, plus the table
+     * must belong to the user's company. The layout JSON is untouched —
+     * the table element on the floor keeps referencing the same table id.
+     */
+    public function updateTable(Request $request, PosTable $table)
+    {
+        if (! Auth::user()->canManagePos() || (int) $table->created_by !== (int) Auth::user()->creatorId()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'capacity' => ['required', 'integer', 'min:1', 'max:99'],
+        ]);
+
+        $table->name = trim($data['name']);
+        $table->capacity = (int) $data['capacity'];
+        $table->save();
+
+        return response()->json([
+            'id' => (int) $table->id,
+            'name' => $table->name,
+            'capacity' => (int) $table->capacity,
+            'status' => $table->status,
+        ]);
+    }
+
+    /**
+     * POST a new real POS area (a new floor) from the designer. The branch
+     * must belong to the user's company and be a restaurant branch.
+     */
+    public function storeArea(Request $request)
+    {
+        if (! Auth::user()->canManagePos()) {
+            return response()->json(['error' => __('Permission denied.')], 403);
+        }
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'branch_id' => ['required', 'integer', 'exists:branches,id'],
+        ]);
+
+        $branch = Branch::where('id', (int) $data['branch_id'])
+            ->where('created_by', Auth::user()->creatorId())
+            ->where('is_active', true)
+            ->where('pos_type', Branch::POS_TYPE_RESTAURANT)
+            ->first();
+        if (! $branch) {
+            return response()->json(['error' => __('Branch not found.')], 404);
+        }
+
+        $area = new PosArea();
+        $area->branch_id = $branch->id;
+        $area->name = trim($data['name']);
+        $area->sort_order = (int) (PosArea::where('created_by', Auth::user()->creatorId())->max('sort_order') ?? -1) + 1;
+        $area->created_by = Auth::user()->creatorId();
+        $area->save();
+
+        return response()->json([
+            'id' => (int) $area->id,
+            'name' => $area->name,
+            'branch_id' => (int) $area->branch_id,
+            'branch_name' => $branch->name,
         ], 201);
     }
 

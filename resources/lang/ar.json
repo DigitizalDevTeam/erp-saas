@@ -8811,5 +8811,21 @@
     "Tables in this area": "الطاولات في هذه المنطقة",
     "Unsaved changes": "تغييرات غير محفوظة",
     "Auto layout": "تخطيط تلقائي",
-    "Replace the current floor with an auto layout of all tables in this area?": "استبدال الأرضية الحالية بتخطيط تلقائي لجميع الطاولات في هذه المنطقة؟"
+    "Replace the current floor with an auto layout of all tables in this area?": "استبدال الأرضية الحالية بتخطيط تلقائي لجميع الطاولات في هذه المنطقة؟",
+    "Undo": "تراجع",
+    "Redo": "إعادة",
+    "View on POS": "عرض على نقاط البيع",
+    "Search tables...": "ابحث في الطاولات...",
+    "New table": "طاولة جديدة",
+    "New area": "منطقة جديدة",
+    "Saving...": "جارٍ الحفظ...",
+    "Click to retry saving": "انقر لإعادة محاولة الحفظ",
+    "Show on floor": "عرض على المخطط",
+    "Table name": "اسم الطاولة",
+    "Seats": "مقاعد",
+    "Could not create the area.": "لا يمكن إنشاء المنطقة.",
+    "Could not update the table.": "تعذّر تحديث الطاولة.",
+    "Edit layout": "تحرير التخطيط",
+    "No tables match.": "لا توجد طاولات مطابقة.",
+    "Branch not found.": "لم يتم العثور على فرع."
 }

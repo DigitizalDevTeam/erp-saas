@@ -9670,5 +9670,21 @@
     "Tables in this area": "此区域的餐桌",
     "Unsaved changes": "未保存的更改",
     "Auto layout": "自动布局",
-    "Replace the current floor with an auto layout of all tables in this area?": "将当前楼层替换为此区域所有餐桌的自动布局吗？"
+    "Replace the current floor with an auto layout of all tables in this area?": "将当前楼层替换为此区域所有餐桌的自动布局吗？",
+    "Undo": "撤消",
+    "Redo": "重做",
+    "View on POS": "在 POS 上查看",
+    "Search tables...": "搜索餐桌...",
+    "New table": "新餐桌",
+    "New area": "新区",
+    "Saving...": "保存...",
+    "Click to retry saving": "单击重试保存",
+    "Show on floor": "在平面图上显示",
+    "Table name": "餐桌名称",
+    "Seats": "座位数",
+    "Could not create the area.": "无法创建该区域。",
+    "Could not update the table.": "无法更新餐桌。",
+    "Edit layout": "编辑布局",
+    "No tables match.": "没有匹配的餐桌。",
+    "Branch not found.": "未找到分店。"
 }

@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'edit_layout' => 'Editar layout',
+    'no_shift_blocks_orders' => 'Sem pedidos, mesas, produção ou pagamentos até abrir um turno.',
+    'no_waiter_shifts_open' => 'Não há turnos de empregado de mesa abertos.',
+    'search_tables' => 'Pesquisar mesas...',
+    'seats' => 'lugares',
     'title' => 'POS',
     'order_type' => 'Tipo de Pedido',
     'table' => 'Mesa',

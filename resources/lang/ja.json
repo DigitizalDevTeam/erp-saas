@@ -8811,5 +8811,21 @@
     "Tables in this area": "このエリアのテーブル",
     "Unsaved changes": "保存されていない変更",
     "Auto layout": "自動レイアウト",
-    "Replace the current floor with an auto layout of all tables in this area?": "現在のフロアをこのエリアの全テーブルの自動レイアウトに置き換えますか？"
+    "Replace the current floor with an auto layout of all tables in this area?": "現在のフロアをこのエリアの全テーブルの自動レイアウトに置き換えますか？",
+    "Undo": "元に戻す",
+    "Redo": "やり直し",
+    "View on POS": "POSで見る",
+    "Search tables...": "テーブルを検索...",
+    "New table": "新しいテーブル",
+    "New area": "新エリア",
+    "Saving...": "保存中...",
+    "Click to retry saving": "クリックして保存を再試行します",
+    "Show on floor": "フロア図に表示",
+    "Table name": "テーブル名",
+    "Seats": "席",
+    "Could not create the area.": "エリアを作成できませんでした。",
+    "Could not update the table.": "テーブルを更新できませんでした。",
+    "Edit layout": "レイアウトの編集",
+    "No tables match.": "一致するテーブルはありません。",
+    "Branch not found.": "ブランチが見つかりません。"
 }

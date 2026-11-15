@@ -8811,5 +8811,21 @@
     "Tables in this area": "Tische in diesem Bereich",
     "Unsaved changes": "Ungespeicherte Änderungen",
     "Auto layout": "Automatisches Layout",
-    "Replace the current floor with an auto layout of all tables in this area?": "Den aktuellen Boden durch ein automatisches Layout aller Tische in diesem Bereich ersetzen?"
+    "Replace the current floor with an auto layout of all tables in this area?": "Den aktuellen Boden durch ein automatisches Layout aller Tische in diesem Bereich ersetzen?",
+    "Undo": "Rückgängig machen",
+    "Redo": "Wiederholen",
+    "View on POS": "Am POS ansehen",
+    "Search tables...": "Tische suchen...",
+    "New table": "Neuer Tisch",
+    "New area": "Neuer Bereich",
+    "Saving...": "Speichern...",
+    "Click to retry saving": "Klicken Sie hier, um den Speichervorgang erneut zu versuchen",
+    "Show on floor": "Auf dem Grundriss anzeigen",
+    "Table name": "Tischname",
+    "Seats": "Sitze",
+    "Could not create the area.": "Der Bereich konnte nicht erstellt werden.",
+    "Could not update the table.": "Der Tisch konnte nicht aktualisiert werden.",
+    "Edit layout": "Layout bearbeiten",
+    "No tables match.": "Keine passenden Tische.",
+    "Branch not found.": "Filiale nicht gefunden."
 }

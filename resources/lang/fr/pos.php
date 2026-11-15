@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'edit_layout' => 'Modifier la mise en page',
+    'no_shift_blocks_orders' => 'Aucune commande, table, production ou paiement jusqu\'à ce qu\'un quart de travail soit ouvert.',
+    'no_waiter_shifts_open' => 'Aucun quart de serveur n’est ouvert.',
+    'search_tables' => 'Rechercher des tables...',
+    'seats' => 'sièges',
     'title' => 'POS',
     'order_type' => 'Type de commande',
     'table' => 'Table',
