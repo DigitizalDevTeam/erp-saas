@@ -1848,6 +1848,9 @@
             // canvas): one transform per area, kept while the page is open,
             // so a table-status refresh does not reset the user's zoom/pan.
             var posFloorState = {};
+            // Last wheel-zoom time (ms): a trackpad scroll sends a burst of
+            // wheel ticks in one gesture, so wheel zoom is throttled.
+            var posFloorWheelLast = 0;
             // Areas from the last table-data load, and the one area the
             // full-screen popup is showing (picked from its dropdown).
             var posFloorAreas = [];
@@ -1943,6 +1946,14 @@
                             if (!pref && (a.tables || []).some(function (t) { return String(t.id) === String(tableId); })) { pref = a.id; }
                         });
                     }
+                    // Otherwise prefer the area named Restaurant (the API
+                    // orders by sort_order then name, so "Bar" can sort
+                    // first); fall back to the first area.
+                    if (pref === null) {
+                        posFloorAreas.forEach(function (a) {
+                            if (pref === null && /restaurant/i.test(a.name || '')) { pref = a.id; }
+                        });
+                    }
                     posFloorModalAreaId = pref !== null ? pref : posFloorAreas[0].id;
                 }
                 sel.value = String(posFloorModalAreaId);
@@ -1965,6 +1976,12 @@
                     var floor = e.target.closest ? e.target.closest('.pos-floor') : null;
                     if (!floor) { return; }
                     e.preventDefault();
+                    // One zoom step per 60ms at most: without this, one
+                    // trackpad gesture (a burst of ticks) zooms straight to
+                    // the 15% floor.
+                    var now = Date.now();
+                    if (now - posFloorWheelLast < 60) { return; }
+                    posFloorWheelLast = now;
                     var areaId = floor.getAttribute('data-pos-floor-area');
                     var st = posFloorState[areaId];
                     if (!st) { return; }
@@ -2506,6 +2523,15 @@
                     posFloorModalBuildAreaSelect();
                     posFloorModalApplyArea();
                     posFloorInit();
+                    // Always refresh the tables for the current branch when
+                    // the popup opens: on first load (or after a PIN/user
+                    // switch) the branch can be pre-selected without any
+                    // change event having fired, so the grid still shows
+                    // "Select branch first" until the branch is re-picked.
+                    var openBranchId = $('#pos-restaurant-branch').val();
+                    if (openBranchId && typeof loadRestaurantTables === 'function') {
+                        loadRestaurantTables(openBranchId);
+                    }
                 }
             }
 
