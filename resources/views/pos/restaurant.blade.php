@@ -327,9 +327,17 @@
                 </div>
             </div>
 
-            <div id="pos-restaurant-table-grid-wrap" class="border-top pt-2 d-none">
-                <div class="d-flex flex-wrap gap-2 align-items-center" id="pos-table-grid">
-                    <p class="text-muted small mb-0">{{ $tp('pos.select_branch_first', 'Select branch first') }}</p>
+            <div id="pos-restaurant-table-grid-wrap" class="pos-floor-modal d-none">
+                <div class="pos-floor-modal-header d-flex align-items-center gap-2 px-3 py-2 border-bottom bg-white">
+                    <strong class="text-dark">{{ $tp('pos.select_table', 'Select Table') }}</strong>
+                    <label class="small text-muted mb-0" for="pos-floor-modal-area">{{ __('Area') }}</label>
+                    <select class="form-select form-select-sm" id="pos-floor-modal-area" style="max-width: 16rem;"></select>
+                    <button type="button" class="btn btn-sm btn-light ms-auto" id="pos-floor-modal-close" title="{{ __('Close') }}" aria-label="{{ __('Close') }}" style="font-size: 1.25rem; line-height: 1;">&times;</button>
+                </div>
+                <div class="pos-floor-modal-body p-2">
+                    <div class="d-flex flex-wrap gap-2 align-items-center" id="pos-table-grid">
+                        <p class="text-muted small mb-0">{{ $tp('pos.select_branch_first', 'Select branch first') }}</p>
+                    </div>
                 </div>
             </div>
 
