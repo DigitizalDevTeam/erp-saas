@@ -402,6 +402,145 @@ class PosAreaLayoutTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_create_table_from_designer_accepts_custom_name(): void
+    {
+        // The designer's "New table" prompt sends a name + seats; the
+        // real PosTable is created with that name (no auto "Table N").
+        $response = $this->actingAs(User::findOrFail(1))
+            ->postJson(route('pos.restaurant.layout.designer.tables.store'), [
+                'area_id' => 1,
+                'capacity' => 6,
+                'name' => 'Corner Booth',
+            ]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('name', 'Corner Booth');
+        $response->assertJsonPath('capacity', 6);
+        $this->assertDatabaseHas('pos_tables', [
+            'id' => $response->json('id'),
+            'area_id' => 1,
+            'name' => 'Corner Booth',
+        ]);
+    }
+
+    public function test_update_table_from_designer_updates_name_and_capacity(): void
+    {
+        // The Properties panel edits a table's name / seats in place and
+        // PATCHes the real PosTable; the floor keeps the same table id.
+        $response = $this->actingAs(User::findOrFail(1))
+            ->patchJson(route('pos.restaurant.layout.designer.tables.update', ['table' => 1]), [
+                'name' => 'T1 Renamed',
+                'capacity' => 6,
+            ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('name', 'T1 Renamed');
+        $response->assertJsonPath('capacity', 6);
+        $this->assertDatabaseHas('pos_tables', [
+            'id' => 1,
+            'area_id' => 1,
+            'branch_id' => 1,
+            'name' => 'T1 Renamed',
+            'capacity' => 6,
+        ]);
+    }
+
+    public function test_update_table_rejects_bad_input_and_other_company_table(): void
+    {
+        // Empty name / out-of-range seats are refused, and the row is
+        // untouched.
+        $this->actingAs(User::findOrFail(1))
+            ->patchJson(route('pos.restaurant.layout.designer.tables.update', ['table' => 1]), [
+                'name' => 'T1',
+                'capacity' => 0,
+            ])
+            ->assertStatus(422);
+        $this->assertSame('T1', PosTable::findOrFail(1)->name);
+
+        // A table from another company is not updatable (403, not 404 —
+        // the row exists, it just is not yours).
+        $this->actingAs(User::findOrFail(1))
+            ->patchJson(route('pos.restaurant.layout.designer.tables.update', ['table' => 4]), [
+                'name' => 'Taken',
+                'capacity' => 4,
+            ])
+            ->assertForbidden();
+
+        // A user without the POS permission cannot update any table.
+        $this->actingAs(User::findOrFail(2))
+            ->patchJson(route('pos.restaurant.layout.designer.tables.update', ['table' => 1]), [
+                'name' => 'Taken',
+                'capacity' => 4,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_create_area_from_designer_creates_real_pos_area(): void
+    {
+        // The designer's "New area" control creates a real PosArea (a new
+        // floor) on one of the company's restaurant branches.
+        $response = $this->actingAs(User::findOrFail(1))
+            ->postJson(route('pos.restaurant.layout.designer.areas.store'), [
+                'name' => 'Terrace',
+                'branch_id' => 1,
+            ]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('name', 'Terrace');
+        $response->assertJsonPath('branch_id', 1);
+        $response->assertJsonPath('branch_name', 'Main Branch');
+        $this->assertDatabaseHas('pos_areas', [
+            'id' => $response->json('id'),
+            'branch_id' => 1,
+            'name' => 'Terrace',
+            'created_by' => 1,
+        ]);
+
+        // A branch from another company is refused.
+        DB::table('branches')->insert([
+            ['id' => 9, 'name' => 'Foreign Branch', 'created_by' => 99, 'is_active' => 1, 'pos_type' => 'restaurant'],
+        ]);
+        $this->actingAs(User::findOrFail(1))
+            ->postJson(route('pos.restaurant.layout.designer.areas.store'), [
+                'name' => 'Nope',
+                'branch_id' => 9,
+            ])
+            ->assertNotFound();
+
+        // A user without the POS permission cannot create an area.
+        $this->actingAs(User::findOrFail(2))
+            ->postJson(route('pos.restaurant.layout.designer.areas.store'), [
+                'name' => 'Nope',
+                'branch_id' => 1,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_designer_page_has_ux_gap_controls(): void
+    {
+        $response = $this->actingAs(User::findOrFail(1))
+            ->get(route('pos.restaurant.layout.designer'));
+
+        $response->assertOk();
+        // Undo / Redo (toolbar + keyboard), table search, named-table and
+        // new-area controls, the cross-link to the POS screen, the inline
+        // confirm/prompt dialog, and the status legend.
+        $response->assertSee('posLayoutUndo', false);
+        $response->assertSee('posLayoutRedo', false);
+        $response->assertSee('posLayoutAreaSearch', false);
+        $response->assertSee('posLayoutNewTable', false);
+        $response->assertSee('posLayoutNewArea', false);
+        $response->assertSee('posLayoutModal', false);
+        $response->assertSee('pos-layout-legend', false);
+        $response->assertSee('View on POS', false);
+        // The redundant Save button is gone — autosave is the only path.
+        $response->assertDontSee('id="posLayoutSave"', false);
+        // No native confirm/alert calls remain in the designer.
+        $blade = file_get_contents(resource_path('views/pos/restaurant-layout.blade.php'));
+        $this->assertStringNotContainsString('window.confirm(', $blade);
+        $this->assertStringNotContainsString('window.alert(', $blade);
+    }
+
     public function test_designer_page_loads_per_area(): void
     {
         $response = $this->actingAs(User::findOrFail(1))
@@ -520,6 +659,26 @@ class PosAreaLayoutTest extends TestCase
         $this->assertStringContainsString('loadRestaurantTables(openBranchId)', $blade);
         $this->assertStringContainsString('/restaurant/i', $blade);
         $this->assertStringContainsString('posFloorWheelLast', $blade);
+        // UX gaps: in-use floor tables show the bill amount + guest count
+        // (when the table is big enough) and always a tooltip with
+        // guest / waiter / amount / guests; available tables stay
+        // name + seats only.
+        $this->assertStringContainsString('pos-floor-meta', $blade);
+        $this->assertStringContainsString('cart_total_formatted', $blade);
+        $this->assertStringContainsString('tipParts', $blade);
+        // UX gaps: dine-in table tools hide until a table is picked
+        // (delivery / takeaway behaviour is untouched).
+        $this->assertStringContainsString('posRestaurantToggleTableTools', $blade);
+        // UX gaps: the warehouse hint says "Loading..." while the
+        // warehouses-by-branch request is in flight.
+        $this->assertStringContainsString("pos-restaurant-warehouse-hint').text('{{ __(\"Loading...\") }}')", $blade);
+        // UX gaps: the no-shift overlays say what is blocked.
+        $this->assertStringContainsString('no_shift_blocks_orders', $blade);
+        // UX gaps: Manage Tables rows open their table, have a search
+        // box, show area + seats, and explain empty waiter dropdowns.
+        $this->assertStringContainsString('pos-manage-table-row', $blade);
+        $this->assertStringContainsString('pos-manage-tables-search', $blade);
+        $this->assertStringContainsString('no_waiter_shifts_open', $blade);
     }
 
     public function test_restaurant_blade_has_fullscreen_floor_popup(): void
@@ -531,5 +690,13 @@ class PosAreaLayoutTest extends TestCase
         $this->assertStringContainsString('id="pos-restaurant-table-grid-wrap" class="pos-floor-modal d-none"', $blade);
         $this->assertStringContainsString('id="pos-floor-modal-area"', $blade);
         $this->assertStringContainsString('id="pos-floor-modal-close"', $blade);
+        // UX gaps: the popup header has a status legend (Available /
+        // Occupied / Reserved) and a link back to the layout designer.
+        $this->assertStringContainsString('pos-floor-legend', $blade);
+        $this->assertStringContainsString("pos.edit_layout", $blade);
+        $this->assertStringContainsString('pos.restaurant.layout.designer', $blade);
+        // UX gaps: the selected-table readout is a button that opens the
+        // same popup as "Open Table".
+        $this->assertStringContainsString('<button type="button" id="pos-selected-table"', $blade);
     }
 }

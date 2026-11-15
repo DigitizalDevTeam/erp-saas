@@ -8811,5 +8811,21 @@
     "Tables in this area": "שולחנות באזור זה",
     "Unsaved changes": "שינויים שלא נשמרו",
     "Auto layout": "פריסה אוטומטית",
-    "Replace the current floor with an auto layout of all tables in this area?": "להחליף את הרצפה הנוכחית בפריסה אוטומטית של כל השולחנות באזור זה?"
+    "Replace the current floor with an auto layout of all tables in this area?": "להחליף את הרצפה הנוכחית בפריסה אוטומטית של כל השולחנות באזור זה?",
+    "Undo": "לְבַטֵל",
+    "Redo": "לַעֲשׂוֹת שׁוּב",
+    "View on POS": "הצג בקופה",
+    "Search tables...": "חיפוש שולחנות...",
+    "New table": "שולחן חדש",
+    "New area": "אזור חדש",
+    "Saving...": "שומר...",
+    "Click to retry saving": "לחץ כדי לנסות שוב לשמור",
+    "Show on floor": "הצג בתרשים",
+    "Table name": "שם השולחן",
+    "Seats": "מושבים",
+    "Could not create the area.": "לא ניתן היה ליצור את האזור.",
+    "Could not update the table.": "לא ניתן היה לעדכן את השולחן.",
+    "Edit layout": "ערוך פריסה",
+    "No tables match.": "אין שולחנות תואמים.",
+    "Branch not found.": "סניף לא נמצא."
 }

@@ -8811,5 +8811,21 @@
     "Tables in this area": "Bu alandaki masalar",
     "Unsaved changes": "Kaydedilmemiş değişiklikler",
     "Auto layout": "Otomatik yerleşim",
-    "Replace the current floor with an auto layout of all tables in this area?": "Mevcut zemini bu alandaki tüm masaların otomatik yerleşimiyle değiştirmek istiyor musunuz?"
+    "Replace the current floor with an auto layout of all tables in this area?": "Mevcut zemini bu alandaki tüm masaların otomatik yerleşimiyle değiştirmek istiyor musunuz?",
+    "Undo": "Geri al",
+    "Redo": "Yinele",
+    "View on POS": "POS'ta görüntüle",
+    "Search tables...": "Masa ara...",
+    "New table": "Yeni masa",
+    "New area": "Yeni alan",
+    "Saving...": "Kaydediliyor...",
+    "Click to retry saving": "Kaydetmeyi yeniden denemek için tıklayın",
+    "Show on floor": "Planda göster",
+    "Table name": "Masa adı",
+    "Seats": "Kişi",
+    "Could not create the area.": "Alan oluşturulamadı.",
+    "Could not update the table.": "Masa güncellenemedi.",
+    "Edit layout": "Düzeni düzenle",
+    "No tables match.": "Hiçbir masa eşleşmiyor.",
+    "Branch not found.": "Şube bulunamadı."
 }

@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'edit_layout' => '编辑布局',
+    'no_shift_blocks_orders' => '在轮班开放之前，没有订单、桌子、生产或付款。',
+    'no_waiter_shifts_open' => '没有服务员轮班。',
+    'search_tables' => '搜索餐桌...',
+    'seats' => '座位',
     'title' => 'POS',
     'order_type' => '订单类型',
     'table' => '桌位',

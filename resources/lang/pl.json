@@ -8811,5 +8811,21 @@
     "Tables in this area": "Stoły w tym obszarze",
     "Unsaved changes": "Niezapisane zmiany",
     "Auto layout": "Układ automatyczny",
-    "Replace the current floor with an auto layout of all tables in this area?": "Zastąpić obecną podłogę automatycznym układem wszystkich stolików w tym obszarze?"
+    "Replace the current floor with an auto layout of all tables in this area?": "Zastąpić obecną podłogę automatycznym układem wszystkich stolików w tym obszarze?",
+    "Undo": "Anulować",
+    "Redo": "Przerobić",
+    "View on POS": "Zobacz w punkcie sprzedaży",
+    "Search tables...": "Szukaj stołów...",
+    "New table": "Nowy stół",
+    "New area": "Nowy obszar",
+    "Saving...": "Zapisywanie...",
+    "Click to retry saving": "Kliknij, aby spróbować ponownie zapisać",
+    "Show on floor": "Pokaż na planie",
+    "Table name": "Nazwa stołu",
+    "Seats": "Miejsca",
+    "Could not create the area.": "Nie można utworzyć obszaru.",
+    "Could not update the table.": "Nie można zaktualizować stołu.",
+    "Edit layout": "Edytuj układ",
+    "No tables match.": "Żadne stoły nie pasują.",
+    "Branch not found.": "Nie znaleziono oddziału."
 }

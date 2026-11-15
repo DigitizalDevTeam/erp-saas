@@ -53,10 +53,11 @@
         body.pos-floor-modal-open { overflow: hidden; }
         .pos-floor-table.pos-floor-round { border-radius: 50%; }
         .pos-floor-cap { font-size: 11px; line-height: 1.15; }
+        .pos-floor-meta { font-size: 10px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
         .pos-floor-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 2px; border: 1px solid rgba(0,0,0,.25); }
         .pos-floor-dot-available { background: #22c55e; }
-        .pos-floor-dot-occupied { background: #ef4444; }
-        .pos-floor-dot-reserved { background: #f59e0b; }
+        .pos-floor-dot-occupied { background: #ffc107; }
+        .pos-floor-dot-reserved { background: #6c757d; }
         .pos-floor-decor { position: absolute; }
         .pos-floor-wall { background: #22355e; border-radius: 2px; }
         .pos-floor-door { background: #ffffff; border: 2px dashed #22355e; border-radius: 2px; }
@@ -349,7 +350,10 @@
                 </div>
             @endif
             <div class="disabled_div d-none" id="pos-restaurant-no-shift">
-                <h3>{{ __('pos.open_shift_required_for_branch') }}</h3>
+                <div class="text-center px-3">
+                    <h3>{{ __('pos.open_shift_required_for_branch') }}</h3>
+                    <p class="mb-0 mt-2 small">{{ __('pos.no_shift_blocks_orders') }}</p>
+                </div>
             </div>
             <div class="col-lg-8">
                 <div class="sop-card pos-products-card card mb-0">
@@ -643,8 +647,11 @@
                 </div>
             @endif
             <div class="disabled_div d-none" id="pos-restaurant-panel-no-shift">
-                <h3>{{ __('pos.open_shift_and_balance') }}</h3>
-                <p class="mb-0 mt-2 small">{{ __('pos.open_shift_click_above') }}</p>
+                <div class="text-center px-3">
+                    <h3>{{ __('pos.open_shift_and_balance') }}</h3>
+                    <p class="mb-0 mt-2 small">{{ __('pos.open_shift_click_above') }}</p>
+                    <p class="mb-0 mt-1 small fw-semibold">{{ __('pos.no_shift_blocks_orders') }}</p>
+                </div>
             </div>
             @include('pos.restaurant')
         </div>{{-- /pos-restaurant-panel --}}
@@ -1558,11 +1565,16 @@
                 $('#pos_table_id_hidden').val('');
                 $('#pos_table_id').val('');
                 $('#pos-selected-table').text('—');
+                posRestaurantToggleTableTools();
                 if (branchId) {
                     loadBranchShifts(branchId);
                     $('#pos-restaurant-placeholder').addClass('d-none');
                     $('#pos-restaurant-order').removeClass('d-none');
                     $('#pos-restaurant-order-right').removeClass('d-none');
+                    // The warehouse list loads after the branch: say so
+                    // instead of leaving the stale "Select branch first"
+                    // hint under the box while the request is in flight.
+                    $('#pos-restaurant-warehouse-hint').text('{{ __("Loading...") }}').show();
                     var sk = $( "#empty_cart" ).val() || sessionKey;
                     var emptyData = { session_key: sk };
                     if (sk === 'pos-restaurant' && typeof posRestaurantCartKey !== 'undefined' && posRestaurantCartKey) { emptyData.cart_key = posRestaurantCartKey; }
@@ -1597,6 +1609,7 @@
                 } else {
                     $('#pos-restaurant-warehouse').empty().append('<option value="">{{ __("pos.select_warehouse") }}</option>');
                     $('#pos_restaurant_warehouse_hidden').val('');
+                    $('#pos-restaurant-warehouse-hint').text('{{ __("pos.select_branch_first") }}').show();
                     $('#pos-restaurant-order').addClass('d-none');
                     $('#pos-restaurant-order-right').addClass('d-none');
                     $('#pos-restaurant-placeholder').removeClass('d-none');
@@ -1662,6 +1675,7 @@
                     $('#pos-restaurant-placeholder').addClass('d-none');
                     $('#pos-restaurant-order').removeClass('d-none');
                     $('#pos-restaurant-order-right').removeClass('d-none');
+                    $('#pos-restaurant-warehouse-hint').text('{{ __("Loading...") }}').show();
                     $.get('{{ route("pos.warehouses.by.branch") }}', { branch_id: initRestBranch }, function (data) {
                         var parsed = parsePosWarehousesResponse(data);
                         var $whSelect = $('#pos-restaurant-warehouse');
@@ -1786,9 +1800,34 @@
                         var btn = restaurantTableBtnAttrs(t);
                         var dotClass = t.status === 'occupied' ? 'pos-floor-dot-occupied' : (t.status === 'reserved' ? 'pos-floor-dot-reserved' : 'pos-floor-dot-available');
                         var round = e.type.indexOf('round') >= 0 ? ' pos-floor-round' : '';
-                        html += '<button type="button" class="btn ' + btn.statusClass + ' btn-sm pos-table-btn pos-table-card pos-floor-table' + round + '" style="left:' + left + 'px;top:' + top + 'px;width:' + w + 'px;height:' + h + 'px;' + rot + '" ' + btn.attrs + '>' +
+                        // In-use tables show what they owe without a click:
+                        // the bill amount + guest count on tables big enough
+                        // to hold them, and a tooltip with guest / waiter /
+                        // amount / guests on every in-use table. Available
+                        // tables keep name + seats only.
+                        var inUse = t.status !== 'available';
+                        var showWaiterTip = inUse && !!t.has_sent_to_production && t.waiter_name && String(t.waiter_name).trim();
+                        var tipParts = [];
+                        if (inUse) {
+                            if (t.customer_name && String(t.customer_name).trim()) { tipParts.push('{{ __("pos.guest_name") }}: ' + t.customer_name); }
+                            if (showWaiterTip) { tipParts.push('{{ __("pos.waiter_user") }}: ' + t.waiter_name); }
+                            if (t.cart_total_formatted && String(t.cart_total_formatted).trim()) { tipParts.push('{{ __("pos.table_amount") }}: ' + t.cart_total_formatted); }
+                            if (t.current_guests != null && t.current_guests !== '') { tipParts.push('{{ __("pos.table_guests") }}: ' + t.current_guests); }
+                        }
+                        var titleAttr = tipParts.length ? (' title="' + posEscapeHtml(tipParts.join(' · ')) + '"') : '';
+                        var metaHtml = '';
+                        if (inUse && w >= 110 && h >= 70) {
+                            if (t.cart_total_formatted && String(t.cart_total_formatted).trim()) {
+                                metaHtml += '<span class="pos-floor-meta">' + posEscapeHtml(t.cart_total_formatted) + '</span>';
+                            }
+                            if (t.current_guests != null && t.current_guests !== '') {
+                                metaHtml += '<span class="pos-floor-meta">' + posEscapeHtml(String(t.current_guests)) + ' {{ __("pos.table_guests") }}</span>';
+                            }
+                        }
+                        html += '<button type="button" class="btn ' + btn.statusClass + ' btn-sm pos-table-btn pos-table-card pos-floor-table' + round + '" style="left:' + left + 'px;top:' + top + 'px;width:' + w + 'px;height:' + h + 'px;' + rot + '" ' + btn.attrs + titleAttr + '>' +
                             '<span class="pos-table-card__name">' + posEscapeHtml(t.name || '') + '</span>' +
                             '<span class="pos-floor-cap">' + (t.capacity != null ? posEscapeHtml(String(t.capacity)) : '') + '</span>' +
+                            metaHtml +
                             '<span class="pos-floor-dot ' + dotClass + '"></span></button>';
                         return;
                     }
@@ -2127,6 +2166,7 @@
                         $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
                         $('#pos-selected-table').text('—');
                         $('#pos_table_id_hidden').val('');
+                        posRestaurantToggleTableTools();
                         posCurrentTableWaiter = { id: '', name: '' };
                         setRestaurantWaiterDisplay('');
                         var branchId = $('#pos-restaurant-branch').val();
@@ -2181,6 +2221,7 @@
                     updateRestaurantCartTotals(0);
                     $('#pos-pay-btn-restaurant').prop('disabled', true);
                 }
+                posRestaurantToggleTableTools();
                 posRestaurantToggleTableGridPanel(false);
             }
             var posStatusLabels = { 'pending': '{{ __("pos.status_pending") }}', 'in_preparation': '{{ __("pos.status_in_preparation") }}', 'ready': '{{ __("pos.status_ready") }}', 'served': '{{ __("pos.status_served") }}', 'cancelled': '{{ __("pos.status_cancelled") }}', 'not_sent': '{{ __("pos.status_not_sent") }}' };
@@ -2538,6 +2579,11 @@
             $(document).on('click', '#pos-open-table-panel-btn', function () {
                 posRestaurantToggleTableGridPanel();
             });
+            // The selected-table readout is a button too: tapping it opens
+            // the same floor popup as "Open Table".
+            $(document).on('click', '#pos-selected-table', function () {
+                posRestaurantToggleTableGridPanel();
+            });
 
             $(document).on('change', '#pos-floor-modal-area', function () {
                 posFloorModalAreaId = $(this).val();
@@ -2556,6 +2602,19 @@
                 posRestaurantToggleTableGridPanel(false);
             });
 
+            // Dine-in table tools (Join / Move / Transfer / Split / View
+            // Bill) only make sense with a table picked: they stay hidden
+            // until a table is selected. Delivery / takeaway keep their
+            // current behaviour (Join / Split / Transfer already hidden
+            // there; Move / View Bill stay visible as before).
+            function posRestaurantToggleTableTools() {
+                var isDineIn = ($('#pos-restaurant-order-type').val() || 'dine_in') === 'dine_in';
+                var hasTable = !!$('#pos_restaurant_table_id').val();
+                $('#pos-join-table-restaurant, #pos-split-bill-restaurant, #pos-transfer-items-restaurant').toggleClass('d-none', !isDineIn || !hasTable);
+                $('#pos-move-table-restaurant, #pos-view-bill-restaurant').toggleClass('d-none', isDineIn && !hasTable);
+            }
+            posRestaurantToggleTableTools();
+
             function posRestaurantToggleOrderTypeUI(orderType) {
                 var isDineIn = orderType === 'dine_in';
                 $('#pos-restaurant-table-block').toggleClass('d-none', !isDineIn);
@@ -2569,7 +2628,7 @@
                     .addClass('btn-outline-primary');
                 $('#pos-restaurant-customer-grid-wrap').toggleClass('d-none', isDineIn);
                 $('#pos-restaurant-manage-tables-wrap').toggleClass('d-none', !isDineIn);
-                $('#pos-join-table-restaurant, #pos-split-bill-restaurant, #pos-transfer-items-restaurant').toggleClass('d-none', !isDineIn);
+                posRestaurantToggleTableTools();
                 var $closeBtn = $('#pos-close-table-btn');
                 if (isDineIn) {
                     $closeBtn.toggleClass('d-none', ($closeBtn.data('table-status') || '') !== 'occupied');
@@ -2589,6 +2648,7 @@
                     $('#pos_restaurant_table_id').val('');
                     $('#pos_table_id_hidden').val('');
                     $('#pos-selected-table').text('—');
+                    posRestaurantToggleTableTools();
                     $('#pos_restaurant_pos_id').val('');
                     if (branchId && shiftId) {
                         loadRestaurantDeliveryTakeawayCustomers(branchId, shiftId, orderType);
@@ -2681,6 +2741,7 @@
                         $('#pos_table_id_hidden').val('');
                         $('#pos_table_id').val('');
                         $('#pos-selected-table').text('—');
+                        posRestaurantToggleTableTools();
                         $('#pos_restaurant_pos_id').val('');
                         posRenderCheckSelector([], '');
                         $('#pos-close-table-btn').addClass('d-none').data('table-id', '');
@@ -3901,15 +3962,23 @@
                 $('#posTableManagementModal').modal('show');
                 var canReassign = {{ ($canChangeShift ?? false) ? 'true' : 'false' }};
                 $.get(posRestaurantLayoutUrl, { branch_id: branchId, for_manage: 1 }, function (res) {
-                    var html = '<div class="list-group list-group-flush">';
                     var allTableIds = [];
+                    var hasTables = (res.areas || []).some(function (a) { return a.tables && a.tables.length; });
+                    if (!res.areas || res.areas.length === 0 || !hasTables) {
+                        $('#pos-table-management-body').html('<p class="text-muted small mb-0">{{ __("pos.no_data_found") }}</p>');
+                        return;
+                    }
+                    var html = '<input type="search" id="pos-manage-tables-search" class="form-control form-control-sm mb-2" placeholder="{{ __("pos.search_tables") }}" aria-label="{{ __("pos.search_tables") }}">';
+                    html += '<div class="list-group list-group-flush" id="pos-manage-tables-list">';
                     (res.areas || []).forEach(function (area) {
-                        (area.tables || []).forEach(function (t) {
+                        if (!area.tables || !area.tables.length) { return; }
+                        html += '<div class="fw-semibold small text-muted mt-2 pos-manage-table-area">' + posEscapeHtml(area.name || '') + '</div>';
+                        area.tables.forEach(function (t) {
                             allTableIds.push(t.id);
                             var statusClass = t.status === 'occupied' ? 'warning' : (t.status === 'reserved' ? 'secondary' : 'success');
                             var statusLabel = t.status === 'occupied' ? '{{ __("pos.occupied") }}' : (t.status === 'reserved' ? '{{ __("pos.reserved") }}' : '{{ __("pos.available") }}');
-                            html += '<div class="list-group-item d-flex justify-content-between align-items-center">';
-                            html += '<span><strong>' + (t.name || 'Table ' + t.id) + '</strong> <span class="badge bg-' + statusClass + ' ms-2">' + statusLabel + '</span></span>';
+                            html += '<div class="list-group-item d-flex justify-content-between align-items-center pos-manage-table-row" role="button" tabindex="0" style="cursor:pointer;" data-table-id="' + t.id + '" data-table-name="' + posEscapeHtml(t.name || '') + '" data-table-status="' + (t.status || '') + '" data-waiter-id="' + (t.waiter_user_id || '') + '" data-waiter-name="' + posEscapeHtml(t.waiter_name || '') + '" data-customer-name="' + posEscapeHtml(t.customer_name || '') + '">';
+                            html += '<span><strong>' + posEscapeHtml(t.name || ('Table ' + t.id)) + '</strong> <span class="text-muted small">' + posEscapeHtml(area.name || '') + ' · ' + (t.capacity != null ? t.capacity : '') + ' {{ __("pos.seats") }}</span> <span class="badge bg-' + statusClass + ' ms-2">' + statusLabel + '</span></span>';
                             if (t.status === 'occupied' || t.status === 'reserved') {
                                 html += '<button type="button" class="btn btn-sm btn-outline-success pos-table-set-available" data-id="' + t.id + '">{{ __("pos.set_available") }}</button>';
                             }
@@ -3925,9 +3994,6 @@
                         html += '<div class="mb-2"><label class="form-label">{{ __("pos.select_tables_to_transfer") }}</label><div id="pos-reassign-table-list" class="border rounded p-2" style="max-height:120px;overflow-y:auto;"></div></div>';
                         html += '<button type="button" id="pos-reassign-submit" class="btn btn-sm btn-primary">{{ __("pos.transfer_tables") }}</button>';
                     }
-                    if (!res.areas || res.areas.length === 0 || (res.areas.every(function(a) { return !(a.tables && a.tables.length); }))) {
-                        html = '<p class="text-muted small mb-0">{{ __("pos.no_data_found") }}</p>';
-                    }
                     $('#pos-table-management-body').html(html);
                     if (canReassign && allTableIds.length > 0) {
                         $.get(posBranchOpenShiftsUrl, { branch_id: branchId }, function (sres) {
@@ -3938,7 +4004,11 @@
                             });
                             $('#pos-reassign-from-shift').html(opt);
                             $('#pos-reassign-to-shift').html(opt);
-                            $('#pos-reassign-table-list').html('<p class="text-muted small mb-0">{{ __("pos.select_from_waiter_first") }}</p>');
+                            if (!shifts.length) {
+                                $('#pos-reassign-table-list').html('<p class="text-muted small mb-0">{{ __("pos.no_waiter_shifts_open") }}</p>');
+                            } else {
+                                $('#pos-reassign-table-list').html('<p class="text-muted small mb-0">{{ __("pos.select_from_waiter_first") }}</p>');
+                            }
                             $('#posTableManagementModal').data('reassign-shifts', shifts);
                             $(document).off('change', '#pos-reassign-from-shift').on('change', '#pos-reassign-from-shift', function () {
                                 var fromId = $(this).val();
@@ -4009,6 +4079,37 @@
                         show_toastr('{{ __("Error") }}', msg, 'error');
                     }
                 });
+            });
+            // Manage Tables: live search, and clicking a row opens that
+            // table (the "Set available" button inside a row is exempt —
+            // it only frees the table).
+            $(document).on('input', '#pos-manage-tables-search', function () {
+                var q = String($(this).val() || '').trim().toLowerCase();
+                $('.pos-manage-table-row').each(function () {
+                    var name = String($(this).data('table-name') || '').toLowerCase();
+                    $(this).toggle(!q || name.indexOf(q) !== -1);
+                });
+                $('.pos-manage-table-area').each(function () {
+                    var $area = $(this);
+                    var $rows = $area.nextUntil('.pos-manage-table-area');
+                    $area.toggle($rows.filter(':visible').length > 0);
+                });
+            });
+            $(document).on('click', '.pos-manage-table-row', function (e) {
+                if ($(e.target).closest('.pos-table-set-available').length) { return; }
+                var $row = $(this);
+                $('#posTableManagementModal').modal('hide');
+                selectRestaurantTable($row.data('table-id'), $row.data('table-name'), $row.data('table-status'), {
+                    waiter_user_id: $row.data('waiter-id') || '',
+                    waiter_name: $row.data('waiter-name') || '',
+                    customer_name: $row.data('customer-name') || ''
+                });
+            });
+            $(document).on('keydown', '.pos-manage-table-row', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    $(this).trigger('click');
+                }
             });
 
             function toggleRestaurantOptions(branchId) {

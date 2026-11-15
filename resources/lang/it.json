@@ -8811,5 +8811,21 @@
     "Tables in this area": "Tavoli in questa area",
     "Unsaved changes": "Modifiche non salvate",
     "Auto layout": "Layout automatico",
-    "Replace the current floor with an auto layout of all tables in this area?": "Sostituire il pavimento attuale con un layout automatico di tutti i tavoli di questa area?"
+    "Replace the current floor with an auto layout of all tables in this area?": "Sostituire il pavimento attuale con un layout automatico di tutti i tavoli di questa area?",
+    "Undo": "Disfare",
+    "Redo": "Rifare",
+    "View on POS": "Visualizza sul POS",
+    "Search tables...": "Cerca tavoli...",
+    "New table": "Nuovo tavolo",
+    "New area": "Nuova zona",
+    "Saving...": "Salvataggio...",
+    "Click to retry saving": "Fare clic per riprovare a salvare",
+    "Show on floor": "Mostra sulla planimetria",
+    "Table name": "Nome del tavolo",
+    "Seats": "Posti",
+    "Could not create the area.": "Impossibile creare l'area.",
+    "Could not update the table.": "Impossibile aggiornare il tavolo.",
+    "Edit layout": "Modifica disposizione",
+    "No tables match.": "Nessun tavolo corrisponde.",
+    "Branch not found.": "Filiale non trovata."
 }

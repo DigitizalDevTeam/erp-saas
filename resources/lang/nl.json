@@ -8811,5 +8811,21 @@
     "Tables in this area": "Tafels in dit gebied",
     "Unsaved changes": "Niet-opgeslagen wijzigingen",
     "Auto layout": "Automatische indeling",
-    "Replace the current floor with an auto layout of all tables in this area?": "De huidige vloer vervangen door een automatische indeling van alle tafels in dit gebied?"
+    "Replace the current floor with an auto layout of all tables in this area?": "De huidige vloer vervangen door een automatische indeling van alle tafels in dit gebied?",
+    "Undo": "Ongedaan maken",
+    "Redo": "Opnieuw uitvoeren",
+    "View on POS": "Bekijk op POS",
+    "Search tables...": "Tafels zoeken...",
+    "New table": "Nieuwe tafel",
+    "New area": "Nieuw gebied",
+    "Saving...": "Opslaan...",
+    "Click to retry saving": "Klik om opnieuw te proberen op te slaan",
+    "Show on floor": "Toon op de plattegrond",
+    "Table name": "Tafelnaam",
+    "Seats": "Zitplaatsen",
+    "Could not create the area.": "Kan het gebied niet maken.",
+    "Could not update the table.": "Kan de tafel niet bijwerken.",
+    "Edit layout": "Lay-out bewerken",
+    "No tables match.": "Er komen geen tafels overeen.",
+    "Branch not found.": "Vestiging niet gevonden."
 }

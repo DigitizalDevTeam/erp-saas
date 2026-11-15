@@ -8811,5 +8811,21 @@
     "Tables in this area": "Borde i dette område",
     "Unsaved changes": "Ikke-gemte ændringer",
     "Auto layout": "Automatisk layout",
-    "Replace the current floor with an auto layout of all tables in this area?": "Erstat det nuværende gulv med et automatisk layout af alle borde i dette område?"
+    "Replace the current floor with an auto layout of all tables in this area?": "Erstat det nuværende gulv med et automatisk layout af alle borde i dette område?",
+    "Undo": "Fortryd",
+    "Redo": "Gentag",
+    "View on POS": "Se på POS",
+    "Search tables...": "Søg efter borde...",
+    "New table": "Nyt bord",
+    "New area": "Nyt område",
+    "Saving...": "Gemmer...",
+    "Click to retry saving": "Klik for at prøve at gemme igen",
+    "Show on floor": "Vis på plantegningen",
+    "Table name": "Bordnavn",
+    "Seats": "Sæder",
+    "Could not create the area.": "Kunne ikke oprette området.",
+    "Could not update the table.": "Bordet kunne ikke opdateres.",
+    "Edit layout": "Rediger layout",
+    "No tables match.": "Ingen borde matcher.",
+    "Branch not found.": "Filial ikke fundet."
 }

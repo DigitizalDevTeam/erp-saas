@@ -247,8 +247,8 @@
                             <i class="ti ti-layout-grid me-1"></i>{{ $tp('pos.open_table', 'Open Table') }}
                         </button>
                         <div class="text-nowrap">
-                            <label class="form-label small text-muted mb-0">{{ $tp('pos.select_table', 'Select Table') }}</label>
-                            <div id="pos-selected-table" class="fw-bold text-primary">—</div>
+                            <label class="form-label small text-muted mb-0" for="pos-selected-table">{{ $tp('pos.select_table', 'Select Table') }}</label>
+                            <button type="button" id="pos-selected-table" class="btn btn-link p-0 fw-bold text-primary text-decoration-none d-block" title="{{ $tp('pos.select_table', 'Select Table') }}">—</button>
                         </div>
                         <div id="pos-check-selector-wrap" class="d-none text-nowrap">
                             <label class="form-label small text-muted mb-0">{{ __('pos.select_check') }}</label>
@@ -328,10 +328,26 @@
             </div>
 
             <div id="pos-restaurant-table-grid-wrap" class="pos-floor-modal d-none">
+                <style>
+                /* Table-status legend (kept with this partial so it renders
+                   wherever the POS panel is included). */
+                .pos-floor-legend { display: inline-flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+                .pos-floor-legend__item { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; color: #6c757d; white-space: nowrap; }
+                .pos-table-legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(0,0,0,.25); }
+                .pos-table-legend-dot--available { background: #22c55e; }
+                .pos-table-legend-dot--occupied { background: #ffc107; }
+                .pos-table-legend-dot--reserved { background: #6c757d; }
+                </style>
                 <div class="pos-floor-modal-header d-flex align-items-center gap-2 px-3 py-2 border-bottom bg-white">
                     <strong class="text-dark">{{ $tp('pos.select_table', 'Select Table') }}</strong>
                     <label class="small text-muted mb-0" for="pos-floor-modal-area">{{ __('Area') }}</label>
                     <select class="form-select form-select-sm" id="pos-floor-modal-area" style="max-width: 16rem;"></select>
+                    <span class="pos-floor-legend ms-2">
+                        <span class="pos-floor-legend__item"><span class="pos-table-legend-dot pos-table-legend-dot--available"></span>{{ $tp('pos.available', 'Available') }}</span>
+                        <span class="pos-floor-legend__item"><span class="pos-table-legend-dot pos-table-legend-dot--occupied"></span>{{ $tp('pos.occupied', 'Occupied') }}</span>
+                        <span class="pos-floor-legend__item"><span class="pos-table-legend-dot pos-table-legend-dot--reserved"></span>{{ $tp('pos.reserved', 'Reserved') }}</span>
+                    </span>
+                    <a class="btn btn-sm btn-outline-secondary text-nowrap" href="{{ route('pos.restaurant.layout.designer') }}">{{ $tp('pos.edit_layout', 'Edit layout') }}</a>
                     <button type="button" class="btn btn-sm btn-light ms-auto" id="pos-floor-modal-close" title="{{ __('Close') }}" aria-label="{{ __('Close') }}" style="font-size: 1.25rem; line-height: 1;">&times;</button>
                 </div>
                 <div class="pos-floor-modal-body p-2">

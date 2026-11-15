@@ -49,6 +49,8 @@
                         <option value="" disabled selected>{{ __('No areas yet') }}</option>
                     @endforelse
                 </select>
+                <button type="button" class="btn btn-sm btn-light" id="posLayoutNewArea" title="{{ __('New area') }}">+ {{ __('New area') }}</button>
+                <a class="btn btn-sm btn-light" href="{{ route('pos.restaurant.index') }}" title="{{ __('View on POS') }}">{{ __('View on POS') }}</a>
                 <span id="posLayoutAreaName" class="text-muted small"></span>
                 <span class="flex-grow-1"></span>
                 <div class="btn-group" role="group" aria-label="{{ __('Zoom') }}">
@@ -58,11 +60,14 @@
                     <button type="button" class="btn btn-sm btn-light" id="posLayoutZoomFit">{{ __('Fit') }}</button>
                 </div>
                 <button type="button" class="btn btn-sm btn-light active" id="posLayoutGridToggle" aria-pressed="true">{{ __('Grid') }}</button>
+                <div class="btn-group" role="group" aria-label="{{ __('Undo') }}">
+                    <button type="button" class="btn btn-sm btn-light" id="posLayoutUndo" title="{{ __('Undo') }}" disabled>&#8617; {{ __('Undo') }}</button>
+                    <button type="button" class="btn btn-sm btn-light" id="posLayoutRedo" title="{{ __('Redo') }}" disabled>&#8618; {{ __('Redo') }}</button>
+                </div>
                 <span id="posLayoutSaved" class="small" style="display:none"></span>
                 <button type="button" class="btn btn-sm btn-light-success" id="posLayoutAuto">{{ __('Auto layout') }}</button>
                 <button type="button" class="btn btn-sm btn-light-danger" id="posLayoutClear">{{ __('Clear All') }}</button>
                 <button type="button" class="btn btn-sm btn-light-warning" id="posLayoutLoadDemo">{{ __('Load demo') }}</button>
-                <button type="button" class="btn btn-sm btn-primary" id="posLayoutSave">{{ __('Save') }}</button>
             </div>
             <div class="card-body">
                 <div id="posLayoutNoAreas" class="alert alert-info" style="display:none">{{ __('No areas yet. Create one on the POS Areas page.') }} <a href="{{ route('pos-area.index') }}">{{ __('POS Areas') }}</a></div>
@@ -71,7 +76,11 @@
                         <div class="card-header py-2">
                             <h6 class="mb-0">{{ __('Elements') }}</h6>
                         </div>
-                        <div class="card-body p-2">
+                        <div class="card-body p-2 pos-layout-palette-body">
+                            <div class="d-flex gap-1 mb-1 pos-layout-area-search-row">
+                                <input type="search" id="posLayoutAreaSearch" class="form-control form-control-sm" placeholder="{{ __('Search tables...') }}" aria-label="{{ __('Search tables...') }}">
+                                <button type="button" class="btn btn-sm btn-outline-primary flex-shrink-0" id="posLayoutNewTable" title="{{ __('New table') }}">+ {{ __('New table') }}</button>
+                            </div>
                             <div class="text-muted small fw-bold mt-2 mb-1">{{ __('Tables in this area') }}</div>
                             <div id="posLayoutAreaTables"></div>
                             @foreach ($posLayoutPalette as $group)
@@ -91,6 +100,11 @@
                             <div id="posLayoutCanvas" class="pos-layout-canvas"></div>
                         </div>
                         <div class="text-muted small mt-2">{{ __('Drag elements to move them. Click an element to edit it. Drag the blue handle to rotate, or stretch a wall by its edge.') }}</div>
+                        <div class="text-muted small mt-1 pos-layout-legend">
+                            <span class="pos-layout-legend-item"><span class="pos-layout-dot pos-layout-dot-available"></span>{{ __('Available') }}</span>
+                            <span class="pos-layout-legend-item"><span class="pos-layout-dot pos-layout-dot-occupied"></span>{{ __('Occupied') }}</span>
+                            <span class="pos-layout-legend-item"><span class="pos-layout-dot pos-layout-dot-reserved"></span>{{ __('Reserved') }}</span>
+                        </div>
                     </div>
                     <div class="card mb-0" id="posLayoutProps" style="flex:0 0 248px;max-width:100%">
                         <div class="card-header py-2">
@@ -116,10 +130,9 @@
                                     <label class="form-label">{{ __('Label') }}</label>
                                     <input id="posLayoutPropLabel" class="form-control form-control-sm">
                                 </div>
-                                <div class="mb-2 text-muted small" id="posLayoutPropTableHint" style="display:none">{{ __('Edit the name and seats on the POS Tables page.') }}</div>
                                 <div class="mb-2" id="posLayoutPropCapacityWrap">
                                     <label class="form-label">{{ __('Capacity') }}</label>
-                                    <input id="posLayoutPropCapacity" class="form-control form-control-sm" readonly>
+                                    <input id="posLayoutPropCapacity" class="form-control form-control-sm" type="number" min="1" max="99">
                                 </div>
                                 <div class="mb-2" id="posLayoutPropStatusWrap">
                                     <label class="form-label">{{ __('Status') }}</label>
@@ -129,7 +142,7 @@
                                         <option value="reserved">{{ __('Reserved') }}</option>
                                     </select>
                                 </div>
-                                <div class="mb-2">
+                                <div class="mb-2" id="posLayoutPropRotWrap">
                                     <label class="form-label">{{ __('Rotation') }}: <span id="posLayoutPropRot">0&deg;</span></label>
                                     <div class="btn-group w-100" role="group" aria-label="{{ __('Rotation') }}">
                                         <button type="button" class="btn btn-sm btn-light" data-rot="-15">&minus;15&deg;</button>
@@ -147,6 +160,19 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+{{-- Inline confirm / prompt dialog (no native window.confirm anywhere). --}}
+<div id="posLayoutModal" class="pos-layout-modal" style="display:none" role="dialog" aria-modal="true">
+    <div class="pos-layout-modal-card">
+        <h6 id="posLayoutModalTitle" class="mb-2"></h6>
+        <p id="posLayoutModalMessage" class="text-muted small mb-3" style="display:none"></p>
+        <div id="posLayoutModalFields"></div>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            <button type="button" class="btn btn-sm btn-light" id="posLayoutModalCancel">{{ __('Cancel') }}</button>
+            <button type="button" class="btn btn-sm btn-primary" id="posLayoutModalConfirm">{{ __('Confirm') }}</button>
         </div>
     </div>
 </div>
@@ -168,8 +194,8 @@
 .pos-layout-table-cap { font-size: 11px; line-height: 1.15; }
 .pos-layout-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 3px; border: 1px solid rgba(0,0,0,.25); }
 .pos-layout-dot-available { background: #22c55e; }
-.pos-layout-dot-occupied { background: #ef4444; }
-.pos-layout-dot-reserved { background: #f59e0b; }
+.pos-layout-dot-occupied { background: #ffc107; }
+.pos-layout-dot-reserved { background: #6c757d; }
 .pos-layout-chair { position: absolute; width: 14px; height: 9px; background: #8fa1c2; border: 1px solid #22355e; border-radius: 2px; }
 .pos-layout-wall-el { background: #22355e; border-radius: 2px; }
 .pos-layout-door-el { background: #ffffff; border: 2px dashed #22355e; border-radius: 2px; }
@@ -201,6 +227,17 @@
 .mini-reception { width: 22px; height: 16px; background: #e8edf5; border: 2px solid #22355e; border-radius: 3px; }
 .mini-plant { width: 20px; height: 20px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #4caf7d, #1e6b41); }
 .mini-waiter { width: 18px; height: 22px; background: #22355e; border-radius: 4px; color: #ffffff; font-size: 12px; }
+/* The Elements panel scrolls on its own (a 41-table list must not push
+   the canvas and toolbar off the page while you scroll through it). */
+.pos-layout-palette-body { max-height: 640px; overflow-y: auto; }
+.pos-layout-area-search-row { position: sticky; top: -8px; background: #ffffff; z-index: 2; padding-top: 2px; }
+.pos-layout-legend { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.pos-layout-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+.pos-layout-legend .pos-layout-dot { margin-top: 0; }
+/* Small inline confirm/prompt dialog (replaces native window.confirm so
+   the designer never shows a browser popup). */
+.pos-layout-modal { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; }
+.pos-layout-modal-card { background: #ffffff; border-radius: 8px; padding: 16px; width: 380px; max-width: calc(100vw - 32px); box-shadow: 0 8px 30px rgba(0,0,0,.3); }
 </style>
 @endpush
 
@@ -209,10 +246,13 @@
 (function () {
     'use strict';
 
-    var AREAS = @json($areas->map(fn ($a) => ['id' => (int) $a->id, 'name' => $a->name, 'branch_name' => $a->branch ? $a->branch->name : null])->values()->all());
+    var AREAS = @json($areasJson);
+    var BRANCHES = @json($branches);
     var INITIAL_AREA_ID = @json($initialAreaId);
     var AREA_URL_TEMPLATE = @json(route('pos.restaurant.layout.designer.area', ['area' => '__AREA_ID__']));
     var CREATE_TABLE_URL = @json(route('pos.restaurant.layout.designer.tables.store'));
+    var UPDATE_TABLE_URL_TEMPLATE = @json(route('pos.restaurant.layout.designer.tables.update', ['table' => '__TABLE_ID__']));
+    var CREATE_AREA_URL = @json(route('pos.restaurant.layout.designer.areas.store'));
     var CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
 
     var I18N = {
@@ -229,9 +269,23 @@
         onFloor: @json(__('On floor')),
         unsaved: @json(__('Unsaved changes')),
         saved: @json(__('Saved')),
+        saving: @json(__('Saving...')),
+        retrySave: @json(__('Click to retry saving')),
         saveFailed: @json(__('Could not save the layout.')),
         loadFailed: @json(__('Could not load the layout.')),
-        createFailed: @json(__('Could not create the table.'))
+        createFailed: @json(__('Could not create the table.')),
+        updateTableFailed: @json(__('Could not update the table.')),
+        createAreaFailed: @json(__('Could not create the area.')),
+        showOnFloor: @json(__('Show on floor')),
+        newTable: @json(__('New table')),
+        newArea: @json(__('New area')),
+        tableName: @json(__('Table name')),
+        seats: @json(__('Seats')),
+        nameLabel: @json(__('Name')),
+        branchLabel: @json(__('Branch')),
+        createLabel: @json(__('Create')),
+        confirmLabel: @json(__('Confirm')),
+        okLabel: @json(__('OK'))
     };
 
     var PERSON_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6z"/></svg>';
@@ -268,10 +322,145 @@
     // {id, type, kind, shape, table_id|null, x, y, w, h, rot, label, pending}
     // Table elements show the REAL table's name/seats/live status (looked
     // up in state.tables); only decorations carry their own label.
-    var state = { areaId: 0, areaName: '', hasSavedLayout: false, tables: [], elements: [], selectedId: null, zoom: 1, panX: 0, panY: 0, dirty: false, pendingCreates: [] };
+    var state = { areaId: 0, areaName: '', hasSavedLayout: false, tables: [], elements: [], selectedId: null, zoom: 1, panX: 0, panY: 0, dirty: false, saving: false, pendingCreates: [] };
     var uidSeq = 0;
     var autosaveTimer = null;
     var savedTimer = null;
+
+    // ---- undo / redo: snapshots of the element list, taken BEFORE each
+    // mutation (drag, add, delete, duplicate, rotate, shape change,
+    // resize, Clear All, Auto layout, Load demo). Undo/redo restore a
+    // snapshot and mark the layout dirty, so autosave persists it.
+    var undoStack = [];
+    var redoStack = [];
+    var UNDO_LIMIT = 30;
+    function snapshotElements() { return JSON.stringify(state.elements); }
+    function pushHistorySnapshot(json) {
+        undoStack.push(json);
+        if (undoStack.length > UNDO_LIMIT) { undoStack.shift(); }
+        redoStack = [];
+        refreshUndoButtons();
+    }
+    function pushHistory() { pushHistorySnapshot(snapshotElements()); }
+    function applyHistorySnapshot(json) {
+        state.elements = JSON.parse(json);
+        if (state.selectedId && !byId(state.selectedId)) { state.selectedId = null; }
+        renderAll();
+        markSelection();
+        refreshAreaTables();
+        markDirty();
+    }
+    function undoLayout() {
+        if (!undoStack.length) { return; }
+        redoStack.push(snapshotElements());
+        applyHistorySnapshot(undoStack.pop());
+        refreshUndoButtons();
+    }
+    function redoLayout() {
+        if (!redoStack.length) { return; }
+        undoStack.push(snapshotElements());
+        applyHistorySnapshot(redoStack.pop());
+        refreshUndoButtons();
+    }
+    function refreshUndoButtons() {
+        var u = document.getElementById('posLayoutUndo');
+        var r = document.getElementById('posLayoutRedo');
+        if (u) { u.disabled = !undoStack.length; }
+        if (r) { r.disabled = !redoStack.length; }
+    }
+    function resetHistory() {
+        undoStack = [];
+        redoStack = [];
+        refreshUndoButtons();
+    }
+
+    // ---- inline confirm / prompt dialog (no native window.confirm or
+    // window.alert anywhere in the designer). One modal, filled in per
+    // use: a plain confirm shows only a title + buttons; a prompt adds
+    // labelled fields and returns their values. onConfirm returning
+    // false keeps the modal open (used for validation).
+    var layoutModal = document.getElementById('posLayoutModal');
+    var layoutModalTitle = document.getElementById('posLayoutModalTitle');
+    var layoutModalMessage = document.getElementById('posLayoutModalMessage');
+    var layoutModalFields = document.getElementById('posLayoutModalFields');
+    var layoutModalConfirmBtn = document.getElementById('posLayoutModalConfirm');
+    var layoutModalCancelBtn = document.getElementById('posLayoutModalCancel');
+    var layoutModalOnConfirm = null;
+    var layoutModalOnCancel = null;
+    function layoutModalVisible() { return layoutModal && layoutModal.style.display !== 'none'; }
+    function showLayoutModal(opts) {
+        layoutModalTitle.textContent = opts.title || '';
+        if (opts.message) {
+            layoutModalMessage.textContent = opts.message;
+            layoutModalMessage.style.display = '';
+        } else {
+            layoutModalMessage.style.display = 'none';
+        }
+        layoutModalFields.innerHTML = '';
+        (opts.fields || []).forEach(function (f) {
+            var wrapEl = document.createElement('div');
+            wrapEl.className = 'mb-2';
+            var lab = document.createElement('label');
+            lab.className = 'form-label';
+            lab.textContent = f.label;
+            wrapEl.appendChild(lab);
+            var input;
+            if (f.type === 'select') {
+                input = document.createElement('select');
+                input.className = 'form-select form-select-sm';
+                (f.options || []).forEach(function (o) {
+                    var opt = document.createElement('option');
+                    opt.value = o.value;
+                    opt.textContent = o.label;
+                    input.appendChild(opt);
+                });
+            } else {
+                input = document.createElement('input');
+                input.className = 'form-control form-control-sm';
+                input.type = f.type || 'text';
+                if (f.min !== undefined) { input.min = f.min; }
+                if (f.max !== undefined) { input.max = f.max; }
+            }
+            input.id = 'posLayoutModalField-' + f.id;
+            if (f.value !== undefined && f.value !== null) { input.value = f.value; }
+            lab.htmlFor = input.id;
+            wrapEl.appendChild(input);
+            layoutModalFields.appendChild(wrapEl);
+        });
+        layoutModalConfirmBtn.textContent = opts.confirmLabel || I18N.confirmLabel;
+        layoutModalCancelBtn.style.display = opts.hideCancel ? 'none' : '';
+        layoutModalOnConfirm = opts.onConfirm || null;
+        layoutModalOnCancel = opts.onCancel || null;
+        layoutModal.style.display = '';
+        var firstField = layoutModalFields.querySelector('input, select');
+        if (firstField) { firstField.focus(); } else { layoutModalConfirmBtn.focus(); }
+    }
+    function hideLayoutModal(cancelled) {
+        layoutModal.style.display = 'none';
+        var cb = cancelled ? layoutModalOnCancel : null;
+        layoutModalOnConfirm = null;
+        layoutModalOnCancel = null;
+        if (cb) { cb(); }
+    }
+    layoutModalConfirmBtn.addEventListener('click', function () {
+        if (!layoutModalOnConfirm) { hideLayoutModal(false); return; }
+        var values = {};
+        layoutModalFields.querySelectorAll('input, select').forEach(function (input) {
+            values[input.id.replace('posLayoutModalField-', '')] = input.value;
+        });
+        if (layoutModalOnConfirm(values) === false) { return; }
+        hideLayoutModal(false);
+    });
+    layoutModalCancelBtn.addEventListener('click', function () { hideLayoutModal(true); });
+    layoutModal.addEventListener('click', function (e) {
+        if (e.target === layoutModal) { hideLayoutModal(true); }
+    });
+    function posLayoutConfirm(message, onConfirm, onCancel) {
+        showLayoutModal({ title: message, onConfirm: function () { onConfirm(); }, onCancel: onCancel || null });
+    }
+    function posLayoutAlert(message) {
+        showLayoutModal({ title: message, hideCancel: true, confirmLabel: I18N.okLabel, onConfirm: function () {} });
+    }
 
     function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
     function normDeg(deg) { var d = deg % 360; return d < 0 ? d + 360 : d; }
@@ -413,11 +602,15 @@
 
         if (state.selectedId === el.id) {
             node.classList.add('selected');
-            var rot = document.createElement('span');
-            rot.className = 'pos-layout-rotate-handle';
-            rot.textContent = '\u21bb';
-            rot.title = 'Rotate';
-            node.appendChild(rot);
+            // No rotate handle on round tables: rotating a circle is
+            // invisible, so there is nothing to drag.
+            if (!(el.kind === 'table' && el.shape === 'round')) {
+                var rot = document.createElement('span');
+                rot.className = 'pos-layout-rotate-handle';
+                rot.textContent = '\u21bb';
+                rot.title = 'Rotate';
+                node.appendChild(rot);
+            }
             var cfg2 = TYPES[el.type] || {};
             if (cfg2.resizable === 'w') {
                 var rh = document.createElement('span');
@@ -447,10 +640,12 @@
             if (isSel) {
                 var el = byId(node.dataset.id);
                 if (!el) { return; }
-                var rot = document.createElement('span');
-                rot.className = 'pos-layout-rotate-handle';
-                rot.textContent = '\u21bb';
-                node.appendChild(rot);
+                if (!(el.kind === 'table' && el.shape === 'round')) {
+                    var rot = document.createElement('span');
+                    rot.className = 'pos-layout-rotate-handle';
+                    rot.textContent = '\u21bb';
+                    node.appendChild(rot);
+                }
                 var cfg = TYPES[el.type] || {};
                 if (cfg.resizable === 'w') {
                     var rh = document.createElement('span');
@@ -477,16 +672,21 @@
     var propShapeWrap = document.getElementById('posLayoutPropShapeWrap');
     var propShape = document.getElementById('posLayoutPropShape');
     var propLabel = document.getElementById('posLayoutPropLabel');
-    var propTableHint = document.getElementById('posLayoutPropTableHint');
     var propCapacity = document.getElementById('posLayoutPropCapacity');
     var propStatus = document.getElementById('posLayoutPropStatus');
     var propRot = document.getElementById('posLayoutPropRot');
     var propCapacityWrap = document.getElementById('posLayoutPropCapacityWrap');
     var propStatusWrap = document.getElementById('posLayoutPropStatusWrap');
     var propDeleteBtn = document.getElementById('posLayoutPropDelete');
+    var rotBtns = Array.prototype.slice.call(document.querySelectorAll('[data-rot]'));
 
     function refreshProps() {
         var el = selected();
+        // Rotating a round table is invisible (a rotated circle looks
+        // identical), so the rotation buttons stay disabled for them —
+        // and for no selection at all.
+        var isRoundTable = !!el && el.kind === 'table' && shapeForType(el.type) === 'round';
+        rotBtns.forEach(function (b) { b.disabled = !el || isRoundTable; });
         if (!el) {
             propEmpty.style.display = '';
             propForm.style.display = 'none';
@@ -500,8 +700,6 @@
         propShapeWrap.style.display = isTable ? '' : 'none';
         if (isTable) { propShape.value = shapeForType(el.type); }
         propLabel.value = isTable ? (table ? table.name : '\u2026') : el.label;
-        propLabel.readOnly = isTable;
-        propTableHint.style.display = isTable ? '' : 'none';
         propCapacityWrap.style.display = isTable ? '' : 'none';
         propStatusWrap.style.display = isTable ? '' : 'none';
         propCapacity.value = isTable ? (table ? String(table.capacity) : '') : '';
@@ -532,16 +730,98 @@
         }
     }
 
+    // Table name / seats are edited here and saved to the REAL PosTable
+    // (PATCH layout-designer/tables/{id}); the floor keeps referencing
+    // the same table id, so the layout JSON never changes for a rename.
+    function tableUrl(tableId) {
+        return UPDATE_TABLE_URL_TEMPLATE.replace('__TABLE_ID__', String(tableId));
+    }
+    function saveTableDetails(el) {
+        var table = tableById(el.table_id);
+        if (!table) { return; }
+        var origName = table.name;
+        var origCapacity = table.capacity;
+        var name = propLabel.value.trim();
+        var capacity = clamp(parseInt(propCapacity.value, 10) || table.capacity, 1, 99);
+        if (!name) {
+            propLabel.value = origName;
+            propCapacity.value = String(origCapacity);
+            table.name = origName;
+            updateNodeText(el);
+            return;
+        }
+        fetch(tableUrl(table.id), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ name: name, capacity: capacity })
+        }).then(function (r) {
+            if (!r.ok) { throw new Error('update'); }
+            return r.json();
+        }).then(function (data) {
+            var sizeChanged = data.capacity !== table.capacity;
+            table.name = data.name;
+            table.capacity = data.capacity;
+            propLabel.value = data.name;
+            propCapacity.value = String(data.capacity);
+            // Seats may change the shape/size mapping (a 6-seat round
+            // table is bigger than a 4-seat one).
+            if (sizeChanged) {
+                var type = typeForShape(shapeForType(el.type), data.capacity);
+                var cfg = TYPES[type];
+                if (cfg) {
+                    el.type = type;
+                    el.shape = cfg.shape;
+                    el.w = cfg.w;
+                    el.h = cfg.h;
+                }
+            }
+            var node = nodeFor(el.id);
+            if (node) {
+                var fresh = renderNode(el);
+                node.replaceWith(fresh);
+            }
+            markSelection();
+            refreshAreaTables();
+            if (sizeChanged) { markDirty(); }
+        }).catch(function () {
+            table.name = origName;
+            table.capacity = origCapacity;
+            propLabel.value = origName;
+            propCapacity.value = String(origCapacity);
+            updateNodeText(el);
+            showLayoutError(I18N.updateTableFailed);
+        });
+    }
+    var labelEditBefore = null;
+    propLabel.addEventListener('focus', function () {
+        var el = selected();
+        labelEditBefore = (el && el.kind !== 'table') ? snapshotElements() : null;
+    });
     propLabel.addEventListener('input', function () {
         var el = selected();
-        if (!el || el.kind === 'table') { return; }
+        if (!el) { return; }
+        if (el.kind === 'table') {
+            var table = tableById(el.table_id);
+            if (table) { table.name = propLabel.value; updateNodeText(el); }
+            return;
+        }
         el.label = propLabel.value;
         updateNodeText(el);
     });
     propLabel.addEventListener('change', function () {
         var el = selected();
-        if (!el || el.kind === 'table') { return; }
+        if (!el) { return; }
+        if (el.kind === 'table') {
+            saveTableDetails(el);
+            return;
+        }
+        if (labelEditBefore) { pushHistorySnapshot(labelEditBefore); labelEditBefore = null; }
         markDirty();
+    });
+    propCapacity.addEventListener('change', function () {
+        var el = selected();
+        if (!el || el.kind !== 'table') { return; }
+        saveTableDetails(el);
     });
     propShape.addEventListener('change', function () {
         var el = selected();
@@ -551,6 +831,7 @@
         var type = typeForShape(propShape.value, seats);
         var cfg = TYPES[type];
         if (!cfg) { return; }
+        pushHistory();
         el.type = type;
         el.shape = cfg.shape;
         el.w = cfg.w;
@@ -563,10 +844,11 @@
         markSelection();
         markDirty();
     });
-    document.querySelectorAll('[data-rot]').forEach(function (btn) {
+    rotBtns.forEach(function (btn) {
         btn.addEventListener('click', function () {
             var el = selected();
             if (!el) { return; }
+            pushHistory();
             el.rot = normDeg(el.rot + parseInt(btn.dataset.rot, 10));
             var node = nodeFor(el.id);
             if (node) { node.style.transform = 'rotate(' + el.rot + 'deg)'; }
@@ -581,6 +863,7 @@
             var table = tableById(el.table_id);
             createRealTable(table ? table.capacity : 4).then(function (created) {
                 if (!created) { return; }
+                pushHistory();
                 var copy = makeTableElement(el.type, created, el.x + 24, el.y + 24, el.rot);
                 state.elements.push(copy);
                 canvas.appendChild(renderNode(copy));
@@ -590,6 +873,7 @@
             });
             return;
         }
+        pushHistory();
         var copy = JSON.parse(JSON.stringify(el));
         copy.id = nextId();
         copy.x = snap(el.x + 24);
@@ -606,14 +890,21 @@
     function deleteSelected() {
         var el = selected();
         if (!el) { return; }
-        if (el.kind === 'table' && !window.confirm(I18N.confirmRemoveTable)) { return; }
-        state.elements = state.elements.filter(function (e) { return e.id !== el.id; });
-        var node = nodeFor(el.id);
-        if (node) { node.remove(); }
-        state.selectedId = null;
-        markSelection();
-        refreshAreaTables();
-        markDirty();
+        var removeIt = function () {
+            pushHistory();
+            state.elements = state.elements.filter(function (e) { return e.id !== el.id; });
+            var node = nodeFor(el.id);
+            if (node) { node.remove(); }
+            state.selectedId = null;
+            markSelection();
+            refreshAreaTables();
+            markDirty();
+        };
+        if (el.kind === 'table') {
+            posLayoutConfirm(I18N.confirmRemoveTable, removeIt);
+            return;
+        }
+        removeIt();
     }
 
     // ---- infinite canvas: pan + zoom (scroll to zoom, drag floor to pan) ----
@@ -701,6 +992,7 @@
             el = makeDecoration(type, cx - cfg.w / 2, cy - cfg.h / 2, 0);
         }
         if (!el) { return null; }
+        pushHistory();
         state.elements.push(el);
         canvas.appendChild(renderNode(el));
         return el;
@@ -717,17 +1009,20 @@
             el = makeTableElement(type, table, cx - cfg.w / 2, cy - cfg.h / 2, 0);
         }
         if (!el) { return null; }
+        pushHistory();
         state.elements.push(el);
         canvas.appendChild(renderNode(el));
         refreshAreaTables();
         return el;
     }
 
-    function createRealTable(seats) {
+    function createRealTable(seats, name) {
+        var body = { area_id: state.areaId, capacity: seats };
+        if (name) { body.name = name; }
         var p = fetch(CREATE_TABLE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
-            body: JSON.stringify({ area_id: state.areaId, capacity: seats })
+            body: JSON.stringify(body)
         }).then(function (r) {
             if (!r.ok) { throw new Error('create'); }
             return r.json();
@@ -735,7 +1030,7 @@
             state.tables.push({ id: data.id, name: data.name, capacity: data.capacity, status: data.status });
             return data;
         }).catch(function () {
-            window.alert(I18N.createFailed);
+            posLayoutAlert(I18N.createFailed);
             return null;
         });
         state.pendingCreates.push(p);
@@ -754,6 +1049,7 @@
             el.x = snap(c.x - cfg.w / 2);
             el.y = snap(c.y - cfg.h / 2);
         }
+        pushHistory();
         state.elements.push(el);
         canvas.appendChild(renderNode(el));
         select(el.id);
@@ -810,6 +1106,7 @@
         });
     });
 
+    var areaSearchEl = document.getElementById('posLayoutAreaSearch');
     function refreshAreaTables() {
         if (!areaTablesEl) { return; }
         areaTablesEl.innerHTML = '';
@@ -820,14 +1117,17 @@
             areaTablesEl.appendChild(empty);
             return;
         }
+        var query = areaSearchEl ? areaSearchEl.value.trim().toLowerCase() : '';
         var allPlaced = true;
+        var shown = 0;
         state.tables.forEach(function (t) {
             var placed = isPlaced(t.id);
             if (!placed) { allPlaced = false; }
+            if (query && String(t.name).toLowerCase().indexOf(query) === -1) { return; }
+            shown += 1;
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'pos-layout-palette-btn pos-layout-area-table-btn';
-            btn.disabled = placed;
             btn.dataset.tableId = t.id;
             var name = document.createElement('span');
             name.className = 'pos-layout-palette-label';
@@ -838,6 +1138,21 @@
                 badge.className = 'pos-layout-onfloor';
                 badge.textContent = I18N.onFloor;
                 btn.appendChild(badge);
+                // A placed table is not draggable from the list, but
+                // clicking its row selects it on the canvas and centres
+                // the view on it — no hunting for it on a big floor.
+                btn.title = I18N.showOnFloor;
+                btn.addEventListener('click', function () {
+                    var el = null;
+                    state.elements.forEach(function (e) {
+                        if (e.kind === 'table' && e.table_id === t.id) { el = e; }
+                    });
+                    if (!el) { return; }
+                    select(el.id);
+                    state.panX = (wrap.clientWidth / 2) - (el.x + el.w / 2) * state.zoom;
+                    state.panY = (wrap.clientHeight / 2) - (el.y + el.h / 2) * state.zoom;
+                    applyView();
+                });
             }
             btn.addEventListener('pointerdown', function (e) {
                 if (placed) { return; }
@@ -872,12 +1187,22 @@
             });
             areaTablesEl.appendChild(btn);
         });
-        if (allPlaced) {
+        if (!shown) {
+            var none = document.createElement('div');
+            none.className = 'text-muted small';
+            none.textContent = @json(__('No tables match.'));
+            areaTablesEl.appendChild(none);
+            return;
+        }
+        if (!query && allPlaced) {
             var done = document.createElement('div');
             done.className = 'text-muted small';
             done.textContent = @json(__('All tables are on the floor.'));
             areaTablesEl.appendChild(done);
         }
+    }
+    if (areaSearchEl) {
+        areaSearchEl.addEventListener('input', refreshAreaTables);
     }
 
     // ---- canvas interaction: move / rotate / resize / pan ----
@@ -921,6 +1246,7 @@
         select(id);
         var el = byId(id);
         if (!el) { return; }
+        var before = snapshotElements();
         var startX = e.clientX;
         var startY = e.clientY;
         var ox = el.x;
@@ -939,7 +1265,7 @@
         function onUp() {
             node.removeEventListener('pointermove', onMove);
             node.removeEventListener('pointerup', onUp);
-            if (moved) { markDirty(); }
+            if (moved) { pushHistorySnapshot(before); markDirty(); }
         }
         node.addEventListener('pointermove', onMove);
         node.addEventListener('pointerup', onUp);
@@ -952,6 +1278,8 @@
         if (!node) { return; }
         var el = byId(node.dataset.id);
         if (!el) { return; }
+        var before = snapshotElements();
+        var startRot = el.rot;
         var rect = node.getBoundingClientRect();
         var cx = rect.left + rect.width / 2;
         var cy = rect.top + rect.height / 2;
@@ -965,6 +1293,7 @@
         function onUp() {
             handle.removeEventListener('pointermove', onMove);
             handle.removeEventListener('pointerup', onUp);
+            if (el.rot !== startRot) { pushHistorySnapshot(before); }
             markDirty();
         }
         handle.addEventListener('pointermove', onMove);
@@ -978,6 +1307,7 @@
         if (!node) { return; }
         var el = byId(node.dataset.id);
         if (!el) { return; }
+        var before = snapshotElements();
         var startX = e.clientX;
         var startY = e.clientY;
         var startW = el.w;
@@ -998,6 +1328,7 @@
         function onUp() {
             handle.removeEventListener('pointermove', onMove);
             handle.removeEventListener('pointerup', onUp);
+            if (el.w !== startW || el.h !== startH) { pushHistorySnapshot(before); }
             markDirty();
         }
         handle.addEventListener('pointermove', onMove);
@@ -1005,8 +1336,24 @@
     }
 
     document.addEventListener('keydown', function (e) {
+        // Escape closes the confirm/prompt dialog first, if it is open.
+        if (e.key === 'Escape' && layoutModalVisible()) {
+            e.preventDefault();
+            hideLayoutModal(true);
+            return;
+        }
         var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
         if (tag === 'input' || tag === 'select' || tag === 'textarea') { return; }
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+            e.preventDefault();
+            if (e.shiftKey) { redoLayout(); } else { undoLayout(); }
+            return;
+        }
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+            e.preventDefault();
+            redoLayout();
+            return;
+        }
         if (e.key === 'Delete' || e.key === 'Backspace') {
             if (state.selectedId) { e.preventDefault(); deleteSelected(); }
         } else if (e.key === 'Escape') {
@@ -1014,10 +1361,34 @@
         }
     });
 
+    document.getElementById('posLayoutUndo').addEventListener('click', undoLayout);
+    document.getElementById('posLayoutRedo').addEventListener('click', redoLayout);
+
     // ---- save / dirty state (server is the source of truth) ----
+    // Autosave is the only save path (there is no Save button): the
+    // indicator shows Unsaved changes while edits wait, Saving... while
+    // a save is in flight, Saved after success, and the error text on
+    // failure — clicking the error retries the save.
     var savedInd = document.getElementById('posLayoutSaved');
+    var saveFailed = false;
+    var saveFailedRetryable = false;
+    var saveErrorText = '';
     function refreshSavedIndicator() {
-        if (state.dirty) {
+        if (saveFailed) {
+            savedInd.style.display = '';
+            savedInd.textContent = saveErrorText || I18N.saveFailed;
+            savedInd.className = 'small text-danger';
+            savedInd.style.cursor = saveFailedRetryable ? 'pointer' : '';
+            savedInd.title = saveFailedRetryable ? I18N.retrySave : '';
+            return;
+        }
+        savedInd.style.cursor = '';
+        savedInd.title = '';
+        if (state.saving) {
+            savedInd.style.display = '';
+            savedInd.textContent = I18N.saving;
+            savedInd.className = 'small text-muted';
+        } else if (state.dirty) {
             savedInd.style.display = '';
             savedInd.textContent = I18N.unsaved;
             savedInd.className = 'small text-warning';
@@ -1027,10 +1398,27 @@
             savedInd.className = 'small text-success';
         }
     }
+    function showLayoutError(message, retryable) {
+        saveFailed = true;
+        saveFailedRetryable = !!retryable;
+        saveErrorText = message || I18N.saveFailed;
+        refreshSavedIndicator();
+    }
+    function clearSaveError() {
+        if (!saveFailed) { return; }
+        saveFailed = false;
+        saveFailedRetryable = false;
+        saveErrorText = '';
+    }
+    savedInd.addEventListener('click', function () {
+        if (saveFailed && saveFailedRetryable) {
+            saveToServer(true);
+        }
+    });
     function showSaved() {
         refreshSavedIndicator();
         if (savedTimer) { clearTimeout(savedTimer); }
-        savedTimer = setTimeout(function () { if (!state.dirty) { savedInd.style.display = 'none'; } }, 1500);
+        savedTimer = setTimeout(function () { if (!state.dirty && !saveFailed) { savedInd.style.display = 'none'; } }, 1500);
     }
     function markDirty() {
         if (!state.areaId) { return; }
@@ -1049,6 +1437,9 @@
     }
     function saveToServer(showIndicator) {
         if (!state.areaId) { return Promise.resolve(false); }
+        clearSaveError();
+        state.saving = true;
+        refreshSavedIndicator();
         return Promise.all(state.pendingCreates.slice()).then(function () {
             return fetch(areaUrl(state.areaId), {
                 method: 'POST',
@@ -1059,6 +1450,7 @@
             if (!r.ok) { throw new Error('save'); }
             return r.json();
         }).then(function () {
+            state.saving = false;
             state.dirty = false;
             state.hasSavedLayout = true;
             refreshSavedIndicator();
@@ -1066,30 +1458,32 @@
             if (showIndicator) { showSaved(); }
             return true;
         }).catch(function () {
-            window.alert(I18N.saveFailed);
-            refreshSavedIndicator();
+            state.saving = false;
+            showLayoutError(I18N.saveFailed, true);
             return false;
         });
     }
-    document.getElementById('posLayoutSave').addEventListener('click', function () {
-        saveToServer(true);
-    });
     document.getElementById('posLayoutClear').addEventListener('click', function () {
         if (!state.elements.length) { return; }
-        if (!window.confirm(I18N.confirmClear)) { return; }
-        state.elements = [];
-        state.selectedId = null;
-        renderAll();
-        markSelection();
-        refreshAreaTables();
-        markDirty();
+        posLayoutConfirm(I18N.confirmClear, function () {
+            pushHistory();
+            state.elements = [];
+            state.selectedId = null;
+            renderAll();
+            markSelection();
+            refreshAreaTables();
+            markDirty();
+        });
     });
 
     // ---- auto layout: one simple square floor for every table in the area ----
     document.getElementById('posLayoutAuto').addEventListener('click', function () {
         if (!state.areaId) { return; }
-        if (!state.tables.length) { window.alert(I18N.noTables); return; }
-        if (state.hasSavedLayout && !window.confirm(I18N.confirmAutoLayout)) { return; }
+        if (!state.tables.length) { posLayoutAlert(I18N.noTables); return; }
+        if (state.hasSavedLayout) {
+            posLayoutConfirm(I18N.confirmAutoLayout, buildAutoLayout);
+            return;
+        }
         buildAutoLayout();
     });
     function buildAutoLayout() {
@@ -1131,15 +1525,16 @@
         els.push(makeDecoration('plant', x0 + gridW + 24, y0 - 70, 0));
         // Waiter station by the door, on its right.
         els.push(makeDecoration('waiter', 90, gridH / 2 + 36, 0));
+        pushHistory();
         state.elements = els.filter(function (el) { return el !== null; });
         state.selectedId = null;
         renderAll();
         markSelection();
         refreshAreaTables();
         fitZoom();
-        // Save through the existing server path (same as the Save
-        // button), so the new floor lands on the server without extra
-        // clicks and the Saved indicator shows it saved.
+        // Save through the existing server path (autosave), so the new
+        // floor lands on the server without extra clicks and the Saved
+        // indicator shows it saved.
         state.dirty = true;
         refreshSavedIndicator();
         saveToServer(true);
@@ -1151,8 +1546,7 @@
         demoBtn.style.display = state.hasSavedLayout ? 'none' : '';
     }
     demoBtn.addEventListener('click', function () {
-        if (!window.confirm(I18N.confirmDemo)) { return; }
-        loadDemo();
+        posLayoutConfirm(I18N.confirmDemo, loadDemo);
     });
     function demoDefs() {
         // [type, x, y, rot, seats, w, h]
@@ -1208,6 +1602,7 @@
                     els.push(makeDecoration(d[0], d[1], d[2], d[3], d[5] || null, d[6] || null));
                 }
             });
+            pushHistory();
             state.elements = els.filter(function (el) { return el !== null; });
             state.selectedId = null;
             renderAll();
@@ -1248,6 +1643,7 @@
             state.areaId = 0;
             state.elements = [];
             state.tables = [];
+            resetHistory();
             renderAll();
             refreshAreaTables();
             updateAreaHeader();
@@ -1266,6 +1662,7 @@
                 state.elements = buildElements(data.layout);
                 state.selectedId = null;
                 state.dirty = false;
+                resetHistory();
                 renderAll();
                 markSelection();
                 refreshAreaTables();
@@ -1275,19 +1672,99 @@
                 fitZoom();
             })
             .catch(function () {
-                window.alert(I18N.loadFailed);
+                posLayoutAlert(I18N.loadFailed);
             });
     }
     areaSelect.addEventListener('change', function () {
         var nextId = parseInt(areaSelect.value, 10) || 0;
         if (nextId === state.areaId) { return; }
-        if (state.dirty && !window.confirm(I18N.confirmDiscard)) {
+        var switchTo = function () {
+            if (autosaveTimer) { clearTimeout(autosaveTimer); }
+            loadArea(nextId);
+        };
+        if (state.dirty) {
+            // Show the old area again while the dialog is open; only
+            // switch once the user confirms the discard.
             areaSelect.value = String(state.areaId);
+            posLayoutConfirm(I18N.confirmDiscard, switchTo, function () {
+                areaSelect.value = String(state.areaId);
+            });
             return;
         }
-        if (autosaveTimer) { clearTimeout(autosaveTimer); }
-        loadArea(nextId);
+        switchTo();
     });
+
+    // ---- create a named table / a new area from inside the designer ----
+    document.getElementById('posLayoutNewTable').addEventListener('click', function () {
+        if (!state.areaId) { return; }
+        showLayoutModal({
+            title: I18N.newTable,
+            fields: [
+                { id: 'name', label: I18N.tableName, type: 'text', value: '' },
+                { id: 'capacity', label: I18N.seats, type: 'number', value: 4, min: 1, max: 99 }
+            ],
+            confirmLabel: I18N.createLabel,
+            onConfirm: function (values) {
+                var name = String(values.name || '').trim();
+                var capacity = clamp(parseInt(values.capacity, 10) || 4, 1, 99);
+                if (!name) {
+                    var nameInput = document.getElementById('posLayoutModalField-name');
+                    if (nameInput) { nameInput.classList.add('is-invalid'); nameInput.focus(); }
+                    return false;
+                }
+                createRealTable(capacity, name).then(function (created) {
+                    if (!created) { return; }
+                    var el = placeExistingTable(created, null, null);
+                    if (el) { select(el.id); markDirty(); }
+                });
+            }
+        });
+    });
+    var newAreaBtn = document.getElementById('posLayoutNewArea');
+    if (newAreaBtn && !BRANCHES.length) { newAreaBtn.disabled = true; }
+    if (newAreaBtn) {
+        newAreaBtn.addEventListener('click', function () {
+            var currentArea = null;
+            AREAS.forEach(function (a) { if (a.id === state.areaId) { currentArea = a; } });
+            showLayoutModal({
+                title: I18N.newArea,
+                fields: [
+                    { id: 'name', label: I18N.nameLabel, type: 'text', value: '' },
+                    { id: 'branch_id', label: I18N.branchLabel, type: 'select', value: currentArea ? currentArea.branch_id : (BRANCHES[0] ? BRANCHES[0].id : ''), options: BRANCHES.map(function (b) { return { value: b.id, label: b.name }; }) }
+                ],
+                confirmLabel: I18N.createLabel,
+                onConfirm: function (values) {
+                    var name = String(values.name || '').trim();
+                    if (!name) {
+                        var nameInput = document.getElementById('posLayoutModalField-name');
+                        if (nameInput) { nameInput.classList.add('is-invalid'); nameInput.focus(); }
+                        return false;
+                    }
+                    fetch(CREATE_AREA_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+                        body: JSON.stringify({ name: name, branch_id: parseInt(values.branch_id, 10) || 0 })
+                    }).then(function (r) {
+                        if (!r.ok) { throw new Error('create-area'); }
+                        return r.json();
+                    }).then(function (data) {
+                        AREAS.push({ id: data.id, name: data.name, branch_id: data.branch_id, branch_name: data.branch_name });
+                        var opt = document.createElement('option');
+                        opt.value = String(data.id);
+                        opt.textContent = data.name + (data.branch_name ? ' \u2014 ' + data.branch_name : '');
+                        areaSelect.appendChild(opt);
+                        areaSelect.disabled = false;
+                        noAreasEl.style.display = 'none';
+                        areaSelect.value = String(data.id);
+                        if (autosaveTimer) { clearTimeout(autosaveTimer); }
+                        loadArea(data.id);
+                    }).catch(function () {
+                        posLayoutAlert(I18N.createAreaFailed);
+                    });
+                }
+            });
+        });
+    }
 
     // ---- boot ----
     if (!AREAS.length) {

@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'edit_layout' => 'Edit layout',
+    'no_shift_blocks_orders' => 'No orders, tables, production or payments until a shift is open.',
+    'no_waiter_shifts_open' => 'No waiter shifts are open.',
+    'search_tables' => 'Search tables...',
+    'seats' => 'seats',
     'title' => 'POS',
     'order_type' => 'Order Type',
     'table' => 'Table',
