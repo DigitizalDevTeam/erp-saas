@@ -1194,6 +1194,9 @@
             .then(function (r) { if (!r.ok) { throw new Error('load'); } return r.json(); })
             .then(function (data) {
                 state.areaId = data.area.id;
+                // Remember the area being designed (UI state only — the
+                // layout itself lives on the server) so a reload reopens it.
+                try { window.localStorage.setItem('erp-pos-layout-last-area', String(data.area.id)); } catch (e) {}
                 state.areaName = data.area.name;
                 state.tables = data.tables || [];
                 state.hasSavedLayout = !!(data.layout && Array.isArray(data.layout.elements));
@@ -1232,7 +1235,14 @@
         savedInd.style.display = 'none';
         refreshDemoButton();
     } else {
-        loadArea(INITIAL_AREA_ID || AREAS[0].id);
+        // Reopen the area the user was designing last (UI state only —
+        // the layout itself lives on the server). Fall back to the
+        // server-provided initial area, then the first area.
+        var rememberedAreaId = 0;
+        try { rememberedAreaId = parseInt(window.localStorage.getItem('erp-pos-layout-last-area'), 10) || 0; } catch (e) { rememberedAreaId = 0; }
+        var bootAreaId = (rememberedAreaId && AREAS.some(function (a) { return a.id === rememberedAreaId; })) ? rememberedAreaId : (INITIAL_AREA_ID || AREAS[0].id);
+        areaSelect.value = String(bootAreaId);
+        loadArea(bootAreaId);
     }
 })();
 </script>
