@@ -338,17 +338,23 @@
                 .pos-table-legend-dot--occupied { background: #ffc107; }
                 .pos-table-legend-dot--reserved { background: #6c757d; }
                 </style>
-                <div class="pos-floor-modal-header d-flex align-items-center gap-2 px-3 py-2 border-bottom bg-white">
-                    <strong class="text-dark">{{ $tp('pos.select_table', 'Select Table') }}</strong>
-                    <label class="small text-muted mb-0" for="pos-floor-modal-area">{{ __('Area') }}</label>
-                    <select class="form-select form-select-sm" id="pos-floor-modal-area" style="max-width: 16rem;"></select>
+                <div class="pos-floor-modal-header d-flex flex-nowrap overflow-auto align-items-center gap-2 px-3 py-2 border-bottom bg-white">
+                    <strong class="text-dark text-nowrap">{{ $tp('pos.select_table', 'Select Table') }}</strong>
+                    <label class="small text-muted mb-0 text-nowrap" for="pos-floor-modal-area">{{ __('Area') }}</label>
+                    <select class="form-select form-select-sm flex-shrink-1" id="pos-floor-modal-area" style="max-width: 16rem; min-width: 7rem;"></select>
                     <span class="pos-floor-legend ms-2">
                         <span class="pos-floor-legend__item"><span class="pos-table-legend-dot pos-table-legend-dot--available"></span>{{ $tp('pos.available', 'Available') }}</span>
                         <span class="pos-floor-legend__item"><span class="pos-table-legend-dot pos-table-legend-dot--occupied"></span>{{ $tp('pos.occupied', 'Occupied') }}</span>
                         <span class="pos-floor-legend__item"><span class="pos-table-legend-dot pos-table-legend-dot--reserved"></span>{{ $tp('pos.reserved', 'Reserved') }}</span>
                     </span>
-                    <a class="btn btn-sm btn-outline-secondary text-nowrap" href="{{ route('pos.restaurant.layout.designer') }}">{{ $tp('pos.edit_layout', 'Edit layout') }}</a>
-                    <button type="button" class="btn btn-sm btn-light ms-auto" id="pos-floor-modal-close" title="{{ __('Close') }}" aria-label="{{ __('Close') }}" style="font-size: 1.25rem; line-height: 1;">&times;</button>
+                    <span class="btn-group ms-1 flex-shrink-0" role="group" aria-label="{{ __('Zoom') }}" id="pos-floor-modal-zoom">
+                        <button type="button" class="btn btn-sm btn-light" data-pos-floor-zoom="out" title="{{ __('Zoom Out') }}">&minus;</button>
+                        <button type="button" class="btn btn-sm btn-light pos-floor-zoom-label" id="pos-floor-modal-zoom-label" disabled>100%</button>
+                        <button type="button" class="btn btn-sm btn-light" data-pos-floor-zoom="in" title="{{ __('Zoom In') }}">+</button>
+                        <button type="button" class="btn btn-sm btn-light" data-pos-floor-zoom="fit">{{ __('Fit') }}</button>
+                    </span>
+                    <a class="btn btn-sm btn-outline-secondary text-nowrap flex-shrink-0" href="{{ route('pos.restaurant.layout.designer') }}">{{ $tp('pos.edit_layout', 'Edit layout') }}</a>
+                    <button type="button" class="btn btn-sm btn-light ms-auto flex-shrink-0" id="pos-floor-modal-close" title="{{ __('Close') }}" aria-label="{{ __('Close') }}" style="font-size: 1.25rem; line-height: 1;">&times;</button>
                 </div>
                 <div class="pos-floor-modal-body p-2">
                     <div class="d-flex flex-wrap gap-2 align-items-center" id="pos-table-grid">

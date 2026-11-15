@@ -706,6 +706,13 @@ class PosAreaLayoutTest extends TestCase
         $posCss = file_get_contents(public_path('css/pos.css'));
         $this->assertMatchesRegularExpression('/\.pos-table-card__name\s*\{[^}]*font-size:\s*1\.15rem;/s', $posCss);
         $this->assertMatchesRegularExpression('/\.pos-table-card__row\s*\{[^}]*font-size:\s*0\.8rem;/s', $posCss);
+        // One-row popup header: the zoom controls moved out of the floor
+        // toolbar into the header, the area-name row is gone, and the
+        // floor is taller to use the freed space.
+        $this->assertStringContainsString('calc(100vh - 70px)', $blade);
+        $this->assertStringContainsString('pos-floor-modal-zoom-label', $blade);
+        $this->assertStringNotContainsString('data-pos-floor-zoom="out" data-pos-floor-area=', $blade);
+        $this->assertStringNotContainsString('text-muted d-block mb-1', $blade);
     }
 
     public function test_restaurant_blade_has_fullscreen_floor_popup(): void
@@ -725,5 +732,11 @@ class PosAreaLayoutTest extends TestCase
         // UX gaps: the selected-table readout is a button that opens the
         // same popup as "Open Table".
         $this->assertStringContainsString('<button type="button" id="pos-selected-table"', $blade);
+        // One-row popup header: the zoom controls (− % + Fit) sit in the
+        // header row with everything else, and the header never wraps —
+        // it scrolls sideways on a narrow screen instead.
+        $this->assertStringContainsString('id="pos-floor-modal-zoom"', $blade);
+        $this->assertStringContainsString('id="pos-floor-modal-zoom-label"', $blade);
+        $this->assertStringContainsString('pos-floor-modal-header d-flex flex-nowrap overflow-auto', $blade);
     }
 }
