@@ -42,6 +42,15 @@
            a big floor came out as flat overlapping ovals. The floor's own
            size is the inline width/height; the card size must not win. */
         .pos-floor .pos-floor-table { min-width: 0; max-width: none; padding: 2px !important; align-items: center; text-align: center; }
+        /* Full-screen floor popup: "Open Table" opens the floor in a 100%
+           wide, 100% tall popup (one area at a time, picked from the
+           dropdown in its header) instead of rendering the areas in the
+           page. The Open Table dialog still opens above it (Bootstrap
+           modal z-index 1055 > 1050). */
+        .pos-floor-modal { position: fixed; inset: 0; z-index: 1050; background: #ffffff; display: flex; flex-direction: column; overflow: hidden; }
+        .pos-floor-modal-body { flex: 1 1 auto; overflow: auto; min-height: 0; }
+        .pos-floor-modal .pos-floor { height: calc(100vh - 115px); }
+        body.pos-floor-modal-open { overflow: hidden; }
         .pos-floor-table.pos-floor-round { border-radius: 50%; }
         .pos-floor-cap { font-size: 11px; line-height: 1.15; }
         .pos-floor-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 2px; border: 1px solid rgba(0,0,0,.25); }
@@ -1752,7 +1761,7 @@
                         panX: (availW - spanW * z0) / 2 - minX * z0,
                         panY: (floorH - spanH * z0) / 2 - minY * z0,
                         minX: minX, minY: minY, spanW: spanW, spanH: spanH,
-                        fitW: availW, touched: false
+                        fitW: availW, fitH: floorH, touched: false
                     };
                 }
                 var html = '<div class="d-flex align-items-center gap-1 mb-1">' +
@@ -1815,7 +1824,7 @@
                         // in-flow content — the small area label — and the
                         // floor (all children absolutely positioned) collapsed
                         // to ~55px wide with the tables clipped to slivers.
-                        html += '<div class="mb-2 w-100"><small class="text-muted d-block mb-1">' + area.name + '</small>';
+                        html += '<div class="mb-2 w-100" data-pos-floor-area-wrap="' + area.id + '"><small class="text-muted d-block mb-1">' + area.name + '</small>';
                         var floor = renderRestaurantFloor(area);
                         if (floor) {
                             html += floor;
@@ -1829,6 +1838,9 @@
                         html += '</div>';
                     });
                     $('#pos-table-grid').html(html || '<p class="text-muted small mb-0">{{ __("pos.no_data_found") }}</p>');
+                    posFloorAreas = res.areas || [];
+                    posFloorModalBuildAreaSelect();
+                    posFloorModalApplyArea();
                     posFloorInit();
                 });
             }
@@ -1836,6 +1848,10 @@
             // canvas): one transform per area, kept while the page is open,
             // so a table-status refresh does not reset the user's zoom/pan.
             var posFloorState = {};
+            // Areas from the last table-data load, and the one area the
+            // full-screen popup is showing (picked from its dropdown).
+            var posFloorAreas = [];
+            var posFloorModalAreaId = null;
             function posFloorEl(areaId) { return document.querySelector('.pos-floor[data-pos-floor-area="' + areaId + '"]'); }
             function posFloorApply(areaId) {
                 var st = posFloorState[areaId];
@@ -1853,13 +1869,14 @@
                 var st = posFloorState[areaId];
                 if (!st) { return; }
                 var w = floor.clientWidth || 800;
-                var h = 460;
+                var h = floor.clientHeight || 460;
                 var z = Math.min((w - 40) / Math.max(st.spanW + 40, 50), h / Math.max(st.spanH + 40, 50), 1.2);
                 z = Math.max(0.15, Math.min(z, 2.5));
                 st.zoom = z;
                 st.panX = (w - st.spanW * z) / 2 - st.minX * z;
                 st.panY = (h - st.spanH * z) / 2 - st.minY * z;
                 st.fitW = w;
+                st.fitH = h;
                 posFloorApply(areaId);
             }
             function posFloorZoomAt(areaId, mx, my, nz) {
@@ -1874,9 +1891,9 @@
             }
             // After the grid is (re)built: fit floors never seen before with
             // the real viewport width, re-apply the kept zoom/pan to the
-            // rest, and re-fit an untouched floor whose viewport width has
+            // rest, and re-fit an untouched floor whose viewport size has
             // changed a lot since it was fitted (e.g. it was fitted while
-            // the table panel was hidden).
+            // the popup was hidden, or the popup opened taller than the page).
             function posFloorInit() {
                 document.querySelectorAll('.pos-floor[data-pos-floor-area]').forEach(function (floor) {
                     var areaId = floor.getAttribute('data-pos-floor-area');
@@ -1888,14 +1905,51 @@
                             minY: parseFloat(floor.getAttribute('data-min-y')) || 0,
                             spanW: parseFloat(floor.getAttribute('data-span-w')) || 50,
                             spanH: parseFloat(floor.getAttribute('data-span-h')) || 50,
-                            fitW: 0, touched: false
+                            fitW: 0, fitH: 0, touched: false
                         };
                         posFloorFit(areaId);
-                    } else if (!st.touched && floor.clientWidth && Math.abs(floor.clientWidth - st.fitW) > 50) {
+                    } else if (!st.touched && ((floor.clientWidth && Math.abs(floor.clientWidth - st.fitW) > 50) || (floor.clientHeight && Math.abs(floor.clientHeight - (st.fitH || 460)) > 50))) {
                         posFloorFit(areaId);
                     } else {
                         posFloorApply(areaId);
                     }
+                });
+            }
+            // ---- Full-screen floor popup: one area at a time, picked from
+            // the dropdown in the popup header. The popup replaces the
+            // in-page area list; "Open Table" opens it, the X (or Escape)
+            // closes it, and picking a table closes it too (via
+            // selectRestaurantTable -> posRestaurantToggleTableGridPanel(false)).
+            function posFloorModalBuildAreaSelect() {
+                var sel = document.getElementById('pos-floor-modal-area');
+                if (!sel) { return; }
+                var keep = posFloorModalAreaId;
+                var found = false;
+                sel.innerHTML = '';
+                posFloorAreas.forEach(function (a) {
+                    var o = document.createElement('option');
+                    o.value = a.id;
+                    o.textContent = a.name;
+                    sel.appendChild(o);
+                    if (String(a.id) === String(keep)) { found = true; }
+                });
+                if (!posFloorAreas.length) { posFloorModalAreaId = null; return; }
+                if (!found) {
+                    // Prefer the area of the table already selected, if any.
+                    var tableId = $('#pos_table_id_hidden').val() || $('#pos_restaurant_table_id').val();
+                    var pref = null;
+                    if (tableId) {
+                        posFloorAreas.forEach(function (a) {
+                            if (!pref && (a.tables || []).some(function (t) { return String(t.id) === String(tableId); })) { pref = a.id; }
+                        });
+                    }
+                    posFloorModalAreaId = pref !== null ? pref : posFloorAreas[0].id;
+                }
+                sel.value = String(posFloorModalAreaId);
+            }
+            function posFloorModalApplyArea() {
+                document.querySelectorAll('#pos-table-grid [data-pos-floor-area-wrap]').forEach(function (w) {
+                    w.classList.toggle('d-none', String(w.getAttribute('data-pos-floor-area-wrap')) !== String(posFloorModalAreaId));
                 });
             }
             (function bindPosFloorCanvas() {
@@ -2436,20 +2490,44 @@
                 if (!$wrap.length || $('#pos-restaurant-order-type').val() !== 'dine_in') {
                     return;
                 }
+                var show;
                 if (typeof forceOpen === 'boolean') {
-                    $wrap.toggleClass('d-none', !forceOpen);
+                    show = forceOpen;
                 } else {
-                    $wrap.toggleClass('d-none');
+                    show = $wrap.hasClass('d-none');
                 }
-                var expanded = !$wrap.hasClass('d-none');
+                $wrap.toggleClass('d-none', !show);
+                document.body.classList.toggle('pos-floor-modal-open', show);
                 $('#pos-open-table-panel-btn')
-                    .attr('aria-expanded', expanded ? 'true' : 'false')
-                    .toggleClass('active btn-primary', expanded)
-                    .toggleClass('btn-outline-primary', !expanded);
+                    .attr('aria-expanded', show ? 'true' : 'false')
+                    .toggleClass('active btn-primary', show)
+                    .toggleClass('btn-outline-primary', !show);
+                if (show) {
+                    posFloorModalBuildAreaSelect();
+                    posFloorModalApplyArea();
+                    posFloorInit();
+                }
             }
 
             $(document).on('click', '#pos-open-table-panel-btn', function () {
                 posRestaurantToggleTableGridPanel();
+            });
+
+            $(document).on('change', '#pos-floor-modal-area', function () {
+                posFloorModalAreaId = $(this).val();
+                posFloorModalApplyArea();
+                posFloorInit();
+            });
+            $(document).on('click', '#pos-floor-modal-close', function () {
+                posRestaurantToggleTableGridPanel(false);
+            });
+            $(document).on('keydown', function (e) {
+                if (e.key !== 'Escape') { return; }
+                var $wrap = $('#pos-restaurant-table-grid-wrap');
+                if (!$wrap.length || $wrap.hasClass('d-none')) { return; }
+                // Let the Open Table dialog keep its own Escape handling.
+                if ($('#posOpenTableModal').hasClass('show')) { return; }
+                posRestaurantToggleTableGridPanel(false);
             });
 
             function posRestaurantToggleOrderTypeUI(orderType) {
@@ -2458,6 +2536,7 @@
                 $('#pos-open-table-panel-btn').toggleClass('d-none', !isDineIn);
                 $('#pos-restaurant-guest-block').toggleClass('d-none', isDineIn);
                 $('#pos-restaurant-table-grid-wrap').addClass('d-none');
+                document.body.classList.remove('pos-floor-modal-open');
                 $('#pos-open-table-panel-btn')
                     .attr('aria-expanded', 'false')
                     .removeClass('active btn-primary')
@@ -4662,11 +4741,12 @@
                         if ($openTableBtn.length && !$openTableBtn.hasClass('d-none') && $tableGridWrap.length && $tableGridWrap.hasClass('d-none')) {
                             $openTableBtn.trigger('click');
                         }
-                        // No table yet: scroll the table picker into view at the
-                        // top of the screen so the user selects a table first.
-                        if ($tableGridWrap.length && !$tableGridWrap.hasClass('d-none')) {
+                        // No table yet: the table picker (full-screen popup)
+                        // is already open above, so there is nothing to
+                        // scroll to; otherwise scroll to the top.
+                        if ($tableGridWrap.length && !$tableGridWrap.hasClass('d-none') && !$tableGridWrap.hasClass('pos-floor-modal')) {
                             $tableGridWrap.get(0).scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        } else {
+                        } else if (!$tableGridWrap.length || $tableGridWrap.hasClass('d-none')) {
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                         }
                         return;

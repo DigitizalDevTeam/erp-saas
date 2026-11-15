@@ -484,7 +484,7 @@ class PosAreaLayoutTest extends TestCase
         // shrink-to-fit around the small area label — the floor (all
         // children absolutely positioned) contributed no width. The wrapper
         // must be full-width and the floor itself 100% wide.
-        $this->assertStringContainsString('<div class="mb-2 w-100">', $blade);
+        $this->assertStringContainsString('<div class="mb-2 w-100" data-pos-floor-area-wrap="', $blade);
         $this->assertStringContainsString('.pos-floor { position: relative; width: 100%;', $blade);
         // The table panel starts hidden, so the grid width reads 0 on first
         // load — the scale must fall back to the visible panel column.
@@ -504,5 +504,23 @@ class PosAreaLayoutTest extends TestCase
         // overlapping ovals (measured 144 x 29 on Hoya's 41-table floor).
         // The floor's own size is the inline width/height.
         $this->assertStringContainsString('.pos-floor .pos-floor-table { min-width: 0', $blade);
+        // Full-screen floor popup: "Open Table" opens the floor 100% wide
+        // and 100% tall (one area at a time, picked from the dropdown)
+        // instead of rendering the areas in the page.
+        $this->assertStringContainsString('pos-floor-modal', $blade);
+        $this->assertStringContainsString('posFloorModalBuildAreaSelect', $blade);
+        $this->assertStringContainsString('posFloorModalApplyArea', $blade);
+        $this->assertStringContainsString('pos-floor-modal-area', $blade);
+    }
+
+    public function test_restaurant_blade_has_fullscreen_floor_popup(): void
+    {
+        $blade = file_get_contents(resource_path('views/pos/restaurant.blade.php'));
+
+        // The table picker wrap is the full-screen popup: header with the
+        // area dropdown + close button, body holding the table grid.
+        $this->assertStringContainsString('id="pos-restaurant-table-grid-wrap" class="pos-floor-modal d-none"', $blade);
+        $this->assertStringContainsString('id="pos-floor-modal-area"', $blade);
+        $this->assertStringContainsString('id="pos-floor-modal-close"', $blade);
     }
 }
