@@ -52,9 +52,9 @@
         .pos-floor-modal .pos-floor { height: calc(100vh - 115px); }
         body.pos-floor-modal-open { overflow: hidden; }
         .pos-floor-table.pos-floor-round { border-radius: 50%; }
-        .pos-floor-cap { font-size: 11px; line-height: 1.15; }
-        .pos-floor-meta { font-size: 10px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-        .pos-floor-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 2px; border: 1px solid rgba(0,0,0,.25); }
+        .pos-floor-cap { font-size: 15px; line-height: 1.15; }
+        .pos-floor-meta { font-size: 13px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+        .pos-floor-dot { width: 11px; height: 11px; border-radius: 50%; margin-top: 2px; border: 1px solid rgba(0,0,0,.25); }
         .pos-floor-dot-available { background: #22c55e; }
         .pos-floor-dot-occupied { background: #ffc107; }
         .pos-floor-dot-reserved { background: #6c757d; }
@@ -62,8 +62,8 @@
         .pos-floor-wall { background: #22355e; border-radius: 2px; }
         .pos-floor-door { background: #ffffff; border: 2px dashed #22355e; border-radius: 2px; }
         .pos-floor-window { background: #bcd6f5; border: 1px solid #22355e; border-radius: 2px; }
-        .pos-floor-bar { background: #e8edf5; border: 2px solid #22355e; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #22355e; font-weight: 700; font-size: 12px; letter-spacing: 1px; }
-        .pos-floor-reception { background: #e8edf5; border: 2px solid #22355e; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 3px; color: #22355e; font-weight: 600; font-size: 11px; }
+        .pos-floor-bar { background: #e8edf5; border: 2px solid #22355e; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #22355e; font-weight: 700; font-size: 15px; letter-spacing: 1px; }
+        .pos-floor-reception { background: #e8edf5; border: 2px solid #22355e; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 3px; color: #22355e; font-weight: 600; font-size: 14px; }
         .pos-floor-plant { background: radial-gradient(circle at 35% 35%, #4caf7d, #1e6b41); border-radius: 50%; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 20px; }
         .pos-floor-waiter { background: #22355e; border-radius: 6px; }
         .pos-top-bar .pos-brand { font-weight: 700; font-size: 1.25rem; letter-spacing: 0.02em; white-space: nowrap; }

@@ -190,8 +190,8 @@
 .pos-layout-el.selected { outline: 2px dashed #0d6efd; outline-offset: 4px; z-index: 5; }
 .pos-layout-table-body { position: absolute; inset: 0; background: #aab8d4; border: 2px solid #22355e; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #22355e; overflow: hidden; }
 .pos-layout-el.shape-round .pos-layout-table-body { border-radius: 50%; }
-.pos-layout-table-num { font-weight: 700; font-size: 14px; line-height: 1.15; }
-.pos-layout-table-cap { font-size: 11px; line-height: 1.15; }
+.pos-layout-table-num { font-weight: 700; font-size: 20px; line-height: 1.15; }
+.pos-layout-table-cap { font-size: 15px; line-height: 1.15; }
 .pos-layout-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 3px; border: 1px solid rgba(0,0,0,.25); }
 .pos-layout-dot-available { background: #22c55e; }
 .pos-layout-dot-occupied { background: #ffc107; }
@@ -200,8 +200,8 @@
 .pos-layout-wall-el { background: #22355e; border-radius: 2px; }
 .pos-layout-door-el { background: #ffffff; border: 2px dashed #22355e; border-radius: 2px; }
 .pos-layout-window-el { background: #bcd6f5; border: 1px solid #22355e; border-radius: 2px; }
-.pos-layout-bar-el { background: #e8edf5; border: 2px solid #22355e; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #22355e; font-weight: 700; font-size: 13px; letter-spacing: 1px; }
-.pos-layout-reception-el { background: #e8edf5; border: 2px solid #22355e; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 4px; color: #22355e; font-weight: 600; font-size: 12px; }
+.pos-layout-bar-el { background: #e8edf5; border: 2px solid #22355e; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #22355e; font-weight: 700; font-size: 16px; letter-spacing: 1px; }
+.pos-layout-reception-el { background: #e8edf5; border: 2px solid #22355e; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 4px; color: #22355e; font-weight: 600; font-size: 15px; }
 .pos-layout-stool { position: absolute; bottom: -7px; width: 10px; height: 10px; border-radius: 50%; background: #ffffff; border: 2px solid #22355e; }
 .pos-layout-plant-el { background: radial-gradient(circle at 35% 35%, #4caf7d, #1e6b41); border-radius: 50%; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 22px; border: 1px solid #14532d; }
 .pos-layout-waiter-el { background: #22355e; border-radius: 6px; color: #ffffff; display: flex; align-items: center; justify-content: center; }

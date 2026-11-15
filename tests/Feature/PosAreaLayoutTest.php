@@ -539,6 +539,10 @@ class PosAreaLayoutTest extends TestCase
         $blade = file_get_contents(resource_path('views/pos/restaurant-layout.blade.php'));
         $this->assertStringNotContainsString('window.confirm(', $blade);
         $this->assertStringNotContainsString('window.alert(', $blade);
+        // Bigger floor text: table name + seats on the canvas are easy
+        // to read at fit-zoom (was 14px / 11px).
+        $this->assertStringContainsString('.pos-layout-table-num { font-weight: 700; font-size: 20px;', $blade);
+        $this->assertStringContainsString('.pos-layout-table-cap { font-size: 15px;', $blade);
     }
 
     public function test_designer_page_loads_per_area(): void
@@ -694,6 +698,14 @@ class PosAreaLayoutTest extends TestCase
         // select the table directly.
         $this->assertStringContainsString("if (rowStatus === 'available')", $blade);
         $this->assertStringContainsString("$('#posOpenTableModal').modal('show')", $blade);
+        // Bigger floor text on the POS floor + popup: seats + amount /
+        // guests on the canvas (was 11px / 10px), and the table name +
+        // detail rows on the button cards (was 0.82rem / 0.68rem).
+        $this->assertStringContainsString('.pos-floor-cap { font-size: 15px;', $blade);
+        $this->assertStringContainsString('.pos-floor-meta { font-size: 13px;', $blade);
+        $posCss = file_get_contents(public_path('css/pos.css'));
+        $this->assertMatchesRegularExpression('/\.pos-table-card__name\s*\{[^}]*font-size:\s*1\.15rem;/s', $posCss);
+        $this->assertMatchesRegularExpression('/\.pos-table-card__row\s*\{[^}]*font-size:\s*0\.8rem;/s', $posCss);
     }
 
     public function test_restaurant_blade_has_fullscreen_floor_popup(): void
