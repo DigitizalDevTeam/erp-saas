@@ -79,6 +79,8 @@ class CustomerController extends Controller
                 'contacts.*.role' => 'nullable|string|max:100',
                 'contacts.*.name' => 'nullable|string|max:255',
                 'contacts.*.phone' => 'nullable|string|max:30',
+                'contacts.*.email' => 'nullable|email|max:255',
+                'contacts.*.identification' => 'nullable|string|max:100',
                 'bank_account.bank_name' => 'nullable|string|max:255',
                 'bank_account.account_number' => 'nullable|string|max:50',
                 'bank_account.account_holder' => 'nullable|string|max:255',
@@ -155,9 +157,14 @@ class CustomerController extends Controller
                 }
             
                 // Save contacts as JSON or related table (simplest JSON here)
+                // contacts[0] is the main contact person; further entries
+                // are additional contacts. A contact is kept when ANY of
+                // its fields (role, name, phone, email, identification)
+                // is filled in.
                 $contacts = collect($request->contacts)
                     ->filter(function ($contact) {
-                        return !empty($contact['role']) || !empty($contact['name']) || !empty($contact['phone']);
+                        return !empty($contact['role']) || !empty($contact['name']) || !empty($contact['phone'])
+                            || !empty($contact['email']) || !empty($contact['identification']);
                     })
                     ->values()
                     ->toArray();
@@ -361,6 +368,8 @@ class CustomerController extends Controller
                 'contacts.*.role' => 'nullable|string|max:100',
                 'contacts.*.name' => 'nullable|string|max:255',
                 'contacts.*.phone' => 'nullable|string|max:30',
+                'contacts.*.email' => 'nullable|email|max:255',
+                'contacts.*.identification' => 'nullable|string|max:100',
                 
                 'bank_account.bank_name' => 'nullable|string|max:255',
                 'bank_account.account_number' => 'nullable|string|max:50',
@@ -431,10 +440,11 @@ class CustomerController extends Controller
                 $customer->additional_emails = json_encode([]);
             }
         
-            // Update contacts
+            // Update contacts (contacts[0] is the main contact person)
             $contacts = collect($request->contacts)
                 ->filter(function ($contact) {
-                    return !empty($contact['role']) || !empty($contact['name']) || !empty($contact['phone']);
+                    return !empty($contact['role']) || !empty($contact['name']) || !empty($contact['phone'])
+                        || !empty($contact['email']) || !empty($contact['identification']);
                 })
                 ->values()
                 ->toArray();

@@ -9969,5 +9969,11 @@
     "Row :row: :reason": "Linha :row: :reason",
     "Skipped :count row(s).": "Ignorada(s) :count linha(s).",
     "Unknown category code: :code": "Código de categoria desconhecido: :code",
-    "Unknown cost centre code: :code": "Código de centro de custo desconhecido: :code"
+    "Unknown cost centre code: :code": "Código de centro de custo desconhecido: :code",
+    "Company Information": "Informações da Empresa",
+    "Company Phone": "Telefone da Empresa",
+    "Contact Person Information": "Informações da Pessoa de Contacto",
+    "General Email": "Email Geral",
+    "Identification": "Identificação",
+    "Personal Email": "Email Pessoal"
 }

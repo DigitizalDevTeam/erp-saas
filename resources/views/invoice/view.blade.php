@@ -522,10 +522,12 @@
                                                 <strong>{{ __('Tax Number ') }} :
                                                 </strong>{{ !empty($customer->tax_number) ? $customer->tax_number : '' }}
                                             @endif
+                                            @if($customer == null)
+                                                {{ __('Walk-in-customer') }}<br>
+                                            @endif
+                                        @elseif ($customer)
+                                            {{ $customer->name }}<br>
                                         @else
-                                            -
-                                        @endif
-                                        @if($customer == null)
                                             {{ __('Walk-in-customer') }}<br>
                                         @endif
 
@@ -544,10 +546,12 @@
                                                 {{ !empty($invoice->shipping_address?->zip) ? $invoice->shipping_address?->zip : '' }}<br>
                                                 {{ !empty($invoice->shipping_address?->country) ? $invoice->shipping_address?->country : '' }}<br>
                                                 {{ !empty($invoice->shipping_address?->phone) ? $invoice->shipping_address?->phone : '' }}<br>
+                                                @if($customer == null)
+                                                    {{ __('Walk-in-customer') }}<br>
+                                                @endif
+                                            @elseif ($customer)
+                                                {{ $customer->name }}<br>
                                             @else
-                                                -
-                                            @endif
-                                            @if($customer == null)
                                                 {{ __('Walk-in-customer') }}<br>
                                             @endif
                                         </small>

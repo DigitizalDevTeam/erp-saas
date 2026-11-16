@@ -104,7 +104,11 @@
                     @foreach($customer['shippingAddresses'] as $key => $shippingAddress )
                     <div class="{{ $key > 0 ? 'mt-3' : '' }}">
                         <h5 class="card-title">{{__('Shipping Info') .' '.$key + 1 }}</h5>
-                        <p class="card-text mb-1">{{$shippingAddress->name}}</p>
+                        {{-- The shipping recipient is the customer itself:
+                             the address row's free-text name has held the
+                             company name before, so it is not shown here.
+                             The row's address / phone lines still display. --}}
+                        <p class="card-text mb-1">{{$customer['name']}}</p>
                         <p class="card-text mb-1">{{$shippingAddress->address}}</p>
                         <p class="card-text mb-1">{{$shippingAddress->city.', '. $shippingAddress->state .', '.$shippingAddress->zip}}</p>
                         <p class="card-text mb-1">{{$shippingAddress->country}}</p>

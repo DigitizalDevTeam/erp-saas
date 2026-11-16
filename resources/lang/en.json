@@ -9914,5 +9914,11 @@
     "Row :row: :reason": "Row :row: :reason",
     "Skipped :count row(s).": "Skipped :count row(s).",
     "Unknown category code: :code": "Unknown category code: :code",
-    "Unknown cost centre code: :code": "Unknown cost centre code: :code"
+    "Unknown cost centre code: :code": "Unknown cost centre code: :code",
+    "Company Information": "Company Information",
+    "Company Phone": "Company Phone",
+    "Contact Person Information": "Contact Person Information",
+    "General Email": "General Email",
+    "Identification": "Identification",
+    "Personal Email": "Personal Email"
 }
