@@ -187,6 +187,10 @@ class BillingInvoiceService
             $invoice->status = Invoice::STATUS_SENT;
             $invoice->save();
 
+            // Stock moves at issue time, not at creation (same rule
+            // as a manual send; guarded by stock_deducted_at).
+            $this->invoices->deductStockOnSend($invoice, $creatorId);
+
             // postInvoiceToLedger keys overrides by invoice_product
             // id; products are created in item order, so map the
             // position-based accounts onto the created rows.

@@ -164,6 +164,7 @@ class StockRestoreService
         ProductService::where('id', $productId)->update(['quantity' => $original + $quantity]);
 
         if ($warehouseId) {
+            InvoiceSaleDeductionService::ensureWarehouseRow($productId, $warehouseId, $creatorId);
             Utility::warehouse_quantity('plus', $quantity, $productId, $warehouseId);
         }
 

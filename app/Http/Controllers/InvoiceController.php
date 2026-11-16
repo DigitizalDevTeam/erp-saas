@@ -821,6 +821,16 @@ class InvoiceController extends Controller
      */
     protected function releaseInvoiceToAccount(Invoice $invoice, Customer $customer, bool $fromAuthorization = false): void
     {
+        // Stock moves when the invoice is issued, not when it was
+        // created as a draft. Deduct FIRST: if deduction throws
+        // (e.g. a batch-tracked product is out of stock) the invoice
+        // stays a draft and nothing else has changed. Guarded by
+        // stock_deducted_at, so this can never double-deduct.
+        app(\App\Services\InvoiceCreationService::class)->deductStockOnSend(
+            $invoice,
+            (int) \Auth::user()->creatorId()
+        );
+
         $invoice->send_date = date('Y-m-d');
         $invoice->status = Invoice::STATUS_SENT;
         if ($fromAuthorization) {

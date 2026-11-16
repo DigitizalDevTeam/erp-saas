@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
 use App\Models\CustomField;
 use App\Models\Invoice;
 use App\Models\InvoiceProduct;
@@ -12,6 +13,7 @@ use App\Models\Purchase;
 use App\Models\Quotation;
 use App\Models\StockReport;
 use App\Models\Utility;
+use App\Models\warehouse;
 use App\Services\Accounting\DocumentLedgerService;
 use App\Support\MoneyAmount;
 use Illuminate\Support\Facades\DB;
@@ -20,9 +22,12 @@ use Illuminate\Support\Facades\DB;
  * Contract Management Phase 2 — the ONE invoice creation path.
  *
  * Extracted from InvoiceController::store() (same fields, same
- * values, same stock-deduction behaviour) so a manual invoice and
- * a recurring invoice are created by the same code. Both callers
- * go through here; there is no second invoice path.
+ * values) so a manual invoice and a recurring invoice are created
+ * by the same code. Both callers go through here; there is no
+ * second invoice path. Stock is NOT deducted here: a draft
+ * deducts nothing — deduction happens at send time, in
+ * deductStockOnSend() (timing 'invoice'), or on Delivery Note
+ * creation (timing 'delivery_note').
  *
  * Invoice numbering: the next number is allocated inside the same
  * database transaction as the invoice, under a row lock on the
@@ -210,11 +215,6 @@ class InvoiceCreationService
             StockReport::where('type', '=', 'invoice')
                 ->where('type_id', '=', $invoice->id)->delete();
 
-            $settings = Utility::settingsById($creatorId);
-            $timing = $settings['stock_deduction_timing'] ?? 'invoice';
-            $formattedNumber = ($settings['invoice_prefix'] ?? '#Fatura')
-                . sprintf('%05d', (int) $invoice->invoice_id);
-
             foreach ($data['items'] as $p) {
                 $productId = (int) ($p['item'] ?? $p['product_id']);
                 $quantity = (float) ($p['quantity'] ?? 0);
@@ -244,26 +244,6 @@ class InvoiceCreationService
                         : json_encode($p['selected_options_json']))
                     : null;
                 $invoiceProduct->save();
-
-                if ($timing === 'invoice') {
-                    InvoiceSaleDeductionService::deductLine(
-                        $productId,
-                        $quantity,
-                        $creatorId,
-                        (int) $invoice->id,
-                        (int) $invoiceProduct->id,
-                        (int) $invoice->customer_id,
-                        $formattedNumber,
-                        $invoiceProduct->identifiers,
-                        $invoiceProduct->selected_options_json
-                    );
-                }
-            }
-
-            if ($timing === 'invoice' && empty($invoice->stock_deducted_at)) {
-                $invoice->stock_deducted_at = now();
-                $invoice->stock_deducted_via = 'invoice';
-                $invoice->save();
             }
 
             if (! empty($invoice->purchase_id)) {
@@ -292,6 +272,79 @@ class InvoiceCreationService
 
             return $invoice->fresh();
         });
+    }
+
+    /**
+     * Deduct stock when an invoice is issued (Draft -> Sent).
+     *
+     * A draft deducts NOTHING: stock moves only here, when the
+     * invoice leaves draft status. Guarded by stock_deducted_at,
+     * so a re-send, a retry, or a second caller can never deduct
+     * twice. With timing 'delivery_note' this returns false —
+     * deduction then happens on Delivery Note creation instead.
+     *
+     * The warehouse used is resolveInvoiceWarehouseId() (the
+     * creator's first branch default warehouse, else the company's
+     * first warehouse; null means global-only). It is recorded on
+     * the invoice so a void restores to the SAME warehouse.
+     */
+    public function deductStockOnSend(Invoice $invoice, int $creatorId): bool
+    {
+        $settings = Utility::settingsById($creatorId);
+        if (($settings['stock_deduction_timing'] ?? 'invoice') !== 'invoice') {
+            return false;
+        }
+        if (! empty($invoice->stock_deducted_at)) {
+            return false;
+        }
+
+        $warehouseId = $this->resolveInvoiceWarehouseId($creatorId);
+        $formattedNumber = ($settings['invoice_prefix'] ?? '#Fatura')
+            . sprintf('%05d', (int) $invoice->invoice_id);
+
+        $invoice->loadMissing('items');
+        foreach ($invoice->items as $line) {
+            InvoiceSaleDeductionService::deductLine(
+                (int) $line->product_id,
+                (float) $line->quantity,
+                $creatorId,
+                (int) $invoice->id,
+                (int) $line->id,
+                (int) $invoice->customer_id,
+                $formattedNumber,
+                $line->identifiers,
+                $line->selected_options_json,
+                $warehouseId
+            );
+        }
+
+        $invoice->stock_deducted_at = now();
+        $invoice->stock_deducted_via = 'invoice';
+        $invoice->stock_deducted_warehouse_id = $warehouseId;
+        $invoice->save();
+
+        return true;
+    }
+
+    /**
+     * Which warehouse an invoice's stock comes from. Invoices store
+     * no branch, so: the creator's first branch and its default
+     * warehouse; else the company's first warehouse; else null
+     * (global-only deduction, as before).
+     */
+    public function resolveInvoiceWarehouseId(int $creatorId): ?int
+    {
+        $branch = Branch::where('created_by', $creatorId)->orderBy('id')->first();
+        if ($branch) {
+            $id = $branch->resolveDefaultWarehouseId();
+            if ($id) {
+                return $id;
+            }
+        }
+
+        $id = warehouse::where('created_by', $creatorId)->orderBy('id')->value('id');
+
+        return $id ? (int) $id : null;
     }
 
     /**

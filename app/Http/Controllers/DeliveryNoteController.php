@@ -50,6 +50,10 @@ class DeliveryNoteController extends Controller
         $settings = Utility::settings();
         $timing = $settings['stock_deduction_timing'] ?? 'invoice';
         if ($timing === 'delivery_note' && empty($invoice->stock_deducted_at)) {
+            // Same warehouse as the send path resolves, recorded on
+            // the invoice so a void restores to the same warehouse.
+            $warehouseId = app(\App\Services\InvoiceCreationService::class)
+                ->resolveInvoiceWarehouseId((int) \Auth::user()->creatorId());
             foreach ($invoice->items as $line) {
                 try {
                     InvoiceSaleDeductionService::deductLine(
@@ -60,7 +64,9 @@ class DeliveryNoteController extends Controller
                         (int) $line->id,
                         (int) $invoice->customer_id,
                         \Auth::user()->invoiceNumberFormat($invoice->invoice_id),
-                        $line->identifiers
+                        $line->identifiers,
+                        null,
+                        $warehouseId
                     );
                 } catch (\Throwable $e) {
                     return redirect()->back()->with('error', $e->getMessage());
@@ -69,6 +75,7 @@ class DeliveryNoteController extends Controller
 
             $invoice->stock_deducted_at = now();
             $invoice->stock_deducted_via = 'delivery_note';
+            $invoice->stock_deducted_warehouse_id = $warehouseId;
             $invoice->save();
 
             $dn->stock_deducted_at = now();

@@ -35,7 +35,9 @@ class DocumentVoidService
         // would silently evaluate as empty and the manual-mode
         // checkbox would never fire.
         $createCreditNote = ! empty($options['create_credit_note']);
-        $warehouseId = self::resolveWarehouseId($options, $settings, $stockMode);
+        // The stock was taken from the recorded warehouse; restore
+        // goes back there (auto mode), not to the configured default.
+        $warehouseId = self::resolveWarehouseId($options, $settings, $stockMode, (int) ($invoice->stock_deducted_warehouse_id ?? 0));
 
         return DB::transaction(function () use ($invoice, $creatorId, $user, $reason, $stockMode, $accountingMode, $createCreditNote, $warehouseId, $settings) {
             $stockRestored = false;
@@ -299,13 +301,20 @@ class DocumentVoidService
         return $latest ? (int) $latest->uid + 1 : 1;
     }
 
-    protected static function resolveWarehouseId(array $options, array $settings, string $stockMode): int
+    protected static function resolveWarehouseId(array $options, array $settings, string $stockMode, int $recordedWarehouseId = 0): int
     {
         if (! empty($options['warehouse_id'])) {
             return (int) $options['warehouse_id'];
         }
 
         if ($stockMode === 'auto') {
+            // The stock was actually taken from the recorded
+            // warehouse; return it there. Fall back to the
+            // configured default for older invoices that recorded none.
+            if ($recordedWarehouseId > 0) {
+                return $recordedWarehouseId;
+            }
+
             return (int) ($settings['document_void_default_warehouse_id'] ?? 0);
         }
 
