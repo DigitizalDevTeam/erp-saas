@@ -17,6 +17,7 @@ use App\Models\warehouse;
 use App\Services\Accounting\DocumentLedgerService;
 use App\Support\MoneyAmount;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Contract Management Phase 2 — the ONE invoice creation path.
@@ -320,7 +321,13 @@ class InvoiceCreationService
 
         $invoice->stock_deducted_at = now();
         $invoice->stock_deducted_via = 'invoice';
-        $invoice->stock_deducted_warehouse_id = $warehouseId;
+        // The column comes from migration 310006; minimal-schema
+        // callers (e.g. the Billing test fixtures) build their own
+        // invoices table without it — record the warehouse only when
+        // the column exists. Production always has it.
+        if (Schema::hasColumn('invoices', 'stock_deducted_warehouse_id')) {
+            $invoice->stock_deducted_warehouse_id = $warehouseId;
+        }
         $invoice->save();
 
         return true;
@@ -334,12 +341,23 @@ class InvoiceCreationService
      */
     public function resolveInvoiceWarehouseId(int $creatorId): ?int
     {
-        $branch = Branch::where('created_by', $creatorId)->orderBy('id')->first();
-        if ($branch) {
-            $id = $branch->resolveDefaultWarehouseId();
-            if ($id) {
-                return $id;
+        // Minimal-schema callers (e.g. the Billing test fixtures)
+        // create no branches/warehouses tables. A missing table means
+        // "no warehouse configured", not an error — fall back to
+        // global-only deduction, as this method's docblock promises.
+        // Schema::hasTable() is called fresh every time, never memoized.
+        if (Schema::hasTable('branches')) {
+            $branch = Branch::where('created_by', $creatorId)->orderBy('id')->first();
+            if ($branch && Schema::hasTable('warehouses')) {
+                $id = $branch->resolveDefaultWarehouseId();
+                if ($id) {
+                    return $id;
+                }
             }
+        }
+
+        if (! Schema::hasTable('warehouses')) {
+            return null;
         }
 
         $id = warehouse::where('created_by', $creatorId)->orderBy('id')->value('id');

@@ -208,8 +208,7 @@ class ClientIssuesStockTest extends TestCase
     // ------------------------------------------------------------------
 
     public function test_delivery_note_timing_deducts_only_on_dn_creation(): void
-    {
-        $this->setTiming('delivery_note');
+    {        $this->setTiming('delivery_note');
 
         $invoice = $this->createDraft(2);
 
@@ -234,6 +233,57 @@ class ClientIssuesStockTest extends TestCase
         DocumentVoidService::voidInvoice($fresh, ['reason' => 'void after dn']);
         $this->assertSame(100.0, $this->globalQty());
         $this->assertSame(50.0, $this->warehouseQty(1));
+    }
+
+    /**
+     * Regression: the full suite's Billing fixtures create NO
+     * branches/warehouses tables, and resolveInvoiceWarehouseId()
+     * used to throw "no such table" there, failing 59 Billing tests.
+     * A missing table means "no warehouse configured" — deduction
+     * falls back to global-only instead of throwing.
+     */
+    public function test_send_deducts_global_only_when_warehouse_tables_are_missing(): void
+    {
+        $invoice = $this->createDraft(2);
+
+        Schema::dropIfExists('branches');
+        Schema::dropIfExists('warehouses');
+
+        try {
+            $service = app(InvoiceCreationService::class);
+
+            $this->assertNull($service->resolveInvoiceWarehouseId(1));
+
+            $this->assertTrue($service->deductStockOnSend($invoice->fresh(), 1));
+            $this->assertSame(98.0, $this->globalQty());
+            $fresh = $invoice->fresh();
+            $this->assertNull($fresh->stock_deducted_warehouse_id);
+            $this->assertSame('invoice', $fresh->stock_deducted_via);
+        } finally {
+            // Rebuild both tables + rows so this file stays
+            // order-independent even if tests are reordered.
+            Schema::create('branches', function (Blueprint $table) {
+                $table->bigIncrements('id');
+                $table->string('name')->nullable();
+                $table->integer('default_warehouse_id')->nullable();
+                $table->integer('created_by')->nullable();
+                $table->timestamps();
+            });
+            Schema::create('warehouses', function (Blueprint $table) {
+                $table->bigIncrements('id');
+                $table->string('name');
+                $table->unsignedBigInteger('branch_id')->nullable();
+                $table->text('address')->nullable();
+                $table->string('city')->nullable();
+                $table->string('city_zip')->nullable();
+                $table->integer('created_by')->default(0);
+                $table->timestamps();
+            });
+            $branch = Branch::create(['id' => 1, 'name' => 'Main Branch', 'created_by' => 1]);
+            warehouse::create(['id' => 1, 'name' => 'North Warehouse', 'branch_id' => $branch->id, 'address' => '', 'city' => '', 'city_zip' => '', 'created_by' => 1]);
+            $branch->default_warehouse_id = 1;
+            $branch->save();
+        }
     }
 
     // ------------------------------------------------------------------
