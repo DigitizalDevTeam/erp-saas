@@ -1015,6 +1015,13 @@ class InvoiceController extends Controller
         if (\Auth::user()->can('delete payment invoice')) {
             $payment = InvoicePayment::find($payment_id);
 
+            // A voided payment is part of the voided invoice's history:
+            // deleting it would reverse the bank and customer balances
+            // a second time (the void already reversed them once).
+            if ($payment && ! empty($payment->voided_at)) {
+                return redirect()->back()->with('error', __('This payment was voided with its invoice and cannot be deleted.'));
+            }
+
             InvoicePayment::where('id', '=', $payment_id)->delete();
 
             InvoiceBankTransfer::where('id', '=', $payment_id)->delete();

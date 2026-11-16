@@ -20,6 +20,11 @@ class InvoicePayment extends Model
         'reference',
         'description',
         'pos_shift_id',
+        'voided_at',
+    ];
+
+    protected $casts = [
+        'voided_at' => 'datetime',
     ];
 
 

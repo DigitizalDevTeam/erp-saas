@@ -8,7 +8,6 @@ use App\Models\CreditNote;
 use App\Models\DebitNote;
 use App\Models\DocumentVoidLog;
 use App\Models\Invoice;
-use App\Models\InvoicePayment;
 use App\Models\Transaction;
 use App\Models\TransactionLines;
 use App\Models\User;
@@ -31,13 +30,24 @@ class DocumentVoidService
         $reason = trim((string) ($options['reason'] ?? ''));
         $stockMode = $options['stock_mode'] ?? ($settings['document_void_restore_stock'] ?? 'auto');
         $accountingMode = $options['accounting_mode'] ?? ($settings['document_void_credit_note'] ?? 'auto');
+        // Extracted here (not read inside the closure): $options is not
+        // in the transaction closure's use list, so reading it there
+        // would silently evaluate as empty and the manual-mode
+        // checkbox would never fire.
+        $createCreditNote = ! empty($options['create_credit_note']);
         $warehouseId = self::resolveWarehouseId($options, $settings, $stockMode);
 
-        return DB::transaction(function () use ($invoice, $creatorId, $user, $reason, $stockMode, $accountingMode, $warehouseId, $settings) {
+        return DB::transaction(function () use ($invoice, $creatorId, $user, $reason, $stockMode, $accountingMode, $createCreditNote, $warehouseId, $settings) {
             $stockRestored = false;
             $noteCreated = false;
             $noteId = null;
             $noteType = null;
+
+            // Amounts are computed BEFORE anything changes: getDue()
+            // must see the payments as they are, and the invoice is
+            // not voided yet (getDue() returns 0 for a voided invoice).
+            $dueBeforeVoid = $invoice->getDue();
+            $totalPaid = (float) $invoice->payments->sum('amount');
 
             if ($stockMode !== 'off') {
                 if ($stockMode === 'manual' && ! $warehouseId) {
@@ -51,31 +61,53 @@ class DocumentVoidService
                 );
             }
 
+            // Payments are KEPT for history: reverse the bank balance
+            // once each and mark the row voided instead of deleting
+            // it. The payment's Transaction row is kept too; only the
+            // ledger lines are removed below.
             foreach ($invoice->payments as $payment) {
-                Utility::bankAccountBalance($payment->account_id, $payment->amount, 'debit');
-                $transaction = Transaction::where('payment_id', $payment->id)->first();
-                if ($transaction) {
-                    $transaction->delete();
+                if (! empty($payment->voided_at)) {
+                    continue;
                 }
-                InvoicePayment::where('id', $payment->id)->delete();
+                Utility::bankAccountBalance($payment->account_id, $payment->amount, 'debit');
+                $payment->voided_at = now();
+                $payment->save();
             }
 
-            if ($invoice->customer_id != 0 && $invoice->status != 0) {
-                Utility::updateUserBalance('customer', $invoice->customer_id, $invoice->getDue(), 'debit');
+            // The invoice no longer exists, so the customer no longer
+            // owes its unpaid part: credit the remaining due. A fully
+            // paid invoice has due 0 here, so nothing moves.
+            if ($invoice->customer_id != 0 && $invoice->status != 0 && $dueBeforeVoid != 0) {
+                Utility::updateUserBalance('customer', $invoice->customer_id, $dueBeforeVoid, 'credit');
             }
 
+            // Credit notes post no ledger entries of their own, so the
+            // invoice's lines must still be removed to keep the ledger
+            // correct after the void.
             TransactionLines::where('reference_id', $invoice->id)->where('reference', 'Invoice')->delete();
             TransactionLines::where('reference_id', $invoice->id)->where('reference', 'Invoice Payment')->delete();
 
+            // Credit note: in auto mode only for money actually
+            // received — an unpaid invoice gets no credit note, a
+            // partially paid one gets a note for the paid amount
+            // (capped at what is still un-credited). Manual mode
+            // keeps the old checkbox behaviour.
             $remainingCredit = $invoice->getTotal() - $invoice->invoiceTotalCreditNote();
-            $shouldCreateNote = $accountingMode === 'auto'
-                || ($accountingMode === 'manual' && ! empty($options['create_credit_note']));
+            if ($accountingMode === 'auto') {
+                $noteAmount = min($totalPaid, $remainingCredit);
+                $shouldCreateNote = $noteAmount > 0;
+            } else {
+                $noteAmount = $remainingCredit;
+                $shouldCreateNote = $createCreditNote;
+            }
 
-            if ($shouldCreateNote && $remainingCredit > 0) {
+            if ($shouldCreateNote && $noteAmount > 0) {
                 $creditNote = new CreditNote();
+                $creditNote->uid = self::nextCreditNoteUid($creatorId);
+                $creditNote->is_debit = 0;
                 $creditNote->invoice = $invoice->id;
                 $creditNote->customer = $invoice->customer_id;
-                $creditNote->amount = $remainingCredit;
+                $creditNote->amount = $noteAmount;
                 $creditNote->date = date('Y-m-d');
                 $creditNote->description = $reason !== ''
                     ? $reason
@@ -85,6 +117,13 @@ class DocumentVoidService
                 $noteCreated = true;
                 $noteId = (int) $creditNote->id;
                 $noteType = 'credit_note';
+
+                // Mirror a manually created credit note, which debits
+                // the customer balance by the note amount (the refund
+                // now owed to the customer).
+                if ($invoice->customer_id != 0) {
+                    Utility::updateUserBalance('customer', $invoice->customer_id, $noteAmount, 'debit');
+                }
             }
 
             $invoice->status = 5;
@@ -139,7 +178,7 @@ class DocumentVoidService
         $accountingMode = $options['accounting_mode'] ?? ($settings['document_void_credit_note'] ?? 'auto');
         $warehouseId = self::resolveWarehouseId($options, $settings, $stockMode);
 
-        return DB::transaction(function () use ($bill, $creatorId, $user, $reason, $stockMode, $accountingMode, $warehouseId) {
+        return DB::transaction(function () use ($bill, $creatorId, $user, $reason, $stockMode, $accountingMode, $warehouseId, $options) {
             $stockRestored = false;
             $noteCreated = false;
             $noteId = null;
@@ -239,6 +278,25 @@ class DocumentVoidService
             'accounting_note_created' => false,
             'meta' => ['pos_id' => $posId],
         ]);
+    }
+
+    /**
+     * Next sequential credit-note number for a company.
+     *
+     * Same rule as CreditNoteController (latest uid + 1, default 1),
+     * but ordered by id instead of created_at so ties in the same
+     * second cannot pick the wrong row. Called inside the void
+     * transaction with a row lock, so two concurrent voids serialize
+     * on the latest credit note and cannot take the same number.
+     */
+    protected static function nextCreditNoteUid(int $creatorId): int
+    {
+        $latest = CreditNote::where('created_by', $creatorId)
+            ->lockForUpdate()
+            ->orderByDesc('uid')
+            ->first();
+
+        return $latest ? (int) $latest->uid + 1 : 1;
     }
 
     protected static function resolveWarehouseId(array $options, array $settings, string $stockMode): int
