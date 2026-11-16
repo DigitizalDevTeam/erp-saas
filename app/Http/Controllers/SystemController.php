@@ -46,7 +46,11 @@ class SystemController extends Controller
     {
 
         if (\Auth::user()->can('manage system settings')) {
-            if ($request->logo_dark) {
+            // Brand settings are white-label: only the Main Super Admin
+            // may change the logos, favicon or the theme customizer,
+            // even for a user who holds 'manage system settings'.
+            $isSuperAdmin = \Auth::user()->type === 'super admin';
+            if ($isSuperAdmin && $request->logo_dark) {
                 $logoName = 'logo-dark.png';
                 $dir = 'uploads/logo/';
                 $validation = [
@@ -61,7 +65,7 @@ class SystemController extends Controller
                 }
             }
 
-            if ($request->logo_light) {
+            if ($isSuperAdmin && $request->logo_light) {
 
                 $logoName = 'logo-light.png';
 
@@ -78,7 +82,7 @@ class SystemController extends Controller
                 }
             }
 
-            if ($request->favicon) {
+            if ($isSuperAdmin && $request->favicon) {
 
                 $favicon = 'favicon.png';
                 $dir = 'uploads/logo';
@@ -139,16 +143,17 @@ class SystemController extends Controller
                 }
 
                 unset($post['_token'], $post['company_logo_dark'], $post['company_logo_light'], $post['company_favicon'], $post['custom_color']);
+                if (! $isSuperAdmin) {
+                    // White-label: the theme customizer is brand, too.
+                    unset($post['color'], $post['cust_theme_bg'], $post['cust_darklayout'], $post['SITE_RTL']);
+                }
 
                 foreach ($post as $key => $data) {
                     if (in_array($key, array_keys($settings))) {
-                        \DB::insert(
-                            'insert into settings (`value`, `name`,`created_by`) values (?, ?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`) ',
-                            [
-                                $data,
-                                $key,
-                                \Auth::user()->creatorId(),
-                            ]
+                        // Portable upsert — see saveBusinessSettings.
+                        \DB::table('settings')->updateOrInsert(
+                            ['name' => $key, 'created_by' => \Auth::user()->creatorId()],
+                            ['value' => $data]
                         );
                     }
                 }
@@ -491,7 +496,12 @@ class SystemController extends Controller
             $post = $request->all();
 
             $user = \Auth::user();
-            if ($request->company_logo_dark) {
+            // Brand settings are white-label: only the Main Super Admin
+            // may change the company logos, favicon or the theme
+            // customizer. Other users keep the rest of this form
+            // working, but their brand fields are stripped below.
+            $isSuperAdmin = $user->type === 'super admin';
+            if ($isSuperAdmin && $request->company_logo_dark) {
 
                 $validation = [
                     'mimes:' . 'png',
@@ -507,17 +517,17 @@ class SystemController extends Controller
                     return redirect()->back()->with('error', __($path['msg']));
                 }
 
-                \DB::insert(
-                    'insert into settings (`value`, `name`,`created_by`) values (?, ?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`) ',
-                    [
-                        $logoName,
-                        'company_logo_dark',
-                        \Auth::user()->creatorId(),
-                    ]
+                // updateOrInsert is the portable form of the old
+                // MySQL-only ON DUPLICATE KEY UPDATE (settings has a
+                // unique key on name + created_by) — same result on
+                // MySQL, and testable on SQLite.
+                \DB::table('settings')->updateOrInsert(
+                    ['name' => 'company_logo_dark', 'created_by' => \Auth::user()->creatorId()],
+                    ['value' => $logoName]
                 );
             }
 
-            if ($request->company_logo_light) {
+            if ($isSuperAdmin && $request->company_logo_light) {
 
                 $validation = [
                     'mimes:' . 'png',
@@ -532,17 +542,14 @@ class SystemController extends Controller
                     return redirect()->back()->with('error', __($path['msg']));
                 }
 
-                \DB::insert(
-                    'insert into settings (`value`, `name`,`created_by`) values (?, ?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`) ',
-                    [
-                        $logoName,
-                        'company_logo_light',
-                        \Auth::user()->creatorId(),
-                    ]
+                // Portable upsert — see the company_logo_dark block above.
+                \DB::table('settings')->updateOrInsert(
+                    ['name' => 'company_logo_light', 'created_by' => \Auth::user()->creatorId()],
+                    ['value' => $logoName]
                 );
             }
 
-            if ($request->company_favicon) {
+            if ($isSuperAdmin && $request->company_favicon) {
 
                 $validation = [
                     'mimes:' . 'png',
@@ -558,13 +565,10 @@ class SystemController extends Controller
                     return redirect()->back()->with('error', __($path['msg']));
                 }
 
-                \DB::insert(
-                    'insert into settings (`value`, `name`,`created_by`) values (?, ?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`) ',
-                    [
-                        $favicon,
-                        'company_favicon',
-                        \Auth::user()->creatorId(),
-                    ]
+                // Portable upsert — see the company_logo_dark block above.
+                \DB::table('settings')->updateOrInsert(
+                    ['name' => 'company_favicon', 'created_by' => \Auth::user()->creatorId()],
+                    ['value' => $favicon]
                 );
             }
 
@@ -595,16 +599,17 @@ class SystemController extends Controller
                 }
 
                 unset($post['_token'], $post['company_logo_dark'], $post['company_logo_light'], $post['company_favicon'], $post['custom_color']);
+                if (! $isSuperAdmin) {
+                    // White-label: the theme customizer is brand, too.
+                    unset($post['color'], $post['cust_theme_bg'], $post['cust_darklayout'], $post['SITE_RTL']);
+                }
                 foreach ($post as $key => $data) {
                     if (in_array($key, array_keys($settings))) {
 
-                        \DB::insert(
-                            'insert into settings (`value`, `name`,`created_by`) values (?, ?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`) ',
-                            [
-                                $data,
-                                $key,
-                                \Auth::user()->creatorId(),
-                            ]
+                        // Portable upsert — see the company_logo_dark block above.
+                        \DB::table('settings')->updateOrInsert(
+                            ['name' => $key, 'created_by' => \Auth::user()->creatorId()],
+                            ['value' => $data]
                         );
                     }
                 }

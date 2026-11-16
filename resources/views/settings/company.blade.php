@@ -279,17 +279,28 @@
     </script>
 
     <script>
-        document.getElementById('company_logo').onchange = function() {
-            var src = URL.createObjectURL(this.files[0])
-            document.getElementById('image').src = src
+        // The logo preview inputs only exist for the Main Super Admin
+        // (the Brand Settings card is hidden for everyone else).
+        var companyLogoInput = document.getElementById('company_logo');
+        if (companyLogoInput) {
+            companyLogoInput.onchange = function() {
+                var src = URL.createObjectURL(this.files[0])
+                document.getElementById('image').src = src
+            }
         }
-        document.getElementById('company_logo_light').onchange = function() {
-            var src = URL.createObjectURL(this.files[0])
-            document.getElementById('image1').src = src
+        var companyLogoLightInput = document.getElementById('company_logo_light');
+        if (companyLogoLightInput) {
+            companyLogoLightInput.onchange = function() {
+                var src = URL.createObjectURL(this.files[0])
+                document.getElementById('image1').src = src
+            }
         }
-        document.getElementById('company_favicon').onchange = function() {
-            var src = URL.createObjectURL(this.files[0])
-            document.getElementById('image2').src = src
+        var companyFaviconInput = document.getElementById('company_favicon');
+        if (companyFaviconInput) {
+            companyFaviconInput.onchange = function() {
+                var src = URL.createObjectURL(this.files[0])
+                document.getElementById('image2').src = src
+            }
         }
     </script>
 
@@ -388,10 +399,12 @@
                 <div class="col-xl-3">
                     <div class="card sticky-top setting-sidebar" style="top:30px;">
                         <div class="list-group list-group-flush" id="useradd-sidenav">
+                            @if(\Auth::user()->type == 'super admin')
                             <a href="#brand-settings"
                                 class="list-group-item list-group-item-action border-0">{{ __('Brand Settings') }}
                                 <div class="float-end"><i class="ti ti-chevron-right"></i></div>
                             </a>
+                            @endif
                             <a href="#system-settings"
                                 class="list-group-item list-group-item-action border-0">{{ __('System Settings') }}
                                 <div class="float-end"><i class="ti ti-chevron-right"></i></div>
@@ -475,6 +488,7 @@
                 <div class="col-xl-9 setting-menu-div">
 
                     <!--Business Setting-->
+                    @if(\Auth::user()->type == 'super admin')
                     <div id="brand-settings" class="card">
                         {{ Form::model($setting, ['route' => 'business.setting', 'method' => 'POST', 'enctype' => 'multipart/form-data']) }}
                         <div class="card-header p-3">
@@ -771,6 +785,7 @@
                         </div>
                         {{ Form::close() }}
                     </div>
+                    @endif
 
                     <!--System Settings-->
                     <div id="system-settings" class="card">
