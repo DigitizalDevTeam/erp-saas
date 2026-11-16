@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ManagementDocument;
 use App\Services\ManagementDocumentCosts;
 use App\Services\ManagementReportExport;
 use App\Services\MonthlyManagementData;
@@ -146,10 +147,24 @@ class ManagementReportController extends Controller
 
         $table = ManagementDocumentCosts::costsTable($creatorId, $year, $costCentre);
 
+        // Whether the year has any counting document (a costing type
+        // that is not voided). The empty-state hint shows only when
+        // there is nothing to count AND the year's costs are 0 — a
+        // year whose documents net to zero (e.g. a credit note
+        // cancelling an invoice) has documents, so the hint must not
+        // claim there are none. Journals alone also hide it, via the
+        // total check below.
+        $hasDocuments = ManagementDocument::where('created_by', $creatorId)
+            ->whereYear('doc_date', $year)
+            ->whereIn('doc_type', ManagementDocument::COSTING_TYPES)
+            ->where('status', '!=', 'Anulado')
+            ->exists();
+
         return view('management-reports.costs', [
             'year' => $year,
             'costCentre' => $costCentre,
             'table' => $table,
+            'hasDocuments' => $hasDocuments,
             'years' => range((int) date('Y'), (int) date('Y') - 5),
         ]);
     }

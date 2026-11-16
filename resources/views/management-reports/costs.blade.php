@@ -39,7 +39,7 @@
                         </div>
                     </form>
 
-                    @if (array_sum($table['total_geral'] ?? []) == 0)
+                    @if (! ($hasDocuments ?? false) && array_sum($table['total_geral'] ?? []) == 0)
                         <div class="alert alert-info">
                             {{ __('No documents exist yet for this year, so every cost is 0.') }}
                             <a href="{{ route('management-documents.create') }}">{{ __('Add Document') }}</a>

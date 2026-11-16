@@ -486,6 +486,46 @@ class ManagementDocumentsTest extends TestCase
         $this->assertStringContainsString('already entered', $skipped[1]['reason']);
     }
 
+    public function test_documents_import_accepts_cost_centre_code_header(): void
+    {
+        // The natural header 'cost_centre_code' (and 'category_code')
+        // must map like the short 'cost_centre' / 'category' headers —
+        // without it the imported row silently gets "No cost centre".
+        $handle = fopen('php://temp', 'r+');
+        fputcsv($handle, ['date', 'supplier_nif', 'supplier_name', 'doc_number', 'type', 'base', 'iva', 'retention', 'total', 'status', 'bank_account', 'payment_method', 'category_code', 'cost_centre_code', 'notes']);
+        fputcsv($handle, ['2026-06-10', '123456789', 'Import Supplier', 'IMP-CC-001', 'invoice', '100', '16', '', '116', 'Conciliado', 'BCP Ordem', 'Tran. Bancária', '6241', '101', '']);
+        rewind($handle);
+        $csv = stream_get_contents($handle);
+        fclose($handle);
+
+        $file = UploadedFile::fake()->createWithContent('import.csv', $csv);
+
+        $response = $this->asCompany()->post(route('management-documents.import'), ['file' => $file]);
+        $response->assertRedirect(route('management-documents.index'))
+            ->assertSessionHas('success');
+
+        $cc101 = ManagementCostCentre::where('created_by', 1)->where('code', '101')->firstOrFail();
+        $this->assertDatabaseHas('management_documents', [
+            'doc_number' => 'IMP-CC-001',
+            'management_cost_centre_id' => $cc101->id,
+        ]);
+    }
+
+    public function test_create_form_lists_used_suppliers_for_autocomplete(): void
+    {
+        // The supplier field is a datalist of suppliers already used
+        // in this company's documents (free text still works for a
+        // new supplier). A native datalist popup cannot be observed
+        // in an automated browser, so the rendered options are the
+        // proof here.
+        $this->asCompany()->post(route('management-documents.store'), $this->docPayload());
+
+        $this->asCompany()->get(route('management-documents.create'))
+            ->assertOk()
+            ->assertSee('supplier-list', false)
+            ->assertSee('Test Supplier');
+    }
+
     public function test_file_documents_import_cleanly(): void
     {
         $rows = [];

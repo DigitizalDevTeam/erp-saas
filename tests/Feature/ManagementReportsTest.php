@@ -11,6 +11,7 @@ use App\Models\JournalEntry;
 use App\Models\JournalItem;
 use App\Models\ManagementAccountMapping;
 use App\Models\ManagementCostCentre;
+use App\Models\ManagementDocument;
 use App\Models\ManagementRule;
 use App\Models\Pos;
 use App\Models\PosArea;
@@ -447,6 +448,32 @@ class ManagementReportsTest extends TestCase
 
         // And once a document exists for the year, the hint goes away.
         $this->seedFileDocuments(1);
+
+        $this->asCompany()->get(route('management-reports.costs', ['year' => 2026]))
+            ->assertOk()
+            ->assertDontSee('No documents exist yet for this year, so every cost is 0.');
+    }
+
+    public function test_costs_hint_stays_hidden_when_documents_net_to_zero(): void
+    {
+        // An invoice and an equal credit note net to zero for the
+        // year, but documents DO exist — the hint must not claim
+        // there are none.
+        $rule = ManagementRule::where('created_by', 1)->where('code', '6241')->firstOrFail();
+        $cc = ManagementCostCentre::where('created_by', 1)->where('code', '101')->firstOrFail();
+
+        ManagementDocument::create([
+            'created_by' => 1, 'doc_date' => '2026-06-10', 'supplier_name' => 'Net Zero Supplier',
+            'doc_number' => 'NZ-001', 'doc_type' => 'invoice', 'base' => 100, 'iva' => 16,
+            'retention' => 0, 'total' => 116, 'status' => 'Conciliado',
+            'management_rule_id' => $rule->id, 'management_cost_centre_id' => $cc->id,
+        ]);
+        ManagementDocument::create([
+            'created_by' => 1, 'doc_date' => '2026-06-20', 'supplier_name' => 'Net Zero Supplier',
+            'doc_number' => 'NZ-002', 'doc_type' => 'credit_note', 'base' => -100, 'iva' => -16,
+            'retention' => 0, 'total' => -116, 'status' => 'Conciliado',
+            'management_rule_id' => $rule->id, 'management_cost_centre_id' => $cc->id,
+        ]);
 
         $this->asCompany()->get(route('management-reports.costs', ['year' => 2026]))
             ->assertOk()

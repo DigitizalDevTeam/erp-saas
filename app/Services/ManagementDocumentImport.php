@@ -57,6 +57,8 @@ class ManagementDocumentImport
         'cost_centre' => 'cost_centre_code',
         'cost_center' => 'cost_centre_code',
         'cc' => 'cost_centre_code',
+        'cost_centre_code' => 'cost_centre_code',
+        'cost_center_code' => 'cost_centre_code',
         'notes' => 'notes',
         'note' => 'notes',
     ];
