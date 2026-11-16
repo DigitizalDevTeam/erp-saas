@@ -9838,5 +9838,8 @@
     "Personal Email": "Personal Email",
     "Company KYC Documents": "Company KYC Documents",
     "Contact Person KYC Documents": "Contact Person KYC Documents",
-    "No documents": "No documents"
+    "No documents": "No documents",
+    "Search users": "Search users",
+    "No users found": "No users found",
+    "Could not load users. Type your email instead.": "Could not load users. Type your email instead."
 }

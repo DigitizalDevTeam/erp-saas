@@ -8979,5 +8979,8 @@
     "Personal Email": "Email Pessoal",
     "Company KYC Documents": "Documentos KYC da Empresa",
     "Contact Person KYC Documents": "Documentos KYC da Pessoa de Contato",
-    "No documents": "Sem documentos"
+    "No documents": "Sem documentos",
+    "Search users": "Pesquisar usuários",
+    "No users found": "Nenhum usuário encontrado",
+    "Could not load users. Type your email instead.": "Não foi possível carregar os usuários. Digite o seu email."
 }

@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use DateTime;
 use Spatie\Permission\Models\Permission;
@@ -582,6 +583,85 @@ class AuthenticatedSessionController extends Controller
         }
 
         return $user->canAccessCompany($companyId);
+    }
+
+    /**
+     * Public user list for the ERP login tab (GET /login/users).
+     *
+     * The client explicitly asked for a user list on the login screen,
+     * so the list itself is user-enumeration by design: it returns id,
+     * name, company name and email for active, login-enabled
+     * company/staff users — NEVER super admin, NEVER client.
+     * Passwords are still verified per user by the normal login flow,
+     * and picking a user only fills the email field; it never logs
+     * anyone in. Capped at 200, ordered by name.
+     */
+    public function erpUsers()
+    {
+        $users = User::query()
+            ->where('is_active', 1)
+            ->where('delete_status', 1)
+            ->where('is_enable_login', 1)
+            ->whereIn('type', ['company', 'accountant', 'Employee'])
+            ->orderBy('name')
+            ->orderBy('email')
+            ->limit(200)
+            ->get(['id', 'name', 'email', 'type', 'created_by', 'default_company_id']);
+
+        // Company id per user, resolved in bulk (no N+1): a company
+        // user is its own company; staff resolve via their active
+        // company_user membership (is_default first), else
+        // default_company_id, else created_by.
+        $companyIdByUser = [];
+        foreach ($users as $user) {
+            $companyIdByUser[(int) $user->id] = $user->type === 'company'
+                ? (int) $user->id
+                : null;
+        }
+        $staffIds = $users->where('type', '!=', 'company')->pluck('id')->all();
+        if ($staffIds && Schema::hasTable('company_user')) {
+            $rows = DB::table('company_user')
+                ->join('users as companies', 'companies.id', '=', 'company_user.company_id')
+                ->whereIn('company_user.user_id', $staffIds)
+                ->where('company_user.status', 'active')
+                ->where('companies.type', 'company')
+                ->where('companies.is_enable_login', 1)
+                ->where('companies.is_active', 1)
+                ->where('companies.delete_status', 1)
+                ->orderByDesc('company_user.is_default')
+                ->orderBy('company_user.id')
+                ->get(['company_user.user_id', 'company_user.company_id']);
+            foreach ($rows as $row) {
+                $companyIdByUser[(int) $row->user_id] ??= (int) $row->company_id;
+            }
+        }
+        foreach ($users as $user) {
+            if ($user->type === 'company') {
+                continue;
+            }
+            if (empty($companyIdByUser[(int) $user->id])) {
+                $companyIdByUser[(int) $user->id] = ! empty($user->default_company_id)
+                    ? (int) $user->default_company_id
+                    : (! empty($user->created_by) ? (int) $user->created_by : null);
+            }
+        }
+
+        $companyIds = array_values(array_unique(array_filter(array_values($companyIdByUser))));
+        $companyNames = $companyIds
+            ? User::query()->whereIn('id', $companyIds)->pluck('name', 'id')
+            : collect();
+
+        return response()->json($users->map(function (User $user) use ($companyIdByUser, $companyNames) {
+            $companyId = $companyIdByUser[(int) $user->id] ?? null;
+            $name = trim((string) $user->name);
+
+            return [
+                'id' => (int) $user->id,
+                'name' => $name !== '' ? $name : (string) $user->email,
+                'company' => $companyId ? (string) ($companyNames[$companyId] ?? '') : '',
+                'email' => (string) $user->email,
+            ];
+        })->values()->all());
     }
 
     public function showLoginForm($lang = '')

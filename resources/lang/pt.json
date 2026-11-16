@@ -9978,5 +9978,8 @@
     "Personal Email": "Email Pessoal",
     "Company KYC Documents": "Documentos KYC da Empresa",
     "Contact Person KYC Documents": "Documentos KYC da Pessoa de Contacto",
-    "No documents": "Sem documentos"
+    "No documents": "Sem documentos",
+    "Search users": "Pesquisar utilizadores",
+    "No users found": "Nenhum utilizador encontrado",
+    "Could not load users. Type your email instead.": "Não foi possível carregar os utilizadores. Digite o seu email."
 }
