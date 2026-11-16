@@ -175,6 +175,9 @@ class BillingInvoiceService
                 'category_id' => $this->resolveCategoryId($creatorId),
                 'ref_number' => $contract->reference,
                 'items' => $items,
+                // System-generated for the current billing period:
+                // the chronological check is for manual backdating.
+                'skip_date_validation' => true,
             ]);
 
             // The recurring invoice is issued, not left as a draft:

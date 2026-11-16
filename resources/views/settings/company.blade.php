@@ -1083,6 +1083,18 @@
                                         </span>
                                     @enderror
                                 </div>
+                                <div class="form-group col-md-6">
+                                    {{ Form::label('invoice_start_date', __('Invoice start date'), ['class' => 'form-label']) }}
+                                    {{ Form::date('invoice_start_date', $setting['invoice_start_date'] ?? null, ['class' => 'form-control']) }}
+                                    <small class="text-muted">
+                                        {{ __('Invoices cannot be dated before this date.') }}
+                                    </small>
+                                    @error('invoice_start_date')
+                                        <span class="invalid-invoice_start_date" role="alert">
+                                            <strong class="text-danger">{{ $message }}</strong>
+                                        </span>
+                                    @enderror
+                                </div>
                                 <div class="col-md-12"><hr><h6 class="mb-3">{{ __('Void / Cancel Documents') }}</h6></div>
                                 <div class="form-group col-md-4">
                                     {{ Form::label('document_void_restore_stock', __('Stock on void'), ['class' => 'form-label']) }}

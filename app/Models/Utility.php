@@ -395,6 +395,7 @@ namespace App\Models;
 
                 // Sales stock deduction timing: 'invoice' or 'delivery_note'
                 "stock_deduction_timing" => "invoice",
+                "invoice_start_date" => "",
 
                 // Stock alerts (email)
                 "stock_alerts_enabled" => "off",
@@ -749,6 +750,7 @@ namespace App\Models;
                 "pos_template" => "template1",
 
                 "stock_deduction_timing" => "invoice",
+                "invoice_start_date" => "",
                 "stock_alerts_enabled" => "off",
                 "stock_alerts_recipients" => "",
                 "stock_alerts_frequency" => "daily",

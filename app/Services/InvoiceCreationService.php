@@ -67,6 +67,55 @@ class InvoiceCreationService
     }
 
     /**
+     * Chronological date check for a new / re-dated invoice.
+     *
+     * The new issue date must be on or after:
+     *  - the company's invoice_start_date setting, when set; and
+     *  - the latest issue_date among the company's non-draft,
+     *    non-voided SALES invoices (internal-consumption invoices
+     *    live in their own series and do not count).
+     *
+     * A draft or a voided invoice never blocks a new date, and the
+     * invoice being updated ($excludeInvoiceId) is ignored.
+     * Super admins bypass both checks ($isSuperAdmin).
+     *
+     * @throws \RuntimeException with a message naming the blocking date.
+     */
+    public function assertIssueDateAllowed(int $creatorId, string $issueDate, ?int $excludeInvoiceId = null, bool $isSuperAdmin = false): void
+    {
+        if ($isSuperAdmin) {
+            return;
+        }
+
+        $issueDate = substr(trim($issueDate), 0, 10);
+
+        $settings = Utility::settingsById($creatorId);
+        $startDate = trim((string) ($settings['invoice_start_date'] ?? ''));
+        if ($startDate !== '' && $issueDate < substr($startDate, 0, 10)) {
+            throw new \RuntimeException(
+                __('Invoices cannot be dated before :date (invoice start date).', ['date' => substr($startDate, 0, 10)])
+            );
+        }
+
+        $latest = Invoice::where('created_by', $creatorId)
+            ->where('status', '!=', Invoice::STATUS_DRAFT)
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
+            ->where(function ($q) {
+                $q->whereNull('document_type')
+                    ->orWhere('document_type', '<>', Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION);
+            })
+            ->when($excludeInvoiceId, fn ($q) => $q->where('id', '!=', $excludeInvoiceId))
+            ->orderByDesc('issue_date')
+            ->first(['issue_date']);
+
+        if ($latest && $issueDate < substr((string) $latest->issue_date, 0, 10)) {
+            throw new \RuntimeException(
+                __('The invoice date cannot be earlier than the latest issued invoice date (:date).', ['date' => substr((string) $latest->issue_date, 0, 10)])
+            );
+        }
+    }
+
+    /**
      * Create an invoice + lines exactly like InvoiceController::store().
      *
      * $data: customer_id, issue_date, due_date, category_id,
@@ -76,6 +125,10 @@ class InvoiceCreationService
      * discount, price, description, product_variant_id, identifiers,
      * measurement_json, selected_options_json), customField (array),
      * source_proforma_id, source_quotation_id, source_purchase_id.
+     * $data['skip_date_validation'] (bool, optional): skip the
+     * chronological issue-date check — used by the recurring engine
+     * (system-generated invoices for the current period) and by
+     * super admins. Manual creation leaves it off.
      *
      * Amounts are stored as given — the caller parses them
      * (MoneyAmount::parse for web input, exact 4-decimal strings
@@ -86,6 +139,10 @@ class InvoiceCreationService
      */
     public function createInvoice(int $creatorId, array $data): Invoice
     {
+        if (empty($data['skip_date_validation'])) {
+            $this->assertIssueDateAllowed($creatorId, (string) $data['issue_date']);
+        }
+
         return DB::transaction(function () use ($creatorId, $data) {
             $invoice = new Invoice();
             $invoice->invoice_id = $this->nextInvoiceNumber($creatorId);

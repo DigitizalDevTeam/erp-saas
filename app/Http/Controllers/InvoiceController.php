@@ -282,6 +282,8 @@ class InvoiceController extends Controller
                         'source_proforma_id' => $request->input('source_proforma_id'),
                         'source_quotation_id' => $request->input('source_quotation_id'),
                         'source_purchase_id' => $request->input('source_purchase_id'),
+                        // Super admins bypass the chronological date check.
+                        'skip_date_validation' => \Auth::user()->type === 'super admin',
                         'items' => $items,
                     ]
                 );
@@ -393,6 +395,21 @@ class InvoiceController extends Controller
                     $messages = $validator->getMessageBag();
 
                     return redirect()->route('invoice.index')->with('error', $messages->first());
+                }
+                // Chronological check: a re-dated invoice must not move
+                // before the latest issued invoice (or the invoice start
+                // date). Super admins bypass it.
+                if ((string) $request->issue_date !== (string) $invoice->issue_date) {
+                    try {
+                        app(\App\Services\InvoiceCreationService::class)->assertIssueDateAllowed(
+                            (int) $invoice->created_by,
+                            (string) $request->issue_date,
+                            (int) $invoice->id,
+                            \Auth::user()->type === 'super admin'
+                        );
+                    } catch (\Throwable $e) {
+                        return redirect()->back()->with('error', $e->getMessage())->withInput();
+                    }
                 }
                 Utility::updateUserBalance('customer', $request->customer_id, $invoice->getTotal(), 'debit');
 
