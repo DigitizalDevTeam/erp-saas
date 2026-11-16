@@ -84,7 +84,7 @@ class ClientIssuesLoginUsersTest extends TestCase
         $response = $this->get(route('login.users'));
         $response->assertOk();
         $list = $response->json();
-        $this->assertCount(4, $list);
+        $this->assertCount(5, $list);
 
         $byEmail = collect($list)->keyBy('email');
 
@@ -100,6 +100,12 @@ class ClientIssuesLoginUsersTest extends TestCase
 
         // Accountant without a membership: default_company_id.
         $this->assertSame('Acme Lda', $byEmail['conta@acme.co.mz']['company']);
+
+        // Staff whose `type` is a role name (Cashier, Manager, Waiter,
+        // ...) are staff too — the scope is an exclusion of super
+        // admin + client, not a three-type whitelist.
+        $this->assertSame('Acme Lda', $byEmail['caixa@acme.co.mz']['company']);
+        $this->assertSame('Caixa Cashier', $byEmail['caixa@acme.co.mz']['name']);
 
         // Shape: every entry carries exactly id, name, company, email.
         foreach ($list as $entry) {
@@ -213,6 +219,11 @@ class ClientIssuesLoginUsersTest extends TestCase
         $this->accountant = $makeUser([
             'id' => 4, 'name' => 'Carlos Contas', 'email' => 'conta@acme.co.mz',
             'type' => 'accountant', 'created_by' => 1, 'default_company_id' => 1,
+        ]);
+        // Cashier: staff whose type is a role name, default -> Acme.
+        $makeUser([
+            'id' => 9, 'name' => 'Caixa Cashier', 'email' => 'caixa@acme.co.mz',
+            'type' => 'Cashier', 'created_by' => 1, 'default_company_id' => 1,
         ]);
         // Never listed.
         $makeUser([
