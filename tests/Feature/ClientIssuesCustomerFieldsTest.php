@@ -197,6 +197,19 @@ class ClientIssuesCustomerFieldsTest extends TestCase
         $response->assertSee('Additional Contacts');
         $response->assertSee('contacts[0][email]');
         $response->assertSee('contacts[0][identification]');
+
+        // The form must be submittable: the modal footer with the
+        // Create submit button and the closing </form> must survive
+        // any rewrite of this blade (a truncated rewrite once dropped
+        // the footer, the bank fields and the Additional Emails
+        // section, leaving an unsavable form).
+        $response->assertSee('modal-footer');
+        $response->assertSee('value="Create"', false);
+        $response->assertSee('type="submit"', false);
+        $response->assertSee('bank_account[account_number]');
+        $response->assertSee('bank_account[account_holder]');
+        $response->assertSee('Additional Emails for Notifications');
+        $response->assertDontSee('truncated');
     }
 
     public function test_edit_round_trip_keeps_new_contact_fields_and_old_rows_still_load(): void

@@ -303,8 +303,37 @@
         <div class="col-md-6">
             <label class="form-label">{{__('Bank Name')}}</label>
             <input type="text" name="bank_account[bank_name]" class="form-control" placeholder="{{ __('Bank Name') }}">
-        </
-...[truncated 2599 bytes]
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">{{__('Account Number')}}</label>
+            <input type="text" name="bank_account[account_number]" class="form-control" placeholder="{{ __('Account Number') }}">
+        </div>
+        <div class="col-md-6 mt-3">
+            <label class="form-label">{{__('Account Holder Name')}}</label>
+            <input type="text" name="bank_account[account_holder]" class="form-control" placeholder="{{ __('Account Holder') }}">
+        </div>
+        <div class="col-md-6 mt-3">
+            <label class="form-label">{{__('IFSC / SWIFT Code')}}</label>
+            <input type="text" name="bank_account[ifsc]" class="form-control" placeholder="{{ __('IFSC / SWIFT') }}">
+        </div>
+    </div>
+    
+    <hr>
+    
+    <h5 class="sub-title">{{__('Additional Emails for Notifications')}}</h5>
+    <div class="row">
+        <div class="col-md-12">
+            <input type="email" name="additional_emails[]" class="form-control" placeholder="{{ __('Enter additional email') }}">
+            <small class="form-text text-muted">{{__('You can add multiple emails separated by commas')}}</small>
+        </div>
+    </div>
+
+</div>
+<div class="modal-footer">
+    <input type="button" value="{{__('Cancel')}}" class="btn btn-secondary" data-bs-dismiss="modal">
+    <input type="submit" value="{{__('Create')}}" class="btn btn-primary">
+</div>
+{{Form::close()}}
 <script>
     // KYC document repeaters (company + contact person). The modal is
     // loaded via AJAX and can be opened repeatedly without a page

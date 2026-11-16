@@ -592,6 +592,10 @@ class AuthenticatedSessionController extends Controller
      * so the list itself is user-enumeration by design: it returns id,
      * name, company name and email for active, login-enabled
      * company/staff users — NEVER super admin, NEVER client.
+     * The scope is an exclusion, not a whitelist: `users.type` also
+     * holds staff role names (Cashier, Manager, Waiter, Admin, ...),
+     * so a whitelist of three types silently dropped most staff
+     * (a Cashier could never find themselves in the list).
      * Passwords are still verified per user by the normal login flow,
      * and picking a user only fills the email field; it never logs
      * anyone in. Capped at 200, ordered by name.
@@ -602,7 +606,7 @@ class AuthenticatedSessionController extends Controller
             ->where('is_active', 1)
             ->where('delete_status', 1)
             ->where('is_enable_login', 1)
-            ->whereIn('type', ['company', 'accountant', 'Employee'])
+            ->whereNotIn('type', ['super admin', 'client'])
             ->orderBy('name')
             ->orderBy('email')
             ->limit(200)
