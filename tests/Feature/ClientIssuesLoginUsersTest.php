@@ -59,9 +59,19 @@ class ClientIssuesLoginUsersTest extends TestCase
 
     protected static function resetSettingsCache(): void
     {
-        $prop = new \ReflectionProperty(Utility::class, 'getsettingsid');
-        $prop->setAccessible(true);
-        $prop->setValue(null, []);
+        // Utility caches settings + the language list in private
+        // statics. $getsettingsid alone is not enough: in a full-suite
+        // run an earlier test leaves $getsettings populated with ITS
+        // settings rows (created_by=1, no default_language row), and
+        // settings() then falls back to its built-in default
+        // default_language='pt' — so the login page rendered in
+        // Portuguese and the English assertions failed. Reset all
+        // three caches so this test reads its own fixture.
+        foreach (['getsettingsid' => [], 'getsettings' => null, 'languageSetting' => null] as $prop => $value) {
+            $ref = new \ReflectionProperty(Utility::class, $prop);
+            $ref->setAccessible(true);
+            $ref->setValue(null, $value);
+        }
     }
 
     // ------------------------------------------------------------------
