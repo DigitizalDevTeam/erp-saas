@@ -21,9 +21,11 @@ use Tests\TestCase;
  * Client issues — Issue 6: invoice date validation.
  *
  * A new invoice's issue date must be on or after the latest
- * issue date among the company's non-draft, non-voided sales
- * invoices (internal-consumption invoices do not count), and on
- * or after the company's invoice_start_date setting when set.
+ * issue date among the company's non-voided sales invoices
+ * (internal-consumption invoices do not count), and on or after
+ * the company's invoice_start_date setting when set. Drafts count
+ * as the reference — the audit's proof was two drafts (Nov 10,
+ * then Nov 1) — only voided invoices are ignored.
  * Super admins bypass; the recurring engine bypasses via
  * skip_date_validation (system-generated, current period).
  */
@@ -98,15 +100,30 @@ class ClientIssuesDateValidationTest extends TestCase
         $this->assertSame('2026-11-15', (string) $invoice->issue_date);
     }
 
-    public function test_draft_invoice_does_not_block_a_new_date(): void
+    public function test_draft_invoice_blocks_a_new_earlier_date(): void
     {
         $this->makeSentInvoice(1, 1, '2026-11-10');
-        // A draft dated later must not become the reference date.
+        // A draft dated later IS the reference date now: invoice
+        // numbers are assigned at creation, so a later draft still
+        // breaks the sequence if a new invoice is dated before it.
         $this->makeSentInvoice(1, 2, '2026-12-01', Invoice::STATUS_DRAFT);
 
-        $invoice = $this->createViaService(1, '2026-11-15');
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('2026-12-01');
 
-        $this->assertSame('2026-11-15', (string) $invoice->issue_date);
+        $this->createViaService(1, '2026-11-15');
+    }
+
+    public function test_backdated_draft_after_a_draft_is_rejected(): void
+    {
+        // The audit's proof, verbatim: a draft dated Nov 10, then a
+        // new draft dated Nov 1 — the second save must be blocked.
+        $this->makeSentInvoice(1, 1, '2026-11-10', Invoice::STATUS_DRAFT);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('2026-11-10');
+
+        $this->createViaService(1, '2026-11-01');
     }
 
     public function test_voided_invoice_does_not_block_a_new_date(): void
