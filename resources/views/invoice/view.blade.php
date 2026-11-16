@@ -522,10 +522,12 @@
                                                 <strong>{{ __('Tax Number ') }} :
                                                 </strong>{{ !empty($customer->tax_number) ? $customer->tax_number : '' }}
                                             @endif
+                                            @if($customer == null)
+                                                {{ __('Walk-in-customer') }}<br>
+                                            @endif
+                                        @elseif ($customer)
+                                            {{ $customer->name }}<br>
                                         @else
-                                            -
-                                        @endif
-                                        @if($customer == null)
                                             {{ __('Walk-in-customer') }}<br>
                                         @endif
 
@@ -544,10 +546,12 @@
                                                 {{ !empty($invoice->shipping_address?->zip) ? $invoice->shipping_address?->zip : '' }}<br>
                                                 {{ !empty($invoice->shipping_address?->country) ? $invoice->shipping_address?->country : '' }}<br>
                                                 {{ !empty($invoice->shipping_address?->phone) ? $invoice->shipping_address?->phone : '' }}<br>
+                                                @if($customer == null)
+                                                    {{ __('Walk-in-customer') }}<br>
+                                                @endif
+                                            @elseif ($customer)
+                                                {{ $customer->name }}<br>
                                             @else
-                                                -
-                                            @endif
-                                            @if($customer == null)
                                                 {{ __('Walk-in-customer') }}<br>
                                             @endif
                                         </small>
@@ -830,7 +834,11 @@
                                             @endif
                                         </td>
                                         <td>{{ \Auth::user()->dateFormat($payment->date) }}</td>
-                                        <td>{{ \Auth::user()->priceFormat($payment->amount) }}</td>
+                                        <td>{{ \Auth::user()->priceFormat($payment->amount) }}
+                                            @if (!empty($payment->voided_at))
+                                                <span class="badge bg-danger p-1 px-2 rounded ms-1">{{ __('Voided') }}</span>
+                                            @endif
+                                        </td>
                                         <td>{{ $payment->payment_type }}</td>
                                         <td>{{ !empty($payment->bankAccount) ? $payment->bankAccount->bank_name . ' ' . $payment->bankAccount->holder_name : '--' }}
                                         </td>
@@ -862,6 +870,10 @@
                                         <td>{{ !empty($payment->order_id) ? $payment->order_id : '--' }}</td>
                                         @can('delete invoice product')
                                             <td>
+                                                {{-- A voided payment is history: it must not be
+                                                     deleted (deleting it would reverse the bank
+                                                     and customer balances a second time). --}}
+                                                @if (empty($payment->voided_at))
                                                 <div class="action-btn ">
                                                     {!! Form::open([
                                                         'method' => 'post',
@@ -877,6 +889,7 @@
                                                         <i class="ti ti-trash text-white"></i>
                                                     </a>
                                                     {!! Form::close() !!}
+                                                @endif
                                             </td>
                                         @endcan
                                     </tr>

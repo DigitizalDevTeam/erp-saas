@@ -4419,6 +4419,22 @@ class UsersTableSeeder extends Seeder
             'show journal entry',
             'approve journal entry',
             'reject journal entry',
+            // Cost centres — the accountant is the back-office role that runs
+            // allocations, budgets and reports (client issue 1: these were
+            // only on the seeded `company` role, never on `accountant`).
+            'view cost centres',
+            'create cost centres',
+            'edit cost centres',
+            'deactivate cost centres',
+            'manage cost centre allocations',
+            'approve cost centre allocations',
+            'manage asset cost centre assignments',
+            'manage treasury dimensions',
+            'manage gl dimensions',
+            'view cost centre reports',
+            'export cost centre reports',
+            'manage cost centre budgets',
+            'approve cost centre budgets',
             'balance sheet report',
             'ledger report',
             'trial balance report',

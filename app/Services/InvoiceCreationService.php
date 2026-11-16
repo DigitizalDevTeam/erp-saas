@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
 use App\Models\CustomField;
 use App\Models\Invoice;
 use App\Models\InvoiceProduct;
@@ -12,17 +13,22 @@ use App\Models\Purchase;
 use App\Models\Quotation;
 use App\Models\StockReport;
 use App\Models\Utility;
+use App\Models\warehouse;
 use App\Services\Accounting\DocumentLedgerService;
 use App\Support\MoneyAmount;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Contract Management Phase 2 — the ONE invoice creation path.
  *
  * Extracted from InvoiceController::store() (same fields, same
- * values, same stock-deduction behaviour) so a manual invoice and
- * a recurring invoice are created by the same code. Both callers
- * go through here; there is no second invoice path.
+ * values) so a manual invoice and a recurring invoice are created
+ * by the same code. Both callers go through here; there is no
+ * second invoice path. Stock is NOT deducted here: a draft
+ * deducts nothing — deduction happens at send time, in
+ * deductStockOnSend() (timing 'invoice'), or on Delivery Note
+ * creation (timing 'delivery_note').
  *
  * Invoice numbering: the next number is allocated inside the same
  * database transaction as the invoice, under a row lock on the
@@ -67,6 +73,55 @@ class InvoiceCreationService
     }
 
     /**
+     * Chronological date check for a new / re-dated invoice.
+     *
+     * The new issue date must be on or after:
+     *  - the company's invoice_start_date setting, when set; and
+     *  - the latest issue_date among the company's non-draft,
+     *    non-voided SALES invoices (internal-consumption invoices
+     *    live in their own series and do not count).
+     *
+     * A draft or a voided invoice never blocks a new date, and the
+     * invoice being updated ($excludeInvoiceId) is ignored.
+     * Super admins bypass both checks ($isSuperAdmin).
+     *
+     * @throws \RuntimeException with a message naming the blocking date.
+     */
+    public function assertIssueDateAllowed(int $creatorId, string $issueDate, ?int $excludeInvoiceId = null, bool $isSuperAdmin = false): void
+    {
+        if ($isSuperAdmin) {
+            return;
+        }
+
+        $issueDate = substr(trim($issueDate), 0, 10);
+
+        $settings = Utility::settingsById($creatorId);
+        $startDate = trim((string) ($settings['invoice_start_date'] ?? ''));
+        if ($startDate !== '' && $issueDate < substr($startDate, 0, 10)) {
+            throw new \RuntimeException(
+                __('Invoices cannot be dated before :date (invoice start date).', ['date' => substr($startDate, 0, 10)])
+            );
+        }
+
+        $latest = Invoice::where('created_by', $creatorId)
+            ->where('status', '!=', Invoice::STATUS_DRAFT)
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
+            ->where(function ($q) {
+                $q->whereNull('document_type')
+                    ->orWhere('document_type', '<>', Pos::DOCUMENT_TYPE_INTERNAL_CONSUMPTION);
+            })
+            ->when($excludeInvoiceId, fn ($q) => $q->where('id', '!=', $excludeInvoiceId))
+            ->orderByDesc('issue_date')
+            ->first(['issue_date']);
+
+        if ($latest && $issueDate < substr((string) $latest->issue_date, 0, 10)) {
+            throw new \RuntimeException(
+                __('The invoice date cannot be earlier than the latest issued invoice date (:date).', ['date' => substr((string) $latest->issue_date, 0, 10)])
+            );
+        }
+    }
+
+    /**
      * Create an invoice + lines exactly like InvoiceController::store().
      *
      * $data: customer_id, issue_date, due_date, category_id,
@@ -76,6 +131,10 @@ class InvoiceCreationService
      * discount, price, description, product_variant_id, identifiers,
      * measurement_json, selected_options_json), customField (array),
      * source_proforma_id, source_quotation_id, source_purchase_id.
+     * $data['skip_date_validation'] (bool, optional): skip the
+     * chronological issue-date check — used by the recurring engine
+     * (system-generated invoices for the current period) and by
+     * super admins. Manual creation leaves it off.
      *
      * Amounts are stored as given — the caller parses them
      * (MoneyAmount::parse for web input, exact 4-decimal strings
@@ -86,6 +145,10 @@ class InvoiceCreationService
      */
     public function createInvoice(int $creatorId, array $data): Invoice
     {
+        if (empty($data['skip_date_validation'])) {
+            $this->assertIssueDateAllowed($creatorId, (string) $data['issue_date']);
+        }
+
         return DB::transaction(function () use ($creatorId, $data) {
             $invoice = new Invoice();
             $invoice->invoice_id = $this->nextInvoiceNumber($creatorId);
@@ -153,11 +216,6 @@ class InvoiceCreationService
             StockReport::where('type', '=', 'invoice')
                 ->where('type_id', '=', $invoice->id)->delete();
 
-            $settings = Utility::settingsById($creatorId);
-            $timing = $settings['stock_deduction_timing'] ?? 'invoice';
-            $formattedNumber = ($settings['invoice_prefix'] ?? '#Fatura')
-                . sprintf('%05d', (int) $invoice->invoice_id);
-
             foreach ($data['items'] as $p) {
                 $productId = (int) ($p['item'] ?? $p['product_id']);
                 $quantity = (float) ($p['quantity'] ?? 0);
@@ -187,26 +245,6 @@ class InvoiceCreationService
                         : json_encode($p['selected_options_json']))
                     : null;
                 $invoiceProduct->save();
-
-                if ($timing === 'invoice') {
-                    InvoiceSaleDeductionService::deductLine(
-                        $productId,
-                        $quantity,
-                        $creatorId,
-                        (int) $invoice->id,
-                        (int) $invoiceProduct->id,
-                        (int) $invoice->customer_id,
-                        $formattedNumber,
-                        $invoiceProduct->identifiers,
-                        $invoiceProduct->selected_options_json
-                    );
-                }
-            }
-
-            if ($timing === 'invoice' && empty($invoice->stock_deducted_at)) {
-                $invoice->stock_deducted_at = now();
-                $invoice->stock_deducted_via = 'invoice';
-                $invoice->save();
             }
 
             if (! empty($invoice->purchase_id)) {
@@ -235,6 +273,96 @@ class InvoiceCreationService
 
             return $invoice->fresh();
         });
+    }
+
+    /**
+     * Deduct stock when an invoice is issued (Draft -> Sent).
+     *
+     * A draft deducts NOTHING: stock moves only here, when the
+     * invoice leaves draft status. Guarded by stock_deducted_at,
+     * so a re-send, a retry, or a second caller can never deduct
+     * twice. With timing 'delivery_note' this returns false —
+     * deduction then happens on Delivery Note creation instead.
+     *
+     * The warehouse used is resolveInvoiceWarehouseId() (the
+     * creator's first branch default warehouse, else the company's
+     * first warehouse; null means global-only). It is recorded on
+     * the invoice so a void restores to the SAME warehouse.
+     */
+    public function deductStockOnSend(Invoice $invoice, int $creatorId): bool
+    {
+        $settings = Utility::settingsById($creatorId);
+        if (($settings['stock_deduction_timing'] ?? 'invoice') !== 'invoice') {
+            return false;
+        }
+        if (! empty($invoice->stock_deducted_at)) {
+            return false;
+        }
+
+        $warehouseId = $this->resolveInvoiceWarehouseId($creatorId);
+        $formattedNumber = ($settings['invoice_prefix'] ?? '#Fatura')
+            . sprintf('%05d', (int) $invoice->invoice_id);
+
+        $invoice->loadMissing('items');
+        foreach ($invoice->items as $line) {
+            InvoiceSaleDeductionService::deductLine(
+                (int) $line->product_id,
+                (float) $line->quantity,
+                $creatorId,
+                (int) $invoice->id,
+                (int) $line->id,
+                (int) $invoice->customer_id,
+                $formattedNumber,
+                $line->identifiers,
+                $line->selected_options_json,
+                $warehouseId
+            );
+        }
+
+        $invoice->stock_deducted_at = now();
+        $invoice->stock_deducted_via = 'invoice';
+        // The column comes from migration 310006; minimal-schema
+        // callers (e.g. the Billing test fixtures) build their own
+        // invoices table without it — record the warehouse only when
+        // the column exists. Production always has it.
+        if (Schema::hasColumn('invoices', 'stock_deducted_warehouse_id')) {
+            $invoice->stock_deducted_warehouse_id = $warehouseId;
+        }
+        $invoice->save();
+
+        return true;
+    }
+
+    /**
+     * Which warehouse an invoice's stock comes from. Invoices store
+     * no branch, so: the creator's first branch and its default
+     * warehouse; else the company's first warehouse; else null
+     * (global-only deduction, as before).
+     */
+    public function resolveInvoiceWarehouseId(int $creatorId): ?int
+    {
+        // Minimal-schema callers (e.g. the Billing test fixtures)
+        // create no branches/warehouses tables. A missing table means
+        // "no warehouse configured", not an error — fall back to
+        // global-only deduction, as this method's docblock promises.
+        // Schema::hasTable() is called fresh every time, never memoized.
+        if (Schema::hasTable('branches')) {
+            $branch = Branch::where('created_by', $creatorId)->orderBy('id')->first();
+            if ($branch && Schema::hasTable('warehouses')) {
+                $id = $branch->resolveDefaultWarehouseId();
+                if ($id) {
+                    return $id;
+                }
+            }
+        }
+
+        if (! Schema::hasTable('warehouses')) {
+            return null;
+        }
+
+        $id = warehouse::where('created_by', $creatorId)->orderBy('id')->value('id');
+
+        return $id ? (int) $id : null;
     }
 
     /**

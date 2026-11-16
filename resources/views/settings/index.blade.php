@@ -212,17 +212,28 @@
     </script>
 
     <script>
-        document.getElementById('full_logo').onchange = function() {
-            var src = URL.createObjectURL(this.files[0])
-            document.getElementById('image').src = src
+        // The logo preview inputs only exist for the Main Super Admin
+        // (the Brand Settings card is hidden for everyone else).
+        var fullLogoInput = document.getElementById('full_logo');
+        if (fullLogoInput) {
+            fullLogoInput.onchange = function() {
+                var src = URL.createObjectURL(this.files[0])
+                document.getElementById('image').src = src
+            }
         }
-        document.getElementById('logo_light').onchange = function() {
-            var src = URL.createObjectURL(this.files[0])
-            document.getElementById('image1').src = src
+        var logoLightInput = document.getElementById('logo_light');
+        if (logoLightInput) {
+            logoLightInput.onchange = function() {
+                var src = URL.createObjectURL(this.files[0])
+                document.getElementById('image1').src = src
+            }
         }
-        document.getElementById('favicon').onchange = function() {
-            var src = URL.createObjectURL(this.files[0])
-            document.getElementById('image2').src = src
+        var faviconInput = document.getElementById('favicon');
+        if (faviconInput) {
+            faviconInput.onchange = function() {
+                var src = URL.createObjectURL(this.files[0])
+                document.getElementById('image2').src = src
+            }
         }
     </script>
 
@@ -356,10 +367,12 @@
                 <div class="col-xl-3">
                     <div class="card sticky-top setting-sidebar" style="top:30px">
                         <div class="list-group list-group-flush" id="useradd-sidenav">
+                            @if(\Auth::user()->type == 'super admin')
                             <a href="#brand-settings"
                                 class="list-group-item list-group-item-action border-0">{{ __('Brand Settings') }}
                                 <div class="float-end"><i class="ti ti-chevron-right"></i></div>
                             </a>
+                            @endif
                             <a href="#email-settings"
                                 class="list-group-item list-group-item-action border-0">{{ __('Email Settings') }}
                                 <div class="float-end"><i class="ti ti-chevron-right"></i></div>
@@ -409,6 +422,7 @@
                     {{--  Start for all settings tab --}}
 
                     <!--Site Settings-->
+                    @if(\Auth::user()->type == 'super admin')
                     <div id="brand-settings" class="card">
                         <div class="card-header p-3">
                             <h5>{{ __('Brand Settings') }}</h5>
@@ -769,6 +783,7 @@
                         </div>
                         {{ Form::close() }}
                     </div>
+                    @endif
 
                     <!--Email Settings-->
                     <div id="email-settings" class="card">

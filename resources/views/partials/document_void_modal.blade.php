@@ -17,7 +17,7 @@
                 @method('DELETE')
                 <div class="modal-body">
                     <p class="text-muted small mb-3" id="documentVoidLabel"></p>
-                    <p class="small text-warning">{{ __('The document will remain visible in the list with Cancelled status.') }}</p>
+                    <p class="small text-warning">{{ __('The document will remain visible in the list with Deleted status.') }}</p>
 
                     <div class="form-group mb-3">
                         <label class="form-label" for="void_reason">{{ __('Reason') }} <span class="text-danger">*</span></label>
@@ -76,22 +76,29 @@
         var noteLabel = document.getElementById('documentVoidNoteLabel');
         var noteInput = document.getElementById('create_credit_note');
 
-        document.querySelectorAll('.document-void-trigger').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.preventDefault();
-                form.action = btn.getAttribute('data-action');
-                labelEl.textContent = btn.getAttribute('data-document-label') || '';
-                if (noteLabel && noteInput) {
-                    var noteType = btn.getAttribute('data-note-type') || 'credit_note';
-                    noteLabel.textContent = noteType === 'debit_note'
-                        ? @json(__('Create debit note'))
-                        : @json(__('Create credit note'));
-                    noteInput.name = noteType === 'debit_note' ? 'create_debit_note' : 'create_credit_note';
-                    noteInput.checked = false;
-                }
-                document.getElementById('void_reason').value = '';
-                modal.show();
-            });
+        // Delegated binding: the invoice/bill tables are rebuilt by
+        // simple-datatables AFTER this script runs (its init happens
+        // in a jQuery ready callback, which fires after native
+        // DOMContentLoaded listeners), so handlers bound directly to
+        // the row buttons are attached to nodes that get thrown away
+        // and the buttons do nothing. A single document-level listener
+        // survives every table re-render.
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.document-void-trigger');
+            if (!btn) return;
+            e.preventDefault();
+            form.action = btn.getAttribute('data-action');
+            labelEl.textContent = btn.getAttribute('data-document-label') || '';
+            if (noteLabel && noteInput) {
+                var noteType = btn.getAttribute('data-note-type') || 'credit_note';
+                noteLabel.textContent = noteType === 'debit_note'
+                    ? @json(__('Create debit note'))
+                    : @json(__('Create credit note'));
+                noteInput.name = noteType === 'debit_note' ? 'create_debit_note' : 'create_credit_note';
+                noteInput.checked = false;
+            }
+            document.getElementById('void_reason').value = '';
+            modal.show();
         });
     });
 </script>

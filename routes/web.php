@@ -1080,6 +1080,7 @@ Route::group(['middleware' => ['verified']], function () {
             ],
         ],
         function () {
+            Route::get('customer/{id}/kyc/{section}/{index}', [CustomerController::class, 'downloadKycDocument'])->name('customer.kyc.download');
             Route::resource('customer', CustomerController::class);
             Route::post('customer/store-from-pos', [CustomerController::class, 'storeFromPos'])->name('customer.store.from.pos');
         }

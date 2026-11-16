@@ -414,4 +414,67 @@ class Customer extends Authenticatable
     {
         return $this->hasMany(CustomerShippingAddress::class, 'customer_id', 'id');
     }
+
+    /**
+     * Company KYC documents, normalized to a list of
+     * ['document_type', 'document_number', 'file_path'].
+     *
+     * Handles both the new array form and the legacy single-object form
+     * ({"document_type","document_number"} + the `kyc_document_path`
+     * column) — see migration 310008. Empty / all-null documents are
+     * dropped, so a customer with no KYC gets [].
+     */
+    public function kycDocuments(): array
+    {
+        return self::normalizeKycDocuments($this->kyc, $this->kyc_document_path);
+    }
+
+    /**
+     * Contact-person KYC documents (same shape as kycDocuments()).
+     * Stored in the `contact_kyc` column; only the array form exists.
+     */
+    public function contactKycDocuments(): array
+    {
+        return self::normalizeKycDocuments($this->contact_kyc ?? null, null);
+    }
+
+    public static function normalizeKycDocuments($raw, ?string $legacyFilePath): array
+    {
+        $decoded = is_string($raw) ? json_decode($raw, true) : $raw;
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        // Legacy single-object form: {"document_type": ..., "document_number": ...}
+        if (array_key_exists('document_type', $decoded) || array_key_exists('document_number', $decoded)) {
+            return self::filterKycDocuments([[
+                'document_type' => $decoded['document_type'] ?? null,
+                'document_number' => $decoded['document_number'] ?? null,
+                'file_path' => $legacyFilePath,
+            ]]);
+        }
+
+        // New array form: a list of documents.
+        return self::filterKycDocuments($decoded);
+    }
+
+    protected static function filterKycDocuments(array $docs): array
+    {
+        $out = [];
+        foreach ($docs as $doc) {
+            if (!is_array($doc)) {
+                continue;
+            }
+            $doc = [
+                'document_type' => $doc['document_type'] ?? null,
+                'document_number' => $doc['document_number'] ?? null,
+                'file_path' => $doc['file_path'] ?? null,
+            ];
+            if (!empty($doc['document_type']) || !empty($doc['document_number']) || !empty($doc['file_path'])) {
+                $out[] = $doc;
+            }
+        }
+
+        return array_values($out);
+    }
 }

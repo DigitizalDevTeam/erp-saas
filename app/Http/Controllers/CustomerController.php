@@ -79,15 +79,30 @@ class CustomerController extends Controller
                 'contacts.*.role' => 'nullable|string|max:100',
                 'contacts.*.name' => 'nullable|string|max:255',
                 'contacts.*.phone' => 'nullable|string|max:30',
+                'contacts.*.email' => 'nullable|email|max:255',
+                'contacts.*.identification' => 'nullable|string|max:100',
                 'bank_account.bank_name' => 'nullable|string|max:255',
                 'bank_account.account_number' => 'nullable|string|max:50',
                 'bank_account.account_holder' => 'nullable|string|max:255',
                 'bank_account.ifsc' => 'nullable|string|max:50',
                 'additional_emails' => 'nullable|array',
-                'kyc.document_type' => 'nullable|string|max:100',
-                'kyc.document_number' => 'nullable|string|max:100',
-                'kyc_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png',
+                'kyc' => 'nullable|array',
+                'kyc.*.document_type' => 'nullable|string|max:100',
+                'kyc.*.document_number' => 'nullable|string|max:100',
+                'kyc.*.document' => 'nullable|file|mimes:pdf,jpg,jpeg,png',
+                'contact_kyc' => 'nullable|array',
+                'contact_kyc.*.document_type' => 'nullable|string|max:100',
+                'contact_kyc.*.document_number' => 'nullable|string|max:100',
+                'contact_kyc.*.document' => 'nullable|file|mimes:pdf,jpg,jpeg,png',
             ];
+
+            // Normalize KYC inputs to the repeater (list) form before
+            // validation, so a stale single-document post
+            // (kyc[document_type] / kyc[document_number]) is accepted too.
+            $request->merge([
+                'kyc' => self::normalizeKycRequestInput($request->input('kyc')),
+                'contact_kyc' => self::normalizeKycRequestInput($request->input('contact_kyc')),
+            ]);
 
 
             $validator = \Validator::make($request->all(), $rules);
@@ -155,25 +170,29 @@ class CustomerController extends Controller
                 }
             
                 // Save contacts as JSON or related table (simplest JSON here)
+                // contacts[0] is the main contact person; further entries
+                // are additional contacts. A contact is kept when ANY of
+                // its fields (role, name, phone, email, identification)
+                // is filled in.
                 $contacts = collect($request->contacts)
                     ->filter(function ($contact) {
-                        return !empty($contact['role']) || !empty($contact['name']) || !empty($contact['phone']);
+                        return !empty($contact['role']) || !empty($contact['name']) || !empty($contact['phone'])
+                            || !empty($contact['email']) || !empty($contact['identification']);
                     })
                     ->values()
                     ->toArray();
                 
                 $customer->contacts = json_encode($contacts);
             
-                // Save KYC info as JSON or separate columns
-                $customer->kyc = json_encode([
-                    'document_type' => $request->input('kyc.document_type'),
-                    'document_number' => $request->input('kyc.document_number'),
-                ]);
-            
-                // Upload KYC document file if exists
-                if ($request->hasFile('kyc_document')) {
-                    $path = $request->file('kyc_document')->store('kyc_documents');
-                    $customer->kyc_document_path = $path;
+                // Save KYC documents (company) + contact-person KYC as
+                // JSON arrays of {document_type, document_number, file_path}.
+                // Company files go to kyc_documents/, contact-person files
+                // to kyc_documents/contact/. contact_kyc is guarded: the
+                // column is added by migration 310008, and schemas that
+                // have not run it yet must not 500 the whole create.
+                $customer->kyc = json_encode($this->buildKycDocuments($request, 'kyc', 'kyc_documents'));
+                if (\Schema::hasColumn('customers', 'contact_kyc')) {
+                    $customer->contact_kyc = json_encode($this->buildKycDocuments($request, 'contact_kyc', 'kyc_documents/contact'));
                 }
 
                 $customer->save();
@@ -361,6 +380,8 @@ class CustomerController extends Controller
                 'contacts.*.role' => 'nullable|string|max:100',
                 'contacts.*.name' => 'nullable|string|max:255',
                 'contacts.*.phone' => 'nullable|string|max:30',
+                'contacts.*.email' => 'nullable|email|max:255',
+                'contacts.*.identification' => 'nullable|string|max:100',
                 
                 'bank_account.bank_name' => 'nullable|string|max:255',
                 'bank_account.account_number' => 'nullable|string|max:50',
@@ -369,11 +390,23 @@ class CustomerController extends Controller
                 
                 'additional_emails' => 'nullable|array',
                 
-                'kyc.document_type' => 'nullable|string|max:100',
-                'kyc.document_number' => 'nullable|string|max:100',
-                'kyc_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png',
+                'kyc' => 'nullable|array',
+                'kyc.*.document_type' => 'nullable|string|max:100',
+                'kyc.*.document_number' => 'nullable|string|max:100',
+                'kyc.*.document' => 'nullable|file|mimes:pdf,jpg,jpeg,png',
+                'contact_kyc' => 'nullable|array',
+                'contact_kyc.*.document_type' => 'nullable|string|max:100',
+                'contact_kyc.*.document_number' => 'nullable|string|max:100',
+                'contact_kyc.*.document' => 'nullable|file|mimes:pdf,jpg,jpeg,png',
 
             ];
+
+            // Normalize KYC inputs to the repeater (list) form before
+            // validation (see store()).
+            $request->merge([
+                'kyc' => self::normalizeKycRequestInput($request->input('kyc')),
+                'contact_kyc' => self::normalizeKycRequestInput($request->input('contact_kyc')),
+            ]);
 
 
             $validator = \Validator::make($request->all(), $rules);
@@ -431,32 +464,37 @@ class CustomerController extends Controller
                 $customer->additional_emails = json_encode([]);
             }
         
-            // Update contacts
+            // Update contacts (contacts[0] is the main contact person)
             $contacts = collect($request->contacts)
                 ->filter(function ($contact) {
-                    return !empty($contact['role']) || !empty($contact['name']) || !empty($contact['phone']);
+                    return !empty($contact['role']) || !empty($contact['name']) || !empty($contact['phone'])
+                        || !empty($contact['email']) || !empty($contact['identification']);
                 })
                 ->values()
                 ->toArray();
             
             $customer->contacts = json_encode($contacts);
         
-            // Update KYC details
-            $customer->kyc = json_encode([
-                'document_type' => $request->input('kyc.document_type'),
-                'document_number' => $request->input('kyc.document_number'),
-            ]);
-        
-            // Handle KYC document upload
-            if ($request->hasFile('kyc_document')) {
-                // Optional: delete old file if exists
-                if ($customer->kyc_document_path && \Storage::exists($customer->kyc_document_path)) {
-                    \Storage::delete($customer->kyc_document_path);
-                }
-        
-                $path = $request->file('kyc_document')->store('kyc_documents');
-                $customer->kyc_document_path = $path;
+            // Update KYC documents (company + contact person). Files
+            // dropped from the form (removed rows, replaced files) are
+            // deleted so they do not orphan in storage.
+            $oldKycFiles = collect($customer->kycDocuments())
+                ->pluck('file_path')
+                ->merge(collect($customer->contactKycDocuments())->pluck('file_path'))
+                ->filter()
+                ->values()
+                ->all();
+            $customer->kyc = json_encode($this->buildKycDocuments($request, 'kyc', 'kyc_documents'));
+            if (\Schema::hasColumn('customers', 'contact_kyc')) {
+                $customer->contact_kyc = json_encode($this->buildKycDocuments($request, 'contact_kyc', 'kyc_documents/contact'));
             }
+            $newKycFiles = collect(json_decode($customer->kyc, true) ?? [])
+                ->pluck('file_path')
+                ->merge(collect(json_decode($customer->contact_kyc, true) ?? [])->pluck('file_path'))
+                ->filter()
+                ->values()
+                ->all();
+            $this->deleteRemovedKycFiles($oldKycFiles, $newKycFiles);
             
             
             $customer->save();
@@ -511,6 +549,120 @@ class CustomerController extends Controller
         else
         {
             return redirect()->back()->with('error', __('Permission denied.'));
+        }
+    }
+
+
+    /**
+     * Serve one KYC document file (view inline). Company-scoped: the
+     * customer must belong to the logged-in user's company, and the file
+     * is addressed by section + index — never by a raw path — so a
+     * stored path cannot be swapped for another file.
+     */
+    public function downloadKycDocument($id, $section, $index)
+    {
+        $customer = Customer::find($id);
+        if (!$customer || (int) $customer->created_by !== (int) \Auth::user()->creatorId()) {
+            abort(404);
+        }
+
+        if ($section === 'contact') {
+            $docs = $customer->contactKycDocuments();
+        } elseif ($section === 'company') {
+            $docs = $customer->kycDocuments();
+        } else {
+            abort(404);
+        }
+
+        $doc = $docs[(int) $index] ?? null;
+        $path = is_array($doc) ? ($doc['file_path'] ?? null) : null;
+        if (empty($path) || !str_starts_with((string) $path, 'kyc_documents/') || !\Storage::exists($path)) {
+            abort(404);
+        }
+
+        return \Storage::response($path);
+    }
+
+    /**
+     * Normalize a KYC request input to the repeater (list) form:
+     * [['document_type','document_number','document','existing_file'], ...].
+     * A stale single-document post (kyc[document_type] as scalars) is
+     * wrapped as one row.
+     */
+    protected static function normalizeKycRequestInput($input): array
+    {
+        if (!is_array($input)) {
+            return [];
+        }
+        if (isset($input['document_type']) || isset($input['document_number'])) {
+            return [[
+                'document_type' => $input['document_type'] ?? null,
+                'document_number' => $input['document_number'] ?? null,
+                'existing_file' => $input['existing_file'] ?? null,
+            ]];
+        }
+
+        return array_values($input);
+    }
+
+    /**
+     * Build the stored KYC document array for one section from the
+     * request: each row keeps its existing file unless a new file was
+     * uploaded for that row (stored under $directory). Rows with no
+     * type, no number and no file are dropped.
+     *
+     * Iterates the raw input keys (not a re-indexed copy): removing a
+     * middle row leaves sparse indices (0, 2), and the uploaded file
+     * for a row is addressed by its original index (kyc.2.document).
+     */
+    protected function buildKycDocuments(Request $request, string $field, string $directory): array
+    {
+        $rows = $request->input($field);
+        if (!is_array($rows)) {
+            return [];
+        }
+        // Stale single-document post: kyc[document_type] as scalars.
+        if (isset($rows['document_type']) || isset($rows['document_number'])) {
+            $rows = [$rows];
+        }
+
+        $docs = [];
+        foreach ($rows as $i => $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $filePath = $row['existing_file'] ?? null;
+            $uploaded = $request->file("{$field}.{$i}.document");
+            if ($uploaded) {
+                $filePath = $uploaded->store($directory);
+            }
+            $doc = [
+                'document_type' => $row['document_type'] ?? null,
+                'document_number' => $row['document_number'] ?? null,
+                'file_path' => $filePath,
+            ];
+            if (!empty($doc['document_type']) || !empty($doc['document_number']) || !empty($doc['file_path'])) {
+                $docs[] = $doc;
+            }
+        }
+
+        return $docs;
+    }
+
+    /**
+     * Delete KYC files that were present before an update but are in
+     * neither new list (removed rows / replaced files). Only paths
+     * under kyc_documents/ are ever deleted.
+     */
+    protected function deleteRemovedKycFiles(array $oldPaths, array $newPaths): void
+    {
+        foreach (array_diff($oldPaths, $newPaths) as $path) {
+            if (!is_string($path) || !str_starts_with($path, 'kyc_documents/')) {
+                continue;
+            }
+            if (\Storage::exists($path)) {
+                \Storage::delete($path);
+            }
         }
     }
 

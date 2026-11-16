@@ -202,30 +202,29 @@
                                 </div>
 
                                 <div class="row">
-                                    @if (!empty($customer->billing_name))
-                                        <div class="col">
-                                            <small class="font-style">
-                                                <strong>{{ __('Billed To') }} :</strong><br>
-                                                {{ !empty($customer->billing_name) ? $customer->billing_name : '' }}<br>
-                                                {{ !empty($customer->billing_phone) ? $customer->billing_phone : '' }}<br>
-                                                {{ !empty($customer->billing_address) ? $customer->billing_address : '' }}<br>
-                                                {{ !empty($customer->billing_zip) ? $customer->billing_zip : '' }}<br>
-                                                {{ !empty($customer->billing_city) ? $customer->billing_city : '' . ', ' }}
-                                                {{ !empty($customer->billing_state) ? $customer->billing_state : ''. ', ' }}
-                                                {{ !empty($customer->billing_country) ? $customer->billing_country : '' }}
-                                            </small>
-                                        </div>
-                                    @endif
+                                    <div class="col">
+                                        <small class="font-style">
+                                            <strong>{{ __('Billed To') }} :</strong><br>
+                                            {{ $invoice->billing_address?->name ?? $customer?->name ?? __('Walk-in-customer') }}<br>
+                                            {{ $invoice->billing_address?->phone ?? '' }}<br>
+                                            {{ $invoice->billing_address?->address ?? '' }}<br>
+                                            {{ $invoice->billing_address?->zip ?? '' }}<br>
+                                            {{ $invoice->billing_address?->city ?? '' }}{{ !empty($invoice->billing_address?->city) ? ', ' : '' }}
+                                            {{ $invoice->billing_address?->state ?? '' }}{{ !empty($invoice->billing_address?->state) ? ', ' : '' }}
+                                            {{ $invoice->billing_address?->country ?? '' }}
+                                        </small>
+                                    </div>
                                     @if (\Utility::companyData($invoice->created_by, 'shipping_display') == 'on')
                                         <div class="col">
                                             <small>
                                                 <strong>{{ __('Shipped To') }} :</strong><br>
-                                                {{ !empty($customer->shipping_name) ? $customer->shipping_name : '' }}<br>
-                                                {{ !empty($customer->shipping_phone) ? $customer->shipping_phone : '' }}<br>
-                                                {{ !empty($customer->shipping_address) ? $customer->shipping_address : '' }}<br>
-                                                {{ !empty($customer->shipping_zip) ? $customer->shipping_zip : '' }}<br>
-                                                {{ !empty($customer->shipping_city) ? $customer->shipping_city : '' . ', ' }}
-                                                {{ !empty($customer->shipping_state) ? $customer->shipping_state : '' . ', ' }},{{ !empty($customer->shipping_country) ? $customer->shipping_country : '' }}
+                                                {{ $invoice->shipping_address?->name ?? $customer?->name ?? __('Walk-in-customer') }}<br>
+                                                {{ $invoice->shipping_address?->phone ?? '' }}<br>
+                                                {{ $invoice->shipping_address?->address ?? '' }}<br>
+                                                {{ $invoice->shipping_address?->zip ?? '' }}<br>
+                                                {{ $invoice->shipping_address?->city ?? '' }}{{ !empty($invoice->shipping_address?->city) ? ', ' : '' }}
+                                                {{ $invoice->shipping_address?->state ?? '' }}{{ !empty($invoice->shipping_address?->state) ? ', ' : '' }}
+                                                {{ $invoice->shipping_address?->country ?? '' }}
                                             </small>
                                         </div>
                                     @endif

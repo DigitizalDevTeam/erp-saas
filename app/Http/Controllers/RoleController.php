@@ -165,18 +165,27 @@ class RoleController extends Controller
 
             $submittedIds = collect($request['permissions'])->map(fn ($id) => (int) $id)->unique()->values()->all();
 
-            // Permissions the Role UI can assign — form fully controls these.
-            $assignableNames = RolePermissionUiCatalog::assignableNames(\Auth::user()->type);
-            $assignableIds = Permission::query()
-                ->whereIn('name', $assignableNames)
+            // The edit form only renders the tabs this editor's plan allows
+            // (and only the permissions in the editor's own map). A permission
+            // the form never shows is NOT a revoke: it is preserved as-is.
+            // The old assignableNames() set was wrong here — CRM / Project /
+            // HRM / Account / POS / Hotel permissions ARE assignable, so every
+            // save by a Top-plan company (CRM + Project tabs hidden) or by
+            // the super admin (plan null, every gated tab hidden) silently
+            // deleted them from the role. Only what the form controls may
+            // change; a forged id outside the controlled set is ignored too.
+            $controlledNames = RolePermissionUiCatalog::formControlledNames(\Auth::user());
+            $controlledIds = Permission::query()
+                ->whereIn('name', $controlledNames)
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->all();
+            $submittedIds = array_values(array_intersect($submittedIds, $controlledIds));
 
             // Keep any current role permissions that are not shown on the form
             // so obscure/system grants are not stripped on save.
             $preservedIds = $role->permissions()
-                ->whereNotIn('id', $assignableIds)
+                ->whereNotIn('id', $controlledIds)
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->all();

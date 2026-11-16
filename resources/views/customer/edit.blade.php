@@ -3,29 +3,27 @@
 
 <div class="modal-body">
 
-    <h5 class="sub-title">{{__('Basic Info')}}</h5>
+    <h5 class="sub-title">{{__('Company Information')}}</h5>
     <div class="row">
         <div class="col-lg-4 col-md-4 col-sm-6">
             <div class="form-group">
-                {{Form::label('name',__('Name'),array('class'=>'form-label')) }}<x-required></x-required>
+                {{Form::label('name',__('Company Name'),array('class'=>'form-label')) }}<x-required></x-required>
                 {{Form::text('name',null,array('class'=>'form-control','required'=>'required','placeholder'=>__('Enter Name')))}}
 
             </div>
         </div>
         <div class="col-lg-4 col-md-4 col-sm-6">
             <div class="form-group">
-                <x-mobile label="{{__('Contact')}}" name="contact" value="{{$customer->contact}}" required placeholder="{{ __('Enter Contact') }}"></x-mobile>
+                <x-mobile label="{{__('Company Phone')}}" name="contact" value="{{$customer->contact}}" required placeholder="{{ __('Enter Contact') }}"></x-mobile>
             </div>
         </div>
         <div class="col-lg-4 col-md-4 col-sm-6">
             <div class="form-group">
-                {{Form::label('email',__('Email'),['class'=>'form-label'])}}<x-required></x-required>
+                {{Form::label('email',__('General Email'),['class'=>'form-label'])}}<x-required></x-required>
                 {{Form::text('email',null,array('class'=>'form-control','required'=>'required', 'placeholder'=>__('Enter email')))}}
 
             </div>
         </div>
-
-        @include('partials.contact_notification_preferences_customer', ['customer' => $customer])
 
         <div class="col-lg-6 col-md-6 col-sm-6">
             <div class="form-group">
@@ -186,11 +184,181 @@
 
     </div>
 
+    <hr>
+
+    <h5 class="sub-title">{{__('Company KYC Documents')}}</h5>
+    @php
+        $kycDocs = $customer->kycDocuments();
+        if (empty($kycDocs)) {
+            $kycDocs = [['document_type' => '', 'document_number' => '', 'file_path' => null]];
+        }
+    @endphp
+    <div id="company-kyc-documents">
+        @foreach($kycDocs as $kycIndex => $kycDoc)
+            <div class="row kyc-document-row mb-2">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label class="form-label">{{__('KYC Document Type')}}</label>
+                        <input type="text" name="kyc[{{ $kycIndex }}][document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}" value="{{ old('kyc.' . $kycIndex . '.document_type', $kycDoc['document_type'] ?? '') }}">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label class="form-label">{{__('KYC Document Number')}}</label>
+                        <input type="text" name="kyc[{{ $kycIndex }}][document_number]" class="form-control" placeholder="{{ __('Document Number') }}" value="{{ old('kyc.' . $kycIndex . '.document_number', $kycDoc['document_number'] ?? '') }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label class="form-label">{{__('KYC Document Upload')}}</label>
+                        @if(!empty($kycDoc['file_path']))
+                            <a href="{{ route('customer.kyc.download', [$customer->id, 'company', $kycIndex]) }}" target="_blank">{{ __('View Existing Document') }}</a><br>
+                            <input type="hidden" name="kyc[{{ $kycIndex }}][existing_file]" value="{{ $kycDoc['file_path'] }}">
+                        @endif
+                        <input type="file" name="kyc[{{ $kycIndex }}][document]" class="form-control">
+                    </div>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="button" class="btn btn-danger remove_kyc_document"><i class="ti ti-trash"></i></button>
+                </div>
+            </div>
+        @endforeach
+    </div>
+    <button type="button" class="btn btn-secondary add_kyc_document" data-field="kyc" data-target="#company-kyc-documents">{{__('Add Document')}}</button>
+
+    <hr>
+
+    @php
+        $contacts = json_decode($customer->contacts, true) ?? [['role'=>'','name'=>'','phone'=>'']];
+        if (!is_array($contacts) || empty($contacts)) {
+            $contacts = [['role'=>'','name'=>'','phone'=>'']];
+        }
+        $mainContact = $contacts[0] ?? ['role'=>'','name'=>'','phone'=>''];
+    @endphp
+    <h5 class="sub-title">{{__('Contact Person Information')}}</h5>
+    <div class="row">
+        <div class="col-md-4">
+             <div class="form-group">
+                <label class="form-label">{{__('Contact Person Name')}}</label>
+                <input type="text" name="contacts[0][name]" class="form-control" placeholder="{{ __('Name') }}" value="{{ old('contacts.0.name', $mainContact['name'] ?? '') }}">
+            </div>
+        </div>
+        <div class="col-md-4">
+             <div class="form-group">
+                <label class="form-label">{{__('Position')}}</label>
+                <input type="text" name="contacts[0][role]" class="form-control" placeholder="{{ __('e.g. Finance Director') }}" value="{{ old('contacts.0.role', $mainContact['role'] ?? '') }}">
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label class="form-label">{{__('Contact Person Phone')}}</label>
+                <input type="text" name="contacts[0][phone]" class="form-control" placeholder="{{ __('Phone') }}" value="{{ old('contacts.0.phone', $mainContact['phone'] ?? '') }}">
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+             <div class="form-group">
+                <label class="form-label">{{__('Personal Email')}}</label>
+                <input type="email" name="contacts[0][email]" class="form-control" placeholder="{{ __('Enter email') }}" value="{{ old('contacts.0.email', $mainContact['email'] ?? '') }}">
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group">
+                <label class="form-label">{{__('Identification')}}</label>
+                <input type="text" name="contacts[0][identification]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}" value="{{ old('contacts.0.identification', $mainContact['identification'] ?? '') }}">
+            </div>
+        </div>
+    </div>
+
+    @include('partials.contact_notification_preferences_customer', ['customer' => $customer])
+
+    <h5 class="sub-title">{{__('Contact Person KYC Documents')}}</h5>
+    @php
+        $contactKycDocs = $customer->contactKycDocuments();
+        if (empty($contactKycDocs)) {
+            $contactKycDocs = [['document_type' => '', 'document_number' => '', 'file_path' => null]];
+        }
+    @endphp
+    <div id="contact-kyc-documents">
+        @foreach($contactKycDocs as $contactKycIndex => $contactKycDoc)
+            <div class="row kyc-document-row mb-2">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label class="form-label">{{__('KYC Document Type')}}</label>
+                        <input type="text" name="contact_kyc[{{ $contactKycIndex }}][document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}" value="{{ old('contact_kyc.' . $contactKycIndex . '.document_type', $contactKycDoc['document_type'] ?? '') }}">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label class="form-label">{{__('KYC Document Number')}}</label>
+                        <input type="text" name="contact_kyc[{{ $contactKycIndex }}][document_number]" class="form-control" placeholder="{{ __('Document Number') }}" value="{{ old('contact_kyc.' . $contactKycIndex . '.document_number', $contactKycDoc['document_number'] ?? '') }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label class="form-label">{{__('KYC Document Upload')}}</label>
+                        @if(!empty($contactKycDoc['file_path']))
+                            <a href="{{ route('customer.kyc.download', [$customer->id, 'contact', $contactKycIndex]) }}" target="_blank">{{ __('View Existing Document') }}</a><br>
+                            <input type="hidden" name="contact_kyc[{{ $contactKycIndex }}][existing_file]" value="{{ $contactKycDoc['file_path'] }}">
+                        @endif
+                        <input type="file" name="contact_kyc[{{ $contactKycIndex }}][document]" class="form-control">
+                    </div>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="button" class="btn btn-danger remove_kyc_document"><i class="ti ti-trash"></i></button>
+                </div>
+            </div>
+        @endforeach
+    </div>
+    <button type="button" class="btn btn-secondary add_kyc_document" data-field="contact_kyc" data-target="#contact-kyc-documents">{{__('Add Document')}}</button>
+
+    <h5 class="sub-title">{{__('Additional Contacts')}}</h5>
+    @foreach ($contacts as $index => $contact)
+        @if($index > 0)
+    <div class="row">
+        <div class="col-md-4">
+             <div class="form-group">
+                <label class="form-label">{{__('Contact Person Name')}}</label>
+                <input type="text" name="contacts[{{ $index }}][name]" class="form-control" placeholder="{{ __('Name') }}" value="{{ old("contacts.$index.name", $contact['name'] ?? '') }}">
+            </div>
+        </div>
+        <div class="col-md-4">
+             <div class="form-group">
+                <label class="form-label">{{__('Position')}}</label>
+                <input type="text" name="contacts[{{ $index }}][role]" class="form-control" placeholder="{{ __('e.g. Finance Director') }}" value="{{ old("contacts.$index.role", $contact['role'] ?? '') }}">
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label class="form-label">{{__('Contact Person Phone')}}</label>
+                <input type="text" name="contacts[{{ $index }}][phone]" class="form-control" placeholder="{{ __('Phone') }}" value="{{ old("contacts.$index.phone", $contact['phone'] ?? '') }}">
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+             <div class="form-group">
+                <label class="form-label">{{__('Personal Email')}}</label>
+                <input type="email" name="contacts[{{ $index }}][email]" class="form-control" placeholder="{{ __('Enter email') }}" value="{{ old("contacts.$index.email", $contact['email'] ?? '') }}">
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group">
+                <label class="form-label">{{__('Identification')}}</label>
+                <input type="text" name="contacts[{{ $index }}][identification]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}" value="{{ old("contacts.$index.identification", $contact['identification'] ?? '') }}">
+            </div>
+        </div>
+    </div>
+        @endif
+    @endforeach
+    <button type="button" id="add_contact" class="btn btn-secondary mt-2">{{__('Add More Contact')}}</button>
+    
     @if(App\Models\Utility::getValByName('shipping_display')=='on')
         {{-- <div class="col-md-12 text-end">
             <input type="button" id="billing_data" value="{{__('Shipping Same As Billing')}}" class="btn btn-primary">
         </div> --}}
-        <h5 class="sub-title">{{__('Shipping Address')}}</h5>
+        <h5 class="sub-title mt-3">{{__('Shipping Address')}}</h5>
         <div class="shipping_addresses mb-3">
             @if(count($customer->shippingAddresses) > 0)
                 @foreach($customer->shippingAddresses as $key => $address)
@@ -318,34 +486,6 @@
         </div>
     @endif
     
-    <h5 class="sub-title">{{__('Additional Contacts')}}</h5>
-    @php
-        $contacts = json_decode($customer->contacts, true) ?? [['role'=>'','name'=>'','phone'=>'']];
-    @endphp
-    @foreach ($contacts as $index => $contact)
-    <div class="row">
-        <div class="col-md-4">
-             <div class="form-group">
-                <label class="form-label">{{__('Contact Person Role')}}</label>
-                <input type="text" name="contacts[{{ $index }}][role]" class="form-control" placeholder="{{ __('e.g. Finance Director') }}" value="{{ old("contacts.$index.role", $contact['role'] ?? '') }}">
-            </div>
-        </div>
-        <div class="col-md-4">
-             <div class="form-group">
-                <label class="form-label">{{__('Contact Person Name')}}</label>
-                <input type="text" name="contacts[{{ $index }}][name]" class="form-control" placeholder="{{ __('Name') }}" value="{{ old("contacts.$index.name", $contact['name'] ?? '') }}">
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="form-group">
-                <label class="form-label">{{__('Contact Person Phone')}}</label>
-                <input type="text" name="contacts[{{ $index }}][phone]" class="form-control" placeholder="{{ __('Phone') }}" value="{{ old("contacts.$index.phone", $contact['phone'] ?? '') }}">
-            </div>
-        </div>
-    </div>
-    @endforeach
-    <button type="button" id="add_contact" class="btn btn-secondary mt-2">{{__('Add More Contact')}}</button>
-    
     <hr>
     
     <h5 class="sub-title">{{__('Bank Account Details')}}</h5>
@@ -395,37 +535,6 @@
             <small class="form-text text-muted">{{__('You can add multiple emails separated by commas')}}</small>
         </div>
     </div>
-    
-    <hr>
-    
-    <h5 class="sub-title">{{__('KYC Details')}}</h5>
-    @php
-        $kyc = [];
-        if (!empty($customer->kyc)) {
-            $kyc = json_decode($customer->kyc, true);
-            if (!is_array($kyc)) {
-                $kyc = [];
-            }
-        }
-    @endphp
-    <div class="row">
-        <div class="col-md-6">
-            <label class="form-label">{{__('KYC Document Type')}}</label>
-            <input type="text" name="kyc[document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}" value="{{ old('kyc.document_type', $kyc['document_type'] ?? '') }}">
-        </div>
-        <div class="col-md-6">
-            <label class="form-label">{{__('KYC Document Number')}}</label>
-            <input type="text" name="kyc[document_number]" class="form-control" placeholder="{{ __('Document Number') }}" value="{{ old('kyc.document_number', $kyc['document_number'] ?? '') }}">
-        </div>
-        <div class="col-md-12 mt-3">
-            <label class="form-label">{{__('KYC Document Upload')}}</label>
-            @if(!empty($customer->kyc_document_path))
-                <a href="{{ asset('storage/' . $customer->kyc_document_path) }}" target="_blank">{{ __('View Existing Document') }}</a><br>
-            @endif
-            <input type="file" name="kyc_document" class="form-control">
-        </div>
-    </div>
-
 
 </div>
 <div class="modal-footer">
@@ -479,14 +588,11 @@
         });
         
     });
-     let contactIndex = 1;
+     // Start after the highest existing contact index, so adding a
+     // contact while editing never overwrites an existing one.
+     let contactIndex = {{ count($contacts) }};
     $('#add_contact').click(function() {
         let html = `<div class="row mt-3">
-            <div class="col-md-4">
-            <div class="form-group">
-                <input type="text" name="contacts[${contactIndex}][role]" class="form-control" placeholder="{{ __('e.g. Finance Director') }}">
-            </div>
-            </div>
             <div class="col-md-4">
             <div class="form-group">
                 <input type="text" name="contacts[${contactIndex}][name]" class="form-control" placeholder="{{ __('Name') }}">
@@ -494,11 +600,64 @@
             </div>
             <div class="col-md-4">
             <div class="form-group">
+                <input type="text" name="contacts[${contactIndex}][role]" class="form-control" placeholder="{{ __('e.g. Finance Director') }}">
+            </div>
+            </div>
+            <div class="col-md-4">
+            <div class="form-group">
                 <input type="text" name="contacts[${contactIndex}][phone]" class="form-control" placeholder="{{ __('Phone') }}">
+            </div>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-6">
+            <div class="form-group">
+                <input type="email" name="contacts[${contactIndex}][email]" class="form-control" placeholder="{{ __('Personal Email') }}">
+            </div>
+            </div>
+            <div class="col-md-6">
+            <div class="form-group">
+                <input type="text" name="contacts[${contactIndex}][identification]" class="form-control" placeholder="{{ __('Identification') }}">
             </div>
             </div>
         </div>`;
         $(this).before(html);
         contactIndex++;
+    });
+
+    // KYC document repeaters (company + contact person). The modal is
+    // loaded via AJAX and can be opened repeatedly without a page
+    // reload, so handlers are rebound with .off().on() and counters
+    // use `var` (a second `let` would throw on re-execution).
+    var companyKycIndex = {{ count($kycDocs) }};
+    var contactKycIndex = {{ count($contactKycDocs) }};
+
+    function kycDocumentRowHtml(field, index) {
+        return '<div class="row kyc-document-row mb-2">' +
+            '<div class="col-md-4"><div class="form-group">' +
+            '<label class="form-label">{{ __('KYC Document Type') }}</label>' +
+            '<input type="text" name="' + field + '[' + index + '][document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}">' +
+            '</div></div>' +
+            '<div class="col-md-4"><div class="form-group">' +
+            '<label class="form-label">{{ __('KYC Document Number') }}</label>' +
+            '<input type="text" name="' + field + '[' + index + '][document_number]" class="form-control" placeholder="{{ __('Document Number') }}">' +
+            '</div></div>' +
+            '<div class="col-md-3"><div class="form-group">' +
+            '<label class="form-label">{{ __('KYC Document Upload') }}</label>' +
+            '<input type="file" name="' + field + '[' + index + '][document]" class="form-control">' +
+            '</div></div>' +
+            '<div class="col-md-1 d-flex align-items-end"><button type="button" class="btn btn-danger remove_kyc_document"><i class="ti ti-trash"></i></button></div>' +
+            '</div>';
+    }
+
+    $(document).off('click', '.add_kyc_document').on('click', '.add_kyc_document', function() {
+        var field = $(this).data('field');
+        var container = $(this).data('target');
+        var index = field === 'contact_kyc' ? contactKycIndex++ : companyKycIndex++;
+        $(container).append(kycDocumentRowHtml(field, index));
+    });
+
+    $(document).off('click', '.remove_kyc_document').on('click', '.remove_kyc_document', function() {
+        $(this).closest('.kyc-document-row').remove();
     });
 </script>

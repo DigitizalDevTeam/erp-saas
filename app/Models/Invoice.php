@@ -104,7 +104,7 @@ class Invoice extends Model
         'Unpaid',
         'Partialy Paid',
         'Paid',
-        'Cancelled',
+        'Deleted',
         'Pending Authorization',
     ];
 
@@ -211,6 +211,14 @@ class Invoice extends Model
         // Internal Consumption invoices are settled by the
         // consumption itself: no payment is ever owed on them.
         if ($this->isInternal()) {
+            return 0;
+        }
+
+        // A voided (Deleted) invoice owes nothing: its payments are
+        // kept for history but must not count towards a due amount
+        // (otherwise due goes negative once a credit note is issued
+        // for the paid amount).
+        if ((int) $this->status === 5) {
             return 0;
         }
 

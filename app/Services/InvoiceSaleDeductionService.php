@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ProductIdentifier;
 use App\Models\ProductKitItem;
 use App\Models\ProductService;
+use App\Models\WarehouseProduct;
 use App\Services\ProductOptionService;
 use Illuminate\Support\Facades\DB;
 
@@ -14,7 +15,11 @@ use Illuminate\Support\Facades\DB;
  * - Batch lots: FEFO / FIFO / LIFO per product setting
  * - Serial/MAC: validate identifiers and mark as sold
  *
- * Note: Invoices in this app do not store warehouse_id, so deductions are applied globally (warehouse_id = null/0).
+ * The warehouse a deduction comes from is recorded on the invoice
+ * (stock_deducted_warehouse_id) and passed in as $warehouseId:
+ * the global quantity always moves, and the warehouse row moves
+ * too when a warehouse is given. A null warehouse means
+ * global-only, as before.
  */
 class InvoiceSaleDeductionService
 {
@@ -57,7 +62,7 @@ class InvoiceSaleDeductionService
         }
     }
 
-    public static function deductLine(int $productId, float $quantity, int $creatorId, int $invoiceId, int $invoiceProductId, int $customerId, string $invoiceNoFormatted, ?string $identifiersRaw = null, ?string $selectedOptionsJson = null): void
+    public static function deductLine(int $productId, float $quantity, int $creatorId, int $invoiceId, int $invoiceProductId, int $customerId, string $invoiceNoFormatted, ?string $identifiersRaw = null, ?string $selectedOptionsJson = null, ?int $warehouseId = null): void
     {
         if ($quantity <= 0) {
             return;
@@ -73,7 +78,7 @@ class InvoiceSaleDeductionService
             ProductOptionService::deductOptionsForSale(
                 $selectedOptions,
                 $quantity,
-                0,
+                $warehouseId ?? 0,
                 $creatorId,
                 'invoice',
                 $invoiceNoFormatted,
@@ -116,7 +121,7 @@ class InvoiceSaleDeductionService
             foreach ($items as $it) {
                 $componentQty = (float) $it->quantity * $quantity;
                 if ($componentQty <= 0) continue;
-                self::deductSimpleProduct((int) $it->component_product_id, $componentQty, $creatorId, $invoiceId, $invoiceNoFormatted, '');
+                self::deductSimpleProduct((int) $it->component_product_id, $componentQty, $creatorId, $invoiceId, $invoiceNoFormatted, '', $warehouseId);
             }
             return;
         }
@@ -127,14 +132,14 @@ class InvoiceSaleDeductionService
             if ($remaining > 0) {
                 throw new \RuntimeException(__('This product is out of stock!'));
             }
-            self::deductSimpleProduct($productId, $quantity, $creatorId, $invoiceId, $invoiceNoFormatted, $idNote);
+            self::deductSimpleProduct($productId, $quantity, $creatorId, $invoiceId, $invoiceNoFormatted, $idNote, $warehouseId);
 
             return;
         }
 
         // Normal product
         if ($product->affect_stock ?? true) {
-            self::deductSimpleProduct($productId, $quantity, $creatorId, $invoiceId, $invoiceNoFormatted, $idNote);
+            self::deductSimpleProduct($productId, $quantity, $creatorId, $invoiceId, $invoiceNoFormatted, $idNote, $warehouseId);
         }
     }
 
@@ -192,21 +197,41 @@ class InvoiceSaleDeductionService
         return ' | ' . __('Serial/MAC') . ': ' . implode(', ', $list);
     }
 
-    protected static function deductSimpleProduct(int $productId, float $quantity, int $creatorId, int $invoiceId, string $invoiceNoFormatted, string $extraDescriptionSuffix = ''): void
+    protected static function deductSimpleProduct(int $productId, float $quantity, int $creatorId, int $invoiceId, string $invoiceNoFormatted, string $extraDescriptionSuffix = '', ?int $warehouseId = null): void
     {
         $p = ProductService::where('id', $productId)->where('created_by', $creatorId)->first();
         if (!$p) return;
 
         $original = (float) ($p->quantity ?? 0);
-        // Invoices deduct the global quantity only (no warehouse rows in
-        // this path, as before) — a flagged product's global may go negative.
+        // The global quantity always moves; the warehouse row moves
+        // too when a warehouse was resolved for this invoice.
         $newQty = $p->allowsNegativeStock()
             ? $original - $quantity
             : max(0, $original - $quantity);
         ProductService::where('id', $productId)->update(['quantity' => $newQty]);
 
+        if ($warehouseId) {
+            self::ensureWarehouseRow($productId, $warehouseId, $creatorId);
+            \App\Models\Utility::warehouse_quantity('minus', $quantity, $productId, $warehouseId);
+        }
+
         $description = $quantity . ' ' . __(' quantity sold in invoice') . ' ' . $invoiceNoFormatted . $extraDescriptionSuffix;
         \App\Models\Utility::addProductStock($productId, $quantity, 'invoice', $description, $invoiceId);
+    }
+
+    /**
+     * Make sure a warehouse_products row exists for this product +
+     * warehouse (created_by = the company), so warehouse_quantity()
+     * never has to create it itself — it reads
+     * Auth::user()->creatorId(), which is not available in every
+     * context that can send an invoice (e.g. the recurring engine).
+     */
+    public static function ensureWarehouseRow(int $productId, int $warehouseId, int $creatorId): void
+    {
+        WarehouseProduct::firstOrCreate(
+            ['warehouse_id' => $warehouseId, 'product_id' => $productId, 'product_variant_id' => null],
+            ['quantity' => 0, 'created_by' => $creatorId]
+        );
     }
 
     protected static function hasLots(int $productId, int $creatorId): bool

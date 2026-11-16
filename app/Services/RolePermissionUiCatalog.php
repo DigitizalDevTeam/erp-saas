@@ -2,6 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Plan;
+use App\Models\User;
+use Spatie\Permission\Models\Permission;
+
 /**
  * Modules, prefixes, and special permissions rendered on Role create/edit forms.
  * Used to keep UI assignable names in sync with RoleController safe sync.
@@ -310,5 +314,92 @@ class RolePermissionUiCatalog
         }
 
         return array_values(array_unique($names));
+    }
+
+    /**
+     * Permission names the role EDIT form actually controls for this editor.
+     *
+     * This mirrors resources/views/role/edit.blade.php exactly: a checkbox
+     * is rendered only when (a) its module tab is shown for the editor's
+     * plan and (b) its name is in the editor's permission map. Anything
+     * NOT in this set is never shown on the form, so RoleController::update
+     * must preserve it as-is instead of treating its absence from the POST
+     * as a revoke — otherwise every save silently deletes the role's
+     * permissions for plan-hidden modules (CRM/Project for Top ++
+     * companies; HRM/Account/POS/CRM/Project for the super admin, whose
+     * plan is null and hides every gated tab).
+     *
+     * NOTE: User::show_dashboard() reads Auth::user(), so $user must be
+     * the authenticated editor — exactly as the blade uses Auth::user().
+     *
+     * @return array<int, string>
+     */
+    public static function formControlledNames(User $user): array
+    {
+        // The editor's permission map, exactly as RoleController::edit()
+        // builds it: super admin / company see every permission, staff
+        // editors see only the permissions their own roles hold.
+        if ($user->type === 'super admin' || $user->type === 'company') {
+            $permissionMap = Permission::query()->pluck('name', 'id')->all();
+        } else {
+            $permissionMap = [];
+            foreach ($user->roles as $editorRole) {
+                $permissionMap += $editorRole->permissions->pluck('name', 'id')->all();
+            }
+        }
+
+        $plan = Plan::getPlan($user->show_dashboard());
+        $planAllows = fn (string $flag): bool => ! empty($plan) && (int) $plan->{$flag} === 1;
+
+        // Staff + Sidebar tabs always render; the module tabs only when
+        // the editor's plan enables them (same @if conditions as the blade).
+        $modules = self::staffModules($user->type);
+        if ($planAllows('crm')) {
+            $modules = array_merge($modules, self::crmModules());
+        }
+        if ($planAllows('project')) {
+            $modules = array_merge($modules, self::projectModules());
+        }
+        if ($planAllows('hrm')) {
+            $modules = array_merge($modules, self::hrmModules());
+        }
+        if ($planAllows('account')) {
+            $modules = array_merge($modules, self::accountModules());
+        }
+        $posTab = $planAllows('pos') || (! empty($plan) && (int) ($plan->stock ?? 0) === 1);
+        if ($posTab) {
+            // Stock-only plans render just the warehouse row, no POS modules.
+            $modules = array_merge($modules, $planAllows('pos') ? self::posModules() : ['warehouse']);
+        }
+
+        $names = [];
+        foreach ($modules as $module) {
+            foreach (self::prefixes() as [$prefix]) {
+                $names[] = $prefix . $module;
+            }
+        }
+
+        // Standalone permissions render only on their tab (module_permissions
+        // partial, $specialsTab): 'account' specials on the Account tab,
+        // 'pos' specials on the POS tab — and only when pos == 1, not
+        // for a stock-only plan.
+        foreach (self::specialPermissionTabs() as $specialName => $tab) {
+            if (($tab === 'account' && $planAllows('account'))
+                || ($tab === 'pos' && $planAllows('pos'))) {
+                $names[] = $specialName;
+            }
+        }
+
+        // Hotel checkboxes render only when the editor's map holds at least
+        // one hotel permission (hotel_permissions partial).
+        if (HotelPermissionCatalog::hasAnyInPermissionMap($permissionMap)) {
+            $names = array_merge($names, HotelPermissionCatalog::allNames());
+        }
+
+        // The Sidebar tab always renders.
+        $names = array_merge($names, SidebarMenuPermissionCatalog::allPermissionNames());
+
+        // A checkbox exists only for names the editor's map actually holds.
+        return array_values(array_unique(array_intersect($names, array_values($permissionMap))));
     }
 }

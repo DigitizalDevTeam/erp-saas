@@ -104,7 +104,11 @@
                     @foreach($customer['shippingAddresses'] as $key => $shippingAddress )
                     <div class="{{ $key > 0 ? 'mt-3' : '' }}">
                         <h5 class="card-title">{{__('Shipping Info') .' '.$key + 1 }}</h5>
-                        <p class="card-text mb-1">{{$shippingAddress->name}}</p>
+                        {{-- The shipping recipient is the customer itself:
+                             the address row's free-text name has held the
+                             company name before, so it is not shown here.
+                             The row's address / phone lines still display. --}}
+                        <p class="card-text mb-1">{{$customer['name']}}</p>
                         <p class="card-text mb-1">{{$shippingAddress->address}}</p>
                         <p class="card-text mb-1">{{$shippingAddress->city.', '. $shippingAddress->state .', '.$shippingAddress->zip}}</p>
                         <p class="card-text mb-1">{{$shippingAddress->country}}</p>
@@ -114,6 +118,48 @@
                 </div>
             </div>
 
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 col-lg-6 col-xl-6 mb-4">
+            <div class="card customer-detail-box customer_card">
+                <div class="card-body">
+                    <h5 class="card-title">{{__('Company KYC Documents')}}</h5>
+                    @php $companyKycDocs = $customer->kycDocuments(); @endphp
+                    @if(empty($companyKycDocs))
+                        <p class="card-text text-muted mb-0">{{__('No documents')}}</p>
+                    @else
+                        @foreach($companyKycDocs as $kycIndex => $kycDoc)
+                            <p class="card-text mb-1">
+                                {{ $kycDoc['document_type'] ?? '' }}{{ !empty($kycDoc['document_type']) && !empty($kycDoc['document_number']) ? ' — ' : '' }}{{ $kycDoc['document_number'] ?? '' }}
+                                @if(!empty($kycDoc['file_path']))
+                                    <a href="{{ route('customer.kyc.download', [$customer->id, 'company', $kycIndex]) }}" target="_blank">{{ __('View') }}</a>
+                                @endif
+                            </p>
+                        @endforeach
+                    @endif
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-6 col-xl-6 mb-4">
+            <div class="card customer-detail-box customer_card">
+                <div class="card-body">
+                    <h5 class="card-title">{{__('Contact Person KYC Documents')}}</h5>
+                    @php $contactKycDocs = $customer->contactKycDocuments(); @endphp
+                    @if(empty($contactKycDocs))
+                        <p class="card-text text-muted mb-0">{{__('No documents')}}</p>
+                    @else
+                        @foreach($contactKycDocs as $contactKycIndex => $contactKycDoc)
+                            <p class="card-text mb-1">
+                                {{ $contactKycDoc['document_type'] ?? '' }}{{ !empty($contactKycDoc['document_type']) && !empty($contactKycDoc['document_number']) ? ' — ' : '' }}{{ $contactKycDoc['document_number'] ?? '' }}
+                                @if(!empty($contactKycDoc['file_path']))
+                                    <a href="{{ route('customer.kyc.download', [$customer->id, 'contact', $contactKycIndex]) }}" target="_blank">{{ __('View') }}</a>
+                                @endif
+                            </p>
+                        @endforeach
+                    @endif
+                </div>
+            </div>
         </div>
     </div>
     <div class="row">
