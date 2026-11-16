@@ -128,21 +128,33 @@
 
     <hr>
 
-    <h5 class="sub-title">{{__('KYC Details')}}</h5>
-    <div class="row">
-        <div class="col-md-6">
-            <label class="form-label">{{__('KYC Document Type')}}</label>
-            <input type="text" name="kyc[document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}">
-        </div>
-        <div class="col-md-6">
-            <label class="form-label">{{__('KYC Document Number')}}</label>
-            <input type="text" name="kyc[document_number]" class="form-control" placeholder="{{ __('Document Number') }}">
-        </div>
-        <div class="col-md-12 mt-3">
-            <label class="form-label">{{__('KYC Document Upload')}}</label>
-            <input type="file" name="kyc_document" class="form-control">
+    <h5 class="sub-title">{{__('Company KYC Documents')}}</h5>
+    <div id="company-kyc-documents">
+        <div class="row kyc-document-row mb-2">
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label class="form-label">{{__('KYC Document Type')}}</label>
+                    <input type="text" name="kyc[0][document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label class="form-label">{{__('KYC Document Number')}}</label>
+                    <input type="text" name="kyc[0][document_number]" class="form-control" placeholder="{{ __('Document Number') }}">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label class="form-label">{{__('KYC Document Upload')}}</label>
+                    <input type="file" name="kyc[0][document]" class="form-control">
+                </div>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="button" class="btn btn-danger remove_kyc_document"><i class="ti ti-trash"></i></button>
+            </div>
         </div>
     </div>
+    <button type="button" class="btn btn-secondary add_kyc_document" data-field="kyc" data-target="#company-kyc-documents">{{__('Add Document')}}</button>
 
     <hr>
 
@@ -183,6 +195,34 @@
     </div>
 
     @include('partials.contact_notification_preferences_customer', ['customer' => null])
+
+    <h5 class="sub-title">{{__('Contact Person KYC Documents')}}</h5>
+    <div id="contact-kyc-documents">
+        <div class="row kyc-document-row mb-2">
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label class="form-label">{{__('KYC Document Type')}}</label>
+                    <input type="text" name="contact_kyc[0][document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label class="form-label">{{__('KYC Document Number')}}</label>
+                    <input type="text" name="contact_kyc[0][document_number]" class="form-control" placeholder="{{ __('Document Number') }}">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label class="form-label">{{__('KYC Document Upload')}}</label>
+                    <input type="file" name="contact_kyc[0][document]" class="form-control">
+                </div>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="button" class="btn btn-danger remove_kyc_document"><i class="ti ti-trash"></i></button>
+            </div>
+        </div>
+    </div>
+    <button type="button" class="btn btn-secondary add_kyc_document" data-field="contact_kyc" data-target="#contact-kyc-documents">{{__('Add Document')}}</button>
 
     <h5 class="sub-title">{{__('Additional Contacts')}}</h5>
     <button type="button" id="add_contact" class="btn btn-secondary mt-2">{{__('Add More Contact')}}</button>
@@ -265,3 +305,40 @@
             <input type="text" name="bank_account[bank_name]" class="form-control" placeholder="{{ __('Bank Name') }}">
         </
 ...[truncated 2599 bytes]
+<script>
+    // KYC document repeaters (company + contact person). The modal is
+    // loaded via AJAX and can be opened repeatedly without a page
+    // reload, so handlers are rebound with .off().on() and counters
+    // use `var` (a second `let` would throw on re-execution).
+    var companyKycIndex = 1;
+    var contactKycIndex = 1;
+
+    function kycDocumentRowHtml(field, index) {
+        return '<div class="row kyc-document-row mb-2">' +
+            '<div class="col-md-4"><div class="form-group">' +
+            '<label class="form-label">{{ __('KYC Document Type') }}</label>' +
+            '<input type="text" name="' + field + '[' + index + '][document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}">' +
+            '</div></div>' +
+            '<div class="col-md-4"><div class="form-group">' +
+            '<label class="form-label">{{ __('KYC Document Number') }}</label>' +
+            '<input type="text" name="' + field + '[' + index + '][document_number]" class="form-control" placeholder="{{ __('Document Number') }}">' +
+            '</div></div>' +
+            '<div class="col-md-3"><div class="form-group">' +
+            '<label class="form-label">{{ __('KYC Document Upload') }}</label>' +
+            '<input type="file" name="' + field + '[' + index + '][document]" class="form-control">' +
+            '</div></div>' +
+            '<div class="col-md-1 d-flex align-items-end"><button type="button" class="btn btn-danger remove_kyc_document"><i class="ti ti-trash"></i></button></div>' +
+            '</div>';
+    }
+
+    $(document).off('click', '.add_kyc_document').on('click', '.add_kyc_document', function() {
+        var field = $(this).data('field');
+        var container = $(this).data('target');
+        var index = field === 'contact_kyc' ? contactKycIndex++ : companyKycIndex++;
+        $(container).append(kycDocumentRowHtml(field, index));
+    });
+
+    $(document).off('click', '.remove_kyc_document').on('click', '.remove_kyc_document', function() {
+        $(this).closest('.kyc-document-row').remove();
+    });
+</script>

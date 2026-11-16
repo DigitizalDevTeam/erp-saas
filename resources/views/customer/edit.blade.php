@@ -186,33 +186,45 @@
 
     <hr>
 
-    <h5 class="sub-title">{{__('KYC Details')}}</h5>
+    <h5 class="sub-title">{{__('Company KYC Documents')}}</h5>
     @php
-        $kyc = [];
-        if (!empty($customer->kyc)) {
-            $kyc = json_decode($customer->kyc, true);
-            if (!is_array($kyc)) {
-                $kyc = [];
-            }
+        $kycDocs = $customer->kycDocuments();
+        if (empty($kycDocs)) {
+            $kycDocs = [['document_type' => '', 'document_number' => '', 'file_path' => null]];
         }
     @endphp
-    <div class="row">
-        <div class="col-md-6">
-            <label class="form-label">{{__('KYC Document Type')}}</label>
-            <input type="text" name="kyc[document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}" value="{{ old('kyc.document_type', $kyc['document_type'] ?? '') }}">
-        </div>
-        <div class="col-md-6">
-            <label class="form-label">{{__('KYC Document Number')}}</label>
-            <input type="text" name="kyc[document_number]" class="form-control" placeholder="{{ __('Document Number') }}" value="{{ old('kyc.document_number', $kyc['document_number'] ?? '') }}">
-        </div>
-        <div class="col-md-12 mt-3">
-            <label class="form-label">{{__('KYC Document Upload')}}</label>
-            @if(!empty($customer->kyc_document_path))
-                <a href="{{ asset('storage/' . $customer->kyc_document_path) }}" target="_blank">{{ __('View Existing Document') }}</a><br>
-            @endif
-            <input type="file" name="kyc_document" class="form-control">
-        </div>
+    <div id="company-kyc-documents">
+        @foreach($kycDocs as $kycIndex => $kycDoc)
+            <div class="row kyc-document-row mb-2">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label class="form-label">{{__('KYC Document Type')}}</label>
+                        <input type="text" name="kyc[{{ $kycIndex }}][document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}" value="{{ old('kyc.' . $kycIndex . '.document_type', $kycDoc['document_type'] ?? '') }}">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label class="form-label">{{__('KYC Document Number')}}</label>
+                        <input type="text" name="kyc[{{ $kycIndex }}][document_number]" class="form-control" placeholder="{{ __('Document Number') }}" value="{{ old('kyc.' . $kycIndex . '.document_number', $kycDoc['document_number'] ?? '') }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label class="form-label">{{__('KYC Document Upload')}}</label>
+                        @if(!empty($kycDoc['file_path']))
+                            <a href="{{ route('customer.kyc.download', [$customer->id, 'company', $kycIndex]) }}" target="_blank">{{ __('View Existing Document') }}</a><br>
+                            <input type="hidden" name="kyc[{{ $kycIndex }}][existing_file]" value="{{ $kycDoc['file_path'] }}">
+                        @endif
+                        <input type="file" name="kyc[{{ $kycIndex }}][document]" class="form-control">
+                    </div>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="button" class="btn btn-danger remove_kyc_document"><i class="ti ti-trash"></i></button>
+                </div>
+            </div>
+        @endforeach
     </div>
+    <button type="button" class="btn btn-secondary add_kyc_document" data-field="kyc" data-target="#company-kyc-documents">{{__('Add Document')}}</button>
 
     <hr>
 
@@ -260,7 +272,47 @@
     </div>
 
     @include('partials.contact_notification_preferences_customer', ['customer' => $customer])
-    
+
+    <h5 class="sub-title">{{__('Contact Person KYC Documents')}}</h5>
+    @php
+        $contactKycDocs = $customer->contactKycDocuments();
+        if (empty($contactKycDocs)) {
+            $contactKycDocs = [['document_type' => '', 'document_number' => '', 'file_path' => null]];
+        }
+    @endphp
+    <div id="contact-kyc-documents">
+        @foreach($contactKycDocs as $contactKycIndex => $contactKycDoc)
+            <div class="row kyc-document-row mb-2">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label class="form-label">{{__('KYC Document Type')}}</label>
+                        <input type="text" name="contact_kyc[{{ $contactKycIndex }}][document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}" value="{{ old('contact_kyc.' . $contactKycIndex . '.document_type', $contactKycDoc['document_type'] ?? '') }}">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label class="form-label">{{__('KYC Document Number')}}</label>
+                        <input type="text" name="contact_kyc[{{ $contactKycIndex }}][document_number]" class="form-control" placeholder="{{ __('Document Number') }}" value="{{ old('contact_kyc.' . $contactKycIndex . '.document_number', $contactKycDoc['document_number'] ?? '') }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label class="form-label">{{__('KYC Document Upload')}}</label>
+                        @if(!empty($contactKycDoc['file_path']))
+                            <a href="{{ route('customer.kyc.download', [$customer->id, 'contact', $contactKycIndex]) }}" target="_blank">{{ __('View Existing Document') }}</a><br>
+                            <input type="hidden" name="contact_kyc[{{ $contactKycIndex }}][existing_file]" value="{{ $contactKycDoc['file_path'] }}">
+                        @endif
+                        <input type="file" name="contact_kyc[{{ $contactKycIndex }}][document]" class="form-control">
+                    </div>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="button" class="btn btn-danger remove_kyc_document"><i class="ti ti-trash"></i></button>
+                </div>
+            </div>
+        @endforeach
+    </div>
+    <button type="button" class="btn btn-secondary add_kyc_document" data-field="contact_kyc" data-target="#contact-kyc-documents">{{__('Add Document')}}</button>
+
     <h5 class="sub-title">{{__('Additional Contacts')}}</h5>
     @foreach ($contacts as $index => $contact)
         @if($index > 0)
@@ -571,5 +623,41 @@
         </div>`;
         $(this).before(html);
         contactIndex++;
+    });
+
+    // KYC document repeaters (company + contact person). The modal is
+    // loaded via AJAX and can be opened repeatedly without a page
+    // reload, so handlers are rebound with .off().on() and counters
+    // use `var` (a second `let` would throw on re-execution).
+    var companyKycIndex = {{ count($kycDocs) }};
+    var contactKycIndex = {{ count($contactKycDocs) }};
+
+    function kycDocumentRowHtml(field, index) {
+        return '<div class="row kyc-document-row mb-2">' +
+            '<div class="col-md-4"><div class="form-group">' +
+            '<label class="form-label">{{ __('KYC Document Type') }}</label>' +
+            '<input type="text" name="' + field + '[' + index + '][document_type]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}">' +
+            '</div></div>' +
+            '<div class="col-md-4"><div class="form-group">' +
+            '<label class="form-label">{{ __('KYC Document Number') }}</label>' +
+            '<input type="text" name="' + field + '[' + index + '][document_number]" class="form-control" placeholder="{{ __('Document Number') }}">' +
+            '</div></div>' +
+            '<div class="col-md-3"><div class="form-group">' +
+            '<label class="form-label">{{ __('KYC Document Upload') }}</label>' +
+            '<input type="file" name="' + field + '[' + index + '][document]" class="form-control">' +
+            '</div></div>' +
+            '<div class="col-md-1 d-flex align-items-end"><button type="button" class="btn btn-danger remove_kyc_document"><i class="ti ti-trash"></i></button></div>' +
+            '</div>';
+    }
+
+    $(document).off('click', '.add_kyc_document').on('click', '.add_kyc_document', function() {
+        var field = $(this).data('field');
+        var container = $(this).data('target');
+        var index = field === 'contact_kyc' ? contactKycIndex++ : companyKycIndex++;
+        $(container).append(kycDocumentRowHtml(field, index));
+    });
+
+    $(document).off('click', '.remove_kyc_document').on('click', '.remove_kyc_document', function() {
+        $(this).closest('.kyc-document-row').remove();
     });
 </script>

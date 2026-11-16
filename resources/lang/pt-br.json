@@ -8976,5 +8976,8 @@
     "Contact Person Information": "Informações da Pessoa de Contato",
     "General Email": "Email Geral",
     "Identification": "Identificação",
-    "Personal Email": "Email Pessoal"
+    "Personal Email": "Email Pessoal",
+    "Company KYC Documents": "Documentos KYC da Empresa",
+    "Contact Person KYC Documents": "Documentos KYC da Pessoa de Contato",
+    "No documents": "Sem documentos"
 }

@@ -9835,5 +9835,8 @@
     "Contact Person Information": "Contact Person Information",
     "General Email": "General Email",
     "Identification": "Identification",
-    "Personal Email": "Personal Email"
+    "Personal Email": "Personal Email",
+    "Company KYC Documents": "Company KYC Documents",
+    "Contact Person KYC Documents": "Contact Person KYC Documents",
+    "No documents": "No documents"
 }
