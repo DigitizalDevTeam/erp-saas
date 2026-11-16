@@ -434,4 +434,22 @@ class ManagementReportsTest extends TestCase
         $outrasRow = collect($values)->firstWhere(0, 'Outras — Sem IVA');
         $this->assertEqualsWithDelta(2000, (float) $outrasRow[1], 0.01);
     }
+
+    public function test_costs_page_shows_empty_hint_when_year_has_no_costs(): void
+    {
+        // Rules and centres are seeded in setUp (57 categories exist),
+        // but no documents are seeded for 2026, so every cost is 0 and
+        // the empty-state hint must show. (The old condition checked
+        // empty($table['rows']), which is never true once categories exist.)
+        $this->asCompany()->get(route('management-reports.costs', ['year' => 2026]))
+            ->assertOk()
+            ->assertSee('No documents exist yet for this year, so every cost is 0.');
+
+        // And once a document exists for the year, the hint goes away.
+        $this->seedFileDocuments(1);
+
+        $this->asCompany()->get(route('management-reports.costs', ['year' => 2026]))
+            ->assertOk()
+            ->assertDontSee('No documents exist yet for this year, so every cost is 0.');
+    }
 }
