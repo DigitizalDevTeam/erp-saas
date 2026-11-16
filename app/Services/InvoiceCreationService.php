@@ -77,12 +77,16 @@ class InvoiceCreationService
      *
      * The new issue date must be on or after:
      *  - the company's invoice_start_date setting, when set; and
-     *  - the latest issue_date among the company's non-draft,
-     *    non-voided SALES invoices (internal-consumption invoices
-     *    live in their own series and do not count).
+     *  - the latest issue_date among the company's non-voided SALES
+     *    invoices (internal-consumption invoices live in their own
+     *    series and do not count).
      *
-     * A draft or a voided invoice never blocks a new date, and the
-     * invoice being updated ($excludeInvoiceId) is ignored.
+     * Drafts count as the reference: invoice numbers are assigned
+     * at creation, so a draft dated earlier than an existing draft
+     * already breaks the sequence the client reported (the audit's
+     * proof was two drafts, Nov 10 then Nov 1). A voided invoice
+     * never blocks a new date, and the invoice being updated
+     * ($excludeInvoiceId) is ignored.
      * Super admins bypass both checks ($isSuperAdmin).
      *
      * @throws \RuntimeException with a message naming the blocking date.
@@ -104,7 +108,6 @@ class InvoiceCreationService
         }
 
         $latest = Invoice::where('created_by', $creatorId)
-            ->where('status', '!=', Invoice::STATUS_DRAFT)
             ->where('status', '!=', Invoice::STATUS_CANCELLED)
             ->where(function ($q) {
                 $q->whereNull('document_type')
