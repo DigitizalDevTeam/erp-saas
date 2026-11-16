@@ -257,6 +257,16 @@
                                                                     <a class="dash-link" href="{{ route('management-reports.costs') }}">{{ __('Costs by Category') }}</a>
                                                                 </li>
                                                             @endif
+                                                            @if (menu_can('menu.dashboard.accounting.reports.management.management_sales'))
+                                                                <li class="dash-item {{ Request::route()->getName() == 'management-reports.sales' ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('management-reports.sales') }}">{{ __('Sales (Management)') }}</a>
+                                                                </li>
+                                                            @endif
+                                                            @if (menu_can('menu.dashboard.accounting.reports.management.management_history'))
+                                                                <li class="dash-item {{ str_starts_with(Request::route()->getName() ?? '', 'management-history') ? ' active' : '' }}">
+                                                                    <a class="dash-link" href="{{ route('management-history.index') }}">{{ __('Management History') }}</a>
+                                                                </li>
+                                                            @endif
                                                             @if (menu_can('menu.dashboard.accounting.reports.management.management_documents'))
                                                                 <li class="dash-item {{ Request::route()->getName() == 'management-documents.index' || Request::route()->getName() == 'management-documents.create' || Request::route()->getName() == 'management-documents.edit' ? ' active' : '' }}">
                                                                     <a class="dash-link" href="{{ route('management-documents.index') }}">{{ __('Management Documents') }}</a>
@@ -1273,6 +1283,64 @@
                                                     class="dash-item {{ str_starts_with(Request::route()->getName() ?? '', 'bank-reconciliation') ? ' active' : '' }}">
                                                     <a class="dash-link"
                                                         href="{{ route('bank-reconciliation.index') }}">{{ __('Bank reconciliation') }}</a>
+                                                </li>
+                                            @endif
+                                        </ul>
+                                    </li>
+                                @endif
+                                @if (menu_can_node('menu.accounting_system.management_reports'))
+                                    <li
+                                        class="dash-item dash-hasmenu {{ str_starts_with(Request::route()->getName() ?? '', 'management-') ? 'active dash-trigger' : '' }}">
+                                        <a class="dash-link" href="#">{{ __('Management Reports') }}<span
+                                                class="dash-arrow"><i data-feather="chevron-right"></i></span></a>
+                                        <ul class="dash-submenu">
+                                            @if (menu_can('menu.accounting_system.management_reports.management_pl'))
+                                                <li
+                                                    class="dash-item {{ Request::route()->getName() == 'management-reports.pl' ? ' active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('management-reports.pl') }}">{{ __('P&L (Management)') }}</a>
+                                                </li>
+                                            @endif
+                                            @if (menu_can('menu.accounting_system.management_reports.management_pl_percent'))
+                                                <li
+                                                    class="dash-item {{ Request::route()->getName() == 'management-reports.pl-percent' ? ' active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('management-reports.pl-percent') }}">{{ __('%P&L (Management)') }}</a>
+                                                </li>
+                                            @endif
+                                            @if (menu_can('menu.accounting_system.management_reports.management_costs'))
+                                                <li
+                                                    class="dash-item {{ Request::route()->getName() == 'management-reports.costs' ? ' active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('management-reports.costs') }}">{{ __('Costs by Category') }}</a>
+                                                </li>
+                                            @endif
+                                            @if (menu_can('menu.accounting_system.management_reports.management_sales'))
+                                                <li
+                                                    class="dash-item {{ Request::route()->getName() == 'management-reports.sales' ? ' active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('management-reports.sales') }}">{{ __('Sales (Management)') }}</a>
+                                                </li>
+                                            @endif
+                                            @if (menu_can('menu.accounting_system.management_reports.management_history'))
+                                                <li
+                                                    class="dash-item {{ str_starts_with(Request::route()->getName() ?? '', 'management-history') ? ' active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('management-history.index') }}">{{ __('Management History') }}</a>
+                                                </li>
+                                            @endif
+                                            @if (menu_can('menu.accounting_system.management_reports.management_documents'))
+                                                <li
+                                                    class="dash-item {{ str_starts_with(Request::route()->getName() ?? '', 'management-documents') ? ' active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('management-documents.index') }}">{{ __('Management Documents') }}</a>
+                                                </li>
+                                            @endif
+                                            @if (menu_can('menu.accounting_system.management_reports.management_rules'))
+                                                <li
+                                                    class="dash-item {{ str_starts_with(Request::route()->getName() ?? '', 'management-rules') || str_starts_with(Request::route()->getName() ?? '', 'management-cost-centres') ? ' active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('management-rules.index') }}">{{ __('Management Rules') }}</a>
                                                 </li>
                                             @endif
                                         </ul>

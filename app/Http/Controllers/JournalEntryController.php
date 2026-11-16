@@ -11,6 +11,7 @@ use App\Models\Utility;
 use App\Support\AccountingPeriodDate;
 use App\Support\MoneyAmount;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class JournalEntryController extends Controller
 {
@@ -118,6 +119,15 @@ class JournalEntryController extends Controller
             $journal->date = $periodDate['date'];
             $journal->reference = $request->reference;
             $journal->description = $request->description;
+            // Manual journal (Journal Entry screen). Only manual,
+            // approved journals feed the management P&L (see
+            // ManagementJournalCosts) — system postings are marked
+            // 'system' by JournalEntryPoster and never counted there.
+            // Guarded by hasColumn: many workflow tests build a
+            // minimal journal_entries schema without the column.
+            if (Schema::hasColumn('journal_entries', 'source')) {
+                $journal->source = JournalEntry::SOURCE_MANUAL;
+            }
             $journal->status = JournalEntry::STATUS_PENDING;
             $journal->created_by = \Auth::user()->creatorId();
             $journal->accounting_period = $periodDate['accounting_period'];

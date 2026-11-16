@@ -15,10 +15,16 @@ class JournalEntry extends Model
         'reference',
         'description',
         'journal_id',
+        'source',
         'status',
         'created_by',
         'accounting_period',
     ];
+
+    /** How the journal was created: 'manual' (Journal Entry screen) or 'system' (JournalEntryPoster). */
+    public const SOURCE_MANUAL = 'manual';
+
+    public const SOURCE_SYSTEM = 'system';
 
     public static function getStatuses()
     {

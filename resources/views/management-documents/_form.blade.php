@@ -9,7 +9,7 @@
         <label class="form-label">{{ __('Type') }} <span class="text-danger">*</span></label>
         <select name="doc_type" class="form-control @error('doc_type') is-invalid @enderror" required>
             @foreach (\App\Models\ManagementDocument::DOC_TYPES as $t)
-                <option value="{{ $t }}" {{ old('doc_type', $doc->doc_type ?? 'invoice') === $t ? 'selected' : '' }}>{{ $t }}</option>
+                <option value="{{ $t }}" {{ old('doc_type', $doc->doc_type ?? 'invoice') === $t ? 'selected' : '' }}>{{ __('doc_type.' . $t) }}</option>
             @endforeach
         </select>
         @error('doc_type')<span class="invalid-feedback d-block">{{ $message }}</span>@enderror
@@ -19,14 +19,19 @@
         <label class="form-label">{{ __('Status') }} <span class="text-danger">*</span></label>
         <select name="status" class="form-control @error('status') is-invalid @enderror" required>
             @foreach (\App\Models\ManagementDocument::STATUSES as $s)
-                <option value="{{ $s }}" {{ old('status', $doc->status ?? 'Conciliado') === $s ? 'selected' : '' }}>{{ $s }}</option>
+                <option value="{{ $s }}" {{ old('status', $doc->status ?? 'Conciliado') === $s ? 'selected' : '' }}>{{ __('doc_status.' . $s) }}</option>
             @endforeach
         </select>
         @error('status')<span class="invalid-feedback d-block">{{ $message }}</span>@enderror
     </div>
     <div class="col-md-6 mb-3">
         <label class="form-label">{{ __('Supplier') }}</label>
-        <input type="text" name="supplier_name" value="{{ old('supplier_name', $doc->supplier_name ?? '') }}" class="form-control @error('supplier_name') is-invalid @enderror" placeholder="{{ __('Supplier name') }}">
+        <input type="text" name="supplier_name" list="supplier-list" value="{{ old('supplier_name', $doc->supplier_name ?? '') }}" class="form-control @error('supplier_name') is-invalid @enderror" placeholder="{{ __('Supplier name') }}" autocomplete="off">
+        <datalist id="supplier-list">
+            @foreach ($suppliers ?? [] as $supplier)
+                <option value="{{ $supplier }}"></option>
+            @endforeach
+        </datalist>
         @error('supplier_name')<span class="invalid-feedback d-block">{{ $message }}</span>@enderror
     </div>
     <div class="col-md-6 mb-3">
@@ -38,14 +43,18 @@
         <label class="form-label">{{ __('Document No.') }}</label>
         <input type="text" name="doc_number" value="{{ old('doc_number', $doc->doc_number ?? '') }}" class="form-control @error('doc_number') is-invalid @enderror">
         @error('doc_number')<span class="invalid-feedback d-block">{{ $message }}</span>@enderror
-        <small class="text-muted">{{ __('Required for every type except a manual entry.') }}</small>
+        <small class="text-muted">{{ __('Required for every document.') }}</small>
     </div>
     <div class="col-md-6 mb-3">
         <label class="form-label">{{ __('Category') }} <span class="text-danger">*</span></label>
         <select name="management_rule_id" class="form-control @error('management_rule_id') is-invalid @enderror">
             <option value="">{{ __('Use the supplier\'s default category') }}</option>
-            @foreach ($rules as $rule)
-                <option value="{{ $rule->id }}" {{ (string) old('management_rule_id', $doc->management_rule_id ?? '') === (string) $rule->id ? 'selected' : '' }}>{{ $rule->label() }}</option>
+            @foreach (($rulesByGroup ?? $rules->groupBy('group')) as $groupName => $groupRules)
+                <optgroup label="{{ $groupName }}">
+                    @foreach ($groupRules as $rule)
+                        <option value="{{ $rule->id }}" {{ (string) old('management_rule_id', $doc->management_rule_id ?? '') === (string) $rule->id ? 'selected' : '' }}>{{ $rule->label() }}</option>
+                    @endforeach
+                </optgroup>
             @endforeach
         </select>
         @error('management_rule_id')<span class="invalid-feedback d-block">{{ $message }}</span>@enderror
@@ -62,17 +71,19 @@
     </div>
     <div class="col-md-3 mb-3">
         <label class="form-label">{{ __('Base') }}</label>
-        <input type="number" step="0.01" min="0" name="base" value="{{ old('base', $doc->base ?? '') }}" class="form-control @error('base') is-invalid @enderror">
+        {{-- No min="0": a credit note's base is negative, and the
+             server validates the sign per type. --}}
+        <input type="number" step="0.01" name="base" value="{{ old('base', $doc->base ?? '') }}" class="form-control @error('base') is-invalid @enderror">
         @error('base')<span class="invalid-feedback d-block">{{ $message }}</span>@enderror
     </div>
     <div class="col-md-3 mb-3">
         <label class="form-label">{{ __('VAT') }}</label>
-        <input type="number" step="0.01" min="0" name="iva" value="{{ old('iva', $doc->iva ?? '') }}" class="form-control @error('iva') is-invalid @enderror">
+        <input type="number" step="0.01" name="iva" value="{{ old('iva', $doc->iva ?? '') }}" class="form-control @error('iva') is-invalid @enderror">
         @error('iva')<span class="invalid-feedback d-block">{{ $message }}</span>@enderror
     </div>
     <div class="col-md-3 mb-3">
         <label class="form-label">{{ __('Retention') }}</label>
-        <input type="number" step="0.01" min="0" name="retention" value="{{ old('retention', $doc->retention ?? '') }}" class="form-control @error('retention') is-invalid @enderror">
+        <input type="number" step="0.01" name="retention" value="{{ old('retention', $doc->retention ?? '') }}" class="form-control @error('retention') is-invalid @enderror">
         @error('retention')<span class="invalid-feedback d-block">{{ $message }}</span>@enderror
     </div>
     <div class="col-md-3 mb-3">

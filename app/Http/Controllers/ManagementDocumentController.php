@@ -6,22 +6,24 @@ use App\Models\ManagementCostCentre;
 use App\Models\ManagementDocument;
 use App\Models\ManagementRule;
 use App\Models\ManagementSupplierCategory;
+use App\Services\ManagementDocumentImport;
+use App\Services\ManagementDocumentValidator;
+use App\Services\ManagementReportExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Management Documents (Documentos) — the expense-document entry
  * screen behind the management P&L. Each document is one real expense
- * document (invoice, credit note, bank transfer, manual entry) with a
- * category (Rules) and a cost centre.
+ * document (invoice, credit note, bank transfer) with a category
+ * (Rules) and a cost centre.
  *
- * The P&L costs come from these documents ONLY (see
- * MonthlyManagementData): no system-derived costs alongside them, so
- * nothing is double-counted. Quotations are stored but excluded from
- * costs; a credit note is a document with a negative amount.
+ * The P&L costs come from these documents + mapped manual journals
+ * (see MonthlyManagementData): no system-derived costs alongside
+ * them, so nothing is double-counted. Quotations are stored but
+ * excluded from costs; a credit note is a document with a negative
+ * amount. A cost with no document is a journal posting, not a row
+ * here (the old 'manual' type was removed).
  */
 class ManagementDocumentController extends Controller
 {
@@ -47,23 +49,24 @@ class ManagementDocumentController extends Controller
         $status = $request->input('status');
         $type = $request->input('doc_type');
 
-        $docs = ManagementDocument::where('created_by', $creatorId)
-            ->when($year, fn ($q) => $q->whereYear('doc_date', $year))
-            ->when($month, fn ($q) => $q->whereMonth('doc_date', $month))
-            ->when($ruleId, fn ($q) => $q->where('management_rule_id', $ruleId))
-            ->when($centreId, fn ($q) => $q->where('management_cost_centre_id', $centreId))
-            ->when($supplier, fn ($q) => $q->where('supplier_name', 'like', '%' . $supplier . '%'))
-            ->when($status, fn ($q) => $q->where('status', $status))
-            ->when($type, fn ($q) => $q->where('doc_type', $type))
+        $docs = $this->filteredQuery($request, $creatorId)
             ->with(['rule', 'costCentre'])
             ->orderByDesc('doc_date')
             ->orderByDesc('id')
             ->paginate(25)
             ->withQueryString();
 
+        // Sums over the WHOLE filtered set (not just this page).
+        // Net = BASE when present, else TOTAL (see netValue()).
+        $sums = $this->filteredQuery($request, $creatorId)
+            ->selectRaw('COALESCE(SUM(base), 0) as base_sum, COALESCE(SUM(iva), 0) as iva_sum, COALESCE(SUM(total), 0) as total_sum')
+            ->selectRaw("COALESCE(SUM(CASE WHEN base IS NOT NULL THEN base ELSE total END), 0) as net_sum")
+            ->first();
+
         return view('management-documents.index', [
             'docs' => $docs,
             'total' => $docs->total(),
+            'sums' => $sums,
             'year' => $year,
             'month' => $month,
             'ruleId' => $ruleId,
@@ -75,6 +78,27 @@ class ManagementDocumentController extends Controller
             'centres' => ManagementCostCentre::where('created_by', $creatorId)->orderBy('code')->get(),
             'years' => range((int) date('Y'), (int) date('Y') - 5),
         ]);
+    }
+
+    /** The filtered document query (shared by the list + the export). */
+    private function filteredQuery(Request $request, int $creatorId)
+    {
+        $year = (int) $request->input('year', (int) date('Y'));
+        $month = $request->input('month');
+        $ruleId = $request->input('management_rule_id');
+        $centreId = $request->input('management_cost_centre_id');
+        $supplier = $request->input('supplier');
+        $status = $request->input('status');
+        $type = $request->input('doc_type');
+
+        return ManagementDocument::where('created_by', $creatorId)
+            ->when($year, fn ($q) => $q->whereYear('doc_date', $year))
+            ->when($month, fn ($q) => $q->whereMonth('doc_date', $month))
+            ->when($ruleId, fn ($q) => $q->where('management_rule_id', $ruleId))
+            ->when($centreId, fn ($q) => $q->where('management_cost_centre_id', $centreId))
+            ->when($supplier, fn ($q) => $q->where('supplier_name', 'like', '%' . $supplier . '%'))
+            ->when($status, fn ($q) => $q->where('status', $status))
+            ->when($type, fn ($q) => $q->where('doc_type', $type));
     }
 
     public function create()
@@ -116,7 +140,7 @@ class ManagementDocumentController extends Controller
         $creatorId = \Auth::user()->creatorId();
         $this->ensureOwned($managementDocument, $creatorId);
 
-        $data = $this->validateData($request, $creatorId);
+        $data = $this->validateData($request, $creatorId, $managementDocument->id);
         $managementDocument->update($data);
 
         return redirect()->route('management-documents.index')
@@ -137,12 +161,30 @@ class ManagementDocumentController extends Controller
 
     private function formData(int $creatorId): array
     {
-        ManagementRule::ensureSeeded($creatorId);
-        ManagementCostCentre::ensureSeeded($creatorId);
+        // Seeding is opt-in (Rules page buttons): a company with no
+        // rules or centres stays empty until it loads the starters.
+        $rules = ManagementRule::where('created_by', $creatorId)
+            ->orderBy('sort_order')
+            ->get();
+        $centres = ManagementCostCentre::where('created_by', $creatorId)
+            ->orderBy('code')
+            ->get();
 
         return [
-            'rules' => ManagementRule::where('created_by', $creatorId)->orderBy('sort_order')->get(),
-            'centres' => ManagementCostCentre::where('created_by', $creatorId)->orderBy('code')->get(),
+            'rules' => $rules,
+            // Categories grouped by P&L group for the <optgroup> select.
+            'rulesByGroup' => $rules->groupBy('group'),
+            'centres' => $centres,
+            // Suppliers already used in this company's documents,
+            // for the supplier autocomplete (free text still works
+            // for a new supplier).
+            'suppliers' => ManagementDocument::where('created_by', $creatorId)
+                ->whereNotNull('supplier_name')
+                ->where('supplier_name', '!=', '')
+                ->distinct()
+                ->orderBy('supplier_name')
+                ->pluck('supplier_name'),
+            'defaults' => ManagementSupplierCategory::where('created_by', $creatorId)->get(),
         ];
     }
 
@@ -154,100 +196,53 @@ class ManagementDocumentController extends Controller
     }
 
     /**
-     * Same validation as the erpsaaspro API (ManagementDocumentController
-     * in erpsaaspro), adapted to Blade + the app's creatorId() scoping.
-     *
-     * One cross-field rule (the per-rule `where()` takes only
-     * (column, value) — a third argument is silently dropped, so the
-     * "not equal" form is never used here): the rule must belong to
-     * this company, enforced by where('created_by', $creatorId).
+     * Validation shared with the import — one rule set everywhere
+     * (see ManagementDocumentValidator).
      */
-    private function validateData(Request $request, int $creatorId): array
+    private function validateData(Request $request, int $creatorId, ?int $ignoreId = null): array
     {
-        $validator = Validator::make($request->all(), [
-            'doc_date' => ['required', 'date'],
-            'supplier_nif' => ['nullable', 'string', 'max:50'],
-            'supplier_name' => ['nullable', 'string', 'max:255'],
-            'doc_number' => ['nullable', 'string', 'max:100'],
-            'doc_type' => ['required', 'in:' . implode(',', ManagementDocument::DOC_TYPES)],
-            'base' => ['nullable', 'numeric'],
-            'iva' => ['nullable', 'numeric'],
-            'retention' => ['nullable', 'numeric'],
-            'total' => ['required', 'numeric'],
-            'status' => ['required', 'in:' . implode(',', ManagementDocument::STATUSES)],
-            'bank_account' => ['nullable', 'string', 'max:100'],
-            'payment_method' => ['nullable', 'string', 'max:100'],
-            'management_rule_id' => [
-                'nullable', 'integer',
-                Rule::exists('management_rules', 'id')->where('created_by', $creatorId),
-            ],
-            'management_cost_centre_id' => [
-                'nullable', 'integer',
-                Rule::exists('management_cost_centres', 'id')->where('created_by', $creatorId),
-            ],
-            'notes' => ['nullable', 'string'],
+        return ManagementDocumentValidator::validate(
+            $request->all(),
+            $creatorId,
+            $ignoreId
+        );
+    }
+
+    /** Import documents from an uploaded CSV or .xlsx file. */
+    public function import(Request $request)
+    {
+        $this->authorizeManagement();
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,xlsx', 'max:5120'],
         ]);
+        $creatorId = \Auth::user()->creatorId();
+        $file = $request->file('file');
+        $result = ManagementDocumentImport::import($creatorId, $file->getRealPath(), $file->getClientOriginalExtension());
 
-        // A document number is required for every type EXCEPT a manual
-        // entry (salaries, IRPS, VAT, employee payments have no
-        // document). A credit note must be negative; every other
-        // costing document must be positive (or zero).
-        // TOTAL must equal BASE + IVA − retention when BASE is present.
-        $validator->after(function ($validator) use ($request) {
-            $data = $validator->getData();
-            $type = $data['doc_type'] ?? null;
-            $total = $data['total'] ?? null;
-
-            if ($type !== 'manual' && empty($data['doc_number'])) {
-                $validator->errors()->add('doc_number', __('The document number is required.'));
-            }
-            if ($type === 'credit_note' && $total !== null && $total >= 0) {
-                $validator->errors()->add('total', __('A credit note must have a negative amount.'));
-            }
-            if (in_array($type, ['invoice', 'bank_transfer', 'manual'], true) && $total !== null && $total < 0) {
-                $validator->errors()->add('total', __('The amount must be zero or positive.'));
-            }
-            // A credit note's amounts are negative (base −100, total −100);
-            // every other type's base / VAT / retention must be >= 0.
-            foreach (['base', 'iva', 'retention'] as $field) {
-                $value = $data[$field] ?? null;
-                if ($value === null || $value === '') {
-                    continue;
-                }
-                if ($type === 'credit_note' && (float) $value > 0) {
-                    $validator->errors()->add($field, __('A credit note must have a negative amount.'));
-                }
-                if ($type !== 'credit_note' && (float) $value < 0) {
-                    $validator->errors()->add($field, __('The amount must be zero or positive.'));
-                }
-            }
-            if (isset($data['base']) && $data['base'] !== '' && $data['base'] !== null && $total !== null) {
-                $expected = (float) $data['base'] + (float) ($data['iva'] ?? 0) - (float) ($data['retention'] ?? 0);
-                if (abs((float) $total - $expected) > 0.01) {
-                    $validator->errors()->add('total', __('The total must equal base + VAT − retention.'));
-                }
-            }
-        });
-
-        $data = $validator->validate();
-
-        // Auto-assign the category from the supplier's default when the
-        // user left it empty (the client: assign a category to a
-        // supplier, all that supplier's documents get that category).
-        if (empty($data['management_rule_id'])) {
-            $default = ManagementSupplierCategory::defaultRuleFor(
-                $creatorId,
-                $data['supplier_name'] ?? null
-            );
-            if ($default) {
-                $data['management_rule_id'] = $default->id;
-            } else {
-                throw ValidationException::withMessages([
-                    'management_rule_id' => __('The category is required.'),
-                ]);
-            }
+        $message = __('Imported :count document(s).', ['count' => $result['imported']]);
+        if ($result['skipped'] !== []) {
+            $message .= ' ' . __('Skipped :count row(s).', ['count' => count($result['skipped'])]);
         }
 
-        return $data;
+        return redirect()
+            ->route('management-documents.index')
+            ->with('success', $message)
+            ->with('importSkipped', $result['skipped']);
+    }
+
+    /** Export the currently filtered document list as .xlsx. */
+    public function export(Request $request)
+    {
+        $this->authorizeManagement();
+        $docs = $this->filteredQuery($request, \Auth::user()->creatorId())
+            ->with(['rule', 'costCentre'])
+            ->orderByDesc('doc_date')
+            ->orderByDesc('id')
+            ->get();
+
+        return ManagementReportExport::download(
+            ManagementReportExport::documents($docs),
+            'management-documents-' . date('Ymd') . '.xlsx'
+        );
     }
 }

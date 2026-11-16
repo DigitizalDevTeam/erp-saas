@@ -97,6 +97,7 @@ use App\Http\Controllers\LowStockNotificationController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\ManagementCostCentreController;
 use App\Http\Controllers\ManagementDocumentController;
+use App\Http\Controllers\ManagementHistoryController;
 use App\Http\Controllers\ManagementReportController;
 use App\Http\Controllers\ManagementRuleController;
 use App\Http\Controllers\MercadoPaymentController;
@@ -1350,12 +1351,26 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('reports/debit-note', [CreditDebitNoteReportsController::class, 'debitNoteReport'])->name('reports.debit.note');
 
             // Management Reports (client's management P&L from the Excel
-            // file — costs from Management Documents, sales automatic
-            // from invoices; the classic P&L is a different report).
+            // file — costs from Management Documents + mapped manual
+            // journals, sales automatic from invoices; the classic P&L
+            // is a different report).
             Route::get('management-reports/pl', [ManagementReportController::class, 'managementPl'])->name('management-reports.pl');
             Route::get('management-reports/pl-percent', [ManagementReportController::class, 'managementPlPercent'])->name('management-reports.pl-percent');
             Route::get('management-reports/costs', [ManagementReportController::class, 'managementCosts'])->name('management-reports.costs');
+            Route::get('management-reports/sales', [ManagementReportController::class, 'managementSales'])->name('management-reports.sales');
+            Route::get('management-reports/pl/export', [ManagementReportController::class, 'exportPl'])->name('management-reports.pl.export');
+            Route::get('management-reports/pl-percent/export', [ManagementReportController::class, 'exportPlPercent'])->name('management-reports.pl-percent.export');
+            Route::get('management-reports/costs/export', [ManagementReportController::class, 'exportCosts'])->name('management-reports.costs.export');
+            Route::get('management-reports/sales/export', [ManagementReportController::class, 'exportSales'])->name('management-reports.sales.export');
+            Route::resource('management-history', ManagementHistoryController::class)->except(['show']);
+            Route::post('management-documents/import', [ManagementDocumentController::class, 'import'])->name('management-documents.import');
+            Route::get('management-documents/export', [ManagementDocumentController::class, 'export'])->name('management-documents.export');
             Route::resource('management-documents', ManagementDocumentController::class)->except(['show']);
+            Route::post('management-rules/load-starter-categories', [ManagementRuleController::class, 'loadStarterCategories'])->name('management-rules.load-starter-categories');
+            Route::post('management-rules/load-starter-centres', [ManagementRuleController::class, 'loadStarterCentres'])->name('management-rules.load-starter-centres');
+            Route::post('management-rules/account-mappings', [ManagementRuleController::class, 'storeAccountMapping'])->name('management-rules.account-mappings.store');
+            Route::put('management-rules/account-mappings/{mapping}', [ManagementRuleController::class, 'updateAccountMapping'])->name('management-rules.account-mappings.update');
+            Route::delete('management-rules/account-mappings/{mapping}', [ManagementRuleController::class, 'destroyAccountMapping'])->name('management-rules.account-mappings.destroy');
             Route::resource('management-rules', ManagementRuleController::class)->except(['show']);
             Route::post('management-rules/supplier-defaults', [ManagementRuleController::class, 'storeSupplierDefault'])->name('management-rules.supplier-defaults.store');
             Route::delete('management-rules/supplier-defaults/{supplierDefault}', [ManagementRuleController::class, 'destroySupplierDefault'])->name('management-rules.supplier-defaults.destroy');

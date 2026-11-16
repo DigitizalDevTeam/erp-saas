@@ -10,6 +10,9 @@
 
 @section('action-btn')
     <div class="float-end">
+        <a href="{{ route('management-documents.export', request()->query()) }}" class="btn btn-sm btn-secondary">
+            <i class="ti ti-download"></i> {{ __('Export Excel') }}
+        </a>
         <a href="{{ route('management-documents.create') }}" class="btn btn-sm btn-primary">
             <i class="ti ti-plus"></i> {{ __('Add Document') }}
         </a>
@@ -22,6 +25,38 @@
             <div class="card">
                 <div class="card-body">
                     <p class="text-muted">{{ __('Each document is one real expense document. The management P&L costs come from these documents.') }}</p>
+
+                    @if (session('importSkipped'))
+                        <div class="alert alert-warning">
+                            <strong>{{ __('Some rows were skipped:') }}</strong>
+                            <ul class="mb-0">
+                                @foreach (session('importSkipped') as $skipped)
+                                    <li>{{ __('Row :row: :reason', ['row' => $skipped['row'], 'reason' => $skipped['reason']]) }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
+                    <form id="import-form" method="POST" action="{{ route('management-documents.import') }}" enctype="multipart/form-data" class="row g-2 mb-3 align-items-end">
+                        @csrf
+                        <div class="col-md-4">
+                            <label class="form-label">{{ __('Import documents (CSV or Excel)') }}</label>
+                            <input type="file" name="file" accept=".csv,.xlsx" class="form-control" required>
+                            <small class="text-muted">{{ __('Columns: date, supplier NIF, supplier name, doc number, type, base, IVA, retention, total, status, bank account, payment method, category code, cost centre code, notes.') }}</small>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary">{{ __('Import') }}</button>
+                        </div>
+                    </form>
+
+                    @if ($total === 0)
+                        <div class="alert alert-info">
+                            {{ __('No documents yet. Documents feed the management P&L costs — months without documents show 0 costs.') }}
+                            <a href="{{ route('management-documents.create') }}">{{ __('Add Document') }}</a>
+                            {{ __('or') }}
+                            <a href="#import-form">{{ __('import a file') }}</a>.
+                        </div>
+                    @endif
                     <form method="GET" action="{{ route('management-documents.index') }}" class="row g-2 mb-3">
                         <div class="col-md-2">
                             <select name="year" class="form-control">
@@ -33,9 +68,9 @@
                         <div class="col-md-2">
                             <select name="month" class="form-control">
                                 <option value="">{{ __('All months') }}</option>
-                                @for ($m = 1; $m <= 12; $m++)
-                                    <option value="{{ $m }}" {{ (string) $month === (string) $m ? 'selected' : '' }}>{{ date('M', mktime(0, 0, 0, $m, 1)) }}</option>
-                                @endfor
+                                @foreach (['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] as $i => $monthKey)
+                                    <option value="{{ $i + 1 }}" {{ (string) $month === (string) ($i + 1) ? 'selected' : '' }}>{{ __('month.' . $monthKey) }}</option>
+                                @endforeach
                             </select>
                         </div>
                         <div class="col-md-2">
@@ -61,7 +96,7 @@
                             <select name="status" class="form-control">
                                 <option value="">{{ __('All statuses') }}</option>
                                 @foreach (\App\Models\ManagementDocument::STATUSES as $s)
-                                    <option value="{{ $s }}" {{ $status === $s ? 'selected' : '' }}>{{ $s }}</option>
+                                    <option value="{{ $s }}" {{ $status === $s ? 'selected' : '' }}>{{ __('doc_status.' . $s) }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -69,7 +104,7 @@
                             <select name="doc_type" class="form-control">
                                 <option value="">{{ __('All types') }}</option>
                                 @foreach (\App\Models\ManagementDocument::DOC_TYPES as $t)
-                                    <option value="{{ $t }}" {{ $type === $t ? 'selected' : '' }}>{{ $t }}</option>
+                                    <option value="{{ $t }}" {{ $type === $t ? 'selected' : '' }}>{{ __('doc_type.' . $t) }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -83,6 +118,16 @@
 
                     <p class="text-muted">{{ $total }} {{ __('documents') }}</p>
 
+                    @if ($total > 0)
+                        <p class="text-muted">
+                            {{ __('Filtered totals:') }}
+                            {{ __('Base') }} <strong>{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) $sums->base_sum) }}</strong> ·
+                            {{ __('VAT') }} <strong>{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) $sums->iva_sum) }}</strong> ·
+                            {{ __('Total') }} <strong>{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) $sums->total_sum) }}</strong> ·
+                            {{ __('Net Value') }} <strong>{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) $sums->net_sum) }}</strong>
+                        </p>
+                    @endif
+
                     <div class="table-responsive">
                         <table class="table">
                             <thead>
@@ -92,6 +137,7 @@
                                 <th>{{ __('Document No.') }}</th>
                                 <th>{{ __('Type') }}</th>
                                 <th>{{ __('Category') }}</th>
+                                <th>{{ __('P&L Group') }}</th>
                                 <th>{{ __('Cost Centre') }}</th>
                                 <th class="text-end">{{ __('Base') }}</th>
                                 <th class="text-end">{{ __('VAT') }}</th>
@@ -107,14 +153,15 @@
                                     <td>{{ $doc->doc_date ? $doc->doc_date->format('Y-m-d') : '-' }}</td>
                                     <td>{{ $doc->supplier_name ?: '-' }}</td>
                                     <td>{{ $doc->doc_number ?: '-' }}</td>
-                                    <td>{{ $doc->doc_type }}</td>
+                                    <td>{{ __('doc_type.' . $doc->doc_type) }}</td>
                                     <td>{{ $doc->rule ? $doc->rule->label() : '-' }}</td>
+                                    <td>{{ $doc->rule ? $doc->rule->group : '-' }}</td>
                                     <td>{{ $doc->costCentre ? $doc->costCentre->label() : __('No cost centre') }}</td>
-                                    <td class="text-end">{{ $doc->base !== null ? \Auth::user()->priceFormat($doc->base) : '-' }}</td>
-                                    <td class="text-end">{{ $doc->iva !== null ? \Auth::user()->priceFormat($doc->iva) : '-' }}</td>
-                                    <td class="text-end">{{ \Auth::user()->priceFormat($doc->total) }}</td>
-                                    <td class="text-end">{{ \Auth::user()->priceFormat($doc->netValue()) }}</td>
-                                    <td><span class="badge {{ $doc->status === 'Conciliado' ? 'bg-success' : ($doc->status === 'Anulado' ? 'bg-danger' : 'bg-secondary') }}">{{ $doc->status }}</span></td>
+                                    <td class="text-end">{{ $doc->base !== null ? \App\Services\ManagementMoney::format(\Auth::user(), (float) $doc->base) : '-' }}</td>
+                                    <td class="text-end">{{ $doc->iva !== null ? \App\Services\ManagementMoney::format(\Auth::user(), (float) $doc->iva) : '-' }}</td>
+                                    <td class="text-end">{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) $doc->total) }}</td>
+                                    <td class="text-end">{{ \App\Services\ManagementMoney::format(\Auth::user(), $doc->netValue()) }}</td>
+                                    <td><span class="badge {{ $doc->status === 'Conciliado' ? 'bg-success' : ($doc->status === 'Anulado' ? 'bg-danger' : 'bg-secondary') }}">{{ __('doc_status.' . $doc->status) }}</span></td>
                                     <td>
                                         <a href="{{ route('management-documents.edit', $doc) }}" class="btn btn-sm btn-primary" title="{{ __('Edit') }}"><i class="ti ti-pencil"></i></a>
                                         <form method="POST" action="{{ route('management-documents.destroy', $doc) }}" class="d-inline" onsubmit="return confirm('{{ __('Are you sure you want to delete this document?') }}')">
@@ -125,7 +172,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="12" class="text-center text-muted">{{ __('No documents found.') }}</td></tr>
+                                <tr><td colspan="13" class="text-center text-muted">{{ __('No documents found.') }}</td></tr>
                             @endforelse
                             </tbody>
                         </table>

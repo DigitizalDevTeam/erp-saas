@@ -6,6 +6,7 @@ use App\Models\BankAccount;
 use App\Models\JournalEntry;
 use App\Models\JournalItem;
 use App\Models\TransactionLines;
+use Illuminate\Support\Facades\Schema;
 
 class JournalEntryPoster
 {
@@ -56,6 +57,16 @@ class JournalEntryPoster
         $journal->date = $date;
         $journal->reference = $reference;
         $journal->description = $description;
+        // System posting (bills, treasury, fiscal closing, ...). The
+        // management P&L counts only MANUAL journals (source =
+        // 'manual'), so a system posting can never double-count with
+        // a document entered for the same cost. Guarded by hasColumn:
+        // many workflow tests build a minimal journal_entries schema
+        // without the column, and the poster must not break them —
+        // checked fresh on every call (never memoized).
+        if (Schema::hasColumn('journal_entries', 'source')) {
+            $journal->source = JournalEntry::SOURCE_SYSTEM;
+        }
         // This poster writes the ledger lines immediately, so the journal is
         // already in effect. Leaving it "pending" lets a later manual Approve
         // post the same lines a second time and double-count the journal.

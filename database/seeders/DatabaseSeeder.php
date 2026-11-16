@@ -24,7 +24,9 @@ class DatabaseSeeder extends Seeder
             $this->call(PlansTableSeeder::class);
             $this->call(UsersTableSeeder::class);
             $this->call(AiTemplateSeeder::class);
-            $this->call(ManagementRulesSeeder::class);
+            // Management rules are NOT seeded here any more: seeding is
+            // opt-in from the Rules page ("Load starter categories"),
+            // so a company can run with no rules or its own list.
 
         }else{
             Utility::languagecreate();

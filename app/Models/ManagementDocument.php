@@ -12,17 +12,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * The file's three "NÃO MEXER" columns are computed, not stored:
  *  - MÊS      — month of doc_date (1-12).
  *  - GRUPO P&L — the category's rule group (see rule->group).
- *  - VALOR NET — BASE when present and non-zero, else TOTAL.
+ *  - VALOR NET — BASE when present (even 0), else TOTAL.
  *
  * Doc types:
- *  - invoice, bank_transfer, manual — counted in costs.
+ *  - invoice, bank_transfer — counted in costs.
  *  - credit_note — NEGATIVE amounts; counted in costs, so it reduces
  *    them (a credit note is an adjustment/void of the original).
  *  - quotation — stored but EXCLUDED from costs (it is not a cost yet).
- * A cost with NO document is a row with an empty doc number + type
- * "manual" (salaries, IRPS, VAT, employee payments...). If Danilo
- * later wants a separate screen for those, the data model already
- * supports it — only the UI would be new.
+ * A cost with NO document is NOT a row here: it is a double-entry
+ * journal posting against a chart-of-accounts expense account, mapped
+ * to a P&L group on the Rules page (see ManagementAccountMapping and
+ * ManagementJournalCosts). The old 'manual' document type was removed
+ * for that reason — a manual row and its journal would double-count
+ * the same cost.
  *
  * Company scoping follows this app's convention: `created_by` holds
  * the creator/company user id (see User::creatorId()).
@@ -61,7 +63,6 @@ class ManagementDocument extends Model
         'credit_note',
         'quotation',
         'bank_transfer',
-        'manual',
     ];
 
     /** Types that count toward costs (quotations are stored, not counted). */
@@ -69,7 +70,6 @@ class ManagementDocument extends Model
         'invoice',
         'credit_note',
         'bank_transfer',
-        'manual',
     ];
 
     public const STATUSES = [
@@ -101,25 +101,17 @@ class ManagementDocument extends Model
     }
 
     /**
-     * VALOR NET — BASE when present and non-zero, else TOTAL.
+     * VALOR NET — BASE when present, else TOTAL.
      * (The file's rule: =SE(BASE<>"";BASE;TOTAL) — an empty BASE falls
-     * back to TOTAL; a BASE of 0 also falls back, matching the file's
-     * behaviour on the 3 rows with an empty BASE.)
+     * back to TOTAL; an explicit BASE of 0 stays 0.)
      */
     public function netValue(): float
     {
-        $base = $this->base !== null ? (float) $this->base : null;
-
-        return $base !== null && $base != 0.0 ? $base : (float) $this->total;
+        return $this->base !== null ? (float) $this->base : (float) $this->total;
     }
 
     public function countsTowardCosts(): bool
     {
         return in_array($this->doc_type, self::COSTING_TYPES, true);
-    }
-
-    public function isManual(): bool
-    {
-        return $this->doc_type === 'manual';
     }
 }
