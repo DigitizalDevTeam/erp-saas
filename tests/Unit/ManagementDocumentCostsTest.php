@@ -150,26 +150,68 @@ class ManagementDocumentCostsTest extends TestCase
         $this->assertEqualsWithDelta(56.42, $data['variables'][1], 0.01);
     }
 
-    public function test_manual_entry_counts_toward_costs(): void
+    public function test_anulado_document_is_excluded_from_costs(): void
     {
-        $rule = ManagementRule::where('created_by', $this->creatorId)->where('code', '245')->firstOrFail();
+        $rule = ManagementRule::where('created_by', $this->creatorId)->where('code', '312_01')->firstOrFail();
         ManagementDocument::create([
             'created_by' => $this->creatorId,
-            'doc_date' => '2026-06-10',
-            'supplier_name' => 'Tax Authority',
-            'doc_number' => null,
-            'doc_type' => 'manual',
-            'base' => null,
-            'iva' => null,
-            'retention' => null,
-            'total' => 200.00,
-            'status' => 'Conciliado',
+            'doc_date' => '2026-01-20',
+            'supplier_name' => 'Void Supplier',
+            'doc_number' => 'VOID-001',
+            'doc_type' => 'invoice',
+            'base' => 500.00,
+            'iva' => 0,
+            'retention' => 0,
+            'total' => 500.00,
+            'status' => 'Anulado',
             'management_rule_id' => $rule->id,
         ]);
 
         $data = ManagementDocumentCosts::forYear($this->creatorId, 2026);
-        // 245 (Segurança Social) is Pessoal - Impostos.
-        $this->assertEqualsWithDelta(200.00, $data['personnel']['inss'][6], 0.01);
+        $this->assertEqualsWithDelta(213.40, $data['cogs'][1], 0.01);
+        $this->assertEqualsWithDelta(14263.43, array_sum($data['total_geral']), 0.01);
+    }
+
+    public function test_pendente_document_still_counts(): void
+    {
+        $rule = ManagementRule::where('created_by', $this->creatorId)->where('code', '312_01')->firstOrFail();
+        ManagementDocument::create([
+            'created_by' => $this->creatorId,
+            'doc_date' => '2026-01-20',
+            'supplier_name' => 'Pending Supplier',
+            'doc_number' => 'PEND-001',
+            'doc_type' => 'invoice',
+            'base' => 500.00,
+            'iva' => 0,
+            'retention' => 0,
+            'total' => 500.00,
+            'status' => 'Pendente',
+            'management_rule_id' => $rule->id,
+        ]);
+
+        $data = ManagementDocumentCosts::forYear($this->creatorId, 2026);
+        // Accrual: a pending document is a cost, like in the file.
+        $this->assertEqualsWithDelta(713.40, $data['cogs'][1], 0.01);
+    }
+
+    public function test_net_value_returns_zero_when_base_is_zero(): void
+    {
+        // The file's formula: empty BASE -> TOTAL, but BASE 0 -> 0.
+        $rule = ManagementRule::where('created_by', $this->creatorId)->where('code', '312_01')->firstOrFail();
+        $doc = ManagementDocument::create([
+            'created_by' => $this->creatorId,
+            'doc_date' => '2026-06-10',
+            'supplier_name' => 'Zero Base',
+            'doc_number' => 'ZB-001',
+            'doc_type' => 'invoice',
+            'base' => 0,
+            'iva' => 0,
+            'retention' => 0,
+            'total' => 100.00,
+            'status' => 'Conciliado',
+            'management_rule_id' => $rule->id,
+        ]);
+        $this->assertSame(0.0, $doc->netValue());
     }
 
     public function test_costs_table_matches_file_total_geral_and_cc102_view(): void

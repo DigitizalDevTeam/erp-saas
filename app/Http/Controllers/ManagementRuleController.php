@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ChartOfAccount;
+use App\Models\ManagementAccountMapping;
 use App\Models\ManagementCostCentre;
 use App\Models\ManagementDocument;
 use App\Models\ManagementRule;
@@ -36,9 +38,8 @@ class ManagementRuleController extends Controller
         $this->authorizeManagement();
         $creatorId = \Auth::user()->creatorId();
 
-        ManagementRule::ensureSeeded($creatorId);
-        ManagementCostCentre::ensureSeeded($creatorId);
-
+        // Seeding is OPT-IN (the buttons below): a company with no
+        // rules or centres stays empty until it loads the starters.
         return view('management-rules.index', [
             'rules' => ManagementRule::where('created_by', $creatorId)->orderBy('sort_order')->get(),
             'groups' => ManagementRule::PL_GROUPS,
@@ -47,7 +48,110 @@ class ManagementRuleController extends Controller
                 ->orderBy('supplier_name')
                 ->get(),
             'centres' => ManagementCostCentre::where('created_by', $creatorId)->orderBy('code')->get(),
+            'mappings' => ManagementAccountMapping::where('created_by', $creatorId)
+                ->with('account')
+                ->orderBy('group')
+                ->get(),
+            'accounts' => ChartOfAccount::where('created_by', $creatorId)
+                ->where('is_enabled', 1)
+                ->orderBy('code')
+                ->get(),
         ]);
+    }
+
+    /** Load the file's 57 starter categories (only the missing ones). */
+    public function loadStarterCategories()
+    {
+        $this->authorizeManagement();
+        $creatorId = \Auth::user()->creatorId();
+
+        $loaded = 0;
+        foreach (ManagementRule::defaultCatalogue() as $row) {
+            $rule = ManagementRule::firstOrCreate(
+                ['created_by' => $creatorId, 'code' => $row['code']],
+                $row
+            );
+            if ($rule->wasRecentlyCreated) {
+                $loaded++;
+            }
+        }
+
+        return redirect()->route('management-rules.index')
+            ->with('success', __('Loaded :count starter categories.', ['count' => $loaded]));
+    }
+
+    /** Load the file's two starter cost centres 101 / 102. */
+    public function loadStarterCentres()
+    {
+        $this->authorizeManagement();
+        $creatorId = \Auth::user()->creatorId();
+
+        $loaded = 0;
+        foreach (ManagementCostCentre::DEFAULT_CENTRES as $row) {
+            $centre = ManagementCostCentre::firstOrCreate(
+                ['created_by' => $creatorId, 'code' => $row['code']],
+                $row
+            );
+            if ($centre->wasRecentlyCreated) {
+                $loaded++;
+            }
+        }
+
+        return redirect()->route('management-rules.index')
+            ->with('success', __('Loaded :count starter cost centres.', ['count' => $loaded]));
+    }
+
+    /** Map a chart-of-accounts expense account to a P&L group. */
+    public function storeAccountMapping(Request $request)
+    {
+        $this->authorizeManagement();
+        $creatorId = \Auth::user()->creatorId();
+
+        $data = $request->validate([
+            'chart_account_id' => [
+                'required', 'integer',
+                Rule::exists('chart_of_accounts', 'id')->where('created_by', $creatorId),
+                Rule::unique('management_account_mappings', 'chart_account_id')->where('created_by', $creatorId),
+            ],
+            'group' => ['required', 'string', 'in:' . implode(',', ManagementRule::PL_GROUPS)],
+            'subgroup' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        ManagementAccountMapping::create(array_merge($data, ['created_by' => $creatorId]));
+
+        return redirect()->route('management-rules.index')
+            ->with('success', __('Account mapping saved successfully.'));
+    }
+
+    public function updateAccountMapping(Request $request, ManagementAccountMapping $mapping)
+    {
+        $this->authorizeManagement();
+        $creatorId = \Auth::user()->creatorId();
+        if ((int) $mapping->created_by !== $creatorId) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'group' => ['required', 'string', 'in:' . implode(',', ManagementRule::PL_GROUPS)],
+            'subgroup' => ['nullable', 'string', 'max:255'],
+        ]);
+        $mapping->update($data);
+
+        return redirect()->route('management-rules.index')
+            ->with('success', __('Account mapping updated successfully.'));
+    }
+
+    public function destroyAccountMapping(ManagementAccountMapping $mapping)
+    {
+        $this->authorizeManagement();
+        $creatorId = \Auth::user()->creatorId();
+        if ((int) $mapping->created_by !== $creatorId) {
+            abort(404);
+        }
+        $mapping->delete();
+
+        return redirect()->route('management-rules.index')
+            ->with('success', __('Account mapping deleted successfully.'));
     }
 
     public function store(Request $request)

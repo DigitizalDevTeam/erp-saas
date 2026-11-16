@@ -34,7 +34,19 @@
                         <div class="col-md-2">
                             <button type="submit" class="btn btn-primary w-100">{{ __('Filter') }}</button>
                         </div>
+                        <div class="col-md-2">
+                            <a href="{{ route('management-reports.costs.export', ['year' => $year, 'cost_centre' => $costCentre]) }}" class="btn btn-secondary w-100">{{ __('Export Excel') }}</a>
+                        </div>
                     </form>
+
+                    @if (empty($table['rows']))
+                        <div class="alert alert-info">
+                            {{ __('No documents exist yet for this year, so every cost is 0.') }}
+                            <a href="{{ route('management-documents.create') }}">{{ __('Add Document') }}</a>
+                            {{ __('or') }}
+                            <a href="{{ route('management-documents.index') }}">{{ __('import documents') }}</a>.
+                        </div>
+                    @endif
 
                     <div class="table-responsive">
                         <table class="table table-bordered">
@@ -42,8 +54,8 @@
                             <tr>
                                 <th>{{ __('Category') }}</th>
                                 <th>{{ __('P&L Group') }}</th>
-                                @foreach (['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'] as $label)
-                                    <th class="text-end">{{ $label }}</th>
+                                @foreach (['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] as $monthKey)
+                                    <th class="text-end">{{ __('month.' . $monthKey) }}</th>
                                 @endforeach
                                 <th class="text-end">{{ __('TOTAL') }}</th>
                             </tr>
@@ -59,9 +71,9 @@
                                                 <td>{{ $sub['label'] }}</td>
                                                 <td>{{ $sub['group'] }}</td>
                                                 @for ($m = 1; $m <= 12; $m++)
-                                                    <td class="text-end">{{ \Auth::user()->priceFormat($sub['months'][$m] ?? 0) }}</td>
+                                                    <td class="text-end">{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) ($sub['months'][$m] ?? 0)) }}</td>
                                                 @endfor
-                                                <td class="text-end">{{ \Auth::user()->priceFormat($sub['total']) }}</td>
+                                                <td class="text-end">{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) $sub['total']) }}</td>
                                             </tr>
                                         @endif
                                     @endforeach
@@ -70,34 +82,34 @@
                                     <td class="ps-4">{{ $row['label'] }}</td>
                                     <td>{{ $row['group'] }}</td>
                                     @for ($m = 1; $m <= 12; $m++)
-                                        <td class="text-end">{{ \Auth::user()->priceFormat($row['months'][$m] ?? 0) }}</td>
+                                        <td class="text-end">@if (empty($row['is_journal']) && ! empty($row['rule_id']) && ($row['months'][$m] ?? 0) != 0)<a href="{{ route('management-documents.index', ['year' => $year, 'month' => $m, 'management_rule_id' => $row['rule_id']]) }}">{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) ($row['months'][$m] ?? 0)) }}</a>@else{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) ($row['months'][$m] ?? 0)) }}@endif</td>
                                     @endfor
-                                    <td class="text-end">{{ \Auth::user()->priceFormat($row['total']) }}</td>
+                                    <td class="text-end">{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) $row['total']) }}</td>
                                 </tr>
                             @endforeach
                             <tr class="fw-bold">
                                 <td>{{ __('TOTAL GERAL') }}</td>
                                 <td></td>
                                 @for ($m = 1; $m <= 12; $m++)
-                                    <td class="text-end">{{ \Auth::user()->priceFormat($table['total_geral'][$m] ?? 0) }}</td>
+                                    <td class="text-end">{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) ($table['total_geral'][$m] ?? 0)) }}</td>
                                 @endfor
-                                <td class="text-end">{{ \Auth::user()->priceFormat(array_sum($table['total_geral'])) }}</td>
+                                <td class="text-end">{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) array_sum($table['total_geral'])) }}</td>
                             </tr>
                             <tr>
                                 <td>{{ __('Documents without a cost centre') }}</td>
                                 <td></td>
                                 @for ($m = 1; $m <= 12; $m++)
-                                    <td class="text-end">{{ \Auth::user()->priceFormat($table['no_cost_centre'][$m] ?? 0) }}</td>
+                                    <td class="text-end">{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) ($table['no_cost_centre'][$m] ?? 0)) }}</td>
                                 @endfor
-                                <td class="text-end">{{ \Auth::user()->priceFormat(array_sum($table['no_cost_centre'])) }}</td>
+                                <td class="text-end">{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) array_sum($table['no_cost_centre'])) }}</td>
                             </tr>
                             <tr>
                                 <td>{{ __('Unmapped') }}</td>
                                 <td></td>
                                 @for ($m = 1; $m <= 12; $m++)
-                                    <td class="text-end">{{ \Auth::user()->priceFormat($table['unmapped'][$m] ?? 0) }}</td>
+                                    <td class="text-end">{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) ($table['unmapped'][$m] ?? 0)) }}</td>
                                 @endfor
-                                <td class="text-end">{{ \Auth::user()->priceFormat(array_sum($table['unmapped'])) }}</td>
+                                <td class="text-end">{{ \App\Services\ManagementMoney::format(\Auth::user(), (float) array_sum($table['unmapped'])) }}</td>
                             </tr>
                             </tbody>
                         </table>

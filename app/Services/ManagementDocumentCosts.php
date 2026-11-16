@@ -16,9 +16,11 @@ use App\Models\ManagementRule;
  * centre) -> PnL -> %PnL.
  *
  * Rules of the aggregation (all from the file):
- *  - Only invoice / credit_note / bank_transfer / manual documents
- *    count. Quotations are stored but EXCLUDED.
- *  - VALOR NET = BASE when present and non-zero, else TOTAL.
+ *  - Only invoice / credit_note / bank_transfer documents count.
+ *    Quotations are stored but EXCLUDED. A document with status
+ *    'Anulado' (voided) never counts either — only 'Conciliado'
+ *    and 'Pendente' do (Pendente counts: accrual, like the file).
+ *  - VALOR NET = BASE when present (even 0), else TOTAL.
  *  - A credit note carries NEGATIVE amounts, so it reduces costs.
  *  - Groups CMVM Food + CMVM Beverage + CMVM Staff Food = F&B.
  *  - Custos Variáveis = variables; the delivery-partner commission
@@ -34,6 +36,10 @@ use App\Models\ManagementRule;
  *  - Unmapped categories cannot happen through the UI (a document's
  *    category is a required FK, and a rule in use cannot be deleted),
  *    but the row must still exist in the Costs tabs — it stays 0.
+ *  - SECOND COST SOURCE: mapped manual journals (see
+ *    ManagementJournalCosts) are merged into the same group totals
+ *    and shown as per-account rows in the Costs tabs, so TOTAL GERAL
+ *    still reconciles (documents + journals).
  *
  * NOTE on the file's P&L personnel split: the file's PnL formulas
  * for the three personnel rows do not match their labels (row 14
@@ -75,9 +81,6 @@ class ManagementDocumentCosts
      */
     public static function forYear(int $creatorId, int $year): array
     {
-        ManagementRule::ensureSeeded($creatorId);
-        ManagementCostCentre::ensureSeeded($creatorId);
-
         $rules = ManagementRule::where('created_by', $creatorId)
             ->orderBy('sort_order')
             ->get();
@@ -89,6 +92,9 @@ class ManagementDocumentCosts
         $docs = ManagementDocument::where('created_by', $creatorId)
             ->whereYear('doc_date', $year)
             ->whereIn('doc_type', ManagementDocument::COSTING_TYPES)
+            // A voided document is not a cost. 'Pendente' still counts
+            // (accrual — the file counts every document by month).
+            ->where('status', '!=', 'Anulado')
             ->with(['rule', 'costCentre'])
             ->get();
 
@@ -100,6 +106,7 @@ class ManagementDocumentCosts
         $noCcTotals = self::zeroMonths();
         $delivery = self::zeroMonths();
         $departments = []; // '{name} (CC {code})' | 'Sem centro de custo' => [1..12]
+        $departmentCentres = []; // department label => cost centre id (null: no centre / journal)
         $inss = self::zeroMonths();
 
         foreach ($docs as $doc) {
@@ -126,11 +133,37 @@ class ManagementDocumentCosts
                     ? "{$doc->costCentre->name} (CC {$doc->costCentre->code})"
                     : 'Sem centro de custo';
                 $departments[$label][$month] = ($departments[$label][$month] ?? 0.0) + $net;
+                $departmentCentres[$label] = $doc->management_cost_centre_id;
             }
 
             if ($group === 'Pessoal - Impostos') {
                 $inss[$month] += $net;
             }
+        }
+
+        // --- Second cost source: mapped manual journals --------------
+        // Same groups, merged into the same totals (see
+        // ManagementJournalCosts for the one-place-only rule).
+        $journal = ManagementJournalCosts::forYear($creatorId, $year);
+        foreach ($journal['groups'] as $groupRow) {
+            foreach ($groupRow['months'] as $m => $v) {
+                if ($v != 0.0) {
+                    $groupTotals[$groupRow['group']][$m] = ($groupTotals[$groupRow['group']][$m] ?? 0.0) + $v;
+                }
+            }
+        }
+        foreach ($journal['personnel']['departments'] as $label => $months) {
+            foreach ($months as $m => $v) {
+                $departments[$label][$m] = ($departments[$label][$m] ?? 0.0) + $v;
+            }
+            // Journal departments are account labels, not cost centres.
+            $departmentCentres[$label] ??= null;
+        }
+        foreach ($journal['personnel']['inss'] as $m => $v) {
+            $inss[$m] += $v;
+        }
+        foreach ($journal['delivery'] as $m => $v) {
+            $delivery[$m] += $v;
         }
 
         // --- P&L lines (company-wide, all cost centres) -------------------
@@ -217,6 +250,7 @@ class ManagementDocumentCosts
             'excluded' => self::roundMonths($excluded),
             'personnel' => [
                 'departments' => array_map(fn ($m) => self::roundMonths(self::fullMonths($m)), $departments),
+                'department_centres' => $departmentCentres,
                 'inss' => self::roundMonths($inss),
                 'total' => self::roundMonths($personnelTotal),
             ],
@@ -226,6 +260,11 @@ class ManagementDocumentCosts
             'total_geral' => self::roundMonths($totalGeral),
             'no_cost_centre' => self::roundMonths($noCcTotals),
             'unmapped' => self::zeroMonths(),
+            // Per-account journal rows (mapped manual journals), for
+            // the Costs tabs. Their months already include the group
+            // totals above; by_cost_centre is 'none' only — journals
+            // have no cost centre.
+            'journal_accounts' => $journal['accounts'],
             'cost_centres' => $centres->map(fn ($c) => [
                 'id' => $c->id,
                 'code' => $c->code,
@@ -255,17 +294,45 @@ class ManagementDocumentCosts
             return self::fullMonths($byCc[$key] ?? []);
         };
 
+        // Display rows, grouped by P&L group in the file's order
+        // (the raw sort_order interleaves Pessoal - Remunerações and
+        // Pessoal - Impostos, which would print a group's subtotal
+        // twice). Each group's category rows come first, then its
+        // journal rows (mapped manual journals, per account).
         $rows = [];
-        foreach ($data['rules'] as $rule) {
-            $months = $pick($rule['months'], $rule['by_cost_centre']);
-            $rows[] = [
-                'label' => $rule['label'],
-                'subgroup' => $rule['subgroup'],
-                'group' => $rule['group'],
-                'months' => $months,
-                'total' => array_sum($months),
-                'is_subtotal' => false,
-            ];
+        foreach (ManagementRule::PL_GROUPS as $groupName) {
+            foreach ($data['rules'] as $rule) {
+                if ($rule['group'] !== $groupName) {
+                    continue;
+                }
+                $months = $pick($rule['months'], $rule['by_cost_centre']);
+                $rows[] = [
+                    'label' => $rule['label'],
+                    'subgroup' => $rule['subgroup'],
+                    'group' => $rule['group'],
+                    'months' => $months,
+                    'total' => array_sum($months),
+                    'is_subtotal' => false,
+                    'is_journal' => false,
+                    'rule_id' => $rule['rule_id'],
+                ];
+            }
+            foreach ($data['journal_accounts'] as $account) {
+                if ($account['group'] !== $groupName) {
+                    continue;
+                }
+                $months = $pick($account['months'], $account['by_cost_centre']);
+                $rows[] = [
+                    'label' => $account['label'],
+                    'subgroup' => $account['subgroup'] ?? '',
+                    'group' => $account['group'],
+                    'months' => $months,
+                    'total' => array_sum($months),
+                    'is_subtotal' => false,
+                    'is_journal' => true,
+                    'rule_id' => null,
+                ];
+            }
         }
 
         // Group subtotal rows, interleaved in the file's order (the

@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
+use App\Models\FixedAssetDepreciationEntry;
 use App\Models\Invoice;
 use App\Models\ManagementReportHistory;
 use App\Models\Pos;
 use App\Models\Tax;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Monthly management dataset behind the management P&L reports
@@ -39,20 +42,32 @@ use App\Models\Tax;
  *
  * COSTS come from Management Documents (Documentos) — the client's
  * real expense documents, each with a category (Rules) and a cost
- * centre — aggregated by ManagementDocumentCosts (the file's SUMIFS).
- * F&B COST = CMVM Food + Beverage + Staff Food groups; VARIAVEIS =
+ * centre — aggregated by ManagementDocumentCosts (the file's SUMIFS),
+ * PLUS mapped manual journals (a cost with no document is a
+ * double-entry posting against a chart-of-accounts expense account;
+ * see ManagementJournalCosts for the one-place-only rule). F&B COST
+ * = CMVM Food + Beverage + Staff Food groups; VARIAVEIS =
  * Custos Variáveis; PESSOAL = Pessoal - Remunerações split by cost
  * centre + Pessoal - Impostos; FIXOS = Custos Fixos; OUTROS =
- * Outros Custos / Pontuais. Manual direct entries (type "manual",
- * e.g. salaries, IRPS, VAT, employee payments with no document) are
- * Documentos rows too and count the same way.
+ * Outros Custos / Pontuais. DEPRECIAÇÕES come from the Fixed Assets
+ * module (posted depreciation entries, per month); AMORTIZAÇÕES have
+ * no system source and read 0 unless history supplies them.
  *
- * There are NO system-derived costs here on purpose: F&B from product
- * purchase prices (recipe-based food cost is a flawed method — the
- * client and Rui both said trust the documents), PESSOAL from payslips,
- * FIXOS from the Expenses module. Counting both the documents AND the
- * system sources would double-count the same cost. Sales stay
- * automatic (invoices) — there is no manual sales entry.
+ * There are NO other system-derived costs here on purpose: F&B from
+ * product purchase prices (recipe-based food cost is a flawed method
+ * — the client and Rui both said trust the documents), PESSOAL from
+ * payslips, FIXOS from the Expenses module. Counting both the
+ * documents AND the system sources would double-count the same cost.
+ * Sales stay automatic (invoices) — there is no manual sales entry.
+ *
+ * SALES CHANNELS (the file's Sales tab): Software Faturação is the
+ * total (= this revenue). Restaurante = restaurant-branch POS sales
+ * not on a Bar table area; Bar = restaurant-branch POS sales on a
+ * table in an area named Bar; Eventos has no system source (0);
+ * Outras = the rest (direct invoices + retail POS), computed as the
+ * residual so the channels always sum to the total. Channel history
+ * rows (channel:{name}:ex|iva) win per channel-month, like the
+ * other history lines.
  *
  * Historical data: months the client supplied in their Excel file live
  * in management_report_history (one row per line value). When history
@@ -107,6 +122,27 @@ class MonthlyManagementData
         $monthOf = static fn ($d): ?int => $d ? (int) date('m', strtotime((string) $d)) : null;
         $yearOf = static fn ($d): ?int => $d ? (int) date('Y', strtotime((string) $d)) : null;
 
+        // Sales channels (the file's Sales tab): Restaurante / Bar /
+        // Eventos are POS outlets; Outras is the residual (direct
+        // invoices + retail POS) so the channels always sum to the
+        // total; Software Faturação is the total itself.
+        $channelNames = ['Restaurante', 'Bar', 'Eventos', 'Outras'];
+        $channels = [];
+        foreach ($channelNames as $name) {
+            for ($m = 1; $m <= 12; $m++) {
+                $channels[$name][$m] = ['ex' => 0.0, 'iva' => 0.0, 'total' => 0.0];
+            }
+        }
+        $posChannel = [];
+        foreach (Pos::where('created_by', $creatorId)
+            ->where(function ($q) use ($year) {
+                $q->whereYear('pos_date', $year)->orWhereYear('pos_date', $year - 1);
+            })
+            ->with(['branch', 'table.area'])
+            ->get(['id', 'branch_id', 'table_id']) as $pos) {
+            $posChannel[$pos->id] = self::posChannelName($pos);
+        }
+
         // Tax id -> rate, like Utility::getTaxData() (unscoped, as there).
         $rates = Tax::pluck('rate', 'id')->map(fn ($r) => (float) $r)->all();
 
@@ -119,7 +155,7 @@ class MonthlyManagementData
                 $q->whereYear('issue_date', $year)->orWhereYear('issue_date', $year - 1);
             })
             ->with('items:id,invoice_id,price,quantity,discount,tax')
-            ->get(['id', 'issue_date', 'status', 'document_type']);
+            ->get(['id', 'issue_date', 'status', 'document_type', 'pos_id']);
 
         foreach ($invoices as $inv) {
             $m = $monthOf($inv->issue_date);
@@ -165,6 +201,11 @@ class MonthlyManagementData
                 $revenue[$m]['ex'] += $ex;
                 $revenue[$m]['iva'] += $iva;
                 $revenue[$m]['total'] += $ex + $iva;
+                // Sales channel of this invoice (POS outlet, or Outras
+                // for direct invoices / retail POS).
+                $channel = $inv->pos_id ? ($posChannel[(int) $inv->pos_id] ?? 'Outras') : 'Outras';
+                $channels[$channel][$m]['ex'] += $ex;
+                $channels[$channel][$m]['iva'] += $iva;
             } else {
                 $priorRevenue[$m]['ex'] += $ex;
                 $priorRevenue[$m]['iva'] += $iva;
@@ -210,6 +251,7 @@ class MonthlyManagementData
         $other = $docCosts['other'];
         $expenses = $docCosts['fixed'];
         $deptNames = [];
+        $departmentCentres = $docCosts['personnel']['department_centres'] ?? [];
         foreach ($docCosts['personnel']['departments'] as $label => $months) {
             $deptNames[$label] = true;
             foreach ($months as $m => $amount) {
@@ -235,11 +277,19 @@ class MonthlyManagementData
             $excluded['openOrders'][$m]['total'] = round($excluded['openOrders'][$m]['total'], 2);
         }
 
+        // --- Depreciation: Fixed Assets (posted entries only) --------
+        // AMORTIZAÇÕES have no system source (the FA module only does
+        // depreciation) and stay 0 unless history supplies them.
+        // FA depreciation journals are system journals, so they can
+        // never double-count with the journal cost source above.
+        $depreciation = self::postedDepreciation($creatorId, $year);
+
         // --- Historical data overlay (imported Excel figures) -----------
         // One row per (year, month, line). A row wins for its line-month:
         // the imported month is the source of truth, so system documents
         // in that month never add on top of it (no double-counting).
         $historyMonths = [];
+        $historyLines = [];
         if ($applyHistory) {
             $hist = [];
             foreach (ManagementReportHistory::where('created_by', $creatorId)
@@ -331,10 +381,30 @@ class MonthlyManagementData
                 if ($pEx !== null || $pIva !== null) {
                     $priorRevenue[$m]['total'] = round($priorRevenue[$m]['ex'] + $priorRevenue[$m]['iva'], 2);
                 }
+
+                // Sales channels: a channel history row wins for its
+                // channel-month (Software Faturação is the total — it
+                // follows revenue_ex / revenue_iva above).
+                foreach (ManagementReportHistory::SHEET_CHANNELS as $ch) {
+                    if ($ch === 'Software Faturação') {
+                        continue;
+                    }
+                    $chEx = $at($year, $m, "channel:{$ch}:ex");
+                    if ($chEx !== null) {
+                        $channels[$ch][$m]['ex'] = round($chEx, 2);
+                    }
+                    $chIva = $at($year, $m, "channel:{$ch}:iva");
+                    if ($chIva !== null) {
+                        $channels[$ch][$m]['iva'] = round($chIva, 2);
+                    }
+                }
             }
 
+            $historyLines = $hist[$year] ?? [];
+
             // Departments = system names + imported names (minus the INSS
-            // sub-row, which is rendered separately).
+            // sub-row, which is rendered separately). Imported names
+            // have no cost centre, so they drill down by month only.
             $deptSet = [];
             foreach ($departments as $d) {
                 $deptSet[$d] = true;
@@ -345,6 +415,7 @@ class MonthlyManagementData
                         $name = substr($line, strlen('personnel:'));
                         if ($name !== ManagementReportHistory::INSS_NAME) {
                             $deptSet[$name] = true;
+                            $departmentCentres[$name] ??= null;
                         }
                     }
                 }
@@ -353,13 +424,43 @@ class MonthlyManagementData
             sort($departments);
         }
 
+        // Outras is the residual, so the channels always sum to the
+        // total (direct invoices + retail POS, or 0 in a history
+        // month whose split is fully imported). Software Faturação
+        // is the total itself — the file's shape.
+        for ($m = 1; $m <= 12; $m++) {
+            $channels['Outras'][$m]['ex'] = round(
+                $revenue[$m]['ex'] - $channels['Restaurante'][$m]['ex'] - $channels['Bar'][$m]['ex'] - $channels['Eventos'][$m]['ex'],
+                2
+            );
+            $channels['Outras'][$m]['iva'] = round(
+                $revenue[$m]['iva'] - $channels['Restaurante'][$m]['iva'] - $channels['Bar'][$m]['iva'] - $channels['Eventos'][$m]['iva'],
+                2
+            );
+            foreach (['Restaurante', 'Bar', 'Eventos', 'Outras'] as $ch) {
+                $channels[$ch][$m]['ex'] = round($channels[$ch][$m]['ex'], 2);
+                $channels[$ch][$m]['iva'] = round($channels[$ch][$m]['iva'], 2);
+                $channels[$ch][$m]['total'] = round($channels[$ch][$m]['ex'] + $channels[$ch][$m]['iva'], 2);
+            }
+            $channels['Software Faturação'][$m] = [
+                'ex' => round($revenue[$m]['ex'], 2),
+                'iva' => round($revenue[$m]['iva'], 2),
+                'total' => round($revenue[$m]['total'], 2),
+            ];
+        }
+
         return [
             'year' => $year,
             'revenue' => $revenue,
             'priorRevenue' => $priorRevenue,
+            'channels' => $channels,
             'cogs' => $cogs,
             'personnel' => $personnel,
             'departments' => $departments,
+            // Department label => cost centre id (null: no centre, a
+            // journal account, or an imported history name) — the P&L
+            // drill-down links department rows to the Documents list.
+            'departmentCentres' => $departmentCentres,
             'expenses' => $expenses,
             'excluded' => $excluded,
             'variables' => $variables,
@@ -368,7 +469,58 @@ class MonthlyManagementData
             'depreciation' => $depreciation,
             'amortization' => $amortization,
             'historyMonths' => $historyMonths,
+            // Per-line history map: [month => [line => amount]] — the
+            // views mark each history-sourced cell with * (not the
+            // whole month).
+            'historyLines' => $historyLines,
         ];
+    }
+
+    /**
+     * Monthly posted depreciation from the Fixed Assets module
+     * (posted entries only — a calculated-but-unposted run is not a
+     * cost yet). Returns [1..12] amounts. The table may not exist
+     * on installs without the FA module: checked fresh on every call
+     * (never memoized — see the Schema::hasTable lesson).
+     */
+    private static function postedDepreciation(int $creatorId, int $year): array
+    {
+        $months = array_fill(1, 12, 0.0);
+        if (! Schema::hasTable('fixed_asset_depreciation_entries')) {
+            return $months;
+        }
+        $rows = FixedAssetDepreciationEntry::where('created_by', $creatorId)
+            ->where('status', FixedAssetDepreciationEntry::STATUS_POSTED)
+            ->whereYear('period', $year)
+            ->get(['period', 'posted_amount']);
+        foreach ($rows as $row) {
+            $m = (int) date('m', strtotime((string) $row->period));
+            if ($m >= 1 && $m <= 12) {
+                $months[$m] = round($months[$m] + (float) $row->posted_amount, 2);
+            }
+        }
+
+        return $months;
+    }
+
+    /**
+     * Which Sales channel one POS order belongs to: 'Bar' when the
+     * order sits on a table in an area named Bar (case-insensitive),
+     * 'Restaurante' for any other restaurant-branch order, 'Outras'
+     * for retail branches and orders without a branch.
+     */
+    private static function posChannelName(Pos $pos): string
+    {
+        $branch = $pos->branch;
+        if (! $branch || $branch->pos_type !== Branch::POS_TYPE_RESTAURANT) {
+            return 'Outras';
+        }
+        $areaName = $pos->table?->area?->name ?? '';
+        if ($areaName !== '' && mb_stripos($areaName, 'bar') !== false) {
+            return 'Bar';
+        }
+
+        return 'Restaurante';
     }
 
     /**
@@ -394,6 +546,10 @@ class MonthlyManagementData
                 $lines['personnel:' . $name] = $amount;
             }
             $lines['personnel:' . ManagementReportHistory::INSS_NAME] = $data['personnel'][$m]['inss'];
+            foreach (ManagementReportHistory::SHEET_CHANNELS as $ch) {
+                $lines["channel:{$ch}:ex"] = $data['channels'][$ch][$m]['ex'] ?? 0.0;
+                $lines["channel:{$ch}:iva"] = $data['channels'][$ch][$m]['iva'] ?? 0.0;
+            }
             $out[$m] = $lines;
         }
 
