@@ -9841,5 +9841,8 @@
     "No documents": "No documents",
     "Search users": "Search users",
     "No users found": "No users found",
-    "Could not load users. Type your email instead.": "Could not load users. Type your email instead."
+    "Could not load users. Type your email instead.": "Could not load users. Type your email instead.",
+    "This reconciliation is closed and cannot be deleted.": "This reconciliation is closed and cannot be deleted.",
+    "This reconciliation has confirmed missing movements. Reverse them first, then delete it.": "This reconciliation has confirmed missing movements. Reverse them first, then delete it.",
+    "Bank reconciliation import deleted.": "Bank reconciliation import deleted."
 }
