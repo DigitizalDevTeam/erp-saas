@@ -34,7 +34,10 @@ use Tests\TestCase;
  *
  * Fix: migration 310009 creates the missing permission row and
  * grants all five permissions to Admin / Administrador / company
- * roles in every company. Cashier and other roles are untouched.
+ * roles in every company. Migration 310010 (2026-11-18) extends the
+ * same backfill to roles named 'Administrator' (temp roles 10 + 194),
+ * which 310009's exact-name match had missed. Cashier and other roles
+ * are untouched.
  */
 class ClientIssuesFollowupPermissionsTest extends TestCase
 {
@@ -138,6 +141,34 @@ class ClientIssuesFollowupPermissionsTest extends TestCase
         $this->assertTrue($admin->fresh()->hasPermissionTo('manage document layouts'));
     }
 
+    public function test_backfill_grants_layout_and_plan_permissions_to_administrator_named_role(): void
+    {
+        // Roles named 'Administrator' (temp roles 10 + 194) were missed
+        // by 310009: the backfill matched names exactly and the list
+        // had only Admin / Administrador / company. Azmira (Hoya) got
+        // 403 on /document-layouts while Neyde worked.
+        $administrator = Role::create(['name' => 'Administrator', 'guard_name' => 'web']);
+
+        AdminRolePermissionBackfill::runLayoutAndPlanBackfill();
+
+        foreach (AdminRolePermissionBackfill::LAYOUT_AND_PLAN_PERMISSIONS as $name) {
+            $this->assertTrue($administrator->fresh()->hasPermissionTo($name), "Administrator should have {$name}");
+        }
+    }
+
+    public function test_run_grants_cost_centre_permissions_to_administrator_named_role(): void
+    {
+        // Same name-matching gap in the cost-centre backfill (310007):
+        // 'Administrator' roles missed those permissions too.
+        $administrator = Role::create(['name' => 'Administrator', 'guard_name' => 'web']);
+
+        AdminRolePermissionBackfill::run();
+
+        foreach (AdminRolePermissionBackfill::COST_CENTRE_PERMISSIONS as $name) {
+            $this->assertTrue($administrator->fresh()->hasPermissionTo($name), "Administrator should have {$name}");
+        }
+    }
+
     // ------------------------------------------------------------------
     // Menu nodes become visible to an admin user after the backfill
     // ------------------------------------------------------------------
@@ -171,6 +202,20 @@ class ClientIssuesFollowupPermissionsTest extends TestCase
         $admin = Role::create(['name' => 'Administrador', 'guard_name' => 'web']);
         $user = $this->makeAdminUser();
         $user->assignRole($admin);
+        $this->actingAs($user);
+
+        $this->get('/document-layouts')->assertStatus(403);
+
+        AdminRolePermissionBackfill::runLayoutAndPlanBackfill();
+
+        $this->get('/document-layouts')->assertStatus(200);
+    }
+
+    public function test_document_layouts_page_allows_administrator_role_after_backfill(): void
+    {
+        $administrator = Role::create(['name' => 'Administrator', 'guard_name' => 'web']);
+        $user = $this->makeAdminUser();
+        $user->assignRole($administrator);
         $this->actingAs($user);
 
         $this->get('/document-layouts')->assertStatus(403);
