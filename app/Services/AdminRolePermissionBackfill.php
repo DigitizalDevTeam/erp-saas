@@ -32,7 +32,7 @@ use Spatie\Permission\PermissionRegistrar;
  * `menu.*` permission. Menu grants are never removed here — revoking
  * an action permission must not unexpectedly hide menus.
  *
- * Scope: roles named Admin, Administrador or company, in EVERY
+ * Scope: roles named Admin, Administrador, Administrator or company, in EVERY
  * company. Cashier / Waiter / Manager / Bar / Kitchen roles are
  * untouched. Idempotent (skips grants the role already has).
  */
@@ -56,7 +56,7 @@ class AdminRolePermissionBackfill
     ];
 
     /** Admin-type role names that get the backfill, in every company. */
-    public const ADMIN_ROLE_NAMES = ['Admin', 'Administrador', 'company'];
+    public const ADMIN_ROLE_NAMES = ['Admin', 'Administrador', 'Administrator', 'company'];
 
     /**
      * Client follow-up (2026-11-17) — Document Layouts + Plan/Referral
@@ -76,7 +76,7 @@ class AdminRolePermissionBackfill
      * the Plan or Referral Program menu items.
      *
      * Fix: create the missing permission row and grant these five to
-     * every Admin / Administrador / company role, skipping grants
+     * every Admin / Administrador / Administrator / company role, skipping grants
      * the role already holds. 'manage plan' only gates the plans
      * LIST (create/edit/buy use separate permissions), and the
      * Referral page has no controller gate — the menu grant is the
