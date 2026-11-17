@@ -1516,6 +1516,7 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('bank-reconciliation/{bank_reconciliation_session}/map', [BankReconciliationController::class, 'map'])->name('bank-reconciliation.map');
             Route::post('bank-reconciliation/{bank_reconciliation_session}/map', [BankReconciliationController::class, 'applyMapping'])->name('bank-reconciliation.apply-mapping');
             Route::get('bank-reconciliation/{bank_reconciliation_session}', [BankReconciliationController::class, 'show'])->name('bank-reconciliation.show');
+            Route::delete('bank-reconciliation/{bank_reconciliation_session}', [BankReconciliationController::class, 'destroy'])->name('bank-reconciliation.destroy');
             Route::post('bank-reconciliation/{bank_reconciliation_session}/auto-match', [BankReconciliationController::class, 'autoMatch'])->name('bank-reconciliation.auto-match');
             Route::post('bank-reconciliation/{bank_reconciliation_session}/manual-match', [BankReconciliationController::class, 'manualMatch'])->name('bank-reconciliation.manual-match');
             Route::post('bank-reconciliation/{bank_reconciliation_session}/unmatch', [BankReconciliationController::class, 'unmatch'])->name('bank-reconciliation.unmatch');

@@ -60,6 +60,15 @@
                                                 <a class="btn btn-sm btn-outline-primary"
                                                     href="{{ route('bank-reconciliation.show', $s) }}">{{ __('Open') }}</a>
                                             @endif
+                                            @if (!$s->isClosed())
+                                                @can('manage transaction')
+                                                    {!! Form::open(['method' => 'DELETE', 'route' => ['bank-reconciliation.destroy', $s->id], 'id' => 'delete-form-'.$s->id, 'class' => 'd-inline']) !!}
+                                                    <a href="#" class="btn btn-sm align-items-center bs-pass-para bg-danger ms-1" data-bs-toggle="tooltip" title="{{ __('Delete') }}" data-confirm="{{ __('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?') }}" data-confirm-yes="document.getElementById('delete-form-{{ $s->id }}').submit();">
+                                                        <i class="ti ti-trash text-white"></i>
+                                                    </a>
+                                                    {!! Form::close() !!}
+                                                @endcan
+                                            @endif
                                         </td>
                                     </tr>
                                 @empty

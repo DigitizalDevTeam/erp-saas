@@ -13,11 +13,16 @@ use Tests\TestCase;
  * Client issues — Issue 9: user-selection list on the ERP login tab.
  *
  * - GET /login/users (public, guest) returns active, login-enabled
- *   company/staff users only — NEVER super admin, NEVER client —
- *   as {id, name, company, email}, capped at 200, ordered by name.
- *   Company name: a company user is its own company; staff resolve
- *   via their active company_user membership (is_default first),
- *   else default_company_id, else created_by — in bulk, no N+1.
+ *   STAFF users only — NEVER super admin, NEVER client, NEVER the
+ *   company (admin) accounts — as {id, name, company, email},
+ *   capped at 200, ordered by name. (Danilo 2026-11-17: the list
+ *   showed company names — "abc company", "MMCEMENT, Lda" — as if
+ *   they were users, with the company name repeated under itself.
+ *   Company owners still log in by typing their email; the email
+ *   field stays typeable.)
+ *   Company name: staff resolve via their active company_user
+ *   membership (is_default first), else default_company_id, else
+ *   created_by — in bulk, no N+1.
  * - The login page renders the searchable list on the ERP tab; a
  *   click fills the email field and focuses the password field.
  *   No auto-login: the existing auth flow / throttling is untouched
@@ -78,20 +83,15 @@ class ClientIssuesLoginUsersTest extends TestCase
     // Endpoint: scope, shape, company names
     // ------------------------------------------------------------------
 
-    public function test_login_users_endpoint_returns_company_and_staff_without_super_admin_or_client(): void
+    public function test_login_users_endpoint_returns_staff_only_without_company_super_admin_or_client(): void
     {
         // Unauthenticated: the endpoint is public by design.
         $response = $this->get(route('login.users'));
         $response->assertOk();
         $list = $response->json();
-        $this->assertCount(5, $list);
+        $this->assertCount(3, $list);
 
         $byEmail = collect($list)->keyBy('email');
-
-        // Company users: company is their own name.
-        $this->assertSame('Acme Lda', $byEmail['acme@test.local']['company']);
-        $this->assertSame('Acme Lda', $byEmail['acme@test.local']['name']);
-        $this->assertSame('Beta SA', $byEmail['beta@test.local']['company']);
 
         // Staff: active membership wins over default_company_id
         // (membership -> Acme, default -> Beta).
@@ -103,7 +103,7 @@ class ClientIssuesLoginUsersTest extends TestCase
 
         // Staff whose `type` is a role name (Cashier, Manager, Waiter,
         // ...) are staff too — the scope is an exclusion of super
-        // admin + client, not a three-type whitelist.
+        // admin + client + company, not a three-type whitelist.
         $this->assertSame('Acme Lda', $byEmail['caixa@acme.co.mz']['company']);
         $this->assertSame('Caixa Cashier', $byEmail['caixa@acme.co.mz']['name']);
 
@@ -117,6 +117,11 @@ class ClientIssuesLoginUsersTest extends TestCase
         $this->assertArrayNotHasKey('client@test.local', $byEmail);
         $this->assertArrayNotHasKey('disabled@test.local', $byEmail);
         $this->assertArrayNotHasKey('nologin@test.local', $byEmail);
+        // Company (admin) accounts are not users in this list: their
+        // name IS the company name, so they showed up as "Acme Lda /
+        // Acme Lda" rows. Owners log in by typing their email.
+        $this->assertArrayNotHasKey('acme@test.local', $byEmail);
+        $this->assertArrayNotHasKey('beta@test.local', $byEmail);
     }
 
     // ------------------------------------------------------------------
