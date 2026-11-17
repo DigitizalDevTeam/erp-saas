@@ -271,6 +271,48 @@
         </div>
     </div>
 
+    <h5 class="sub-title">{{__('Additional Contacts')}}</h5>
+    @foreach ($contacts as $index => $contact)
+        @if($index > 0)
+    <div class="row">
+        <div class="col-md-4">
+             <div class="form-group">
+                <label class="form-label">{{__('Contact Person Name')}}</label>
+                <input type="text" name="contacts[{{ $index }}][name]" class="form-control" placeholder="{{ __('Name') }}" value="{{ old("contacts.$index.name", $contact['name'] ?? '') }}">
+            </div>
+        </div>
+        <div class="col-md-4">
+             <div class="form-group">
+                <label class="form-label">{{__('Position')}}</label>
+                <input type="text" name="contacts[{{ $index }}][role]" class="form-control" placeholder="{{ __('e.g. Finance Director') }}" value="{{ old("contacts.$index.role", $contact['role'] ?? '') }}">
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="form-group">
+                <label class="form-label">{{__('Contact Person Phone')}}</label>
+                <input type="text" name="contacts[{{ $index }}][phone]" class="form-control" placeholder="{{ __('Phone') }}" value="{{ old("contacts.$index.phone", $contact['phone'] ?? '') }}">
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+             <div class="form-group">
+                <label class="form-label">{{__('Personal Email')}}</label>
+                <input type="email" name="contacts[{{ $index }}][email]" class="form-control" placeholder="{{ __('Enter email') }}" value="{{ old("contacts.$index.email", $contact['email'] ?? '') }}">
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-group">
+                <label class="form-label">{{__('Identification')}}</label>
+                <input type="text" name="contacts[{{ $index }}][identification]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}" value="{{ old("contacts.$index.identification", $contact['identification'] ?? '') }}">
+            </div>
+        </div>
+    </div>
+        @endif
+    @endforeach
+    <button type="button" id="add_contact" class="btn btn-secondary mt-2">{{__('Add More Contact')}}</button>
+    
+
     @include('partials.contact_notification_preferences_customer', ['customer' => $customer])
 
     <h5 class="sub-title">{{__('Contact Person KYC Documents')}}</h5>
@@ -313,47 +355,6 @@
     </div>
     <button type="button" class="btn btn-secondary add_kyc_document" data-field="contact_kyc" data-target="#contact-kyc-documents">{{__('Add Document')}}</button>
 
-    <h5 class="sub-title">{{__('Additional Contacts')}}</h5>
-    @foreach ($contacts as $index => $contact)
-        @if($index > 0)
-    <div class="row">
-        <div class="col-md-4">
-             <div class="form-group">
-                <label class="form-label">{{__('Contact Person Name')}}</label>
-                <input type="text" name="contacts[{{ $index }}][name]" class="form-control" placeholder="{{ __('Name') }}" value="{{ old("contacts.$index.name", $contact['name'] ?? '') }}">
-            </div>
-        </div>
-        <div class="col-md-4">
-             <div class="form-group">
-                <label class="form-label">{{__('Position')}}</label>
-                <input type="text" name="contacts[{{ $index }}][role]" class="form-control" placeholder="{{ __('e.g. Finance Director') }}" value="{{ old("contacts.$index.role", $contact['role'] ?? '') }}">
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="form-group">
-                <label class="form-label">{{__('Contact Person Phone')}}</label>
-                <input type="text" name="contacts[{{ $index }}][phone]" class="form-control" placeholder="{{ __('Phone') }}" value="{{ old("contacts.$index.phone", $contact['phone'] ?? '') }}">
-            </div>
-        </div>
-    </div>
-    <div class="row">
-        <div class="col-md-6">
-             <div class="form-group">
-                <label class="form-label">{{__('Personal Email')}}</label>
-                <input type="email" name="contacts[{{ $index }}][email]" class="form-control" placeholder="{{ __('Enter email') }}" value="{{ old("contacts.$index.email", $contact['email'] ?? '') }}">
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="form-group">
-                <label class="form-label">{{__('Identification')}}</label>
-                <input type="text" name="contacts[{{ $index }}][identification]" class="form-control" placeholder="{{ __('e.g. Passport, ID Card') }}" value="{{ old("contacts.$index.identification", $contact['identification'] ?? '') }}">
-            </div>
-        </div>
-    </div>
-        @endif
-    @endforeach
-    <button type="button" id="add_contact" class="btn btn-secondary mt-2">{{__('Add More Contact')}}</button>
-    
     @if(App\Models\Utility::getValByName('shipping_display')=='on')
         {{-- <div class="col-md-12 text-end">
             <input type="button" id="billing_data" value="{{__('Shipping Same As Billing')}}" class="btn btn-primary">
@@ -590,8 +591,12 @@
     });
      // Start after the highest existing contact index, so adding a
      // contact while editing never overwrites an existing one.
-     let contactIndex = {{ count($contacts) }};
-    $('#add_contact').click(function() {
+     // `var` + .off().on(): the modal is loaded via AJAX and can be
+     // opened repeatedly without a page reload — a second `let` would
+     // throw and kill this whole script tag (including the KYC
+     // handlers below it), and a plain .click() would bind twice.
+     var contactIndex = {{ count($contacts) }};
+    $(document).off('click', '#add_contact').on('click', '#add_contact', function() {
         let html = `<div class="row mt-3">
             <div class="col-md-4">
             <div class="form-group">

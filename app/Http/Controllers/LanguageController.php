@@ -47,6 +47,12 @@ class LanguageController extends Controller
             );
         }
 
+        // Switch the app locale BEFORE translating the success flash:
+        // otherwise the toast is rendered in the OLD language and the
+        // user reads "Idioma alterado com sucesso." after picking
+        // English — which looks like the switch did not happen.
+        \App::setLocale($lang);
+
         return redirect()->back()->with('success', __('Language change successfully.'));
     }
 
