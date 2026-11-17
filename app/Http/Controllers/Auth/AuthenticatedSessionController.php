@@ -598,7 +598,12 @@ class AuthenticatedSessionController extends Controller
      * with the company name repeated under itself. Company owners
      * still log in by typing their email — the email field stays
      * typeable, and picking a user only fills it; it never logs
-     * anyone in. The scope is an exclusion, not a whitelist:
+     * anyone in. A company account is also excluded when it is its
+     * own company (`default_company_id` = own id): the Digitizal
+     * owner account carries type "Cashier", not "company", so the
+     * type filter alone missed it and the list still showed
+     * "Digitizal / Digitizal". The scope is an exclusion, not a
+     * whitelist:
      * `users.type` also holds staff role names (Cashier, Manager,
      * Waiter, Admin, ...), so a whitelist of three types silently
      * dropped most staff (a Cashier could never find themselves in
@@ -612,6 +617,10 @@ class AuthenticatedSessionController extends Controller
             ->where('delete_status', 1)
             ->where('is_enable_login', 1)
             ->whereNotIn('type', ['super admin', 'client', 'company'])
+            ->where(function ($query) {
+                $query->whereNull('default_company_id')
+                    ->orWhereColumn('default_company_id', '!=', 'id');
+            })
             ->orderBy('name')
             ->orderBy('email')
             ->limit(200)

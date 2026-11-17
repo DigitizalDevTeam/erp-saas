@@ -122,6 +122,11 @@ class ClientIssuesLoginUsersTest extends TestCase
         // Acme Lda" rows. Owners log in by typing their email.
         $this->assertArrayNotHasKey('acme@test.local', $byEmail);
         $this->assertArrayNotHasKey('beta@test.local', $byEmail);
+        // A company owner whose `type` is a role name, not "company"
+        // (live Digitizal owner: type Cashier, default_company_id =
+        // own id) is still its own company — excluded by the
+        // self-company rule, not by type.
+        $this->assertArrayNotHasKey('digitizal@test.local', $byEmail);
     }
 
     // ------------------------------------------------------------------
@@ -230,6 +235,19 @@ class ClientIssuesLoginUsersTest extends TestCase
             'id' => 9, 'name' => 'Caixa Cashier', 'email' => 'caixa@acme.co.mz',
             'type' => 'Cashier', 'created_by' => 1, 'default_company_id' => 1,
         ]);
+        // Company owner whose type is a role name, not "company":
+        // default_company_id = own id, so it IS its own company
+        // (live Digitizal owner: type Cashier). Must stay out of
+        // the list even though the type filter alone would let a
+        // Cashier through. NOTE: explicit 'id' is ignored on
+        // create (mass-assignment), so point the default at the
+        // real id after the insert.
+        $selfCompany = $makeUser([
+            'name' => 'Digitizal', 'email' => 'digitizal@test.local',
+            'type' => 'Cashier', 'created_by' => 1, 'default_company_id' => 1,
+        ]);
+        $selfCompany->default_company_id = $selfCompany->id;
+        $selfCompany->save();
         // Never listed.
         $makeUser([
             'id' => 5, 'name' => 'Super Admin', 'email' => 'superadmin@test.local',
