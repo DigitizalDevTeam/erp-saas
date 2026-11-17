@@ -194,6 +194,10 @@
         </div>
     </div>
 
+    <h5 class="sub-title">{{__('Additional Contacts')}}</h5>
+    <button type="button" id="add_contact" class="btn btn-secondary mt-2">{{__('Add More Contact')}}</button>
+    
+
     @include('partials.contact_notification_preferences_customer', ['customer' => null])
 
     <h5 class="sub-title">{{__('Contact Person KYC Documents')}}</h5>
@@ -224,9 +228,6 @@
     </div>
     <button type="button" class="btn btn-secondary add_kyc_document" data-field="contact_kyc" data-target="#contact-kyc-documents">{{__('Add Document')}}</button>
 
-    <h5 class="sub-title">{{__('Additional Contacts')}}</h5>
-    <button type="button" id="add_contact" class="btn btn-secondary mt-2">{{__('Add More Contact')}}</button>
-    
     @if(App\Models\Utility::getValByName('shipping_display')=='on')
         {{-- <div class="col-md-12 text-end">
             <input type="button" id="billing_data" value="{{__('Shipping Same As Billing')}}" class="btn btn-primary">
@@ -341,6 +342,45 @@
     // use `var` (a second `let` would throw on re-execution).
     var companyKycIndex = 1;
     var contactKycIndex = 1;
+
+    // Additional contacts: contacts[0] is the contact person, so new
+    // rows start at index 1. Same safe pattern as the KYC repeaters
+    // (`var` + .off().on()) — the modal is loaded via AJAX and can be
+    // opened repeatedly without a page reload.
+    var contactIndex = 1;
+    $(document).off('click', '#add_contact').on('click', '#add_contact', function() {
+        var html = `<div class="row mt-3">
+            <div class="col-md-4">
+            <div class="form-group">
+                <input type="text" name="contacts[${contactIndex}][name]" class="form-control" placeholder="{{ __('Name') }}">
+            </div>
+            </div>
+            <div class="col-md-4">
+            <div class="form-group">
+                <input type="text" name="contacts[${contactIndex}][role]" class="form-control" placeholder="{{ __('e.g. Finance Director') }}">
+            </div>
+            </div>
+            <div class="col-md-4">
+            <div class="form-group">
+                <input type="text" name="contacts[${contactIndex}][phone]" class="form-control" placeholder="{{ __('Phone') }}">
+            </div>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-6">
+            <div class="form-group">
+                <input type="email" name="contacts[${contactIndex}][email]" class="form-control" placeholder="{{ __('Personal Email') }}">
+            </div>
+            </div>
+            <div class="col-md-6">
+            <div class="form-group">
+                <input type="text" name="contacts[${contactIndex}][identification]" class="form-control" placeholder="{{ __('Identification') }}">
+            </div>
+            </div>
+        </div>`;
+        $(this).before(html);
+        contactIndex++;
+    });
 
     function kycDocumentRowHtml(field, index) {
         return '<div class="row kyc-document-row mb-2">' +

@@ -58,6 +58,62 @@ class AdminRolePermissionBackfill
     /** Admin-type role names that get the backfill, in every company. */
     public const ADMIN_ROLE_NAMES = ['Admin', 'Administrador', 'company'];
 
+    /**
+     * Client follow-up (2026-11-17) — Document Layouts + Plan/Referral
+     * access for admin-type roles.
+     *
+     * Root cause: the Document Layouts controller gates on
+     * 'manage document layouts' (or the matching menu.* grant, or
+     * 'manage print settings', or type company) — but the
+     * 'manage document layouts' permission ROW does not exist in
+     * databases created before the seeder change that defines it
+     * (UsersTableSeeder:159), so no role can hold it and the menu
+     * item never appears for Administrador/Admin roles (Neyde got a
+     * 403 on /document-layouts while the company owner saw the page).
+     * Likewise 'manage plan' (PlanController@index gate) and the
+     * menu.settings.plans / menu.settings.referral grants are only
+     * on the seeded `company` role, so an Administrador never sees
+     * the Plan or Referral Program menu items.
+     *
+     * Fix: create the missing permission row and grant these five to
+     * every Admin / Administrador / company role, skipping grants
+     * the role already holds. 'manage plan' only gates the plans
+     * LIST (create/edit/buy use separate permissions), and the
+     * Referral page has no controller gate — the menu grant is the
+     * whole access. Idempotent. None of these five appears on the
+     * role form (they match no RolePermissionUiCatalog module row),
+     * so the role-save fix preserves them on edit.
+     */
+    public const LAYOUT_AND_PLAN_PERMISSIONS = [
+        'manage document layouts',
+        'menu.accounting_system.layout_management',
+        'manage plan',
+        'menu.settings.plans',
+        'menu.settings.referral',
+    ];
+
+    public static function runLayoutAndPlanBackfill(): void
+    {
+        if (! Schema::hasTable('roles') || ! Schema::hasTable('permissions') || ! Schema::hasTable('role_has_permissions')) {
+            return;
+        }
+
+        foreach (self::LAYOUT_AND_PLAN_PERMISSIONS as $name) {
+            Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+        SidebarMenuPermissionCatalog::ensurePermissionsExist();
+
+        foreach (Role::whereIn('name', self::ADMIN_ROLE_NAMES)->get() as $role) {
+            $held = $role->permissions()->pluck('name')->all();
+            $missing = array_values(array_diff(self::LAYOUT_AND_PLAN_PERMISSIONS, $held));
+            if ($missing !== []) {
+                $role->givePermissionTo($missing);
+            }
+        }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
     public static function run(): void
     {
         if (! Schema::hasTable('roles') || ! Schema::hasTable('permissions') || ! Schema::hasTable('role_has_permissions')) {

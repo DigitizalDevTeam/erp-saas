@@ -878,4 +878,71 @@ class ClientIssuesCustomerFieldsTest extends TestCase
             $table->timestamps();
         });
     }
+
+    // ------------------------------------------------------------------
+    // Follow-up (2026-11-17): Additional Contacts placement + the
+    // Add More Contact button on the create form
+    // ------------------------------------------------------------------
+
+    public function test_create_form_places_additional_contacts_right_after_contact_person(): void
+    {
+        $html = $this->get('/customer/create')->assertStatus(200)->getContent();
+
+        $this->assertLessThan(
+            strpos($html, 'Contact Person KYC Documents'),
+            strpos($html, 'Additional Contacts'),
+            'Additional Contacts must come before Contact Person KYC on the create form'
+        );
+        $this->assertLessThan(
+            strpos($html, 'Additional Emails for Notifications'),
+            strpos($html, 'Additional Contacts'),
+            'Additional Contacts must come before the notification emails on the create form'
+        );
+    }
+
+    public function test_edit_form_places_additional_contacts_right_after_contact_person(): void
+    {
+        $html = $this->get('/customer/' . $this->customer->id . '/edit')->assertStatus(200)->getContent();
+
+        $this->assertLessThan(
+            strpos($html, 'Contact Person KYC Documents'),
+            strpos($html, 'Additional Contacts'),
+            'Additional Contacts must come before Contact Person KYC on the edit form'
+        );
+        $this->assertLessThan(
+            strpos($html, 'Additional Emails for Notifications'),
+            strpos($html, 'Additional Contacts'),
+            'Additional Contacts must come before the notification emails on the edit form'
+        );
+    }
+
+    public function test_create_form_add_more_contact_button_has_a_handler(): void
+    {
+        $html = $this->get('/customer/create')->assertStatus(200)->getContent();
+
+        $this->assertStringContainsString('id="add_contact"', $html);
+        // contacts[0] is the contact person, so new rows start at 1.
+        $this->assertStringContainsString('var contactIndex = 1;', $html);
+        $this->assertStringContainsString("off('click', '#add_contact')", $html);
+        $this->assertStringNotContainsString('let contactIndex', $html);
+    }
+
+    public function test_edit_form_add_more_contact_handler_survives_repeated_modal_opens(): void
+    {
+        $html = $this->get('/customer/' . $this->customer->id . '/edit')->assertStatus(200)->getContent();
+
+        $this->assertStringContainsString('id="add_contact"', $html);
+        $this->assertStringContainsString("off('click', '#add_contact')", $html);
+        // A second `let` would throw on re-execution and kill the whole
+        // script tag (including the KYC handlers below it).
+        $this->assertStringNotContainsString('let contactIndex', $html);
+        $this->assertStringContainsString('var contactIndex', $html);
+    }
+
+    // NOTE: no HTTP test for the language-switch toast here — the
+    // controller's SITE_RTL upsert uses MySQL-only
+    // `ON DUPLICATE KEY UPDATE` syntax, so changeLanquage 500s under
+    // the SQLite test DB before it ever reaches the toast. The toast
+    // fix (setLocale before translating) is verified on the temp
+    // site by switching language in the browser instead.
 }
