@@ -9981,5 +9981,8 @@
     "No documents": "Sem documentos",
     "Search users": "Pesquisar utilizadores",
     "No users found": "Nenhum utilizador encontrado",
-    "Could not load users. Type your email instead.": "Não foi possível carregar os utilizadores. Digite o seu email."
+    "Could not load users. Type your email instead.": "Não foi possível carregar os utilizadores. Digite o seu email.",
+    "This reconciliation is closed and cannot be deleted.": "Esta reconciliação está fechada e não pode ser excluída.",
+    "This reconciliation has confirmed missing movements. Reverse them first, then delete it.": "Esta reconciliação tem movimentos em falta confirmados. Reverta-os primeiro e depois exclua-a.",
+    "Bank reconciliation import deleted.": "Importação de reconciliação bancária excluída."
 }

@@ -590,15 +590,20 @@ class AuthenticatedSessionController extends Controller
      *
      * The client explicitly asked for a user list on the login screen,
      * so the list itself is user-enumeration by design: it returns id,
-     * name, company name and email for active, login-enabled
-     * company/staff users — NEVER super admin, NEVER client.
-     * The scope is an exclusion, not a whitelist: `users.type` also
-     * holds staff role names (Cashier, Manager, Waiter, Admin, ...),
-     * so a whitelist of three types silently dropped most staff
-     * (a Cashier could never find themselves in the list).
-     * Passwords are still verified per user by the normal login flow,
-     * and picking a user only fills the email field; it never logs
-     * anyone in. Capped at 200, ordered by name.
+     * name, company name and email for active, login-enabled STAFF
+     * users only — NEVER super admin, NEVER client, NEVER the company
+     * (admin) accounts. The company accounts were in the list before
+     * and the client reported them as wrong: the list showed company
+     * names ("abc company", "MMCEMENT, Lda") as if they were users,
+     * with the company name repeated under itself. Company owners
+     * still log in by typing their email — the email field stays
+     * typeable, and picking a user only fills it; it never logs
+     * anyone in. The scope is an exclusion, not a whitelist:
+     * `users.type` also holds staff role names (Cashier, Manager,
+     * Waiter, Admin, ...), so a whitelist of three types silently
+     * dropped most staff (a Cashier could never find themselves in
+     * the list). Passwords are still verified per user by the normal
+     * login flow. Capped at 200, ordered by name.
      */
     public function erpUsers()
     {
@@ -606,23 +611,21 @@ class AuthenticatedSessionController extends Controller
             ->where('is_active', 1)
             ->where('delete_status', 1)
             ->where('is_enable_login', 1)
-            ->whereNotIn('type', ['super admin', 'client'])
+            ->whereNotIn('type', ['super admin', 'client', 'company'])
             ->orderBy('name')
             ->orderBy('email')
             ->limit(200)
             ->get(['id', 'name', 'email', 'type', 'created_by', 'default_company_id']);
 
-        // Company id per user, resolved in bulk (no N+1): a company
-        // user is its own company; staff resolve via their active
-        // company_user membership (is_default first), else
-        // default_company_id, else created_by.
+        // Company id per user, resolved in bulk (no N+1): staff
+        // resolve via their active company_user membership
+        // (is_default first), else default_company_id, else
+        // created_by.
         $companyIdByUser = [];
         foreach ($users as $user) {
-            $companyIdByUser[(int) $user->id] = $user->type === 'company'
-                ? (int) $user->id
-                : null;
+            $companyIdByUser[(int) $user->id] = null;
         }
-        $staffIds = $users->where('type', '!=', 'company')->pluck('id')->all();
+        $staffIds = $users->pluck('id')->all();
         if ($staffIds && Schema::hasTable('company_user')) {
             $rows = DB::table('company_user')
                 ->join('users as companies', 'companies.id', '=', 'company_user.company_id')
@@ -640,9 +643,6 @@ class AuthenticatedSessionController extends Controller
             }
         }
         foreach ($users as $user) {
-            if ($user->type === 'company') {
-                continue;
-            }
             if (empty($companyIdByUser[(int) $user->id])) {
                 $companyIdByUser[(int) $user->id] = ! empty($user->default_company_id)
                     ? (int) $user->default_company_id

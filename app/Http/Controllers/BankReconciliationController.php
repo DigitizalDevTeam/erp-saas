@@ -7,11 +7,13 @@ use App\Models\BankReconciliationMatch;
 use App\Models\BankReconciliationSession;
 use App\Models\BankStatementLine;
 use App\Models\Transaction;
+use App\Models\TreasuryMissingMovement;
 use App\Models\TreasuryOperation;
 use App\Services\Accounting\BankReconciliation\ReconciliationMatcher;
 use App\Services\Accounting\BankReconciliation\StatementImportService;
 use App\Services\TreasuryReconciliationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -411,6 +413,46 @@ class BankReconciliationController extends Controller
 
         return redirect()->route('bank-reconciliation.show', $bankReconciliationSession)
             ->with('success', __('Statement reopened.'));
+    }
+
+    /**
+     * Remove an unfinished reconciliation import.
+     *
+     * Only an open (never closed) session can be deleted, and only
+     * when it has no confirmed missing movements — confirming a
+     * missing movement posts Treasury operations, and deleting the
+     * session must never silently drop posted entries. Proposed,
+     * rejected or reversed movements, statement lines and matches
+     * are drafts/links only and go with the session; the uploaded
+     * statement file is deleted too.
+     */
+    public function destroy(BankReconciliationSession $bankReconciliationSession)
+    {
+        if (! \Auth::user()->can('manage transaction')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $this->authorizeSession($bankReconciliationSession);
+
+        if ($bankReconciliationSession->isClosed()) {
+            return redirect()->back()->with('error', __('This reconciliation is closed and cannot be deleted.'));
+        }
+
+        if ($bankReconciliationSession->missingMovements()->where('state', TreasuryMissingMovement::STATE_CONFIRMED)->exists()) {
+            return redirect()->back()->with('error', __('This reconciliation has confirmed missing movements. Reverse them first, then delete it.'));
+        }
+
+        DB::transaction(function () use ($bankReconciliationSession) {
+            $bankReconciliationSession->matches()->delete();
+            $bankReconciliationSession->statementLines()->delete();
+            $bankReconciliationSession->missingMovements()->delete();
+            if ($bankReconciliationSession->stored_path) {
+                Storage::disk('local')->delete($bankReconciliationSession->stored_path);
+            }
+            $bankReconciliationSession->delete();
+        });
+
+        return redirect()->route('bank-reconciliation.index')->with('success', __('Bank reconciliation import deleted.'));
     }
 
     public function autoMatch(BankReconciliationSession $bankReconciliationSession, ReconciliationMatcher $matcher)
