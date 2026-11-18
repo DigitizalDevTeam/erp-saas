@@ -82,6 +82,7 @@ use App\Http\Controllers\JobCategoryController;
 use App\Http\Controllers\JobController;
 use App\Http\Controllers\JobStageController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\JournalEntryImportController;
 use App\Http\Controllers\FiscalYearClosingController;
 use App\Http\Controllers\BankReconciliationController;
 use App\Http\Controllers\KhaltiController;
@@ -1505,6 +1506,12 @@ Route::group(['middleware' => ['verified']], function () {
             Route::delete('journal-entry/journal/destroy/{item_id}', [JournalEntryController::class, 'journalDestroy'])->name('journal.destroy');
             Route::post('journal-entry/{journalEntry}/approve', [JournalEntryController::class, 'approve'])->name('journal-entry.approve');
             Route::post('journal-entry/{journalEntry}/reject', [JournalEntryController::class, 'reject'])->name('journal-entry.reject');
+            // Journal Entry XLSX import — registered before the
+            // resource routes so 'import' is not swallowed as a
+            // journal id by journal-entry/{journalEntry}.
+            Route::get('journal-entry/import', [JournalEntryImportController::class, 'form'])->name('journal-entry.import.form');
+            Route::get('journal-entry/import-template', [JournalEntryImportController::class, 'template'])->name('journal-entry.import.template');
+            Route::post('journal-entry/import', [JournalEntryImportController::class, 'store'])->name('journal-entry.import');
             Route::get('fiscal-year-closing', [FiscalYearClosingController::class, 'index'])->name('fiscal-year-closing.index');
             Route::post('fiscal-year-closing', [FiscalYearClosingController::class, 'runClosing'])->name('fiscal-year-closing.run');
             Route::post('fiscal-year-closing/opening', [FiscalYearClosingController::class, 'postOpeningBalances'])->name('fiscal-year-closing.opening');

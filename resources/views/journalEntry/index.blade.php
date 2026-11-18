@@ -11,6 +11,9 @@
 @section('action-btn')
     <div class="float-end">
         @can('create journal entry')
+            <a href="#" data-url="{{ route('journal-entry.import.form') }}" data-ajax-popup="true" data-title="{{ __('Import Journal Entries') }}" data-bs-toggle="tooltip" title="{{ __('Import') }}" class="btn btn-sm btn-primary">
+                <i class="ti ti-file-import"></i> {{ __('Import') }}
+            </a>
             <a href="{{ route('journal-entry.create') }}" data-title="{{__('Create New Journal')}}" data-bs-toggle="tooltip"  title="{{__('Create')}}" class="btn btn-sm btn-primary">
                 <i class="ti ti-plus"></i>
             </a>
@@ -19,6 +22,16 @@
 @endsection
 
 @section('content')
+
+    @if (session('import_errors'))
+        <div class="alert alert-warning">
+            <ul class="mb-0">
+                @foreach (session('import_errors') as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
 
     <div class="row">
         <div class="col-xl-12">
