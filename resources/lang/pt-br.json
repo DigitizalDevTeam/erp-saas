@@ -9010,5 +9010,8 @@
     "Each journal entry needs at least two lines.": "Cada lançamento precisa de pelo menos duas linhas.",
     "All lines in one journal entry must have the same date.": "Todas as linhas de um lançamento devem ter a mesma data.",
     "Columns:": "Colunas:",
-    "Import failed. Please check the file and try again.": "A importação falhou. Verifique o ficheiro e tente novamente."
+    "Import failed. Please check the file and try again.": "A importação falhou. Verifique o ficheiro e tente novamente.",
+    "No ERP transactions for this bank account between :from and :to. Record the payment in the ERP first, then come back to link it.": "Não há transações do ERP para esta conta bancária entre :from e :to. Registre primeiro o pagamento no ERP e depois volte para associá-lo.",
+    "No ERP transactions for this bank account in this statement. Record the payment in the ERP first, then come back to link it.": "Não há transações do ERP para esta conta bancária neste extrato. Registre primeiro o pagamento no ERP e depois volte para associá-lo.",
+    "No confirmed Treasury operations with a remaining amount for this bank account.": "Não há operações de tesouraria confirmadas com montante a liquidar para esta conta bancária."
 }

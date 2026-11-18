@@ -244,9 +244,18 @@
                                                         ->all();
                                                 @endphp
                                                 {{ Form::select('transaction_id', ['' => __('— Select —')] + $txOpts, null, ['class' => 'form-select form-select-sm']) }}
+                                                @if ($unmatchedErp->isEmpty())
+                                                    <div class="text-muted small mt-1">
+                                                        @if (! empty($from) && ! empty($to))
+                                                            {{ __('No ERP transactions for this bank account between :from and :to. Record the payment in the ERP first, then come back to link it.', ['from' => $from, 'to' => $to]) }}
+                                                        @else
+                                                            {{ __('No ERP transactions for this bank account in this statement. Record the payment in the ERP first, then come back to link it.') }}
+                                                        @endif
+                                                    </div>
+                                                @endif
                                             </div>
                                             <div class="col-auto">
-                                                <button type="submit" class="btn btn-sm btn-primary">{{ __('Link') }}</button>
+                                                <button type="submit" class="btn btn-sm btn-primary" {{ $unmatchedErp->isEmpty() ? 'disabled' : '' }}>{{ __('Link') }}</button>
                                             </div>
                                             {{ Form::close() }}
                                         </td>
@@ -272,12 +281,15 @@
                                                         ->all();
                                                 @endphp
                                                 {{ Form::select('treasury_operation_id', ['' => __('— Select —')] + $opOpts, null, ['class' => 'form-select form-select-sm']) }}
+                                                @if ($unmatchedOperations->isEmpty())
+                                                    <div class="text-muted small mt-1">{{ __('No confirmed Treasury operations with a remaining amount for this bank account.') }}</div>
+                                                @endif
                                             </div>
                                             <div class="col-auto">
                                                 {{ Form::number('matched_amount', null, ['class' => 'form-control form-control-sm', 'step' => '0.01', 'placeholder' => __('Amount (blank = full)')]) }}
                                             </div>
                                             <div class="col-auto">
-                                                <button type="submit" class="btn btn-sm btn-primary">{{ __('Link') }}</button>
+                                                <button type="submit" class="btn btn-sm btn-primary" {{ $unmatchedOperations->isEmpty() ? 'disabled' : '' }}>{{ __('Link') }}</button>
                                             </div>
                                             {{ Form::close() }}
                                         </td>

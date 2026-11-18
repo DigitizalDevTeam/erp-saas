@@ -349,7 +349,7 @@ class BankReconciliationController extends Controller
                 ->values();
         }
 
-        return view('bankReconciliation.show', compact('session', 'matched', 'matchRows', 'unmatchedStatement', 'unmatchedErp', 'unmatchedOperations', 'missingMovements', 'summary', 'stats'));
+        return view('bankReconciliation.show', compact('session', 'matched', 'matchRows', 'unmatchedStatement', 'unmatchedErp', 'unmatchedOperations', 'missingMovements', 'summary', 'stats', 'from', 'to'));
     }
 
     /**
@@ -478,13 +478,23 @@ class BankReconciliationController extends Controller
 
         $this->authorizeSession($bankReconciliationSession);
 
-        $data = $request->validate([
+        // The admin layout never renders the validation $errors bag,
+        // so a failed Link submit reloaded the page with no message
+        // at all. Validate manually and return the failure as a
+        // visible session error instead.
+        $validator = \Validator::make($request->all(), [
             'statement_line_id' => [
                 'required',
                 Rule::exists('bank_statement_lines', 'id')->where('session_id', $bankReconciliationSession->id),
             ],
             'transaction_id' => 'required|exists:transactions,id',
         ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', $validator->errors()->first());
+        }
+
+        $data = $validator->validated();
 
         $line = BankStatementLine::where('id', $data['statement_line_id'])
             ->where('session_id', $bankReconciliationSession->id)

@@ -132,6 +132,114 @@ class TreasuryReconciliationWorkflowTest extends TestCase
         $response->assertSessionHas('error', 'Permission denied.');
     }
 
+    public function test_show_page_explains_empty_dropdowns_and_disables_link(): void
+    {
+        $session = $this->makeSession([
+            'period_from' => '2026-11-10', 'period_to' => '2026-11-12', 'date_tolerance_days' => 3,
+        ]);
+        BankStatementLine::create([
+            'session_id' => $session->id, 'row_index' => 1, 'txn_date' => '2026-11-10',
+            'description' => 'Payment from Customer A', 'amount' => '5000.0000', 'balance' => '5000.0000',
+        ]);
+
+        $response = $this->actingAs(User::findOrFail(1))->get(route('bank-reconciliation.show', $session));
+
+        $response->assertOk();
+        $response->assertSee('No ERP transactions for this bank account between 2026-11-07 and 2026-11-15.');
+        $response->assertSee('No confirmed Treasury operations with a remaining amount for this bank account.');
+        $response->assertSee('disabled');
+    }
+
+    public function test_show_page_lists_erp_transaction_in_dropdown_when_in_window(): void
+    {
+        $session = $this->makeSession([
+            'period_from' => '2026-11-10', 'period_to' => '2026-11-12', 'date_tolerance_days' => 3,
+        ]);
+        BankStatementLine::create([
+            'session_id' => $session->id, 'row_index' => 1, 'txn_date' => '2026-11-10',
+            'description' => 'Payment from Customer A', 'amount' => '5000.0000', 'balance' => '5000.0000',
+        ]);
+        $txId = DB::table('transactions')->insertGetId([
+            'account' => 1, 'type' => 'Payment', 'amount' => '5000.0000',
+            'description' => 'Payment from Customer A', 'date' => '2026-11-10', 'created_by' => 1,
+        ]);
+
+        $response = $this->actingAs(User::findOrFail(1))->get(route('bank-reconciliation.show', $session));
+
+        $response->assertOk();
+        $response->assertSee('2026-11-10 | 5,000.00 | Payment | #'.$txId);
+        $response->assertDontSee('No ERP transactions for this bank account');
+    }
+
+    public function test_manual_match_without_transaction_shows_visible_error(): void
+    {
+        $session = $this->makeSession([
+            'period_from' => '2026-11-10', 'period_to' => '2026-11-12', 'date_tolerance_days' => 3,
+        ]);
+        $line = BankStatementLine::create([
+            'session_id' => $session->id, 'row_index' => 1, 'txn_date' => '2026-11-10',
+            'description' => 'Payment from Customer A', 'amount' => '5000.0000', 'balance' => '5000.0000',
+        ]);
+
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('bank-reconciliation.manual-match', $session), [
+                'statement_line_id' => $line->id,
+                'transaction_id' => '',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertSame(0, BankReconciliationMatch::where('statement_line_id', $line->id)->count());
+    }
+
+    public function test_manual_match_links_transaction(): void
+    {
+        $session = $this->makeSession([
+            'period_from' => '2026-11-10', 'period_to' => '2026-11-12', 'date_tolerance_days' => 3,
+        ]);
+        $line = BankStatementLine::create([
+            'session_id' => $session->id, 'row_index' => 1, 'txn_date' => '2026-11-10',
+            'description' => 'Payment from Customer A', 'amount' => '5000.0000', 'balance' => '5000.0000',
+        ]);
+        $txId = DB::table('transactions')->insertGetId([
+            'account' => 1, 'type' => 'Payment', 'amount' => '5000.0000',
+            'description' => 'Payment from Customer A', 'date' => '2026-11-10', 'created_by' => 1,
+        ]);
+
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('bank-reconciliation.manual-match', $session), [
+                'statement_line_id' => $line->id,
+                'transaction_id' => $txId,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Manual match saved.');
+
+        $match = BankReconciliationMatch::where('statement_line_id', $line->id)->firstOrFail();
+        $this->assertSame($txId, (int) $match->transaction_id);
+        $this->assertSame('manual', $match->match_type);
+    }
+
+    public function test_treasury_match_without_operation_shows_visible_error(): void
+    {
+        $session = $this->makeSession([
+            'period_from' => '2026-11-10', 'period_to' => '2026-11-12', 'date_tolerance_days' => 3,
+        ]);
+        $line = BankStatementLine::create([
+            'session_id' => $session->id, 'row_index' => 1, 'txn_date' => '2026-11-10',
+            'description' => 'Payment from Customer A', 'amount' => '5000.0000', 'balance' => '5000.0000',
+        ]);
+
+        $this->actingAs(User::findOrFail(2))
+            ->post(route('treasury-reconciliation.treasury-match', $session), [
+                'statement_line_id' => $line->id,
+                'treasury_operation_id' => '',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertSame(0, BankReconciliationMatch::where('statement_line_id', $line->id)->count());
+    }
+
     // ------------------------------------------------------------------
     // Close / reopen
     // ------------------------------------------------------------------

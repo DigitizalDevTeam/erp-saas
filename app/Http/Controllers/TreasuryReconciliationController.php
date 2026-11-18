@@ -186,7 +186,11 @@ class TreasuryReconciliationController extends Controller
 
         $this->authorizeSession($bankReconciliationSession);
 
-        $data = $request->validate([
+        // Same silent-failure trap as the ERP manual match: the
+        // admin layout never renders the validation $errors bag, so
+        // a Link click with no operation selected reloaded the page
+        // with no message. Return the failure visibly instead.
+        $validator = \Validator::make($request->all(), [
             'statement_line_id' => [
                 'required',
                 Rule::exists('bank_statement_lines', 'id')->where('session_id', $bankReconciliationSession->id),
@@ -194,6 +198,12 @@ class TreasuryReconciliationController extends Controller
             'treasury_operation_id' => 'required|exists:treasury_operations,id',
             'matched_amount' => 'nullable|numeric|min:0.0001',
         ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', $validator->errors()->first());
+        }
+
+        $data = $validator->validated();
 
         try {
             $this->service->matchToTreasuryOperation(
