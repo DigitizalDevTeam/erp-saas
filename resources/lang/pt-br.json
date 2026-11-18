@@ -8996,5 +8996,18 @@
     "Cancelled and draft invoices are not listed.": "Faturas canceladas e em rascunho não são listadas.",
     "Current document": "Documento atual",
     "Supporting document": "Documento de suporte",
-    "Reason is required.": "O motivo é obrigatório."
+    "Reason is required.": "O motivo é obrigatório.",
+    "Import Journal Entries": "Importar Lançamentos",
+    "Import journal entries from an XLSX file. One row per journal line; rows with the same reference become one journal entry.": "Importe lançamentos de um ficheiro XLSX. Uma linha por linha de lançamento; as linhas com a mesma referência tornam-se um único lançamento.",
+    "Select XLSX File": "Selecionar Ficheiro XLSX",
+    "Only XLSX files are supported.": "Apenas ficheiros XLSX são suportados.",
+    "Imported :created journal entries. Skipped :skipped rows.": "Importados :created lançamentos. Ignoradas :skipped linhas.",
+    "Row :row: :message": "Linha :row: :message",
+    "Reference is required.": "A referência é obrigatória.",
+    "Date is not valid.": "A data não é válida.",
+    "Account code :code was not found.": "O código de conta :code não foi encontrado.",
+    "Enter either a debit or a credit amount.": "Introduza um valor a débito ou a crédito.",
+    "Each journal entry needs at least two lines.": "Cada lançamento precisa de pelo menos duas linhas.",
+    "All lines in one journal entry must have the same date.": "Todas as linhas de um lançamento devem ter a mesma data.",
+    "Columns:": "Colunas:"
 }

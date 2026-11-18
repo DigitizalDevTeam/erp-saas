@@ -9855,5 +9855,18 @@
     "Cancelled and draft invoices are not listed.": "Cancelled and draft invoices are not listed.",
     "Current document": "Current document",
     "Supporting document": "Supporting document",
-    "Reason is required.": "Reason is required."
+    "Reason is required.": "Reason is required.",
+    "Import Journal Entries": "Import Journal Entries",
+    "Import journal entries from an XLSX file. One row per journal line; rows with the same reference become one journal entry.": "Import journal entries from an XLSX file. One row per journal line; rows with the same reference become one journal entry.",
+    "Select XLSX File": "Select XLSX File",
+    "Only XLSX files are supported.": "Only XLSX files are supported.",
+    "Imported :created journal entries. Skipped :skipped rows.": "Imported :created journal entries. Skipped :skipped rows.",
+    "Row :row: :message": "Row :row: :message",
+    "Reference is required.": "Reference is required.",
+    "Date is not valid.": "Date is not valid.",
+    "Account code :code was not found.": "Account code :code was not found.",
+    "Enter either a debit or a credit amount.": "Enter either a debit or a credit amount.",
+    "Each journal entry needs at least two lines.": "Each journal entry needs at least two lines.",
+    "All lines in one journal entry must have the same date.": "All lines in one journal entry must have the same date.",
+    "Columns:": "Columns:"
 }
