@@ -20,12 +20,23 @@ class BackfillReversedTreasuryOperations extends Migration
 {
     public function up(): void
     {
-        DB::statement("
-            UPDATE treasury_operations
-            SET state = 'reversed'
-            WHERE state = 'confirmed'
-              AND id IN (SELECT reversal_of_id FROM treasury_operations WHERE reversal_of_id IS NOT NULL)
-        ");
+        // Two steps on purpose: MySQL refuses an UPDATE whose WHERE
+        // subquery reads the same table (error 1093), and the SQLite
+        // test suite would not catch that. Fetch the ids first, then
+        // update by id.
+        $reversedIds = DB::table('treasury_operations')
+            ->whereNotNull('reversal_of_id')
+            ->pluck('reversal_of_id')
+            ->all();
+
+        if ($reversedIds === []) {
+            return;
+        }
+
+        DB::table('treasury_operations')
+            ->where('state', 'confirmed')
+            ->whereIn('id', $reversedIds)
+            ->update(['state' => 'reversed']);
     }
 
     public function down(): void
