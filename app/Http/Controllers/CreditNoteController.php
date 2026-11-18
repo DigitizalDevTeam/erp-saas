@@ -2,13 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\TreasuryException;
 use App\Models\CreditNote;
+use App\Models\CreditNoteRefund;
+use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
-use App\Models\Utility;
-use App\Models\Customer;
 use App\Models\InvoiceProduct;
 use App\Models\ProductService;
+use App\Models\TreasuryCashSession;
+use App\Models\TreasuryFinancialAccount;
+use App\Models\TreasuryPettyCashFund;
+use App\Models\Utility;
+use App\Services\CreditNoteRefundService;
+use App\Services\TreasurySettings;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 
@@ -73,6 +81,216 @@ class CreditNoteController extends Controller
 
         $fileName = time() . '_' . $request->file('attachment')->getClientOriginalName();
         $request->file('attachment')->storeAs('uploads/credit-notes', $fileName);
+
+        return $fileName;
+    }
+
+    // ------------------------------------------------------------------
+    // Credit Notes Phase 2 — approval (client answer Q1) + refund
+    // (Reembolso: bank transfer / cash from petty cash or till).
+    // ------------------------------------------------------------------
+
+    /**
+     * Approve a pending note. Mirrors JournalEntryController::approve:
+     * permission + company + pending-only. Approval is only needed
+     * while the per-company switch is on; notes created approved
+     * never reach this path.
+     */
+    public function approve($invoice_id, $creditNote_id)
+    {
+        if (! \Auth::user()->can('approve credit note')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $note = CreditNote::find($creditNote_id);
+        if (! $note || (int) $note->created_by !== (int) \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Note Not Found.'));
+        }
+        if ((int) ($note->status ?? CreditNote::STATUS_APPROVED) !== CreditNote::STATUS_PENDING) {
+            return redirect()->back()->with('error', __('Only a pending credit note can be approved.'));
+        }
+
+        $note->status = CreditNote::STATUS_APPROVED;
+        $note->approved_by = \Auth::user()->id;
+        $note->approved_at = now();
+        $note->save();
+
+        return redirect()->back()->with('success', __('Credit Note successfully approved.'));
+    }
+
+    /** Reject a pending note (same gate as approve). */
+    public function reject($invoice_id, $creditNote_id)
+    {
+        if (! \Auth::user()->can('approve credit note')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $note = CreditNote::find($creditNote_id);
+        if (! $note || (int) $note->created_by !== (int) \Auth::user()->creatorId()) {
+            return redirect()->back()->with('error', __('Note Not Found.'));
+        }
+        if ((int) ($note->status ?? CreditNote::STATUS_APPROVED) !== CreditNote::STATUS_PENDING) {
+            return redirect()->back()->with('error', __('Only a pending credit note can be rejected.'));
+        }
+
+        $note->status = CreditNote::STATUS_REJECTED;
+        $note->approved_by = \Auth::user()->id;
+        $note->approved_at = now();
+        $note->save();
+
+        return redirect()->back()->with('success', __('Credit Note successfully rejected.'));
+    }
+
+    /** Refund form: choose bank transfer or cash (petty cash / till). */
+    public function refundForm($invoice_id, $creditNote_id)
+    {
+        if (! \Auth::user()->can('manage credit note refund')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $note = $this->refundableNote($creditNote_id);
+        if (! $note) {
+            return redirect()->back()->with('error', __('Note Not Found.'));
+        }
+
+        $creatorId = \Auth::user()->creatorId();
+        $bankAccounts = TreasuryFinancialAccount::where('created_by', $creatorId)
+            ->where('status', TreasuryFinancialAccount::STATUS_ACTIVE)
+            ->where('type', TreasuryFinancialAccount::TYPE_BANK)
+            ->orderBy('code')
+            ->get();
+        $cashAccounts = TreasuryFinancialAccount::where('created_by', $creatorId)
+            ->where('status', TreasuryFinancialAccount::STATUS_ACTIVE)
+            ->where('type', TreasuryFinancialAccount::TYPE_CASH_REGISTER)
+            ->orderBy('code')
+            ->get();
+        $pettyFunds = TreasuryPettyCashFund::where('created_by', $creatorId)
+            ->where('status', TreasuryPettyCashFund::STATUS_ACTIVE)
+            ->with('financialAccount')
+            ->orderBy('id')
+            ->get();
+        $openSessions = TreasuryCashSession::where('created_by', $creatorId)
+            ->where('state', TreasuryCashSession::STATE_OPEN)
+            ->with('register')
+            ->orderBy('opened_at', 'desc')
+            ->get();
+        $existingRefund = CreditNoteRefund::where('credit_note_id', $note->id)->first();
+
+        return view('creditNote.refund', compact(
+            'note', 'invoice_id', 'bankAccounts', 'cashAccounts',
+            'pettyFunds', 'openSessions', 'existingRefund'
+        ));
+    }
+
+    /** Pay the refund (full note amount, once). */
+    public function refundStore(Request $request, $invoice_id, $creditNote_id)
+    {
+        if (! \Auth::user()->can('manage credit note refund')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $note = $this->refundableNote($creditNote_id);
+        if (! $note) {
+            return redirect()->back()->with('error', __('Note Not Found.'));
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'method' => 'required|in:transfer,cash',
+            'financial_account_id' => 'nullable|integer',
+            'petty_cash_fund_id' => 'nullable|integer',
+            'cash_session_id' => 'nullable|integer',
+            'transfer_receipt' => 'nullable|file|max:10240',
+            'signed_receipt' => 'nullable|file|max:10240',
+        ]);
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', $validator->messages()->first());
+        }
+
+        try {
+            $refund = (new CreditNoteRefundService())->refundNote(
+                \Auth::user()->creatorId(),
+                (int) $note->id,
+                \Auth::user()->id,
+                [
+                    'method' => $request->method,
+                    'financial_account_id' => $request->financial_account_id,
+                    'petty_cash_fund_id' => $request->petty_cash_fund_id,
+                    'cash_session_id' => $request->cash_session_id,
+                    'transfer_receipt' => $this->storeRefundAttachment($request, 'transfer_receipt'),
+                    'signed_receipt' => $this->storeRefundAttachment($request, 'signed_receipt'),
+                ]
+            );
+        } catch (TreasuryException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('note.view', \Crypt::encrypt($note->id))->with(
+            'success',
+            __('Refund paid. Reference') . ' ' . $refund->reference . '.'
+        );
+    }
+
+    /**
+     * Numbered printable internal receipt for a refund (the slip the
+     * client asked for: bank transfer keeps the transfer receipt,
+     * cash keeps the signed customer receipt — both are listed on
+     * this slip). Available for till and back-office refunds alike.
+     */
+    public function refundSlip($refund_id)
+    {
+        if (! \Auth::user()->can('manage credit note refund')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        try {
+            $refund = (new CreditNoteRefundService())->refundForCompany(\Auth::user()->creatorId(), (int) $refund_id);
+        } catch (TreasuryException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        $refund->load(['note', 'customer', 'invoice', 'financialAccount', 'pettyCashFund', 'cashSession', 'operation']);
+
+        return Pdf::loadView('creditNote.refund-slip', compact('refund'))
+            ->download('refund-slip-' . $refund->reference . '.pdf');
+    }
+
+    /**
+     * The note a refund can be paid on: ours, a credit note (not a
+     * debit note) with disposition 'refund'. Status, single-refund
+     * and source rules are enforced by CreditNoteRefundService.
+     */
+    protected function refundableNote($creditNote_id): ?CreditNote
+    {
+        $note = CreditNote::find($creditNote_id);
+        if (! $note || (int) $note->created_by !== (int) \Auth::user()->creatorId()) {
+            return null;
+        }
+        if ((int) $note->is_debit === 1 || (string) ($note->disposition ?? '') !== 'refund') {
+            return null;
+        }
+
+        return $note;
+    }
+
+    /**
+     * Store a refund receipt file (transfer receipt / signed customer
+     * receipt) under uploads/credit-note-refunds, same storage-limit
+     * pattern as the note attachment.
+     */
+    protected function storeRefundAttachment(Request $request, string $field): ?string
+    {
+        if (empty($request->$field) || ! $request->hasFile($field)) {
+            return null;
+        }
+
+        $image_size = $request->file($field)->getSize();
+        $result = Utility::updateStorageLimit(\Auth::user()->creatorId(), $image_size);
+        if ($result != 1) {
+            return null;
+        }
+
+        $fileName = time() . '_' . $request->file($field)->getClientOriginalName();
+        $request->file($field)->storeAs('uploads/credit-note-refunds', $fileName);
 
         return $fileName;
     }
@@ -180,6 +398,13 @@ class CreditNoteController extends Controller
             $credit->description = $request->description;
             $credit->disposition = $request->disposition;
             $credit->attachment  = $this->storeCreditNoteAttachment($request);
+            // Phase 2 (client answer Q1): when the approval switch is
+            // on, the note is created Pending and needs approval
+            // before any refund can be paid; otherwise it is issued
+            // approved, as before.
+            $credit->status = TreasurySettings::creditNoteApprovalRequired(\Auth::user()->creatorId())
+                ? CreditNote::STATUS_PENDING
+                : CreditNote::STATUS_APPROVED;
             $credit->created_by = \Auth::user()->creatorId();
             $credit->save();
 
@@ -200,7 +425,12 @@ class CreditNoteController extends Controller
 
             Utility::updateUserBalance('customer', $invoice->customer_id, $request->amount, 'debit');
 
-            return redirect()->back()->with('success', __('Credit Note successfully created.'));
+            return redirect()->back()->with(
+                'success',
+                $credit->status === CreditNote::STATUS_PENDING
+                    ? __('Credit Note successfully created. It is pending approval.')
+                    : __('Credit Note successfully created.')
+            );
         }
         else
         {
@@ -417,7 +647,11 @@ class CreditNoteController extends Controller
             $iteams = collect();
             $rdata = [];
         }
-        return view('creditNote.view', compact('note','customer','iteams','rdata'));
+        // Phase 2: the refund (if paid) for the status badge + buttons.
+        $refund = CreditNoteRefund::where('credit_note_id', $note->id)->first();
+        $approvalRequired = TreasurySettings::creditNoteApprovalRequired(\Auth::user()->creatorId());
+
+        return view('creditNote.view', compact('note','customer','iteams','rdata','refund','approvalRequired'));
     }
     public function debitView($id)
     {
@@ -642,6 +876,10 @@ class CreditNoteController extends Controller
             $credit->disposition = $request->disposition;
             $credit->attachment  = $this->storeCreditNoteAttachment($request);
             $credit->created_by = \Auth::user()->creatorId();
+            // Phase 2 (client answer Q1): see store().
+            $credit->status = TreasurySettings::creditNoteApprovalRequired(\Auth::user()->creatorId())
+                ? CreditNote::STATUS_PENDING
+                : CreditNote::STATUS_APPROVED;
             $credit->is_debit = 0;
             $credit->data = $request->return_items ? json_encode($request->items ?? []) : null;
             $credit->save();
@@ -676,7 +914,12 @@ class CreditNoteController extends Controller
                 }
             }
 
-            return redirect()->back()->with('success', __('Credit Note successfully created.'));
+            return redirect()->back()->with(
+                'success',
+                $credit->status === CreditNote::STATUS_PENDING
+                    ? __('Credit Note successfully created. It is pending approval.')
+                    : __('Credit Note successfully created.')
+            );
         }
         else
         {

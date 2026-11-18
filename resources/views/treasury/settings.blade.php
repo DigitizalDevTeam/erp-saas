@@ -115,6 +115,18 @@
                             </div>
                         </div>
 
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="treasury_credit_note_approval_required" id="treasury_credit_note_approval_required" value="1" {{ ($settings['treasury_credit_note_approval_required'] ?? '0') === '1' ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="treasury_credit_note_approval_required">{{ __('Credit notes need approval before a refund') }}</label>
+                                    </div>
+                                    <small class="text-muted">{{ __('Off: credit notes are issued directly. On: a note is created pending and needs approval first, like a journal entry.') }}</small>
+                                </div>
+                            </div>
+                        </div>
+
                         <h6 class="mt-3">{{ __('Receipt Posting Accounts (Phase 1)') }}</h6>
                         <div class="row">
                             <div class="col-md-6">
