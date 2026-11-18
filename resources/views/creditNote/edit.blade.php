@@ -17,6 +17,7 @@
         <div class="form-group col-md-12">
             {{ Form::label('description', __('Description'),['class'=>'form-label']) }}@if($isCreditNote)<x-required></x-required>@endif
             {!! Form::textarea('description', null, array_merge(['class'=>'form-control','rows'=>'3', 'placeholder'=>__('Enter Description')], $isCreditNote ? ['required'=>'required'] : [])) !!}
+            @if($isCreditNote)<div class="invalid-feedback">{{ __('Reason is required.') }}</div>@endif
         </div>
         <div class="form-group col-md-12">
             {{ Form::label('attachment', __('Supporting document (optional)'),['class'=>'form-label']) }}

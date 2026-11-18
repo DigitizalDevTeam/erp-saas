@@ -447,12 +447,21 @@ class CreditNotePhase1Test extends TestCase
         $response->assertOk();
         $response->assertSee('Refund the money', false);
         $response->assertSee('Keep as customer credit', false);
+        $response->assertSee('Reason is required.', false);
 
         $unpaid = $this->makeInvoice(Invoice::STATUS_UNPAID, 1000, 0);
         $response = $this->get('/invoice/' . $unpaid->id . '/debit-note');
         $response->assertOk();
         $response->assertDontSee('Refund the money', false);
         $response->assertSee('Keep as customer credit', false);
+        $response->assertSee('Reason is required.', false);
+    }
+
+    public function test_custom_create_page_shows_reason_error_text(): void
+    {
+        $response = $this->get('/custom-debit-note');
+        $response->assertOk();
+        $response->assertSee('Reason is required.', false);
     }
 
     // ------------------------------------------------------------------
