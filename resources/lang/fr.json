@@ -9869,5 +9869,8 @@
     "Each journal entry needs at least two lines.": "Each journal entry needs at least two lines.",
     "All lines in one journal entry must have the same date.": "All lines in one journal entry must have the same date.",
     "Columns:": "Columns:",
-    "Import failed. Please check the file and try again.": "Import failed. Please check the file and try again."
+    "Import failed. Please check the file and try again.": "Import failed. Please check the file and try again.",
+    "No ERP transactions for this bank account between :from and :to. Record the payment in the ERP first, then come back to link it.": "No ERP transactions for this bank account between :from and :to. Record the payment in the ERP first, then come back to link it.",
+    "No ERP transactions for this bank account in this statement. Record the payment in the ERP first, then come back to link it.": "No ERP transactions for this bank account in this statement. Record the payment in the ERP first, then come back to link it.",
+    "No confirmed Treasury operations with a remaining amount for this bank account.": "No confirmed Treasury operations with a remaining amount for this bank account."
 }
