@@ -33,6 +33,68 @@ class StatementImportService
     }
 
     /**
+     * Check a mapping against the first data rows before importing.
+     *
+     * Catches the two mistakes that silently wreck an import: data
+     * starting too early (account-info / header rows read as
+     * transactions) and pointing at the wrong column. Returns a list
+     * of plain-language problems; an empty list means the mapping
+     * looks sane. Only the first 5 data rows are sampled, so a file
+     * with a few blank lines further down still passes.
+     *
+     * @param  array<int, array<int, mixed>>  $rows
+     * @param  array<string, mixed>  $mapping
+     * @return array<int, string>
+     */
+    public function validateMapping(array $rows, array $mapping): array
+    {
+        $mapping = $this->normalizeCustomMapping($mapping);
+        $start = (int) $mapping['data_start_row'];
+
+        if ($start < 0 || $start >= count($rows)) {
+            return [__('First data row is past the end of the file.')];
+        }
+
+        $sample = array_slice($rows, $start, 5);
+        $hasDate = false;
+        $hasAmount = false;
+        $hasDescription = false;
+
+        foreach ($sample as $row) {
+            if ($this->parseDate($row[(int) $mapping['date_col']] ?? null) !== null) {
+                $hasDate = true;
+            }
+
+            if (trim((string) ($row[(int) $mapping['description_col']] ?? '')) !== '') {
+                $hasDescription = true;
+            }
+
+            $amountCells = ($mapping['amount_mode'] ?? '') === 'debit_credit'
+                ? [$row[(int) $mapping['debit_col']] ?? null, $row[(int) $mapping['credit_col']] ?? null]
+                : [$row[(int) $mapping['amount_col']] ?? null];
+
+            foreach ($amountCells as $cell) {
+                if ($this->amountNormalizer->parse($cell !== null ? (string) $cell : null) !== null) {
+                    $hasAmount = true;
+                }
+            }
+        }
+
+        $problems = [];
+        if (! $hasDate) {
+            $problems[] = __('The date column has no dates in the first rows. Check the date column and the first data row.');
+        }
+        if (! $hasAmount) {
+            $problems[] = __('The amount column has no amounts in the first rows. Check the amount column and the first data row.');
+        }
+        if (! $hasDescription) {
+            $problems[] = __('The description column is empty in the first rows. Check the description column and the first data row.');
+        }
+
+        return $problems;
+    }
+
+    /**
      * Import using explicit column mapping (any bank / any layout).
      *
      * @param  array<string, mixed>  $mapping  Normalized mapping (see normalizeCustomMapping)
