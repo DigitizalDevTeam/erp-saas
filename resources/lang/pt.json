@@ -9984,5 +9984,15 @@
     "Could not load users. Type your email instead.": "Não foi possível carregar os utilizadores. Digite o seu email.",
     "This reconciliation is closed and cannot be deleted.": "Esta reconciliação está fechada e não pode ser excluída.",
     "This reconciliation has confirmed missing movements. Reverse them first, then delete it.": "Esta reconciliação tem movimentos em falta confirmados. Reverta-os primeiro e depois exclua-a.",
-    "Bank reconciliation import deleted.": "Importação de reconciliação bancária excluída."
+    "Bank reconciliation import deleted.": "Importação de reconciliação bancária excluída.",
+    "A refund requires a paid amount on this invoice.": "Um reembolso requer um valor pago nesta fatura.",
+    "This invoice has no remaining amount for a credit note.": "Esta fatura não tem valor restante para uma nota de crédito.",
+    "What happens to the money?": "O que acontece com o dinheiro?",
+    "Keep as customer credit": "Manter como crédito do cliente",
+    "Refund the money": "Reembolsar o dinheiro",
+    "Enter the reason for this credit note": "Indique o motivo desta nota de crédito",
+    "Supporting document (optional)": "Documento de suporte (opcional)",
+    "Cancelled and draft invoices are not listed.": "Faturas canceladas e em rascunho não são listadas.",
+    "Current document": "Documento atual",
+    "Supporting document": "Documento de suporte"
 }

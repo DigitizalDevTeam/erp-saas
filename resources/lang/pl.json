@@ -8985,5 +8985,15 @@
     "Could not load users. Type your email instead.": "Could not load users. Type your email instead.",
     "This reconciliation is closed and cannot be deleted.": "This reconciliation is closed and cannot be deleted.",
     "This reconciliation has confirmed missing movements. Reverse them first, then delete it.": "This reconciliation has confirmed missing movements. Reverse them first, then delete it.",
-    "Bank reconciliation import deleted.": "Bank reconciliation import deleted."
+    "Bank reconciliation import deleted.": "Bank reconciliation import deleted.",
+    "A refund requires a paid amount on this invoice.": "A refund requires a paid amount on this invoice.",
+    "This invoice has no remaining amount for a credit note.": "This invoice has no remaining amount for a credit note.",
+    "What happens to the money?": "What happens to the money?",
+    "Keep as customer credit": "Keep as customer credit",
+    "Refund the money": "Refund the money",
+    "Enter the reason for this credit note": "Enter the reason for this credit note",
+    "Supporting document (optional)": "Supporting document (optional)",
+    "Cancelled and draft invoices are not listed.": "Cancelled and draft invoices are not listed.",
+    "Current document": "Current document",
+    "Supporting document": "Supporting document"
 }
