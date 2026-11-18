@@ -253,6 +253,70 @@ class TreasuryReconciliationServiceTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // Outstanding total: partially matched lines still owe their
+    // residual; missing-movement amounts must match the line
+    // ------------------------------------------------------------------
+
+    public function test_unmatched_signed_total_counts_partial_line_residual(): void
+    {
+        $session = $this->makeSession();
+        $partial = $this->makeLine($session, 1, '2026-11-05', 'Transfer in', '10000.0000', '210000.0000');
+        $operation = $this->makeOperation('10000.0000', 'PART-OP');
+        $this->service->matchToTreasuryOperation(1, $session->id, $partial->id, $operation->id, 2, '4000');
+        $this->makeLine($session, 2, '2026-11-06', 'Fee', '-50.0000', '209950.0000');
+        $full = $this->makeLine($session, 3, '2026-11-07', 'Transfer in', '100.0000', '210050.0000');
+        BankReconciliationMatch::create([
+            'session_id' => $session->id, 'statement_line_id' => $full->id,
+            'transaction_id' => 999, 'treasury_operation_id' => null,
+            'matched_amount' => '100.0000', 'match_type' => 'auto',
+        ]);
+
+        // 6,000 still owed on the partial line, minus the 50 fee,
+        // zero on the fully matched line. The old code skipped the
+        // partial line entirely and reported -50.0000.
+        $summary = $this->service->sessionSummary($session);
+
+        $this->assertSame('5950.0000', (string) $summary['outstanding_items']);
+    }
+
+    public function test_propose_missing_movement_refuses_opposite_sign_amount(): void
+    {
+        $session = $this->makeSession();
+        $line = $this->makeLine($session, 1, '2026-11-05', 'Transfer out', '-50000.0000', '160000.0000');
+
+        $this->expectException(TreasuryException::class);
+        $this->expectExceptionMessage('same sign as the statement line amount');
+        $this->service->proposeMissingMovement(1, $session->id, $line->id, 2, [
+            'category' => 'fee', 'offset_account_id' => 2, 'amount' => '6000',
+        ]);
+    }
+
+    public function test_propose_missing_movement_refuses_amount_larger_than_line(): void
+    {
+        $session = $this->makeSession();
+        $line = $this->makeLine($session, 1, '2026-11-05', 'Transfer out', '-50.0000', '209950.0000');
+
+        $this->expectException(TreasuryException::class);
+        $this->expectExceptionMessage('must not be larger than the statement line amount');
+        $this->service->proposeMissingMovement(1, $session->id, $line->id, 2, [
+            'category' => 'fee', 'offset_account_id' => 2, 'amount' => '-60',
+        ]);
+    }
+
+    public function test_propose_missing_movement_accepts_partial_same_sign_amount(): void
+    {
+        $session = $this->makeSession();
+        $line = $this->makeLine($session, 1, '2026-11-05', 'Transfer out', '-50.0000', '209950.0000');
+
+        $movement = $this->service->proposeMissingMovement(1, $session->id, $line->id, 2, [
+            'category' => 'fee', 'offset_account_id' => 2, 'amount' => '-6',
+        ]);
+
+        $this->assertSame('proposed', $movement->state);
+        $this->assertSame('-6.0000', (string) $movement->amount_original);
+    }
+
+    // ------------------------------------------------------------------
     // CA12 — matches to Treasury operations, with residuals
     // ------------------------------------------------------------------
 
