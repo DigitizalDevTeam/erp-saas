@@ -154,6 +154,14 @@ class TreasuryReconciliationService
                     ->whereDate('bank_statement_lines.txn_date', $line->txn_date->format('Y-m-d'))
                     ->where('bank_statement_lines.amount', (string) $line->amount)
                     ->where('bank_statement_lines.description', (string) ($line->description ?? ''))
+                    // A real statement repeats identical lines: four
+                    // ATM withdrawals of 5,000.00 on one day, monthly
+                    // salary transfers, bank fees. They share date,
+                    // amount and description, but each has its own
+                    // running balance — that is what tells a repeat
+                    // apart from a re-import. Without a balance column
+                    // mapped, fall back to the old key.
+                    ->when($line->balance !== null, fn ($q) => $q->where('bank_statement_lines.balance', (string) $line->balance))
                     ->where('bank_statement_lines.id', '<', $line->id)
                     ->exists();
 

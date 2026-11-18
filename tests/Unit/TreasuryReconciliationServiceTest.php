@@ -152,6 +152,40 @@ class TreasuryReconciliationServiceTest extends TestCase
         $this->assertSame('Bank fee', BankStatementLine::where('session_id', $second->id)->orderBy('id')->first()->description);
     }
 
+    public function test_same_line_with_different_balance_is_kept(): void
+    {
+        // Colosso extrato regression (session 7, 2026-11-19): four
+        // ATM withdrawals of 5,000.00 on the same day share date,
+        // amount and description, but each has its own running
+        // balance — four real withdrawals, not duplicates.
+        $first = $this->makeSession();
+        $this->makeLine($first, 1, '2026-11-05', 'ATM withdrawal', '-5000.0000', '225215.7400');
+
+        $second = $this->makeSession();
+        $this->makeLine($second, 1, '2026-11-05', 'ATM withdrawal', '-5000.0000', '220215.7400');
+        $this->makeLine($second, 2, '2026-11-05', 'ATM withdrawal', '-5000.0000', '215215.7400');
+
+        $result = $this->service->dedupeSessionLines($second);
+
+        $this->assertSame(['removed' => 0, 'kept' => 2], $result);
+        $this->assertSame(2, BankStatementLine::where('session_id', $second->id)->count());
+    }
+
+    public function test_same_line_without_balance_still_dedupes(): void
+    {
+        // No balance column mapped: fall back to date + amount +
+        // description, so a true re-import is still caught.
+        $first = $this->makeSession();
+        $this->makeLine($first, 1, '2026-11-05', 'Transfer in', '5000.0000', null);
+
+        $second = $this->makeSession();
+        $this->makeLine($second, 1, '2026-11-05', 'Transfer in', '5000.0000', null);
+
+        $result = $this->service->dedupeSessionLines($second);
+
+        $this->assertSame(['removed' => 1, 'kept' => 0], $result);
+    }
+
     // ------------------------------------------------------------------
     // CA12 — matches to Treasury operations, with residuals
     // ------------------------------------------------------------------
