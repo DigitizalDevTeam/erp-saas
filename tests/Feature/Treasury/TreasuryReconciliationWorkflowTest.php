@@ -91,7 +91,7 @@ class TreasuryReconciliationWorkflowTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (['treasury_statement_sync_cursors', 'treasury_missing_movements', 'bank_reconciliation_matches', 'bank_statement_lines', 'bank_reconciliation_sessions', 'treasury_entries', 'treasury_operations', 'treasury_opening_balances', 'treasury_financial_accounts', 'dimension_audit_events', 'journal_items', 'journal_entries', 'transaction_lines', 'transactions', 'bank_accounts', 'chart_of_accounts', 'branches', 'branch_user', 'settings', 'users', 'roles', 'permissions', 'model_has_permissions', 'model_has_roles', 'role_has_permissions', 'plans', 'languages', 'ch_messages', 'email_templates'] as $table) {
+        foreach (['treasury_statement_sync_cursors', 'treasury_missing_movements', 'bank_reconciliation_matches', 'bank_statement_lines', 'bank_reconciliation_sessions', 'bank_reconciliation_mappings', 'treasury_entries', 'treasury_operations', 'treasury_opening_balances', 'treasury_financial_accounts', 'dimension_audit_events', 'journal_items', 'journal_entries', 'transaction_lines', 'transactions', 'bank_accounts', 'chart_of_accounts', 'branches', 'branch_user', 'settings', 'users', 'roles', 'permissions', 'model_has_permissions', 'model_has_roles', 'role_has_permissions', 'plans', 'languages', 'ch_messages', 'email_templates'] as $table) {
             Schema::dropIfExists($table);
         }
 
@@ -238,6 +238,112 @@ class TreasuryReconciliationWorkflowTest extends TestCase
             ->assertSessionHas('error');
 
         $this->assertSame(0, BankReconciliationMatch::where('statement_line_id', $line->id)->count());
+    }
+
+    // ------------------------------------------------------------------
+    // Step 2 usability (2026-11-19): auto-detect, saved mapping,
+    // header dropdowns, pre-import validation.
+    // ------------------------------------------------------------------
+
+    public function test_map_page_auto_detects_bci_layout_and_shows_header_names(): void
+    {
+        $session = $this->storeBciStatement();
+
+        $response = $this->actingAs(User::findOrFail(1))
+            ->get(route('bank-reconciliation.map', $session));
+
+        $response->assertOk();
+        $response->assertSee('Columns detected automatically');
+        $content = $response->getContent();
+        $this->assertStringContainsString('0 — Data Mov.', $content);
+        $this->assertStringContainsString('4 — Descrição', $content);
+        $this->assertStringContainsString('5 — Valor', $content);
+        $this->assertStringContainsString('6 — Saldo', $content);
+        $this->assertStringContainsString('value="10"', $content);
+        $this->assertStringContainsString('<option value="0" selected="selected">', $content);
+    }
+
+    public function test_apply_mapping_with_correct_bci_values_imports_all_lines_and_saves_mapping(): void
+    {
+        $session = $this->storeBciStatement();
+
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('bank-reconciliation.apply-mapping', $session), $this->bciMapping())
+            ->assertRedirect(route('bank-reconciliation.show', $session))
+            ->assertSessionHas('success');
+
+        $this->assertSame(3, BankStatementLine::where('session_id', $session->id)->count());
+        $first = BankStatementLine::where('session_id', $session->id)->orderBy('row_index')->firstOrFail();
+        $this->assertSame('2025-01-07', $first->txn_date->format('Y-m-d'));
+        $this->assertSame('Compra LAM', $first->description);
+        $this->assertEquals(-2006.0, (float) $first->amount);
+        $this->assertSame('2025-01-07', $session->fresh()->period_from->format('Y-m-d'));
+        $this->assertSame('2025-01-09', $session->fresh()->period_to->format('Y-m-d'));
+
+        $saved = \App\Models\BankReconciliationMapping::forAccount(1, 1);
+        $this->assertNotNull($saved);
+        $this->assertSame(0, (int) $saved->mapping['date_col']);
+        $this->assertSame(5, (int) $saved->mapping['amount_col']);
+    }
+
+    public function test_saved_mapping_is_reused_on_next_import(): void
+    {
+        $session = $this->storeBciStatement();
+
+        // First import uses a custom mapping (date from "Data Valor",
+        // column 3, not the detected column 0).
+        $custom = $this->bciMapping();
+        $custom['date_col'] = 3;
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('bank-reconciliation.apply-mapping', $session), $custom)
+            ->assertRedirect();
+
+        // Second import of a different file, same account: the saved
+        // mapping (date column 3) wins over auto-detection (column 0).
+        $session2 = $this->storeBciStatement('statement2.csv', '07-01-2025,906421032,635953221,07/01/2025,Compra LAM,-2006.00,"+46.387,08",MZN');
+        $response = $this->actingAs(User::findOrFail(1))
+            ->get(route('bank-reconciliation.map', $session2));
+
+        $response->assertOk();
+        $response->assertSee('Loaded your saved mapping');
+        $this->assertStringContainsString('<option value="3" selected="selected">', $response->getContent());
+    }
+
+    public function test_apply_mapping_with_wrong_first_row_is_rejected_before_import(): void
+    {
+        // The session-6 regression: generic defaults read the
+        // account-info rows as transactions. Nothing may import.
+        $session = $this->storeBciStatement();
+
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('bank-reconciliation.apply-mapping', $session), [
+                'first_data_row' => 2,
+                'date_col' => 0,
+                'description_col' => 1,
+                'amount_mode' => 'signed_column',
+                'amount_col' => 2,
+                'balance_col' => '',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertSame(0, BankStatementLine::where('session_id', $session->id)->count());
+        $this->assertNull(\App\Models\BankReconciliationMapping::forAccount(1, 1));
+    }
+
+    public function test_apply_mapping_with_wrong_amount_column_is_rejected_before_import(): void
+    {
+        $session = $this->storeBciStatement();
+
+        $mapping = $this->bciMapping();
+        $mapping['amount_col'] = 4; // the description column: no amounts there
+
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('bank-reconciliation.apply-mapping', $session), $mapping)
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertSame(0, BankStatementLine::where('session_id', $session->id)->count());
     }
 
     // ------------------------------------------------------------------
@@ -475,6 +581,56 @@ class TreasuryReconciliationWorkflowTest extends TestCase
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
+
+    protected function bciMapping(): array
+    {
+        return [
+            'first_data_row' => 10,
+            'date_col' => 0,
+            'description_col' => 4,
+            'amount_mode' => 'signed_column',
+            'amount_col' => 5,
+            'balance_col' => 6,
+        ];
+    }
+
+    protected function bciCsvContent(): string
+    {
+        return <<<'CSV'
+Conta,1005327510001
+Nib,000800001005327510180
+"Saldo Anterior","+48.393,08 MZN"
+
+
+"Saldo Disponível","+121.895,21 MZN"
+"Saldo Contabilístico","+121.895,21 MZN"
+
+"Data Mov.","Número de Documento","Num. Oper.","Data Valor",Descrição,Valor,Saldo,Moeda
+07-01-2025,906421032,635953221,07/01/2025,Compra LAM,-2006.00,"+46.387,08",MZN
+08-01-2025,912660852,642551926,08/01/2025,Dep.Num. 912660852,153729.00,"+197.177,60",MZN
+09-01-2025,917452658,641381591,09/01/2025,Pag.Saldo Divida,-35.01,"+197.142,59",MZN
+CSV;
+    }
+
+    protected function storeBciStatement(string $filename = 'statement.csv', ?string $lastRow = null): BankReconciliationSession
+    {
+        Storage::fake('local');
+        $content = $this->bciCsvContent();
+        if ($lastRow !== null) {
+            $lines = explode("\n", trim($content));
+            $lines[count($lines) - 1] = $lastRow;
+            $content = implode("\n", $lines)."\n";
+        }
+
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('bank-reconciliation.store'), [
+                'bank_account_id' => 1,
+                'statement' => UploadedFile::fake()->createWithContent($filename, $content),
+            ])
+            ->assertRedirect();
+
+        return BankReconciliationSession::latest('id')->firstOrFail();
+    }
 
     protected function makeSession(array $overrides = []): BankReconciliationSession
     {
@@ -744,6 +900,16 @@ class TreasuryReconciliationWorkflowTest extends TestCase
             $table->bigInteger('journal_id')->nullable();
             $table->integer('created_by');
             $table->timestamps();
+        });
+        Schema::create('bank_reconciliation_mappings', function ($table) {
+            $table->id();
+            $table->unsignedBigInteger('bank_account_id');
+            $table->unsignedInteger('created_by');
+            $table->string('preset_key', 64)->nullable();
+            $table->json('mapping')->nullable();
+            $table->dateTime('last_used_at')->nullable();
+            $table->timestamps();
+            $table->unique(['bank_account_id', 'created_by'], 'brm_acct_creator_uq');
         });
         Schema::create('bank_reconciliation_sessions', function ($table) {
             $table->id();

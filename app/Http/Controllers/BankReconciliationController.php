@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BankAccount;
+use App\Models\BankReconciliationMapping;
 use App\Models\BankReconciliationMatch;
 use App\Models\BankReconciliationSession;
 use App\Models\BankStatementLine;
@@ -123,6 +124,12 @@ class BankReconciliationController extends Controller
 
     /**
      * Step 2: preview rows + column mapping (works for any bank).
+     *
+     * The mapping is prefilled in this order: an explicit suggestion
+     * (?suggest=), the mapping saved for this bank account from the
+     * last import, a preset that auto-detects the file layout, then
+     * the generic defaults. Nothing is imported here — the user
+     * still checks the values and submits.
      */
     public function map(Request $request, BankReconciliationSession $bankReconciliationSession, StatementImportService $importService)
     {
@@ -153,11 +160,33 @@ class BankReconciliationController extends Controller
 
         $suggested = null;
         $suggestKey = $request->query('suggest');
+        $mappingSource = 'default';
         if ($suggestKey && $suggestionKeys->contains($suggestKey)) {
             $suggested = $importService->suggestMappingForRows($rows, $suggestKey);
             if ($suggested === null) {
                 return redirect()->route('bank-reconciliation.map', $bankReconciliationSession)
                     ->with('warning', __('Could not auto-detect columns for that layout. Map columns manually below.'));
+            }
+            $mappingSource = 'suggested';
+        } elseif (! $request->query('reset')) {
+            $saved = BankReconciliationMapping::forAccount(
+                (int) $bankReconciliationSession->bank_account_id,
+                (int) \Auth::user()->creatorId()
+            );
+            if ($saved && is_array($saved->mapping) && $saved->mapping !== []) {
+                $suggested = $saved->mapping;
+                $suggestKey = $saved->preset_key ?: null;
+                $mappingSource = 'saved';
+            } else {
+                foreach ($suggestionKeys as $key) {
+                    $detected = $importService->suggestMappingForRows($rows, $key);
+                    if ($detected !== null) {
+                        $suggested = $detected;
+                        $suggestKey = $key;
+                        $mappingSource = 'detected';
+                        break;
+                    }
+                }
             }
         }
 
@@ -169,6 +198,9 @@ class BankReconciliationController extends Controller
             'suggestionKeys' => $suggestionKeys,
             'suggestKey' => $suggestKey,
             'suggestedFound' => $suggested !== null,
+            'mappingSource' => $mappingSource,
+            'mappingSourceLabel' => $suggestKey ? config('bank_reconciliation.presets.'.$suggestKey.'.label', $suggestKey) : null,
+            'headerOptions' => $this->headerOptions($rows, $defaults),
             'defaults' => $defaults,
         ]);
     }
@@ -230,13 +262,40 @@ class BankReconciliationController extends Controller
         }
         $bankReconciliationSession->save();
 
+        // Validate the mapping against the first data rows before
+        // importing anything: a wrong first row or a wrong column
+        // used to import hundreds of garbage lines with no warning
+        // (see the Colosso extrato imported with the generic
+        // defaults). Problems come back as a visible error and
+        // nothing is imported.
+        $problems = $importService->validateMapping($importService->loadRows($absolute), $mapping);
+        if ($problems !== []) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', implode(' ', $problems));
+        }
+
         try {
-            $importService->importFromColumnMapping($bankReconciliationSession, $absolute, $mapping);
+            $imported = $importService->importFromColumnMapping($bankReconciliationSession, $absolute, $mapping);
         } catch (\Throwable $e) {
             return redirect()->back()
                 ->withInput()
                 ->with('error', $e->getMessage());
         }
+
+        // Remember this mapping for the bank account, so the next
+        // import for the same account starts from it.
+        BankReconciliationMapping::updateOrCreate(
+            [
+                'bank_account_id' => $bankReconciliationSession->bank_account_id,
+                'created_by' => (int) \Auth::user()->creatorId(),
+            ],
+            [
+                'preset_key' => $bankReconciliationSession->preset_key,
+                'mapping' => $imported['mapping'],
+                'last_used_at' => now(),
+            ]
+        );
 
         // Phase 7 (CA11): drop lines this company already holds
         // for the same bank account (same date + amount +
@@ -554,6 +613,35 @@ class BankReconciliationController extends Controller
             ->delete();
 
         return redirect()->back()->with('success', __('Match removed.'));
+    }
+
+    /**
+     * Column-picker options for the mapping form: "0 — Data Mov.",
+     * "4 — Descrição", … built from the header row (the row just
+     * above the first data row). Columns with no header text fall
+     * back to a plain "Column N" label.
+     *
+     * @param  array<int, array<int, mixed>>  $rows
+     * @param  array<string, mixed>  $defaults
+     * @return array<int, string>
+     */
+    protected function headerOptions(array $rows, array $defaults): array
+    {
+        $headerRowIndex = max(0, (int) ($defaults['first_data_row'] ?? 2) - 2);
+        $headerCells = $rows[$headerRowIndex] ?? [];
+
+        $maxCol = 1;
+        foreach (array_slice($rows, 0, 35) as $row) {
+            $maxCol = max($maxCol, count($row));
+        }
+
+        $options = [];
+        for ($c = 0; $c < $maxCol; $c++) {
+            $label = trim((string) ($headerCells[$c] ?? ''));
+            $options[$c] = $label !== '' ? $c.' — '.mb_substr($label, 0, 28) : __('Column :n', ['n' => $c]);
+        }
+
+        return $options;
     }
 
     /**
