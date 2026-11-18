@@ -92,6 +92,148 @@ class AdminRolePermissionBackfill
         'menu.settings.referral',
     ];
 
+    /**
+     * Client follow-up (2026-11-19) — Kitchen Production, Treasury
+     * and Fixed Assets access for admin-type roles.
+     *
+     * Root cause: the three modules' permissions (action + menu.*)
+     * live only on the seeded `company` role. Any Admin /
+     * Administrador / Administrator role created through the UI
+     * holds none of them, so the sidebar hides all three modules
+     * — Neyde (Colosso 'Admin', MMCEMENT 'Administrador') saw
+     * only Cost Centres / Contracts / Bank Reconciliation. The
+     * set below is exactly the 89 permissions the seeded `company`
+     * role holds for these three modules (verified against the
+     * test-site database 2026-11-19). 'manage treasury dimensions'
+     * and its menu node are shared with Cost Centres and are
+     * included so the set is complete on its own; the backfill
+     * skips grants the role already holds.
+     *
+     * Fix: grant all 89 to every Admin / Administrador /
+     * Administrator / company role, skipping grants the role
+     * already holds. Idempotent. Menu grants are never removed
+     * here.
+     */
+    public const NEW_MODULE_PERMISSIONS = [
+        // Kitchen Production — actions
+        'approve kitchen losses',
+        'approve kitchen production orders',
+        'approve kitchen production plans',
+        'approve kitchen recipes',
+        'approve kitchen requisitions',
+        'create kitchen recipes',
+        'manage kitchen buffets',
+        'manage kitchen daily specials',
+        'manage kitchen losses',
+        'manage kitchen production',
+        'manage kitchen production orders',
+        'manage kitchen requisitions',
+        'view kitchen reports',
+        // Kitchen Production — menu
+        'menu.kitchen_production',
+        'menu.kitchen_production.buffet_events',
+        'menu.kitchen_production.cost_control',
+        'menu.kitchen_production.daily_specials',
+        'menu.kitchen_production.kitchen_stock',
+        'menu.kitchen_production.losses',
+        'menu.kitchen_production.production_orders',
+        'menu.kitchen_production.production_plans',
+        'menu.kitchen_production.recipes',
+        'menu.kitchen_production.reports',
+        'menu.kitchen_production.requisitions',
+        // Treasury — actions
+        'allocate treasury receipts',
+        'approve treasury cash variances',
+        'approve treasury payments',
+        'approve treasury reconciliation',
+        'confirm treasury receipts',
+        'create treasury payment requests',
+        'create treasury receipts',
+        'execute treasury payments',
+        'manage treasury accounts',
+        'manage treasury advances',
+        'manage treasury cash flow',
+        'manage treasury cash sessions',
+        'manage treasury dimensions',
+        'manage treasury reconciliation',
+        'manage treasury recurring',
+        'manage treasury transfers',
+        'reverse treasury operations',
+        'view treasury',
+        'view treasury reports',
+        // Treasury — menu
+        'menu.dashboard.accounting.treasury',
+        'menu.dashboard.accounting.treasury.accounts',
+        'menu.dashboard.accounting.treasury.advances',
+        'menu.dashboard.accounting.treasury.approvals',
+        'menu.dashboard.accounting.treasury.audit_trail',
+        'menu.dashboard.accounting.treasury.cash_flow',
+        'menu.dashboard.accounting.treasury.cash_sessions',
+        'menu.dashboard.accounting.treasury.dashboard',
+        'menu.dashboard.accounting.treasury.opening_balances',
+        'menu.dashboard.accounting.treasury.payment_requests',
+        'menu.dashboard.accounting.treasury.petty_cash',
+        'menu.dashboard.accounting.treasury.receipts',
+        'menu.dashboard.accounting.treasury.reconciliation',
+        'menu.dashboard.accounting.treasury.recurring',
+        'menu.dashboard.accounting.treasury.reports',
+        'menu.dashboard.accounting.treasury.reservations',
+        'menu.dashboard.accounting.treasury.settings',
+        'menu.dashboard.accounting.treasury.transfers',
+        // Fixed Assets — actions
+        'approve fixed asset acquisitions',
+        'approve fixed asset disposals',
+        'approve fixed asset transfers',
+        'create fixed assets',
+        'delete fixed assets',
+        'edit fixed assets',
+        'manage fixed asset categories',
+        'manage fixed asset settings',
+        'manage fixed assets',
+        'post fixed asset depreciation',
+        'view fixed asset audit trail',
+        // Fixed Assets — menu
+        'menu.dashboard.accounting.fixed_assets',
+        'menu.dashboard.accounting.fixed_assets.acquisitions',
+        'menu.dashboard.accounting.fixed_assets.assignments',
+        'menu.dashboard.accounting.fixed_assets.audit_trail',
+        'menu.dashboard.accounting.fixed_assets.categories',
+        'menu.dashboard.accounting.fixed_assets.dashboard',
+        'menu.dashboard.accounting.fixed_assets.depreciation',
+        'menu.dashboard.accounting.fixed_assets.disposals',
+        'menu.dashboard.accounting.fixed_assets.import',
+        'menu.dashboard.accounting.fixed_assets.locations',
+        'menu.dashboard.accounting.fixed_assets.maintenance',
+        'menu.dashboard.accounting.fixed_assets.new_asset',
+        'menu.dashboard.accounting.fixed_assets.register',
+        'menu.dashboard.accounting.fixed_assets.reports',
+        'menu.dashboard.accounting.fixed_assets.settings',
+        'menu.dashboard.accounting.fixed_assets.transfers',
+        'menu.dashboard.accounting.fixed_assets.verification',
+    ];
+
+    public static function runNewModuleBackfill(): void
+    {
+        if (! Schema::hasTable('roles') || ! Schema::hasTable('permissions') || ! Schema::hasTable('role_has_permissions')) {
+            return;
+        }
+
+        foreach (self::NEW_MODULE_PERMISSIONS as $name) {
+            Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+        SidebarMenuPermissionCatalog::ensurePermissionsExist();
+
+        foreach (Role::whereIn('name', self::ADMIN_ROLE_NAMES)->get() as $role) {
+            $held = $role->permissions()->pluck('name')->all();
+            $missing = array_values(array_diff(self::NEW_MODULE_PERMISSIONS, $held));
+            if ($missing !== []) {
+                $role->givePermissionTo($missing);
+            }
+        }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
     public static function runLayoutAndPlanBackfill(): void
     {
         if (! Schema::hasTable('roles') || ! Schema::hasTable('permissions') || ! Schema::hasTable('role_has_permissions')) {
