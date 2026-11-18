@@ -596,6 +596,17 @@ class TreasuryReconciliationService
             if (bccomp($amountOriginal, '0', 4) === 0) {
                 throw new TreasuryException('The missing movement amount must not be zero.');
             }
+            // The movement explains (part of) this line, so its
+            // amount must point the same way as the line and must
+            // not be larger than the line: a positive amount on a
+            // payment line posts the journal backwards and the
+            // close difference goes wrong by twice the amount.
+            if (bccomp($amountOriginal, '0', 4) * bccomp((string) $line->amount, '0', 4) < 0) {
+                throw new TreasuryException('The missing movement amount must have the same sign as the statement line amount (a payment line needs a negative amount, a receipt line needs a positive amount).');
+            }
+            if (bccomp($this->abs4($amountOriginal), $this->abs4((string) $line->amount), 4) > 0) {
+                throw new TreasuryException('The missing movement amount must not be larger than the statement line amount.');
+            }
 
             $baseCurrency = TreasurySettings::baseCurrency($creatorId);
             $rate = '1.0000000000';
@@ -1221,13 +1232,24 @@ class TreasuryReconciliationService
 
     protected function unmatchedSignedTotal(BankReconciliationSession $session): string
     {
+        // Outstanding is the sum of what is still unmatched on
+        // each line: a partially matched line still owes its
+        // residual. A line with a match used to drop out of this
+        // total entirely, so a partial missing movement (6,000 of
+        // a 50,000 line) made 44,000 vanish from the outstanding
+        // total and the close difference went wrong by exactly
+        // that amount.
         $total = '0.0000';
         $lines = BankStatementLine::where('session_id', $session->id)->get();
         foreach ($lines as $line) {
-            if ($line->matches()->exists()) {
+            $residual = $this->lineResidual($line);
+            if (bccomp($residual, '0', 4) === 0) {
                 continue;
             }
-            $total = bcadd($total, (string) ($line->amount ?? '0'), 4);
+            $signed = bccomp((string) ($line->amount ?? '0'), '0', 4) < 0
+                ? bcsub('0', $residual, 4)
+                : $residual;
+            $total = bcadd($total, $signed, 4);
         }
 
         return $total;
