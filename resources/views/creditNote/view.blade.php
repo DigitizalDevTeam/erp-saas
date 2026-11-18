@@ -120,6 +120,22 @@
                                         {!! $note->description ?? 'N\A' !!}
                                     </div>
                             </div>
+                            @if(!empty($note->disposition))
+                            <div class="row mt-3">
+                                    <small><strong>{{ __('What happens to the money?') }}</strong></small>
+                                    <div class="mt-2">
+                                        {{ $note->disposition === 'refund' ? __('Refund the money') : __('Keep as customer credit') }}
+                                    </div>
+                            </div>
+                            @endif
+                            @if(!empty($note->attachment))
+                            <div class="row mt-3">
+                                    <small><strong>{{ __('Supporting document') }}</strong></small>
+                                    <div class="mt-2">
+                                        <a href="{{ asset(Storage::url('uploads/credit-notes')) . '/' . $note->attachment }}" target="_blank">{{ $note->attachment }}</a>
+                                    </div>
+                            </div>
+                            @endif
                             <div class="row mt-4">
                                 <div class="col-md-12">
                                     <div class="font-weight-bold">{{ __('Return Product') }}</div>

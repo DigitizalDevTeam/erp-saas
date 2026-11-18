@@ -1,4 +1,4 @@
-{{ Form::open(array('route' => array('invoice.custom.credit.note'),'mothod'=>'post', 'class'=>'needs-validation', 'novalidate')) }}
+{{ Form::open(array('route' => array('invoice.custom.credit.note'),'mothod'=>'post', 'class'=>'needs-validation', 'novalidate', 'files' => true)) }}
 <div class="modal-body">
     <div class="row">
         <div class="form-group col-md-12">
@@ -6,14 +6,14 @@
                 <select class="form-control select" id="invoice" name="invoice">
                     <option value="">{{__('Select Invoice (Optional)')}}</option>
                     @foreach($invoices as $key=>$invoice)
-                        <option value="{{$key}}">{{\Auth::user()->invoiceNumberFormat($invoice)}}</option>
+                        <option value="{{$key}}" data-paid="{{ $invoicePaidAmounts[$key] ?? 0 }}">{{\Auth::user()->invoiceNumberFormat($invoice)}}</option>
                     @endforeach
                 </select>
                 <div class="text-xs mt-1">
                     {{ __('Create invoice here.') }} <a href="{{ route('invoice.index') }}"><b>{{ __('Create invoice') }}</b></a>
                 </div>
                 <div class="text-xs text-muted mt-1">
-                    {{ __('Paid and cancelled invoices are not listed.') }}
+                    {{ __('Cancelled and draft invoices are not listed.') }}
                 </div>
         </div>
         <div class="form-group col-md-12" id="customer_div" style="display: none;">
@@ -46,8 +46,23 @@
 
         </div>
         <div class="form-group col-md-12">
-            {{ Form::label('description', __('Description'),['class'=>'form-label']) }}
-            {!! Form::textarea('description', null, ['class'=>'form-control','rows'=>'2' , 'placeholder' => __('Enter Description')]) !!}
+            {{ Form::label('disposition', __('What happens to the money?'),['class'=>'form-label']) }}<x-required></x-required>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="disposition" id="disposition_credit" value="credit" required>
+                <label class="form-check-label" for="disposition_credit">{{ __('Keep as customer credit') }}</label>
+            </div>
+            <div class="form-check" id="disposition_refund_wrap" style="display:none;">
+                <input class="form-check-input" type="radio" name="disposition" id="disposition_refund" value="refund">
+                <label class="form-check-label" for="disposition_refund">{{ __('Refund the money') }}</label>
+            </div>
+        </div>
+        <div class="form-group col-md-12">
+            {{ Form::label('description', __('Reason'),['class'=>'form-label']) }}<x-required></x-required>
+            {!! Form::textarea('description', null, ['class'=>'form-control','rows'=>'2' , 'placeholder' => __('Enter the reason for this credit note'), 'required' => 'required']) !!}
+        </div>
+        <div class="form-group col-md-12">
+            {{ Form::label('attachment', __('Supporting document (optional)'),['class'=>'form-label']) }}
+            <input type="file" name="attachment" class="form-control">
         </div>
         <div class="form-group col-md-12" id="return_items_div">
             <input type="checkbox" id="return_items" name="return_items" value="1">
@@ -103,8 +118,24 @@
             }
         }
 
+        function toggleDisposition() {
+            // "Refund the money" is only offered when the selected
+            // invoice has money paid on it; otherwise only keeping
+            // the amount as customer credit applies.
+            var paid = parseFloat($('#invoice option:selected').data('paid')) || 0;
+            if (paid > 0) {
+                $('#disposition_refund_wrap').show();
+            } else {
+                $('#disposition_refund_wrap').hide();
+                if ($('#disposition_refund').prop('checked')) {
+                    $('#disposition_credit').prop('checked', true);
+                }
+            }
+        }
+
         $('#invoice').on('change', function () {
             var invoiceId = $(this).val();
+            toggleDisposition();
             if (invoiceId) {
                 $.ajax({
                     url: "{{ route('invoice.get.items') }}",
@@ -144,5 +175,6 @@
 
         $('#invoice').trigger('change');
         toggleItemsUi();
+        toggleDisposition();
     });
 </script>

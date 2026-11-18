@@ -109,7 +109,7 @@
                 $.ajax({
                     url: "{{ route('invoice.get.items') }}",
                     type: "GET",
-                    data: {invoice_id: invoiceId},
+                    data: {invoice_id: invoiceId, note_type: 'debit'},
                     success: function (response) {
                         $('#invoice-items').html(response.html);
                         toggleItemsUi();
