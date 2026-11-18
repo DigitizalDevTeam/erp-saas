@@ -170,6 +170,94 @@ class ClientIssuesFollowupPermissionsTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // New-module backfill (2026-11-19) — Kitchen, Treasury, Fixed Assets
+    // ------------------------------------------------------------------
+
+    public function test_new_module_backfill_grants_kitchen_treasury_fixed_asset_permissions_to_admin_roles(): void
+    {
+        // Neyde (Colosso 'Admin', MMCEMENT 'Administrador') sees only
+        // Cost Centres / Contracts / Bank Reconciliation: her roles
+        // hold none of the Kitchen, Treasury or Fixed Assets
+        // permissions, while the seeded `company` role holds all 89.
+        $admin = Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+        $administrador = Role::create(['name' => 'Administrador', 'guard_name' => 'web']);
+        // Rows the fixture does not seed yet — create them so the
+        // "already held some" setup can grant them before the backfill.
+        foreach (['manage treasury dimensions', 'manage kitchen production', 'menu.kitchen_production'] as $name) {
+            Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+        $administrador->givePermissionTo(['manage treasury dimensions']);
+        $company = Role::create(['name' => 'company', 'guard_name' => 'web']);
+        $company->givePermissionTo(['manage kitchen production', 'menu.kitchen_production']);
+
+        AdminRolePermissionBackfill::runNewModuleBackfill();
+
+        foreach (AdminRolePermissionBackfill::NEW_MODULE_PERMISSIONS as $name) {
+            $this->assertTrue($admin->fresh()->hasPermissionTo($name), "Admin should have {$name}");
+            $this->assertTrue($administrador->fresh()->hasPermissionTo($name), "Administrador should have {$name}");
+            $this->assertTrue($company->fresh()->hasPermissionTo($name), "company should have {$name}");
+        }
+
+        // No duplicate pivot rows for the roles that already held some.
+        $this->assertSame(
+            count(AdminRolePermissionBackfill::NEW_MODULE_PERMISSIONS),
+            DB::table('role_has_permissions')
+                ->where('role_id', $company->id)
+                ->whereIn('permission_id', Permission::whereIn('name', AdminRolePermissionBackfill::NEW_MODULE_PERMISSIONS)->pluck('id')->all())
+                ->count()
+        );
+    }
+
+    public function test_new_module_backfill_is_idempotent(): void
+    {
+        $admin = Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+
+        AdminRolePermissionBackfill::runNewModuleBackfill();
+        $firstCount = DB::table('role_has_permissions')->where('role_id', $admin->id)->count();
+
+        AdminRolePermissionBackfill::runNewModuleBackfill();
+        $this->assertSame($firstCount, DB::table('role_has_permissions')->where('role_id', $admin->id)->count());
+        $this->assertSame(count(AdminRolePermissionBackfill::NEW_MODULE_PERMISSIONS), $firstCount);
+    }
+
+    public function test_new_module_backfill_does_not_touch_other_roles(): void
+    {
+        $cashier = Role::create(['name' => 'Cashier', 'guard_name' => 'web']);
+        $cashier->givePermissionTo(['manage invoice']);
+
+        $admin = Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+
+        AdminRolePermissionBackfill::runNewModuleBackfill();
+
+        foreach (AdminRolePermissionBackfill::NEW_MODULE_PERMISSIONS as $name) {
+            $this->assertFalse($cashier->fresh()->hasPermissionTo($name), "Cashier must NOT gain {$name}");
+        }
+        $this->assertSame(1, DB::table('role_has_permissions')->where('role_id', $cashier->id)->count());
+        $this->assertTrue($admin->fresh()->hasPermissionTo('manage kitchen production'));
+    }
+
+    public function test_menu_nodes_become_visible_to_admin_users_after_new_module_backfill(): void
+    {
+        $admin = Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+        $user = $this->makeAdminUser();
+        $user->assignRole($admin);
+
+        $nodes = ['menu.kitchen_production', 'menu.dashboard.accounting.treasury', 'menu.dashboard.accounting.fixed_assets'];
+        foreach ($nodes as $menu) {
+            $node = SidebarMenuPermissionCatalog::findNode($menu);
+            $this->assertNotNull($node, $menu);
+            $this->assertFalse(SidebarMenuPermissionCatalog::userCanSeeNode($node, $user->fresh()), "{$menu} must be hidden before the backfill");
+        }
+
+        AdminRolePermissionBackfill::runNewModuleBackfill();
+
+        foreach ($nodes as $menu) {
+            $node = SidebarMenuPermissionCatalog::findNode($menu);
+            $this->assertTrue(SidebarMenuPermissionCatalog::userCanSeeNode($node, $user->fresh()), "{$menu} must be visible after the backfill");
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Menu nodes become visible to an admin user after the backfill
     // ------------------------------------------------------------------
 
