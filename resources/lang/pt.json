@@ -10008,5 +10008,6 @@
     "Enter either a debit or a credit amount.": "Introduza um valor a débito ou a crédito.",
     "Each journal entry needs at least two lines.": "Cada lançamento precisa de pelo menos duas linhas.",
     "All lines in one journal entry must have the same date.": "Todas as linhas de um lançamento devem ter a mesma data.",
-    "Columns:": "Colunas:"
+    "Columns:": "Colunas:",
+    "Import failed. Please check the file and try again.": "A importação falhou. Verifique o ficheiro e tente novamente."
 }

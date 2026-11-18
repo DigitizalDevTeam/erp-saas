@@ -9868,5 +9868,6 @@
     "Enter either a debit or a credit amount.": "Enter either a debit or a credit amount.",
     "Each journal entry needs at least two lines.": "Each journal entry needs at least two lines.",
     "All lines in one journal entry must have the same date.": "All lines in one journal entry must have the same date.",
-    "Columns:": "Columns:"
+    "Columns:": "Columns:",
+    "Import failed. Please check the file and try again.": "Import failed. Please check the file and try again."
 }
