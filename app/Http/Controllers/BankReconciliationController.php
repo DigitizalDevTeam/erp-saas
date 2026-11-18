@@ -383,30 +383,7 @@ class BankReconciliationController extends Controller
         $summary = $recon->sessionSummary($session);
         $missingMovements = $session->missingMovements()->with('statementLine')->orderByDesc('id')->get();
 
-        $unmatchedOperations = collect();
-        $treasuryAccountIds = \App\Models\TreasuryFinancialAccount::where('bank_account_id', $session->bank_account_id)
-            ->where('created_by', $session->created_by)
-            ->pluck('id')
-            ->all();
-        if ($treasuryAccountIds !== []) {
-            $operationIds = \App\Models\TreasuryEntry::whereIn('financial_account_id', $treasuryAccountIds)
-                ->distinct()
-                ->pluck('operation_id')
-                ->all();
-            $unmatchedOperations = TreasuryOperation::whereIn('id', $operationIds)
-                ->where('created_by', $session->created_by)
-                ->where('state', TreasuryOperation::STATE_CONFIRMED)
-                ->orderByDesc('id')
-                ->limit(100)
-                ->get()
-                ->map(function ($op) use ($recon, $session) {
-                    $op->residual_amount = $recon->operationResidual($op, $session);
-
-                    return $op;
-                })
-                ->filter(fn ($op) => bccomp((string) $op->residual_amount, '0', 4) > 0)
-                ->values();
-        }
+        $unmatchedOperations = $recon->eligibleTreasuryOperations($session);
 
         return view('bankReconciliation.show', compact('session', 'matched', 'matchRows', 'unmatchedStatement', 'unmatchedErp', 'unmatchedOperations', 'missingMovements', 'summary', 'stats', 'from', 'to'));
     }

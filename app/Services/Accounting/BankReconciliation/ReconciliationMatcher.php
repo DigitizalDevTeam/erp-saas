@@ -138,6 +138,7 @@ class ReconciliationMatcher
                 ->join('treasury_operations', 'treasury_operations.id', '=', 'treasury_entries.operation_id')
                 ->where('treasury_operations.created_by', $creatorId)
                 ->where('treasury_operations.state', TreasuryOperation::STATE_CONFIRMED)
+                ->whereNull('treasury_operations.reversal_of_id')
                 ->whereIn('treasury_entries.financial_account_id', $treasuryAccountIds)
                 ->select('treasury_entries.*')
                 ->orderBy('treasury_entries.confirmed_at')

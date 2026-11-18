@@ -449,6 +449,78 @@ class TreasuryReconciliationWorkflowTest extends TestCase
         $this->assertEquals(50.0, (float) $items[1]->credit);
     }
 
+    public function test_reverse_missing_movement_marks_original_operation_reversed_and_hides_both_from_dropdown(): void
+    {
+        $session = $this->makeCloseSession();
+        $feeLine = BankStatementLine::where('session_id', $session->id)->where('description', 'Bank fee')->firstOrFail();
+
+        $this->actingAs(User::findOrFail(2))
+            ->post(route('treasury-reconciliation.missing-movement-propose', [$session, $feeLine]), [
+                'category' => 'fee', 'offset_account_id' => 2, 'reason' => 'Monthly account fee',
+            ])
+            ->assertRedirect(route('bank-reconciliation.show', $session));
+        $movement = TreasuryMissingMovement::where('statement_line_id', $feeLine->id)->firstOrFail();
+        $this->actingAs(User::findOrFail(3))
+            ->post(route('treasury-reconciliation.missing-movement-confirm', $movement))
+            ->assertRedirect(route('bank-reconciliation.show', $session))
+            ->assertSessionHas('success');
+        $originalOpId = (int) $movement->fresh()->operation_id;
+
+        // The reversal: approver reverses, the original operation
+        // is marked reversed, and neither it nor its reversal
+        // posting may be offered for matching again.
+        $this->actingAs(User::findOrFail(3))
+            ->post(route('treasury-reconciliation.missing-movement-reverse', $movement))
+            ->assertRedirect(route('bank-reconciliation.show', $session))
+            ->assertSessionHas('success');
+
+        $this->assertSame('reversed', $movement->fresh()->state);
+        $this->assertSame('reversed', TreasuryOperation::findOrFail($originalOpId)->state);
+        $reversalOpId = (int) $movement->fresh()->reversal_operation_id;
+        $this->assertNotSame(0, $reversalOpId);
+
+        $service = new \App\Services\TreasuryReconciliationService();
+        $eligible = $service->eligibleTreasuryOperations($session->fresh());
+        $this->assertNotContains($originalOpId, $eligible->pluck('id')->all());
+        $this->assertNotContains($reversalOpId, $eligible->pluck('id')->all());
+
+        // The reversal nets the original to zero, so the close
+        // figures are unchanged: the fee line is unmatched again
+        // (its match went with the reversal) and the difference
+        // stays zero.
+        $summary = $service->sessionSummary($session->fresh());
+        $this->assertSame('0.0000', (string) $summary['difference']);
+        $this->assertSame(0, BankReconciliationMatch::where('statement_line_id', $feeLine->id)->count());
+        $this->assertSame('-50.0000', (string) $summary['outstanding_items']);
+    }
+
+    public function test_auto_match_never_matches_reversal_operation(): void
+    {
+        // A reversal posting that matches a statement line exactly
+        // (same amount, same date) must still never auto-match.
+        $original = $this->makeOperation('153729.0000', 'ORIG-RCT-2026-0001');
+        $reversal = TreasuryOperation::create([
+            'reference' => 'REV-RCT-2026-0001', 'type' => 'adjustment', 'company_id' => 1,
+            'financial_account_id' => 1, 'currency' => 'MZN', 'amount_original' => '153729.0000',
+            'exchange_rate' => '1.0000000000', 'amount_base' => '153729.0000',
+            'posting_date' => '2025-01-08', 'effective_date' => '2025-01-08', 'value_date' => '2025-01-08',
+            'state' => 'confirmed', 'reversal_of_id' => $original->id, 'created_by' => 1,
+        ]);
+        TreasuryEntry::create([
+            'operation_id' => $reversal->id, 'financial_account_id' => 1,
+            'direction' => 'outflow', 'amount_original' => '153729.0000', 'amount_base' => '153729.0000',
+            'exchange_rate' => '1.0000000000', 'confirmed_at' => '2025-01-08 00:00:00', 'created_by' => 1,
+        ]);
+
+        $session = $this->storeBciStatement();
+        $this->actingAs(User::findOrFail(1))
+            ->post(route('bank-reconciliation.apply-mapping', $session), $this->bciMapping())
+            ->assertRedirect(route('bank-reconciliation.show', $session));
+
+        $this->assertSame(0, BankReconciliationMatch::where('treasury_operation_id', $reversal->id)->count());
+        $this->assertSame(0, BankReconciliationMatch::count());
+    }
+
     // ------------------------------------------------------------------
     // Treasury-operation match
     // ------------------------------------------------------------------
