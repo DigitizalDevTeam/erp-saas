@@ -9854,5 +9854,6 @@
     "Supporting document (optional)": "Supporting document (optional)",
     "Cancelled and draft invoices are not listed.": "Cancelled and draft invoices are not listed.",
     "Current document": "Current document",
-    "Supporting document": "Supporting document"
+    "Supporting document": "Supporting document",
+    "Reason is required.": "Reason is required."
 }

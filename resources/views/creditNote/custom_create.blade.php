@@ -59,6 +59,7 @@
         <div class="form-group col-md-12">
             {{ Form::label('description', __('Reason'),['class'=>'form-label']) }}<x-required></x-required>
             {!! Form::textarea('description', null, ['class'=>'form-control','rows'=>'2' , 'placeholder' => __('Enter the reason for this credit note'), 'required' => 'required']) !!}
+            <div class="invalid-feedback">{{ __('Reason is required.') }}</div>
         </div>
         <div class="form-group col-md-12">
             {{ Form::label('attachment', __('Supporting document (optional)'),['class'=>'form-label']) }}

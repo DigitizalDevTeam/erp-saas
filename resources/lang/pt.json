@@ -9994,5 +9994,6 @@
     "Supporting document (optional)": "Documento de suporte (opcional)",
     "Cancelled and draft invoices are not listed.": "Faturas canceladas e em rascunho não são listadas.",
     "Current document": "Documento atual",
-    "Supporting document": "Documento de suporte"
+    "Supporting document": "Documento de suporte",
+    "Reason is required.": "O motivo é obrigatório."
 }
