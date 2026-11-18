@@ -225,6 +225,52 @@ class TreasuryReconciliationService
     }
 
     /**
+     * Treasury operations the workspace may offer for a manual
+     * match on this session: confirmed, not a reversal posting,
+     * and with a remaining unmatched amount on the session's bank
+     * account. A reversed operation never appears — reversing a
+     * missing movement now marks its operation 'reversed', the
+     * same as a reversed receipt does. A reversal posting never
+     * appears either: it is bookkeeping that nets the original
+     * to zero, not money that can match a statement line.
+     * Fully matched operations have no residual left and are
+     * excluded by the same filter.
+     *
+     * @return \Illuminate\Support\Collection<int, TreasuryOperation>
+     */
+    public function eligibleTreasuryOperations(BankReconciliationSession $session): \Illuminate\Support\Collection
+    {
+        $treasuryAccountIds = TreasuryFinancialAccount::where('bank_account_id', (int) $session->bank_account_id)
+            ->where('created_by', (int) $session->created_by)
+            ->pluck('id')
+            ->all();
+
+        if ($treasuryAccountIds === []) {
+            return collect();
+        }
+
+        $operationIds = TreasuryEntry::whereIn('financial_account_id', $treasuryAccountIds)
+            ->distinct()
+            ->pluck('operation_id')
+            ->all();
+
+        return TreasuryOperation::whereIn('id', $operationIds)
+            ->where('created_by', (int) $session->created_by)
+            ->where('state', TreasuryOperation::STATE_CONFIRMED)
+            ->whereNull('reversal_of_id')
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get()
+            ->map(function ($op) use ($session) {
+                $op->residual_amount = $this->operationResidual($op, $session);
+
+                return $op;
+            })
+            ->filter(fn ($op) => bccomp((string) $op->residual_amount, '0', 4) > 0)
+            ->values();
+    }
+
+    /**
      * What is still unmatched on a Treasury operation's entry for
      * this session's bank account, as a positive 4-decimal amount.
      * Matches from every session of the company count — an operation
@@ -274,6 +320,9 @@ class TreasuryReconciliationService
             $operation = TreasuryOperation::lockForUpdate()->findOrFail($operationId);
             if ((int) $operation->created_by !== $creatorId || ! $operation->isConfirmed()) {
                 throw new TreasuryException('Only a confirmed Treasury operation of this company can be matched.');
+            }
+            if ($operation->reversal_of_id !== null) {
+                throw new TreasuryException('A reversal posting cannot be matched to a statement line.');
             }
 
             $entry = $this->operationEntryForSession($operation, $session);
@@ -880,12 +929,35 @@ class TreasuryReconciliationService
             );
 
             // The reversal entry carries the link to the original
-            // entry; the original match row stays as history.
+            // entry.
             $originalEntry = TreasuryEntry::where('operation_id', $originalOperation->id)->first();
             if ($originalEntry !== null) {
                 $entry->reversal_of_id = $originalEntry->id;
                 $entry->save();
             }
+
+            // The match is a live link, not history: it is what
+            // keeps the line out of the outstanding total. Once
+            // the movement is reversed, nothing explains the line
+            // any more, so the match goes — the line is unmatched
+            // again and the close identity (statement = book +
+            // outstanding + explained) stays intact. The audit
+            // trail lives in the movement, the reversal operation,
+            // the reversal journal and the audit events.
+            BankReconciliationMatch::where('session_id', $session->id)
+                ->where('statement_line_id', $movement->statement_line_id)
+                ->where('treasury_operation_id', $originalOperation->id)
+                ->delete();
+
+            // The original operation is reversed, not just its
+            // movement: the same convention as a reversed receipt
+            // (TreasuryReceiptService). Until this ran, the
+            // operation stayed 'confirmed' and kept appearing in
+            // the manual-match dropdown with a fresh residual once
+            // its match was gone. A reversed operation must never
+            // match again.
+            $originalOperation->state = TreasuryOperation::STATE_REVERSED;
+            $originalOperation->save();
 
             $movement->update([
                 'state' => TreasuryMissingMovement::STATE_REVERSED,

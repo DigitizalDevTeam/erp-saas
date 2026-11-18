@@ -187,6 +187,72 @@ class TreasuryReconciliationServiceTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // Treasury dropdown eligibility — only confirmed, unreversed
+    // operations with a remaining amount are offered
+    // ------------------------------------------------------------------
+
+    public function test_eligible_treasury_operations_keeps_only_confirmed_unreversed_with_residual(): void
+    {
+        $session = $this->makeSession();
+        $line = $this->makeLine($session, 1, '2026-11-05', 'Transfer in', '5000.0000', '205000.0000');
+
+        $eligible = $this->makeOperation('10000.0000', 'ELIGIBLE-A');
+        $full = $this->makeOperation('5000.0000', 'FULL-B');
+        BankReconciliationMatch::create([
+            'session_id' => $session->id, 'statement_line_id' => $line->id,
+            'transaction_id' => null, 'treasury_operation_id' => $full->id,
+            'matched_amount' => '5000.0000', 'match_type' => 'manual',
+        ]);
+        $partial = $this->makeOperation('8000.0000', 'PART-C');
+        BankReconciliationMatch::create([
+            'session_id' => $session->id, 'statement_line_id' => $line->id,
+            'transaction_id' => null, 'treasury_operation_id' => $partial->id,
+            'matched_amount' => '3000.0000', 'match_type' => 'manual',
+        ]);
+        // A reversed operation keeps its entry, so only its state
+        // can exclude it — this is the session-8 bug.
+        $reversed = $this->makeOperation('7000.0000', 'REV-D');
+        $reversed->update(['state' => 'reversed']);
+        // A reversal posting is confirmed and has an entry, so
+        // only its reversal_of_id can exclude it.
+        $reversal = $this->makeOperation('6000.0000', 'REVP-E');
+        $reversal->update(['reversal_of_id' => $eligible->id]);
+        $this->makeOperation('4000.0000', 'DRAFT-F', 'draft');
+
+        $list = $this->service->eligibleTreasuryOperations($session);
+
+        $this->assertSame(['PART-C', 'ELIGIBLE-A'], $list->pluck('reference')->all());
+        $this->assertSame('5000.0000', (string) $list->firstWhere('reference', 'PART-C')->residual_amount);
+        $this->assertSame('10000.0000', (string) $list->firstWhere('reference', 'ELIGIBLE-A')->residual_amount);
+    }
+
+    public function test_match_to_treasury_operation_refuses_reversal_operation(): void
+    {
+        $session = $this->makeSession();
+        $line = $this->makeLine($session, 1, '2026-11-05', 'Transfer in', '6000.0000', '206000.0000');
+
+        $reversal = $this->makeOperation('6000.0000', 'REVP-E');
+        $reversal->update(['reversal_of_id' => 999]);
+
+        $this->expectException(TreasuryException::class);
+        $this->expectExceptionMessage('reversal posting cannot be matched');
+        $this->service->matchToTreasuryOperation(1, $session->id, $line->id, $reversal->id, 2);
+    }
+
+    public function test_match_to_treasury_operation_refuses_reversed_operation(): void
+    {
+        $session = $this->makeSession();
+        $line = $this->makeLine($session, 1, '2026-11-05', 'Transfer in', '6000.0000', '206000.0000');
+
+        $reversed = $this->makeOperation('6000.0000', 'REV-D');
+        $reversed->update(['state' => 'reversed']);
+
+        $this->expectException(TreasuryException::class);
+        $this->expectExceptionMessage('Only a confirmed Treasury operation');
+        $this->service->matchToTreasuryOperation(1, $session->id, $line->id, $reversed->id, 2);
+    }
+
+    // ------------------------------------------------------------------
     // CA12 — matches to Treasury operations, with residuals
     // ------------------------------------------------------------------
 
