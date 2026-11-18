@@ -153,7 +153,47 @@ class JournalEntryImportTest extends TestCase
 
         $response = $this->post(route('journal-entry.import'), ['file' => $file]);
 
-        $response->assertSessionHasErrors('file');
+        $response->assertSessionHas('error', 'Only XLSX files are supported.');
+        $this->assertSame(0, JournalEntry::count());
+    }
+
+    public function test_real_csv_txt_and_pdf_files_are_rejected_with_visible_error(): void
+    {
+        $csv = "date,reference,description,account_code,debit,credit,line_description\n2026-11-18,JE-001,Test,611,500,,x\n2026-11-18,JE-001,Test,111,,500,x\n";
+        foreach ([
+            $this->makeRealFile('import.csv', $csv, 'text/csv'),
+            $this->makeRealFile('import.txt', 'just some text', 'text/plain'),
+            $this->makeRealFile('import.pdf', "%PDF-1.4\n%fake pdf\n", 'application/pdf'),
+        ] as $file) {
+            $response = $this->post(route('journal-entry.import'), ['file' => $file]);
+
+            $response->assertSessionHas('error', 'Only XLSX files are supported.');
+            $this->assertSame(0, JournalEntry::count());
+        }
+    }
+
+    public function test_xlsx_content_with_csv_extension_is_rejected(): void
+    {
+        $xlsx = $this->makeXlsx([
+            ['2026-11-18', 'JE-001', 'Test', '611', 500, '', ''],
+            ['2026-11-18', 'JE-001', 'Test', '111', '', 500, ''],
+        ]);
+        $renamed = new UploadedFile($xlsx->getRealPath(), 'import.csv', 'text/csv', null, true);
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $renamed]);
+
+        $response->assertSessionHas('error', 'Only XLSX files are supported.');
+        $this->assertSame(0, JournalEntry::count());
+    }
+
+    public function test_csv_content_with_xlsx_extension_is_rejected(): void
+    {
+        $csv = "date,reference,description,account_code,debit,credit,line_description\n2026-11-18,JE-001,Test,611,500,,x\n2026-11-18,JE-001,Test,111,,500,x\n";
+        $file = $this->makeRealFile('import.xlsx', $csv, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $file]);
+
+        $response->assertSessionHas('error', 'Only XLSX files are supported.');
         $this->assertSame(0, JournalEntry::count());
     }
 
@@ -170,6 +210,15 @@ class JournalEntryImportTest extends TestCase
     // ------------------------------------------------------------------
     // Fixture
     // ------------------------------------------------------------------
+
+    /** Make a real file with the given content (not a fake upload). */
+    private function makeRealFile(string $name, string $content, ?string $mime = null): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'je-real-');
+        file_put_contents($path, $content);
+
+        return new UploadedFile($path, $name, $mime, null, true);
+    }
 
     /** @param array<int, array<int, mixed>> $rows */
     private function makeXlsx(array $rows): UploadedFile
