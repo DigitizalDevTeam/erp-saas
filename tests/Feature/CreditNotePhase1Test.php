@@ -757,6 +757,12 @@ class CreditNotePhase1Test extends TestCase
             $table->string('disposition', 20)->nullable();
             $table->string('attachment')->nullable();
             $table->text('data')->nullable();
+            // Phase 2 (migration 310015): approval status, mirroring
+            // JournalEntry — the controller sets it on every store,
+            // so the fixture must carry the columns like the real table.
+            $table->tinyInteger('status')->default(1);
+            $table->unsignedBigInteger('approved_by')->nullable();
+            $table->timestamp('approved_at')->nullable();
             $table->timestamps();
         });
         Schema::create('taxes', function (Blueprint $table) {
