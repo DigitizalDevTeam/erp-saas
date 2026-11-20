@@ -922,7 +922,7 @@ class InvoiceController extends Controller
     public function createPayment(Request $request, $invoice_id)
     {
         $invoice = Invoice::find($invoice_id);
-        if ($invoice->getDue() < $request->amount) {
+        if (round($invoice->getDue(), 2) < round((float) $request->amount, 2)) {
             return redirect()->back()->with('error', __('Invoice payment amount should not greater than subtotal.'));
         }
 

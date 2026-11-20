@@ -8,7 +8,7 @@
             </div>
             <div class="form-group col-md-6">
                 {{ Form::label('amount', __('Amount'),['class'=>'form-label']) }}<x-required></x-required>
-                {{ Form::number('amount',$bill->getDue(), array('class' => 'form-control','required'=>'required','step'=>'0.01', 'placeholder' => __('Enter Amount'))) }}
+                {{ Form::number('amount', number_format(round($bill->getDue(), 2), 2, '.', ''), array('class' => 'form-control','required'=>'required','step'=>'0.01','min'=>'0', 'placeholder' => __('Enter Amount'))) }}
 
             </div>
             <div class="form-group col-md-6">

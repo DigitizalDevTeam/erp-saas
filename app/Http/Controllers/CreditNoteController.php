@@ -395,7 +395,7 @@ class CreditNoteController extends Controller
                 return redirect()->back()->with('error', $invoiceError);
             }
             $maxCredit = $this->maxCreditNoteAmount($invoiceDue);
-            if($request->amount > $maxCredit)
+            if(round((float) $request->amount, 2) > round($maxCredit, 2))
             {
                 return redirect()->back()->with('error', __('Maximum :amount credit limit of this invoice.', ['amount' => \Auth::user()->priceFormat($maxCredit)]));
             }
@@ -521,7 +521,7 @@ class CreditNoteController extends Controller
             if($credit->invoice > 0)
             {
                 $invoiceDue = Invoice::where('id', $credit->invoice)->first();
-                if(!$isDebit && $request->amount > $this->maxCreditNoteAmount($invoiceDue)+$credit->amount)
+                if(!$isDebit && round((float) $request->amount, 2) > round($this->maxCreditNoteAmount($invoiceDue)+$credit->amount, 2))
                 {
                     return redirect()->back()->with('error', __('Maximum :amount credit limit of this invoice.', ['amount' => \Auth::user()->priceFormat($this->maxCreditNoteAmount($invoiceDue))]));
                 }
@@ -864,7 +864,7 @@ class CreditNoteController extends Controller
                     return redirect()->back()->with('error', $invoiceError);
                 }
                 $maxCredit = $this->maxCreditNoteAmount($invoiceDue);
-                if($request->amount > $maxCredit)
+                if(round((float) $request->amount, 2) > round($maxCredit, 2))
                 {
                     return redirect()->back()->with('error', __('Maximum :amount credit limit of this invoice.', ['amount' => \Auth::user()->priceFormat($maxCredit)]));
                 }

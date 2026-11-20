@@ -7,7 +7,7 @@
         </div>
         <div class="form-group  col-md-6">
             {{ Form::label('amount', __('Amount'),['class'=>'form-label']) }}<x-required></x-required>
-            {{ Form::number('amount',$invoice->getDue(), array('class' => 'form-control','required'=>'required','step'=>'0.01' , 'placeholder'=>__('Enter Amount'))) }}
+            {{ Form::number('amount', number_format(round($invoice->getDue(), 2), 2, '.', ''), array('class' => 'form-control','required'=>'required','step'=>'0.01','min'=>'0' , 'placeholder'=>__('Enter Amount'))) }}
         </div>
         <div class="form-group  col-md-6">
             {{ Form::label('account_id', __('Account'),['class'=>'form-label']) }}<x-required></x-required>
@@ -27,10 +27,10 @@
         </div>
 
         <div class="col-md-6 form-group">
-            {{ Form::label('add_receipt', __('Payment Receipt'), ['class' => 'form-label']) }}<x-required></x-required>
+            {{ Form::label('add_receipt', __('Payment Receipt'), ['class' => 'form-label']) }}
             <div class="choose-file form-group">
                 <label for="file" class="form-label">
-                    <input type="file" name="add_receipt" id="image" class="form-control" required>
+                    <input type="file" name="add_receipt" id="image" class="form-control">
                 </label>
                 <p class="upload_file"></p>
             </div>
