@@ -792,7 +792,7 @@
             <div class="card">
                 <div class="card-body table-border-style">
                     <h5 class=" d-inline-block">{{ __('Receipt Summary') }}</h5><br>
-                    @if ($user_plan->storage_limit <= $invoice_user->storage_limit)
+                    @if ($user_plan->storage_limit != -1 && $user_plan->storage_limit <= $invoice_user->storage_limit)
                         <small
                             class="text-danger font-bold">{{ __('Your plan storage limit is over , so you can not see customer uploaded payment receipt') }}</small><br>
                     @endif
@@ -844,7 +844,7 @@
                                         </td>
                                         <td>{{ !empty($payment->reference) ? $payment->reference : '--' }}</td>
                                         <td>{{ !empty($payment->description) ? $payment->description : '--' }}</td>
-                                        @if ($user_plan->storage_limit <= $invoice_user->storage_limit)
+                                        @if ($user_plan->storage_limit != -1 && $user_plan->storage_limit <= $invoice_user->storage_limit)
                                             <td>
                                                 --
                                             </td>
@@ -907,7 +907,7 @@
                                         <td>-</td>
                                         <td>-</td>
 
-                                        @if ($user_plan->storage_limit <= $invoice_user->storage_limit)
+                                        @if ($user_plan->storage_limit != -1 && $user_plan->storage_limit <= $invoice_user->storage_limit)
                                             <td>
                                                 ---
                                             </td>
