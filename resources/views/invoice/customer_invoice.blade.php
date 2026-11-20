@@ -492,7 +492,7 @@
             </div>
             <div class="col-12">
                 <h5 class="h4 d-inline-block font-weight-400 mb-2">{{ __('Receipt Summary') }}</h5><br>
-                @if ($user_plan->storage_limit <= $user->storage_limit)
+                @if ($user_plan->storage_limit != -1 && $user_plan->storage_limit <= $user->storage_limit)
                     <small
                         class="text-danger font-bold">{{ __('Your plan storage limit is over , so you can not see customer uploaded payment receipt') }}</small><br>
                 @endif
@@ -526,7 +526,7 @@
                                             <td>{{ !empty($payment->description) ? $payment->description : '--' }}
                                             </td>
 
-                                            @if ($user_plan->storage_limit <= $user->storage_limit)
+                                            @if ($user_plan->storage_limit != -1 && $user_plan->storage_limit <= $user->storage_limit)
                                                 <td>
                                                     --
                                                 </td>
@@ -559,13 +559,13 @@
                                             <td>-</td>
                                             <td>-</td>
 
-                                            @if ($user_plan->storage_limit <= $user->storage_limit)
+                                            @if ($user_plan->storage_limit != -1 && $user_plan->storage_limit <= $user->storage_limit)
                                                 <td>
                                                     --
                                                 </td>
                                             @else
                                                 <td>
-                                                    @if ($user_plan->storage_limit <= $user->storage_limit)
+                                                    @if ($user_plan->storage_limit != -1 && $user_plan->storage_limit <= $user->storage_limit)
                                                         @if (!empty($bankPayment->receipt))
                                                             <a href="{{ $path . '/' . $bankPayment->receipt }}"
                                                                 target="_blank">
