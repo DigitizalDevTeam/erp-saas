@@ -133,7 +133,9 @@
                                 <div class="col-md-6">
                                     <small><strong>{{ __('Status') }}</strong></small>
                                     <div class="mt-2">
-                                        @php($noteStatus = (int) ($note->status ?? \App\Models\CreditNote::STATUS_APPROVED))
+                                        @php
+                                            $noteStatus = (int) ($note->status ?? \App\Models\CreditNote::STATUS_APPROVED);
+                                        @endphp
                                         <span class="badge bg-{{ $noteStatus === \App\Models\CreditNote::STATUS_PENDING ? 'warning' : ($noteStatus === \App\Models\CreditNote::STATUS_REJECTED ? 'danger' : 'success') }}">{{ \App\Models\CreditNote::STATUS_LABELS[$noteStatus] ?? '' }}</span>
                                         @if($noteStatus === \App\Models\CreditNote::STATUS_PENDING && !empty($approvalRequired))
                                             <span class="text-muted ms-2">{{ __('Approval is switched on for this company.') }}</span>
