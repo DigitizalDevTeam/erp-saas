@@ -128,6 +128,52 @@
                                     </div>
                             </div>
                             @endif
+                            {{-- Credit Notes Phase 2: approval status + refund --}}
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <small><strong>{{ __('Status') }}</strong></small>
+                                    <div class="mt-2">
+                                        @php($noteStatus = (int) ($note->status ?? \App\Models\CreditNote::STATUS_APPROVED))
+                                        <span class="badge bg-{{ $noteStatus === \App\Models\CreditNote::STATUS_PENDING ? 'warning' : ($noteStatus === \App\Models\CreditNote::STATUS_REJECTED ? 'danger' : 'success') }}">{{ \App\Models\CreditNote::STATUS_LABELS[$noteStatus] ?? '' }}</span>
+                                        @if($noteStatus === \App\Models\CreditNote::STATUS_PENDING && !empty($approvalRequired))
+                                            <span class="text-muted ms-2">{{ __('Approval is switched on for this company.') }}</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    @if($noteStatus === \App\Models\CreditNote::STATUS_PENDING && auth()->user()->can('approve credit note'))
+                                        <form action="{{ route('credit.note.approve', [$note->invoice ?: 0, $note->id]) }}" method="POST" class="d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-success">{{ __('Approve') }}</button>
+                                        </form>
+                                        <form action="{{ route('credit.note.reject', [$note->invoice ?: 0, $note->id]) }}" method="POST" class="d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-danger">{{ __('Reject') }}</button>
+                                        </form>
+                                    @endif
+                                    @if(empty($refund) && $note->disposition === 'refund' && $noteStatus === \App\Models\CreditNote::STATUS_APPROVED && auth()->user()->can('manage credit note refund'))
+                                        <a href="{{ route('credit.note.refund.form', [$note->invoice ?: 0, $note->id]) }}" class="btn btn-sm btn-primary">{{ __('Refund the money') }}</a>
+                                    @endif
+                                </div>
+                            </div>
+                            @if(!empty($refund))
+                            <div class="row mt-3">
+                                <small><strong>{{ __('Refund') }}</strong></small>
+                                <div class="mt-2">
+                                    {{ __('Reference') }}: <strong>{{ $refund->reference }}</strong><br>
+                                    {{ __('Method') }}: {{ $refund->method === 'transfer' ? __('Bank transfer') : __('Cash') }}<br>
+                                    {{ __('Amount') }}: {{ \Auth::user()->priceFormat($refund->amount) }}<br>
+                                    {{ __('Paid on') }}: {{ \Auth::user()->dateFormat($refund->created_at) }}<br>
+                                    @if(!empty($refund->transfer_receipt))
+                                        {{ __('Transfer receipt') }}: <a href="{{ asset(Storage::url('uploads/credit-note-refunds')) . '/' . $refund->transfer_receipt }}" target="_blank">{{ $refund->transfer_receipt }}</a><br>
+                                    @endif
+                                    @if(!empty($refund->signed_receipt))
+                                        {{ __('Signed customer receipt') }}: <a href="{{ asset(Storage::url('uploads/credit-note-refunds')) . '/' . $refund->signed_receipt }}" target="_blank">{{ $refund->signed_receipt }}</a><br>
+                                    @endif
+                                    <a href="{{ route('credit.note.refund.slip', $refund->id) }}" class="btn btn-sm btn-outline-primary mt-2">{{ __('Download receipt') }}</a>
+                                </div>
+                            </div>
+                            @endif
                             @if(!empty($note->attachment))
                             <div class="row mt-3">
                                     <small><strong>{{ __('Supporting document') }}</strong></small>

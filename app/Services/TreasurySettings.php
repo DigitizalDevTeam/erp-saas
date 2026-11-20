@@ -33,6 +33,12 @@ class TreasurySettings
     public const KEY_FORECAST_HORIZONS = 'treasury_forecast_horizons';
     public const KEY_STATEMENT_DATE_TOLERANCE_DAYS = 'treasury_statement_date_tolerance_days';
     public const KEY_STATEMENT_AUTO_MATCH = 'treasury_statement_auto_match';
+    // Credit Notes Phase 2 (client answer Q1, 2026-11-19): approval is
+    // an optional per-company switch. When ON, a credit note is created
+    // Pending and needs an 'approve credit note' approval before any
+    // refund can be paid — the same shape as journal approval. Off by
+    // default: notes are issued directly, as before.
+    public const KEY_CREDIT_NOTE_APPROVAL_REQUIRED = 'treasury_credit_note_approval_required';
     // Phase 1 — chart account codes (exact code or prefix) used by the
     // receipt journals. Empty means "use the documented default prefix";
     // when neither resolves, confirmation is refused (never guess).
@@ -117,6 +123,7 @@ class TreasurySettings
         self::KEY_APPROVAL_RULES => '',
         self::KEY_RESERVATION_THRESHOLD => '0',
         self::KEY_CASHFLOW_THRESHOLD => '0',
+        self::KEY_CREDIT_NOTE_APPROVAL_REQUIRED => '0',
     ];
 
     /**
@@ -213,6 +220,12 @@ class TreasurySettings
         return preg_match('/^[A-Z]{3}$/', $currency) ? $currency : 'MZN';
     }
 
+    /** Credit Notes Phase 2 — is note approval switched on for this company? */
+    public static function creditNoteApprovalRequired(int $creatorId): bool
+    {
+        return trim((string) (self::get($creatorId, self::KEY_CREDIT_NOTE_APPROVAL_REQUIRED) ?? '')) === '1';
+    }
+
     /**
      * Normalise + persist one row per key. Unknown keys are ignored;
      * invalid enum values fall back to their default.
@@ -260,6 +273,8 @@ class TreasurySettings
             ? (string) (int) $tolerance : self::DEFAULTS[self::KEY_STATEMENT_DATE_TOLERANCE_DAYS];
 
         $values[self::KEY_STATEMENT_AUTO_MATCH] = ! empty($input[self::KEY_STATEMENT_AUTO_MATCH]) ? '1' : '0';
+
+        $values[self::KEY_CREDIT_NOTE_APPROVAL_REQUIRED] = ! empty($input[self::KEY_CREDIT_NOTE_APPROVAL_REQUIRED]) ? '1' : '0';
 
         // Phase 1 posting accounts: a chart code or prefix (digits,
         // up to 20 chars). Empty keeps the default (no account set).

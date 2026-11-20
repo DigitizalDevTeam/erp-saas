@@ -1204,6 +1204,12 @@ Route::group(['middleware' => ['verified']], function () {
             Route::get('invoice/{id}/debit-notes/edit/{cn_id}', [CreditNoteController::class, 'edit'])->name('invoice.edit.credit.notes');
             Route::post('invoice/{id}/debit-note/edit/{cn_id}', [CreditNoteController::class, 'update'])->name('invoice.edit.credit.note');
             Route::delete('invoice/{id}/debit-note/delete/{cn_id}', [CreditNoteController::class, 'destroy'])->name('invoice.delete.credit.note');
+            // Phase 2: approval (client answer Q1) + refund (Reembolso).
+            Route::post('invoice/{id}/debit-note/{cn_id}/approve', [CreditNoteController::class, 'approve'])->name('credit.note.approve');
+            Route::post('invoice/{id}/debit-note/{cn_id}/reject', [CreditNoteController::class, 'reject'])->name('credit.note.reject');
+            Route::get('invoice/{id}/debit-note/{cn_id}/refund', [CreditNoteController::class, 'refundForm'])->name('credit.note.refund.form');
+            Route::post('invoice/{id}/debit-note/{cn_id}/refund', [CreditNoteController::class, 'refundStore'])->name('credit.note.refund.store');
+            Route::get('credit-note/refund/{refund}/slip', [CreditNoteController::class, 'refundSlip'])->name('credit.note.refund.slip');
         }
     );
 
