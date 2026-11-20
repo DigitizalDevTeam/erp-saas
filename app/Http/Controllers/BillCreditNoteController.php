@@ -65,7 +65,7 @@ class BillCreditNoteController extends Controller
             }
             $billDue = Bill::where('id', $bill_id)->first();
 
-            if($request->amount > $billDue->getDue())
+            if(round((float) $request->amount, 2) > round($billDue->getDue(), 2))
             {
                 return redirect()->back()->with('error', __('Maximum :amount credit limit of this bill.', ['amount' => \Auth::user()->priceFormat($billDue->getDue())]));
             }
@@ -128,7 +128,7 @@ class BillCreditNoteController extends Controller
             if($debit->bill > 0)
             {
                 $billDue = Bill::where('id', $debit->bill)->first();
-                if($request->amount > $billDue->getDue())
+                if(round((float) $request->amount, 2) > round($billDue->getDue(), 2))
                 {
                     return redirect()->back()->with('error', __('Maximum :amount credit limit of this bill.', ['amount' => \Auth::user()->priceFormat($billDue->getDue())]));
                 }
@@ -263,7 +263,7 @@ class BillCreditNoteController extends Controller
             {
                $uid =  $ex_cred->uid + 1;
             }
-            if($request->amount > $billDue->getDue())
+            if(round((float) $request->amount, 2) > round($billDue->getDue(), 2))
             {
                 return redirect()->back()->with('error', __('Maximum :amount credit limit of this bill.', ['amount' => \Auth::user()->priceFormat($billDue->getDue())]));
             }
