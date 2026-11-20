@@ -10019,5 +10019,13 @@
     "Till session (optional — when refunding at the till)": "Till session (optional — when refunding at the till)",
     "Transfer receipt": "Transfer receipt",
     "limit": "limit",
-    "petty cash": "petty cash"
+    "petty cash": "petty cash",
+    "Customer credit applied": "Customer credit applied",
+    "Refunded": "Refunded",
+    "Credit Used": "Credit Used",
+    "Keep as credit": "Keep as credit",
+    "Customer Credit": "Customer Credit",
+    "No credit movements yet.": "No credit movements yet.",
+    "Credit Balance": "Credit Balance",
+    "Usable now": "Usable now"
 }

@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Exports\CustomerExport;
 use App\Imports\CustomerImport;
 use App\Models\Customer;
+use App\Models\CustomerCreditLedger;
 use App\Models\CustomField;
 use App\Models\Transaction;
 use App\Models\PriceLevel;
 use App\Models\Utility;
+use App\Services\CustomerCreditService;
 use Auth;
 use App\Models\User;
 use App\Models\Plan;
@@ -16,6 +18,7 @@ use File;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Maatwebsite\Excel\Facades\Excel;
@@ -345,7 +348,23 @@ class CustomerController extends Controller
         $id       = \Crypt::decrypt($ids);
         $customer = Customer::with('billingAddresses','shippingAddresses')->find($id);
 
-        return view('customer.show', compact('customer'));
+        // Phase 3: the customer's credit ledger (newest first) and
+        // the amount still usable (unexpired lots only). The table
+        // guard keeps suites with minimal fixtures (no ledger table)
+        // from 500ing — the service already guards the same way.
+        $creditLedger = Schema::hasTable('customer_credit_ledger')
+            ? CustomerCreditLedger::where('created_by', \Auth::user()->creatorId())
+                ->where('customer_id', $id)
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->get()
+            : collect();
+        $usableCredit = app(CustomerCreditService::class)->usableCredit(
+            (int) \Auth::user()->creatorId(),
+            (int) $id
+        );
+
+        return view('customer.show', compact('customer', 'creditLedger', 'usableCredit'));
     }
 
 
@@ -764,7 +783,18 @@ class CustomerController extends Controller
             }
             $transactions = $query->get();
 
-            return view('customer.transaction', compact('transactions', 'category'));
+            // Phase 3: the customer's own credit ledger on their
+            // statement — credit added, used, expired or reversed.
+            // Same table guard as show(): minimal fixtures carry no
+            // ledger table, and the view renders fine with an empty list.
+            $creditLedger = Schema::hasTable('customer_credit_ledger')
+                ? CustomerCreditLedger::where('customer_id', \Auth::user()->id)
+                    ->orderByDesc('created_at')
+                    ->orderByDesc('id')
+                    ->get()
+                : collect();
+
+            return view('customer.transaction', compact('transactions', 'category', 'creditLedger'));
         }
         else
         {

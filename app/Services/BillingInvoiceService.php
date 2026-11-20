@@ -14,6 +14,7 @@ use App\Models\ProductService;
 use App\Models\ProductServiceCategory;
 use App\Models\User;
 use App\Models\Utility;
+use App\Services\CustomerCreditService;
 use App\Support\LoggedMail;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -201,6 +202,16 @@ class BillingInvoiceService
                 }
             }
             $this->invoices->postInvoiceToLedger($invoice, $creatorId, $overrides);
+
+            // Phase 3: a recurring invoice becomes real debt here too
+            // — apply any customer credit oldest-first, exactly like
+            // a manual send. The actor is the company itself: the
+            // recurring engine runs on the schedule, not as a user.
+            app(CustomerCreditService::class)->applyAvailableCredit(
+                (int) $creatorId,
+                $invoice,
+                (int) $creatorId
+            );
 
             $locked->update([
                 'state' => BillingContractOccurrence::STATE_INVOICED,

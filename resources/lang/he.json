@@ -9078,5 +9078,13 @@
     "Till session (optional — when refunding at the till)": "Till session (optional — when refunding at the till)",
     "Transfer receipt": "Transfer receipt",
     "limit": "limit",
-    "petty cash": "petty cash"
+    "petty cash": "petty cash",
+    "Customer credit applied": "הוחל אשראי לקוח",
+    "Refunded": "הוחזר",
+    "Credit Used": "נעשה שימוש באשראי",
+    "Keep as credit": "שמור כקרדיט",
+    "Customer Credit": "אשראי לקוח",
+    "No credit movements yet.": "עדיין אין תנועות אשראי.",
+    "Credit Balance": "יתרת אשראי",
+    "Usable now": "שמיש עכשיו"
 }

@@ -9078,5 +9078,13 @@
     "Till session (optional — when refunding at the till)": "Till session (optional — when refunding at the till)",
     "Transfer receipt": "Transfer receipt",
     "limit": "limit",
-    "petty cash": "petty cash"
+    "petty cash": "petty cash",
+    "Customer credit applied": "Müşteri kredisi uygulandı",
+    "Refunded": "Geri ödeme yapıldı",
+    "Credit Used": "Kullanılan Kredi",
+    "Keep as credit": "Kredi olarak sakla",
+    "Customer Credit": "Müşteri Kredisi",
+    "No credit movements yet.": "Henüz kredi hareketi yok.",
+    "Credit Balance": "Kredi Bakiyesi",
+    "Usable now": "Artık kullanılabilir"
 }

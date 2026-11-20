@@ -9078,5 +9078,13 @@
     "Till session (optional — when refunding at the till)": "Till session (optional — when refunding at the till)",
     "Transfer receipt": "Transfer receipt",
     "limit": "limit",
-    "petty cash": "petty cash"
+    "petty cash": "petty cash",
+    "Customer credit applied": "Klantkrediet toegepast",
+    "Refunded": "Terugbetaald",
+    "Credit Used": "Krediet gebruikt",
+    "Keep as credit": "Behouden als tegoed",
+    "Customer Credit": "Klantkrediet",
+    "No credit movements yet.": "Nog geen kredietbewegingen.",
+    "Credit Balance": "Creditsaldo",
+    "Usable now": "Nu bruikbaar"
 }

@@ -1082,6 +1082,12 @@ Route::group(['middleware' => ['verified']], function () {
         ],
         function () {
             Route::get('customer/{id}/kyc/{section}/{index}', [CustomerController::class, 'downloadKycDocument'])->name('customer.kyc.download');
+            // Phase 3: the customer statement page existed as a view
+            // referencing this route, but the route was never
+            // registered — it was unreachable. Registered before the
+            // resource so `customer/transaction` is not swallowed by
+            // the `customer/{customer}` show route.
+            Route::get('customer/transaction', [CustomerController::class, 'transaction'])->name('customer.transaction');
             Route::resource('customer', CustomerController::class);
             Route::post('customer/store-from-pos', [CustomerController::class, 'storeFromPos'])->name('customer.store.from.pos');
         }
