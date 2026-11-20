@@ -9078,5 +9078,13 @@
     "Till session (optional — when refunding at the till)": "Till session (optional — when refunding at the till)",
     "Transfer receipt": "Transfer receipt",
     "limit": "limit",
-    "petty cash": "petty cash"
+    "petty cash": "petty cash",
+    "Customer credit applied": "Zastosowano kredyt klienta",
+    "Refunded": "Zwrócono pieniądze",
+    "Credit Used": "Kredyt wykorzystany",
+    "Keep as credit": "Zachowaj jako kredyt",
+    "Customer Credit": "Kredyt Klienta",
+    "No credit movements yet.": "Nie ma jeszcze żadnych ruchów kredytowych.",
+    "Credit Balance": "Bilans kredytowy",
+    "Usable now": "Można teraz używać"
 }

@@ -9078,5 +9078,13 @@
     "Till session (optional — when refunding at the till)": "Till session (optional — when refunding at the till)",
     "Transfer receipt": "Transfer receipt",
     "limit": "limit",
-    "petty cash": "petty cash"
+    "petty cash": "petty cash",
+    "Customer credit applied": "Применен кредит клиента",
+    "Refunded": "Возвращено",
+    "Credit Used": "Кредит использован",
+    "Keep as credit": "Сохранить как кредит",
+    "Customer Credit": "Клиентский кредит",
+    "No credit movements yet.": "Никаких кредитных движений пока нет.",
+    "Credit Balance": "Кредитный баланс",
+    "Usable now": "Можно использовать сейчас"
 }

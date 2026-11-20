@@ -9078,5 +9078,13 @@
     "Till session (optional — when refunding at the till)": "Till session (optional — when refunding at the till)",
     "Transfer receipt": "Transfer receipt",
     "limit": "limit",
-    "petty cash": "petty cash"
+    "petty cash": "petty cash",
+    "Customer credit applied": "顧客クレジットが適用されました",
+    "Refunded": "返金されました",
+    "Credit Used": "使用されたクレジット",
+    "Keep as credit": "クレジットとして保存",
+    "Customer Credit": "顧客クレジット",
+    "No credit movements yet.": "まだ信用動向はありません。",
+    "Credit Balance": "クレジット残高",
+    "Usable now": "今すぐ使える"
 }

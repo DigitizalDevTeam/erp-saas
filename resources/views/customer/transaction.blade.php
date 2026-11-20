@@ -68,4 +68,48 @@
             </div>
         </div>
     </div>
+
+    @isset($creditLedger)
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body table-border-style">
+                    <h5 class="d-inline-block mb-4">{{__('Customer Credit')}}</h5>
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0 dataTable">
+                            <thead>
+                            <tr>
+                                <th> {{__('Date')}}</th>
+                                <th> {{__('Type')}}</th>
+                                <th> {{__('Credit Note')}}</th>
+                                <th> {{__('Invoice')}}</th>
+                                <th> {{__('Amount')}}</th>
+                                <th> {{__('Remaining')}}</th>
+                                <th> {{__('Expires')}}</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @forelse ($creditLedger as $entry)
+                                <tr>
+                                    <td>{{ Auth::user()->dateFormat($entry->created_at) }}</td>
+                                    <td>{{ __(\App\Models\CustomerCreditLedger::TYPE_LABELS[$entry->type] ?? $entry->type) }}</td>
+                                    <td>{{ $entry->creditNote ? Auth::user()->creditNoteNumberFormat($entry->creditNote->uid) : '-' }}</td>
+                                    <td>{{ $entry->invoice ? Auth::user()->invoiceNumberFormat($entry->invoice->invoice_id) : '-' }}</td>
+                                    <td>{{ ($entry->amount > 0 ? '+' : '') . Auth::user()->priceFormat($entry->amount) }}</td>
+                                    <td>{{ Auth::user()->priceFormat($entry->remaining) }}</td>
+                                    <td>{{ $entry->expires_at ? Auth::user()->dateFormat($entry->expires_at) : '-' }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">{{__('No credit movements yet.')}}</td>
+                                </tr>
+                            @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endisset
 @endsection

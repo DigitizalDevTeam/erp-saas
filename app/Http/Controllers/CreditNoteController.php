@@ -6,6 +6,7 @@ use App\Exceptions\TreasuryException;
 use App\Models\CreditNote;
 use App\Models\CreditNoteRefund;
 use App\Models\Customer;
+use App\Models\CustomerCreditLedger;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
 use App\Models\InvoiceProduct;
@@ -15,6 +16,7 @@ use App\Models\TreasuryFinancialAccount;
 use App\Models\TreasuryPettyCashFund;
 use App\Models\Utility;
 use App\Services\CreditNoteRefundService;
+use App\Services\CustomerCreditService;
 use App\Services\TreasurySettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -114,6 +116,18 @@ class CreditNoteController extends Controller
         $note->approved_by = \Auth::user()->id;
         $note->approved_at = now();
         $note->save();
+
+        // Phase 3: a note kept as customer credit only becomes
+        // spendable credit once it is approved — the lot is created
+        // here for notes that were pending, and at creation for
+        // notes issued already approved.
+        if ($note->disposition === self::DISPOSITION_CREDIT) {
+            app(CustomerCreditService::class)->addCredit(
+                (int) \Auth::user()->creatorId(),
+                $note,
+                (int) \Auth::user()->id
+            );
+        }
 
         return redirect()->back()->with('success', __('Credit Note successfully approved.'));
     }
@@ -303,7 +317,18 @@ class CreditNoteController extends Controller
             $invoices = Invoice::where('created_by', \Auth::user()->creatorId())->get();
             $standaloneCreditNotes = CreditNote::where('created_by', \Auth::user()->creatorId())->where('invoice', 0)->where('is_debit', 0)->with('customerRelation')->get();
 
-            return view('creditNote.index', compact('invoices', 'standaloneCreditNotes'));
+            // Phase 3: per-note refund + credit-use, for the list
+            // columns. One refund max per note (Phase 2 rule).
+            $refundsByNote = CreditNoteRefund::where('created_by', \Auth::user()->creatorId())
+                ->get()
+                ->keyBy('credit_note_id');
+            $creditUsedByNote = CustomerCreditLedger::where('created_by', \Auth::user()->creatorId())
+                ->where('type', CustomerCreditLedger::TYPE_USED)
+                ->selectRaw('credit_note_id, SUM(amount * -1) as used')
+                ->groupBy('credit_note_id')
+                ->pluck('used', 'credit_note_id');
+
+            return view('creditNote.index', compact('invoices', 'standaloneCreditNotes', 'refundsByNote', 'creditUsedByNote'));
         }
         else
         {
@@ -412,15 +437,17 @@ class CreditNoteController extends Controller
             // balance — always, including the first note (the old code
             // only added when a balance already existed, so the first
             // note was lost). "Refund" adds nothing: the money is
-            // paid out instead (Phase 2).
-            if($request->disposition === self::DISPOSITION_CREDIT)
+            // paid out instead (Phase 2). Phase 3: the credit only
+            // becomes a spendable lot when the note is approved —
+            // a pending note adds nothing until approve() creates it.
+            if($request->disposition === self::DISPOSITION_CREDIT
+                && (int) $credit->status === CreditNote::STATUS_APPROVED)
             {
-                $customer = Customer::find($invoice->customer_id);
-                if($customer)
-                {
-                    $customer->credit_balance = ($customer->credit_balance ?? 0) + $request->amount;
-                    $customer->save();
-                }
+                app(CustomerCreditService::class)->addCredit(
+                    (int) \Auth::user()->creatorId(),
+                    $credit,
+                    (int) \Auth::user()->id
+                );
             }
 
             Utility::updateUserBalance('customer', $invoice->customer_id, $request->amount, 'debit');
@@ -527,21 +554,6 @@ class CreditNoteController extends Controller
                 }
             }
 
-            // Keep the customer's credit balance in step: a note kept
-            // as customer credit moves the balance by the amount
-            // change; refund notes and notes without a disposition
-            // (legacy / void notes) never touch it. The disposition
-            // itself is set at creation and is not changed here.
-            if(! $isDebit && $credit->disposition === self::DISPOSITION_CREDIT && $credit->customer)
-            {
-                $customer = Customer::find($credit->customer);
-                if($customer)
-                {
-                    $customer->credit_balance = ($customer->credit_balance ?? 0) + ((float) $request->amount - $oldAmount);
-                    $customer->save();
-                }
-            }
-
             $newAttachment = $this->storeCreditNoteAttachment($request);
             if($newAttachment)
             {
@@ -552,6 +564,16 @@ class CreditNoteController extends Controller
             $credit->amount      = $request->amount;
             $credit->description = $request->description;
             $credit->save();
+
+            // Phase 3: move the note's credit lot by the amount change
+            // (remaining clamped at 0 — credit already used stays
+            // used). Refund notes and notes without a disposition
+            // never touched the credit pool, so they stay out. The
+            // disposition itself is set at creation, not changed here.
+            if(! $isDebit && $credit->disposition === self::DISPOSITION_CREDIT && $credit->customer)
+            {
+                app(CustomerCreditService::class)->adjustLotForUpdatedNote($credit, (float) $oldAmount);
+            }
 
 
             return redirect()->back()->with('success', $isDebit ? __('Debit Note successfully updated.') : __('Credit Note successfully updated.'));
@@ -582,18 +604,14 @@ class CreditNoteController extends Controller
                 Utility::updateUserBalance('customer', $creditNote->customer, $creditNote->amount, $isDebit ? 'debit' : 'credit');
             }
 
-            // Removing a note kept as customer credit takes the amount
-            // back out of the credit balance. Refund notes and notes
-            // without a disposition (legacy / void notes) never
-            // touched it, so deleting them leaves it alone.
+            // Removing a note kept as customer credit takes only its
+            // unconsumed remainder back out of the credit pool
+            // (Phase 3 lot) — credit already used on an invoice stays
+            // used. Refund notes and notes without a disposition
+            // never touched it, so deleting them leaves it alone.
             if(! $isDebit && $creditNote->disposition === self::DISPOSITION_CREDIT && $creditNote->customer)
             {
-                $customer = Customer::find($creditNote->customer);
-                if($customer)
-                {
-                    $customer->credit_balance = ($customer->credit_balance ?? 0) - $creditNote->amount;
-                    $customer->save();
-                }
+                app(CustomerCreditService::class)->reverseLotForDestroyedNote($creditNote);
             }
 
             $creditNote->delete();
@@ -891,14 +909,17 @@ class CreditNoteController extends Controller
                 // "Keep as customer credit" adds to the credit balance
                 // — always, including the first note. "Refund" adds
                 // nothing: the money is paid out instead (Phase 2).
-                if($request->disposition === self::DISPOSITION_CREDIT)
+                // Phase 3: the credit only becomes a spendable lot
+                // when the note is approved — a pending note adds
+                // nothing until approve() creates it.
+                if($request->disposition === self::DISPOSITION_CREDIT
+                    && (int) $credit->status === CreditNote::STATUS_APPROVED)
                 {
-                    $customer = Customer::find($customer_id);
-                    if($customer)
-                    {
-                        $customer->credit_balance = ($customer->credit_balance ?? 0) + $request->amount;
-                        $customer->save();
-                    }
+                    app(CustomerCreditService::class)->addCredit(
+                        (int) \Auth::user()->creatorId(),
+                        $credit,
+                        (int) \Auth::user()->id
+                    );
                 }
             }
             

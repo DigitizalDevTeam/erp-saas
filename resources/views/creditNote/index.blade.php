@@ -59,6 +59,10 @@
                                 <th> {{__('Customer')}}</th>
                                 <th> {{__('Date')}}</th>
                                 <th> {{__('Amount')}}</th>
+                                <th> {{__('Status')}}</th>
+                                <th> {{__('Type')}}</th>
+                                <th> {{__('Refunded')}}</th>
+                                <th> {{__('Credit Used')}}</th>
                                 <th> {{__('Description')}}</th>
                                 <th width="10%"> {{__('Action')}}</th>
                             </tr>
@@ -77,6 +81,10 @@
                                             <td>{{ (!empty($invoice->customer)?$invoice->customer->name:'-') }}</td>
                                             <td>{{ Auth::user()->dateFormat($creditNote->date) }}</td>
                                             <td>{{ Auth::user()->priceFormat($creditNote->amount) }}</td>
+                                            <td>{{ __(\App\Models\CreditNote::STATUS_LABELS[$creditNote->status ?? 1] ?? '-') }}</td>
+                                            <td>{{ $creditNote->disposition === 'refund' ? __('Refund') : ($creditNote->disposition === 'credit' ? __('Keep as credit') : '-') }}</td>
+                                            <td>@isset($refundsByNote[$creditNote->id]) {{ Auth::user()->priceFormat($refundsByNote[$creditNote->id]->amount) }}<br><small>{{ $refundsByNote[$creditNote->id]->reference }}</small> @else - @endisset</td>
+                                            <td>{{ isset($creditUsedByNote[$creditNote->id]) ? Auth::user()->priceFormat($creditUsedByNote[$creditNote->id]) : '-' }}</td>
                                             <td>{{!empty($creditNote->description)?$creditNote->description:'-'}}</td>
                                             <td>
                                                 @can('edit credit note')
@@ -111,6 +119,10 @@
                                     <td>{{ (!empty($creditNote->customerRelation)?$creditNote->customerRelation->name:'-') }}</td>
                                     <td>{{ Auth::user()->dateFormat($creditNote->date) }}</td>
                                     <td>{{ Auth::user()->priceFormat($creditNote->amount) }}</td>
+                                    <td>{{ __(\App\Models\CreditNote::STATUS_LABELS[$creditNote->status ?? 1] ?? '-') }}</td>
+                                    <td>{{ $creditNote->disposition === 'refund' ? __('Refund') : ($creditNote->disposition === 'credit' ? __('Keep as credit') : '-') }}</td>
+                                    <td>@isset($refundsByNote[$creditNote->id]) {{ Auth::user()->priceFormat($refundsByNote[$creditNote->id]->amount) }}<br><small>{{ $refundsByNote[$creditNote->id]->reference }}</small> @else - @endisset</td>
+                                    <td>{{ isset($creditUsedByNote[$creditNote->id]) ? Auth::user()->priceFormat($creditUsedByNote[$creditNote->id]) : '-' }}</td>
                                     <td>{{!empty($creditNote->description)?$creditNote->description:'-'}}</td>
                                     <td>
                                         @can('edit credit note')

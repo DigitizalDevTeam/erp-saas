@@ -32,6 +32,7 @@ use App\Services\DocumentVoidService;
 use App\Services\DocumentLayoutRenderer;
 use App\Services\Accounting\DocumentLedgerService;
 use App\Services\Accounting\CustomerCreditLimitService;
+use App\Services\CustomerCreditService;
 use App\Services\ProductOptionService;
 use App\Support\SalesPurchaseNotifier;
 use Illuminate\Http\Request;
@@ -863,6 +864,15 @@ class InvoiceController extends Controller
             ];
             SalesPurchaseNotifier::customerInvoiceSent($customer, $customerArr);
         }
+
+        // Phase 3: the debt is real now (SENT + posted) — apply any
+        // customer credit oldest-first, so the amount due updates
+        // automatically. A fully covered invoice becomes PAID here.
+        app(CustomerCreditService::class)->applyAvailableCredit(
+            (int) \Auth::user()->creatorId(),
+            $invoice,
+            (int) \Auth::user()->id
+        );
     }
 
     public function resent($id)
@@ -951,6 +961,20 @@ class InvoiceController extends Controller
             }
 
             $invoicePayment->save();
+
+            // Phase 3: apply any customer credit that arrived after
+            // this invoice was sent, before the status below is
+            // computed — cash + credit together decide PAID vs
+            // PARTIALLY_PAID. The cash amount above was validated
+            // against the due the user saw, so no surprise error.
+            // Draft invoices are skipped: their debt is not real yet.
+            if ((int) $invoice->status !== Invoice::STATUS_DRAFT) {
+                app(CustomerCreditService::class)->applyAvailableCredit(
+                    (int) \Auth::user()->creatorId(),
+                    $invoice,
+                    (int) \Auth::user()->id
+                );
+            }
 
             $invoice = Invoice::where('id', $invoice_id)->first();
             $due = $invoice->getDue();
@@ -1051,6 +1075,15 @@ class InvoiceController extends Controller
 
             InvoicePayment::where('id', '=', $payment_id)->delete();
 
+            // Phase 3: deleting a credit-use payment gives the credit
+            // back to its lot. The money never left any bank account,
+            // so there is no bank row or Transaction row to reverse
+            // for it (guarded below).
+            $isCreditUse = $payment && $payment->payment_type === CustomerCreditService::PAYMENT_TYPE_CREDIT;
+            if ($isCreditUse) {
+                app(CustomerCreditService::class)->reverseCreditUseForPayment($payment);
+            }
+
             InvoiceBankTransfer::where('id', '=', $payment_id)->delete();
 
             TransactionLines::where('reference_sub_id',$payment_id)->where('reference','Invoice Payment')->delete();
@@ -1076,11 +1109,18 @@ class InvoiceController extends Controller
             $invoice->save();
             $type = 'Partial';
             $user = 'Customer';
-            Transaction::destroyTransaction($payment_id, $type, $user);
+            if (! $isCreditUse) {
+                Transaction::destroyTransaction($payment_id, $type, $user);
 
-            Utility::updateUserBalance('customer', $invoice->customer_id, $payment->amount, 'credit');
+                Utility::updateUserBalance('customer', $invoice->customer_id, $payment->amount, 'credit');
 
-            Utility::bankAccountBalance($payment->account_id, $payment->amount, 'debit');
+                Utility::bankAccountBalance($payment->account_id, $payment->amount, 'debit');
+            } else {
+                // Mirror of the apply: the credit had reduced the
+                // amount owed ('credit'), so un-applying it raises
+                // the amount owed again ('debit').
+                Utility::updateUserBalance('customer', $invoice->customer_id, $payment->amount, 'debit');
+            }
 
             return redirect()->back()->with('success', __('Payment successfully deleted.'));
         } else {

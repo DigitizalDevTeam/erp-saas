@@ -9078,5 +9078,13 @@
     "Till session (optional — when refunding at the till)": "Till session (optional — when refunding at the till)",
     "Transfer receipt": "Transfer receipt",
     "limit": "limit",
-    "petty cash": "petty cash"
+    "petty cash": "petty cash",
+    "Customer credit applied": "Kundekredit anvendt",
+    "Refunded": "Refunderet",
+    "Credit Used": "Kredit brugt",
+    "Keep as credit": "Behold som kredit",
+    "Customer Credit": "Kundekredit",
+    "No credit movements yet.": "Ingen kreditbevægelser endnu.",
+    "Credit Balance": "Kreditsaldo",
+    "Usable now": "Brugbar nu"
 }

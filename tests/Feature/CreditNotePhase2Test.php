@@ -88,7 +88,7 @@ class CreditNotePhase2Test extends TestCase
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        foreach (['credit_note_refunds', 'treasury_cash_sessions', 'treasury_petty_cash_funds', 'treasury_entries', 'treasury_operations', 'treasury_opening_balances', 'treasury_financial_accounts', 'bank_accounts', 'chart_of_accounts', 'transaction_lines', 'journal_items', 'journal_entries', 'credit_notes', 'invoice_payments', 'invoice_products', 'invoices', 'product_services', 'taxes', 'customers', 'users', 'roles', 'permissions', 'model_has_permissions', 'model_has_roles', 'role_has_permissions', 'settings', 'languages', 'email_templates', 'ch_messages', 'plans', 'branches', 'branch_user'] as $table) {
+        foreach (['customer_credit_ledger', 'credit_note_refunds', 'treasury_cash_sessions', 'treasury_petty_cash_funds', 'treasury_entries', 'treasury_operations', 'treasury_opening_balances', 'treasury_financial_accounts', 'bank_accounts', 'chart_of_accounts', 'transaction_lines', 'journal_items', 'journal_entries', 'credit_notes', 'invoice_payments', 'invoice_products', 'invoices', 'product_services', 'taxes', 'customers', 'users', 'roles', 'permissions', 'model_has_permissions', 'model_has_roles', 'role_has_permissions', 'settings', 'languages', 'email_templates', 'ch_messages', 'plans', 'branches', 'branch_user'] as $table) {
             Schema::dropIfExists($table);
         }
 
@@ -1038,6 +1038,26 @@ class CreditNotePhase2Test extends TestCase
             $table->decimal('opening_float', 20, 4)->default(0);
             $table->string('state', 20)->default('open');
             $table->timestamps();
+
+        // Phase 3 (migration 310016): the controller's store/update now
+        // write lots through CustomerCreditService, so the fixture must
+        // carry the table like the real schema.
+        Schema::create('customer_credit_ledger', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('customer_id');
+            $table->unsignedBigInteger('credit_note_id')->nullable();
+            $table->unsignedBigInteger('invoice_id')->nullable();
+            $table->unsignedBigInteger('payment_id')->nullable();
+            $table->string('type', 20);
+            $table->decimal('amount', 15, 2);
+            $table->decimal('remaining', 15, 2)->default(0);
+            $table->dateTime('expires_at')->nullable();
+            $table->unsignedBigInteger('created_by');
+            $table->timestamps();
+            $table->index('customer_id', 'ccl_customer_idx');
+            $table->index('credit_note_id', 'ccl_note_idx');
+            $table->index('expires_at', 'ccl_expires_idx');
+        });
         });
     }
 }

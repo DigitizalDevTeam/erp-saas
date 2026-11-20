@@ -9934,5 +9934,13 @@
     "Till session (optional — when refunding at the till)": "Till session (optional — when refunding at the till)",
     "Transfer receipt": "Transfer receipt",
     "limit": "limit",
-    "petty cash": "petty cash"
+    "petty cash": "petty cash",
+    "Customer credit applied": "已申请客户信用",
+    "Refunded": "已退款",
+    "Credit Used": "使用的信用",
+    "Keep as credit": "保留信用",
+    "Customer Credit": "客户信用",
+    "No credit movements yet.": "尚未出现信贷变动。",
+    "Credit Balance": "信用余额",
+    "Usable now": "现在可以使用"
 }

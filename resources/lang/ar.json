@@ -9078,5 +9078,13 @@
     "Till session (optional — when refunding at the till)": "Till session (optional — when refunding at the till)",
     "Transfer receipt": "Transfer receipt",
     "limit": "limit",
-    "petty cash": "petty cash"
+    "petty cash": "petty cash",
+    "Customer credit applied": "تم تطبيق رصيد العميل",
+    "Refunded": "ردها",
+    "Credit Used": "الائتمان المستخدم",
+    "Keep as credit": "الاحتفاظ كائتمان",
+    "Customer Credit": "ائتمان العملاء",
+    "No credit movements yet.": "لا توجد حركات ائتمانية حتى الآن.",
+    "Credit Balance": "الرصيد الائتماني",
+    "Usable now": "صالحة للاستعمال الآن"
 }
