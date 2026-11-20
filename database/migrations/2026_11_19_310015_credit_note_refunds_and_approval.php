@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 
-class AddCreditNoteRefundsAndApproval extends Migration
+class CreditNoteRefundsAndApproval extends Migration
 {
     /**
      * Credit Notes Phase 2 (2026-11-19) — Treasury Reembolso + the
