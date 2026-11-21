@@ -55,7 +55,7 @@
         <div class="col-lg-6 col-md-6 col-sm-6" id="credit_terms_group" style="display:none;">
             <div class="form-group">
                 {{ Form::label('credit_terms', __('Credit Terms'), ['class' => 'form-label']) }}
-                {{ Form::select('credit_terms', ['7 days' => '7 Days', '15 days' => '15 Days', '30 days' => '30 Days', '90 days' => '90 Days', '120 days' => '120 Days'], null, ['class' => 'form-control', 'placeholder' => __('Select Credit Terms')]) }}
+                {{ Form::select('credit_terms', ['7 days' => '7 Days', '14 days' => '14 Days', '15 days' => '15 Days', '30 days' => '30 Days', '60 days' => '60 Days', '90 days' => '90 Days', '120 days' => '120 Days'], null, ['class' => 'form-control', 'placeholder' => __('Select Credit Terms')]) }}
             </div>
         </div>
         <div class="col-lg-6 col-md-6 col-sm-6">
@@ -348,6 +348,20 @@
     // (`var` + .off().on()) — the modal is loaded via AJAX and can be
     // opened repeatedly without a page reload.
     var contactIndex = 1;
+
+    // Credit terms: show the Credit Terms + Credit Limit fields only
+    // when Payment Type is Credit. (The edit form already had this;
+    // the create form never had it, so terms could only be set on edit.)
+    function toggleCreditTerms() {
+        if ($('#payment_type').val() === 'credit') {
+            $('#credit_terms_group').show();
+        } else {
+            $('#credit_terms_group').hide();
+        }
+    }
+    $(document).off('change', '#payment_type').on('change', '#payment_type', toggleCreditTerms);
+    toggleCreditTerms();
+
     $(document).off('click', '#add_contact').on('click', '#add_contact', function() {
         var html = `<div class="row mt-3">
             <div class="col-md-4">

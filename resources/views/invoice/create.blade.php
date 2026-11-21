@@ -19,6 +19,23 @@
         var FLOAT_SEP = @json((\App\Models\Utility::getValByName('float_number') ?: 'comma') === 'dot' ? '.' : ',');
         var selector = "body";
 
+        // Due date from the customer's credit terms: when the chosen
+        // customer has terms (7/14/30/60/90/120 days), the due date
+        // fills itself in as issue date + terms. No terms -> the
+        // manager types the due date as before. The server applies
+        // the same rule, so a typed value can never slip through.
+        var customerTermsDays = null;
+        function applyTermsDueDate() {
+            if (!customerTermsDays) return;
+            var issueVal = $('#issue_date').val();
+            if (!issueVal) issueVal = new Date().toISOString().slice(0, 10);
+            var d = new Date(issueVal + 'T00:00:00');
+            d.setDate(d.getDate() + parseInt(customerTermsDays, 10));
+            var mm = String(d.getMonth() + 1).padStart(2, '0');
+            var dd = String(d.getDate()).padStart(2, '0');
+            $('#due_date').val(d.getFullYear() + '-' + mm + '-' + dd);
+        }
+
         /** Parse locale money input (comma or dot as decimal). */
         function parseNum(val) {
             if (val === null || val === undefined || val === '') return 0;
@@ -224,9 +241,15 @@
                     }else{
                         $('#billing_address option:not(:first)').remove();
                     }
+                    customerTermsDays = data.credit_terms_days ? parseInt(data.credit_terms_days, 10) : null;
+                    applyTermsDueDate();
                 },
 
             });
+        });
+
+        $(document).on('change', '#issue_date', function () {
+            applyTermsDueDate();
         });
         
 

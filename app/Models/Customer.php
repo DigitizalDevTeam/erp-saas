@@ -127,6 +127,24 @@ class Customer extends Authenticatable
     }
 
     /**
+     * Credit period in days, from the customer's Credit Terms
+     * ("30 days" -> 30). Null when the customer has no terms set,
+     * so the invoice due date stays as typed. Legacy values such
+     * as "15 days" still parse; only the choice list on the form
+     * is limited to 7/14/30/60/90/120.
+     */
+    public function creditTermsDays(): ?int
+    {
+        $terms = trim((string) ($this->credit_terms ?? ''));
+        if ($terms === '' || ! preg_match('/^(\d+)/', $terms, $m)) {
+            return null;
+        }
+        $days = (int) $m[1];
+
+        return $days > 0 ? $days : null;
+    }
+
+    /**
      * @param  'account'|'payment'|'invoice'  $category
      * @param  'email'|'sms'|'whatsapp'  $channel
      */

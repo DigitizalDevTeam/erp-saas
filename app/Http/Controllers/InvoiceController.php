@@ -118,7 +118,9 @@ class InvoiceController extends Controller
     {
         $shipping_address = CustomerShippingAddress::where('customer_id', $request->id)->get();
         $billing_address = CustomerBillingAddress::where('customer_id', $request->id)->get();
-        return response()->json(["shipping_address" => $shipping_address, "billing_address" => $billing_address]);
+        $customer = Customer::where('id', $request->id)->first();
+
+        return response()->json(["shipping_address" => $shipping_address, "billing_address" => $billing_address, "credit_terms_days" => $customer?->creditTermsDays()]);
     }
     public function customer_address_detail(Request $request)
     {
@@ -244,6 +246,17 @@ class InvoiceController extends Controller
                 return redirect()->back()->with('error', $messages->first());
             }
 
+            // Due date from the customer's credit terms: a customer
+            // with terms (7/14/30/60/90/120 days) gets
+            // issue date + terms. No terms -> the typed due date stands.
+            $dueDate = $request->due_date;
+            $termCustomer = Customer::where('id', $request->customer_id)
+                ->where('created_by', \Auth::user()->creatorId())
+                ->first();
+            if ($termCustomer && ($termDays = $termCustomer->creditTermsDays())) {
+                $dueDate = \Carbon\Carbon::parse($request->issue_date)->addDays($termDays)->toDateString();
+            }
+
             // Creation goes through the ONE shared path
             // (InvoiceCreationService) — the recurring engine uses
             // the same service, so a manual and a recurring invoice
@@ -270,7 +283,7 @@ class InvoiceController extends Controller
                     [
                         'customer_id' => $request->customer_id,
                         'issue_date' => $request->issue_date,
-                        'due_date' => $request->due_date,
+                        'due_date' => $dueDate,
                         'category_id' => $request->category_id,
                         'ref_number' => $request->ref_number,
                         'client_po_number' => $request->input('client_po_number'),

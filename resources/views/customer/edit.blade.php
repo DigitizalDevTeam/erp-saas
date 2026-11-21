@@ -57,7 +57,7 @@
         <div class="col-lg-6 col-md-6 col-sm-6" id="credit_terms_group" style="display:none;">
             <div class="form-group">
                 {{ Form::label('credit_terms', __('Credit Terms'), ['class' => 'form-label']) }}
-                {{ Form::select('credit_terms', ['7 days' => '7 Days', '15 days' => '15 Days', '30 days' => '30 Days', '90 days' => '90 Days', '120 days' => '120 Days'], null, ['class' => 'form-control', 'placeholder' => __('Select Credit Terms')]) }}
+                {{ Form::select('credit_terms', ['7 days' => '7 Days', '14 days' => '14 Days', '15 days' => '15 Days', '30 days' => '30 Days', '60 days' => '60 Days', '90 days' => '90 Days', '120 days' => '120 Days'], null, ['class' => 'form-control', 'placeholder' => __('Select Credit Terms')]) }}
             </div>
         </div>
         <div class="col-lg-6 col-md-6 col-sm-6">
