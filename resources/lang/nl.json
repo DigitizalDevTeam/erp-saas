@@ -9086,5 +9086,11 @@
     "Customer Credit": "Klantkrediet",
     "No credit movements yet.": "Nog geen kredietbewegingen.",
     "Credit Balance": "Creditsaldo",
-    "Usable now": "Nu bruikbaar"
+    "Usable now": "Nu bruikbaar",
+    "Journal number :number is not valid.": "Journaalnummer: nummer is niet geldig.",
+    "Journal number :number is already used.": "Journaalnummer:nummer is al in gebruik.",
+    "All lines in one journal entry must have the same journal number.": "Alle regels in één journaalboeking moeten hetzelfde journaalnummer hebben.",
+    "All lines in one journal entry must have the same accounting period.": "Alle regels in één journaalboeking moeten dezelfde boekhoudperiode hebben.",
+    "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "Journaalnummer is optioneel.",
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Als de datum leeg is, worden in plaats daarvan jaar, maand en dag gebruikt, dezelfde velden als op het formulier voor handmatige journaalboeking."
 }

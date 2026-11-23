@@ -10082,5 +10082,11 @@
     "Customer Credit": "Crédito do cliente",
     "No credit movements yet.": "Ainda não há movimentos de crédito.",
     "Credit Balance": "Saldo de crédito",
-    "Usable now": "Utilizável agora"
+    "Usable now": "Utilizável agora",
+    "Journal number :number is not valid.": "O número de diário :number não é válido.",
+    "Journal number :number is already used.": "O número de diário :number já está em uso.",
+    "All lines in one journal entry must have the same journal number.": "Todas as linhas de um lançamento devem ter o mesmo número de diário.",
+    "All lines in one journal entry must have the same accounting period.": "Todas as linhas de um lançamento devem ter o mesmo período contabilístico.",
+    "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "O número de diário é opcional. Se for indicado, deve ser um número inteiro ainda não usado; se ficar vazio, o próximo número é atribuído automaticamente.",
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Se a data estiver vazia, são usados o ano, o mês e o dia, os mesmos campos do formulário manual de lançamento no diário."
 }

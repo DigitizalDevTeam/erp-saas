@@ -9086,5 +9086,11 @@
     "Customer Credit": "Müşteri Kredisi",
     "No credit movements yet.": "Henüz kredi hareketi yok.",
     "Credit Balance": "Kredi Bakiyesi",
-    "Usable now": "Artık kullanılabilir"
+    "Usable now": "Artık kullanılabilir",
+    "Journal number :number is not valid.": "Günlük numarası :numarası geçerli değil.",
+    "Journal number :number is already used.": "Günlük numarası :numarası zaten kullanılıyor.",
+    "All lines in one journal entry must have the same journal number.": "Bir yevmiye kaydındaki tüm satırlar aynı yevmiye numarasına sahip olmalıdır.",
+    "All lines in one journal entry must have the same accounting period.": "Bir yevmiye kaydındaki tüm satırlar aynı hesap dönemine sahip olmalıdır.",
+    "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "Dergi numarası isteğe bağlıdır.",
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Tarih boşsa, bunun yerine yıl, ay ve gün kullanılır; manuel yevmiye kaydı formundaki alanların aynıları kullanılır."
 }

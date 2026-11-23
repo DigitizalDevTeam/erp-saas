@@ -9086,5 +9086,11 @@
     "Customer Credit": "顧客クレジット",
     "No credit movements yet.": "まだ信用動向はありません。",
     "Credit Balance": "クレジット残高",
-    "Usable now": "今すぐ使える"
+    "Usable now": "今すぐ使える",
+    "Journal number :number is not valid.": "仕訳帳番号:number が無効です。",
+    "Journal number :number is already used.": "仕訳帳番号:number はすでに使用されています。",
+    "All lines in one journal entry must have the same journal number.": "1 つの仕訳入力のすべての行には、同じ仕訳番号が必要です。",
+    "All lines in one journal entry must have the same accounting period.": "1 つの仕訳入力のすべての明細は、同じ会計期間を持つ必要があります。",
+    "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "ジャーナル番号はオプションです。",
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "日付が空の場合は、手動仕訳入力フォームと同じフィールドである年、月、日が代わりに使用されます。"
 }

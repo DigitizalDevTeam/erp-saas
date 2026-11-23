@@ -9086,5 +9086,11 @@
     "Customer Credit": "Credito cliente",
     "No credit movements yet.": "Nessun movimento di credito ancora.",
     "Credit Balance": "Saldo del credito",
-    "Usable now": "Utilizzabile ora"
+    "Usable now": "Utilizzabile ora",
+    "Journal number :number is not valid.": "Numero giornale: il numero non è valido.",
+    "Journal number :number is already used.": "Numero giornale: il numero è già utilizzato.",
+    "All lines in one journal entry must have the same journal number.": "Tutte le righe di una registrazione a giornale devono avere lo stesso numero di giornale.",
+    "All lines in one journal entry must have the same accounting period.": "Tutte le righe di una registrazione prima nota devono avere lo stesso periodo contabile.",
+    "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "Il numero del giornale è facoltativo.",
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Se la data è vuota, verranno utilizzati invece anno, mese e giorno, gli stessi campi del modulo di registrazione prima nota manuale."
 }

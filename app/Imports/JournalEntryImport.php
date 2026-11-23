@@ -24,6 +24,13 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
  * entry — they still need approval before they post.
  * Invalid groups are skipped whole and reported with their
  * row numbers; one bad group never blocks the rest.
+ *
+ * Optional columns: `journal_number` (a whole number of the
+ * user's own, e.g. from their old books; empty means the next
+ * number is assigned automatically) and `year`, `month`, `day`
+ * (used when `date` is empty, the same three fields as the
+ * manual form — month 0–15, day valid for that month/year).
+ * `date` wins when both it and year/month/day are given.
  */
 class JournalEntryImport implements ToCollection, WithHeadingRow
 {
@@ -82,12 +89,25 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
             $rowNumber = $line['row'];
             $values = $line['values'];
 
-            $date = $this->parseDate($values['date'] ?? null);
-            if ($date === null) {
+            $resolved = $this->resolveDate($values);
+            if ($resolved === null) {
                 $this->addError($rowNumber, __('Date is not valid.'));
                 $failed = true;
 
                 continue;
+            }
+
+            // Optional journal number: empty means auto-assign.
+            $journalNumberRaw = trim((string) ($values['journal_number'] ?? ''));
+            $journalNumber = null;
+            if ($journalNumberRaw !== '') {
+                $journalNumber = $this->parseJournalNumber($journalNumberRaw);
+                if ($journalNumber === null) {
+                    $this->addError($rowNumber, __('Journal number :number is not valid.', ['number' => $journalNumberRaw]));
+                    $failed = true;
+
+                    continue;
+                }
             }
 
             $accountCode = trim((string) ($values['account_code'] ?? ''));
@@ -114,7 +134,9 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
 
             $parsed[] = [
                 'row' => $rowNumber,
-                'date' => $date,
+                'date' => $resolved['date'],
+                'period' => $resolved['period'],
+                'journal_number' => $journalNumber,
                 'account' => $account,
                 'description' => trim((string) ($values['line_description'] ?? '')),
                 'debit' => $debit,
@@ -131,6 +153,25 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
         $dates = array_unique(array_column($parsed, 'date'));
         if (count($dates) > 1) {
             $this->addError($parsed[0]['row'], __('All lines in one journal entry must have the same date.'));
+            $this->result['skipped'] += count($lines);
+
+            return;
+        }
+
+        $periods = array_unique(array_column($parsed, 'period'));
+        if (count($periods) > 1) {
+            $this->addError($parsed[0]['row'], __('All lines in one journal entry must have the same accounting period.'));
+            $this->result['skipped'] += count($lines);
+
+            return;
+        }
+
+        $journalNumbers = array_values(array_unique(array_filter(
+            array_column($parsed, 'journal_number'),
+            fn ($number) => $number !== null
+        )));
+        if (count($journalNumbers) > 1) {
+            $this->addError($parsed[0]['row'], __('All lines in one journal entry must have the same journal number.'));
             $this->result['skipped'] += count($lines);
 
             return;
@@ -153,9 +194,19 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
         }
 
         $date = $parsed[0]['date'];
-        $year = (int) date('Y', strtotime($date));
-        $month = (int) date('n', strtotime($date));
-        $day = (int) date('j', strtotime($date));
+        $period = (int) $parsed[0]['period'];
+
+        // A supplied journal number must not already exist for this
+        // company — journal_id has no unique constraint, so the
+        // check lives here. Groups import one by one, so a number
+        // used by an earlier group in the same file is caught too.
+        $journalNumber = $journalNumbers[0] ?? null;
+        if ($journalNumber !== null && JournalEntry::where('created_by', $this->creatorId)->where('journal_id', $journalNumber)->exists()) {
+            $this->addError($parsed[0]['row'], __('Journal number :number is already used.', ['number' => $journalNumber]));
+            $this->result['skipped'] += count($lines);
+
+            return;
+        }
 
         $description = '';
         foreach ($lines as $line) {
@@ -166,8 +217,8 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
         }
 
         $journal = new JournalEntry();
-        $journal->journal_id = $this->nextJournalNumber();
-        $journal->date = AccountingPeriodDate::composeDate($year, $month, $day);
+        $journal->journal_id = $journalNumber ?? $this->nextJournalNumber();
+        $journal->date = $date;
         $journal->reference = $reference;
         $journal->description = $description;
         // Same guard as JournalEntryController::store: some workflow
@@ -177,7 +228,7 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
         }
         $journal->status = JournalEntry::STATUS_PENDING;
         $journal->created_by = $this->creatorId;
-        $journal->accounting_period = $month;
+        $journal->accounting_period = $period;
         $journal->save();
 
         foreach ($parsed as $line) {
@@ -242,6 +293,82 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
         return date('Y-m-d', $timestamp);
     }
 
+    /**
+     * Resolve one line's date: the `date` column wins when it is
+     * filled; otherwise year/month/day are used, exactly like the
+     * manual form (month 0–15, day valid for that month/year).
+     * Returns the stored date plus the accounting period, or null
+     * when neither source gives a valid date.
+     *
+     * @return array{date: string, period: int}|null
+     */
+    protected function resolveDate(array $values): ?array
+    {
+        $rawDate = $values['date'] ?? null;
+        if (is_string($rawDate)) {
+            $rawDate = trim($rawDate);
+        }
+        if ($rawDate !== null && $rawDate !== '') {
+            $date = $this->parseDate($rawDate);
+            if ($date === null) {
+                return null;
+            }
+
+            return ['date' => $date, 'period' => (int) date('n', strtotime($date))];
+        }
+
+        $year = $this->parseIntCell($values['year'] ?? null);
+        $month = $this->parseIntCell($values['month'] ?? null);
+        $day = $this->parseIntCell($values['day'] ?? null);
+        if ($year === null || $month === null || $day === null) {
+            return null;
+        }
+        if ($year < 2000 || $year > 2100 || $month < 0 || $month > 15) {
+            return null;
+        }
+        if ($day < 1 || $day > AccountingPeriodDate::daysInPeriod($year, $month)) {
+            return null;
+        }
+
+        return [
+            'date' => AccountingPeriodDate::composeDate($year, $month, $day),
+            'period' => $month,
+        ];
+    }
+
+    /** A whole number from a cell, or null when it is empty or not a number. */
+    protected function parseIntCell(mixed $value): ?int
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        $text = trim((string) $value);
+        if (! preg_match('/^\d+$/', $text)) {
+            return null;
+        }
+
+        return (int) $text;
+    }
+
+    /**
+     * The journal number for one line: a plain whole number, or the
+     * number in the formatted form the list shows (e.g. JE-00001).
+     * Returns null when the value is not a usable number.
+     */
+    protected function parseJournalNumber(string $value): ?int
+    {
+        if (preg_match('/^\d+$/', $value, $matches)) {
+            $number = (int) $matches[0];
+        } elseif (preg_match('/^[^0-9]*0*(\d+)$/', $value, $matches)) {
+            $number = (int) $matches[1];
+        } else {
+            return null;
+        }
+
+        return $number > 0 ? $number : null;
+    }
+
     protected function addError(int $rowNumber, string $message): void
     {
         $this->result['errors'][] = __('Row :row: :message', ['row' => $rowNumber, 'message' => $message]);
@@ -251,7 +378,11 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
     public static function headings(): array
     {
         return [
+            'journal_number',
             'date',
+            'year',
+            'month',
+            'day',
             'reference',
             'description',
             'account_code',
@@ -265,8 +396,8 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
     public static function exampleRows(): array
     {
         return [
-            ['2026-11-18', 'JE-IMPORT-001', 'Example journal entry', '611', '500', '', 'Inventory cost'],
-            ['2026-11-18', 'JE-IMPORT-001', 'Example journal entry', '111', '', '500', 'Cash payment'],
+            ['', '2026-11-18', '2026', '11', '18', 'JE-IMPORT-001', 'Example journal entry', '611', '500', '', 'Inventory cost'],
+            ['', '2026-11-18', '2026', '11', '18', 'JE-IMPORT-001', 'Example journal entry', '111', '', '500', 'Cash payment'],
         ];
     }
 }
