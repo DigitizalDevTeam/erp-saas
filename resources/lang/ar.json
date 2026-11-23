@@ -9086,5 +9086,11 @@
     "Customer Credit": "ائتمان العملاء",
     "No credit movements yet.": "لا توجد حركات ائتمانية حتى الآن.",
     "Credit Balance": "الرصيد الائتماني",
-    "Usable now": "صالحة للاستعمال الآن"
+    "Usable now": "صالحة للاستعمال الآن",
+    "Journal number :number is not valid.": "رقم المجلة :الرقم غير صالح.",
+    "Journal number :number is already used.": "رقم دفتر اليومية:الرقم مستخدم بالفعل.",
+    "All lines in one journal entry must have the same journal number.": "يجب أن تحتوي جميع الأسطر الموجودة في قيد دفتر يومية واحد على نفس رقم دفتر اليومية.",
+    "All lines in one journal entry must have the same accounting period.": "يجب أن يكون لجميع البنود في قيد دفتر يومية واحد نفس الفترة المحاسبية.",
+    "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "رقم المجلة اختياري.",
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "إذا كان التاريخ فارغًا، فسيتم استخدام السنة والشهر واليوم بدلاً من ذلك، نفس الحقول الموجودة في نموذج قيد اليومية اليدوي."
 }

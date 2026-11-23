@@ -9942,5 +9942,11 @@
     "Customer Credit": "客户信用",
     "No credit movements yet.": "尚未出现信贷变动。",
     "Credit Balance": "信用余额",
-    "Usable now": "现在可以使用"
+    "Usable now": "现在可以使用",
+    "Journal number :number is not valid.": "期刊编号：编号无效。",
+    "Journal number :number is already used.": "期刊编号：编号已被使用。",
+    "All lines in one journal entry must have the same journal number.": "一个日记帐分录中的所有行必须具有相同的日记帐编号。",
+    "All lines in one journal entry must have the same accounting period.": "一份日记帐分录中的所有行必须具有相同的会计期间。",
+    "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "期刊编号是可选的。",
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "如果日期为空，则使用年、月和日，这些字段与手动日记帐分录表单上的字段相同。"
 }

@@ -10027,5 +10027,11 @@
     "Customer Credit": "Customer Credit",
     "No credit movements yet.": "No credit movements yet.",
     "Credit Balance": "Credit Balance",
-    "Usable now": "Usable now"
+    "Usable now": "Usable now",
+    "Journal number :number is not valid.": "Journal number :number is not valid.",
+    "Journal number :number is already used.": "Journal number :number is already used.",
+    "All lines in one journal entry must have the same journal number.": "All lines in one journal entry must have the same journal number.",
+    "All lines in one journal entry must have the same accounting period.": "All lines in one journal entry must have the same accounting period.",
+    "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.",
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form."
 }

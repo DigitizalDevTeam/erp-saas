@@ -9086,5 +9086,11 @@
     "Customer Credit": "Kundekredit",
     "No credit movements yet.": "Ingen kreditbevægelser endnu.",
     "Credit Balance": "Kreditsaldo",
-    "Usable now": "Brugbar nu"
+    "Usable now": "Brugbar nu",
+    "Journal number :number is not valid.": "Journalnummer :nummer er ikke gyldigt.",
+    "Journal number :number is already used.": "Journalnummer :nummer er allerede brugt.",
+    "All lines in one journal entry must have the same journal number.": "Alle linjer i én kladdepost skal have samme kladdenummer.",
+    "All lines in one journal entry must have the same accounting period.": "Alle linjer i én bilagspostering skal have samme regnskabsperiode.",
+    "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "Journalnummer er valgfrit.",
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Hvis dato er tom, anvendes i stedet år, måned og dag, samme felter som på den manuelle journalindførselsformular."
 }

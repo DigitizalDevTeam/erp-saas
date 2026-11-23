@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Imports\JournalEntryImport;
 use App\Models\JournalEntry;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
@@ -207,6 +208,171 @@ class JournalEntryImportTest extends TestCase
         $this->assertSame(0, JournalEntry::count());
     }
 
+    public function test_supplied_journal_number_is_used_and_auto_numbering_continues_after_it(): void
+    {
+        $file = $this->makeXlsxFull([
+            [42, '2026-11-18', '', '', '', 'JE-NUM', 'Numbered', '611', 500, '', 'Inventory cost'],
+            [42, '2026-11-18', '', '', '', 'JE-NUM', 'Numbered', '111', '', 500, 'Cash payment'],
+            ['', '2026-11-19', '', '', '', 'JE-AUTO', 'Auto', '611', 100, '', ''],
+            ['', '2026-11-19', '', '', '', 'JE-AUTO', 'Auto', '111', '', 100, ''],
+        ]);
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $file]);
+
+        $response->assertRedirect(route('journal-entry.index'));
+        $response->assertSessionHas('success', 'Imported 2 journal entries. Skipped 0 rows.');
+        $this->assertSame(42, (int) JournalEntry::where('reference', 'JE-NUM')->first()->journal_id);
+        $this->assertSame(43, (int) JournalEntry::where('reference', 'JE-AUTO')->first()->journal_id);
+    }
+
+    public function test_formatted_journal_number_is_accepted(): void
+    {
+        $file = $this->makeXlsxFull([
+            ['JE-00007', '2026-11-18', '', '', '', 'JE-FMT', 'Formatted', '611', 500, '', ''],
+            ['JE-00007', '2026-11-18', '', '', '', 'JE-FMT', 'Formatted', '111', '', 500, ''],
+        ]);
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $file]);
+
+        $response->assertSessionHas('success', 'Imported 1 journal entries. Skipped 0 rows.');
+        $this->assertSame(7, (int) JournalEntry::where('reference', 'JE-FMT')->first()->journal_id);
+    }
+
+    public function test_duplicate_journal_number_is_skipped_and_other_group_still_imports(): void
+    {
+        $file = $this->makeXlsxFull([
+            [9, '2026-11-18', '', '', '', 'JE-DUP1', 'First', '611', 500, '', ''],
+            [9, '2026-11-18', '', '', '', 'JE-DUP1', 'First', '111', '', 500, ''],
+            [9, '2026-11-18', '', '', '', 'JE-DUP2', 'Second', '611', 100, '', ''],
+            [9, '2026-11-18', '', '', '', 'JE-DUP2', 'Second', '111', '', 100, ''],
+        ]);
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $file]);
+
+        $response->assertRedirect(route('journal-entry.index'));
+        $response->assertSessionHas('success', 'Imported 1 journal entries. Skipped 2 rows.');
+        $response->assertSessionHas('import_errors');
+        $this->assertSame(1, JournalEntry::count());
+        $this->assertNotNull(JournalEntry::where('reference', 'JE-DUP1')->first());
+        $this->assertNull(JournalEntry::where('reference', 'JE-DUP2')->first());
+        $errors = $response->getSession()->get('import_errors');
+        $this->assertStringContainsString('already used', $errors[0]);
+    }
+
+    public function test_mismatched_journal_number_in_group_is_skipped(): void
+    {
+        $file = $this->makeXlsxFull([
+            [10, '2026-11-18', '', '', '', 'JE-MIX', 'Mixed', '611', 500, '', ''],
+            [11, '2026-11-18', '', '', '', 'JE-MIX', 'Mixed', '111', '', 500, ''],
+        ]);
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $file]);
+
+        $response->assertSessionHas('success', 'Imported 0 journal entries. Skipped 2 rows.');
+        $this->assertSame(0, JournalEntry::count());
+        $errors = $response->getSession()->get('import_errors');
+        $this->assertStringContainsString('same journal number', $errors[0]);
+    }
+
+    public function test_zero_journal_number_is_rejected(): void
+    {
+        // Built cell-by-cell: fromArray() drops 0 values, so a real
+        // file with a 0 typed in needs setCellValue to reproduce it.
+        $file = $this->makeXlsxFullCells([
+            [0, '2026-11-18', '', '', '', 'JE-ZERO', 'Zero', '611', 500, '', ''],
+            [0, '2026-11-18', '', '', '', 'JE-ZERO', 'Zero', '111', '', 500, ''],
+        ]);
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $file]);
+
+        $response->assertSessionHas('success', 'Imported 0 journal entries. Skipped 2 rows.');
+        $this->assertSame(0, JournalEntry::count());
+        $errors = $response->getSession()->get('import_errors');
+        $this->assertStringContainsString('not valid', $errors[0]);
+    }
+
+    public function test_opening_balances_month_zero_is_stored(): void
+    {
+        $file = $this->makeXlsxFullCells([
+            ['', '', 2026, 0, 10, 'JE-OPEN', 'Opening', '611', 100, '', ''],
+            ['', '', 2026, 0, 10, 'JE-OPEN', 'Opening', '111', '', 100, ''],
+        ]);
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $file]);
+
+        $response->assertSessionHas('success', 'Imported 1 journal entries. Skipped 0 rows.');
+        $entry = JournalEntry::where('reference', 'JE-OPEN')->first();
+        $this->assertNotNull($entry);
+        $this->assertSame('2026-01-10', $entry->date);
+        $this->assertSame(0, (int) $entry->accounting_period);
+    }
+
+    public function test_year_month_day_without_date_creates_entry(): void
+    {
+        $file = $this->makeXlsxFull([
+            ['', '', 2026, 11, 18, 'JE-YMD', 'YMD entry', '611', 500, '', 'Inventory cost'],
+            ['', '', 2026, 11, 18, 'JE-YMD', 'YMD entry', '111', '', 500, 'Cash payment'],
+        ]);
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $file]);
+
+        $response->assertSessionHas('success', 'Imported 1 journal entries. Skipped 0 rows.');
+        $entry = JournalEntry::where('reference', 'JE-YMD')->first();
+        $this->assertNotNull($entry);
+        $this->assertSame('2026-11-18', $entry->date);
+        $this->assertSame(11, (int) $entry->accounting_period);
+        $this->assertSame(JournalEntry::STATUS_PENDING, (int) $entry->status);
+    }
+
+    public function test_date_wins_when_both_date_and_ymd_given(): void
+    {
+        $file = $this->makeXlsxFull([
+            ['', '2026-11-18', 2025, 1, 5, 'JE-BOTH', 'Both', '611', 500, '', ''],
+            ['', '2026-11-18', 2025, 1, 5, 'JE-BOTH', 'Both', '111', '', 500, ''],
+        ]);
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $file]);
+
+        $response->assertSessionHas('success', 'Imported 1 journal entries. Skipped 0 rows.');
+        $entry = JournalEntry::where('reference', 'JE-BOTH')->first();
+        $this->assertNotNull($entry);
+        $this->assertSame('2026-11-18', $entry->date);
+        $this->assertSame(11, (int) $entry->accounting_period);
+    }
+
+    public function test_invalid_year_month_day_is_skipped(): void
+    {
+        $file = $this->makeXlsxFull([
+            ['', '', 2026, 16, 10, 'JE-BADMO', 'Bad month', '611', 100, '', ''],
+            ['', '', 2026, 16, 10, 'JE-BADMO', 'Bad month', '111', '', 100, ''],
+            ['', '', 2026, 2, 30, 'JE-BADDAY', 'Bad day', '611', 100, '', ''],
+            ['', '', 2026, 2, 30, 'JE-BADDAY', 'Bad day', '111', '', 100, ''],
+        ]);
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $file]);
+
+        $response->assertSessionHas('success', 'Imported 0 journal entries. Skipped 4 rows.');
+        $this->assertSame(0, JournalEntry::count());
+        $errors = $response->getSession()->get('import_errors');
+        $this->assertStringContainsString('Date is not valid', $errors[0]);
+    }
+
+    public function test_special_period_month_is_stored(): void
+    {
+        $file = $this->makeXlsxFull([
+            ['', '', 2026, 13, 5, 'JE-YE', 'Year end', '611', 100, '', ''],
+            ['', '', 2026, 13, 5, 'JE-YE', 'Year end', '111', '', 100, ''],
+        ]);
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $file]);
+
+        $response->assertSessionHas('success', 'Imported 1 journal entries. Skipped 0 rows.');
+        $entry = JournalEntry::where('reference', 'JE-YE')->first();
+        $this->assertNotNull($entry);
+        $this->assertSame('2026-12-05', $entry->date);
+        $this->assertSame(13, (int) $entry->accounting_period);
+    }
+
     // ------------------------------------------------------------------
     // Fixture
     // ------------------------------------------------------------------
@@ -229,6 +395,42 @@ class JournalEntryImportTest extends TestCase
             null, 'A1'
         );
         $sheet->fromArray($rows, null, 'A2');
+
+        $path = tempnam(sys_get_temp_dir(), 'je-import-').'.xlsx';
+        (new Xlsx($sheet->getParent()))->save($path);
+
+        return new UploadedFile($path, 'journal-entries.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
+    }
+
+    /** Same as makeXlsx, but with the full template headings (journal_number + year/month/day). */
+    private function makeXlsxFull(array $rows): UploadedFile
+    {
+        $sheet = (new Spreadsheet())->getActiveSheet();
+        $sheet->fromArray(JournalEntryImport::headings(), null, 'A1');
+        $sheet->fromArray($rows, null, 'A2');
+
+        $path = tempnam(sys_get_temp_dir(), 'je-import-').'.xlsx';
+        (new Xlsx($sheet->getParent()))->save($path);
+
+        return new UploadedFile($path, 'journal-entries.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
+    }
+
+    /**
+     * Same as makeXlsxFull, but written cell-by-cell: fromArray()
+     * drops 0 values, so files that need a real 0 (journal number
+     * 0, month 0) must be built this way.
+     */
+    private function makeXlsxFullCells(array $rows): UploadedFile
+    {
+        $sheet = (new Spreadsheet())->getActiveSheet();
+        foreach (JournalEntryImport::headings() as $col => $heading) {
+            $sheet->setCellValue([$col + 1, 1], $heading);
+        }
+        foreach ($rows as $rowIndex => $row) {
+            foreach ($row as $col => $value) {
+                $sheet->setCellValue([$col + 1, $rowIndex + 2], $value);
+            }
+        }
 
         $path = tempnam(sys_get_temp_dir(), 'je-import-').'.xlsx';
         (new Xlsx($sheet->getParent()))->save($path);
