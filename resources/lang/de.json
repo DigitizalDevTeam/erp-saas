@@ -9092,5 +9092,7 @@
     "All lines in one journal entry must have the same journal number.": "Alle Zeilen in einem Journaleintrag müssen dieselbe Journalnummer haben.",
     "All lines in one journal entry must have the same accounting period.": "Alle Zeilen in einer Journalbuchung müssen denselben Buchungszeitraum haben.",
     "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "Die Journalnummer ist optional.",
-    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Wenn das Datum leer ist, werden stattdessen Jahr, Monat und Tag verwendet, also dieselben Felder wie im manuellen Journalbuchungsformular."
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Wenn das Datum leer ist, werden stattdessen Jahr, Monat und Tag verwendet, also dieselben Felder wie im manuellen Journalbuchungsformular.",
+    "Already imported :already journal entries.": "Already imported :already journal entries.",
+    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported."
 }

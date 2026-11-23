@@ -34,7 +34,10 @@ class JournalEntryImportController extends Controller
         return Excel::download(new class implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings {
             public function array(): array
             {
-                return JournalEntryImport::exampleRows();
+                // The example uses the logged-in company's own
+                // accounts, so the downloaded file imports cleanly
+                // as-is, whichever company is logged in.
+                return JournalEntryImport::exampleRows((int) Auth::user()->creatorId());
             }
 
             public function headings(): array
@@ -79,6 +82,9 @@ class JournalEntryImportController extends Controller
 
         $result = $import->result;
         $message = __('Imported :created journal entries. Skipped :skipped rows.', ['created' => $result['created'], 'skipped' => $result['skipped']]);
+        if (($result['already_imported'] ?? 0) > 0) {
+            $message .= ' '.__('Already imported :already journal entries.', ['already' => $result['already_imported']]);
+        }
 
         if (! empty($result['errors'])) {
             return redirect()->route('journal-entry.index')->with('success', $message)->with('import_errors', array_slice($result['errors'], 0, 20));

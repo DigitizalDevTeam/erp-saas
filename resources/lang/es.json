@@ -9948,5 +9948,7 @@
     "All lines in one journal entry must have the same journal number.": "Todas las líneas de un asiento de diario deben tener el mismo número de diario.",
     "All lines in one journal entry must have the same accounting period.": "Todas las líneas de un asiento de diario deben tener el mismo período contable.",
     "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "El número de diario es opcional.",
-    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Si la fecha está vacía, se utilizan en su lugar año, mes y día, los mismos campos que en el formulario de asiento de diario manual."
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Si la fecha está vacía, se utilizan en su lugar año, mes y día, los mismos campos que en el formulario de asiento de diario manual.",
+    "Already imported :already journal entries.": "Already imported :already journal entries.",
+    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported."
 }

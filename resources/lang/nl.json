@@ -9092,5 +9092,7 @@
     "All lines in one journal entry must have the same journal number.": "Alle regels in één journaalboeking moeten hetzelfde journaalnummer hebben.",
     "All lines in one journal entry must have the same accounting period.": "Alle regels in één journaalboeking moeten dezelfde boekhoudperiode hebben.",
     "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "Journaalnummer is optioneel.",
-    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Als de datum leeg is, worden in plaats daarvan jaar, maand en dag gebruikt, dezelfde velden als op het formulier voor handmatige journaalboeking."
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Als de datum leeg is, worden in plaats daarvan jaar, maand en dag gebruikt, dezelfde velden als op het formulier voor handmatige journaalboeking.",
+    "Already imported :already journal entries.": "Already imported :already journal entries.",
+    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported."
 }

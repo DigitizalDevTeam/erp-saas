@@ -9092,5 +9092,7 @@
     "All lines in one journal entry must have the same journal number.": "כל השורות בריומת יומן אחת חייבות להיות עם אותו מספר יומן.",
     "All lines in one journal entry must have the same accounting period.": "כל השורות בתנועת יומן אחת חייבת להיות בעלת אותה תקופת חשבונאות.",
     "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "מספר יומן הוא אופציונלי.",
-    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "אם התאריך ריק, שנה, חודש ויום משמשים במקום זאת, אותם שדות כמו בטופס רישום היומן הידני."
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "אם התאריך ריק, שנה, חודש ויום משמשים במקום זאת, אותם שדות כמו בטופס רישום היומן הידני.",
+    "Already imported :already journal entries.": "Already imported :already journal entries.",
+    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported."
 }

@@ -9092,5 +9092,7 @@
     "All lines in one journal entry must have the same journal number.": "Alle linjer i én kladdepost skal have samme kladdenummer.",
     "All lines in one journal entry must have the same accounting period.": "Alle linjer i én bilagspostering skal have samme regnskabsperiode.",
     "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "Journalnummer er valgfrit.",
-    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Hvis dato er tom, anvendes i stedet år, måned og dag, samme felter som på den manuelle journalindførselsformular."
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Hvis dato er tom, anvendes i stedet år, måned og dag, samme felter som på den manuelle journalindførselsformular.",
+    "Already imported :already journal entries.": "Already imported :already journal entries.",
+    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported."
 }

@@ -24,6 +24,14 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
  * entry — they still need approval before they post.
  * Invalid groups are skipped whole and reported with their
  * row numbers; one bad group never blocks the rest.
+ * Uploading the same file again is safe: entries that are
+ * already imported are skipped and counted separately (not
+ * errors) — by journal number when one was given, otherwise by
+ * matching reference, date, accounting period and lines.
+ *
+ * The downloadable template's example rows use the logged-in
+ * company's own accounts (see exampleRows), so the file imports
+ * cleanly as downloaded.
  *
  * Optional columns: `journal_number` (a whole number of the
  * user's own, e.g. from their old books; empty means the next
@@ -36,8 +44,8 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
 {
     use Importable;
 
-    /** @var array{created: int, skipped: int, errors: array<int, string>} */
-    public array $result = ['created' => 0, 'skipped' => 0, 'errors' => []];
+    /** @var array{created: int, already_imported: int, skipped: int, errors: array<int, string>} */
+    public array $result = ['created' => 0, 'already_imported' => 0, 'skipped' => 0, 'errors' => []];
 
     public function __construct(
         protected int $creatorId,
@@ -196,14 +204,27 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
         $date = $parsed[0]['date'];
         $period = (int) $parsed[0]['period'];
 
-        // A supplied journal number must not already exist for this
-        // company — journal_id has no unique constraint, so the
-        // check lives here. Groups import one by one, so a number
+        // A supplied journal number that already exists for this
+        // company means the entry was already imported — skip it
+        // quietly (it is NOT an error) and count it separately, so
+        // the same file can be uploaded again after fixing the
+        // rows that failed, without duplicating the rows that
+        // already went in. Groups import one by one, so a number
         // used by an earlier group in the same file is caught too.
         $journalNumber = $journalNumbers[0] ?? null;
         if ($journalNumber !== null && JournalEntry::where('created_by', $this->creatorId)->where('journal_id', $journalNumber)->exists()) {
-            $this->addError($parsed[0]['row'], __('Journal number :number is already used.', ['number' => $journalNumber]));
-            $this->result['skipped'] += count($lines);
+            $this->result['already_imported']++;
+
+            return;
+        }
+
+        // Without a journal number there is nothing to match on, so
+        // the same file uploaded again would create a second
+        // identical entry. Skip the group when an identical entry
+        // (same reference, date, accounting period and lines)
+        // already exists for this company.
+        if ($journalNumber === null && $this->identicalEntryExists($reference, $date, $period, $parsed)) {
+            $this->result['already_imported']++;
 
             return;
         }
@@ -249,6 +270,53 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
         $latest = JournalEntry::where('created_by', $this->creatorId)->max('journal_id');
 
         return $latest === null ? 1 : ((int) $latest) + 1;
+    }
+
+    /**
+     * Does an identical entry already exist for this company?
+     * Identity is reference + date + accounting period + the
+     * lines (account and amounts) — descriptions are labels, not
+     * identity, so fixing a typo in one does not re-import the
+     * entry. Any status counts: an approved entry is still the
+     * same entry.
+     */
+    protected function identicalEntryExists(string $reference, string $date, int $period, array $parsed): bool
+    {
+        $signature = $this->linesSignature(array_map(
+            fn (array $line) => [(int) $line['account']->id, $line['debit'], $line['credit']],
+            $parsed
+        ));
+
+        $candidates = JournalEntry::where('created_by', $this->creatorId)
+            ->where('reference', $reference)
+            ->where('date', $date)
+            ->where('accounting_period', $period)
+            ->get();
+
+        foreach ($candidates as $candidate) {
+            $items = JournalItem::where('journal', $candidate->id)->get();
+            $itemsSignature = $this->linesSignature(array_map(
+                fn (JournalItem $item) => [(int) $item->account, $item->debit, $item->credit],
+                $items->all()
+            ));
+            if ($itemsSignature === $signature) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Sorted "account|debit|credit" signature of a set of lines. */
+    protected function linesSignature(array $lines): string
+    {
+        $parts = [];
+        foreach ($lines as [$accountId, $debit, $credit]) {
+            $parts[] = $accountId.'|'.number_format((float) $debit, 2, '.', '').'|'.number_format((float) $credit, 2, '.', '');
+        }
+        sort($parts);
+
+        return implode(';', $parts);
     }
 
     protected function isBlankRow(array $values): bool
@@ -392,12 +460,48 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
         ];
     }
 
-    /** One example entry (two lines) for the downloadable template. */
-    public static function exampleRows(): array
+    /**
+     * One example entry (two lines) for the downloadable template.
+     * When the company is known, the example uses that company's
+     * own accounts — a cost account on the debit line and a cash
+     * account on the credit line — so the downloaded file imports
+     * cleanly as-is, whichever company is logged in. Otherwise
+     * (or when the company has no matching accounts) it falls
+     * back to the generic 611 / 111 example.
+     */
+    public static function exampleRows(?int $creatorId = null): array
     {
+        $debitCode = '611';
+        $creditCode = '111';
+        if ($creatorId !== null) {
+            $debitCode = self::exampleAccountCode($creatorId, ['611', '61', '6']) ?? $debitCode;
+            $creditCode = self::exampleAccountCode($creatorId, ['11', '12']) ?? $creditCode;
+        }
+
         return [
-            ['', '2026-11-18', '2026', '11', '18', 'JE-IMPORT-001', 'Example journal entry', '611', '500', '', 'Inventory cost'],
-            ['', '2026-11-18', '2026', '11', '18', 'JE-IMPORT-001', 'Example journal entry', '111', '', '500', 'Cash payment'],
+            ['', '2026-11-18', '2026', '11', '18', 'JE-IMPORT-001', 'Example journal entry', $debitCode, '500', '', 'Inventory cost'],
+            ['', '2026-11-18', '2026', '11', '18', 'JE-IMPORT-001', 'Example journal entry', $creditCode, '', '500', 'Cash payment'],
         ];
+    }
+
+    /**
+     * First account of this company whose code starts with one of
+     * the given prefixes (in order), or null when there is none.
+     * Codes are integers, ordered numerically, so the smallest
+     * matching code wins (e.g. 11 Cash before 1110001).
+     */
+    protected static function exampleAccountCode(int $creatorId, array $prefixes): ?string
+    {
+        foreach ($prefixes as $prefix) {
+            $account = ChartOfAccount::where('created_by', $creatorId)
+                ->where('code', 'like', $prefix.'%')
+                ->orderBy('code')
+                ->first();
+            if ($account !== null) {
+                return (string) $account->code;
+            }
+        }
+
+        return null;
     }
 }

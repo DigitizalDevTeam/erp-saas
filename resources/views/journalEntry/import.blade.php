@@ -11,6 +11,7 @@
             <p class="text-muted mb-1"><strong>{{ __('Columns:') }}</strong> journal_number, date, year, month, day, reference, description, account_code, debit, credit, line_description</p>
             <p class="text-muted mb-1">{{ __('Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.') }}</p>
             <p class="text-muted mb-1">{{ __('If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.') }}</p>
+            <p class="text-muted mb-1">{{ __('If you upload the same file again, entries that are already imported are skipped and counted as already imported.') }}</p>
             <p class="text-muted">{{ __('Only XLSX files are supported.') }}</p>
         </div>
         <div class="col-md-12">
