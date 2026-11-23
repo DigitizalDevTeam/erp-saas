@@ -9092,5 +9092,7 @@
     "All lines in one journal entry must have the same journal number.": "Wszystkie wiersze w jednym zapisie księgowym muszą mieć ten sam numer dziennika.",
     "All lines in one journal entry must have the same accounting period.": "Wszystkie wiersze w jednym zapisie księgowym muszą mieć ten sam okres rozliczeniowy.",
     "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "Numer dziennika jest opcjonalny.",
-    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Jeśli data jest pusta, zamiast tego używane są rok, miesiąc i dzień, te same pola, co w formularzu ręcznego zapisu księgowego."
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Jeśli data jest pusta, zamiast tego używane są rok, miesiąc i dzień, te same pola, co w formularzu ręcznego zapisu księgowego.",
+    "Already imported :already journal entries.": "Already imported :already journal entries.",
+    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported."
 }

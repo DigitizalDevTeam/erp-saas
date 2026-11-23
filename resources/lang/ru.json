@@ -9092,5 +9092,7 @@
     "All lines in one journal entry must have the same journal number.": "Все строки в одной записи журнала должны иметь одинаковый номер журнала.",
     "All lines in one journal entry must have the same accounting period.": "Все строки одной бухгалтерской проводки должны относиться к одному и тому же отчетному периоду.",
     "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "Номер журнала не является обязательным.",
-    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Если дата пуста, вместо нее используются год, месяц и день — те же поля, что и в форме ручного ввода журнала."
+    "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "Если дата пуста, вместо нее используются год, месяц и день — те же поля, что и в форме ручного ввода журнала.",
+    "Already imported :already journal entries.": "Already imported :already journal entries.",
+    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported."
 }

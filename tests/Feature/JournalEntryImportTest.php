@@ -238,7 +238,7 @@ class JournalEntryImportTest extends TestCase
         $this->assertSame(7, (int) JournalEntry::where('reference', 'JE-FMT')->first()->journal_id);
     }
 
-    public function test_duplicate_journal_number_is_skipped_and_other_group_still_imports(): void
+    public function test_duplicate_journal_number_is_counted_already_imported_and_other_group_still_imports(): void
     {
         $file = $this->makeXlsxFull([
             [9, '2026-11-18', '', '', '', 'JE-DUP1', 'First', '611', 500, '', ''],
@@ -250,13 +250,112 @@ class JournalEntryImportTest extends TestCase
         $response = $this->post(route('journal-entry.import'), ['file' => $file]);
 
         $response->assertRedirect(route('journal-entry.index'));
-        $response->assertSessionHas('success', 'Imported 1 journal entries. Skipped 2 rows.');
-        $response->assertSessionHas('import_errors');
+        $response->assertSessionHas('success', 'Imported 1 journal entries. Skipped 0 rows. Already imported 1 journal entries.');
+        $response->assertSessionMissing('import_errors');
         $this->assertSame(1, JournalEntry::count());
         $this->assertNotNull(JournalEntry::where('reference', 'JE-DUP1')->first());
         $this->assertNull(JournalEntry::where('reference', 'JE-DUP2')->first());
-        $errors = $response->getSession()->get('import_errors');
-        $this->assertStringContainsString('already used', $errors[0]);
+    }
+
+    public function test_reimport_of_same_file_counts_unnumbered_groups_as_already_imported(): void
+    {
+        $rows = [
+            ['', '2026-11-18', '', '', '', 'JE-RE1', 'First', '611', 500, '', ''],
+            ['', '2026-11-18', '', '', '', 'JE-RE1', 'First', '111', '', 500, ''],
+            ['', '2026-11-19', '', '', '', 'JE-RE2', 'Second', '611', 100, '', ''],
+            ['', '2026-11-19', '', '', '', 'JE-RE2', 'Second', '111', '', 100, ''],
+        ];
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull($rows)]);
+        $response->assertSessionHas('success', 'Imported 2 journal entries. Skipped 0 rows.');
+        $this->assertSame(2, JournalEntry::count());
+
+        // Same file again: nothing new is created, both groups count
+        // as already imported, and no error is shown.
+        $response = $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull($rows)]);
+        $response->assertSessionHas('success', 'Imported 0 journal entries. Skipped 0 rows. Already imported 2 journal entries.');
+        $response->assertSessionMissing('import_errors');
+        $this->assertSame(2, JournalEntry::count());
+    }
+
+    public function test_numbered_reimport_is_counted_already_imported(): void
+    {
+        $rows = [
+            [9, '2026-11-18', '', '', '', 'JE-N9', 'Numbered', '611', 500, '', ''],
+            [9, '2026-11-18', '', '', '', 'JE-N9', 'Numbered', '111', '', 500, ''],
+        ];
+
+        $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull($rows)]);
+        $this->assertSame(1, JournalEntry::count());
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull($rows)]);
+        $response->assertSessionHas('success', 'Imported 0 journal entries. Skipped 0 rows. Already imported 1 journal entries.');
+        $response->assertSessionMissing('import_errors');
+        $this->assertSame(1, JournalEntry::count());
+    }
+
+    public function test_reimport_with_different_amount_imports_again(): void
+    {
+        $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull([
+            ['', '2026-11-18', '', '', '', 'JE-AMT', 'Amount', '611', 500, '', ''],
+            ['', '2026-11-18', '', '', '', 'JE-AMT', 'Amount', '111', '', 500, ''],
+        ])]);
+        $this->assertSame(1, JournalEntry::count());
+
+        // Same reference and date, different amount: a different
+        // entry, so it imports.
+        $response = $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull([
+            ['', '2026-11-18', '', '', '', 'JE-AMT', 'Amount', '611', 600, '', ''],
+            ['', '2026-11-18', '', '', '', 'JE-AMT', 'Amount', '111', '', 600, ''],
+        ])]);
+        $response->assertSessionHas('success', 'Imported 1 journal entries. Skipped 0 rows.');
+        $this->assertSame(2, JournalEntry::count());
+    }
+
+    public function test_reimport_with_different_reference_imports_again(): void
+    {
+        $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull([
+            ['', '2026-11-18', '', '', '', 'JE-RA', 'First', '611', 500, '', ''],
+            ['', '2026-11-18', '', '', '', 'JE-RA', 'First', '111', '', 500, ''],
+        ])]);
+        $this->assertSame(1, JournalEntry::count());
+
+        // Same date and amounts, different reference: a different
+        // entry, so it imports.
+        $response = $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull([
+            ['', '2026-11-18', '', '', '', 'JE-RB', 'Second', '611', 500, '', ''],
+            ['', '2026-11-18', '', '', '', 'JE-RB', 'Second', '111', '', 500, ''],
+        ])]);
+        $response->assertSessionHas('success', 'Imported 1 journal entries. Skipped 0 rows.');
+        $this->assertSame(2, JournalEntry::count());
+    }
+
+    public function test_template_example_rows_use_company_accounts(): void
+    {
+        // Fixture company: 611 / 111 / 411 exist.
+        $rows = JournalEntryImport::exampleRows($this->user->id);
+        $this->assertSame('611', (string) $rows[0][7]);
+        $this->assertSame('111', (string) $rows[1][7]);
+
+        // Another company with different accounts: its own codes.
+        foreach (['12' => 'Bank', '621' => 'Cost'] as $code => $name) {
+            DB::table('chart_of_accounts')->insert([
+                'name' => $name, 'code' => (int) $code, 'type' => 0, 'sub_type' => 0,
+                'is_enabled' => 1, 'created_by' => 9999,
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+        $rows = JournalEntryImport::exampleRows(9999);
+        $this->assertSame('621', (string) $rows[0][7]);
+        $this->assertSame('12', (string) $rows[1][7]);
+
+        // No accounts at all, or no company given: the generic example.
+        $rows = JournalEntryImport::exampleRows(8888);
+        $this->assertSame('611', (string) $rows[0][7]);
+        $this->assertSame('111', (string) $rows[1][7]);
+        $rows = JournalEntryImport::exampleRows();
+        $this->assertSame('611', (string) $rows[0][7]);
+        $this->assertSame('111', (string) $rows[1][7]);
     }
 
     public function test_mismatched_journal_number_in_group_is_skipped(): void
