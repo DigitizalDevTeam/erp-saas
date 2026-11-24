@@ -9094,5 +9094,11 @@
     "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "מספר יומן הוא אופציונלי.",
     "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "אם התאריך ריק, שנה, חודש ויום משמשים במקום זאת, אותם שדות כמו בטופס רישום היומן הידני.",
     "Already imported :already journal entries.": "Already imported :already journal entries.",
-    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported."
+    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported.",
+    "Import results": "Import results",
+    "Imported": "Imported",
+    "Duplicates": "Duplicates",
+    "Errors": "Errors",
+    "Skipped rows": "Skipped rows",
+    "Below data is not inserted": "Below data is not inserted"
 }

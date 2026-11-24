@@ -86,10 +86,31 @@ class JournalEntryImportController extends Controller
             $message .= ' '.__('Already imported :already journal entries.', ['already' => $result['already_imported']]);
         }
 
+        $flash = self::importResultFlash($result);
+
         if (! empty($result['errors'])) {
-            return redirect()->route('journal-entry.index')->with('success', $message)->with('import_errors', array_slice($result['errors'], 0, 20));
+            return redirect()->route('journal-entry.index')->with('success', $message)->with('journal_import_result', $flash)->with('import_errors', array_slice($result['errors'], 0, 20));
         }
 
-        return redirect()->route('journal-entry.index')->with('success', $message);
+        return redirect()->route('journal-entry.index')->with('success', $message)->with('journal_import_result', $flash);
+    }
+
+    /**
+     * The structured result the index view renders as the import
+     * report card: the four counts (imported, duplicates, errors,
+     * skipped rows) plus the duplicate entries, capped at 20
+     * like the error list.
+     *
+     * @param array{created: int, already_imported: int, already_imported_entries?: array, skipped: int, errors: array} $result
+     */
+    public static function importResultFlash(array $result): array
+    {
+        return [
+            'created' => (int) ($result['created'] ?? 0),
+            'already_imported' => (int) ($result['already_imported'] ?? 0),
+            'already_imported_entries' => array_slice($result['already_imported_entries'] ?? [], 0, 20),
+            'skipped' => (int) ($result['skipped'] ?? 0),
+            'errors_count' => count($result['errors'] ?? []),
+        ];
     }
 }

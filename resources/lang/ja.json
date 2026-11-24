@@ -9094,5 +9094,11 @@
     "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "ジャーナル番号はオプションです。",
     "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "日付が空の場合は、手動仕訳入力フォームと同じフィールドである年、月、日が代わりに使用されます。",
     "Already imported :already journal entries.": "Already imported :already journal entries.",
-    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported."
+    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported.",
+    "Import results": "Import results",
+    "Imported": "Imported",
+    "Duplicates": "Duplicates",
+    "Errors": "Errors",
+    "Skipped rows": "Skipped rows",
+    "Below data is not inserted": "Below data is not inserted"
 }
