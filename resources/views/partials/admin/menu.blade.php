@@ -2126,6 +2126,7 @@
                     @if (menu_can_node('menu.settings'))
                         <li
                             class="dash-item dash-hasmenu {{ Request::segment(1) == 'settings' ||
+                            Request::segment(1) == 'company-backup' ||
                             Request::segment(1) == 'plans' ||
                             Request::segment(1) == 'stripe' ||
                             Request::segment(1) == 'order'
@@ -2143,6 +2144,13 @@
                                         class="dash-item dash-hasmenu {{ Request::segment(1) == 'settings' ? ' active' : '' }}">
                                         <a href="{{ route('settings') }}"
                                             class="dash-link">{{ __('System Settings') }}</a>
+                                    </li>
+                                @endif
+                                @if (menu_can('menu.settings.backup'))
+                                    <li
+                                        class="dash-item{{ Request::route()->getName() == 'company-backup.index' ? ' active' : '' }}">
+                                        <a href="{{ route('company-backup.index') }}"
+                                            class="dash-link">{{ __('Download Your Backup') }}</a>
                                     </li>
                                 @endif
                                 @if (menu_can('menu.settings.plans'))

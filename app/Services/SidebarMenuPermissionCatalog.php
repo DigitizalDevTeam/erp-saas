@@ -454,6 +454,7 @@ class SidebarMenuPermissionCatalog
 
             self::node('Settings', 'menu.settings', ['manage company settings', 'manage company plan', 'manage order'], [
                 self::node('System Settings', 'menu.settings.system', ['manage company settings']),
+                self::node('Download Your Backup', 'menu.settings.backup', ['download company backup']),
                 self::node('Setup Subscription Plan', 'menu.settings.plans', ['manage company plan']),
                 self::node('Referral Program', 'menu.settings.referral', []),
                 self::node('Order', 'menu.settings.order', ['manage order']),

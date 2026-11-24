@@ -34,6 +34,7 @@ use App\Http\Controllers\CinetPayController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\CoingatePaymentController;
 use App\Http\Controllers\CommissionController;
+use App\Http\Controllers\CompanyBackupController;
 use App\Http\Controllers\CompanyPolicyController;
 use App\Http\Controllers\CompetenciesController;
 use App\Http\Controllers\ComplaintController;
@@ -1042,6 +1043,8 @@ Route::group(['middleware' => ['verified']], function () {
             Route::post('cache-settings', [SystemController::class, 'cacheSettingStore'])->name('cache.settings.store')->middleware(['auth', 'XSS']);
             Route::get('/backup/create', [SystemController::class, 'createDatabaseBackup'])->name('backup.create');
             Route::get('/backup/download/{file}', [SystemController::class, 'downloadBackup'])->name('backup.download');
+            Route::get('company-backup', [CompanyBackupController::class, 'index'])->name('company-backup.index');
+            Route::get('company-backup/download', [CompanyBackupController::class, 'download'])->name('company-backup.download');
             
         }
     );
