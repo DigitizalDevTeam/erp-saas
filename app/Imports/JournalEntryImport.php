@@ -44,8 +44,8 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
 {
     use Importable;
 
-    /** @var array{created: int, already_imported: int, skipped: int, errors: array<int, string>} */
-    public array $result = ['created' => 0, 'already_imported' => 0, 'skipped' => 0, 'errors' => []];
+    /** @var array{created: int, already_imported: int, already_imported_entries: array<int, array{journal_number: int, date: string, reference: string, amount: float}>, skipped: int, errors: array<int, string>} */
+    public array $result = ['created' => 0, 'already_imported' => 0, 'already_imported_entries' => [], 'skipped' => 0, 'errors' => []];
 
     public function __construct(
         protected int $creatorId,
@@ -214,6 +214,7 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
         $journalNumber = $journalNumbers[0] ?? null;
         if ($journalNumber !== null && JournalEntry::where('created_by', $this->creatorId)->where('journal_id', $journalNumber)->exists()) {
             $this->result['already_imported']++;
+            $this->recordDuplicate($journalNumber, $date, $reference, (float) $totalCredit);
 
             return;
         }
@@ -223,8 +224,10 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
         // identical entry. Skip the group when an identical entry
         // (same reference, date, accounting period and lines)
         // already exists for this company.
-        if ($journalNumber === null && $this->identicalEntryExists($reference, $date, $period, $parsed)) {
+        $identical = $journalNumber === null ? $this->findIdenticalEntry($reference, $date, $period, $parsed) : null;
+        if ($identical !== null) {
             $this->result['already_imported']++;
+            $this->recordDuplicate((int) $identical->journal_id, $date, $reference, (float) $totalCredit);
 
             return;
         }
@@ -273,14 +276,31 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
     }
 
     /**
-     * Does an identical entry already exist for this company?
-     * Identity is reference + date + accounting period + the
-     * lines (account and amounts) — descriptions are labels, not
-     * identity, so fixing a typo in one does not re-import the
-     * entry. Any status counts: an approved entry is still the
-     * same entry.
+     * Remember one duplicate group for the results report: the
+     * journal number, date, reference and amount the user needs
+     * to recognise which entry already exists. Values come from
+     * the uploaded file — for an identical match they are the
+     * same as the stored entry's.
      */
-    protected function identicalEntryExists(string $reference, string $date, int $period, array $parsed): bool
+    protected function recordDuplicate(int $journalNumber, string $date, string $reference, float $amount): void
+    {
+        $this->result['already_imported_entries'][] = [
+            'journal_number' => $journalNumber,
+            'date' => $date,
+            'reference' => $reference,
+            'amount' => $amount,
+        ];
+    }
+
+    /**
+     * Find the identical entry already stored for this company,
+     * or null. Identity is reference + date + accounting period
+     * + the lines (account and amounts) — descriptions are
+     * labels, not identity, so fixing a typo in one does not
+     * re-import the entry. Any status counts: an approved entry
+     * is still the same entry.
+     */
+    protected function findIdenticalEntry(string $reference, string $date, int $period, array $parsed): ?JournalEntry
     {
         $signature = $this->linesSignature(array_map(
             fn (array $line) => [(int) $line['account']->id, $line['debit'], $line['credit']],
@@ -300,11 +320,11 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
                 $items->all()
             ));
             if ($itemsSignature === $signature) {
-                return true;
+                return $candidate;
             }
         }
 
-        return false;
+        return null;
     }
 
     /** Sorted "account|debit|credit" signature of a set of lines. */

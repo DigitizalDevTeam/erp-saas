@@ -9950,5 +9950,11 @@
     "Journal number is optional. If given, it must be a whole number not already used; if empty, the next number is assigned automatically.": "期刊编号是可选的。",
     "If date is empty, year, month and day are used instead, the same fields as on the manual journal entry form.": "如果日期为空，则使用年、月和日，这些字段与手动日记帐分录表单上的字段相同。",
     "Already imported :already journal entries.": "Already imported :already journal entries.",
-    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported."
+    "If you upload the same file again, entries that are already imported are skipped and counted as already imported.": "If you upload the same file again, entries that are already imported are skipped and counted as already imported.",
+    "Import results": "Import results",
+    "Imported": "Imported",
+    "Duplicates": "Duplicates",
+    "Errors": "Errors",
+    "Skipped rows": "Skipped rows",
+    "Below data is not inserted": "Below data is not inserted"
 }

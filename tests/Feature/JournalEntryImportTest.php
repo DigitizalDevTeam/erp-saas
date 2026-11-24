@@ -294,6 +294,92 @@ class JournalEntryImportTest extends TestCase
         $this->assertSame(1, JournalEntry::count());
     }
 
+    public function test_reimport_flashes_duplicate_entries_and_report_card_renders(): void
+    {
+        $rows = [
+            [9, '2026-11-18', '', '', '', 'JE-N9', 'Numbered', '611', 500, '', ''],
+            [9, '2026-11-18', '', '', '', 'JE-N9', 'Numbered', '111', '', 500, ''],
+            ['', '2026-11-18', '', '', '', 'JE-RE1', 'First', '611', 100, '', ''],
+            ['', '2026-11-18', '', '', '', 'JE-RE1', 'First', '111', '', 100, ''],
+        ];
+
+        $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull($rows)]);
+        $this->assertSame(2, JournalEntry::count());
+
+        // Same file again: nothing new is created, and the report
+        // flash lists both duplicates — number, date, reference
+        // and amount — so the user can see which entries already
+        // exist. The unnumbered group got the next free number
+        // (10) on the first import, so the report shows that.
+        $response = $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull($rows)]);
+        $response->assertSessionHas('success', 'Imported 0 journal entries. Skipped 0 rows. Already imported 2 journal entries.');
+        $response->assertSessionHas('journal_import_result', [
+            'created' => 0,
+            'already_imported' => 2,
+            'already_imported_entries' => [
+                ['journal_number' => 9, 'date' => '2026-11-18', 'reference' => 'JE-N9', 'amount' => 500.0],
+                ['journal_number' => 10, 'date' => '2026-11-18', 'reference' => 'JE-RE1', 'amount' => 100.0],
+            ],
+            'skipped' => 0,
+            'errors_count' => 0,
+        ]);
+        $this->assertSame(2, JournalEntry::count());
+
+        // The next request renders the report card on the list
+        // page, with the red heading and both duplicate rows.
+        $index = $this->get(route('journal-entry.index'));
+        $index->assertOk();
+        $index->assertSee('Import results');
+        $index->assertSee('Below data is not inserted');
+        $index->assertSee('JE-N9');
+        $index->assertSee('JE-RE1');
+    }
+
+    public function test_reimport_with_different_amount_lists_no_duplicate(): void
+    {
+        $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull([
+            ['', '2026-11-18', '', '', '', 'JE-AMT', 'Amount', '611', 500, '', ''],
+            ['', '2026-11-18', '', '', '', 'JE-AMT', 'Amount', '111', '', 500, ''],
+        ])]);
+        $this->assertSame(1, JournalEntry::count());
+
+        // Same reference and date, different amount: a different
+        // entry, so it imports and the report lists no duplicate.
+        $response = $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull([
+            ['', '2026-11-18', '', '', '', 'JE-AMT', 'Amount', '611', 600, '', ''],
+            ['', '2026-11-18', '', '', '', 'JE-AMT', 'Amount', '111', '', 600, ''],
+        ])]);
+        $response->assertSessionHas('journal_import_result', [
+            'created' => 1,
+            'already_imported' => 0,
+            'already_imported_entries' => [],
+            'skipped' => 0,
+            'errors_count' => 0,
+        ]);
+        $this->assertSame(2, JournalEntry::count());
+    }
+
+    public function test_import_result_flash_caps_duplicate_entries_at_twenty(): void
+    {
+        $entries = [];
+        for ($i = 1; $i <= 25; $i++) {
+            $entries[] = ['journal_number' => $i, 'date' => '2026-11-18', 'reference' => 'JE-'.$i, 'amount' => 100.0];
+        }
+
+        $flash = \App\Http\Controllers\JournalEntryImportController::importResultFlash([
+            'created' => 0,
+            'already_imported' => 25,
+            'already_imported_entries' => $entries,
+            'skipped' => 0,
+            'errors' => [],
+        ]);
+
+        $this->assertSame(25, $flash['already_imported']);
+        $this->assertCount(20, $flash['already_imported_entries']);
+        $this->assertSame(1, $flash['already_imported_entries'][0]['journal_number']);
+        $this->assertSame(20, $flash['already_imported_entries'][19]['journal_number']);
+    }
+
     public function test_reimport_with_different_amount_imports_again(): void
     {
         $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull([

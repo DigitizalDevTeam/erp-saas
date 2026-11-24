@@ -33,6 +33,48 @@
         </div>
     @endif
 
+    @if (session('journal_import_result'))
+        @php
+            $importResult = session('journal_import_result');
+        @endphp
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6 class="mb-2">{{ __('Import results') }}</h6>
+                <ul class="mb-0">
+                    <li>{{ __('Imported') }}: {{ $importResult['created'] }}</li>
+                    <li class="text-danger">{{ __('Duplicates') }}: {{ $importResult['already_imported'] }}</li>
+                    <li>{{ __('Errors') }}: {{ $importResult['errors_count'] }}</li>
+                    <li>{{ __('Skipped rows') }}: {{ $importResult['skipped'] }}</li>
+                </ul>
+                @if (! empty($importResult['already_imported_entries']))
+                    <p class="text-danger mt-3 mb-1"><strong>{{ __('Below data is not inserted') }}</strong></p>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ __('Journal Number') }}</th>
+                                    <th>{{ __('Date') }}</th>
+                                    <th>{{ __('Reference') }}</th>
+                                    <th>{{ __('Amount') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($importResult['already_imported_entries'] as $duplicate)
+                                    <tr>
+                                        <td>{{ \Auth::user()->journalNumberFormat($duplicate['journal_number']) }}</td>
+                                        <td>{{ \Auth::user()->dateFormat($duplicate['date']) }}</td>
+                                        <td>{{ $duplicate['reference'] }}</td>
+                                        <td>{{ \Auth::user()->priceFormat($duplicate['amount']) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+        </div>
+    @endif
+
     <div class="row">
         <div class="col-xl-12">
             <div class="card">
