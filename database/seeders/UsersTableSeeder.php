@@ -150,6 +150,12 @@ class UsersTableSeeder extends Seeder
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
             [
+                'name' => 'download company backup',
+                'guard_name' => 'web',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            [
                 'name' => 'manage print settings',
                 'guard_name' => 'web',
                 'created_at' => date('Y-m-d H:i:s'),
@@ -3720,6 +3726,7 @@ class UsersTableSeeder extends Seeder
             'edit permission',
             'delete permission',
             'manage company settings',
+            'download company backup',
             'manage business settings',
             'manage expense',
             'create expense',

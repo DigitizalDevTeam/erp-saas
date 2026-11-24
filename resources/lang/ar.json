@@ -9100,5 +9100,10 @@
     "Duplicates": "Duplicates",
     "Errors": "Errors",
     "Skipped rows": "Skipped rows",
-    "Below data is not inserted": "Below data is not inserted"
+    "Below data is not inserted": "Below data is not inserted",
+    "Download Your Backup": "قم بتنزيل النسخة الاحتياطية الخاصة بك",
+    "Download a complete SQL backup of your data — Sales, Products, Inventory, HRM and all other modules. The file contains only the data of the companies listed below. Data belonging to other companies is never included.": "Download a complete SQL backup of your data — Sales, Products, Inventory, HRM and all other modules. The file contains only the data of the companies listed below. Data belonging to other companies is never included.",
+    "Companies included in this backup": "Companies included in this backup",
+    "No company is associated with your account, so this backup would be empty.": "No company is associated with your account, so this backup would be empty.",
+    "The backup is generated when you click the button and downloads as a .sql file. Depending on the size of your data, it may take a while — please keep this page open until the download starts.": "The backup is generated when you click the button and downloads as a .sql file. Depending on the size of your data, it may take a while — please keep this page open until the download starts."
 }

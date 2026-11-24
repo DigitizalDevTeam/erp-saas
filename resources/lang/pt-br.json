@@ -9100,5 +9100,10 @@
     "Duplicates": "Duplicados",
     "Errors": "Erros",
     "Skipped rows": "Linhas ignoradas",
-    "Below data is not inserted": "Os dados abaixo não foram inseridos"
+    "Below data is not inserted": "Os dados abaixo não foram inseridos",
+    "Download Your Backup": "Baixar o seu backup",
+    "Download a complete SQL backup of your data — Sales, Products, Inventory, HRM and all other modules. The file contains only the data of the companies listed below. Data belonging to other companies is never included.": "Baixe um backup SQL completo dos seus dados — Vendas, Produtos, Estoque, RH e todos os outros módulos. O arquivo contém apenas os dados das empresas listadas abaixo. Os dados de outras empresas nunca são incluídos.",
+    "Companies included in this backup": "Empresas incluídas neste backup",
+    "No company is associated with your account, so this backup would be empty.": "Nenhuma empresa está associada à sua conta, por isso este backup estaria vazio.",
+    "The backup is generated when you click the button and downloads as a .sql file. Depending on the size of your data, it may take a while — please keep this page open until the download starts.": "O backup é gerado quando você clica no botão e é baixado como arquivo .sql. Dependendo do tamanho dos seus dados, pode demorar um pouco — mantenha esta página aberta até o download começar."
 }

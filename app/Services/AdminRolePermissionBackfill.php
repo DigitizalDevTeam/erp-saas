@@ -256,6 +256,39 @@ class AdminRolePermissionBackfill
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
+    /**
+     * Company backup (2026-11-25) — the "Download Your Backup" page
+     * under Settings is Admin-only. Grant the download permission
+     * (and its menu.* grant) to every admin-type role, in every
+     * company. Idempotent; called by migration 310017.
+     */
+    public const COMPANY_BACKUP_PERMISSIONS = [
+        'download company backup',
+        'menu.settings.backup',
+    ];
+
+    public static function grantCompanyBackupPermission(): void
+    {
+        if (! Schema::hasTable('roles') || ! Schema::hasTable('permissions') || ! Schema::hasTable('role_has_permissions')) {
+            return;
+        }
+
+        foreach (self::COMPANY_BACKUP_PERMISSIONS as $name) {
+            Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+        SidebarMenuPermissionCatalog::ensurePermissionsExist();
+
+        foreach (Role::whereIn('name', self::ADMIN_ROLE_NAMES)->get() as $role) {
+            $held = $role->permissions()->pluck('name')->all();
+            $missing = array_values(array_diff(self::COMPANY_BACKUP_PERMISSIONS, $held));
+            if ($missing !== []) {
+                $role->givePermissionTo($missing);
+            }
+        }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
     public static function run(): void
     {
         if (! Schema::hasTable('roles') || ! Schema::hasTable('permissions') || ! Schema::hasTable('role_has_permissions')) {
