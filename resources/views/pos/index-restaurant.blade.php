@@ -958,7 +958,15 @@
 
 
     <script src="{{ asset('js/jscolor.js') }}"></script>
-    <script src="{{ asset('js/custom.js') }}"></script>
+    <script>
+        window.swalConfirmText = {
+            title: @json(__('Are you sure?')),
+            text: @json(__('This action can not be undone. Do you want to continue?')),
+            confirmButtonText: @json(__('Yes')),
+            cancelButtonText: @json(__('No'))
+        };
+    </script>
+    <script src="{{ asset('js/custom.js') }}?v=20261126"></script>
 
     @if ($message = Session::get('success'))
         <script>

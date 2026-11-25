@@ -62,8 +62,14 @@
         noResults: @json(__('No results match your search query')),
         info: @json(__('Showing {start} to {end} of {rows} entries'))
     };
+    window.swalConfirmText = {
+        title: @json(__('Are you sure?')),
+        text: @json(__('This action can not be undone. Do you want to continue?')),
+        confirmButtonText: @json(__('Yes')),
+        cancelButtonText: @json(__('No'))
+    };
 </script>
-<script src="{{ asset('js/custom.js') }}?v=20261002"></script>
+<script src="{{ asset('js/custom.js') }}?v=20261126"></script>
 
 @if($message = Session::get('success'))
     <script>

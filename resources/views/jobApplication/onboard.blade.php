@@ -62,7 +62,7 @@
                                             {!! Form::open(['method' => 'get', 'route' => ['job.on.board.converts', $job->id],'id'=>'job-form-'.$job->id]) !!}
                                             <a href="#" class="mx-3 btn btn-sm  align-items-center bs-pass-para bg-secondary" data-bs-toggle="tooltip"
                                                data-original-title="{{__('Convert to Employee')}}" title="{{__('Convert to Employee')}}"
-                                               data-confirm="You want to confirm convert to invoice. Press Yes to continue or Cancel to go back"
+                                               data-confirm="{{ __('You want to confirm convert to invoice. Press Yes to continue or Cancel to go back') }}"
                                                data-confirm-yes="document.getElementById('job-form-{{$job->id}}').submit();">
                                                 <i class="ti ti-exchange text-white"></i>
                                             </a>

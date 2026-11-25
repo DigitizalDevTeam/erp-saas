@@ -266,7 +266,7 @@
                                                             class="mx-3 btn btn-sm  align-items-center bs-pass-para bg-danger"
                                                             data-bs-toggle="tooltip"
                                                             data-original-title="{{ __('Delete') }}"
-                                                            data-confirm="Are You Sure?|This action can not be undone. Do you want to continue?"
+                                                            data-confirm="{{__('Are You Sure?').'|'.__('This action can not be undone. Do you want to continue?')}}"
                                                             title="{{ __('Delete') }}"
                                                             data-confirm-yes="document.getElementById('delete-form-{{ $support->id }}').submit();">
                                                             <i class="ti ti-trash text-white"></i>

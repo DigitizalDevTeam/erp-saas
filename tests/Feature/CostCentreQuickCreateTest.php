@@ -397,4 +397,34 @@ class CostCentreQuickCreateTest extends TestCase
         $this->assertNotFalse($panelPos);
         $this->assertLessThan($panelPos, $messagePos);
     }
+
+    public function test_confirm_dialog_strings_render_in_portuguese(): void
+    {
+        // Regression: the global delete-confirm dialog (custom.js)
+        // hardcoded its title, text and Yes/No buttons in English,
+        // so a Portuguese account saw an English "Are you sure?"
+        // dialog. The admin footer now emits the strings translated
+        // for the current locale, before custom.js loads. The
+        // locale comes from the user's own lang column (XSS
+        // middleware), so the test user is Portuguese here.
+        DB::table('users')->where('id', 1)->update(['lang' => 'pt']);
+
+        $response = $this->actingAs(User::findOrFail(1))
+            ->get(route('cost-centre-budgets.create'));
+
+        $response->assertStatus(200);
+        $html = $response->getContent();
+        // The footer emits the strings as a JS object literal
+        // (keys unquoted, values @json-encoded, so non-ASCII
+        // appears as \uXXXX escapes — exactly what the browser
+        // decodes when it runs the script).
+        $this->assertStringContainsString('window.swalConfirmText', $html);
+        $this->assertStringContainsString('title: "Voc\u00ea tem certeza?"', $html);
+        $this->assertStringContainsString('text: "Esta a\u00e7\u00e3o n\u00e3o pode ser desfeita. Deseja continuar?"', $html);
+        $this->assertStringContainsString('confirmButtonText: "Sim"', $html);
+        $this->assertStringContainsString('cancelButtonText: "N\u00e3o"', $html);
+        // The versioned custom.js URL busts the browser cache so
+        // the new handler actually loads.
+        $this->assertStringContainsString('custom.js?v=20261126', $html);
+    }
 }

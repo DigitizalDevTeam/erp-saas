@@ -170,7 +170,7 @@
                                                            {!! Form::open(['method' => 'get', 'route' => ['invoice.duplicate', $invoice->id], 'id' => 'duplicate-form-' . $invoice->id]) !!}
                                                             <a href="#" class="mx-3 btn btn-sm align-items-center bs-pass-para bg-primary" data-toggle="tooltip"
                                                                data-original-title="{{ __('Duplicate') }}" data-bs-toggle="tooltip" title="{{ __('Duplicate Invoice') }}"
-                                                               data-confirm="You want to confirm this action. Press Yes to continue or Cancel to go back"
+                                                               data-confirm="{{ __('You want to confirm this action. Press Yes to continue or Cancel to go back') }}"
                                                                data-confirm-yes="document.getElementById('duplicate-form-{{ $invoice->id }}').submit();">
                                                                 <i class="ti ti-copy text-white"></i>
                                                             </a>
