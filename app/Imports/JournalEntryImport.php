@@ -27,7 +27,12 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
  * Uploading the same file again is safe: entries that are
  * already imported are skipped and counted separately (not
  * errors) — by journal number when one was given, otherwise by
- * matching reference, date, accounting period and lines.
+ * matching reference, date, accounting period and total amount.
+ * The total is what identifies a re-import: fixing a line's
+ * account code (or a typo in a description) does not make the
+ * same movement a new entry, while a different amount does —
+ * the amount is the money, so changing it means a different
+ * entry.
  *
  * The downloadable template's example rows use the logged-in
  * company's own accounts (see exampleRows), so the file imports
@@ -221,9 +226,11 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
 
         // Without a journal number there is nothing to match on, so
         // the same file uploaded again would create a second
-        // identical entry. Skip the group when an identical entry
-        // (same reference, date, accounting period and lines)
-        // already exists for this company.
+        // identical entry. Skip the group when an entry with the
+        // same reference, date, accounting period and total amount
+        // already exists for this company — even when a line's
+        // account code was corrected in the file, the movement is
+        // the same one (a different amount is a different entry).
         $identical = $journalNumber === null ? $this->findIdenticalEntry($reference, $date, $period, $parsed) : null;
         if ($identical !== null) {
             $this->result['already_imported']++;
@@ -293,19 +300,18 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
     }
 
     /**
-     * Find the identical entry already stored for this company,
-     * or null. Identity is reference + date + accounting period
-     * + the lines (account and amounts) — descriptions are
-     * labels, not identity, so fixing a typo in one does not
-     * re-import the entry. Any status counts: an approved entry
-     * is still the same entry.
+     * Find the entry already stored for this company with the same
+     * reference, date, accounting period and total amount, or null.
+     * Identity is the movement itself — reference, date, period and
+     * the money — not the individual lines: correcting an account
+     * code (or a description typo) in the file and re-uploading
+     * must not create a second entry. A different total is a
+     * different entry. Any status counts: an approved entry is
+     * still the same entry.
      */
     protected function findIdenticalEntry(string $reference, string $date, int $period, array $parsed): ?JournalEntry
     {
-        $signature = $this->linesSignature(array_map(
-            fn (array $line) => [(int) $line['account']->id, $line['debit'], $line['credit']],
-            $parsed
-        ));
+        $total = (float) array_sum(array_column($parsed, 'credit'));
 
         $candidates = JournalEntry::where('created_by', $this->creatorId)
             ->where('reference', $reference)
@@ -314,29 +320,13 @@ class JournalEntryImport implements ToCollection, WithHeadingRow
             ->get();
 
         foreach ($candidates as $candidate) {
-            $items = JournalItem::where('journal', $candidate->id)->get();
-            $itemsSignature = $this->linesSignature(array_map(
-                fn (JournalItem $item) => [(int) $item->account, $item->debit, $item->credit],
-                $items->all()
-            ));
-            if ($itemsSignature === $signature) {
+            $candidateTotal = (float) JournalItem::where('journal', $candidate->id)->sum('credit');
+            if (MoneyAmount::equals($candidateTotal, $total)) {
                 return $candidate;
             }
         }
 
         return null;
-    }
-
-    /** Sorted "account|debit|credit" signature of a set of lines. */
-    protected function linesSignature(array $lines): string
-    {
-        $parts = [];
-        foreach ($lines as [$accountId, $debit, $credit]) {
-            $parts[] = $accountId.'|'.number_format((float) $debit, 2, '.', '').'|'.number_format((float) $credit, 2, '.', '');
-        }
-        sort($parts);
-
-        return implode(';', $parts);
     }
 
     protected function isBlankRow(array $values): bool
