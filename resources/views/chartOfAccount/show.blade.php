@@ -127,183 +127,131 @@
                                         $totalDebit = 0;
                                         $totalCredit = 0;
                                         $chartDatas = App\Models\Utility::getAccountData($account->id, $filter['startDateRange'], $filter['endDateRange']);
-
                                         $accountName = \App\Models\ChartOfAccount::find($account->id);
                                     @endphp
 
-                                    @foreach ($chartDatas['invoice'] as $invoiceData)
-                                        <tr>
-                                            <td>{{ $accountName->name }}</td>
-                                            @php
-                                                $invoice = \App\Models\Invoice::where('id', $invoiceData->invoice_id)->first();
-                                            @endphp
-                                            <td>{{ !empty($invoice->customer) ? $invoice->customer->name : '-' }}</td>
-                                            <td>{{ \Auth::user()->invoiceNumberFormat($invoice->invoice_id) }}</td>
-                                            <td>{{ $invoiceData->created_at->format('d-m-Y') }}</td>
-                                            <td>-</td>
+                                    @foreach ($chartDatas as $account)
+                                        @if ($account->reference == 'Invoice')
+                                            <tr>
+                                                <td>{{ $accountName->name }}</td>
+                                                <td>{{ $account->user_name }}</td>
+                                                <td>{{ \Auth::user()->invoiceNumberFormat($account->ids) }}</td>
+                                                <td>{{ $account->date }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($account->debit) }}</td>
+                                                @php
+                                                    $total = $account->debit + $account->credit;
+                                                    $balance += $total;
+                                                    $totalCredit += $total;
+                                                @endphp
+                                                <td>{{ \Auth::user()->priceFormat($account->credit) }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($balance) }}</td>
+                                            </tr>
+                                        @endif
 
-                                            @php
-                                                $total = $invoiceData->price * $invoiceData->quantity;
-                                                $balance += $total;
-                                                $totalCredit += $total;
-                                            @endphp
-                                            <td>{{ \Auth::user()->priceFormat($total) }}</td>
-                                            <td>{{ \Auth::user()->priceFormat($balance) }}</td>
-                                        </tr>
+                                        @if ($account->reference == 'Invoice Payment')
+                                            <tr>
+                                                <td>{{ $accountName->name }}</td>
+                                                <td>{{ $account->user_name }}</td>
+                                                <td>{{ \Auth::user()->invoiceNumberFormat($account->ids) }}{{ __(' Manually Payment') }}</td>
+                                                <td>{{ $account->date }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($account->debit) }}</td>
+                                                @php
+                                                    $total = $account->debit + $account->credit;
+                                                    $balance -= $total;
+                                                @endphp
+                                                <td>{{ \Auth::user()->priceFormat($account->credit) }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($balance) }}</td>
+                                            </tr>
+                                        @endif
+
+                                        @if ($account->reference == 'Revenue')
+                                            <tr>
+                                                <td>{{ $accountName->name }}</td>
+                                                <td>{{ $account->user_name }}</td>
+                                                <td>{{ __(' Revenue') }}</td>
+                                                <td>{{ $account->date }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($account->debit) }}</td>
+                                                @php
+                                                    $total = $account->debit + $account->credit;
+                                                    $balance += $total;
+                                                @endphp
+                                                <td>{{ \Auth::user()->priceFormat($account->credit) }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($balance) }}</td>
+                                            </tr>
+                                        @endif
+
+                                        @if ($account->reference == 'Bill' || $account->reference == 'Bill Account' || $account->reference == 'Expense' || $account->reference == 'Expense Account')
+                                            <tr>
+                                                <td>{{ $accountName->name }}</td>
+                                                <td>{{ $account->user_name }}</td>
+                                                @if ($account->reference == 'Bill' || $account->reference == 'Bill Account')
+                                                    <td>{{ \Auth::user()->billNumberFormat($account->ids) }}
+                                                @else
+                                                    <td>{{ \Auth::user()->expenseNumberFormat($account->ids) }}
+                                                @endif
+                                                <td>{{ $account->date }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($account->debit) }}</td>
+                                                @php
+                                                    $total = $account->debit + $account->credit;
+                                                    $balance -= $total;
+                                                @endphp
+                                                <td>{{ \Auth::user()->priceFormat($account->credit) }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($balance) }}</td>
+                                            </tr>
+                                        @endif
+
+                                        @if ($account->reference == 'Bill Payment' || $account->reference == 'Expense Payment')
+                                            <tr>
+                                                <td>{{ $accountName->name }}</td>
+                                                <td>{{ $account->user_name }}</td>
+                                                @if ($account->reference == 'Bill Payment')
+                                                    <td>{{ \Auth::user()->billNumberFormat($account->ids) }}{{ __(' Manually Payment') }}
+                                                @else
+                                                    <td>{{ \Auth::user()->expenseNumberFormat($account->ids) }}{{ __(' Manually Payment') }}
+                                                @endif
+                                                <td>{{ $account->date }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($account->debit) }}</td>
+                                                @php
+                                                    $total = $account->debit + $account->credit;
+                                                    $balance -= $total;
+                                                @endphp
+                                                <td>{{ \Auth::user()->priceFormat($account->credit) }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($balance) }}</td>
+                                            </tr>
+                                        @endif
+
+                                        @if ($account->reference == 'Payment')
+                                            <tr>
+                                                <td>{{ $accountName->name }}</td>
+                                                <td>{{ $account->user_name }}</td>
+                                                <td>{{ __('Payment') }}</td>
+                                                <td>{{ $account->date }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($account->debit) }}</td>
+                                                @php
+                                                    $total = $account->debit + $account->credit;
+                                                    $balance -= $total;
+                                                @endphp
+                                                <td>{{ \Auth::user()->priceFormat($account->credit) }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($balance) }}</td>
+                                            </tr>
+                                        @endif
+
+                                        @if ($account->reference == 'Journal')
+                                            <tr>
+                                                <td>{{ $accountName->name }}</td>
+                                                <td>{{ '-' }}</td>
+                                                <td>{{ AUth::user()->journalNumberFormat($account->journal_number ?? $account->reference_id) }}</td>
+                                                <td>{{ $account->date }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($account->debit) }}</td>
+                                                @php
+                                                    $total = $account->credit - $account->debit;
+                                                    $balance += $total;
+                                                @endphp
+                                                <td>{{ \Auth::user()->priceFormat($account->credit) }}</td>
+                                                <td>{{ \Auth::user()->priceFormat($balance) }}</td>
+                                            </tr>
+                                        @endif
                                     @endforeach
-
-                                    @foreach ($chartDatas['invoicepayment'] as $invoicePaymentData)
-                                        <tr>
-                                            <td>{{ $accountName->name }}</td>
-                                            @php
-                                                $invoice = \App\Models\Invoice::where('id', $invoicePaymentData->invoice_id)->first();
-                                            @endphp
-                                            <td>{{ !empty($invoice->customer) ? $invoice->customer->name : '-' }}</td>
-                                            <td>{{ \Auth::user()->invoiceNumberFormat($invoice->invoice_id) }}
-                                                {{ __(' Manually Payment') }}</td>
-                                            <td>{{ $invoicePaymentData->created_at->format('d-m-Y') }}</td>
-                                            <td>-</td>
-                                            <td>{{ \Auth::user()->priceFormat($invoicePaymentData->amount) }}</td>
-                                            @php
-                                                $balance += $invoicePaymentData->amount;
-                                                $totalCredit += $invoicePaymentData->amount;
-                                            @endphp
-                                            <td>{{ \Auth::user()->priceFormat($balance) }}</td>
-                                        </tr>
-                                    @endforeach
-
-                                    @foreach ($chartDatas['revenue'] as $revenueData)
-                                        <tr>
-                                            <td>{{ $accountName->name }}</td>
-                                            <td>{{ !empty($revenueData->customer) ? $revenueData->customer->name : '-' }}
-                                            </td>
-                                            <td>{{ __('Revenue') }}</td>
-                                            <td>{{ $revenueData->created_at->format('d-m-Y') }}</td>
-                                            <td>-</td>
-                                            <td>{{ \Auth::user()->priceFormat($revenueData->amount) }}</td>
-                                            @php
-                                                $balance += $revenueData->amount;
-                                                $totalCredit += $revenueData->amount;
-                                            @endphp
-                                            <td>{{ \Auth::user()->priceFormat($balance) }}</td>
-                                        </tr>
-                                    @endforeach
-
-
-                                    @foreach ($chartDatas['bill'] as $billProduct)
-                                        <tr>
-                                            <td>{{ $accountName->name }}</td>
-                                            @php
-
-                                                $bill = \App\Models\Bill::find($billProduct->bill_id);
-                                                $vendor = \App\Models\Vender::find(!empty($bill) ? $bill->vender_id : '');
-                                            @endphp
-                                            <td>{{ !empty($vendor) ? $vendor->name : '-' }}</td>
-                                            <td>{{ \Auth::user()->billNumberFormat($bill->bill_id) }}</td>
-                                            <td>{{ $billProduct->created_at->format('d-m-Y') }}</td>
-
-                                            @php
-                                                $total = $billProduct->price * $billProduct->quantity;
-                                                $balance -= $total;
-                                                $totalCredit -= $total;
-                                            @endphp
-                                            <td>{{ \Auth::user()->priceFormat($total) }}</td>
-                                            <td>-</td>
-                                            <td>{{ \Auth::user()->priceFormat($balance) }}</td>
-                                        </tr>
-                                    @endforeach
-
-                                    @foreach ($chartDatas['billdata'] as $billData)
-                                        @php
-                                            $bill = \App\Models\Bill::find($billData->ref_id);
-                                            $vendor = \App\Models\Vender::find(!empty($bill) ? $bill->vender_id : '');
-                                        @endphp
-                                        <tr>
-                                            <td>{{ $accountName->name }}</td>
-                                            <td>{{ !empty($vendor) ? $vendor->name : '-' }}</td>
-                                            @if (!empty($bill->bill_id))
-                                                <td>{{ \Auth::user()->billNumberFormat($bill->bill_id) }}</td>
-                                            @else
-                                                <td>-</td>
-                                            @endif
-
-                                            <td>{{ $billData->created_at->format('d-m-Y') }}</td>
-                                            <td>{{ \Auth::user()->priceFormat($billData->price) }}</td>
-                                            <td>-</td>
-                                            @php
-                                                $balance -= $billData->price;
-                                                $totalDebit -= $billData->price;
-                                            @endphp
-                                            <td>{{ \Auth::user()->priceFormat($balance) }}</td>
-                                        </tr>
-                                    @endforeach
-
-                                    @foreach ($chartDatas['billpayment'] as $billPaymentData)
-                                        @php
-                                            $bill = \App\Models\BillPayment::where('bill_id', $billPaymentData->bill_id)->first();
-                                            $billId = \App\Models\Bill::find($billPaymentData->bill_id);
-                                            $vendor = \App\Models\Vender::find($billId->vender_id);
-                                        @endphp
-                                        <tr>
-                                            <td>{{ $accountName->name }}</td>
-                                            <td>{{ !empty($vendor) ? $vendor->name : '-' }}</td>
-                                            <td>{{ \Auth::user()->billNumberFormat($billId->bill_id) }}{{ __(' Manually Payment') }}
-                                            </td>
-                                            <td>{{ $billPaymentData->created_at->format('d-m-Y') }}</td>
-                                            <td>{{ \Auth::user()->priceFormat($billPaymentData->amount) }}</td>
-                                            <td>-</td>
-                                            @php
-                                                $balance += $billPaymentData->amount;
-                                                $totalDebit += $billPaymentData->amount;
-                                            @endphp
-                                            <td>{{ \Auth::user()->priceFormat($totalCredit - $totalDebit) }}</td>
-                                        </tr>
-                                    @endforeach
-
-                                    @foreach ($chartDatas['payment'] as $paymentData)
-                                        @php
-                                            $vendor = \App\Models\Vender::find($paymentData->vender_id);
-                                        @endphp
-                                        <tr>
-                                            <td>{{ $accountName->name }}</td>
-                                            <td>{{ !empty($vendor) ? $vendor->name : '-' }}</td>
-                                            <td>{{ __('Payment') }}</td>
-                                            <td>{{ $paymentData->created_at->format('d-m-Y') }}</td>
-
-                                            <td>{{ \Auth::user()->priceFormat($paymentData->amount) }}</td>
-                                            <td>-</td>
-                                            @php
-                                                $balance += $paymentData->amount;
-                                                $totalDebit += $paymentData->amount;
-                                            @endphp
-                                            <td>{{ \Auth::user()->priceFormat($totalCredit - $totalDebit) }}</td>
-                                        </tr>
-                                    @endforeach
-
-                                    @php
-                                    $debit = 0;
-                                    $credit = 0;
-                                @endphp
-
-                                @foreach ($chartDatas['journalItem'] as $journalItemData)
-                                    <tr>
-                                        <td>{{ $accountName->name }}</td>
-                                        <td>{{ '-' }}</td>
-                                        <td>{{ AUth::user()->journalNumberFormat($journalItemData->journal_id) }}
-                                        </td>
-                                        <td>{{ $journalItemData->created_at->format('d-m-Y') }}</td>
-                                        <td>{{ Auth::user()->priceFormat($journalItemData->debit) }}</td>
-                                        <td>{{ \Auth::user()->priceFormat($journalItemData->credit) }}</td>
-                                        <td>
-                                            @if ($journalItemData->debit)
-                                                @php $balance-= $journalItemData->debit @endphp
-                                            @else
-                                                @php $balance+= $journalItemData->credit @endphp
-                                            @endif
-                                            {{ \Auth::user()->priceFormat($balance) }}
-                                        </td>
-                                    </tr>
-                                @endforeach
                                 </tbody>
                             </table>
                         </div>

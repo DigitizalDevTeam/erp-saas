@@ -292,7 +292,7 @@
                                                     <td>{{ $account->account_name }}</td>
                                                     <td>{{ '-' }}
                                                     </td>
-                                                    <td>{{ AUth::user()->journalNumberFormat($account->reference_id) }}
+                                                    <td>{{ AUth::user()->journalNumberFormat($account->journal_number ?? $account->reference_id) }}
                                                     </td>
                                                     <td>{{ $account->date }}</td>
                                                     <td>{{ \Auth::user()->priceFormat($account->debit) }}</td>

@@ -5641,6 +5641,15 @@ namespace App\Models;
                     $join->on('transaction_lines.reference_id', '=', 'payments.id')
                         ->whereIn('transaction_lines.reference', ['Payment']);
                 })
+                // Journal rows carry the entry's internal id in
+                // reference_id, but the number the user sees
+                // everywhere else is journal_entries.journal_id —
+                // formatting the internal id shows a number that
+                // does not exist in the journal list.
+                ->leftJoin('journal_entries', function ($join) {
+                    $join->on('transaction_lines.reference_id', '=', 'journal_entries.id')
+                        ->where('transaction_lines.reference', 'Journal');
+                })
                 ->leftJoin('customers as revenues_customers', 'revenues.customer_id', '=', 'revenues_customers.id')
                 ->leftJoin('venders as payments_venders', 'payments.vender_id', '=', 'payments_venders.id')
                 ->leftJoin('customers', 'invoices.customer_id', '=', 'customers.id')
@@ -5653,6 +5662,7 @@ namespace App\Models;
                     'chart_of_accounts.name as account_name',
                     DB::raw("COALESCE(customers.name, venders.name , revenues_customers.name , payments_venders.name) as user_name"),
                     DB::raw("COALESCE(invoices.invoice_id, bills.bill_id) as ids"),
+                    DB::raw('journal_entries.journal_id as journal_number'),
                 )
                 ->get();
 

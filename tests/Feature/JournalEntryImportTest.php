@@ -359,6 +359,49 @@ class JournalEntryImportTest extends TestCase
         $this->assertSame(2, JournalEntry::count());
     }
 
+    public function test_reimport_with_corrected_account_codes_counts_as_already_imported(): void
+    {
+        // Colosso's case (2026-11-25): the January file was
+        // imported, two account codes were corrected in the file,
+        // and the whole file was uploaded again — the same movement
+        // came back as a second entry, because the old check
+        // compared the lines account by account. Same reference,
+        // date and total amount is the same movement, even when a
+        // line moved to another account.
+        foreach (['411008' => 'Customers', '44333' => 'Special operations', '44331' => 'General Operations', '72201' => 'Service sales', '7699' => 'Other', '4412' => 'Advance Tax Payments'] as $code => $name) {
+            DB::table('chart_of_accounts')->insert([
+                'name' => $name, 'code' => (int) $code, 'type' => 0, 'sub_type' => 0,
+                'is_enabled' => 1, 'created_by' => $this->user->id,
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+
+        $first = [
+            ['', '2026-01-12', '', '', '', 'JE-IMPORT-007', '', '411008', 67200, '', 'Factura 1229 Moc Telecom'],
+            ['', '2026-01-12', '', '', '', 'JE-IMPORT-007', '', '44333', '', 11200, 'Iva Liquidado Op Especiais'],
+            ['', '2026-01-12', '', '', '', 'JE-IMPORT-007', '', '4412', 14000, '', 'Retencao na fonte'],
+            ['', '2026-01-12', '', '', '', 'JE-IMPORT-007', '', '72201', '', 70000, 'Venda Servico'],
+        ];
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull($first)]);
+        $response->assertSessionHas('success', 'Imported 1 journal entries. Skipped 0 rows.');
+        $this->assertSame(1, JournalEntry::count());
+
+        // Same movement, two lines corrected to other accounts,
+        // same amounts: no new entry, counted as already imported.
+        $corrected = [
+            ['', '2026-01-12', '', '', '', 'JE-IMPORT-007', '', '411008', 67200, '', 'Factura 1229 Moc Telecom'],
+            ['', '2026-01-12', '', '', '', 'JE-IMPORT-007', '', '44331', '', 11200, 'Iva Liquidado Op Especiais'],
+            ['', '2026-01-12', '', '', '', 'JE-IMPORT-007', '', '4412', 14000, '', 'Retencao na fonte'],
+            ['', '2026-01-12', '', '', '', 'JE-IMPORT-007', '', '7699', '', 70000, 'Venda Servico'],
+        ];
+
+        $response = $this->post(route('journal-entry.import'), ['file' => $this->makeXlsxFull($corrected)]);
+        $response->assertSessionHas('success', 'Imported 0 journal entries. Skipped 0 rows. Already imported 1 journal entries.');
+        $response->assertSessionMissing('import_errors');
+        $this->assertSame(1, JournalEntry::count());
+    }
+
     public function test_import_result_flash_caps_duplicate_entries_at_twenty(): void
     {
         $entries = [];
