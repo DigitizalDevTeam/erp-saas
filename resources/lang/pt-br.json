@@ -9112,5 +9112,13 @@
     "A category with this name already exists.": "Já existe uma categoria com este nome.",
     "Could not create a code for this category name. Please use the Categories page.": "Não foi possível criar um código para este nome de categoria. Utilize a página Categorias.",
     "Could not create the category. Please try again.": "Não foi possível criar a categoria. Tente novamente.",
-    "Please save or cancel the new category first.": "Guarde ou cancele a nova categoria primeiro."
+    "Please save or cancel the new category first.": "Guarde ou cancele a nova categoria primeiro.",
+    "Save Cost Centre": "Guardar Centro de Custo",
+    "e.g. ADM": "ex.: ADM",
+    "e.g. Administration": "ex.: Administração",
+    "Cost centre code is required.": "O código do centro de custo é obrigatório.",
+    "Cost centre name is required.": "O nome do centro de custo é obrigatório.",
+    "A cost centre with this name already exists.": "Já existe um centro de custo com este nome.",
+    "Please save or cancel the new cost centre first.": "Guarde ou cancele o novo centro de custo primeiro.",
+    "Could not create the cost centre. Please try again.": "Não foi possível criar o centro de custo. Tente novamente."
 }

@@ -99,6 +99,54 @@ class CostCentreController extends Controller
             ->with('success', __('Cost centre :code successfully created.', ['code' => $centre->code]));
     }
 
+    /**
+     * Inline "Create Cost Centre" from a dropdown (e.g. the Budgets
+     * create form). Same permission, same validation and same
+     * service as the full form — only the two required fields are
+     * asked here (code + name); the centre is created Active, like
+     * the full form's default, and the rest can be edited on the
+     * Cost Centre page. Returns JSON so the form can select the new
+     * centre at once, without a refresh.
+     */
+    public function quickStore(Request $request)
+    {
+        if (! Auth::user()->can('create cost centres')) {
+            return response()->json(['message' => __('Permission denied.')], 403);
+        }
+
+        $creatorId = (int) Auth::user()->creatorId();
+
+        // The inline panel asks only for the required fields; the
+        // centre is created Active, like the full form's default.
+        $request->merge(['status' => CostCentre::STATUS_ACTIVE]);
+        $validated = $this->validateForm($request, $creatorId);
+
+        // Duplicate name (case-insensitive) per company, including
+        // soft-deleted rows: the full form only enforces code
+        // uniqueness, but a second centre with the same name would
+        // be indistinguishable in every dropdown.
+        $duplicate = CostCentre::withTrashed()
+            ->where('created_by', $creatorId)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($validated['name'])])
+            ->exists();
+        if ($duplicate) {
+            return response()->json(['errors' => ['name' => [__('A cost centre with this name already exists.')]]], 422);
+        }
+
+        try {
+            $centre = $this->service->create($validated, $creatorId, (int) Auth::id());
+        } catch (CostCentreException $e) {
+            return response()->json(['errors' => ['name' => [$e->getMessage()]]], 422);
+        }
+
+        return response()->json([
+            'id' => $centre->id,
+            'code' => $centre->code,
+            'name' => $centre->name,
+            'message' => __('Cost centre :code successfully created.', ['code' => $centre->code]),
+        ], 201);
+    }
+
     public function edit(CostCentre $costCentre)
     {
         if (! Auth::user()->can('edit cost centres')) {
