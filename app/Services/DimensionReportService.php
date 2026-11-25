@@ -353,7 +353,7 @@ class DimensionReportService
                 'd.cost_centre_id',
                 'd.project_id',
                 DB::raw('SUM(d.allocated_amount) as total'),
-                DB::raw('COUNT(*) as rows')
+                DB::raw('COUNT(*) as line_count')
             )
             ->groupBy('d.cost_centre_id', 'd.project_id')
             ->orderBy('d.cost_centre_id')
@@ -437,7 +437,7 @@ class DimensionReportService
                 'cc.code as cost_centre_code',
                 'cc.name as cost_centre_name',
                 DB::raw('SUM(d.allocated_amount) as total'),
-                DB::raw('COUNT(*) as rows')
+                DB::raw('COUNT(*) as line_count')
             )
             ->groupBy('d.asset_id', 'fa.code', 'fa.name', 'fa.status', 'd.cost_centre_id', 'cc.code', 'cc.name')
             ->orderBy('fa.code')
@@ -453,7 +453,7 @@ class DimensionReportService
             'cost_centre_code' => $row->cost_centre_code,
             'cost_centre_name' => $row->cost_centre_name,
             'total' => $this->round2((string) $row->total),
-            'rows' => (int) $row->rows,
+            'rows' => (int) $row->line_count,
         ])->all();
 
         // Engine reconciliation for the same period (asset filters
@@ -979,7 +979,7 @@ class DimensionReportService
         } elseif ($scope === 'income') {
             $ji->where('coa.code', 'like', '7%');
         }
-        $jiRows = $ji->select('d.cost_centre_id', 'd.project_id', 'ji.account as account_id', 'coa.code as account_code', DB::raw('SUM(d.allocated_amount) as total'), DB::raw('COUNT(*) as rows'))
+        $jiRows = $ji->select('d.cost_centre_id', 'd.project_id', 'ji.account as account_id', 'coa.code as account_code', DB::raw('SUM(d.allocated_amount) as total'), DB::raw('COUNT(*) as line_count'))
             ->groupBy('d.cost_centre_id', 'd.project_id', 'ji.account', 'coa.code')
             ->get();
 
@@ -998,7 +998,7 @@ class DimensionReportService
         } elseif ($scope === 'income') {
             $tl->where('coa.code', 'like', '7%');
         }
-        $tlRows = $tl->select('d.cost_centre_id', 'd.project_id', 'tl.account_id as account_id', 'coa.code as account_code', DB::raw('SUM(d.allocated_amount) as total'), DB::raw('COUNT(*) as rows'))
+        $tlRows = $tl->select('d.cost_centre_id', 'd.project_id', 'tl.account_id as account_id', 'coa.code as account_code', DB::raw('SUM(d.allocated_amount) as total'), DB::raw('COUNT(*) as line_count'))
             ->groupBy('d.cost_centre_id', 'd.project_id', 'tl.account_id', 'coa.code')
             ->get();
 
@@ -1015,7 +1015,7 @@ class DimensionReportService
                     ];
                 }
                 $merged[$key]['total'] = bcadd($merged[$key]['total'], (string) $row->total, 2);
-                $merged[$key]['rows'] += (int) $row->rows;
+                $merged[$key]['rows'] += (int) $row->line_count;
                 $accountKey = (int) $row->account_id.'|'.(string) $row->account_code;
                 if (! isset($merged[$key]['accounts'][$accountKey])) {
                     $merged[$key]['accounts'][$accountKey] = [
@@ -1052,6 +1052,12 @@ class DimensionReportService
             // rows arrive as plain arrays. Normalise here so both callers
             // get the same shape out.
             $row = (array) $row;
+            // The SQL alias is line_count (rows is a MySQL reserved word);
+            // the report shape keeps the 'rows' key.
+            if (array_key_exists('line_count', $row)) {
+                $row['rows'] = (int) $row['line_count'];
+                unset($row['line_count']);
+            }
             $centre = $centres->get((int) $row['cost_centre_id']);
             $row['cost_centre_code'] = $centre?->code ?? '#'.(int) $row['cost_centre_id'];
             $row['cost_centre_name'] = $centre?->name;

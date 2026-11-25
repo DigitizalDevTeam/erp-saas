@@ -703,4 +703,38 @@ class DimensionReportServiceTest extends TestCase
         $this->assertSame([], $report['invalid_dimensions']);
         $this->assertSame([], $report['invalid_allocations']);
     }
+
+    // ------------------------------------------------------------------
+    // MySQL reserved-word alias (2026-11-25): COUNT(*) as rows broke
+    // every report on MySQL — rows is a reserved word there — while
+    // SQLite accepted it, so the suite stayed green. The SQL alias is
+    // now line_count; the report shape keeps the 'rows' key.
+    // ------------------------------------------------------------------
+
+    public function test_report_queries_use_no_mysql_reserved_word_alias(): void
+    {
+        $source = file_get_contents(app_path('Services/DimensionReportService.php'));
+        $this->assertStringNotContainsString('COUNT(*) as rows', $source);
+        $this->assertSame(4, substr_count($source, 'COUNT(*) as line_count'));
+    }
+
+    public function test_expense_and_cash_rows_keep_the_line_count_key(): void
+    {
+        [$adm, $ops, $tec] = $this->makeCentres();
+        [, $debitItem] = $this->makeJournal();
+        $this->posting->attachToLine('journal_item', (int) $debitItem->id,
+            $this->split([$adm, $ops, $tec], ['40.000000', '35.000000', '25.000000']), 'percentage', 1, 1);
+
+        $expense = $this->reports->expenseByCentre(1, Carbon::parse('2026-11-01'), Carbon::parse('2026-11-30'));
+        $this->assertSame([1, 1, 1], collect($expense['rows'])->pluck('rows')->all());
+
+        $bill = $this->makeBill();
+        $this->allocations->createPosted('bill', $bill->id, 'bill_product', 1, 'percentage',
+            $this->split([$adm, $ops, $tec], ['40.000000', '35.000000', '25.000000']), 1, 1);
+        $payment = $this->makePayment($bill, '30000.00');
+        $this->treasury->inheritForBillPayment($payment, 1, 1);
+
+        $cash = $this->reports->cashOutflowByCentre(1, Carbon::parse('2026-11-01'), Carbon::parse('2026-11-30'));
+        $this->assertSame([1, 1, 1], collect($cash['rows'])->pluck('rows')->all());
+    }
 }

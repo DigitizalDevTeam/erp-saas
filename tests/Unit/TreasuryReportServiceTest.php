@@ -1546,6 +1546,34 @@ class TreasuryReportServiceTest extends TestCase
         $this->assertSame(1, $otherCompany['paginator']->total());
     }
 
+    public function test_audit_trail_entity_filter_uses_a_valid_like_clause(): void
+    {
+        DimensionAuditEvent::create([
+            'company_id' => 1, 'entity_type' => 'treasury_receipt', 'entity_id' => 1,
+            'action' => 'confirmed', 'actor_id' => 2, 'occurred_at' => '2026-11-07 10:00:00',
+        ]);
+        DimensionAuditEvent::create([
+            'company_id' => 1, 'entity_type' => 'cost_centre', 'entity_id' => 1,
+            'action' => 'created', 'actor_id' => 1, 'occurred_at' => '2026-11-07 11:00:00',
+        ]);
+
+        $queries = [];
+        DB::listen(function ($query) use (&$queries) {
+            $queries[] = $query->sql;
+        });
+
+        $result = $this->service->auditTrail(1, $this->filters());
+
+        // The old whereRaw used ESCAPE '\' — an unterminated string on
+        // MySQL (valid on SQLite, which is why the page test never
+        // caught it). No query may carry that fragment.
+        foreach ($queries as $sql) {
+            $this->assertStringNotContainsString("ESCAPE '\\'", $sql);
+        }
+        $this->assertContains('treasury_receipt', $result['entity_types']);
+        $this->assertNotContains('cost_centre', $result['entity_types']);
+    }
+
     // ------------------------------------------------------------------
     // CA03 — the one acceptance gate with no earlier test
     // ------------------------------------------------------------------

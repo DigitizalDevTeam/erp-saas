@@ -1086,7 +1086,7 @@ class TreasuryReportService
     public function auditTrail(int $creatorId, array $filters, int $page = 1, int $perPage = 25): array
     {
         $query = DimensionAuditEvent::where('company_id', $creatorId)
-            ->whereRaw("entity_type LIKE ? ESCAPE '\\'", ['treasury\_%']);
+            ->whereRaw("entity_type LIKE ? ESCAPE '!'", ['treasury!_%']);
 
         if ($filters['type'] !== null) {
             $query->where('entity_type', $filters['type']);
@@ -1112,10 +1112,10 @@ class TreasuryReportService
             ->all();
 
         $entityTypes = DimensionAuditEvent::where('company_id', $creatorId)
-            ->whereRaw("entity_type LIKE ? ESCAPE '\\'", ['treasury\_%'])
+            ->whereRaw("entity_type LIKE ? ESCAPE '!'", ['treasury!_%'])
             ->distinct()->orderBy('entity_type')->pluck('entity_type')->all();
         $actions = DimensionAuditEvent::where('company_id', $creatorId)
-            ->whereRaw("entity_type LIKE ? ESCAPE '\\'", ['treasury\_%'])
+            ->whereRaw("entity_type LIKE ? ESCAPE '!'", ['treasury!_%'])
             ->distinct()->orderBy('action')->pluck('action')->all();
 
         return [
