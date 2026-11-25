@@ -52,8 +52,21 @@
                                         @foreach ($categories as $category)
                                             <option value="{{ $category->id }}" data-life="{{ $category->default_useful_life }}" data-unit="{{ $category->default_life_unit }}" {{ (string) old('category_id', $asset->category_id) === (string) $category->id ? 'selected' : '' }}>{{ $category->code }} — {{ $category->name }}</option>
                                         @endforeach
+                                        @can('manage fixed asset categories')
+                                            <option value="__create__">+ {{ __('Create Category') }}</option>
+                                        @endcan
                                     </select>
                                     @error('category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    @can('manage fixed asset categories')
+                                        <div id="new-category-panel" class="mt-2" style="display: none;">
+                                            <input type="text" id="new_category_name" class="form-control" maxlength="255" placeholder="{{ __('New category name') }}">
+                                            <div class="mt-2">
+                                                <button type="button" id="save_new_category" class="btn btn-primary btn-sm">{{ __('Save Category') }}</button>
+                                                <button type="button" id="cancel_new_category" class="btn btn-outline-secondary btn-sm">{{ __('Cancel') }}</button>
+                                            </div>
+                                            <div id="new-category-message" class="mt-1 small"></div>
+                                        </div>
+                                    @endcan
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -519,21 +532,142 @@
             });
         });
 
-        // Category defaults for useful life.
+        // Category defaults for useful life + inline "Create Category".
         var categorySelect = document.getElementById('category_id');
         var lifeInput = document.getElementById('useful_life');
         var unitSelect = document.getElementById('life_unit');
+        var newCategoryPanel = document.getElementById('new-category-panel');
+        var newCategoryName = document.getElementById('new_category_name');
+        var newCategoryMessage = document.getElementById('new-category-message');
+        var saveNewCategoryBtn = document.getElementById('save_new_category');
+        var cancelNewCategoryBtn = document.getElementById('cancel_new_category');
+        var previousCategory = categorySelect ? categorySelect.value : '';
+
+        function showCategoryMessage(text, ok) {
+            if (! newCategoryMessage) {
+                return;
+            }
+            newCategoryMessage.textContent = text;
+            newCategoryMessage.style.color = ok ? 'green' : 'red';
+        }
+
         if (categorySelect) {
             categorySelect.addEventListener('change', function () {
                 var option = categorySelect.options[categorySelect.selectedIndex];
                 if (! option) {
                     return;
                 }
+                if (option.value === '__create__') {
+                    if (newCategoryPanel) {
+                        newCategoryPanel.style.display = '';
+                    }
+                    if (newCategoryName) {
+                        newCategoryName.focus();
+                    }
+                    return;
+                }
+                previousCategory = categorySelect.value;
+                if (newCategoryPanel) {
+                    newCategoryPanel.style.display = 'none';
+                }
                 if (lifeInput && ! lifeInput.value && option.dataset.life) {
                     lifeInput.value = option.dataset.life;
                 }
                 if (unitSelect && option.dataset.unit) {
                     unitSelect.value = option.dataset.unit;
+                }
+            });
+        }
+
+        if (cancelNewCategoryBtn) {
+            cancelNewCategoryBtn.addEventListener('click', function () {
+                if (newCategoryPanel) {
+                    newCategoryPanel.style.display = 'none';
+                }
+                if (newCategoryName) {
+                    newCategoryName.value = '';
+                }
+                showCategoryMessage('', true);
+                if (categorySelect) {
+                    categorySelect.value = previousCategory;
+                }
+            });
+        }
+
+        if (saveNewCategoryBtn) {
+            saveNewCategoryBtn.addEventListener('click', function () {
+                var name = newCategoryName ? newCategoryName.value.trim() : '';
+                if (! name) {
+                    showCategoryMessage('{{ __('Category name is required.') }}', false);
+                    return;
+                }
+                saveNewCategoryBtn.disabled = true;
+                var token = document.querySelector('meta[name="csrf-token"]');
+                fetch('{{ route('fixed-asset-categories.quick-store') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': token ? token.getAttribute('content') : ''
+                    },
+                    body: JSON.stringify({ name: name })
+                }).then(function (response) {
+                    return response.json().then(function (data) {
+                        return { status: response.status, data: data };
+                    });
+                }).then(function (result) {
+                    saveNewCategoryBtn.disabled = false;
+                    if (result.status === 201) {
+                        var category = result.data;
+                        var option = document.createElement('option');
+                        option.value = category.id;
+                        option.textContent = category.code + ' — ' + category.name;
+                        if (category.default_useful_life) {
+                            option.dataset.life = category.default_useful_life;
+                        }
+                        if (category.default_life_unit) {
+                            option.dataset.unit = category.default_life_unit;
+                        }
+                        var createOption = categorySelect.querySelector('option[value="__create__"]');
+                        if (createOption) {
+                            categorySelect.insertBefore(option, createOption);
+                        } else {
+                            categorySelect.appendChild(option);
+                        }
+                        categorySelect.value = String(category.id);
+                        previousCategory = String(category.id);
+                        if (newCategoryPanel) {
+                            newCategoryPanel.style.display = 'none';
+                        }
+                        if (newCategoryName) {
+                            newCategoryName.value = '';
+                        }
+                        showCategoryMessage(result.data.message || '{{ __('Category created successfully.') }}', true);
+                        categorySelect.dispatchEvent(new Event('change'));
+                    } else {
+                        var message = (result.data.errors && result.data.errors.name && result.data.errors.name[0])
+                            || result.data.message
+                            || '{{ __('Could not create the category. Please try again.') }}';
+                        showCategoryMessage(message, false);
+                    }
+                }).catch(function () {
+                    saveNewCategoryBtn.disabled = false;
+                    showCategoryMessage('{{ __('Could not create the category. Please try again.') }}', false);
+                });
+            });
+        }
+
+        // Never submit the asset form while "Create Category" is
+        // still selected but unsaved.
+        var assetForm = categorySelect ? categorySelect.closest('form') : null;
+        if (assetForm) {
+            assetForm.addEventListener('submit', function (event) {
+                if (categorySelect && categorySelect.value === '__create__') {
+                    event.preventDefault();
+                    showCategoryMessage('{{ __('Please save or cancel the new category first.') }}', false);
+                    if (newCategoryName) {
+                        newCategoryName.focus();
+                    }
                 }
             });
         }

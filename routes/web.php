@@ -3009,6 +3009,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('fixed-asset-audit-trail', [FixedAssetAuditTrailController::class, 'index'])->name('fixed-asset-audit-trail.index')->middleware(['auth', 'XSS', 'revalidate']);
     Route::get('fixed-assets/{asset}/label', [FixedAssetController::class, 'label'])->name('fixed-assets.label')->middleware(['auth', 'XSS']);
     Route::resource('fixed-assets', FixedAssetController::class)->parameters(['fixed-assets' => 'asset'])->names('fixed-assets')->only(['index', 'show', 'create', 'store', 'edit', 'update'])->middleware(['auth', 'XSS', 'revalidate']);
+    Route::post('fixed-asset-categories/quick-store', [FixedAssetCategoryController::class, 'quickStore'])->name('fixed-asset-categories.quick-store')->middleware(['auth', 'XSS']);
     Route::post('fixed-asset-categories/{category}/deactivate', [FixedAssetCategoryController::class, 'deactivate'])->name('fixed-asset-categories.deactivate')->middleware(['auth', 'XSS']);
     Route::resource('fixed-asset-categories', FixedAssetCategoryController::class)->parameters(['fixed-asset-categories' => 'category'])->names('fixed-asset-categories')->except(['show', 'destroy'])->middleware(['auth', 'XSS', 'revalidate']);
     Route::post('fixed-asset-locations/{location}/deactivate', [FixedAssetLocationController::class, 'deactivate'])->name('fixed-asset-locations.deactivate')->middleware(['auth', 'XSS']);

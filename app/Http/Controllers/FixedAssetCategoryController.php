@@ -85,6 +85,91 @@ class FixedAssetCategoryController extends Controller
             ->with('success', __('Asset category :code successfully created.', ['code' => $category->code]));
     }
 
+    public function quickStore(Request $request)
+    {
+        if (! Auth::user()->can('manage fixed asset categories')) {
+            return response()->json(['message' => __('Permission denied.')], 403);
+        }
+
+        $creatorId = (int) Auth::user()->creatorId();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $name = trim((string) $validated['name']);
+        if ($name === '') {
+            return response()->json(['errors' => ['name' => [__('Category name is required.')]]], 422);
+        }
+
+        // Duplicate name (case-insensitive) per company, including
+        // deactivated categories — a name is never reused.
+        $duplicate = FixedAssetCategory::withTrashed()
+            ->where('created_by', $creatorId)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->exists();
+        if ($duplicate) {
+            return response()->json(['errors' => ['name' => [__('A category with this name already exists.')]]], 422);
+        }
+
+        $code = $this->deriveCategoryCode($name, $creatorId);
+        if ($code === null) {
+            return response()->json(['errors' => ['name' => [__('Could not create a code for this category name. Please use the Categories page.')]]], 422);
+        }
+
+        try {
+            $category = $this->service->createCategory([
+                'code' => $code,
+                'name' => $name,
+                'classification' => FixedAssetCategory::CLASSIFICATION_TANGIBLE,
+                'default_life_unit' => FixedAssetCategory::LIFE_UNIT_YEAR,
+                'depreciation_method' => FixedAssetCategory::METHOD_STRAIGHT_LINE,
+                'residual_value_type' => FixedAssetCategory::RESIDUAL_NONE,
+                'is_active' => true,
+            ], $creatorId, (int) Auth::id());
+        } catch (FixedAssetException $e) {
+            return response()->json(['errors' => ['name' => [$e->getMessage()]]], 422);
+        }
+
+        return response()->json([
+            'id' => $category->id,
+            'code' => $category->code,
+            'name' => $category->name,
+            'default_useful_life' => $category->default_useful_life,
+            'default_life_unit' => $category->default_life_unit,
+            'message' => __('Asset category :code successfully created.', ['code' => $category->code]),
+        ], 201);
+    }
+
+    /**
+     * Short code for a name-only category, e.g. "Office Furniture"
+     * becomes OFFI. The code feeds the asset number
+     * ({PREFIX}-{CODE}-{YEAR}-{SEQ}), so it must be short and
+     * unique per company — on a clash a number is appended
+     * (OFFI1, OFFI2, ...). Returns null when no free code exists.
+     */
+    protected function deriveCategoryCode(string $name, int $creatorId): ?string
+    {
+        $letters = preg_replace('/[^A-Za-z]/', '', $name) ?? '';
+        $base = strtoupper(substr($letters, 0, 4));
+        if ($base === '') {
+            $base = 'CAT';
+        }
+
+        for ($i = 0; $i < 10; $i++) {
+            $code = $i === 0 ? $base : $base.$i;
+            $clash = FixedAssetCategory::withTrashed()
+                ->where('created_by', $creatorId)
+                ->where('code', $code)
+                ->exists();
+            if (! $clash) {
+                return $code;
+            }
+        }
+
+        return null;
+    }
+
     public function edit(FixedAssetCategory $category)
     {
         if (! Auth::user()->can('manage fixed asset categories')) {
