@@ -102,8 +102,8 @@ class CompanyBackupService
         'deal_files' => ['deals', 'deal_id', 'created_by'],
         'deal_tasks' => ['deals', 'deal_id', 'created_by'],
         'email_template_langs' => ['email_templates', 'parent_id', 'created_by'],
-        'form_field_responses' => ['forms', 'form_id', 'created_by'],
-        'form_responses' => ['forms', 'form_id', 'created_by'],
+        'form_field_responses' => ['form_builders', 'form_id', 'created_by'],
+        'form_responses' => ['form_builders', 'form_id', 'created_by'],
         'goods_receipt_products' => ['goods_receipts', 'goods_receipt_id', 'created_by'],
         'hotel_group_members' => ['hotel_groups', 'hotel_group_id', 'created_by'],
         'invoice_payments' => ['invoices', 'invoice_id', 'created_by'],
@@ -306,38 +306,48 @@ class CompanyBackupService
                 yield $create . ";\n\n";
             }
 
-            $query = $this->rowQuery($table);
-            if ($query === null) {
+            try {
+                $query = $this->rowQuery($table);
+                if ($query === null) {
+                    $this->skippedTables[] = $table;
+                    $counts[$table] = 0;
+                    continue;
+                }
+
+                $query->orderBy($this->orderColumn($table));
+                $count = 0;
+                $columns = $this->columnNames($table);
+                $quotedColumns = '`' . implode('`,`', $columns) . '`';
+
+                $page = 1;
+                do {
+                    $rows = (clone $query)->forPage($page, 500)->get();
+                    $lines = '';
+                    foreach ($rows as $row) {
+                        $values = [];
+                        foreach ((array) $row as $value) {
+                            $values[] = $this->escapeValue($value);
+                        }
+                        $lines .= "INSERT INTO `{$table}` ({$quotedColumns}) VALUES (" . implode(',', $values) . ");\n";
+                        $count++;
+                    }
+                    if ($lines !== '') {
+                        yield $lines;
+                    }
+                    $page++;
+                } while ($rows->count() === 500);
+
+                $counts[$table] = $count;
+                yield "\n";
+            } catch (\Throwable $e) {
+                // One unreadable table must never kill the whole
+                // backup mid-stream (a truncated download looks
+                // complete in the browser). This table goes
+                // schema-only and is named in the footer.
                 $this->skippedTables[] = $table;
                 $counts[$table] = 0;
-                continue;
+                yield "-- Skipped rows for `{$table}`: could not read its rows (" . str_replace(["\r", "\n"], ' ', $e->getMessage()) . ")\n\n";
             }
-
-            $query->orderBy($this->orderColumn($table));
-            $count = 0;
-            $columns = $this->columnNames($table);
-            $quotedColumns = '`' . implode('`,`', $columns) . '`';
-
-            $page = 1;
-            do {
-                $rows = (clone $query)->forPage($page, 500)->get();
-                $lines = '';
-                foreach ($rows as $row) {
-                    $values = [];
-                    foreach ((array) $row as $value) {
-                        $values[] = $this->escapeValue($value);
-                    }
-                    $lines .= "INSERT INTO `{$table}` ({$quotedColumns}) VALUES (" . implode(',', $values) . ");\n";
-                    $count++;
-                }
-                if ($lines !== '') {
-                    yield $lines;
-                }
-                $page++;
-            } while ($rows->count() === 500);
-
-            $counts[$table] = $count;
-            yield "\n";
         }
 
         yield "/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;\n";
