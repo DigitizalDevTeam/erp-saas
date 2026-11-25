@@ -371,4 +371,30 @@ class CostCentreQuickCreateTest extends TestCase
             $table->timestamps();
         });
     }
+
+    public function test_create_page_with_no_cost_centres_renders_create_option_and_auto_open_script(): void
+    {
+        // Regression: a company with no cost centres yet has only
+        // the "__create__" option, so it is already selected on
+        // page load and picking it fires no change event — the
+        // page must open the inline panel by itself, or the
+        // dropdown looks clickable but does nothing.
+        $response = $this->actingAs(User::findOrFail(1))
+            ->get(route('cost-centre-budgets.create'));
+
+        $response->assertStatus(200);
+        $html = $response->getContent();
+        $this->assertStringContainsString('value="__create__"', $html);
+        $this->assertStringContainsString('new-cost-centre-panel', $html);
+        // The load-time auto-open: the script opens the panel when
+        // "__create__" is already the selected value.
+        $this->assertStringContainsString("centreSelect.value === '__create__'", $html);
+        // The message line must sit OUTSIDE the hidden panel, or
+        // the success message is invisible once the panel closes.
+        $messagePos = strpos($html, 'id="new-cost-centre-message"');
+        $panelPos = strpos($html, 'id="new-cost-centre-panel"');
+        $this->assertNotFalse($messagePos);
+        $this->assertNotFalse($panelPos);
+        $this->assertLessThan($panelPos, $messagePos);
+    }
 }

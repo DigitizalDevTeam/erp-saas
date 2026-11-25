@@ -34,6 +34,8 @@
                                 <small class="text-muted">{{ __('The centre cannot change after creation — a different centre is a different budget.') }}</small>
                             @endif
 
+                            <div id="new-cost-centre-message" class="small mt-1" role="alert"></div>
+
                             <div id="new-cost-centre-panel" class="border rounded p-3 mt-2" style="display: none;">
                                 <div class="row">
                                     <div class="col-md-4">
@@ -49,7 +51,6 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div id="new-cost-centre-message" class="small mt-1" role="alert"></div>
                                 <div class="mt-2">
                                     <button type="button" id="save-new-cost-centre-btn" class="btn btn-sm btn-primary">{{ __('Save Cost Centre') }}</button>
                                     <button type="button" id="cancel-new-cost-centre-btn" class="btn btn-sm btn-light">{{ __('Cancel') }}</button>
@@ -162,6 +163,15 @@
             });
         }
 
+        // A company with no cost centres yet has only the
+        // "__create__" option, so it is already the selected value
+        // when the page loads and picking it again fires no change
+        // event — open the panel right away instead of leaving a
+        // dropdown that looks clickable but does nothing.
+        if (centreSelect && centreSelect.value === '__create__' && newCentrePanel) {
+            newCentrePanel.style.display = '';
+        }
+
         if (cancelNewCentreBtn) {
             cancelNewCentreBtn.addEventListener('click', function () {
                 if (newCentrePanel) {
@@ -176,6 +186,12 @@
                 showCostCentreMessage('', true);
                 if (centreSelect) {
                     centreSelect.value = previousCentre;
+                    // Nothing to go back to: the only option is
+                    // "__create__", so keep the panel open instead
+                    // of stranding the form on a dead dropdown.
+                    if (centreSelect.value === '__create__' && newCentrePanel) {
+                        newCentrePanel.style.display = '';
+                    }
                 }
             });
         }
@@ -258,6 +274,9 @@
             budgetForm.addEventListener('submit', function (event) {
                 if (centreSelect && centreSelect.value === '__create__') {
                     event.preventDefault();
+                    if (newCentrePanel) {
+                        newCentrePanel.style.display = '';
+                    }
                     showCostCentreMessage('{{ __('Please save or cancel the new cost centre first.') }}', false);
                     if (newCentreCode) {
                         newCentreCode.focus();
