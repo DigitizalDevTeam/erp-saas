@@ -47,7 +47,7 @@ class AssetCostCentreAssignmentController extends Controller
                 ->when($request->filled('cost_centre_id'), fn ($q) => $q->where('cost_centre_id', (int) $request->input('cost_centre_id')))
                 ->when($request->filled('search'), function ($q) use ($request) {
                     $term = '%'.$request->input('search').'%';
-                    $q->whereHas('asset', fn ($a) => $a->where('asset_code', 'like', $term)->orWhere('name', 'like', $term));
+                    $q->whereHas('asset', fn ($a) => $a->where('code', 'like', $term)->orWhere('name', 'like', $term));
                 })
                 ->orderByDesc('valid_from')
                 ->orderByDesc('id');
@@ -56,7 +56,7 @@ class AssetCostCentreAssignmentController extends Controller
         }
 
         if (Schema::hasTable('fixed_assets')) {
-            $assets = FixedAsset::forCompany($creatorId)->orderBy('asset_code')->get(['id', 'asset_code', 'name']);
+            $assets = FixedAsset::forCompany($creatorId)->orderBy('code')->get(['id', 'code', 'name']);
         }
         $centres = CostCentre::forCompany($creatorId)->orderBy('code')->get(['id', 'code', 'name']);
 
@@ -72,7 +72,7 @@ class AssetCostCentreAssignmentController extends Controller
 
         $creatorId = Auth::user()->creatorId();
         $assets = Schema::hasTable('fixed_assets')
-            ? FixedAsset::forCompany($creatorId)->orderBy('asset_code')->get(['id', 'asset_code', 'name', 'status'])
+            ? FixedAsset::forCompany($creatorId)->orderBy('code')->get(['id', 'code', 'name', 'status'])
             : collect();
         $centres = CostCentre::forCompany($creatorId)->orderBy('code')->get(['id', 'code', 'name']);
         $selectedAsset = null;

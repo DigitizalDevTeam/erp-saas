@@ -848,6 +848,30 @@ class CostCentreAssetAssignmentWorkflowTest extends TestCase
         $this->actingAs(User::findOrFail(4))->get(route('asset-cost-centre-assignments.show', $asset->id))->assertRedirect();
     }
 
+    public function test_assignments_index_dropdown_and_search_use_the_asset_code_column(): void
+    {
+        $asset = $this->createCapitalizedAsset();
+        $this->assignments->assign($asset->fresh(), [
+            ['cost_centre_id' => 1, 'percentage' => '70'],
+            ['cost_centre_id' => 2, 'percentage' => '30'],
+        ], Carbon::parse('2026-11-01'), 1, 1);
+
+        // The asset dropdown renders "CODE — Name" from fixed_assets.code.
+        // Before the fix it read the non-existent asset_code column: MySQL
+        // threw 1054, while SQLite silently returned the literal string,
+        // so only this assertion catches it.
+        $this->actingAs(User::findOrFail(1))->get(route('asset-cost-centre-assignments.index'))
+            ->assertOk()
+            ->assertSee($asset->code.' — '.$asset->name);
+
+        // Searching by code must find the assignment (the search read the
+        // same wrong column).
+        $this->actingAs(User::findOrFail(1))
+            ->get(route('asset-cost-centre-assignments.index', ['search' => substr($asset->code, 0, 6)]))
+            ->assertOk()
+            ->assertSee($asset->code);
+    }
+
     public function test_routes_resolve(): void
     {
         $this->assertTrue(Route::has('asset-cost-centre-assignments.index'));
