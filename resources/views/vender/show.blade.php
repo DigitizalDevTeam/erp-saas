@@ -190,7 +190,7 @@
                                             @can('duplicate bill')
                                                     <div class="action-btn me-2">
                                                         {!! Form::open(['method' => 'get', 'route' => ['bill.duplicate', $bill->id],'id'=>'duplicate-form-'.$bill->id]) !!}
-                                                        <a href="#" class="mx-3 btn btn-sm  align-items-center bg-secondary bs-pass-para" data-bs-toggle="tooltip" title="{{__('Duplicate Bill')}}" data-original-title="{{__('Duplicate')}}" data-confirm="You want to confirm this action. Press Yes to continue or Cancel to go back" data-confirm-yes="document.getElementById('duplicate-form-{{$bill->id}}').submit();">
+                                                        <a href="#" class="mx-3 btn btn-sm  align-items-center bg-secondary bs-pass-para" data-bs-toggle="tooltip" title="{{__('Duplicate Bill')}}" data-original-title="{{__('Duplicate')}}" data-confirm="{{ __('You want to confirm this action. Press Yes to continue or Cancel to go back') }}" data-confirm-yes="document.getElementById('duplicate-form-{{$bill->id}}').submit();">
                                                             <i class="ti ti-copy text-white text-white"></i>
                                                         </a>
                                                         {!! Form::close() !!}

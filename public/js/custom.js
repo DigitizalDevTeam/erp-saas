@@ -370,8 +370,40 @@ function summernote() {
 
 
 
+// Confirm dialog text in the user's language.
+//
+// Buttons carry their own translated text in data-confirm
+// ("Title|Text", rendered by Blade with __()) and, on POS pages,
+// data-text for the body. Buttons without those attributes fall
+// back to window.swalConfirmText, rendered translated by the
+// layout just before this file loads; plain English is only the
+// last resort when neither exists.
+function swalConfirmParts(button) {
+    var defaults = window.swalConfirmText || {};
+    var parts = {
+        title: defaults.title || 'Are you sure?',
+        text: defaults.text || 'This action can not be undone. Do you want to continue?',
+        confirmButtonText: defaults.confirmButtonText || 'Yes',
+        cancelButtonText: defaults.cancelButtonText || 'No'
+    };
+    var raw = button.getAttribute('data-confirm');
+    if (raw) {
+        var split = raw.split('|');
+        parts.title = split[0];
+        // A lone title (e.g. "Approve this journal entry?") stands
+        // on its own; only a "Title|Text" value supplies a body.
+        parts.text = split.length > 1 ? split.slice(1).join('|') : '';
+    }
+    var dataText = button.getAttribute('data-text');
+    if (dataText !== null && dataText !== '') {
+        parts.text = dataText;
+    }
+    return parts;
+}
+
 $(document).on("click", '.bs-pass-para', function () {
     var form = $(this).closest("form");
+    var parts = swalConfirmParts(this);
     const swalWithBootstrapButtons = Swal.mixin({
         customClass: {
             confirmButton: 'btn btn-success',
@@ -380,12 +412,12 @@ $(document).on("click", '.bs-pass-para', function () {
         buttonsStyling: false
     })
     swalWithBootstrapButtons.fire({
-        title: 'Are you sure?',
-        text: "This action can not be undone. Do you want to continue?",
+        title: parts.title,
+        text: parts.text,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Yes',
-        cancelButtonText: 'No',
+        confirmButtonText: parts.confirmButtonText,
+        cancelButtonText: parts.cancelButtonText,
         reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) {
@@ -402,6 +434,7 @@ $(document).on("click", '.bs-pass-para', function () {
 //only pos system delete button
 $(document).on("click", '.bs-pass-para-pos', function () {
 
+    var parts = swalConfirmParts(this);
     const swalWithBootstrapButtons = Swal.mixin({
         customClass: {
             confirmButton: 'btn btn-success',
@@ -410,12 +443,12 @@ $(document).on("click", '.bs-pass-para-pos', function () {
         buttonsStyling: false
     })
     swalWithBootstrapButtons.fire({
-        title: 'Are you sure?',
-        text: "This action can not be undone. Do you want to continue?",
+        title: parts.title,
+        text: parts.text,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Yes',
-        cancelButtonText: 'No',
+        confirmButtonText: parts.confirmButtonText,
+        cancelButtonText: parts.cancelButtonText,
         reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) {

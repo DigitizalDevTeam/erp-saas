@@ -306,7 +306,7 @@
                                                     @can('convert invoice')
                                                         <div class="action-btn me-2">
                                                         {!! Form::open(['method' => 'get', 'route' => ['proposal.convert', $proposal->id],'id'=>'proposal-form-'.$proposal->id]) !!}
-                                                            <a href="#" class="mx-3 btn btn-sm  align-items-center bs-pass-para bg-secondary" data-bs-toggle="tooltip" data-original-title="{{__('Convert to Invoice')}}" title="{{__('Convert to Invoice')}}" data-confirm="You want to confirm convert to invoice. Press Yes to continue or Cancel to go back" data-confirm-yes="document.getElementById('proposal-form-{{$proposal->id}}').submit();">
+                                                            <a href="#" class="mx-3 btn btn-sm  align-items-center bs-pass-para bg-secondary" data-bs-toggle="tooltip" data-original-title="{{__('Convert to Invoice')}}" title="{{__('Convert to Invoice')}}" data-confirm="{{ __('You want to confirm convert to invoice. Press Yes to continue or Cancel to go back') }}" data-confirm-yes="document.getElementById('proposal-form-{{$proposal->id}}').submit();">
                                                                 <i class="ti ti-exchange text-white"></i>
                                                             </a>
                                                          {!! Form::close() !!}
@@ -325,7 +325,7 @@
                                                 @can('duplicate proposal')
                                                     <div class="action-btn me-2">
                                                     {!! Form::open(['method' => 'get', 'route' => ['proposal.duplicate', $proposal->id],'id'=>'duplicate-form-'.$proposal->id]) !!}
-                                                        <a href="#" class="mx-3 btn btn-sm align-items-center bs-pass-para bg-primary" data-bs-toggle="tooltip" data-original-title="{{__('Duplicate')}}"  title="{{__('Duplicate Proposal')}}" data-confirm="You want to confirm duplicate this invoice. Press Yes to continue or Cancel to go back" data-confirm-yes="document.getElementById('duplicate-form-{{$proposal->id}}').submit();">
+                                                        <a href="#" class="mx-3 btn btn-sm align-items-center bs-pass-para bg-primary" data-bs-toggle="tooltip" data-original-title="{{__('Duplicate')}}"  title="{{__('Duplicate Proposal')}}" data-confirm="{{ __('You want to confirm duplicate this invoice. Press Yes to continue or Cancel to go back') }}" data-confirm-yes="document.getElementById('duplicate-form-{{$proposal->id}}').submit();">
                                                             <i class="ti ti-copy text-white text-white"></i>
                                                         </a>
                                                         {!! Form::close() !!}
@@ -427,7 +427,7 @@
                                                     <div class="action-btn me-2">
                                                         {!! Form::open(['method' => 'get', 'route' => ['invoice.duplicate', $invoice->id],'id'=>'duplicate-form-'.$invoice->id]) !!}
 
-                                                            <a href="#" class="mx-3 btn btn-sm align-items-center bg-primary bs-pass-para" data-bs-toggle="tooltip" data-original-title="{{__('Duplicate')}}" title="{{__('Duplicate Invoice')}}" data-confirm="You want to confirm this action. Press Yes to continue or Cancel to go back" data-confirm-yes="document.getElementById('duplicate-form-{{$invoice->id}}').submit();">
+                                                            <a href="#" class="mx-3 btn btn-sm align-items-center bg-primary bs-pass-para" data-bs-toggle="tooltip" data-original-title="{{__('Duplicate')}}" title="{{__('Duplicate Invoice')}}" data-confirm="{{ __('You want to confirm this action. Press Yes to continue or Cancel to go back') }}" data-confirm-yes="document.getElementById('duplicate-form-{{$invoice->id}}').submit();">
                                                                 <i class="ti ti-copy text-white text-white"></i>
                                                             </a>
 
