@@ -2681,6 +2681,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::get('cost-centres/settings', [CostCentreController::class, 'settings'])->name('cost-centres.settings')->middleware(['auth', 'XSS']);
     Route::post('cost-centres/settings', [CostCentreController::class, 'saveSettings'])->name('cost-centres.settings.save')->middleware(['auth', 'XSS']);
     Route::post('cost-centres/{cost_centre}/deactivate', [CostCentreController::class, 'deactivate'])->name('cost-centres.deactivate')->middleware(['auth', 'XSS']);
+    Route::post('cost-centres/quick-store', [CostCentreController::class, 'quickStore'])->name('cost-centres.quick-store')->middleware(['auth', 'XSS']);
     Route::resource('cost-centres', CostCentreController::class)->parameters(['cost-centres' => 'cost_centre'])->names('cost-centres')->except(['show'])->middleware(['auth', 'XSS', 'revalidate']);
 
     // Cost Centres — Phase 1: allocation engine (plan §5/§6). The

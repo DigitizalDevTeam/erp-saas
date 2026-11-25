@@ -10053,5 +10053,13 @@
     "A category with this name already exists.": "A category with this name already exists.",
     "Could not create a code for this category name. Please use the Categories page.": "Could not create a code for this category name. Please use the Categories page.",
     "Could not create the category. Please try again.": "Could not create the category. Please try again.",
-    "Please save or cancel the new category first.": "Please save or cancel the new category first."
+    "Please save or cancel the new category first.": "Please save or cancel the new category first.",
+    "Save Cost Centre": "Save Cost Centre",
+    "e.g. ADM": "e.g. ADM",
+    "e.g. Administration": "e.g. Administration",
+    "Cost centre code is required.": "Cost centre code is required.",
+    "Cost centre name is required.": "Cost centre name is required.",
+    "A cost centre with this name already exists.": "A cost centre with this name already exists.",
+    "Please save or cancel the new cost centre first.": "Please save or cancel the new cost centre first.",
+    "Could not create the cost centre. Please try again.": "Could not create the cost centre. Please try again."
 }
