@@ -43,7 +43,7 @@ class CompanyBackupTest extends TestCase
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        foreach (['company_user', 'journal_items', 'journal_entries', 'invoice_products', 'invoices', 'customers', 'product_services', 'failed_jobs', 'password_resets', 'users', 'roles', 'permissions', 'model_has_permissions', 'model_has_roles', 'role_has_permissions', 'settings', 'languages', 'email_templates', 'ch_messages', 'plans', 'branches', 'branch_user'] as $table) {
+        foreach (['company_user', 'journal_items', 'journal_entries', 'invoice_products', 'invoices', 'customers', 'product_services', 'failed_jobs', 'password_resets', 'users', 'roles', 'permissions', 'model_has_permissions', 'model_has_roles', 'role_has_permissions', 'settings', 'languages', 'email_templates', 'ch_messages', 'plans', 'branches', 'branch_user', 'form_builders', 'form_field_responses', 'form_responses'] as $table) {
             Schema::dropIfExists($table);
         }
 
@@ -105,6 +105,42 @@ class CompanyBackupTest extends TestCase
         $this->assertStringNotContainsString('Beta line', $dump);
         $this->assertStringContainsString('Alpha item', $dump);
         $this->assertStringNotContainsString('Beta item', $dump);
+    }
+
+    public function test_dump_scopes_form_responses_through_form_builders(): void
+    {
+        $dump = $this->dumpFor($this->admin);
+
+        // The form tables scope through form_builders (the real parent
+        // table — a table called `forms` never existed).
+        $this->assertStringContainsString('Alpha form', $dump);
+        $this->assertStringNotContainsString('Beta form', $dump);
+        $this->assertStringContainsString('Alpha response', $dump);
+        $this->assertStringNotContainsString('Beta response', $dump);
+    }
+
+    public function test_dump_survives_a_missing_parent_table(): void
+    {
+        // Temp-site failure (2026-11-25): the `forms` parent table did
+        // not exist, so the row query for form_field_responses threw
+        // and the streamed download stopped mid-file, truncated, with
+        // no error shown. One unreadable table must never kill the dump.
+        Schema::dropIfExists('invoices');
+
+        $dump = $this->dumpFor($this->admin);
+
+        // The dump runs to its footer instead of dying mid-stream.
+        $this->assertStringContainsString('Backup summary (rows included per table)', $dump);
+        $this->assertStringContainsString('Schema only (no rows dumped):', $dump);
+        // The orphaned child table goes schema-only and is named.
+        $this->assertStringContainsString('Table structure for table `invoice_products`', $dump);
+        $this->assertStringNotContainsString('INSERT INTO `invoice_products`', $dump);
+        $this->assertStringContainsString('Skipped rows for `invoice_products`', $dump);
+        $footer = substr($dump, (int) strpos($dump, 'Backup summary'));
+        $this->assertStringContainsString('invoice_products', $footer);
+        // Tables after the broken one still dump their data.
+        $this->assertStringContainsString('Product Alpha', $dump);
+        $this->assertStringContainsString('JE-ALPHA', $dump);
     }
 
     public function test_page_is_reachable_for_admin_with_permission(): void
@@ -260,6 +296,18 @@ class CompanyBackupTest extends TestCase
         ]);
         DB::table('failed_jobs')->insert([
             ['id' => 1, 'uuid' => 'uuid-1', 'queue' => 'default', 'payload' => '{}', 'exception' => 'boom', 'failed_at' => now()],
+        ]);
+        DB::table('form_builders')->insert([
+            ['id' => 1, 'name' => 'Alpha form', 'created_by' => $a, 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 2, 'name' => 'Beta form', 'created_by' => $b, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        DB::table('form_field_responses')->insert([
+            ['id' => 1, 'form_id' => 1, 'subject_id' => 1, 'name_id' => 1, 'email_id' => 1, 'user_id' => 1, 'pipeline_id' => 1, 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 2, 'form_id' => 2, 'subject_id' => 2, 'name_id' => 2, 'email_id' => 2, 'user_id' => 2, 'pipeline_id' => 2, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        DB::table('form_responses')->insert([
+            ['id' => 1, 'form_id' => 1, 'response' => 'Alpha response', 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 2, 'form_id' => 2, 'response' => 'Beta response', 'created_at' => now(), 'updated_at' => now()],
         ]);
         DB::table('password_resets')->insert([
             ['email' => 'admin-b@test.local', 'token' => 'secret-token', 'created_at' => now()],
@@ -466,6 +514,28 @@ class CompanyBackupTest extends TestCase
             $table->longText('payload')->nullable();
             $table->longText('exception')->nullable();
             $table->timestamp('failed_at')->nullable();
+        });
+        Schema::create('form_builders', function (Blueprint $table) {
+            $table->increments('id');
+            $table->string('name')->nullable();
+            $table->integer('created_by')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('form_field_responses', function (Blueprint $table) {
+            $table->increments('id');
+            $table->integer('form_id');
+            $table->integer('subject_id')->nullable();
+            $table->integer('name_id')->nullable();
+            $table->integer('email_id')->nullable();
+            $table->integer('user_id')->nullable();
+            $table->integer('pipeline_id')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('form_responses', function (Blueprint $table) {
+            $table->increments('id');
+            $table->integer('form_id');
+            $table->text('response')->nullable();
+            $table->timestamps();
         });
         Schema::create('password_resets', function (Blueprint $table) {
             $table->string('email')->nullable();
