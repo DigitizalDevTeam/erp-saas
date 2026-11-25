@@ -83,6 +83,42 @@
         @endif
     @endcan
 
+    @if (isset($linkedBills) && $linkedBills->count())
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body table-border-style">
+                        <h5 class="mb-3">{{ __('Vendor Bills') }}</h5>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>{{ __('Bill') }}</th>
+                                        <th>{{ __('Bill Date') }}</th>
+                                        <th>{{ __('Total') }}</th>
+                                        <th>{{ __('Due') }}</th>
+                                        <th>{{ __('Status') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($linkedBills as $linkedBill)
+                                        <tr>
+                                            <td><a href="{{ route('bill.show', \Crypt::encrypt($linkedBill->id)) }}" class="btn btn-sm btn-outline-primary">{{ \Auth::user()->billNumberFormat($linkedBill->bill_id) }}</a></td>
+                                            <td>{{ \Auth::user()->dateFormat($linkedBill->bill_date) }}</td>
+                                            <td>{{ \Auth::user()->priceFormat($linkedBill->getTotal()) }}</td>
+                                            <td>{{ \Auth::user()->priceFormat($linkedBill->getDue()) }}</td>
+                                            <td><span class="status_badge badge bg-info p-2 px-3 rounded">{{ __(\App\Models\Bill::$statues[$linkedBill->status]) }}</span></td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     @if (isset($deliveryLines))
         <div class="row mb-3">
             <div class="col-12">

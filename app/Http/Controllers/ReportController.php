@@ -1689,11 +1689,13 @@ class ReportController extends Controller
 
             $payslips = $payslips->whereIn('name', $employees)->with(['employees'])->get();
 
-            $totalBasicSalary = $totalNetSalary = $totalAllowance = $totalCommision = $totalLoan = $totalSaturationDeduction = $totalOtherPayment = $totalOverTime = 0;
+            $totalBasicSalary = $totalNetSalary = $totalAllowance = $totalCommision = $totalLoan = $totalSaturationDeduction = $totalOtherPayment = $totalOverTime = $totalInssEmployee = $totalIrps = 0;
 
             foreach ($payslips as $payslip) {
                 $totalBasicSalary += $payslip->basic_salary;
                 $totalNetSalary += $payslip->net_payble;
+                $totalInssEmployee += (float) $payslip->inss_employee_amount;
+                $totalIrps += (float) $payslip->irps_amount;
 
                 $allowances = json_decode($payslip->allowance);
                 foreach ($allowances as $allowance) {
@@ -1735,6 +1737,8 @@ class ReportController extends Controller
 
             $filterData['totalBasicSalary'] = $totalBasicSalary;
             $filterData['totalNetSalary'] = $totalNetSalary;
+            $filterData['totalInssEmployee'] = $totalInssEmployee;
+            $filterData['totalIrps'] = $totalIrps;
             $filterData['totalAllowance'] = $totalAllowance;
             $filterData['totalCommision'] = $totalCommision;
             $filterData['totalLoan'] = $totalLoan;

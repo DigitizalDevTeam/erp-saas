@@ -782,12 +782,13 @@ class PurchaseController extends Controller
                 $purchasePayment = PurchasePayment::where('purchase_id', $purchase->id)->first();
                 $vendor      = $purchase->vender;
                 $iteams      = $purchase->items;
+                $linkedBills = Bill::where('purchase_id', $purchase->id)->orderBy('bill_date')->get();
                 $deliveryLines = \App\Services\PurchaseDeliveryService::sourceLinesForPurchase($purchase);
                 $deliveryNotes = \App\Services\PurchaseDeliveryService::tablesAvailable()
                     ? $purchase->deliveryNotes()->with('items')->orderByDesc('id')->get()
                     : collect();
 
-                return view('purchase.view', compact('purchase', 'vendor', 'iteams', 'purchasePayment', 'deliveryLines', 'deliveryNotes'));
+                return view('purchase.view', compact('purchase', 'vendor', 'iteams', 'purchasePayment', 'linkedBills', 'deliveryLines', 'deliveryNotes'));
             }
             else
             {
