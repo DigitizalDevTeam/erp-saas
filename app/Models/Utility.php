@@ -4076,7 +4076,14 @@ namespace App\Models;
             }
 
             $payslip['earning'] = $earning;
-            $payslip['totalEarning'] = $totalAllowance + $totalCommission + $totalotherpayment + $ot;
+            // Total earnings must include the basic salary: the earnings table
+            // lists it as a row, so omitting it made the total read 0.00 for
+            // employees with no allowance / commission / other payment / overtime.
+            $basicSalaryTotal = 0.0;
+            foreach ($arrayJson as $earn) {
+                $basicSalaryTotal += (float) ($earn->basic_salary ?? 0);
+            }
+            $payslip['totalEarning'] = $basicSalaryTotal + $totalAllowance + $totalCommission + $totalotherpayment + $ot;
             $payslip['deduction'] = $deduction;
             $statutory = PaySlip::where('employee_id', $employeeId)
                 ->where('salary_month', $month)

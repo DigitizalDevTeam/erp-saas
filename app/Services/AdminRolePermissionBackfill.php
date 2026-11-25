@@ -267,6 +267,34 @@ class AdminRolePermissionBackfill
         'menu.settings.backup',
     ];
 
+    /** IRPS withholding-rate management (action + menu grant). */
+    public const IRPS_WITHHOLDING_PERMISSIONS = [
+        'manage irps withholding',
+        'menu.hrm_system.payroll.irps_withholding',
+    ];
+
+    public static function grantIrpsWithholdingPermission(): void
+    {
+        if (! Schema::hasTable('roles') || ! Schema::hasTable('permissions') || ! Schema::hasTable('role_has_permissions')) {
+            return;
+        }
+
+        foreach (self::IRPS_WITHHOLDING_PERMISSIONS as $name) {
+            Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        }
+        SidebarMenuPermissionCatalog::ensurePermissionsExist();
+
+        foreach (Role::whereIn('name', self::ADMIN_ROLE_NAMES)->get() as $role) {
+            $held = $role->permissions()->pluck('name')->all();
+            $missing = array_values(array_diff(self::IRPS_WITHHOLDING_PERMISSIONS, $held));
+            if ($missing !== []) {
+                $role->givePermissionTo($missing);
+            }
+        }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
     public static function grantCompanyBackupPermission(): void
     {
         if (! Schema::hasTable('roles') || ! Schema::hasTable('permissions') || ! Schema::hasTable('role_has_permissions')) {

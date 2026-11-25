@@ -203,6 +203,7 @@ use App\Http\Controllers\ProductReportsController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\DreReportController;
 use App\Http\Controllers\HrmTaxReportController;
+use App\Http\Controllers\IrpsWithholdingController;
 use App\Http\Controllers\IrpcReportController;
 use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\MonthlyVatReportController;
@@ -1737,6 +1738,7 @@ Route::group(['middleware' => ['verified']], function () {
     Route::resource('allowance', AllowanceController::class)->except(['index'])->middleware(['auth', 'XSS']);
     Route::resource('commission', CommissionController::class)->middleware(['auth', 'XSS']);
     Route::resource('allowanceoption', AllowanceOptionController::class)->middleware(['auth', 'XSS']);
+    Route::resource('irps-withholding', IrpsWithholdingController::class)->middleware(['auth', 'XSS']);
     Route::resource('loanoption', LoanOptionController::class)->middleware(['auth', 'XSS']);
     Route::resource('deductionoption', DeductionOptionController::class)->middleware(['auth', 'XSS']);
     Route::resource('loan', LoanController::class)->middleware(['auth', 'XSS']);

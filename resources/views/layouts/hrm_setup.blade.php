@@ -63,6 +63,15 @@
             </a>
         </li>
     @endcan
+    @can('manage irps withholding')
+        <li class="nav-item" role="presentation">
+            <a href="{{ route('irps-withholding.index') }}" class="list-group-item list-group-item-action border-0">
+                <button class="nav-link {{ request()->is('irps-withholding*') ? 'active' : '' }} "
+                    id="irps-setting-tab" data-bs-toggle="pill" data-bs-target="#irps-setting"
+                    type="button">{{ __('IRPS Withholding') }}</button>
+            </a>
+        </li>
+    @endcan
     @can('manage loan option')
         <li class="nav-item" role="presentation">
             <a href="{{ route('loanoption.index') }}" class="list-group-item list-group-item-action border-0">

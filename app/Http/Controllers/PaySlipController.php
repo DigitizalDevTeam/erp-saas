@@ -670,17 +670,7 @@ class PaySlipController extends Controller
 
     private function recalculatePayslipPayroll(PaySlip $payslipEmployee, Employee $employee): void
     {
-        $salaryMonth = $payslipEmployee->salary_month ?: date('Y-m');
-        $netBeforeStatutory = (float) $employee->get_net_salary($salaryMonth);
-        $irpsBase = (float) $employee->get_irps_base_salary($salaryMonth);
-
-        $inss = PayrollTaxService::calculateInss($employee, $netBeforeStatutory);
-        $irps = PayrollTaxService::calculateIrps($employee, $irpsBase);
-
-        $payslipEmployee->inss_employee_amount = $inss['employee'];
-        $payslipEmployee->inss_employer_amount = $inss['employer'];
-        $payslipEmployee->irps_amount = $irps;
-        $payslipEmployee->net_payble = max(0, $netBeforeStatutory - (float) $payslipEmployee->inss_employee_amount - (float) $payslipEmployee->irps_amount);
+        PayrollTaxService::recalculatePayslip($payslipEmployee, $employee);
     }
 
     public function export(Request $request)

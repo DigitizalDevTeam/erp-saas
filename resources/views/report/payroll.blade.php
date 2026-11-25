@@ -380,6 +380,36 @@
                     <div class="card-body d-flex align-items-center gap-3">
                         <div class="report-icon">
                             <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <text x="13" y="19" text-anchor="middle" font-size="16" font-weight="bold" fill="white">%</text>
+                            </svg>
+                        </div>
+                        <div class="report-info flex-1">
+                            <h5 class="mb-1">{{ __('Total INSS') }}</h5>
+                            <p class="text-muted mb-0">{{ \Auth::user()->priceFormat($filterData['totalInssEmployee']) }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3 mb-4">
+                <div class="card report-card mb-0 h-100">
+                    <div class="card-body d-flex align-items-center gap-3">
+                        <div class="report-icon">
+                            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <text x="13" y="19" text-anchor="middle" font-size="16" font-weight="bold" fill="white">%</text>
+                            </svg>
+                        </div>
+                        <div class="report-info flex-1">
+                            <h5 class="mb-1">{{ __('Total IRPS') }}</h5>
+                            <p class="text-muted mb-0">{{ \Auth::user()->priceFormat($filterData['totalIrps']) }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-4 col-xl-3 mb-4">
+                <div class="card report-card mb-0 h-100">
+                    <div class="card-body d-flex align-items-center gap-3">
+                        <div class="report-icon">
+                            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <g clip-path="url(#clip0_4436_2040)">
                                 <path d="M0.000294403 7.50736V15.0729C0.0007478 15.1543 0.022284 15.2343 0.0630895 15.3051L2.60028 19.6962C2.7227 19.9086 2.78685 20.1496 2.78595 20.3949V21.3572H9.2858V20.2346C9.2858 20.1464 9.26063 20.0602 9.21348 19.9859L6.38136 15.5367C6.29612 15.4028 6.14831 15.3216 5.98963 15.3216H5.35578C4.85818 15.3212 4.39821 15.0559 4.14862 14.6252L3.08088 12.7729C2.92423 12.4942 2.63202 12.3192 2.31238 12.3131L2.23779 12.3095C1.91294 12.3229 1.61868 12.5051 1.46204 12.7899C1.30539 13.0748 1.30924 13.421 1.47201 13.7023L3.88633 17.8835L3.08224 18.3478L0.667917 14.1657C0.370264 13.657 0.333085 13.0367 0.56817 12.4961C0.803255 11.9556 1.28227 11.5596 1.8574 11.4306V7.42893C1.85785 7.18273 1.75969 6.94651 1.58491 6.77286C1.39312 6.58357 1.12924 6.48519 0.860156 6.50287C0.358929 6.56861 -0.0119472 7.00206 0.000294403 7.50736Z" fill="white"/>
                                 <path d="M1.39307 22.2857H10.6786V25.9999H1.39307V22.2857Z" fill="white"/>
@@ -528,6 +558,8 @@
                                 <th>{{__('Employee')}}</th>
                                 <th>{{__('Salary')}}</th>
                                 <th>{{__('Net Salary')}}</th>
+                                <th>{{__('INSS')}}</th>
+                                <th>{{__('IRPS')}}</th>
                                 <th>{{__('Month')}}</th>
                                 <th>{{__('Status')}}</th>
                             </tr>
@@ -539,6 +571,8 @@
                                     <td>{{(!empty($payslip->employees)) ? $payslip->employees->name:''}}</td>
                                     <td>{{\Auth::user()->priceFormat($payslip->basic_salary)}}</td>
                                     <td>{{\Auth::user()->priceFormat($payslip->net_payble)}}</td>
+                                    <td>{{\Auth::user()->priceFormat($payslip->inss_employee_amount)}}</td>
+                                    <td>{{\Auth::user()->priceFormat($payslip->irps_amount)}}</td>
                                     <td>{{$payslip->salary_month}}</td>
                                     <td>
                                         @if($payslip->status==0)

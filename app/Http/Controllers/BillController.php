@@ -73,7 +73,7 @@ class BillController extends Controller
             {
                 $query->where('status', '=', $request->status);
             }
-            $bills = $query->with('category')->get();
+            $bills = $query->with('category', 'purchase')->get();
 
             return view('bill.index', compact('bills', 'vender', 'status'));
         }
@@ -353,7 +353,7 @@ class BillController extends Controller
             }
 
             $id   = Crypt::decrypt($ids);
-            $bill = Bill::with('debitNote' ,'payments.bankAccount','items.product.unit')->find($id);
+            $bill = Bill::with('debitNote', 'payments.bankAccount', 'items.product.unit', 'purchase')->find($id);
 
             if(!empty($bill) && $bill->created_by == \Auth::user()->creatorId())
             {

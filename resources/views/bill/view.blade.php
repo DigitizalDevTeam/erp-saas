@@ -184,6 +184,12 @@
                                             <small>
                                                 <strong>{{ __('Due Date') }} :</strong><br>
                                                 {{ \Auth::user()->dateFormat($bill->due_date) }}<br><br>
+                                                <strong>{{ __('Purchase') }} :</strong><br>
+                                                @if (!empty($bill->purchase))
+                                                    <a href="{{ route('purchase.show',\Crypt::encrypt($bill->purchase->id)) }}">{{ \App\Models\Utility::purchaseNumberFormat($bill->purchase->purchase_id) }}</a><br><br>
+                                                @else
+                                                    -<br><br>
+                                                @endif
                                             </small>
                                         </div>
                                     </div>

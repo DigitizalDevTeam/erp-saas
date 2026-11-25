@@ -195,9 +195,10 @@ class SidebarMenuPermissionCatalog
                 'manage employee', 'manage set salary', 'manage pay slip', 'manage leave', 'manage attendance',
             ], [
                 self::node('Employee Setup', 'menu.hrm_system.employee', ['manage employee']),
-                self::node('Payroll Setup', 'menu.hrm_system.payroll', ['manage set salary', 'manage pay slip'], [
+                self::node('Payroll Setup', 'menu.hrm_system.payroll', ['manage set salary', 'manage pay slip', 'manage irps withholding'], [
                     self::node('Set salary', 'menu.hrm_system.payroll.set_salary', ['manage set salary']),
                     self::node('Payslip', 'menu.hrm_system.payroll.payslip', ['manage pay slip']),
+                    self::node('IRPS Withholding', 'menu.hrm_system.payroll.irps_withholding', ['manage irps withholding']),
                 ]),
                 self::node('Leave Management Setup', 'menu.hrm_system.leave', ['manage leave', 'manage attendance'], [
                     self::node('Manage Leave', 'menu.hrm_system.leave.manage', ['manage leave']),

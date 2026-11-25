@@ -937,6 +937,12 @@
                                                         href="{{ route('payslip.index') }}">{{ __('Payslip') }}</a>
                                                 </li>
                                             @endif
+                                            @if (menu_can('menu.hrm_system.payroll.irps_withholding'))
+                                                <li class="dash-item {{ request()->is('irps-withholding*') ? 'active' : '' }}">
+                                                    <a class="dash-link"
+                                                        href="{{ route('irps-withholding.index') }}">{{ __('IRPS Withholding') }}</a>
+                                                </li>
+                                            @endif
                                         </ul>
                                     </li>
                                 @endif

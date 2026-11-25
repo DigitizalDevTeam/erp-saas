@@ -93,6 +93,7 @@
                             <thead>
                             <tr>
                                 <th> {{__('Bill')}}</th>
+                                <th> {{__('Purchase')}}</th>
                                 <th> {{__('Category')}}</th>
                                 <th> {{__('Bill Date')}}</th>
                                 <th> {{__('Due Date')}}</th>
@@ -107,6 +108,13 @@
                                 <tr>
                                     <td class="Id">
                                         <a href="{{ route('bill.show',\Crypt::encrypt($bill->id)) }}" class="btn btn-outline-primary">{{ AUth::user()->billNumberFormat($bill->bill_id) }}</a>
+                                    </td>
+                                    <td>
+                                        @if (!empty($bill->purchase))
+                                            <a href="{{ route('purchase.show',\Crypt::encrypt($bill->purchase->id)) }}" class="btn btn-sm btn-outline-primary">{{ \App\Models\Utility::purchaseNumberFormat($bill->purchase->purchase_id) }}</a>
+                                        @else
+                                            -
+                                        @endif
                                     </td>
                                     <td>{{ !empty($bill->category)?$bill->category->name:'-'}}</td>
                                     <td>{{ Auth::user()->dateFormat($bill->bill_date) }}</td>

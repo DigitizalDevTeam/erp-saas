@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\IrpsWithholdingRow;
+use App\Models\PaySlip;
 use App\Models\Utility;
 
 class PayrollTaxService
@@ -93,6 +94,30 @@ class PayrollTaxService
         $tax = (float) $base + $additional;
 
         return round(max(0, $tax), 2);
+    }
+
+    /**
+     * Recompute the statutory amounts on a payslip from the employee's
+     * current components and the company's withholding table, and set
+     * the net payable. Does NOT save: the caller saves the payslip.
+     *
+     * INSS (employee 3% / employer 4%) is calculated on the net before
+     * statutory deductions; IRPS is calculated on the IRPS base
+     * (basic + allowance + commission + other payment + overtime).
+     */
+    public static function recalculatePayslip(PaySlip $payslip, Employee $employee): void
+    {
+        $salaryMonth = $payslip->salary_month ?: date('Y-m');
+        $netBeforeStatutory = (float) $employee->get_net_salary($salaryMonth);
+        $irpsBase = (float) $employee->get_irps_base_salary($salaryMonth);
+
+        $inss = self::calculateInss($employee, $netBeforeStatutory);
+        $irps = self::calculateIrps($employee, $irpsBase);
+
+        $payslip->inss_employee_amount = $inss['employee'];
+        $payslip->inss_employer_amount = $inss['employer'];
+        $payslip->irps_amount = $irps;
+        $payslip->net_payble = max(0, $netBeforeStatutory - (float) $payslip->inss_employee_amount - (float) $payslip->irps_amount);
     }
 }
 
