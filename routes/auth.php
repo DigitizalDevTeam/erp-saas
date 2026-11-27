@@ -21,14 +21,9 @@ Route::post('/register/store', [RegisteredUserController::class, 'store'])
 // Static route FIRST: /login/{lang?} below would otherwise swallow
 // /login/pos-users (lang = "pos-users") and the remembered-company
 // dropdown would get the login HTML instead of JSON, so it stayed empty.
-// The same holds for /login/users (the ERP login-tab user list).
 Route::get('/login/pos-users', [AuthenticatedSessionController::class, 'posUsersForCompany'])
                 ->middleware('guest')
                 ->name('login.pos-users');
-
-Route::get('/login/users', [AuthenticatedSessionController::class, 'erpUsers'])
-                ->middleware('guest')
-                ->name('login.users');
 
 Route::get('/login/{lang?}', [AuthenticatedSessionController::class, 'showLoginForm'])
                 ->middleware('guest')

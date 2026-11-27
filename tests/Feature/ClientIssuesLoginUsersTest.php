@@ -10,26 +10,22 @@ use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
- * Client issues — Issue 9: user-selection list on the ERP login tab.
+ * Client issues - Issue 9: user-selection list on the ERP login tab.
  *
- * - GET /login/users (public, guest) returns active, login-enabled
- *   STAFF users only — NEVER super admin, NEVER client, NEVER the
- *   company (admin) accounts — as {id, name, company, email},
- *   capped at 200, ordered by name. (Danilo 2026-11-17: the list
- *   showed company names — "abc company", "MMCEMENT, Lda" — as if
- *   they were users, with the company name repeated under itself.
- *   Company owners still log in by typing their email; the email
- *   field stays typeable.)
- *   Company name: staff resolve via their active company_user
- *   membership (is_default first), else default_company_id, else
- *   created_by — in bulk, no N+1.
- * - The login page renders the searchable list on the ERP tab; a
- *   click fills the email field and focuses the password field.
- *   No auto-login: the existing auth flow / throttling is untouched
- *   (wrong password still fails, right password still logs in).
- * - NOTE: a public user list is user-enumeration by design — the
- *   client explicitly asked for it; passwords are still verified
- *   per user.
+ * REVERSED 2026-11-27 (Riz): the public ERP user list is GONE. The
+ * login page must not list users to the public: GET /login/users no
+ * longer exists, and the ERP tab renders no user selector at all -
+ * the email field is typed by hand. A user list appears ONLY on the
+ * POS tab, and only for the company saved in the browser's
+ * localStorage (pos_remembered_company), listing only that
+ * company's POS users (see PosLoginRememberedCompanyTest and
+ * PosUsersRouteTest). The auth flow / throttling is untouched
+ * (wrong password still fails, right password still logs in).
+ *
+ * (History: the list was added 2026-11-17 at the client's request -
+ * staff only, never super admin/client/company accounts, capped at
+ * 200. The client then reported the public list as wrong: it must
+ * not be public, only the remembered company's users.)
  */
 class ClientIssuesLoginUsersTest extends TestCase
 {
@@ -80,84 +76,44 @@ class ClientIssuesLoginUsersTest extends TestCase
     }
 
     // ------------------------------------------------------------------
-    // Endpoint: scope, shape, company names
+    // No public user list: the endpoint is gone and the page has no
+    // selector. The only user list left is the POS remembered-company
+    // one (localStorage company -> only that company's POS users).
     // ------------------------------------------------------------------
 
-    public function test_login_users_endpoint_returns_staff_only_without_company_super_admin_or_client(): void
+    public function test_login_users_url_returns_no_user_list(): void
     {
-        // Unauthenticated: the endpoint is public by design.
-        $response = $this->get(route('login.users'));
+        // /login/users has no route any more. The URL now falls
+        // through to /login/{lang} and renders the login page - it
+        // must never return a JSON user list or leak user emails.
+        $response = $this->get('/login/users');
         $response->assertOk();
-        $list = $response->json();
-        $this->assertCount(3, $list);
-
-        $byEmail = collect($list)->keyBy('email');
-
-        // Staff: active membership wins over default_company_id
-        // (membership -> Acme, default -> Beta).
-        $this->assertSame('Acme Lda', $byEmail['ana@acme.co.mz']['company']);
-        $this->assertSame('Ana Sousa', $byEmail['ana@acme.co.mz']['name']);
-
-        // Accountant without a membership: default_company_id.
-        $this->assertSame('Acme Lda', $byEmail['conta@acme.co.mz']['company']);
-
-        // Staff whose `type` is a role name (Cashier, Manager, Waiter,
-        // ...) are staff too — the scope is an exclusion of super
-        // admin + client + company, not a three-type whitelist.
-        $this->assertSame('Acme Lda', $byEmail['caixa@acme.co.mz']['company']);
-        $this->assertSame('Caixa Cashier', $byEmail['caixa@acme.co.mz']['name']);
-
-        // Shape: every entry carries exactly id, name, company, email.
-        foreach ($list as $entry) {
-            $this->assertSame(['id', 'name', 'company', 'email'], array_keys($entry));
-        }
-
-        // NEVER in the list.
-        $this->assertArrayNotHasKey('superadmin@test.local', $byEmail);
-        $this->assertArrayNotHasKey('client@test.local', $byEmail);
-        $this->assertArrayNotHasKey('disabled@test.local', $byEmail);
-        $this->assertArrayNotHasKey('nologin@test.local', $byEmail);
-        // Company (admin) accounts are not users in this list: their
-        // name IS the company name, so they showed up as "Acme Lda /
-        // Acme Lda" rows. Owners log in by typing their email.
-        $this->assertArrayNotHasKey('acme@test.local', $byEmail);
-        $this->assertArrayNotHasKey('beta@test.local', $byEmail);
-        // A company owner whose `type` is a role name, not "company"
-        // (live Digitizal owner: type Cashier, default_company_id =
-        // own id) is still its own company — excluded by the
-        // self-company rule, not by type.
-        $this->assertArrayNotHasKey('digitizal@test.local', $byEmail);
+        $response->assertDontSee('ana@acme.co.mz');
+        $response->assertDontSee('conta@acme.co.mz');
+        $response->assertDontSee('caixa@acme.co.mz');
+        $response->assertDontSee('erp-user-select');
+        $this->assertStringNotContainsString('application/json', $response->headers->get('Content-Type', ''));
     }
 
-    // ------------------------------------------------------------------
-    // Login page renders the list + the fill wiring; POS tab unchanged
-    // ------------------------------------------------------------------
-
-    public function test_login_page_renders_user_selection_list(): void
+    public function test_login_page_has_no_public_user_selection_list(): void
     {
         $response = $this->get(route('login'));
         $response->assertOk();
 
-        // ERP tab: search input, list container, email/password ids.
-        $response->assertSee('erp-user-select');
-        $response->assertSee('erp-user-search');
-        $response->assertSee('erp-user-list');
-        $response->assertSee('Select User');
-        $response->assertSee('Search users');
+        // ERP tab: no selector at all - the email field is typed.
+        $response->assertDontSee('erp-user-select');
+        $response->assertDontSee('erp-user-search');
+        $response->assertDontSee('erp-user-list');
+        // NOTE: 'Select User' still appears on the page, but only as
+        // the POS remembered-company selector's label/placeholder —
+        // that is the kept, company-scoped list, not the public one.
+        $response->assertDontSee('Search users');
+        $response->assertDontSee('erp-user-item');
         $response->assertSee('erp-login-email');
         $response->assertSee('erp-login-password');
-
-        // The list is fetched from the public endpoint and a click
-        // fills the email field + focuses the password field.
-        // (JS assertions with escaping off: the quotes are literal.)
-        $response->assertSee(route('login.users'));
-        $response->assertSee('erp-user-item');
-        $response->assertSee("erpEmailInput.value = item.getAttribute('data-email')", false);
-        $response->assertSee('erpPasswordInput.focus()', false);
-
-        // The email field stays a plain typeable input (no JS needed
-        // to type) and the POS tab is untouched.
         $response->assertSee('Email / User');
+
+        // The POS remembered-company selector is untouched.
         $response->assertSee('pos-remembered-user');
     }
 
