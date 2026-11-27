@@ -241,6 +241,22 @@ class RolePermissionUiCatalog
             'pos',
             'barcode',
             'pos production',
+            // Kitchen Production: the action permissions (manage kitchen
+            // production, create/approve kitchen recipes, ...) were missing
+            // from every tab of the Roles edit screen, so a role could only
+            // ever get the menu-visibility checkboxes and every kitchen page
+            // denied access. The partial only renders a checkbox when the
+            // generated name exists in the permission map, so these modules
+            // add exactly the 13 kitchen action permissions — nothing else.
+            'kitchen production',
+            'kitchen recipes',
+            'kitchen production orders',
+            'kitchen production plans',
+            'kitchen requisitions',
+            'kitchen losses',
+            'kitchen reports',
+            'kitchen buffets',
+            'kitchen daily specials',
         ];
     }
 
