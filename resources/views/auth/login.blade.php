@@ -477,18 +477,6 @@
                         @endif
     
                         {{ Form::close() }}
-
-                        {{-- ERP user list: pick a user to fill the email
-                             field (the password is still typed by hand).
-                             Loaded from the public login.users endpoint;
-                             without JS the email field stays typeable. --}}
-                        <div class="erp-user-select mt-4" id="erp-user-select">
-                            <label class="form-label mb-2" for="erp-user-search">{{ __('Select User') }}</label>
-                            <input type="search" id="erp-user-search" class="form-control" placeholder="{{ __('Search users') }}" autocomplete="off">
-                            <ul id="erp-user-list" class="list-group mt-2" style="max-height: 220px; overflow-y: auto;"></ul>
-                            <p id="erp-user-empty" class="text-muted small mt-2 mb-0" style="display:none">{{ __('No users found') }}</p>
-                            <p id="erp-user-error" class="text-muted small mt-2 mb-0" style="display:none">{{ __('Could not load users. Type your email instead.') }}</p>
-                        </div>
                         </div>
 
                         <div id="login-panel-pos" class="login-panel {{ $activeLoginTab === 'pos' ? 'active' : '' }}">
@@ -643,79 +631,6 @@
                     button.classList.add('active');
                 });
             });
-
-            // ERP user list: fetch once, filter client-side, click fills
-            // the email field and focuses the password field. No
-            // auto-login — the user still types their password and
-            // submits the form. Without JS (or if the fetch fails) the
-            // email field stays typeable and the list stays empty.
-            var erpUserSearch = document.getElementById('erp-user-search');
-            var erpUserList = document.getElementById('erp-user-list');
-            var erpUserEmpty = document.getElementById('erp-user-empty');
-            var erpUserError = document.getElementById('erp-user-error');
-            var erpEmailInput = document.getElementById('erp-login-email');
-            var erpPasswordInput = document.getElementById('erp-login-password');
-            var erpUsers = [];
-
-            function renderErpUsers() {
-                if (!erpUserList) { return; }
-                var q = (erpUserSearch ? erpUserSearch.value : '').trim().toLowerCase();
-                erpUserList.innerHTML = '';
-                var shown = 0;
-                erpUsers.forEach(function (u) {
-                    var hay = ((u.name || '') + ' ' + (u.company || '') + ' ' + (u.email || '')).toLowerCase();
-                    if (q && hay.indexOf(q) === -1) { return; }
-                    var li = document.createElement('li');
-                    li.className = 'list-group-item erp-user-item';
-                    li.setAttribute('role', 'button');
-                    li.setAttribute('tabindex', '0');
-                    li.setAttribute('data-email', u.email || '');
-                    var name = document.createElement('strong');
-                    name.textContent = u.name || u.email;
-                    li.appendChild(name);
-                    if (u.company) {
-                        var comp = document.createElement('span');
-                        comp.className = 'text-muted d-block small';
-                        comp.textContent = u.company;
-                        li.appendChild(comp);
-                    }
-                    erpUserList.appendChild(li);
-                    shown++;
-                });
-                if (erpUserEmpty) { erpUserEmpty.style.display = shown === 0 ? '' : 'none'; }
-            }
-
-            function fillErpEmailFromItem(item) {
-                if (!item || !erpEmailInput) { return; }
-                erpEmailInput.value = item.getAttribute('data-email') || '';
-                if (erpPasswordInput) { erpPasswordInput.focus(); }
-            }
-
-            if (erpUserList) {
-                fetch('{{ route('login.users') }}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                    .then(function (r) { return r.json(); })
-                    .then(function (users) {
-                        erpUsers = users || [];
-                        renderErpUsers();
-                    })
-                    .catch(function () {
-                        if (erpUserError) { erpUserError.style.display = ''; }
-                    });
-
-                if (erpUserSearch) {
-                    erpUserSearch.addEventListener('input', renderErpUsers);
-                }
-                erpUserList.addEventListener('click', function (e) {
-                    fillErpEmailFromItem(e.target.closest('.erp-user-item'));
-                });
-                erpUserList.addEventListener('keydown', function (e) {
-                    if (e.key !== 'Enter' && e.key !== ' ') { return; }
-                    var item = e.target.closest('.erp-user-item');
-                    if (!item) { return; }
-                    e.preventDefault();
-                    fillErpEmailFromItem(item);
-                });
-            }
 
             // Remembered company (browser localStorage only, never email
             // or PIN): id + name only. The server re-validates user + PIN
