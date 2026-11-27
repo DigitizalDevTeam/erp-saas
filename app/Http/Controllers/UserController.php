@@ -1055,6 +1055,22 @@ class UserController extends Controller
     {
         $user = User::find($id);
         if ($user && auth()->check()) {
+            $actor = $request->user();
+
+            // Super admin may log in as anyone. A company admin may only
+            // log in as a user from their own company — exactly the users
+            // their Users list shows. Anyone else gets no impersonation.
+            if ($actor->type !== 'super admin') {
+                if ($actor->type !== 'company') {
+                    return redirect()->back()->with('error', __('Permission denied.'));
+                }
+
+                $companyId = $this->resolveActiveCompanyId($actor);
+                if (! $this->usersForCompany($companyId)->contains('id', (int) $user->id)) {
+                    return redirect()->back()->with('error', __('Permission denied.'));
+                }
+            }
+
             if ($user->type === 'company') {
                 session(['active_company_id' => (int) $user->id]);
             }

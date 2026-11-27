@@ -95,6 +95,14 @@
                                         </a>
                                     @endif
 
+                                    @if (Auth::user()->type == 'company')
+                                        <a href="{{ route('login.with.company', $user->id) }}" class="dropdown-item"
+                                            data-bs-original-title="{{ __('Login as User') }}">
+                                            <i class="ti ti-replace"></i>
+                                            <span> {{ __('Login as User') }}</span>
+                                        </a>
+                                    @endif
+
                                     @if (empty($user->email_verified_at))
                                         {!! Form::open([
                                             'method' => 'POST',
